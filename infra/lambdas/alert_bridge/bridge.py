@@ -71,6 +71,13 @@ KINDS: dict[str, str] = {
     "ec2_stopped_paused": "handover.md",
     "ec2_stopped_server_budget": "server-budget.md",
     "ec2_stopped_by_author": "handover.md",
+    # Group 9's review A (I3): the laptop's loop's failed stop, published through the Author's stop profile.
+    "handover_stop_failed": "handover.md",
+    # Group 9 (P-I6; ADR 0048; contracts/handover.md §4, amended): the guard's stop outside the hours, its stop of a
+    # second tagged instance, and its own failure.
+    "ec2_stopped_outside_hours": "ec2.md",
+    "ec2_unrecognised_instance": "ec2.md",
+    "ec2_guard_failed": "ec2.md",
     "spot_interruption": "spot-interruption.md",
     "deploy_rolled_back": "deploy.md",
     "deploy_rollback_failed": "deploy.md",
@@ -83,6 +90,8 @@ KINDS: dict[str, str] = {
 REASONS: dict[str, dict[str, str]] = {
     "ec2_start_refused": {
         "paused": "handover.md",
+        # Group 9 (P-I6; ADR 0048): outside EC2's hours.
+        "outside_hours": "handover.md",
         "server_budget_stopped": "handover.md",
         "laptop_serving": "handover.md",
         "start_failed": "handover.md",

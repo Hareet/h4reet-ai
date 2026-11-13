@@ -1,8 +1,9 @@
 # Prod's identities (spec 001 FR-012; research.md R-15; the plan's question 7, provisional). The tunnel end's,
 # h4-prod-tunnel-end: its instance role, which its host services use through IMDSv2 alone, with one hop, so no container
 # on it reaches the role. Every grant names its target by a name-built ARN, since this root reads nothing another root
-# makes (plan.md §16). Group 9 adds the dashboard's reads. Group 6 adds the shared state's (P-I7): the two role
-# passwords of /h4reet/ec2/ its roles target sets, and the hourly backup's put. Group 7 adds EC2's two (P-I4), below.
+# makes (plan.md §16). Group 9 adds the dashboard's reads and the public view's one key (P-I6). Group 6 adds the shared
+# state's (P-I7): the two role passwords of /h4reet/ec2/ its roles target sets, and the hourly backup's put. Group 7
+# adds EC2's two (P-I4), below.
 # The budget actions' execution roles are killswitch.tf's. Protected (FR-012; rule T5): it changes only by the
 # Author's patch.
 
@@ -62,7 +63,8 @@ data "aws_iam_policy_document" "tunnel_end" {
   # write_env.py's reads at boot: its own path, and the hosts' shared one (the release bucket's name). And the shared
   # state's (group 6; contracts/shared-state.md §2, §3): its TLS key and certificate under its own path, and the two
   # role passwords of /h4reet/ec2/ its roles target sets, by name. Nothing else of EC2's: a tunnel end that holds the
-  # store's superuser gains nothing from those two.
+  # store's superuser gains nothing from those two. And, from group 9 (P-I6), the autostart switch, a String, for the
+  # dashboard (plan.md §11).
   statement {
     sid     = "ItsParameters"
     effect  = "Allow"
@@ -72,6 +74,7 @@ data "aws_iam_policy_document" "tunnel_end" {
       "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/hosts/*",
       "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/ec2/DB_GATEWAY_PASSWORD",
       "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/ec2/DB_GRAFANA_RO_PASSWORD",
+      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/ec2-autostart",
     ]
   }
 
@@ -98,6 +101,7 @@ data "aws_iam_policy_document" "tunnel_end" {
         "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/hosts/*",
         "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/ec2/DB_GATEWAY_PASSWORD",
         "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/ec2/DB_GRAFANA_RO_PASSWORD",
+        "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/ec2-autostart",
       ]
     }
   }
@@ -179,11 +183,52 @@ data "aws_iam_policy_document" "tunnel_end" {
   # The shared state's hourly backup (group 6; contracts/shared-state.md §1): its one prefix, put only. Nothing that
   # reads, lists, or deletes there, so a compromised tunnel end can't read a dump; a restore's GET is presigned in the
   # Author's terminal (§8).
+  #
+  # From group 9 (P-I6; research.md R-15; contracts/public-view.md §2), the sink's one key too: the public view's
+  # document, site/status/latest.json in the site's bucket, put only, which group 10's sink writes.
   statement {
-    sid       = "PutTheBackups"
+    sid    = "PutTheBackupsAndThePublicViewsDocument"
+    effect = "Allow"
+    actions = [
+      "s3:PutObject",
+    ]
+    resources = [
+      "${aws_s3_bucket.shared_state_backups.arn}/dumps/*",
+      "${aws_s3_bucket.site.arn}/site/status/latest.json",
+    ]
+  }
+
+  # The sink's cloud reads for the dashboard (group 9, P-I6; plan.md §11; contracts/public-view.md §2; research.md
+  # R-15): EC2's state and its spot request's, which EC2's describe calls give with no narrower resource; the health
+  # check's status, prod's own; the server budget's month and its action's status, by the budget's name; and the two
+  # functions' outcome counts, from their embedded metrics, which CloudWatch's GetMetricData gives with no narrower
+  # resource either. All reads.
+  statement {
+    sid    = "TheDashboardsEC2Reads"
+    effect = "Allow"
+    actions = [
+      "ec2:DescribeInstances",
+      "ec2:DescribeSpotInstanceRequests",
+      "cloudwatch:GetMetricData",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "TheHealthChecksStatus"
     effect    = "Allow"
-    actions   = ["s3:PutObject"]
-    resources = ["${aws_s3_bucket.shared_state_backups.arn}/dumps/*"]
+    actions   = ["route53:GetHealthCheckStatus"]
+    resources = ["arn:aws:route53:::healthcheck/${aws_route53_health_check.laptop.id}"]
+  }
+
+  statement {
+    sid    = "TheServerBudget"
+    effect = "Allow"
+    actions = [
+      "budgets:ViewBudget",
+      "budgets:DescribeBudgetActionsForBudget",
+    ]
+    resources = ["arn:aws:budgets::${data.aws_caller_identity.current.account_id}:budget/h4-server-month"]
   }
 }
 
@@ -191,6 +236,27 @@ resource "aws_iam_role_policy" "tunnel_end" {
   name   = "tunnel-end"
   role   = aws_iam_role.tunnel_end.id
   policy = data.aws_iam_policy_document.tunnel_end.json
+}
+
+# T170 (the Author's answers "1b A" and "Only /status/ (Recommended)"): EC2's hours for the public view, read from the
+# two schedules local.ec2_hours sets in the account's root, by their name-built ARNs, so that local stays their one
+# source. A read, in a policy of its own beside the role's main one.
+data "aws_iam_policy_document" "tunnel_end_hours" {
+  statement {
+    sid     = "TheHoursSchedules"
+    effect  = "Allow"
+    actions = ["scheduler:GetSchedule"]
+    resources = [
+      "arn:aws:scheduler:us-east-1:${data.aws_caller_identity.current.account_id}:schedule/default/h4-ec2-hours-open",
+      "arn:aws:scheduler:us-east-1:${data.aws_caller_identity.current.account_id}:schedule/default/h4-ec2-hours-close",
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "tunnel_end_hours" {
+  name   = "tunnel-end-hours"
+  role   = aws_iam_role.tunnel_end.id
+  policy = data.aws_iam_policy_document.tunnel_end_hours.json
 }
 
 # ----------------------------------------------------------------------------------------------------------------------

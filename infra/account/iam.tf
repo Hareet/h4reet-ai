@@ -1,8 +1,9 @@
 # The account's identities (spec 001 FR-012, FR-013, FR-023; research.md R-15; contracts/aws-alerts.md §4): the
 # laptop's Bedrock permission set, imported from spec 000's hand-made one and narrowed; h4-laptop-bedrock, the ordinary
 # role it assumes, which holds Bedrock and takes the model action's deny; h4-rehearsal-target, a role of the same shape
-# for the rehearsal; and the three functions' roles. Protected (FR-012; rule T5): it changes only by the Author's patch.
-# Nothing here changes at run time (FR-070).
+# for the rehearsal; the three functions' roles; and, from group 9 (P-I6), the handover's: the start function's and the
+# guard's roles, the hours' schedules' role, and the Author's stop of EC2. Protected (FR-012; rule T5): it changes only
+# by the Author's patch. Nothing here changes at run time (FR-070).
 
 # ----------------------------------------------------------------------------------------------------------------------
 # The laptop's Bedrock permission set (row F2): imported, then holding nothing but sts:AssumeRole on h4-laptop-bedrock.
@@ -361,4 +362,271 @@ resource "aws_iam_role_policy" "credential_audit" {
   name   = "credential-audit"
   role   = aws_iam_role.credential_audit.id
   policy = data.aws_iam_policy_document.credential_audit.json
+}
+
+# ----------------------------------------------------------------------------------------------------------------------
+# The handover's identities (group 9, P-I6; research.md R-15, amended; contracts/handover.md §3, §4, §7; ADR 0048). Each
+# reads by name: the autostart switch's and EC2's ID's parameters by their paths, the server action's status by its
+# budget's name, and the laptop's serving from the alarm h4-laptop-away by its name-built ARN, never a Route 53 health
+# check, which IAM can't scope by tag and whose ID is prod's. EC2's start or stop holds only for an instance tagged
+# Name = h4-prod-ec2, the condition the credential audit reads (infra/lambdas/credential_audit/audit.py's
+# HANDOVER_ROLES and HANDOVER_SETS). W1's: none needs another root, and the functions arrive with W2's digests.
+
+# h4-ec2-start-fn: the start of the tagged instance, and the reads of its six checks.
+resource "aws_iam_role" "ec2_start" {
+  name               = "h4-ec2-start-fn"
+  path               = "/"
+  description        = "h4-ec2-start: its checks' reads, the start of the tagged instance, its alert"
+  assume_role_policy = data.aws_iam_policy_document.lambda_trust.json
+
+  tags = {
+    component = "handover"
+  }
+}
+
+data "aws_iam_policy_document" "ec2_start" {
+  statement {
+    sid       = "ItsLog"
+    effect    = "Allow"
+    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.ec2_start.arn}:*"]
+  }
+
+  statement {
+    sid     = "TheSwitchAndEC2sID"
+    effect  = "Allow"
+    actions = ["ssm:GetParameter"]
+    resources = [
+      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/ec2-autostart",
+      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/ec2-instance-id",
+    ]
+  }
+
+  statement {
+    sid       = "TheServerActionsStatus"
+    effect    = "Allow"
+    actions   = ["budgets:DescribeBudgetActionsForBudget"]
+    resources = ["arn:aws:budgets::${data.aws_caller_identity.current.account_id}:budget/h4-server-month"]
+  }
+
+  # The tunnel end's state, by its tag, and EC2's tag before the start. EC2's describe calls take no narrower resource.
+  statement {
+    sid       = "TheInstancesStates"
+    effect    = "Allow"
+    actions   = ["ec2:DescribeInstances"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "TheLaptopsAlarm"
+    effect    = "Allow"
+    actions   = ["cloudwatch:DescribeAlarms"]
+    resources = ["arn:aws:cloudwatch:us-east-1:${data.aws_caller_identity.current.account_id}:alarm:h4-laptop-away"]
+  }
+
+  statement {
+    sid       = "StartTheTaggedInstance"
+    effect    = "Allow"
+    actions   = ["ec2:StartInstances"]
+    resources = ["arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:instance/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:ResourceTag/Name"
+      values   = ["h4-prod-ec2"]
+    }
+  }
+
+  statement {
+    sid       = "ItsAlerts"
+    effect    = "Allow"
+    actions   = ["sns:Publish"]
+    resources = [data.aws_sns_topic.alerts.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "ec2_start" {
+  name   = "ec2-start"
+  role   = aws_iam_role.ec2_start.id
+  policy = data.aws_iam_policy_document.ec2_start.json
+}
+
+# h4-ec2-guard-fn: the stop of any instance tagged h4-prod-ec2, so it can stop one it doesn't recognise (the regrouping
+# note's question 10), and the reads of its table. It may start nothing.
+resource "aws_iam_role" "ec2_guard" {
+  name               = "h4-ec2-guard-fn"
+  path               = "/"
+  description        = "h4-ec2-guard: its table's reads, the stop of a tagged instance, its alert"
+  assume_role_policy = data.aws_iam_policy_document.lambda_trust.json
+
+  tags = {
+    component = "handover"
+  }
+}
+
+data "aws_iam_policy_document" "ec2_guard" {
+  statement {
+    sid       = "ItsLog"
+    effect    = "Allow"
+    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.ec2_guard.arn}:*"]
+  }
+
+  statement {
+    sid     = "TheSwitchAndEC2sID"
+    effect  = "Allow"
+    actions = ["ssm:GetParameter"]
+    resources = [
+      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/ec2-autostart",
+      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/ec2-instance-id",
+    ]
+  }
+
+  statement {
+    sid       = "TheServerActionsStatus"
+    effect    = "Allow"
+    actions   = ["budgets:DescribeBudgetActionsForBudget"]
+    resources = ["arn:aws:budgets::${data.aws_caller_identity.current.account_id}:budget/h4-server-month"]
+  }
+
+  statement {
+    sid       = "TheTaggedInstances"
+    effect    = "Allow"
+    actions   = ["ec2:DescribeInstances"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "TheLaptopsAlarm"
+    effect    = "Allow"
+    actions   = ["cloudwatch:DescribeAlarms"]
+    resources = ["arn:aws:cloudwatch:us-east-1:${data.aws_caller_identity.current.account_id}:alarm:h4-laptop-away"]
+  }
+
+  statement {
+    sid       = "StopATaggedInstance"
+    effect    = "Allow"
+    actions   = ["ec2:StopInstances"]
+    resources = ["arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:instance/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:ResourceTag/Name"
+      values   = ["h4-prod-ec2"]
+    }
+  }
+
+  statement {
+    sid       = "ItsAlerts"
+    effect    = "Allow"
+    actions   = ["sns:Publish"]
+    resources = [data.aws_sns_topic.alerts.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "ec2_guard" {
+  name   = "ec2-guard"
+  role   = aws_iam_role.ec2_guard.id
+  policy = data.aws_iam_policy_document.ec2_guard.json
+}
+
+# h4-ec2-hours: the hours' two schedules (handover.tf; ADR 0048, decision 2) invoke through it. It may invoke the two
+# functions by their name-built ARNs, and nothing else; EventBridge Scheduler alone, for this account, may assume it.
+data "aws_iam_policy_document" "ec2_hours_trust" {
+  statement {
+    sid     = "SchedulerForThisAccount"
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["scheduler.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+}
+
+resource "aws_iam_role" "ec2_hours" {
+  name               = "h4-ec2-hours"
+  path               = "/"
+  description        = "EC2's hours: the two schedules' invocations of h4-ec2-start and h4-ec2-guard (ADR 0048)"
+  assume_role_policy = data.aws_iam_policy_document.ec2_hours_trust.json
+
+  tags = {
+    component = "handover"
+  }
+}
+
+data "aws_iam_policy_document" "ec2_hours" {
+  statement {
+    sid     = "TheTwoFunctions"
+    effect  = "Allow"
+    actions = ["lambda:InvokeFunction"]
+    resources = [
+      "arn:aws:lambda:us-east-1:${data.aws_caller_identity.current.account_id}:function:h4-ec2-start",
+      "arn:aws:lambda:us-east-1:${data.aws_caller_identity.current.account_id}:function:h4-ec2-guard",
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "ec2_hours" {
+  name   = "ec2-hours"
+  role   = aws_iam_role.ec2_hours.id
+  policy = data.aws_iam_policy_document.ec2_hours.json
+}
+
+# The Author's stop of EC2 (contracts/handover.md §6 and §7; research.md R-15, question 16's default): a permission set
+# of its own, which his laptop's h4-handover loop and his stop target use through his SSO session. The stop of a tagged
+# instance, the describe call, and the stop's alert, ec2_stopped_by_author. W1's, since its policy is on the tag, so his
+# stop works before the functions exist (plan.md §16, "Between W1's applies and W2's"). Its assignment to his user is
+# his, by hand in IAM Identity Center, as the laptop's was (tasks.md T173); nothing here names a user.
+resource "aws_ssoadmin_permission_set" "ec2_stop" {
+  name             = "h4-ec2-stop"
+  instance_arn     = tolist(data.aws_ssoadmin_instances.this.arns)[0]
+  description      = "Stop EC2, the instance tagged h4-prod-ec2, and say so (spec 001 contracts/handover.md §7)"
+  session_duration = "PT1H"
+
+  tags = {
+    component = "handover"
+  }
+}
+
+data "aws_iam_policy_document" "ec2_stop" {
+  statement {
+    sid       = "StopTheTaggedInstance"
+    effect    = "Allow"
+    actions   = ["ec2:StopInstances"]
+    resources = ["arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:instance/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:ResourceTag/Name"
+      values   = ["h4-prod-ec2"]
+    }
+  }
+
+  statement {
+    sid       = "ItsState"
+    effect    = "Allow"
+    actions   = ["ec2:DescribeInstances"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "ItsAlert"
+    effect    = "Allow"
+    actions   = ["sns:Publish"]
+    resources = [data.aws_sns_topic.alerts.arn]
+  }
+}
+
+resource "aws_ssoadmin_permission_set_inline_policy" "ec2_stop" {
+  instance_arn       = tolist(data.aws_ssoadmin_instances.this.arns)[0]
+  permission_set_arn = aws_ssoadmin_permission_set.ec2_stop.arn
+  inline_policy      = data.aws_iam_policy_document.ec2_stop.json
 }

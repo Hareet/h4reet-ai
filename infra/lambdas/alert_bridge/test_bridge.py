@@ -213,6 +213,30 @@ NOTICES: dict[str, str] = {
         "ec2_stopped_server_budget", "EC2 stopped: the server action has run"
     ),
     "ec2_stopped_by_author": ours("ec2_stopped_by_author", "EC2 stopped by hand"),
+    # Group 9's review A (I3): the laptop's loop's failed stop, in deploy/scripts/handover.py's own form.
+    "handover_stop_failed": ours(
+        "handover_stop_failed",
+        "the laptop's loop couldn't stop EC2; the laptop keeps serving and retries each minute",
+        "- step: stop",
+        "- code: ExpiredToken",
+    ),
+    # Group 9 (P-I6): the hours, and the guard's second instance and its own failure.
+    "ec2_start_refused outside_hours": ours(
+        "ec2_start_refused (outside_hours)", "EC2 not started", "- trigger: alarm"
+    ),
+    "ec2_stopped_outside_hours": ours(
+        "ec2_stopped_outside_hours", "EC2 stopped: outside its hours"
+    ),
+    "ec2_unrecognised_instance": ours(
+        "ec2_unrecognised_instance",
+        "a second instance tagged h4-prod-ec2 stopped",
+        "- instance: i-0abc",
+    ),
+    "ec2_guard_failed": ours(
+        "ec2_guard_failed",
+        "the guard couldn't act; EC2 left as it is",
+        "- unread: ParameterNotFound",
+    ),
     "spot_interruption": event_notice(
         "EC2 Spot Instance Interruption Warning",
         "aws.ec2",
