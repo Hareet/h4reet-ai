@@ -1519,3 +1519,97 @@ def test_a_cloud_image_on_a_laptop_profile_is_refused(tmp_path: Path) -> None:
 
 def test_the_tunnel_ends_env_file_is_rendered_too() -> None:
     assert ("prod", "deploy/hosts/tunnel-end/tunnel-end.env.example") in cp.ENV_FILES
+
+
+# Group 6 (spec 001 tasks.md T163; contracts/shared-state.md §1): the tunnel end's shared state, gateway-state's Postgres
+# copied to its own repository, publishing exactly 5432 on the private interface's fixed address, binding its key and
+# certificate read-only and its data writable, and nothing else.
+# The copy keeps the lock's own gateway-state line, the tag and digest the laptop's store runs.
+GATEWAY_STATE = LOCK["gateway-state"]
+SHARED_LOCK = CLOUD_LOCK
+SHARED_IMAGE = (
+    "${H4_REGISTRY:-registry.invalid}/h4reet/shared-state:"
+    + f"{GATEWAY_STATE.tag}@{GATEWAY_STATE.digest}"
+)
+
+
+def shared_model() -> dict:
+    model = tunnel_model()
+    model["services"]["shared-state"] = service(
+        profiles=["tunnel-end"],
+        image=SHARED_IMAGE,
+        networks={"internal": None, "edge": None},
+        ports=[
+            {
+                "host_ip": "10.42.1.10",
+                "mode": "ingress",
+                "protocol": "tcp",
+                "published": "5432",
+                "target": 5432,
+            }
+        ],
+        volumes=[
+            {
+                "type": "bind",
+                "source": "/run/h4reet/shared-state",
+                "target": "/run/shared-state",
+                "read_only": True,
+            },
+            {
+                "type": "bind",
+                "source": "/srv/h4reet/shared-state",
+                "target": "/var/lib/postgresql/data",
+            },
+        ],
+    )
+    return model
+
+
+def shared_rules(model: dict, tree: Path) -> set[tuple[str, str]]:
+    found = cp.check_model(model, SHARED_LOCK, tree, TUNNEL_DISCLOSED | {"shared-state"})
+    return {(f.where.rsplit(" ", 1)[-1], f.rule) for f in found}
+
+
+def test_the_shared_state_passes(tmp_path: Path) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    assert shared_rules(shared_model(), tmp_path) == set()
+
+
+def test_the_shared_state_publishes_5432_on_the_private_address_alone(tmp_path: Path) -> None:
+    for ports in (
+        ["0.0.0.0:5432:5432"],
+        ["10.42.0.10:5432:5432"],
+        ["10.42.1.10:5432:5432", "10.42.1.10:5433:5433"],
+    ):
+        model = shared_model()
+        model["services"]["shared-state"]["ports"] = ports
+        assert ("shared-state", "ports") in shared_rules(model, tmp_path), ports
+
+
+def test_the_shared_states_key_binds_read_only_and_its_data_alone_writable(tmp_path: Path) -> None:
+    model = shared_model()
+    model["services"]["shared-state"]["volumes"][0]["read_only"] = False
+    assert ("shared-state", "binds") in shared_rules(model, tmp_path)
+    model = shared_model()
+    model["services"]["shared-state"]["volumes"][1]["source"] = "/srv/h4reet/other"
+    assert ("shared-state", "binds") in shared_rules(model, tmp_path)
+    model = shared_model()
+    model["services"]["tunnel-end"]["volumes"].append(
+        {"type": "bind", "source": "/srv/h4reet/shared-state", "target": "/x"}
+    )
+    assert ("tunnel-end", "binds") in shared_rules(model, tmp_path)
+
+
+def test_the_shared_state_runs_gateway_states_digest_from_its_own_repository(tmp_path: Path) -> None:
+    model = shared_model()
+    model["services"]["shared-state"]["image"] = SHARED_IMAGE.replace(GATEWAY_STATE.digest, "sha256:" + "f" * 64)
+    assert ("shared-state", "image") in shared_rules(model, tmp_path)
+    model = shared_model()
+    model["services"]["shared-state"]["image"] = SHARED_IMAGE.replace("/shared-state:", "/gateway-state:")
+    assert ("shared-state", "image") in shared_rules(model, tmp_path)
+
+
+def test_the_shared_state_never_joins_egress(tmp_path: Path) -> None:
+    model = shared_model()
+    model["services"]["shared-state"]["networks"] = {"internal": None, "egress": None}
+    assert ("shared-state", "networks") in shared_rules(model, tmp_path)

@@ -16,7 +16,8 @@ and refuses, in what compose rendered:
     profile;
   - binds outside ${H4_TREE}/deploy, ${H4_TREE}/config, ${H4_MODEL_DIR}, ${H4_STATE_DIR}/gateway, and ${H4_AWS_DIR}, or
     writable outside ${H4_STATE_DIR}/gateway, but for the one read-only bind each of spec 001's tunnel's ends takes
-    (SERVICE_BINDS); a volume that isn't a declared, local named volume;
+    (SERVICE_BINDS), and the shared state's data, writable, from group 6; a volume that isn't a declared, local named
+    volume;
   - ports on any service but edge, or on anything but the literal 127.0.0.1, but for the tunnel end's two, exactly,
     on its public interface's fixed address (CLOUD_PORTS);
   - the egress network on any service but gateway, spec 001's laptop tunnel, and the tunnel end's collector; the edge
@@ -101,7 +102,9 @@ EGRESS_SERVICE = "gateway"
 # nftables keep both there). The edge network's other one: the tunnel end's sshd, since a port can't be published from
 # internal alone.
 EGRESS_SERVICES = frozenset({EGRESS_SERVICE, "tunnel", "tunnel-end-collector"})
-EDGE_NETWORK_SERVICES = frozenset({PUBLISHER, "tunnel-end"})
+# From group 6, the tunnel end's shared state too, which publishes on the private interface (its contracts/shared-
+# state.md §1).
+EDGE_NETWORK_SERVICES = frozenset({PUBLISHER, "tunnel-end", "shared-state"})
 # The cloud hosts' classes: the profiles whose services run on a cloud host alone, which no laptop stack selects.
 CLOUD_PROFILES = frozenset({"tunnel-end"})
 # What a cloud class's service publishes, exactly (host address, published port, container port): the tunnel end's
@@ -110,13 +113,18 @@ CLOUD_PORTS = {
     "tunnel-end": frozenset(
         {("10.42.0.10", "2222", 2222), ("10.42.0.10", "8087", 2203)}
     ),
+    # The shared state's 5432, on the private interface's fixed address alone, which the security group holds to EC2.
+    "shared-state": frozenset({("10.42.1.10", "5432", 5432)}),
 }
-# The one bind each of the tunnel's ends takes, read-only: the laptop's client key and pinned host key, which the
-# Author's tunnel-keys target leaves under ~/.config/h4reet-ai/tunnel/ (prod's H4_TUNNEL_DIR), and the tunnel end's host
-# key and authorized key, which write_env.py writes to tmpfs at boot.
-SERVICE_BINDS = {
-    "tunnel": "${H4_TUNNEL_DIR}",
-    "tunnel-end": "/run/h4reet/tunnel-end/keys",
+# The binds each of spec 001's services takes outside BIND_ROOTS, each read-only but where it says writable: the
+# laptop's client key and pinned host key, which the Author's tunnel-keys target leaves under
+# ~/.config/h4reet-ai/tunnel/ (prod's H4_TUNNEL_DIR); the tunnel end's host key and authorized key, which write_env.py
+# writes to tmpfs at boot; and, from group 6, the shared state's key and certificate on tmpfs, read-only, and its data,
+# the data volume's mount, its one writable bind (deploy/hosts/tunnel-end/shared_state.py).
+SERVICE_BINDS: dict[str, dict[str, bool]] = {
+    "tunnel": {"${H4_TUNNEL_DIR}": False},
+    "tunnel-end": {"/run/h4reet/tunnel-end/keys": False},
+    "shared-state": {"/run/h4reet/shared-state": False, "/srv/h4reet/shared-state": True},
 }
 # A cloud class's images, from the account's registry (the release's ECR repositories; spec 001 contracts/releases-
 # deployer.md §1). An image the release builds runs by the release's digest, which the deployer writes to the
@@ -124,7 +132,13 @@ SERVICE_BINDS = {
 # line of the service it copies, by the repository's name.
 REGISTRY = "${H4_REGISTRY:-registry.invalid}/h4reet/"
 RELEASE_IMAGES = {"tunnel-end": "tunnel"}
-UPSTREAM_COPIES = {"tunnel-end-collector": "otel-collector"}
+UPSTREAM_COPIES = {
+    "tunnel-end-collector": "otel-collector",
+    # Group 6: the shared state runs gateway-state's Postgres, copied to a repository of its own name.
+    "shared-state": "gateway-state",
+}
+# A copy whose repository isn't its lock line's name.
+COPY_REPOSITORIES = {"shared-state": "shared-state"}
 # Spec 010 (FR-030, FR-032): prod's Anthropic API key, which compose passes to the gateway alone, from the env file.
 ANTHROPIC_KEY = "GATEWAY_ANTHROPIC_API_KEY"
 ANTHROPIC_KEY_FORM = "${GATEWAY_ANTHROPIC_API_KEY:-}"
@@ -573,8 +587,9 @@ def check_service(
             if ".." in plain.split("/"):
                 refuse("binds", f"{source} -> {target}: '..' in a bind source")
                 continue
-            if SERVICE_BINDS.get(name) == plain:
-                if not volume.get("read_only"):
+            own = SERVICE_BINDS.get(name, {})
+            if plain in own:
+                if not own[plain] and not volume.get("read_only"):
                     refuse(
                         "binds", f"{source} -> {target}: {name}'s keys bind read-only"
                     )
@@ -850,10 +865,11 @@ def cloud_image(name: str, lock: dict[str, LockEntry]) -> str:
         repository = RELEASE_IMAGES[name]
         return f"{REGISTRY}{repository}@${{H4_DIGEST_{repository.upper().replace('-', '_')}:-}}"
     upstream = UPSTREAM_COPIES[name]
+    repository = COPY_REPOSITORIES.get(name, upstream)
     entry = lock.get(upstream)
     if entry is None:
-        return f"{REGISTRY}{upstream}:<{LOCK_FILE} has no line for {upstream}>"
-    return f"{REGISTRY}{upstream}:{entry.tag}@{entry.digest}"
+        return f"{REGISTRY}{repository}:<{LOCK_FILE} has no line for {upstream}>"
+    return f"{REGISTRY}{repository}:{entry.tag}@{entry.digest}"
 
 
 def check_model(
