@@ -94,6 +94,21 @@ An instance that is gone, or a root volume that won't boot: your prod plan shows
 3. **A publisher,** on the serving host: its container's log, one word a run. `unread`: it can't reach the sink (the laptop's tunnel, or EC2's route to `10.42.1.10:2301`); `not_serving`: the relay serves another host, which is right.
 4. **Restart the write:** `sudo systemctl restart h4-snapshot-sink.service`. The document it keeps in `/var/lib/h4reet/snapshot/` holds the last host part, so a restart never empties the view.
 
+### The interfaces and the way out (T058)
+
+B-6, option C (contracts/tunnel.md §1): the private interface, `10.42.1.10`, is device 0, and the public one, `10.42.0.10` with the Elastic IP, device 1, attached once the instance runs. The first boot waits up to 5 minutes for the public interface, and as long again for its default route, before `dnf` runs. Once the first boot is done, in a `make cloud-session HOST=tunnel-end PROFILE=h4reet-admin` session:
+
+```bash
+ip -br -4 addr
+ip -4 route show default
+ip -4 route get 192.0.2.1
+```
+
+- `ens5` holds `10.42.1.10` and `ens6` holds `10.42.0.10`. If the names differ, nftables' `iifname` lines (`deploy/hosts/tunnel-end/nftables.nft`) and the drop-in's directory (`70-ens6.network.d`) are wrong: record the names; the fix is a reviewed host-file change, which replaces the tunnel end.
+- Two default routes: `ens6`'s at metric 100, from `h4-public-first.conf`, and `ens5`'s at amazon-ec2-net-utils' own, 512 for device 0. Another figure for `ens5` changes nothing while `ens6`'s is lower; record it.
+- `route get` names `dev ens6`: the host's way out is the public interface.
+- If the first boot timed out (`/var/log/cloud-init-output.log` shows `dnf` failing), the public interface wasn't attached or had no route: check the attachment in the console, then replace the tunnel end.
+
 ### A spot interruption
 
 `tunnel_end_interruption` gives two minutes. Nothing to do: the request is persistent and stops on interruption, so the instance, its volumes, its interfaces, and its Elastic IP stay, and AWS starts it again when capacity returns, with `tunnel_end_back`. Its boot starts the release it last recorded before its deployer asks the bucket. If it stays stopped for hours, the next case.

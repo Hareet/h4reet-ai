@@ -31,6 +31,7 @@ locals {
     "/etc/systemd/system/h4-deployer.timer"                        = { source = "deploy/hosts/tunnel-end/systemd/h4-deployer.timer", mode = "0644" }
     "/etc/systemd/system/h4-tunnel-restart.service"                = { source = "deploy/hosts/tunnel-end/systemd/h4-tunnel-restart.service", mode = "0644" }
     "/etc/systemd/system/amazon-ssm-agent.service.d/h4-proxy.conf" = { source = "deploy/hosts/tunnel-end/systemd/amazon-ssm-agent-proxy.conf", mode = "0644" }
+    "/etc/systemd/network/70-ens6.network.d/h4-public-first.conf"  = { source = "deploy/hosts/tunnel-end/networkd/h4-public-first.conf", mode = "0644" }
     "/opt/h4reet/deploy/scripts/write_env.py"                      = { source = "deploy/scripts/write_env.py", mode = "0755" }
     "/opt/h4reet/deploy/scripts/egress_proxy.py"                   = { source = "deploy/scripts/egress_proxy.py", mode = "0755" }
     "/opt/h4reet/deploy/scripts/deploy_first_step.py"              = { source = "deploy/scripts/deploy_first_step.py", mode = "0755" }
@@ -170,6 +171,7 @@ resource "aws_security_group" "tunnel_end_private" {
 
 # The two fixed addresses the compose file's tunnel-end class publishes on (contracts/tunnel.md §1), as literals in both
 # places, so no env file can move them; on any other host they don't exist, and Docker refuses to start the service.
+# Docker binds each port to its address, so which interface is the primary changes no port.
 resource "aws_network_interface" "tunnel_end_public" {
   subnet_id         = aws_subnet.public.id
   private_ips       = ["10.42.0.10"]
@@ -194,11 +196,15 @@ resource "aws_network_interface" "tunnel_end_private" {
   }
 }
 
-# The second interface, device 1; the public one is the instance's primary (ec2-market.tf). Both stay through a spot
-# stop, and the Elastic IP with the public one (contracts/tunnel.md §1, to confirm at T058).
-resource "aws_network_interface_attachment" "tunnel_end_private" {
+# The second interface, device 1: the public one. B-6, option C (the Author's answer: "We aren't building option A, we
+# went with Option C"): the private one is the instance's primary, device 0 (ec2-market.tf), so the instance sits in the
+# private subnet and CloudFront's VPC origin reaches 10.42.1.10, where the relay listens. The host's way out is this
+# interface's default route, which the user data's networkd drop-in puts first (h4-public-first.conf). Both stay
+# through a spot stop, and the Elastic IP with the public one, on a second interface as on a first (contracts/tunnel.md
+# §1, to confirm at T058). Attached once the instance runs, so its first boot waits for it (cloud-init.yaml.tftpl).
+resource "aws_network_interface_attachment" "tunnel_end_public" {
   instance_id          = aws_instance.tunnel_end.id
-  network_interface_id = aws_network_interface.tunnel_end_private.id
+  network_interface_id = aws_network_interface.tunnel_end_public.id
   device_index         = 1
 }
 

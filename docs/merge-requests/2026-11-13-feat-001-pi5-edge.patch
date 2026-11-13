@@ -10,9 +10,9 @@ result byte for byte (tasks.md T107, T114, T171, T172).
 What it holds (tasks.md T104, T107; contracts/edge.md; contracts/aws-alerts.md §5; plan.md §16, "Why a switch",
 "Group 8, as built"):
   - infra/prod/edge.tf, new, under spec 000's protected names (infra/*edge*): the site's origin access control and
-    the CloudFront Function that serves a folder's index.html, from W1; and behind prod's local.wired, W2's: the
-    certificate for hareet.ai and www.hareet.ai, validated by DNS; the
-    VPC origin to the relay on the tunnel end, 8080; and the distribution, with the origins `site` and `relay`,
+    the CloudFront Function that serves a folder's index.html, and the VPC origin to the relay on the tunnel end,
+    8080, each from W1; and behind prod's local.wired, W2's: the certificate for hareet.ai and www.hareet.ai,
+    validated by DNS; and the distribution, with the origins `site` and `relay`,
     /api/* uncached to the relay, 502 and 504 as 503 with /_degraded/api.json for 0 s, and no access log;
   - infra/prod/edge-limits.tf, new, rule T5: CloudFront's cache policy for the site, its managed CachingDisabled read
     for /api/*, the relay's origin-request policy (CloudFront-Viewer-Address, Content-Type, Accept, traceparent, and
@@ -26,6 +26,12 @@ What it holds (tasks.md T104, T107; contracts/edge.md; contracts/aws-alerts.md �
 Its checks, on a fresh export with P-I3, P-G1, P-G3, P-I7, P-G4, P-G2, P-I4, P-G5, P-6, this patch, and P-G6, in that
 order: infra/test (test_prod_cdn.py among them) passes with each switch off and on; `make infra-check`'s policy
 finds nothing but prod's lockfile (T10, the Author's step since group 5); terraform fmt is clean.
+Rebuilt for the Author's two answers: "Yes w1 can create the vpc origin", and for B-6, "We aren't building option A,
+we went with Option C". The VPC origin has no count, so W1 makes it and CloudFront's VPC origins' group exists before
+W2; the distribution, still behind the switch, names aws_cloudfront_vpc_origin.relay.id; edge.tf's comments say so,
+with its line count before the distribution's behaviors unchanged, so W2's P-I5b applies at its lines. Rebuilt from a
+git archive export of ef173c58 with P-I3 (as rebuilt for option C), P-G1, P-G3, P-I7, P-G4, P-G2, P-I4, P-G5, and P-6
+applied, the same way, with a/ and b/ labels.
 --- a/infra/account/alerts.tf
 +++ b/infra/account/alerts.tf
 @@ -30,15 +30,16 @@
@@ -92,9 +98,9 @@ finds nothing but prod's lockfile (T10, the Author's step since group 5); terraf
 +# Under spec 000's protected names (infra/*edge*), so it arrives as the Author's patch P-I5 (plan.md §16, "Groups 1 to
 +# 4, as one branch", 6). CloudFront's policies are edge-limits.tf's (rule T5).
 +#
-+# W1 makes the origin access control alone. Behind prod's local.wired, W2's: the certificate, which ACM issues only once
-+# the registrar's name servers point at the zone W1 makes (T115); the VPC origin to the relay on the tunnel end; and
-+# the distribution. No access log is configured, anywhere: it would store visitors' addresses (FR-042).
++# W1 makes the origin access control and the VPC origin to the relay on the tunnel end (plan.md §16, "B-6: option C,
++# and the VPC origin from W1"). Behind prod's local.wired, W2's: the certificate, issued once the registrar points at
++# the zone W1 makes (T115), and the distribution. No access log anywhere: it would store visitors' addresses (FR-042).
 +
 +# CloudFront signs its reads of the site's bucket, which only this distribution may make (site.tf's policy).
 +resource "aws_cloudfront_origin_access_control" "site" {
@@ -142,12 +148,12 @@ finds nothing but prod's lockfile (T10, the Author's step since group 5); terraf
 +}
 +
 +# The relay's origin: the tunnel end, over CloudFront's private path into the VPC, to the relay's edge listener, 8080,
-+# in HTTP inside AWS's network (contracts/edge.md §3). Which of the tunnel end's two interfaces CloudFront's VPC origin
-+# reaches is to confirm in W2's plan: the relay listens on the private one, 10.42.1.10 (plan.md §16, "Group 8, as
-+# built", 13).
++# in HTTP inside AWS's network (contracts/edge.md §3). B-6, option C: the tunnel end's primary interface is the private
++# one, 10.42.1.10, where the relay listens, so the instance sits in the private subnet, as AWS documents for a VPC
++# origin. Made in W1, unswitched (the Author's answer: "Yes w1 can create the vpc origin"); nothing sends through it
++# until W2's distribution, and the private group's 8080 admits CloudFront's origin-facing prefix list alone (plan.md
++# §16, "B-6: option C, and the VPC origin from W1").
 +resource "aws_cloudfront_vpc_origin" "relay" {
-+  count = local.wired ? 1 : 0
-+
 +  vpc_origin_endpoint_config {
 +    name                   = "h4-relay"
 +    arn                    = aws_instance.tunnel_end.arn
@@ -191,7 +197,7 @@ finds nothing but prod's lockfile (T10, the Author's step since group 5); terraf
 +    domain_name = aws_instance.tunnel_end.private_dns
 +
 +    vpc_origin_config {
-+      vpc_origin_id            = aws_cloudfront_vpc_origin.relay[0].id
++      vpc_origin_id            = aws_cloudfront_vpc_origin.relay.id
 +      origin_read_timeout      = 30
 +      origin_keepalive_timeout = 5
 +    }

@@ -1,7 +1,8 @@
 # Prod's network (spec 001 FR-051, FR-052; research.md R-07, R-10; contracts/tunnel.md §1): one VPC with two subnets in
 # one zone. The public subnet routes to the internet gateway: the tunnel end's public interface, with its Elastic IP,
-# and, from group 7, EC2's. The private subnet has no route out: the tunnel end's private interface, where CloudFront's
-# VPC origin reaches the relay (group 8). Neither subnet gives an address on its own; only the Elastic IP is public.
+# and, from group 7, EC2's. The private subnet has no route out: the tunnel end's private interface, its primary since
+# B-6's option C, where CloudFront's VPC origin reaches the relay (group 8); the host's own traffic leaves by the public
+# one (tunnel-end.tf). Neither subnet gives an address on its own; only the Elastic IP is public.
 
 resource "aws_vpc" "prod" {
   cidr_block           = "10.42.0.0/16"

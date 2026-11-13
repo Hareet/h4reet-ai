@@ -8,11 +8,7 @@
 #
 # The packages come first, from Amazon Linux's own repository in the Region, before the packet filter is loaded: at
 # the first boot only, the security group's 443 lets dnf reach it directly (disclosure row C17). Then the filter, then
-# the egress proxy, and only then anything that sends.
-
-packages:
-  - docker
-  - nftables
+# the egress proxy, and only then anything that sends. The way out, ens6, is attached after boot (B-6, option C): wait.
 
 users:
   - default
@@ -32,6 +28,11 @@ write_files:
 %{ endfor ~}
 
 runcmd:
+  - timeout 300 sh -c 'until ip link show ens6 >/dev/null 2>&1; do sleep 2; done'
+  - networkctl reload
+  - networkctl reconfigure ens6
+  - timeout 300 sh -c 'until ip -4 route get 192.0.2.1 | grep -q " dev ens6 "; do sleep 2; done'
+  - dnf install -y docker nftables
   - nft -f /etc/h4reet/nftables.nft
   - systemctl disable --now sshd.service
   - systemctl daemon-reload
