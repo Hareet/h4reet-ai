@@ -80,4 +80,5 @@ envs:
       # The Anthropic API, the Author's choice of 2026-11-09 (spec 010, T059); bedrock, defined above, is one line
       # away. The paid fallback, inside the $2 a day sub-budget (FR-030).
       laptop: { primary: local, fallback: anthropic }
+      ec2: { first: anthropic, second: bedrock }
   dev: { primary: local, fallback: synthetic } # synthetic only with GATEWAY_TEST_SYNTHETIC_SPEND=1
