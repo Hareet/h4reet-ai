@@ -34,7 +34,9 @@ DISCLOSURE = (REPO / "docs" / "data-flow-disclosure.md").read_text(encoding="utf
 ALLOWLIST = HOST / "egress-allowlist.txt"
 TEMPLATE = HOST / "tunnel-end.env.example"
 UNITS = HOST / "systemd"
-PUBLIC_IF, PRIVATE_IF = "ens5", "ens6"
+# B-6, option C (the Author's answer: "We aren't building option A, we went with Option C"): the private interface is
+# the instance's primary, device 0, so Nitro names it ens5, and the public one, device 1, ens6 (to confirm at T058).
+PUBLIC_IF, PRIVATE_IF = "ens6", "ens5"
 POOL = "172.30.0.0/16"
 VPC = "10.42.0.0/16"
 
@@ -307,9 +309,26 @@ def test_cloud_init_installs_the_host_and_loads_the_chains_before_anything_runs(
     None
 ):
     text = (HOST / "cloud-init.yaml.tftpl").read_text(encoding="utf-8")
-    assert re.search(r"^packages:\n  - docker\n  - nftables\n", text, re.MULTILINE)
+    # B-6, option C: the packages wait for the public interface's default route, which the drop-in below puts first,
+    # and which exists only once Terraform has attached that interface, after the instance runs. cloud-init's own
+    # packages module runs before any command could wait, so runcmd installs them, first.
+    assert not re.search(r"^packages:", text, re.MULTILINE)
     run = text[text.index("\nruncmd:\n") :]
+    wait = next(
+        (
+            ln
+            for ln in run.splitlines()
+            if "timeout " in ln and "ip -4 route" in ln and f"dev {PUBLIC_IF}" in ln
+        ),
+        None,
+    )
+    assert wait is not None, (
+        "runcmd doesn't wait, bounded, for the public interface's route"
+    )
     order = [
+        "networkctl reload",
+        wait,
+        "dnf install -y docker nftables",
         "nft -f /etc/h4reet/nftables.nft",
         "systemctl enable --now h4-egress-proxy.service",
         "systemctl enable --now h4-write-env.service",
@@ -323,6 +342,32 @@ def test_cloud_init_installs_the_host_and_loads_the_chains_before_anything_runs(
     # Amazon Linux's own sshd goes at the first boot: nothing reaches 22, and nothing should listen there (group 5's
     # review, nits). The way in is Session Manager.
     assert "systemctl disable --now sshd.service" in run
+
+
+# B-6, option C: amazon-ec2-net-utils gives each interface a default route, the lowest metric (512) to device 0, now
+# the private interface, whose subnet has no way out. A systemd-networkd drop-in in the user data gives the public
+# interface's the lower metric, so the host's own traffic beyond the VPC (the egress proxy's 443, and so Session
+# Manager's and the image pulls'; the first boot's dnf) leaves by the public interface, and nothing lowers the private
+# one's. To confirm at T058 with `ip route` on the host (docs/runbooks/tunnel-end.md).
+def test_the_public_interfaces_default_route_comes_first() -> None:
+    import configparser
+
+    tf = patches.patched_text("infra/prod/tunnel-end.tf") or ""
+    places = dict(re.findall(r'"([^"]+)"\s*=\s*\{ source = "([^"]+)"', tf))
+    dropins = {
+        place: source
+        for place, source in places.items()
+        if re.fullmatch(r"/etc/systemd/network/[^/]+\.network\.d/[^/]+\.conf", place)
+    }
+    public = [place for place in dropins if PUBLIC_IF in place.split("/")[4]]
+    assert len(public) == 1, dropins
+    source = dropins[public[0]]
+    assert source.startswith("deploy/hosts/tunnel-end/"), source
+    config = configparser.ConfigParser(strict=False, interpolation=None)
+    config.optionxform = str
+    config.read_string((REPO / source).read_text(encoding="utf-8"))
+    assert int(config["DHCPv4"]["RouteMetric"]) < 512
+    assert not [place for place in dropins if PRIVATE_IF in place.split("/")[4]]
 
 
 # The scripts the user data carries. The deployer isn't one: the first step runs the release's own (plan.md §16, "From

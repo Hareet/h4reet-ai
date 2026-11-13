@@ -342,11 +342,17 @@ def check_instance(root: dict[str, list]) -> list[str]:
     src = ip.Source("infra/prod/ec2-market.tf", "", ip.Body([i]))
     for f in ip.t11_spot(src) + ip.t13_imds(src):
         found.append(f"tunnel end: {f.message}")
+    # B-6, option C (the Author's answer: "We aren't building option A, we went with Option C"): the private interface
+    # is the instance's primary, device 0, so the instance sits in the private subnet, where AWS documents a VPC
+    # origin's instance, and the origin reaches 10.42.1.10, where the relay listens; the public one, with the Elastic
+    # IP, is its second, device 1. Built before W1's apply: moving the primary interface later replaces the tunnel end.
     primary = i.block("primary_network_interface")
     if primary is None or raw(primary, "network_interface_id") != (
-        "aws_network_interface.tunnel_end_public.id"
+        "aws_network_interface.tunnel_end_private.id"
     ):
-        found.append("tunnel end: its primary interface isn't the public one")
+        found.append(
+            "tunnel end: its primary interface isn't the private one, device 0 (B-6, option C)"
+        )
     attachments = [
         a
         for a in resource(root, "aws_network_interface_attachment")
@@ -355,10 +361,10 @@ def check_instance(root: dict[str, list]) -> list[str]:
     if (
         len(attachments) != 1
         or raw(attachments[0], "network_interface_id")
-        != "aws_network_interface.tunnel_end_private.id"
+        != "aws_network_interface.tunnel_end_public.id"
         or lit(attachments[0], "device_index") != 1
     ):
-        found.append("tunnel end: the private interface isn't its second, device 1")
+        found.append("tunnel end: the public interface isn't its second, device 1")
     for name, subnet, addr, group in (
         ("tunnel_end_public", "public", PUBLIC_ADDRESS, "tunnel_end_public"),
         ("tunnel_end_private", "private", PRIVATE_ADDRESS, "tunnel_end_private"),
