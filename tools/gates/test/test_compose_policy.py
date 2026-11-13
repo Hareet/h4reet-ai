@@ -954,6 +954,8 @@ REAL_FILES = (
     cp.DEVCONTAINER_FILE,
     ".devcontainer/Dockerfile",
     PROBE_DOCKERFILE,
+    # Spec 001's tunnel, both ends' one image (deploy/compose.yaml's tunnel service builds it).
+    "deploy/tunnel/Dockerfile",
     *(env for _, env in cp.ENV_FILES),
 )
 needs_compose = pytest.mark.skipif(
@@ -1072,8 +1074,8 @@ def test_end_to_end_refusals(tree: Path, capsys: pytest.CaptureFixture[str]) -> 
     assert cp.run(tree) == 1
     out = capsys.readouterr().out
     assert (
-        "FAIL deploy/compose.yaml service gateway-state: networks: only gateway joins egress"
-        in out
+        "FAIL deploy/compose.yaml service gateway-state: networks: only gateway, tunnel, tunnel-end-collector join "
+        "egress" in out
     )
     assert "FAIL deploy/stray.env: env file" in out
     assert "compose policy: 2 refusal(s)" in out
@@ -1343,3 +1345,177 @@ def test_the_real_web_service_is_the_shared_build_and_x005_needs_no_exception() 
     assert cp.check_service("web", web, model, lock, REPO) == []
     assert "127.0.0.1:${H4_SITE_PORT}:8087" in model["services"]["edge"]["ports"]
     assert cp.check_service("edge", model["services"]["edge"], model, lock, REPO) == []
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Spec 001's host classes (its tasks.md T044, T049; contracts/env-cloud.md §3; contracts/tunnel.md §1 and §3): the
+# laptop's tunnel dials out through egress with its keys read-only; the tunnel end's services run from the account's
+# registry, the sshd publishing exactly its two ports on the public interface's fixed address, and nothing builds.
+
+COLLECTOR = cp.LockEntry(
+    "otel-collector",
+    "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib",
+    "0.162.0",
+    "sha256:" + "c" * 64,
+    "ghcr.io",
+    "2026-11-13",
+)
+# The tunnel end's collector runs the lock's otel-collector line, copied to the account's registry.
+CLOUD_LOCK = {**LOCK, "otel-collector": COLLECTOR}
+TUNNEL_END_IMAGE = (
+    "${H4_REGISTRY:-registry.invalid}/h4reet/tunnel@${H4_DIGEST_TUNNEL:-}"
+)
+COLLECTOR_IMAGE = (
+    "${H4_REGISTRY:-registry.invalid}/h4reet/otel-collector:0.162.0@sha256:" + "c" * 64
+)
+
+
+def tunnel_model() -> dict:
+    model = good_model()
+    model["services"]["tunnel"] = service(
+        profiles=["tunnel"],
+        build={"context": "tunnel"},
+        networks={"internal": None, "egress": None},
+        volumes=[
+            {
+                "type": "bind",
+                "source": "${H4_TUNNEL_DIR}",
+                "target": "/run/tunnel-client",
+                "read_only": True,
+            }
+        ],
+    )
+    model["services"]["tunnel-end"] = service(
+        profiles=["tunnel-end"],
+        image=TUNNEL_END_IMAGE,
+        networks={"internal": None, "edge": None},
+        ports=[
+            {
+                "host_ip": "10.42.0.10",
+                "mode": "ingress",
+                "protocol": "tcp",
+                "published": "2222",
+                "target": 2222,
+            },
+            {
+                "host_ip": "10.42.0.10",
+                "mode": "ingress",
+                "protocol": "tcp",
+                "published": "8087",
+                "target": 2203,
+            },
+        ],
+        volumes=[
+            {
+                "type": "bind",
+                "source": "/run/h4reet/tunnel-end/keys",
+                "target": "/run/keys",
+                "read_only": True,
+            }
+        ],
+    )
+    model["services"]["tunnel-end-collector"] = service(
+        profiles=["tunnel-end"],
+        image=COLLECTOR_IMAGE,
+        networks={"internal": None, "egress": None},
+    )
+    return model
+
+
+TUNNEL_DISCLOSED = DISCLOSED | {"tunnel", "tunnel-end", "tunnel-end-collector"}
+
+
+def tunnel_rules(model: dict, tree: Path) -> set[tuple[str, str]]:
+    found = cp.check_model(model, CLOUD_LOCK, tree, TUNNEL_DISCLOSED)
+    return {(f.where.rsplit(" ", 1)[-1], f.rule) for f in found}
+
+
+def test_the_tunnels_ends_pass(tmp_path: Path) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    assert tunnel_rules(tunnel_model(), tmp_path) == set()
+
+
+def test_the_tunnel_end_publishes_exactly_its_two_ports(tmp_path: Path) -> None:
+    for ports in (
+        ["10.42.0.10:2222:2222"],
+        ["10.42.0.10:2222:2222", "10.42.0.10:8087:2203", "10.42.0.10:22:22"],
+        ["0.0.0.0:2222:2222", "0.0.0.0:8087:2203"],
+        ["127.0.0.1:2222:2222", "10.42.0.10:8087:2203"],
+    ):
+        model = tunnel_model()
+        model["services"]["tunnel-end"]["ports"] = ports
+        assert ("tunnel-end", "ports") in tunnel_rules(model, tmp_path), ports
+
+
+def test_only_the_tunnel_end_publishes_beside_edge_and_only_in_its_class(
+    tmp_path: Path,
+) -> None:
+    model = tunnel_model()
+    model["services"]["tunnel-end"]["profiles"] = ["tunnel-end", "gpu"]
+    assert ("tunnel-end", "ports") in tunnel_rules(model, tmp_path)
+    model = tunnel_model()
+    model["services"]["tunnel"]["ports"] = ["10.42.0.10:2222:2222"]
+    assert ("tunnel", "ports") in tunnel_rules(model, tmp_path)
+
+
+def test_egress_and_the_edge_network_take_their_named_services_alone(
+    tmp_path: Path,
+) -> None:
+    model = tunnel_model()
+    model["services"]["tunnel-end"]["networks"] = {"internal": None, "egress": None}
+    model["services"]["tunnel"]["networks"] = {"internal": None, "edge": None}
+    assert {("tunnel-end", "networks"), ("tunnel", "networks")} <= tunnel_rules(
+        model, tmp_path
+    )
+    model = good_model()
+    model["services"]["gateway-state"]["networks"] = {"internal": None, "egress": None}
+    assert ("gateway-state", "networks") in rules(model, tmp_path)
+
+
+def test_each_end_binds_its_own_keys_read_only_and_nothing_else(tmp_path: Path) -> None:
+    model = tunnel_model()
+    model["services"]["tunnel"]["volumes"][0]["read_only"] = False
+    assert ("tunnel", "binds") in tunnel_rules(model, tmp_path)
+    model = tunnel_model()
+    model["services"]["tunnel"]["volumes"][0]["source"] = "/run/h4reet/tunnel-end/keys"
+    assert ("tunnel", "binds") in tunnel_rules(model, tmp_path)
+    model = tunnel_model()
+    model["services"]["gateway"]["volumes"] = [
+        {
+            "type": "bind",
+            "source": "${H4_TUNNEL_DIR}",
+            "target": "/k",
+            "read_only": True,
+        }
+    ]
+    assert ("gateway", "binds") in tunnel_rules(model, tmp_path)
+
+
+def test_a_cloud_service_runs_the_registrys_image_and_never_builds(
+    tmp_path: Path,
+) -> None:
+    model = tunnel_model()
+    model["services"]["tunnel-end"]["image"] = "ghcr.io/someone/tunnel:latest"
+    assert ("tunnel-end", "image") in tunnel_rules(model, tmp_path)
+    model = tunnel_model()
+    model["services"]["tunnel-end-collector"]["image"] = COLLECTOR_IMAGE.replace(
+        "c" * 64, "d" * 64
+    )
+    assert ("tunnel-end-collector", "image") in tunnel_rules(model, tmp_path)
+    model = tunnel_model()
+    del model["services"]["tunnel-end"]["image"]
+    model["services"]["tunnel-end"]["build"] = {"context": "tunnel"}
+    assert ("tunnel-end", "build") in tunnel_rules(model, tmp_path)
+    model = tunnel_model()
+    model["services"]["stranger"] = service(profiles=["tunnel-end"], image=EDGE_IMAGE)
+    assert ("stranger", "image") in tunnel_rules(model, tmp_path)
+
+
+def test_a_cloud_image_on_a_laptop_profile_is_refused(tmp_path: Path) -> None:
+    model = tunnel_model()
+    model["services"]["tunnel-end"]["profiles"] = []
+    assert ("tunnel-end", "image") in tunnel_rules(model, tmp_path)
+
+
+def test_the_tunnel_ends_env_file_is_rendered_too() -> None:
+    assert ("prod", "deploy/hosts/tunnel-end/tunnel-end.env.example") in cp.ENV_FILES
