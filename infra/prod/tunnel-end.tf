@@ -53,7 +53,7 @@ locals {
   # script on a failure. This comment was the template's; it lives here to keep the user data under its bound (the
   # review of 59dfdc4a, nit 3).
   tunnel_end_user_data = templatefile("${path.module}/../../deploy/hosts/tunnel-end/cloud-init.yaml.tftpl", {
-    files = { for path, f in local.host_files : path => { mode = f.mode, content = file("${path.module}/../../${f.source}") } }
+    files = { for p, f in local.host_files : p => { mode = f.mode, content = file("${path.module}/../../${f.source}") } }
   })
 }
 
@@ -99,7 +99,7 @@ data "aws_ec2_managed_prefix_list" "cloudfront" {
 # (deploy/hosts/tunnel-end/nftables.nft), and the VPC.
 resource "aws_security_group" "tunnel_end_public" {
   name        = "h4-tunnel-end-public"
-  description = "The tunnel end's public interface: 2222 from anywhere, 8087 from Route 53's checkers"
+  description = "The tunnel end public interface: 2222 from anywhere, 8087 from the Route 53 checkers"
   vpc_id      = aws_vpc.prod.id
 
   ingress {
@@ -111,7 +111,7 @@ resource "aws_security_group" "tunnel_end_public" {
   }
 
   ingress {
-    description = "The laptop's health block, for Route 53's checkers"
+    description = "The laptop health block, for the Route 53 checkers"
     protocol    = "tcp"
     from_port   = 8087
     to_port     = 8087
@@ -145,11 +145,11 @@ resource "aws_security_group" "tunnel_end_public" {
 # change replaces nothing.
 resource "aws_security_group" "tunnel_end_private" {
   name        = "h4-tunnel-end-private"
-  description = "The tunnel end's private interface: 8080 from CloudFront's origin-facing addresses, 5432 and 2301 from EC2"
+  description = "The tunnel end private interface: 8080 from the CloudFront origin-facing addresses, 5432 and 2301 from EC2"
   vpc_id      = aws_vpc.prod.id
 
   ingress {
-    description     = "The relay's edge listener, for CloudFront's VPC origin"
+    description     = "The relay edge listener, for the CloudFront VPC origin"
     protocol        = "tcp"
     from_port       = 8080
     to_port         = 8080
@@ -157,7 +157,7 @@ resource "aws_security_group" "tunnel_end_private" {
   }
 
   ingress {
-    description     = "The shared state, for EC2's gateway"
+    description     = "The shared state, for the EC2 gateway"
     protocol        = "tcp"
     from_port       = 5432
     to_port         = 5432
@@ -165,7 +165,7 @@ resource "aws_security_group" "tunnel_end_private" {
   }
 
   ingress {
-    description     = "The public view's sink, for EC2's publisher"
+    description     = "The public view sink, for the EC2 publisher"
     protocol        = "tcp"
     from_port       = 2301
     to_port         = 2301

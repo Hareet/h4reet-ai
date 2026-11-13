@@ -87,11 +87,11 @@ resource "aws_route_table_association" "private" {
 # description's change replaces nothing.
 resource "aws_security_group" "ec2" {
   name        = "h4-ec2"
-  description = "EC2's interface: 8085 and 4318 from the tunnel end alone"
+  description = "EC2 interface: 8085 and 4318 from the tunnel end alone"
   vpc_id      = aws_vpc.prod.id
 
   ingress {
-    description = "The relay block, for the tunnel end's relay"
+    description = "The relay block, for the tunnel end relay"
     protocol    = "tcp"
     from_port   = 8085
     to_port     = 8085
@@ -99,7 +99,7 @@ resource "aws_security_group" "ec2" {
   }
 
   ingress {
-    description = "EC2's collector, for the tunnel end's collector"
+    description = "The EC2 collector, for the tunnel end collector"
     protocol    = "tcp"
     from_port   = 4318
     to_port     = 4318
@@ -115,7 +115,7 @@ resource "aws_security_group" "ec2" {
   }
 
   egress {
-    description = "The alerts mailbox's SMTP, implicit TLS, through the gateway's proxy alone"
+    description = "SMTP to the alerts mailbox, implicit TLS, through the gateway proxy alone"
     protocol    = "tcp"
     from_port   = 465
     to_port     = 465
