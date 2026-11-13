@@ -1,8 +1,9 @@
 # Prod's half of the handover (spec 001 FR-063 to FR-066, FR-069 to FR-072, FR-076; contracts/handover.md §2;
 # contracts/aws-alerts.md §2; plan.md §16, "Why a switch" and "No root holds another root's instance or health-check
 # ID"; ADR 0049, proposed). Protected (FR-012; rule T5): it changes only by the Author's patch. Group 5 writes the
-# switch, the tunnel end's interruption warning, and its return's alert; groups 7 and 9 add EC2's rules, the ID
-# parameter, and the rules' function targets behind the switch, h4-tunnel-end-running's start-function target among them.
+# switch, the tunnel end's interruption warning, and its return's alert; group 7 adds EC2's ID parameter (P-I4); group 9
+# adds EC2's rules and the rules' function targets behind the switch, h4-tunnel-end-running's start-function target
+# among them.
 
 locals {
   # The switch (plan.md §16): false in W1, whose three plan blocks are made before any of W1's applies, so nothing here
@@ -77,5 +78,19 @@ resource "aws_cloudwatch_event_target" "tunnel_end_running" {
       at = "$.time"
     }
     input_template = "\"[hareet.ai aws] tunnel_end_back: the tunnel end runs again\\n- at: <at>\""
+  }
+}
+
+# EC2's ID, by its name, for what acts on it from another root at run time (plan.md §16; research.md R-15, amended): the
+# start function and the guard read it (W2; group 9), and the guard stops any running instance tagged h4-prod-ec2 that
+# it doesn't name (contracts/handover.md §4). A replace of EC2 updates it in the same plan. A String, never a secret.
+resource "aws_ssm_parameter" "ec2_instance_id" {
+  name        = "/h4reet/prod/ec2-instance-id"
+  description = "EC2's instance ID, which the start function and the guard act on (spec 001 contracts/handover.md §2)"
+  type        = "String"
+  value       = aws_instance.ec2.id
+
+  tags = {
+    component = "ec2"
   }
 }
