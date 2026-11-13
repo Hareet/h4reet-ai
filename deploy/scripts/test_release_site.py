@@ -238,6 +238,14 @@ def test_a_failed_sync_refuses_and_leaves_the_pointer_on_the_release_before(
     assert not aws(r, "aws", "cloudfront")
 
 
+def test_a_failed_sync_names_its_recovery(tmp_path: Path, capsys) -> None:
+    # W2's review, N4: the refusal says what to do, run the release again, which syncs the same copy whole.
+    r = SiteRunner()
+    r.fail_sync = True
+    assert release(tmp_path, r, bucket=SITE, distribution=DISTRIBUTION) == 1
+    assert "run `make release` again" in capsys.readouterr().err
+
+
 def test_a_site_bucket_that_isnt_the_accounts_site_is_refused(tmp_path: Path) -> None:
     r = SiteRunner()
     assert release(tmp_path, r, bucket="someone-elses-bucket") == 1

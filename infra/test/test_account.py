@@ -1658,6 +1658,24 @@ def test_each_functions_digest_is_empty_or_an_image_digest() -> None:
         assert value == "" or re.fullmatch(r"sha256:[0-9a-f]{64}", str(value)), key
 
 
+# W2's review, N1: the slots T174's images fill, each marked PLACEHOLDER on its line until T175 writes the Author's
+# reported digest and drops it from this set: the two new functions', and the alert bridge's, whose source W1's
+# patches changed (P-I3, P-I7, P-I6), so its gate-A digest is stale though it has a digest's form.
+T174_PENDING = {"ec2_start", "ec2_guard", "alert_bridge"}
+
+
+def test_each_slot_t174_fills_is_marked_a_placeholder_and_has_a_digests_form() -> None:
+    text = (ROOT / "main.tf").read_text(encoding="utf-8")
+    images = locals_of(parsed(root_texts())).get("lambda_images")
+    assert isinstance(images, dict) and T174_PENDING <= set(images)
+    for key in sorted(T174_PENDING):
+        lines = [ln for ln in text.splitlines() if re.match(rf"\s*{key}\s*=", ln)]
+        assert len(lines) == 1, key
+        assert "PLACEHOLDER" in lines[0], key
+        value = images[key]
+        assert value == "" or re.fullmatch(r"sha256:[0-9a-f]{64}", str(value)), key
+
+
 def test_the_bridge_is_h4_alerts_subscriber() -> None:
     assert check_bridge_subscription(parsed(root_texts())) == []
 
