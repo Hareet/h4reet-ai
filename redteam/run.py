@@ -68,6 +68,9 @@ CASES = REPO / "redteam" / "cases"
 # holds the two alike.
 EXERCISED = (
     "services/gateway",
+    # The root's build inputs the gateway's image copies (the fixes' review, nit 5).
+    "package.json",
+    "tsconfig.base.json",
     "package-lock.json",
     "config",
     "corpus",

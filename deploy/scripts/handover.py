@@ -14,8 +14,9 @@ window    from the relay's first `laptop` to EC2's `stopped`: one line in DIR/ha
           h4.handover.window_seconds, posted to the stack's own collector on 127.0.0.1:<x004>, the port start reads
           from the env file's H4_OTLP_PORT and passes as --otlp-port (make up's env file reaches compose alone).
 serving   every 60 s, the status again: while it says `laptop`, EC2's state, and `pending` or `running` is stopped
-          again and recorded as a flap; on anything else, `released` is recorded and the loop goes back to waiting,
-          so EC2 started while the relay sends elsewhere is left to serve (FR-064, "WHILE ... the relay sends to it").
+          again and recorded as a flap; on `ec2` or `none`, `released` is recorded and the loop goes back to waiting,
+          so EC2 started while the relay sends elsewhere is left to serve (FR-064, "WHILE ... the relay sends to it");
+          a status it can't read skips the round, and the loop stays serving.
 failing   a describe or a stop that fails, an expired session or a hung CLI among them: one alert,
           `handover_stop_failed`, published to h4-alerts through the stop profile (both channels, as make ec2-stop's
           alert goes), and its line in DIR/handover.jsonl and the loop's log, DIR/handover.log; the loop keeps serving
@@ -258,9 +259,13 @@ class Handover:
         """One minute of serving: EC2 is stopped again only while the relay still sends to the laptop (I1)."""
         self.sleep(SERVE_S)
         serving = self.status()
+        if serving is None:
+            # An unread status is no release: the next round reads again (the fixes' review, nit 1). Released, the next
+            # `laptop` would be a fresh takeover whose window of about 0 s would replace the day's real one.
+            return
         if serving != "laptop":
             self.phase = "waiting"
-            self.record("released", serving=serving if serving in SERVING else "unread")
+            self.record("released", serving=serving if serving in SERVING else "other")
             return
         self.stop_running("flap")
 
@@ -274,7 +279,15 @@ class Handover:
                     self.serve_once()
             # One round's unexpected error is recorded, and the loop goes on (I2): a dead loop would leave EC2 running.
             except Exception as exc:  # noqa: BLE001 - any round's failure is recorded by its class alone
-                self.record("error", kind=type(exc).__name__)
+                try:
+                    self.record("error", kind=type(exc).__name__)
+                # A record that can't be written, a full disk's, is said on stderr; the loop still goes on (nit 4).
+                except OSError:
+                    print(
+                        f"h4-handover: a round failed ({type(exc).__name__}) and its record couldn't be written",
+                        file=sys.stderr,
+                        flush=True,
+                    )
                 self.sleep(WAIT_S)
 
 
@@ -425,7 +438,11 @@ def env_value(env_file: Path | None, key: str) -> str | None:
     for line in lines:
         name, sep, value = line.partition("=")
         if sep and name.strip() == key:
-            return value.strip()
+            value = value.strip()
+            # contracts/env-files.md §1.1: a value may be quoted, single or double (the fixes' review, nit 6).
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+                value = value[1:-1]
+            return value
     return None
 
 
