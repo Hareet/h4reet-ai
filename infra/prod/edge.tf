@@ -33,6 +33,10 @@ resource "aws_cloudfront_function" "index" {
       return request;
     }
   EOT
+
+  tags = {
+    component = "edge"
+  }
 }
 
 # hareet.ai and www.hareet.ai, in us-east-1 as CloudFront requires, validated by DNS in the zone (dns.tf) and renewed
