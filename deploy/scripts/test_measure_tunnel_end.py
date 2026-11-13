@@ -504,7 +504,12 @@ def test_the_run_names_its_five_services_and_the_stub_and_no_other(
     runner = Runner()
     run(te, runner, tmp_path)
     (up,) = [c for c in runner.calls if " up " in f" {' '.join(c)} "]
-    named = [a for a in up if a in (*FIVE, "measure-host")]
+    # The word after --profile isn't a service: the profile and the service share the name `tunnel-end`.
+    named = [
+        a
+        for i, a in enumerate(up)
+        if a in (*FIVE, "measure-host") and not (i > 0 and up[i - 1] == "--profile")
+    ]
     assert sorted(named) == sorted((*FIVE, "measure-host"))
     assert set(te.SERVICES) == {*FIVE, "measure-host"}
 
