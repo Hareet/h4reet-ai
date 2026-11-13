@@ -9,7 +9,9 @@ import { describe, expect, it } from "vitest";
 
 import { HOSTS, renderStatus, type StatusAnswer } from "../status/view";
 
-const [, EC2] = HOSTS;
+// The hosts' names from the page's own module, as status.test.ts takes them: spec 004's source scan (FR-007) keeps
+// `laptop`, a room piece's ID, out of this folder's literals.
+const [LAPTOP, EC2] = HOSTS;
 const NOW = Date.UTC(2027, 0, 15, 8, 2, 0);
 const at = (minutesAgo: number): string => new Date(NOW - minutesAgo * 60_000).toISOString().replace(/\.\d{3}Z$/, "Z");
 
@@ -22,7 +24,7 @@ function doc(hours: unknown): Record<string, unknown> {
     server: null,
     handovers: null,
     host_panels: null,
-    releases: { laptop: null, ec2: null },
+    releases: { [LAPTOP]: null, ec2: null },
     ec2_hours: hours,
   };
 }
