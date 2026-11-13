@@ -211,3 +211,16 @@ def test_the_exercised_files_are_the_whole_gateway_but_its_tests(
         assert rl.exercised(tmp_path) != before, rel
     rt = _load_runner()
     assert rt.exercised(tmp_path) == rl.exercised(tmp_path)
+
+
+def test_the_exercised_files_hold_the_root_build_inputs_the_gateways_dockerfile_copies(
+    tmp_path: Path,
+) -> None:
+    # The fixes' review, nit 5: the root package.json and tsconfig.base.json, which the gateway's image copies.
+    for rel in ("package.json", "tsconfig.base.json"):
+        (tmp_path / rel).write_text("{}", encoding="utf-8")
+    for rel in ("package.json", "tsconfig.base.json"):
+        before = rl.exercised(tmp_path)
+        (tmp_path / rel).write_text('{"changed": true}', encoding="utf-8")
+        assert rl.exercised(tmp_path) != before, rel
+    assert _load_runner().EXERCISED == rl.EXERCISED

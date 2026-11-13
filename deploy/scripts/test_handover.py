@@ -302,9 +302,9 @@ def test_make_up_starts_the_loop_on_prod_alone_and_never_fails_for_it() -> None:
 # Group 9's review A (I1 to I4).
 
 
-@pytest.mark.parametrize("elsewhere", ["ec2", "none", None])
+@pytest.mark.parametrize("elsewhere", ["ec2", "none"])
 def test_serving_leaves_ec2_running_once_the_relay_sends_elsewhere(
-    tmp_path: Path, elsewhere: str | None
+    tmp_path: Path, elsewhere: str
 ) -> None:
     # I1, FR-064: the loop stops EC2 only WHILE the relay sends to the laptop. A laptop whose tunnel, edge, or gateway
     # fails stays up, the relay moves to EC2 or to none, and the start function starts EC2: the loop must leave it.
@@ -316,7 +316,23 @@ def test_serving_leaves_ec2_running_once_the_relay_sends_elsewhere(
     assert ec2.stops == []
     assert h.phase == "waiting"
     (row,) = [r for r in records(tmp_path) if r["event"] == "released"]
-    assert row["serving"] == (elsewhere or "unread")
+    assert row["serving"] == elsewhere
+
+
+def test_an_unread_status_skips_the_round_and_stays_serving(tmp_path: Path) -> None:
+    # The fixes' review, nit 1: one status that times out is no release. Released, the next `laptop` would be a fresh
+    # takeover, whose window of about 0 s would overwrite the day's real one on the panel. EC2 is neither stopped nor
+    # left for good: the next round reads again.
+    ec2 = Ec2("stopped", "stopped", "running")
+    h, _, _ = loop(tmp_path, Status("laptop", None, "laptop"), ec2)
+    h.wait_for_laptop()
+    h.settle()
+    h.serve_once()
+    assert h.phase == "serving" and ec2.stops == []
+    assert [r for r in records(tmp_path) if r["event"] == "released"] == []
+    assert len([r for r in records(tmp_path) if r["event"] == "takeover"]) == 1
+    h.serve_once()
+    assert ec2.stops == [[EC2_ID]]
 
 
 def test_back_in_waiting_it_stops_ec2_again_once_the_relay_serves_the_laptop(
@@ -397,6 +413,79 @@ def test_an_unexpected_error_in_a_round_is_recorded_and_the_loop_goes_on(
         "RuntimeError"
     ]
     assert ec2.describes > 2
+
+
+def test_a_round_whose_error_cant_be_recorded_still_goes_on(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The fixes' review, nit 4: a full disk makes the error's own record fail; the loop says it on stderr and goes on.
+    class Broken(Ec2):
+        def describe(self) -> list[tuple[str, str]]:
+            raise RuntimeError("boom")
+
+    h, clock, _ = loop(tmp_path, Status("laptop"), Broken("stopped"))
+    recorded = h.record
+
+    def record(event: str, **fields: object) -> None:
+        if event == "error":
+            raise OSError(28, "No space left on device")
+        recorded(event, **fields)
+
+    h.record = record
+    sleeps = 0
+
+    def sleep(seconds: float) -> None:
+        nonlocal sleeps
+        sleeps += 1
+        clock.t += seconds
+        if sleeps > 3:
+            raise StopLoop
+
+    h.sleep = sleep
+    with pytest.raises(StopLoop):
+        h.run()
+    assert sleeps > 3
+    assert "RuntimeError" in capsys.readouterr().err
+
+
+def test_a_quoted_port_in_the_env_file_is_read_as_its_value(tmp_path: Path) -> None:
+    # The fixes' review, nit 6: contracts/env-files.md §1.1 lets a value be quoted, single or double.
+    env = tmp_path / "prod.env"
+    spawned: list[list[str]] = []
+
+    def spawn(argv: list[str], log: Path) -> int:
+        spawned.append(argv)
+        return 4242
+
+    for n, quoted in enumerate(("'18004'", '"18004"')):
+        env.write_text(f"H4_OTLP_PORT={quoted}\n", encoding="utf-8")
+        state = tmp_path / f"state{n}"
+        handover.start(
+            state,
+            spawn=spawn,
+            alive=lambda pid: False,
+            session=lambda: True,
+            env_file=env,
+        )
+        assert spawned[-1][spawned[-1].index("--otlp-port") + 1] == "18004"
+
+
+def test_main_runs_the_loop_with_the_port_it_is_given(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The fixes' review, nit 7: main's --otlp-port reaches the window's post.
+    posted: list[tuple[float, str | None]] = []
+
+    def run(self) -> None:
+        self.window(3.0)
+
+    monkeypatch.setattr(handover.Handover, "run", run)
+    monkeypatch.setattr(
+        handover, "post_window", lambda seconds, port: posted.append((seconds, port))
+    )
+    monkeypatch.setattr(handover.signal, "signal", lambda *a: None)
+    assert handover.main(["--state-dir", str(tmp_path), "run", "--otlp-port", "1"]) == 0
+    assert posted == [(3.0, "1")]
 
 
 class Runner:
