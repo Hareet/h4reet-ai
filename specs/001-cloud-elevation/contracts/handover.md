@@ -50,6 +50,8 @@ A Lambda container image (stdlib Python, arm64), in `infra/lambdas/ec2_start/`. 
 
 Each outcome, started or refused and why, is one message to `h4-alerts`, and one log line in CloudWatch's embedded metric format, which the sink counts for the dashboard (contracts/public-view.md §2; to confirm in group 9). It makes one attempt per invocation and never loops (FR-065).
 
+**The hours** (amended; ADR 0048, decision 3). Second, after step 1, on every trigger, the Author's hand start among them: outside EC2's hours, 07:00 to 19:00 in `America/Denver`, it refuses with `outside_hours`. `h4-ec2-hours-open` invokes it at 07:00 with `{"from": "hours_open"}`, which takes step 4's read as a hand start does. The open's routine outcomes are recorded and on the dashboard, and alerted only for `start_failed`, `server_budget_stopped`, and `tunnel_end_down`.
+
 ## 4. `h4-ec2-guard`
 
 The same packaging, in `infra/lambdas/ec2_guard/`, with its own role, `h4-ec2-guard-fn`: it may stop the tagged instance and nothing else, read the parameter, the health check's status, and the server action's status (`budgets:DescribeBudgetActionsForBudget` on `h4-server-month`), and publish to `h4-alerts`. On `h4-ec2-running`:
@@ -62,6 +64,8 @@ The same packaging, in `infra/lambdas/ec2_guard/`, with its own role, `h4-ec2-gu
 | Otherwise | nothing |
 
 Each stop also writes one embedded-metric log line, as §3's.
+
+**The hours** (amended; ADR 0048, decision 4). The guard also stops EC2 outside its hours, `ec2_stopped_outside_hours`: on `h4-ec2-running`, as after AWS's restart once spot capacity returns; and at `hours_close`, when `h4-ec2-hours-close` invokes it at 19:00 with `{"from": "hours_close"}`, if EC2 runs. If it is already stopped, the guard writes its log line and nothing else. It alerts but at the close.
 
 **Amended on 2026-11-12, in W1's regrouping: more than one tagged instance.** A replace of EC2 can leave its persistent spot request open, so AWS may launch a second instance from it (tasks.md T097). On each run the guard lists the instances tagged `h4-prod-ec2`. It stops any that runs and isn't the one `/h4reet/prod/ec2-instance-id` names, and alerts `ec2_unrecognised_instance` with the instance's ID. Then it applies the table above to the named one. An instance the orphaned request launches without the tag is out of the guard's sight; the runbook's check after a replace finds it (`docs/runbooks/ec2.md`).
 

@@ -8,7 +8,7 @@ One host serves at a time: the laptop while you run its prod, else EC2, inside i
   - `[hareet.ai aws] ec2_started: EC2 started`, with `- trigger: alarm`, `manual`, or `tunnel_end_back`: the laptop went, you started it, or the tunnel end came back. At the hours' open (`hours_open`) a start is recorded and not alerted (provisional: the regrouping note's question 3, option A);
   - `[hareet.ai aws] ec2_start_refused (<reason>): EC2 not started`, the reason one of:
     - `paused`: the autostart switch is `off`;
-    - `outside_hours`: outside 07:00 to 19:00 Mountain time (provisionally `America/Denver`, question 1a); for your own start too (provisionally, question 2);
+    - `outside_hours`: outside 07:00 to 19:00 Mountain time (`America/Denver`, question 1a, your answer "1a A"); for your own start too (question 2, "2 A");
     - `server_budget_stopped`: the server action has run and isn't reversed;
     - `laptop_serving`: by hand, on the tunnel end's return, or at the open, while `h4-laptop-away` reads `OK`;
     - `start_failed`: AWS refused the start, with `- code:` its code, `InsufficientInstanceCapacity` among them; or `untagged`, the instance `/h4reet/prod/ec2-instance-id` names doesn't carry `h4-prod-ec2`; or `unknown_trigger`;
@@ -32,7 +32,7 @@ In your terminal, with your SSO session (`pf` your administrator profile, `sp` y
 1. **Read the state:** `make ec2-status PROFILE=$pf` shows EC2's state and its spot request's, the autostart switch, the server action, the hours and whether it is inside them, and the relay's serving host.
 2. **By reason:**
    - `paused`: set the switch on if EC2 should start automatically: `make ec2-autostart STATE=on PROFILE=$pf`, which also starts EC2 once, through the same checks. Each change of the switch is a line in `~/.local/state/h4reet/ec2-actions.jsonl`.
-   - `outside_hours`: nothing to do; the open starts it at 07:00. A showing outside the hours runs on the laptop (provisionally, question 2). The hours change only by your patch to `local.ec2_hours` in `infra/account/handover.tf`, the one source the schedules and both functions read (ADR 0048).
+   - `outside_hours`: nothing to do; the open starts it at 07:00. A showing outside the hours runs on the laptop (question 2, your answer "2 A"). The hours change only by your patch to `local.ec2_hours` in `infra/account/handover.tf`, the one source the schedules and both functions read (ADR 0048).
    - `server_budget_stopped`: [server-budget.md](server-budget.md).
    - `start_failed`: with `InsufficientInstanceCapacity`, wait, or start it later with `make ec2-start PROFILE=$pf`; with `untagged`, [ec2.md](ec2.md)'s step after a replace; with an `unread` code, the function's role or the parameter changed outside Terraform, and the next account plan shows it.
    - the loop's `handover_stop_failed`: `make aws-login PROFILE=$sp`, then nothing else: the loop retries each minute. To stop EC2 now, `make ec2-stop PROFILE=$sp`.

@@ -56,10 +56,10 @@ PREFIX = "[hareet.ai aws]"
 # The server action's statuses that leave EC2 free to start: waiting for its threshold, or reversed by the Author's
 # server-budget-restore. Anything else, an unknown status among them, refuses (fail closed).
 CLEAR = frozenset({"STANDBY", "REVERSE_SUCCESS"})
-# Provisional: question 2, recommended option A, until the Author's answer. A hand start outside the hours is refused
+# Question 2, option A, the Author's answer ("2 A", 2026-11-12). A hand start outside the hours is refused
 # as every start is. Options B and C set this True (B also needs the guard to spare a hand start until the close).
 HAND_START_OUTSIDE_HOURS = False
-# Provisional: question 3, recommended option A, until the Author's answer. The scheduled open's outcomes are recorded
+# Question 3, option A, the Author's answer ("3 A", 2026-11-12). The scheduled open's outcomes are recorded
 # and on the dashboard, and alerted only for these, which need him; a failed read always alerts. Option B alerts
 # every outcome, as FR-065 says: this becomes every reason.
 SCHEDULED_ALERTED = frozenset(

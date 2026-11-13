@@ -776,7 +776,8 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 - [x] T168 Write ADR 0048, proposed, at the next free number in `docs/adr/README.md` (0048 at 4785107e), with its index row: EC2 on 12 hours a day, two schedules that invoke the start function and the guard, and the hours as a check in both. It quotes the Author's three answers verbatim, extends ADR 0027's decision 1, and leaves the zone to question 1a. Check: the docs-links check passes; the ADR quotes his words (FR-062, FR-069) (spec/001-w1-regroup)
   - **Done** in W1's first commit, 2026-11-12. It's accepted with W1's merge, once it holds his answers.
-- [ ] T169 Amend spec.md by name, after his answers to questions 1a, 2, and 3, each passage marked "(amended; ADR 0048)":
+- [x] T169 Amend spec.md by name, after his answers to questions 1a, 2, and 3, each passage marked "(amended; ADR 0048)":
+  - **Done** (W1's step 4, 2026-11-12): his answers, "W1 answers: 1a A, 1b A, 2 A, 3 A, 4 A, W-9 A, B-3 A, G10-1 A, G10-2 A, G10-3 A", each the option built; the passages applied as W1's note wrote them for option A;
   - FR-065: the start function also refuses outside the hours;
   - FR-069: the list of what starts and stops EC2 gains the two schedules, which act only through the functions;
   - FR-071: the guard also stops EC2 outside its hours;
