@@ -183,18 +183,26 @@ def test_the_merged_project_has_no_prod_address_path_or_port(tmp_path: Path) -> 
 # --- The budgets stand-in ----------------------------------------------------------------------------------------------
 
 
+# The relay's public figures (contracts/relay-http.md §3, step 3), which P-6 adds to config/budgets.yaml blank.
+PUBLIC_KEYS = {
+    "per_address": {"requests_per_minute", "burst", "requests_per_day"},
+    "global": {"in_flight"},
+}
+
+
 def test_the_stand_in_is_config_budgets_with_stand_in_public_figures_alone() -> None:
     real = yaml.safe_load(
         (REPO / "config" / "budgets.yaml").read_text(encoding="utf-8")
     )
     stand_in = yaml.safe_load(STAND_IN.read_text(encoding="utf-8"))
     figures = stand_in["public"]
+    # The rest is config/budgets.yaml's, whether or not P-6's blank public section is in the tree yet.
     assert {k: v for k, v in stand_in.items() if k != "public"} == {
         k: v for k, v in real.items() if k != "public"
     }
-    for group in ("per_address", "global"):
-        assert set(figures[group]) == set(real["public"][group]), group
-        for key, value in figures[group].items():
+    assert {group: set(keys) for group, keys in figures.items()} == PUBLIC_KEYS
+    for group, keys in figures.items():
+        for key, value in keys.items():
             assert isinstance(value, int) and value > 0, (group, key)
 
 
