@@ -36,10 +36,12 @@ locals {
     alert_bridge     = "sha256:d245392171b5432b2f159f202e2ed753b793c120388802d1bb2a79dc146ad1b2"
     probe            = "sha256:85e0a4e0a428482e9f10829f8fde23313762cce3fc06410b3fd87ca460e7f205"
     credential_audit = "sha256:9a660808453e99673c769f4fb9e51ffd2b1396bfa15fd7707a3db6881be8793d"
-    # Group 9's (tasks.md T122): empty until the Author pushes each to the repository W1's apply makes (T174), and W2
-    # writes its digest (T175). Their functions wait behind handover.tf's switch and refuse a plan without it.
-    ec2_start = ""
-    ec2_guard = ""
+    # Group 9's (tasks.md T122). PLACEHOLDER until T174: "" is the one form handover.tf's preconditions refuse, so
+    # with P-W2's switch on no plan runs until the Author pushes each image to the repository W1's apply made, reports
+    # its digest, and the session writes it here (T175). A named placeholder string would pass `!= ""` and reach the
+    # plan as an image URI, so the slot stays empty, and this comment names it.
+    ec2_start = "" # PLACEHOLDER: h4-ec2-start's digest, from the Author's T174 report
+    ec2_guard = "" # PLACEHOLDER: h4-ec2-guard's digest, from the Author's T174 report
   }
 
   # One repository per function, and one per service the cloud hosts run (contracts/env-cloud.md §3): EC2's whole
