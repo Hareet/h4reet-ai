@@ -50,6 +50,7 @@ import contextlib
 import datetime as dt
 import importlib.util
 import json
+import os
 import re
 import secrets
 import shutil
@@ -392,8 +393,15 @@ def _docker(
         where = f"the whole stderr is in {ctx.error_log}"
         try:
             ctx.error_log.parent.mkdir(parents=True, exist_ok=True)
-            ctx.error_log.touch(mode=0o600)
-            ctx.error_log.write_text(text, encoding="utf-8")
+            # Never through a symlink, and 0600 even when an older file had wider bits (the review of b78e3492, N1).
+            fd = os.open(
+                ctx.error_log,
+                os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
+                0o600,
+            )
+            with os.fdopen(fd, "w", encoding="utf-8") as log:
+                os.fchmod(log.fileno(), 0o600)
+                log.write(text)
         except OSError as exc:
             where = f"{ctx.error_log} couldn't be written ({exc.strerror})"
         lines = [

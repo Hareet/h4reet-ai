@@ -123,7 +123,7 @@ export function renderStatus(root: HTMLElement, document: unknown, answer: Statu
   line(
     hoursPart,
     open !== null && close !== null && zone !== null
-      ? `EC2 runs from ${open} to ${close}, ${zone} time; outside them the laptop serves, or no host does.`
+      ? `EC2 can serve from ${open} to ${close}, ${zone} time, when the laptop doesn't; outside them, the laptop serves or no host does.`
       : "EC2's hours are unknown right now.",
   );
 

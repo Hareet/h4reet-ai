@@ -96,7 +96,17 @@ An instance that is gone, or a root volume that won't boot: your prod plan shows
 
 ### The interfaces and the way out (T058)
 
-B-6, option C (contracts/tunnel.md §1): the private interface, `10.42.1.10`, is device 0, and the public one, `10.42.0.10` with the Elastic IP, device 1, attached once the instance runs. The first boot waits up to 5 minutes for the public interface, and as long again for its default route, before `dnf` runs. Once the first boot is done, in a shell on the tunnel end (`aws ssm start-session --profile h4reet-admin --region us-east-1 --target "$id"`, with `id` as at the top of "Act"):
+B-6, option C (contracts/tunnel.md §1): the private interface, `10.42.1.10`, is device 0, and the public one, `10.42.0.10` with the Elastic IP, device 1, attached once the instance runs. The first boot waits up to 5 minutes for the public interface, and as long again for its default route, before `dnf` runs. Once the first boot is done, open a shell on the tunnel end, with `id` as at the top of "Act":
+
+```bash
+p=h4reet-admin
+r=us-east-1
+aws ssm start-session \
+  --profile "$p" --region "$r" \
+  --target "$id"
+```
+
+Then, in it:
 
 ```bash
 ip -br -4 addr
@@ -110,7 +120,14 @@ cloud-init status --long
 - A host route, `10.42.0.20 via 10.42.1.1 dev ens5`, from `zz-h4-ec2-route.conf`: EC2's replies leave by the interface they came in on (the review of 59dfdc4a, I1).
 - `route get` names `dev ens6`: the host's way out is the public interface.
 - `cloud-init status --long` reads `status: done`, with no error.
-- From EC2, in a shell on it (the same `start-session`, with `id` found by `Name=tag:Name,Values=h4-prod-ec2`), inside its hours: `pg_isready -h 10.42.1.10` answers `accepting connections`, and a request to the sink, `python3 -c "import socket; socket.create_connection(('10.42.1.10', 2301), 5)"`, connects (where the host has no `pg_isready`, the same `python3` line on port 5432 stands in). A timeout on either is the reply leaving by the wrong interface: check the host route above.
+- From EC2, inside its hours, in a shell on it (the same `start-session`, with `id` found by `Name=tag:Name,Values=h4-prod-ec2`): the shared state answers `accepting connections`, and the sink's port connects. Where the host has no `pg_isready`, the second line's `python3` stands in for 5432 too, with `5432` in place of `2301`. A timeout on either is the reply leaving by the wrong interface: check the host route above.
+
+  ```bash
+  pg_isready -h 10.42.1.10
+  python3 -c "import socket as s
+  s.create_connection(
+    ('10.42.1.10', 2301), 5)"
+  ```
 - If the first boot timed out (`/var/log/cloud-init-output.log` shows `dnf` failing), the public interface wasn't attached or had no route: check the attachment in the console, then replace the tunnel end.
 
 ### A spot interruption

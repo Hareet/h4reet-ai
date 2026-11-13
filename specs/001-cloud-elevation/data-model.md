@@ -134,6 +134,7 @@ No message, answer, or address is written anywhere (FR-031, FR-042).
 | `server` | `month_to_date_usd`, `budget_usd`, `as_of` | `budgets:DescribeBudget`, hourly |
 | `host_panels` | spec 000's FR-028 panels from the serving host: requests, latency p50 and p95, errors, model-server health (laptop only), degraded causes | that host's publisher |
 | `handovers` | the last 10 events and their gap lengths | `gateway.v_handovers` |
+| `ec2_hours` | `open`, `close` (`HH:MM`), `zone`, or `null` (T170) | `scheduler:GetSchedule` on `h4-ec2-hours-open` and `h4-ec2-hours-close`, each write |
 | `taken_at` | per part | each writer |
 
 Numbers, states, and times only. No payload, client identifier, operator reason, or secret (spec FR-059). The sink refuses anything else.
