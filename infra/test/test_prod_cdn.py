@@ -36,6 +36,7 @@ names the account replaces the account's blocks instead.
 from __future__ import annotations
 
 import importlib.util
+import ipaddress
 import re
 import sys
 from pathlib import Path
@@ -691,10 +692,13 @@ def reached_by_the_origin(r: dict[str, list]) -> list[str] | None:
 
 
 def test_the_tunnel_ends_primary_interface_parses_to_one_interface() -> None:
-    # Not the answer B-6 waits for: the parse alone, so the strict test below can fail only on its comparison.
+    # Not the answer B-6 waits for: the parse alone, so the strict test below can fail only on its comparison. Any of
+    # B-6's options keeps it: one primary interface with one address in the VPC's two subnets, 10.42.0.0/23, whichever
+    # of the two it is (option C makes the private one primary; the review of the fixes, I1).
     eni = primary_eni(prod())
     assert eni is not None
-    assert eni_addresses(eni) == ["10.42.0.10"]
+    (address,) = eni_addresses(eni)
+    assert ipaddress.ip_address(address) in ipaddress.ip_network("10.42.0.0/23")
 
 
 @pytest.mark.xfail(
@@ -709,7 +713,9 @@ def test_the_vpc_origin_reaches_the_interface_the_relay_publishes_on() -> None:
     )
     compose = (net.REPO / "deploy" / "compose.yaml").read_text(encoding="utf-8")
     published = re.findall(r'"(10\.42\.[01]\.10):8080:8080"', compose)
-    assert published and set(published) <= set(reached), (reached, published)
+    # The origin reaches an address the relay publishes on: option A adds the primary's to the relay's ports, so the
+    # relay may publish on both, and the edge's path needs one of them (the review of the fixes, I1).
+    assert published and set(reached) & set(published), (reached, published)
 
 
 def test_the_vpc_origin_to_the_tunnel_ends_relay() -> None:
