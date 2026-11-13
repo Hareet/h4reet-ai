@@ -719,6 +719,7 @@ def test_mask_rows_write_where_the_container_sees_each_mount(tmp_path: Path) -> 
     gate = tmp_path / "share/gate"
     gate.mkdir(parents=True)
     (gate / "gitleaks.toml").write_text("x")
+    (gate / "gitleaks.toml").chmod(0o444)  # as the runner writes it
     same = lambda p: (str(p), str(p), "ro")
     pre = [
         (str(wt), str(wt), "rw"),
@@ -732,7 +733,13 @@ def test_mask_rows_write_where_the_container_sees_each_mount(tmp_path: Path) -> 
     got = rehearse.mask_rows(pre, str(wt), str(repo), under)
     by_id = {r["id"]: r for r in got}
     assert len(by_id) == len(got) == 5
-    assert by_id["mask-main-gitleaks-toml"]["command"] == f": >> {repo}/.gitleaks.toml"
+    # a file its mode already keeps from writing answers `Permission denied` before the mount is tried (install 6's
+    # R4): touch -c changes only the times, and the kernel checks the mount before any permission there
+    assert (
+        by_id["mask-main-gitleaks-toml"]["command"]
+        == f"touch -c -- {repo}/.gitleaks.toml"
+    )
+    assert by_id["mask-main-gitleaks-toml"]["expect"] == "Read-only file system"
     assert by_id["mask-main-gitleaks-toml"]["creates"] == ""
     assert by_id["mask-gitleaks-toml"]["command"] == f": >> {wt}/.gitleaks.toml"
     assert by_id["mask-claude-md"]["command"] == f": >> {wt}/CLAUDE.md"

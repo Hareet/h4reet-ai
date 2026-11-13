@@ -528,13 +528,22 @@ def mask_rows(pre: list, worktree: str, repo: str, is_under) -> list[dict]:
                 rel = f"main/{rel}"
         slug = re.sub(r"[^a-z0-9]+", "-", rel.lower()).strip("-")[:60] or "root"
         folder = os.path.isdir(h)
+        if folder:
+            command = f": >> {c}/.rt-mask"
+        elif os.stat(h).st_mode & 0o200:
+            command = f": >> {c}"
+        else:
+            # its mode refuses an append (`Permission denied`) before the mount is tried; touch -c changes only the
+            # times, and the kernel checks the mount before any permission there, so only the mount refuses it
+            # (install 6's R4)
+            command = f"touch -c -- {c}"
         out.append(
             {
                 "id": f"mask-{slug}",
                 "role": "ops",
                 "kind": "container",
                 "category": "write",
-                "command": f": >> {c}/.rt-mask" if folder else f": >> {c}",
+                "command": command,
                 "expect": "Read-only file system",
                 "layer": "ro-mount",
                 "rehearsal": True,
