@@ -402,7 +402,7 @@ def sync_site(
     """Contract §2, step 5 (contracts/edge.md §5): the site the release checked, to releases/<commit>/, each file with
     the Cache-Control the web image's nginx sends, each GLB's gzip copy under its own name with Content-Encoding gzip
     as gzip_static serves it, and never the PDF's text file; then that copy to site/, its assets first, then the rest,
-    deleting what the release lacks but the public view's status/ and the assets; then one invalidation of the
+    deleting what the release lacks but the sink's status/latest.json and the assets; then one invalidation of the
     distribution, whose failure is a warning that names its recovery, since site/ already holds the release; then the
     assets the release lacks retired, each kept a day (W2; group 8's review B, nit 1)."""
     bucket = opts.site_bucket
@@ -429,12 +429,14 @@ def sync_site(
         ["aws", "s3", "sync", str(dist), copy, "--no-progress", "--exclude", "assets/*", "--exclude", "a/*",
          "--exclude", "*.pdf.txt", "--cache-control", "no-cache"],
         # site/: the assets first, never deleting, so no page names an asset that isn't there yet; then the rest,
-        # deleting what the release lacks, but the public view's status/ and the assets, which retire_assets keeps a
-        # day for the tabs still open on the release before (W2).
+        # deleting what the release lacks, but the snapshot sink's status/latest.json and the assets, which
+        # retire_assets keeps a day for the tabs still open on the release before (W2). Only the sink's one file is
+        # spared: an excluded key is neither uploaded nor deleted, so `status/*` kept the build's own status/ page out
+        # of site/ (W2's review, I1).
         ["aws", "s3", "sync", copy, f"s3://{bucket}/site/", "--no-progress", "--exclude", "*", "--include", "assets/*",
          "--include", "a/*"],
-        ["aws", "s3", "sync", copy, f"s3://{bucket}/site/", "--no-progress", "--delete", "--exclude", "status/*",
-         "--exclude", "assets/*", "--exclude", "a/*"],
+        ["aws", "s3", "sync", copy, f"s3://{bucket}/site/", "--no-progress", "--delete", "--exclude",
+         "status/latest.json", "--exclude", "assets/*", "--exclude", "a/*"],
     ]  # fmt: skip
     for argv in steps:
         if runner(argv)[0] != 0:
