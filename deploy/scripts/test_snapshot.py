@@ -65,6 +65,7 @@ def part(host: str = "laptop", at: float = NOW - 30, **over: object) -> dict:
         "ceilings": {"day_usd": 5.0, "month_usd": 20.0},
         "warnings": {"day_usd": 3.5, "month_usd": 14.0},
         "release": "0123456789ab",
+        "tunnel_up": True,
     }
     body.update(over)
     return body
@@ -133,6 +134,8 @@ def test_the_sink_refuses_each_forbidden_kind_of_field(field: str, value: str) -
         ),
         ({"error_rate": float("nan")}, "error_rate"),
         ({"latency_p95_s": -1.0}, "latency_p95_s"),
+        # Group 10's review, I2: the tunnel's state is a boolean or unread, nothing else.
+        ({"tunnel_up": "up"}, "tunnel_up"),
         ({"model_server_up": "yes"}, "model_server_up"),
     ],
 )
@@ -153,7 +156,9 @@ def test_a_missing_field_is_refused_by_name() -> None:
 def test_a_valid_part_is_kept_and_answered_204() -> None:
     r = receiver()
     assert post(r, part()) == (204, None)
-    assert r.part == part()
+    # Kept with the sink's own time of receipt (group 10's review): a publisher's clock that steps back, as WSL's
+    # does, never makes the page's ages wrong; its own time only bounds the skew.
+    assert r.part == part(at=NOW)
 
 
 def test_the_token_is_checked_first_and_never_echoed() -> None:
@@ -227,6 +232,25 @@ def test_the_sink_tells_a_publisher_which_host_the_relay_serves(
     assert status == 200 and answer == {"serving": said}
 
 
+def test_a_part_is_kept_with_its_time_of_receipt() -> None:
+    r = receiver(clock=NOW)
+    assert post(r, part(at=NOW - 200)) == (204, None)
+    assert r.part["taken_at"] == iso(NOW)
+
+
+def test_a_part_naming_none_among_its_causes_is_taken_without_it() -> None:
+    # Group 10's review, I1: the gateway's cause gauge holds `none` = 1 while nothing is degraded; the sink drops it,
+    # as defence in depth beside the publisher's own.
+    r = receiver()
+    assert post(r, part(degraded_causes=["none", "kill_switch_tripped"])) == (204, None)
+    assert r.part["degraded_causes"] == ["kill_switch_tripped"]
+
+
+def test_the_sinks_server_closes_a_stalled_client() -> None:
+    # Group 10's review: a stalled client holds a thread no longer than the handler's socket timeout.
+    assert sink.make_handler(receiver()).timeout == 10
+
+
 class SinkStub:
     def __init__(self, serving: str | None, answer: int = 204) -> None:
         self.serving_answer = serving
@@ -257,8 +281,15 @@ class Prometheus:
     def __call__(self, query: str) -> list[dict]:
         self.asked.append(query)
         if "h4_degraded_cause" in query:
+            # The real gauge's shape (group 10's review, I1): `none` = 1 beside a real cause.
             return [
-                {"metric": {"h4_cause": "kill_switch_tripped"}, "value": [NOW, "1"]}
+                {"metric": {"h4_cause": "none"}, "value": [NOW, "1"]},
+                {"metric": {"h4_cause": "kill_switch_tripped"}, "value": [NOW, "1"]},
+            ]
+        if "h4_tunnel_up" in query:
+            return [
+                {"metric": {"h4_tunnel_end": "laptop"}, "value": [NOW, "1"]},
+                {"metric": {"h4_tunnel_end": "tunnel-end"}, "value": [NOW, "1"]},
             ]
         if 'job="model-server"' in query:
             return [{"metric": {}, "value": [NOW, "1"]}]
@@ -347,8 +378,39 @@ def test_the_posted_part_is_the_one_the_sink_takes() -> None:
     assert (body["latency_p50_s"], body["latency_p95_s"]) == (0.4, 1.4)
     assert body["model_server_up"] is True
     assert body["degraded_causes"] == ["kill_switch_tripped"]
+    assert body["tunnel_up"] is True
     assert body["ceilings"] == {"day_usd": 5.0, "month_usd": 20.0}
     assert body["release"] == "0123456789ab"
+
+
+def test_a_tunnel_end_reading_down_is_the_tunnel_down() -> None:
+    class Down(Prometheus):
+        def __call__(self, query: str) -> list[dict]:
+            if "h4_tunnel_up" in query:
+                return [
+                    {"metric": {"h4_tunnel_end": "laptop"}, "value": [NOW, "1"]},
+                    {"metric": {"h4_tunnel_end": "tunnel-end"}, "value": [NOW, "0"]},
+                ]
+            return super().__call__(query)
+
+    stub = SinkStub("laptop")
+    make_publisher("laptop", stub, Down()).once()
+    assert stub.posted[0]["tunnel_up"] is False
+
+
+def test_both_loops_run_at_a_fixed_rate_and_the_view_stays_under_5_minutes() -> None:
+    # Group 10's review, I3 (FR-058): the publisher posts every 60 s and both loops sleep the period less the run's
+    # own time. The worst age at the edge: a part up to one publisher period old when the write picks it up, the
+    # write's own run, its period until the next document, and the edge's 60 s cache.
+    assert publisher.EVERY_S == 60 and sink.EVERY_S == 120
+    for module in (publisher, sink):
+        assert module.next_sleep(60, 1000.0, 1000.0) == 60
+        assert module.next_sleep(60, 1000.0, 1015.0) == 45
+        assert module.next_sleep(60, 1000.0, 1090.0) == 0
+    worst = (
+        publisher.EVERY_S + sink.WRITE_ALLOWANCE_S + sink.EVERY_S + sink.EDGE_CACHE_S
+    )
+    assert worst < 300
 
 
 def test_the_publishers_queries_are_the_dashboards_own() -> None:
@@ -697,6 +759,105 @@ def test_the_host_service_runs_the_write_and_keeps_running() -> None:
     assert "HTTPS_PROXY=http://127.0.0.1:3128" in service
     assert "NO_PROXY=169.254.169.254" in service
     assert not (units / "h4-snapshot-sink.timer").exists()
+
+
+class Counting(Aws):
+    """test_snapshot_cloud's reads, with the outcomes answered and counted."""
+
+    def __init__(self, ec2: str = "stopped", budget_ok: bool = True) -> None:
+        super().__init__(ec2)
+        self.metric_reads = 0
+        self.budget_ok = budget_ok
+
+    def call(self, service: str, op: str, **params: object) -> dict:
+        if op == "GetMetricData":
+            self.metric_reads += 1
+            return {"MetricDataResults": []}
+        if op == "DescribeBudget" and not self.budget_ok:
+            raise sink.AwsError("ThrottlingException")
+        return super().call(service, op, **params)
+
+
+def counting_writer(tmp_path: Path, aws: Aws, clock: list[float]):
+    return sink.Writer(
+        cloud=sink.Sink(aws, ACCOUNT, lambda: clock[0]),
+        relay_status=lambda: NONE_SERVES,
+        store=Store(),
+        host_part=lambda: None,
+        put=Puts(),
+        state_dir=tmp_path,
+        clock=lambda: clock[0],
+    )
+
+
+def test_a_restarted_write_keeps_the_half_hourly_cadence(tmp_path: Path) -> None:
+    # Group 10's review: a restart doesn't read GetMetricData again before its half hour is up.
+    clock, aws = [NOW], Counting()
+    counting_writer(tmp_path, aws, clock).write()
+    clock[0] = NOW + 120
+    counting_writer(tmp_path, aws, clock).write()
+    assert aws.metric_reads == 1
+    clock[0] = NOW + 1800
+    counting_writer(tmp_path, aws, clock).write()
+    assert aws.metric_reads == 2
+
+
+def test_a_failed_budget_read_keeps_the_last_server_part_with_its_time(
+    tmp_path: Path,
+) -> None:
+    clock, aws = [NOW], Counting()
+    w = counting_writer(tmp_path, aws, clock)
+    w.write()
+    first = json.loads((tmp_path / "latest.json").read_text(encoding="utf-8"))
+    aws.budget_ok = False
+    clock[0] = NOW + 3700
+    w.write()
+    second = json.loads((tmp_path / "latest.json").read_text(encoding="utf-8"))
+    assert second["server"] == first["server"]
+    assert second["server"]["as_of"] == iso(NOW)
+
+
+def test_ec2_with_no_tagged_instance_is_unknown_in_the_document(tmp_path: Path) -> None:
+    class NoInstance(Counting):
+        def call(self, service: str, op: str, **params: object) -> dict:
+            if op == "DescribeInstances":
+                return {"Reservations": []}
+            return super().call(service, op, **params)
+
+    clock = [NOW]
+    counting_writer(tmp_path, NoInstance(), clock).write()
+    doc = json.loads((tmp_path / "latest.json").read_text(encoding="utf-8"))
+    assert doc["serving"]["ec2_state"] == "unknown"
+
+
+class StopLoop(BaseException):
+    pass
+
+
+def test_the_write_loop_goes_on_past_a_round_that_raises(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Group 10's review: one round's error is said and the loop goes on, never a restart that reads everything again.
+    calls = 0
+
+    def write() -> str:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("boom")
+        return "written"
+
+    sleeps: list[float] = []
+
+    def sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        if len(sleeps) >= 2:
+            raise StopLoop
+
+    with pytest.raises(StopLoop):
+        sink.run_writes(write, lambda: None, sleep=sleep, clock=lambda: NOW)
+    assert calls == 2 and sleeps == [120, 120]
+    assert "RuntimeError" in capsys.readouterr().err
 
 
 def test_the_writes_count_is_cumulative_from_the_process_start(tmp_path: Path) -> None:

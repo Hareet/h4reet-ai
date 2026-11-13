@@ -173,6 +173,26 @@ def test_ec2_with_no_tagged_instance_reads_none() -> None:
     ]
 
 
+def test_two_tagged_instances_are_an_error_never_the_first_one(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Group 10's review: a second instance tagged h4-prod-ec2 is the guard's case, not a state to show as EC2's.
+    two = {
+        "Reservations": [
+            {
+                "Instances": [
+                    {"InstanceId": EC2_ID, "State": {"Name": "running"}},
+                    {"InstanceId": "i-0" + "cd" * 8, "State": {"Name": "stopped"}},
+                ]
+            }
+        ]
+    }
+    reads = sink.Sink(Aws({"ec2 DescribeInstances": two}), ACCOUNT, Clock()).read()
+    assert "ec2" in reads.errors
+    assert "h4.ec2.state" not in points(reads)
+    assert reads.ec2_state == "unknown"
+
+
 def test_an_executed_server_action_reads_1() -> None:
     over = {
         "budgets DescribeBudgetActionsForBudget": {

@@ -55,6 +55,7 @@ function doc(host: Host = LAPTOP): Record<string, unknown> {
       ceilings: { day_usd: 5, month_usd: 20 },
       warnings: { day_usd: 3.5, month_usd: 14 },
       release: "0123456789ab",
+      tunnel_up: true,
     },
     releases: {
       [LAPTOP]: { release: "0123456789ab", taken_at: at(3) },
@@ -99,11 +100,21 @@ describe("which host serves comes from /api/status first (contract §3; FR-057)"
     expect(servingHost(serving(NONE))).toBe(NONE);
   });
 
+  it("is unknown on any other answer: the status cap's 429, another 5xx (group 10's review)", () => {
+    expect(servingHost({ httpStatus: 429, body: { error: "relay_cap_exceeded" } })).toBe("unknown");
+    expect(servingHost({ httpStatus: 502, body: null })).toBe("unknown");
+    expect(servingHost({ httpStatus: 503, body: { state: "degraded", cause: "store_unreachable" } })).toBe("unknown");
+    const root = page(doc(LAPTOP), { httpStatus: 429, body: null });
+    expect(part(root, "serving").dataset.host).toBe("unknown");
+    expect(text(part(root, "serving"))).toMatch(/Which host serves is unknown right now/);
+    expect(text(root)).not.toMatch(/No host is serving/);
+    expect(text(part(root, "host_panels"))).toMatch(/last-known/i);
+  });
+
   it("is none on the edge's degraded answer or none at all", () => {
     expect(servingHost(EDGE_DEGRADED)).toBe(NONE);
     expect(servingHost(null)).toBe(NONE);
-    expect(servingHost({ httpStatus: 502, body: null })).toBe(NONE);
-    expect(servingHost({ httpStatus: 200, body: { serving: "the Author's machine" } })).toBe(NONE);
+    expect(servingHost({ httpStatus: 200, body: { serving: "the Author's machine" } })).toBe("unknown");
   });
 
   it("names none when latest.json names a host but /api/status gives the edge's degraded answer", () => {
@@ -199,6 +210,11 @@ describe("each part, with its time (FR-058, FR-059; SC-013)", () => {
   it("shows EC2's state and the release on each host", () => {
     const root = page(doc(LAPTOP), serving(LAPTOP));
     expect(text(part(root, "serving"))).toMatch(/EC2: stopped/);
+    // FR-059: the tunnel's state, from the host part (group 10's review, I2).
+    expect(text(part(root, "host_panels"))).toMatch(/Tunnel: up/);
+    // The EC2 line is the document's value too, so it is last-known whenever the parts are (contract §3).
+    const degraded = page(doc(LAPTOP), EDGE_DEGRADED);
+    expect(text(part(degraded, "serving"))).toMatch(/EC2: stopped \(last-known\)/);
     const releases = text(part(root, "releases"));
     expect(releases).toMatch(new RegExp(`${LAPTOP}.*0123456789ab`));
     expect(releases).toMatch(/ec2.*ba9876543210/);
