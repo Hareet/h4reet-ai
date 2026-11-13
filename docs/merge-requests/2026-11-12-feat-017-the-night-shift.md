@@ -4,7 +4,7 @@ Spec: specs/017-the-night-shift/ · Intent: intent/017-the-night-shift.md (uncom
 Session: /home/h4reet/h4reet-ai/h4reet-ai, with each group in its own worktree under /tmp/claude-1000 (wt-017 for the integration branch) · Repo hooks active: yes (the bash gate refused several scratch commands whose text named a refused word, and one commit while the main checkout's HEAD was main; each was redone with the Write and Edit tools or after the checkout was parked, never respelled)
 Authorized by: the spec and plan, approved by the Author on 2026-11-12 ("Approve, all recommended", T000, 18e2dcf1), and his answers in spec.md's Clarifications (Q1, Q5, Q8, Q15, Q17, and the move to containers)
 
-## Status: built in five groups, each reviewed once by an agent that didn't write it; every blocker fixed; nothing installed, applied, or merged
+## Status: built in five groups, each reviewed once by an agent that didn't write it; every blocker fixed; installed by the Author, and rehearsed (R1 to R3 at a8373026, R4 at cfa29548); nothing applied or merged
 
 The night shift's code, configuration, tests, and documents are on this branch. Its protected-path changes are twelve patches for the Author's hand, P-1 to P-12 ([index](2026-11-12-feat-017-patches.md)). The install-and-rehearse script runs only on the Author's machine, from his runbook, by `git show <sha>:<path>`.
 
@@ -177,6 +177,7 @@ The steps, in order, are on the runbook artifact as lines of 45 characters or fe
      - **The alternates hardlink** met your repository's empty `.git/objects/info/alternates` (dated 11-09, the sandbox's placeholder) and said `File exists`. It now links to a new name in that folder.
      - **The gitleaks config's mask row** wrote the mount's host path (the share), which the container doesn't have. Mask rows now write the path as the container sees it, and a mask in the main checkout's path is named `mask-main-…`.
      - The sixth run (f0b606dd, `--rehearse R4`) passed every row fixed above. One failed: `mask-main-gitleaks-toml` said `Permission denied`, because the runner writes that file 0444 and the kernel checks its mode before the mount. A mask row on a file whose mode already refuses writing now runs `touch -c`, which changes only the times and meets the mount check first, so only the read-only mount can refuse it (reviewed, no blocker).
+     - The seventh run (cfa29548, `--rehearse R4`): **R4 ok**, with 205 rows refused, 5 absent on the host and in the container, the 1 gap row recorded, and 4 of 215 skipped. The skipped four are `.github/workflows`'s rows, absent in the rehearsal's worktree. With the fifth run's R1 to R3, T090 is done. R1 to R4 run together again at the second install (T092).
      - `--rehearse <steps>` runs only those of R1 to R4, as you asked on 2026-11-13, so a fix to R4 alone doesn't rerun R3's hour. The summary names each step not run, and no later run takes the install as rehearsed. The main pass, the second install with plan and gate on (T092), runs all four.
 4. **GitHub**: push before the first night (Q17), since the objects store is writable to sessions.
 5. **Merge**: after spec 001's W1 gate, unless you say otherwise. `toolchain-check` is WARN until P-8 moves the floor to 2.1.322.
