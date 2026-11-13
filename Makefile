@@ -549,6 +549,19 @@ else
 	$(PY_HOST) deploy/scripts/measure_stack.py --stack dev-cpu --env-file $(ENVFILE)$(if $(call from_cli,MINUTES), --minutes="$$MINUTES")
 endif
 
+# T166's harness (spec 001 tasks.md T166; plan.md §16, "T166's harness"): the tunnel end's five services, measured on
+# the engine of whoever runs it, in a project of their own, under deploy/measure's overlay, with stand-in secrets in a
+# temporary folder and stand-in public-cap figures. Not Author-only: it touches no stack, account, or secret of his,
+# spends nothing (a stub host answers), and from an agent's sandbox it reaches the agents' engine alone, through the
+# relay. The Author runs it on his engine, where the tunnel's image builds; the session sets the type from his block.
+measure-tunnel-end: ## Measure the tunnel end's five services under the relay's load, on this engine (spec 001 T166) [MINUTES=30]
+ifeq ($(VIA_RELAY),1)
+	@[ -x $(RELAY) ] && [ -f "$(ENGINE_CERT)" ] || { echo "make measure-tunnel-end: the agents' engine isn't set up yet (tasks.md T046); ask the Author" >&2; exit 2; }
+	$(RELAY) make --no-print-directory measure-tunnel-end$(if $(call from_cli,MINUTES), MINUTES="$$MINUTES")
+else
+	$(PY_HOST) deploy/scripts/measure_tunnel_end.py$(if $(call from_cli,MINUTES), --minutes="$$MINUTES")
+endif
+
 # Spec 001's architecture inventory (research.md R-33, R-04; tasks.md T015): every image deploy/images.lock pins, read
 # from the engine's own store, never a registry, with its platforms and the hosts it runs on (contracts/env-cloud.md
 # §3). Read-only: it pulls nothing. Inside the sandbox, the agents' engine through the relay, as engine-status reaches
@@ -866,7 +879,7 @@ release: ## (the Author) A release of main's gated merge (contracts/releases-dep
 .PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
 	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite redteam-live matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan infra-mirror infra-check infra-plan-note disclosure-check \
-	measure-stack arch-inventory infra-verify infra-record infra-audit secrets-check tunnel-keys tunnel-revoke cloud-session \
+	measure-stack measure-tunnel-end arch-inventory infra-verify infra-record infra-audit secrets-check tunnel-keys tunnel-revoke cloud-session \
 	shared-state-tls shared-state-roles shared-state-restore release ec2-status ec2-start ec2-stop ec2-autostart server-budget-restore
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or
