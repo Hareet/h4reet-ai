@@ -23,11 +23,16 @@ const obj = (v: unknown): Obj | null => (v !== null && typeof v === "object" && 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
-/** Which host serves: the relay's own answer while it gives one; `none` on the edge's degraded answer, or none. */
-export function servingHost(answer: StatusAnswer | null): Host {
-  if (answer === null || answer.httpStatus !== 200) return "none";
-  const serving = obj(answer.body)?.serving;
-  return (HOSTS as readonly unknown[]).includes(serving) ? (serving as Host) : "none";
+/** Which host serves: the relay's own answer while it gives one; `none` on the edge's degraded answer (503,
+ *  `no_host_serving`) or no answer at all, as while the tunnel end is gone; `unknown` on anything else, the status
+ *  cap's 429 or another 5xx among them (group 10's review). */
+export function servingHost(answer: StatusAnswer | null): Host | "unknown" {
+  if (answer === null) return "none";
+  const body = obj(answer.body);
+  if (answer.httpStatus === 503 && body?.cause === "no_host_serving") return "none";
+  if (answer.httpStatus !== 200) return "unknown";
+  const serving = body?.serving;
+  return (HOSTS as readonly unknown[]).includes(serving) ? (serving as Host) : "unknown";
 }
 
 /** A time as the page writes it, `2027-01-15 08:00 UTC`, and how long before now. */
@@ -59,7 +64,7 @@ export function renderStatus(root: HTMLElement, document: unknown, answer: Statu
   const host = servingHost(answer);
   const docHost = str(obj(doc?.serving)?.host);
   // Last-known: the relay doesn't name a host, or names another than the document's, as while the sink is gone.
-  const lastKnown = host === "none" || (docHost !== null && docHost !== host);
+  const lastKnown = host === "none" || host === "unknown" || (docHost !== null && docHost !== host);
   const d = root.ownerDocument;
   root.replaceChildren();
 
@@ -89,10 +94,18 @@ export function renderStatus(root: HTMLElement, document: unknown, answer: Statu
 
   const serving = section("serving", "Which host serves");
   serving.dataset.host = host;
-  line(serving, host === "none" ? "No host is serving right now." : `${HOST_NAMES[host]} is serving.`);
+  line(
+    serving,
+    host === "none"
+      ? "No host is serving right now."
+      : host === "unknown"
+        ? "Which host serves is unknown right now."
+        : `${HOST_NAMES[host]} is serving.`,
+  );
   const sv = obj(doc?.serving);
   if (sv !== null) {
-    line(serving, `EC2: ${str(sv.ec2_state) ?? "unknown"}.`);
+    // The document's value, so last-known whenever the parts are (contract §3).
+    line(serving, `EC2: ${str(sv.ec2_state) ?? "unknown"}${lastKnown ? " (last-known)" : ""}.`);
     taken(serving, sv.taken_at, false);
   }
   if (doc === null) {
@@ -117,6 +130,9 @@ export function renderStatus(root: HTMLElement, document: unknown, answer: Statu
     );
     const up = panels.model_server_up;
     line(hp, `Model server: ${up === true ? "up" : up === false ? "down" : "none on this host"}.`);
+    // FR-059: the tunnel's state, up while every end the host's panel reads says up (group 10's review, I2).
+    const tunnel = panels.tunnel_up;
+    line(hp, `Tunnel: ${tunnel === true ? "up" : tunnel === false ? "down" : "unknown"}.`);
     line(hp, `Why responses are degraded: ${causes.length === 0 ? "none" : causes.join(", ")}.`);
     taken(hp, panels.taken_at);
   }

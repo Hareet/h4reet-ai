@@ -821,6 +821,7 @@ What changes is how often a turn is paid:
 | Terraform state, the secrets store, the release registry | storage, small | — |
 | AWS budgets, the anomaly monitor, the budget actions, and the bridge that carries AWS-side alerts to Telegram | small or none | — |
 | The uptime probe | per check | Never a metered call (FR-061). |
+| The public view's write and its reads (group 10; plan.md §16) | per request | One PUT of `site/status/latest.json` every 2 minutes, about 21,600 a month, about $0.11; the handover functions' outcomes by `GetMetricData`, once in 30 minutes, about 17,280 metrics a month, about $0.17; EC2's, Systems Manager's, Route 53's, and Budgets' reads, no per-request charge (to confirm at T167). |
 | Telegram and SMTP alerts | none | Both are free (ADR 0005). |
 | Development time | the Team plan (spec 000 FR-037) | Agent sessions reach no cloud. |
 

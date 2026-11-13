@@ -32,7 +32,9 @@ import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 
-EVERY_S = 120
+# Every minute (group 10's review, I3, FR-058): with the write's 2 minutes and the edge's 60 s, the view stays under
+# 5 minutes old (test_snapshot.py's worst case). Each run at a fixed rate: the period less the run's own time.
+EVERY_S = 60
 DASHBOARD = Path("/etc/h4reet/dashboards/h4-runtime.json")
 RATE_WINDOW = "5m"
 # Each field of the host part, from its dashboard panel: (the panel's title, its query's refId).
@@ -48,7 +50,14 @@ PANELS = {
     "ceiling_month": ("Spend month-to-date (stat)", "C"),
     "warning_month": ("Spend month-to-date (stat)", "B"),
     "release": ("The release on each host", "A"),
+    # FR-059's tunnel state (group 10's review, I2): up while every end the panel reads says up.
+    "tunnel_up": ("Tunnel up", "A"),
 }
+
+
+def next_sleep(period: float, started: float, now: float) -> float:
+    """A fixed rate: the period less what the run took, never below 0."""
+    return max(0.0, period - (now - started))
 
 
 def iso(epoch: float) -> str:
@@ -119,7 +128,11 @@ def host_part(
             for s in ask("degraded_causes")
             if _value(s) == 1.0
         }
+        # The gauge holds `none` = 1 while nothing is degraded (spec 000's h4.degraded.cause): no cause, not a cause
+        # (group 10's review, I1).
+        - {"none"}
     )
+    tunnel = [v for v in (_value(s) for s in ask("tunnel_up")) if v is not None]
     # The running release, by its commit's first 12 hex, as the deployer labels it (h4.commit): hex alone, never the
     # release's free-form name.
     release = None
@@ -152,6 +165,7 @@ def host_part(
             "month_usd": money("warning_month"),
         },
         "release": release,
+        "tunnel_up": all(v >= 1.0 for v in tunnel) if tunnel else None,
     }
 
 
@@ -389,7 +403,7 @@ def main(argv: list[str]) -> int:
             )
         if args.once:
             return 0
-        time.sleep(EVERY_S)
+        time.sleep(next_sleep(EVERY_S, start, time.time()))
 
 
 if __name__ == "__main__":

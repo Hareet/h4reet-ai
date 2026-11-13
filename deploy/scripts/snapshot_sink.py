@@ -68,6 +68,10 @@ HEALTH_CHECK_PARAMETER = "/h4reet/tunnel-end/HEALTH_CHECK_ID"
 SERVER_BUDGET = "h4-server-month"
 NAMESPACE = "h4reet/handover"
 EVERY_S = 120
+# FR-058's worst case (group 10's review, I3): a part a publisher's minute old, the write's run, its 2 minutes until
+# the next document, and the edge's 60 s cache; the run's allowance is the figure test_snapshot.py holds it to.
+WRITE_ALLOWANCE_S = 30
+EDGE_CACHE_S = 60
 BUDGET_EVERY_S = 3600
 # The functions' outcomes, already a last-hour sum, once in 30 minutes: GetMetricData has no free tier and bills each
 # metric its SEARCH returns (group 9's review A, I5): about 1,440 calls a month, not 21,600 at every 2 minutes.
@@ -164,9 +168,13 @@ def read_ec2(aws, out: Reads) -> None:
         for i in r.get("Instances") or []
         if isinstance(i, dict) and (i.get("State") or {}).get("Name") != "terminated"
     ]
+    # Two tagged instances are the guard's case (ec2_unrecognised_instance), not a state to show as EC2's.
+    if len(found) > 1:
+        out.errors.append("ec2")
+        return
     state = str((found[0].get("State") or {}).get("Name", "none")) if found else "none"
     out.points += one_hot("h4.ec2.state", EC2_STATES, state)
-    out.ec2_state = state if state != "none" else "stopped"
+    out.ec2_state = state
     spot = found[0].get("SpotInstanceRequestId") if found else None
     if not isinstance(spot, str):
         out.points += one_hot("h4.ec2.spot_request", SPOT_STATES, "none")
@@ -529,6 +537,8 @@ HOST_PART = (
     "ceilings",
     "warnings",
     "release",
+    # FR-059's tunnel state (group 10's review, I2).
+    "tunnel_up",
 )
 
 
@@ -547,12 +557,15 @@ def check_host_part(body: object, field: str = "") -> dict:
     if not isinstance(causes, list) or len(causes) > len(CAUSES):
         raise Invalid(f"{at}degraded_causes")
     for cause in causes:
-        _choice(cause, f"{at}degraded_causes", CAUSES)
+        _choice(cause, f"{at}degraded_causes", (*CAUSES, "none"))
+    # `none` is the cause gauge's own "nothing degraded", dropped (group 10's review, I1).
+    p["degraded_causes"] = [c for c in causes if c != "none"]
     for name in ("ceilings", "warnings"):
         money = _object(p[name], f"{at}{name}", ("day_usd", "month_usd"))
         for key in ("day_usd", "month_usd"):
             _number(money[key], f"{at}{name}.{key}")
     _match(p["release"], f"{at}release", RELEASE_RE, nullable=True)
+    _bool(p["tunnel_up"], f"{at}tunnel_up", nullable=True)
     return p
 
 
@@ -719,6 +732,9 @@ class Receiver:
             return self._refuse(400, "stale_snapshot")
         if self.serving() != p["host"]:
             return self._refuse(409, "not_serving")
+        # Kept with the sink's own time of receipt: the publisher's time bounds the skew above, and never makes the
+        # page's ages (group 10's review; WSL's clock steps back).
+        p["taken_at"] = iso(self.clock())
         self.part = p
         return 204, None
 
@@ -735,12 +751,14 @@ def relay_serving(url: str) -> str | None:
     return serving if isinstance(serving, str) else None
 
 
-def serve(receiver: Receiver, port: int) -> None:
-    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+def make_handler(receiver: Receiver):
+    from http.server import BaseHTTPRequestHandler
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "snapshot-sink"
         sys_version = ""
+        # A stalled client holds its thread no longer than this (group 10's review).
+        timeout = 10
 
         def _answer(self, method: str) -> None:
             length = int(self.headers.get("Content-Length") or 0)
@@ -774,7 +792,13 @@ def serve(receiver: Receiver, port: int) -> None:
                     flush=True,
                 )
 
-    ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
+    return Handler
+
+
+def serve(receiver: Receiver, port: int) -> None:
+    from http.server import ThreadingHTTPServer
+
+    ThreadingHTTPServer(("0.0.0.0", port), make_handler(receiver)).serve_forever()
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -894,6 +918,8 @@ class Writer:
     errors_total: dict[str, int] = field(default_factory=dict)
     writes_total: dict[str, int] = field(default_factory=dict)
     started: float = field(default_factory=time.time)
+    round_started: float = 0.0
+    cadence_loaded: bool = False
 
     def previous(self) -> dict | None:
         try:
@@ -910,9 +936,61 @@ class Writer:
         tmp.write_text(json.dumps(doc, sort_keys=True), encoding="utf-8")
         os.replace(str(tmp), str(self.state_dir / "latest.json"))
 
+    def load_cadence(self) -> None:
+        """The hourly and half-hourly reads' last times and points, so a restart doesn't read them again early (group
+        10's review: a restart would otherwise run GetMetricData each time)."""
+        self.cadence_loaded = True
+        try:
+            kept = json.loads(
+                (self.state_dir / "cloud.json").read_text(encoding="utf-8")
+            )
+            for at_key, points_key in (
+                ("budget_at", "budget_points"),
+                ("outcomes_at", "outcome_points"),
+            ):
+                at = kept.get(at_key)
+                if isinstance(at, (int, float)) and getattr(self.cloud, at_key) is None:
+                    setattr(self.cloud, at_key, float(at))
+                    setattr(
+                        self.cloud,
+                        points_key,
+                        [
+                            Point(
+                                str(n),
+                                float(v),
+                                {str(k): str(x) for k, x in labels.items()},
+                            )
+                            for n, v, labels in kept.get(points_key) or []
+                        ],
+                    )
+        except (OSError, ValueError, TypeError, AttributeError):
+            pass
+
+    def keep_cadence(self) -> None:
+        state = {
+            "budget_at": self.cloud.budget_at,
+            "budget_points": [
+                [p.name, p.value, p.labels] for p in self.cloud.budget_points
+            ],
+            "outcomes_at": self.cloud.outcomes_at,
+            "outcome_points": [
+                [p.name, p.value, p.labels] for p in self.cloud.outcome_points
+            ],
+        }
+        try:
+            self.state_dir.mkdir(parents=True, exist_ok=True)
+            tmp = self.state_dir / ".cloud.json"
+            tmp.write_text(json.dumps(state, sort_keys=True), encoding="utf-8")
+            os.replace(str(tmp), str(self.state_dir / "cloud.json"))
+        except OSError:
+            pass
+
     def document(self) -> dict:
         now = self.clock()
+        if not self.cadence_loaded:
+            self.load_cadence()
         reads = self.cloud.read()
+        self.keep_cadence()
         self.last = reads
         for read in reads.errors:
             self.errors_total[read] = self.errors_total.get(read, 0) + 1
@@ -953,7 +1031,8 @@ class Writer:
                     "release": panels["release"],
                     "taken_at": panels["taken_at"],
                 }
-        server = None
+        # A failed hourly read keeps the last server part, with its own as_of (group 10's review).
+        server = previous.get("server")
         if self.cloud.budget_at is not None and self.cloud.budget_points:
             month = {p.name: p.value for p in self.cloud.budget_points}
             server = {
@@ -981,6 +1060,7 @@ class Writer:
         }
 
     def write(self) -> str:
+        self.round_started = self.clock()
         doc = self.document()
         if validate_document(doc) is not None:
             self.outcome = "refused"
@@ -1206,6 +1286,40 @@ def post_otlp(payload: dict) -> None:
             )
 
 
+def next_sleep(period: float, started: float, now: float) -> float:
+    """A fixed rate: the period less what the run took, never below 0 (group 10's review, I3)."""
+    return max(0.0, period - (now - started))
+
+
+def run_writes(
+    write: Callable[[], str],
+    after: Callable[[], None],
+    sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.time,
+) -> None:
+    """The write's loop, every EVERY_S at a fixed rate; one round's error is said and the loop goes on, never a
+    restart that would read everything again (group 10's review)."""
+    while True:
+        started = clock()
+        try:
+            print(f"snapshot-sink: {write()}", flush=True)
+        except Exception as exc:  # noqa: BLE001 - one round's failure, by its class alone
+            print(
+                f"snapshot-sink: the write failed ({type(exc).__name__})",
+                file=sys.stderr,
+                flush=True,
+            )
+        try:
+            after()
+        except Exception as exc:  # noqa: BLE001 - telemetry never stops the write
+            print(
+                f"snapshot-sink: its telemetry failed ({type(exc).__name__})",
+                file=sys.stderr,
+                flush=True,
+            )
+        sleep(next_sleep(EVERY_S, started, clock()))
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="snapshot_sink.py", description=__doc__.split("\n\n", 1)[0]
@@ -1239,14 +1353,15 @@ def main(argv: list[str]) -> int:
         host_part=lambda: fetch_host_part(token) if token else None,
         put=put_document(account, STATE_DIR),
     )
-    while True:
-        start = time.time()
-        outcome = writer.write()
-        print(f"snapshot-sink: {outcome}", flush=True)
-        post_otlp(writer.telemetry(start, time.time()))
-        if args.once:
-            return 0
-        time.sleep(EVERY_S)
+    if args.once:
+        print(f"snapshot-sink: {writer.write()}", flush=True)
+        post_otlp(writer.telemetry(writer.round_started, time.time()))
+        return 0
+    run_writes(
+        writer.write,
+        lambda: post_otlp(writer.telemetry(writer.round_started, time.time())),
+    )
+    return 0
 
 
 if __name__ == "__main__":
