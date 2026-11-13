@@ -1,0 +1,148 @@
+P-I5b, spec 001 W2: the edge's index function on the folders alone, and a folder's path to its slash, for the
+Author's hand.
+
+Built from plain copies: infra/prod/edge.tf as W1's thirteen patches leave it (a git archive export of 0bf73883, W1's
+tip, with P-I3, P-G1, P-G3, P-I7, P-G4, P-G2, P-I4, P-G5, P-6, P-I5, P-G6, P-I6, and P-G7 applied in that order);
+edited in $TMPDIR, then diff -u with a/ and b/ labels after this preamble; never git apply, and nothing written into
+any worktree. A patch of its own, after P-I5, not a rebuilt P-I5: W1's gate commits P-I5 before W2's branch can, so
+W2's change to edge.tf is a second patch on top of it. Apply it on W2's -p branch after P-W2, with
+`patch -p1 < <this file>` at the repository's root, and commit the result byte for byte (tasks.md T175, T177).
+
+What it holds (group 8's review B, the smaller ones, which W1's note put on W2's branch; plan.md §16, "W2, as
+built"; contracts/edge.md §3):
+  - h4-site-index on the folders' behaviors alone: `*/`, and each folder of the site's without its slash, /credits,
+    /disclosure, and /status, after /api/*; the default behavior runs no function, so its cost is one invocation a
+    folder page, not one a site request (research.md R-05);
+  - the function redirects a folder's path without its slash to it, 301, as the web image's nginx does, where S3
+    through origin access control answered AccessDenied.
+
+Its checks, on a fresh export of W2's tip with W1's thirteen patches, P-W2, and this one, in that order: infra/test's
+T104 checks pass (test_prod_cdn.py), with both switches off and on; on the same export without this patch,
+check_index and check_distribution's ordered behaviors fail.
+--- a/infra/prod/edge.tf
++++ b/infra/prod/edge.tf
+@@ -18,19 +18,26 @@
+ 
+ # A path that ends in a slash is its folder's index.html, as the web image's nginx serves it: S3 through origin access
+ # control serves no index document of its own (/disclosure/, /credits/, and group 10's /status/). It names nothing, so
+-# W1 makes it.
++# W1 makes it. From W2 (group 8's review B, the smaller ones), it runs on the folders' behaviors alone, never on every
++# site request (one invocation each, its cost line in research.md R-05), and a folder's path without its slash is
++# redirected to it, as nginx's try_files does, instead of answering S3's AccessDenied.
+ resource "aws_cloudfront_function" "index" {
+   name    = "h4-site-index"
+   runtime = "cloudfront-js-2.0"
+-  comment = "A folder's path to its index.html (spec 001 contracts/edge.md §3)"
++  comment = "A folder's path to its index.html, and to its slash (spec 001 contracts/edge.md §3)"
+   publish = true
+   code    = <<-EOT
+     function handler(event) {
+       var request = event.request;
+       if (request.uri.endsWith("/")) {
+         request.uri += "index.html";
++        return request;
+       }
+-      return request;
++      return {
++        statusCode: 301,
++        statusDescription: "Moved Permanently",
++        headers: { location: { value: request.uri + "/" } },
++      };
+     }
+   EOT
+ }
+@@ -108,7 +115,7 @@
+     }
+   }
+ 
+-  # Every path but /api/*: the site, cached, with spec 002's headers.
++  # Every other path: the site, cached, with spec 002's headers, and no function (the index behaviors, below).
+   default_cache_behavior {
+     target_origin_id           = "site"
+     viewer_protocol_policy     = "redirect-to-https"
+@@ -117,11 +124,6 @@
+     compress                   = true
+     cache_policy_id            = aws_cloudfront_cache_policy.site.id
+     response_headers_policy_id = aws_cloudfront_response_headers_policy.site.id
+-
+-    function_association {
+-      event_type   = "viewer-request"
+-      function_arn = aws_cloudfront_function.index.arn
+-    }
+   }
+ 
+   # /api/*: the relay, never cached, with the four headers it reads and nothing of the viewer's beyond them.
+@@ -136,6 +138,73 @@
+     origin_request_policy_id = aws_cloudfront_origin_request_policy.relay.id
+   }
+ 
++  # A folder's path, the site's, with its policies, through the index function: `*/` is its index.html, and each of the
++  # site's folders without its slash is redirected to it (/credits, /disclosure, and group 10's /status). After
++  # /api/*, which comes first; every other site path runs no function.
++  ordered_cache_behavior {
++    path_pattern               = "*/"
++    target_origin_id           = "site"
++    viewer_protocol_policy     = "redirect-to-https"
++    allowed_methods            = ["GET", "HEAD"]
++    cached_methods             = ["GET", "HEAD"]
++    compress                   = true
++    cache_policy_id            = aws_cloudfront_cache_policy.site.id
++    response_headers_policy_id = aws_cloudfront_response_headers_policy.site.id
++
++    function_association {
++      event_type   = "viewer-request"
++      function_arn = aws_cloudfront_function.index.arn
++    }
++  }
++
++  ordered_cache_behavior {
++    path_pattern               = "/credits"
++    target_origin_id           = "site"
++    viewer_protocol_policy     = "redirect-to-https"
++    allowed_methods            = ["GET", "HEAD"]
++    cached_methods             = ["GET", "HEAD"]
++    compress                   = true
++    cache_policy_id            = aws_cloudfront_cache_policy.site.id
++    response_headers_policy_id = aws_cloudfront_response_headers_policy.site.id
++
++    function_association {
++      event_type   = "viewer-request"
++      function_arn = aws_cloudfront_function.index.arn
++    }
++  }
++
++  ordered_cache_behavior {
++    path_pattern               = "/disclosure"
++    target_origin_id           = "site"
++    viewer_protocol_policy     = "redirect-to-https"
++    allowed_methods            = ["GET", "HEAD"]
++    cached_methods             = ["GET", "HEAD"]
++    compress                   = true
++    cache_policy_id            = aws_cloudfront_cache_policy.site.id
++    response_headers_policy_id = aws_cloudfront_response_headers_policy.site.id
++
++    function_association {
++      event_type   = "viewer-request"
++      function_arn = aws_cloudfront_function.index.arn
++    }
++  }
++
++  ordered_cache_behavior {
++    path_pattern               = "/status"
++    target_origin_id           = "site"
++    viewer_protocol_policy     = "redirect-to-https"
++    allowed_methods            = ["GET", "HEAD"]
++    cached_methods             = ["GET", "HEAD"]
++    compress                   = true
++    cache_policy_id            = aws_cloudfront_cache_policy.site.id
++    response_headers_policy_id = aws_cloudfront_response_headers_policy.site.id
++
++    function_association {
++      event_type   = "viewer-request"
++      function_arn = aws_cloudfront_function.index.arn
++    }
++  }
++
+   # The edge's own degraded answer (contracts/edge.md §4; research.md R-08): the relay unreachable, as while AWS has
+   # the tunnel end back (FR-076), is a 503 with spec 000's degraded body, cause no_host_serving, from the site's
+   # bucket, never cached. The relay's own 503s pass through with their cause: no 503 is mapped here.
