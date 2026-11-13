@@ -38,7 +38,7 @@ The runner turns a role's live spec into one `docker run` line. A test checks th
 
 ```text
 docker run --rm --name h4-night-<task> --user <uid>:<gid> \
-  --cap-drop ALL --security-opt no-new-privileges --read-only --tmpfs /tmp:rw,nosuid,size=2g \
+  --cap-drop ALL --security-opt no-new-privileges --read-only --tmpfs /tmp:rw,exec,nosuid,size=2g \
   --memory 4g --cpus 2 --pids-limit 512 --network h4-night [--network h4-night-engine] \
   --env-file ~/.config/h4reet-ai/night-shift/claude.env \
   -e HTTPS_PROXY=http://egress:3128 -e NO_PROXY=engine-fwd -e SANDBOX_RUNTIME=1 \

@@ -1628,3 +1628,14 @@ def test_the_plan_allowlist_is_the_aws_hosts_infra_uses(proxy_copy: Path) -> Non
         assert regional is None or regional.group(1) == "us-east-1", h
     services = {re.sub(r"^\*\.|^api\.", "", h).split(".")[0] for h in hosts}
     assert AWS_SERVICES <= services, AWS_SERVICES - services
+
+
+@pytest.mark.parametrize("name", SESSION_ROLES)
+def test_a_sessions_tmp_and_home_run_programs(specs: dict[str, dict], name: str) -> None:
+    # T090 (2026-11-12): Docker mounts a tmpfs noexec unless told otherwise, and R3's make check failed over 220 tests
+    # that write a fake program under /tmp and run it. nosuid stays.
+    for t in specs[name]["tmpfs"]:
+        where, opts = t.split(":", 1)
+        if where in ("/tmp", "/night/home"):
+            assert "exec" in opts.split(","), t
+            assert "nosuid" in opts.split(","), t

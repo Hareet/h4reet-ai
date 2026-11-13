@@ -34,7 +34,7 @@
   "cap_drop": ["ALL"],
   "security_opt": ["no-new-privileges"],
   "read_only": true,
-  "tmpfs": ["/tmp:rw,nosuid,size=2g", "/night/home:rw,nosuid,size=512m"],
+  "tmpfs": ["/tmp:rw,exec,nosuid,size=2g", "/night/home:rw,exec,nosuid,size=512m"],
   "limits": {
     "memory": "4g",
     "cpus": "2",
