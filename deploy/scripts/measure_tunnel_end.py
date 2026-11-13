@@ -20,15 +20,25 @@ How it runs, in its own project, h4reet-measure-tunnel-end, never a stack's:
      passwords, over its socket inside its container;
   4. the load, a one-off container (deploy/measure/load_tunnel_end.py): hello through the relay to the stub host at
      config/budgets.yaml's global metered limit, the status every 5 s, and a host part to the sink each minute, for
-     the run's minutes; every INTERVAL_S seconds meanwhile, `docker stats --no-stream`, each service's resident memory;
-  5. `docker system df -v`: the shared state's data volume after the run;
-  6. whatever happens, Ctrl-C included, `docker compose down -v` of the project, the load's container removed, and the
-     temporary folder removed.
+     the run's minutes, kept by the monotonic clock; every INTERVAL_S seconds meanwhile, `docker stats --no-stream`,
+     each service's resident memory and limit. A sample whose `compose ps` or `docker stats` fails is skipped and
+     counted, never fatal. Then the load's container is given GRACE_S to finish and print its counts;
+  5. the shared state's data volume after the run: `du -sk` of the store's data folder, in the store's own container,
+     which mounts that volume alone (never `docker system df -v`, which would size every volume on the engine); a
+     failed read is said in the block, and the peaks kept;
+  6. whatever happens, Ctrl-C included, SIGINT, SIGTERM, and SIGHUP are ignored from then on, and `docker compose
+     down -v` takes the project down, the load's container is removed, and the temporary folder removed; a print that
+     fails there (a closed terminal) doesn't stop it. The overlay gives the five `restart: "no"`, so a measurement cut
+     short never comes back at the engine's next start.
 
-It prints a block for W1's note, then the record as one JSON line, marked "h4_measure_tunnel_end": 1. The type is the
-smallest t4g that fits by memory alone, by R-33's rule as T016 applied it: the largest total of the five at one
-sample, beside OS_DOCKER_MIB for the OS and Docker, within USABLE_SHARE of the type's memory. Standard library only,
-by path through PY_HOST. Nothing it prints holds a stand-in secret, a payload, or an address.
+It prints a block for W1's note, then the record as one JSON line, marked "h4_measure_tunnel_end": 1. Two types, each
+the smallest t4g by R-33's rule as T016 applied it (a figure, beside OS_DOCKER_MIB for the OS and Docker, within
+USABLE_SHARE of the type's memory): by the largest total of the five at one sample, and by the five's memory limits
+together, as docker stats reports them (deploy/compose.yaml's, 528 MiB); the type it names is the larger. The host's
+own timers (the sink's writer and the backup) run beside Docker and aren't counted, which the block says. The images
+it builds, h4reet-measure-{tunnel,relay,snapshot}:local, stay after the run (the note's "T166" says how to remove
+them). Standard library only, by path through PY_HOST. Nothing it prints holds a stand-in secret, a payload, or an
+address.
 
 Exit codes: 0 the record printed; 1 the run stopped (a docker call failed, or a signal), with no record; 2 refused.
 """
@@ -36,6 +46,7 @@ Exit codes: 0 the record printed; 1 the run stopped (a docker call failed, or a 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
 import importlib.util
 import json
@@ -58,12 +69,15 @@ FIVE = ("tunnel-end", "relay", "snapshot-sink", "tunnel-end-collector", "shared-
 SERVICES = (*FIVE, "measure-host")
 LOAD_SERVICE = "measure-load"
 LOAD_CONTAINER = f"{PROJECT}-load"
-DATA_VOLUME = f"{PROJECT}_measure-shared-state-data"
 STORE_CONTAINER = f"{PROJECT}-shared-state-1"
 DEFAULT_MINUTES = 30
-MIN_MINUTES, MAX_MINUTES = 5, 240
+# The longest run stays under the stand-in's requests a day: at 60 hellos a minute across the load's 16 addresses,
+# each passes 500 a day after about 133 minutes, and the relay would answer 429.
+MIN_MINUTES, MAX_MINUTES = 5, 120
 INTERVAL_S = 10
 GRACE_S = 120
+DATA_DIR = "/var/lib/postgresql/data"
+HOST_TIMERS = ("h4-snapshot-sink.service", "h4-shared-state-backup.timer")
 MIB = 1024**2
 # R-33's rule, as T016 applied it to EC2's stack (research.md R-33): a size fits when the largest sample, beside the
 # OS's and Docker's own memory, leaves a fifth of it free for an answered load. The t4g family, arm64, by memory.
@@ -104,6 +118,17 @@ def type_for(total_mib: float) -> str | None:
         if total_mib + OS_DOCKER_MIB <= USABLE_SHARE * memory:
             return name
     return None
+
+
+def larger(a: str, b: str) -> str:
+    order = [name for name, _memory in TYPES]
+    return max(a, b, key=order.index)
+
+
+def hold_signals() -> None:
+    """The cleanup's guard: a second Ctrl-C, a closed terminal's SIGHUP, or a SIGTERM no longer stops it."""
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, signal.SIG_IGN)
 
 
 def stand_ins() -> dict[str, str]:
@@ -186,6 +211,8 @@ def record_of(
     started: float,
     ended: float,
     load: Mapping[str, Any] | None = None,
+    limits: Mapping[str, int] | None = None,
+    failed_samples: int = 0,
 ) -> dict[str, Any]:
     peaks: dict[str, float] = {}
     for sample in samples:
@@ -198,6 +225,19 @@ def record_of(
     ]
     largest = round(max(totals) / MIB, 1) if totals else 0.0
     missing = [service for service in FIVE if service not in peaks]
+    limits_mib = {
+        service: round(limits[service] / MIB, 1)
+        for service in FIVE
+        if limits and service in limits
+    }
+    limits_total = (
+        round(sum(limits_mib.values()), 1) if len(limits_mib) == len(FIVE) else None
+    )
+    by_peaks = None if missing or not samples else type_for(largest)
+    by_limits = None if limits_total is None else type_for(limits_total)
+    named = by_peaks
+    if by_peaks is not None and limits_total is not None:
+        named = None if by_limits is None else larger(by_peaks, by_limits)
     return {
         "h4_measure_tunnel_end": 1,
         "started_utc": utc(started),
@@ -205,13 +245,18 @@ def record_of(
         "minutes": minutes,
         "per_minute": per_minute,
         "samples": len(samples),
+        "failed_samples": failed_samples,
         "peak_mib": {service: peaks[service] for service in FIVE if service in peaks},
         "largest_total_mib": largest,
         "data_volume_mib": None
         if volume_bytes is None
         else round(volume_bytes / MIB, 1),
         "missing": missing,
-        "type": None if missing or not samples else type_for(largest),
+        "limits_mib": limits_mib,
+        "limits_total_mib": limits_total,
+        "type_by_peaks": by_peaks,
+        "type_by_limits": by_limits,
+        "type": named,
         "load": dict(load or {}),
     }
 
@@ -241,16 +286,44 @@ def block(record: Mapping[str, Any]) -> list[str]:
         + ("not read" if volume is None else f"{volume:.1f} MiB")
         + ".",
     ]
+    if record.get("failed_samples"):
+        lines.append(
+            f"- Samples skipped, their docker call failed: {record['failed_samples']}."
+        )
+    limits = record.get("limits_mib") or {}
+    total = record.get("limits_total_mib")
+    rule = f"beside {OS_DOCKER_MIB} MiB for the OS and Docker, within {round(USABLE_SHARE * 100)}% of its memory"
+    beyond = "none of t4g.nano to t4g.xlarge"
+    if total is None:
+        lines.append(
+            "- The five's memory limits: not read, so the type is named by the peaks alone."
+        )
+    else:
+        each = ", ".join(f"{service} {limits[service]:.1f}" for service in FIVE)
+        lines.append(
+            f"- The five's memory limits, as docker stats reported them: {total:.1f} MiB together ({each}); "
+            f"the smallest type that holds them, {rule}: {record.get('type_by_limits') or beyond}."
+        )
     if record["missing"]:
         lines.append(
             f"- Not measured: {', '.join(record['missing'])}; no type is named until all five are."
         )
     else:
         lines.append(
-            "- The smallest arm64 type by memory alone, by R-33's rule (the largest total, and "
-            f"{OS_DOCKER_MIB} MiB for the OS and Docker, within {round(USABLE_SHARE * 100)}% of its memory): "
-            f"{record['type'] or 'none of t4g.nano to t4g.xlarge'}."
+            f"- The smallest type by the peaks (the largest total, {rule}): "
+            f"{record.get('type_by_peaks') or beyond}."
         )
+        lines.append(
+            "- **The type, the larger of the two (R-33's rule on the peaks and on the limits): "
+            f"{record['type'] or beyond}.**"
+        )
+    lines.append(
+        "- The host's own timers beside Docker, the sink's writer ("
+        + HOST_TIMERS[0]
+        + ") and the backup ("
+        + HOST_TIMERS[1]
+        + "), are not counted: they run outside the five's limits, within the OS's share."
+    )
     load = record.get("load") or {}
     if load:
         lines.append(
@@ -260,6 +333,10 @@ def block(record: Mapping[str, Any]) -> list[str]:
                 for kind in ("hello", "status", "part")
             )
             + "."
+        )
+    else:
+        lines.append(
+            "- The load's answers by status: load counts not read, so nothing here shows the relay forwarded."
         )
     lines += [
         (
@@ -279,8 +356,14 @@ class Context:
     tree: Path
     minutes: int
     run: Runner
-    clock: Callable[[], float] = time.time
+    clock: Callable[[], float] = (
+        time.time
+    )  # the record's start and end, by the wall clock
     sleep: Callable[[float], None] = time.sleep
+    monotonic: Callable[[], float] = (
+        time.monotonic
+    )  # the sampling window, which the wall clock's steps can't stretch
+    hold_signals: Callable[[], None] = hold_signals
     say: Callable[[str], None] = print
     scratch_root: Path = field(default_factory=lambda: Path(tempfile.gettempdir()))
     per_minute: int | None = None
@@ -315,6 +398,8 @@ def measure(ctx: Context) -> dict[str, Any]:
         PROJECT,
     ]
     samples: list[dict[str, int]] = []
+    limits: dict[str, int] = {}
+    failed = 0
     volume: int | None = None
     load: dict[str, Any] | None = None
     started = ctx.clock()
@@ -381,58 +466,89 @@ def measure(ctx: Context) -> dict[str, Any]:
             ],
         )
         started = ctx.clock()
-        deadline = started + ctx.minutes * 60
-        while ctx.clock() < deadline:
-            rows = ms.parse_ps(_docker(ctx, [*compose, "ps", "--format", "json"]))
-            names = {row["Name"]: row["Service"] for row in ms.running(rows)}
-            if names:
-                stats = ms.parse_stats(
-                    _docker(
-                        ctx,
-                        [
-                            "docker",
-                            "stats",
-                            "--no-stream",
-                            "--format",
-                            "{{json .}}",
-                            *sorted(names),
-                        ],
-                    )
-                )
-                sample = {
-                    service: used
-                    for service, (used, _limit) in ms.sample_of(stats, names).items()
-                    if service in FIVE
-                }
-                if sample:
-                    samples.append(sample)
+        deadline = ctx.monotonic() + ctx.minutes * 60
+        while ctx.monotonic() < deadline:
+            sample, seen = _sample(ctx, compose)
+            if sample is None:
+                failed += 1
+            elif sample:
+                samples.append(sample)
+                for service, limit in seen.items():
+                    limits[service] = max(limits.get(service, 0), limit)
             ctx.sleep(INTERVAL_S)
-        code, out, _err = ctx.run(["docker", "logs", LOAD_CONTAINER], None, 60)
-        if code == 0:
-            for line in out.splitlines():
-                if line.startswith("{") and '"h4_measure_load"' in line:
-                    try:
-                        load = json.loads(line)
-                    except ValueError:
-                        load = None
-        df = json.loads(
-            _docker(ctx, ["docker", "system", "df", "-v", "--format", "json"]) or "{}"
-        )
-        for entry in df.get("Volumes") or []:
-            if str(entry.get("Name", "")) == DATA_VOLUME:
-                try:
-                    volume = ms.parse_size(str(entry.get("Size", "")))
-                except ValueError:
-                    volume = None
+        ctx.run(["docker", "wait", LOAD_CONTAINER], None, GRACE_S)
+        load = _load_counts(ctx)
+        volume = _volume(ctx)
     finally:
-        ctx.say(f"measure-tunnel-end: taking {PROJECT} down, its volumes with it")
+        ctx.hold_signals()
+        # A closed terminal's EIO, or anything else a print raises: the down still runs.
+        with contextlib.suppress(Exception):
+            ctx.say(f"measure-tunnel-end: taking {PROJECT} down, its volumes with it")
         ctx.run(["docker", "rm", "--force", LOAD_CONTAINER], None, 120)
         ctx.run(
             [*compose, "down", "-v", "--remove-orphans", "--timeout", "30"], None, 600
         )
         shutil.rmtree(scratch, ignore_errors=True)
     ended = ctx.clock()
-    return record_of(samples, volume, ctx.minutes, per_minute, started, ended, load)
+    return record_of(
+        samples,
+        volume,
+        ctx.minutes,
+        per_minute,
+        started,
+        ended,
+        load,
+        limits=limits or None,
+        failed_samples=failed,
+    )
+
+
+def _sample(
+    ctx: Context, compose: list[str]
+) -> tuple[dict[str, int] | None, dict[str, int]]:
+    """One sample of the five's resident memory, and each one's limit; None when its docker call failed."""
+    code, out, _err = ctx.run([*compose, "ps", "--format", "json"], None, 120)
+    if code != 0:
+        return None, {}
+    names = {row["Name"]: row["Service"] for row in ms.running(ms.parse_ps(out))}
+    if not names:
+        return {}, {}
+    argv = ["docker", "stats", "--no-stream", "--format", "{{json .}}", *sorted(names)]
+    code, out, _err = ctx.run(argv, None, 120)
+    if code != 0:
+        return None, {}
+    figures = {
+        service: pair
+        for service, pair in ms.sample_of(ms.parse_stats(out), names).items()
+        if service in FIVE
+    }
+    return (
+        {service: used for service, (used, _limit) in figures.items()},
+        {service: limit for service, (_used, limit) in figures.items()},
+    )
+
+
+def _load_counts(ctx: Context) -> dict[str, Any] | None:
+    code, out, _err = ctx.run(["docker", "logs", LOAD_CONTAINER], None, 60)
+    if code != 0:
+        return None
+    for line in out.splitlines():
+        if line.startswith("{") and '"h4_measure_load"' in line:
+            try:
+                return json.loads(line)
+            except ValueError:
+                return None
+    return None
+
+
+def _volume(ctx: Context) -> int | None:
+    """The store's data volume, from inside the store's container, which mounts that volume alone."""
+    argv = ["docker", "exec", "-u", "postgres", STORE_CONTAINER, "du", "-sk", DATA_DIR]
+    code, out, _err = ctx.run(argv, None, 120)
+    first = out.split()[:1] if code == 0 else []
+    if not first or not first[0].isdigit():
+        return None
+    return int(first[0]) * 1024
 
 
 def real_run(

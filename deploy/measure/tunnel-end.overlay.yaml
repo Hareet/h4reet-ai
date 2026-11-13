@@ -12,11 +12,14 @@
 #   - the store runs without TLS (deploy/measure/pg_hba.measure.conf), and the relay with it as on dev: TLS's memory
 #     isn't what T166 records;
 #   - the images the release builds are built from the tree, and the copies are the lock's own pins.
+#   - none of the five restarts (`restart: "no"`), so a measurement cut short never comes back at the engine's next
+#     start, beside his own stacks.
 # The stand-in secrets come from the harness's temporary env file, which it removes after the run.
 
 services:
   tunnel-end:
     image: h4reet-measure-tunnel:local
+    restart: "no"
     build:
       context: tunnel
     ports: !reset []
@@ -31,6 +34,7 @@ services:
 
   relay:
     image: h4reet-measure-relay:local
+    restart: "no"
     build:
       context: ..
       dockerfile: services/relay/Dockerfile
@@ -50,6 +54,7 @@ services:
 
   snapshot-sink:
     image: h4reet-measure-snapshot:local
+    restart: "no"
     build:
       context: ..
       dockerfile: deploy/snapshot/Dockerfile
@@ -57,12 +62,14 @@ services:
 
   tunnel-end-collector:
     image: "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.162.0@sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6"
+    restart: "no"
     ports: !reset []
     environment:
       EC2_COLLECTOR_ENDPOINT: http://measure-host:8080
 
   shared-state:
     image: "public.ecr.aws/docker/library/postgres:17.11-alpine3.24@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24"
+    restart: "no"
     command:
       - postgres
       - -c
