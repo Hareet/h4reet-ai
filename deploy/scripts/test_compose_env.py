@@ -1287,6 +1287,11 @@ def test_the_relay_receives_its_literals_and_the_tunnel_ends_secrets() -> None:
                 "read_only": True,
             }
         ], name
-        assert SERVICES[name]["deploy"]["resources"]["limits"]["memory"] == "96M", name
+        # T166 (2026-11-13): the relay peaked at exactly its old 96M on the Author's engine, so 128M.
+        assert SERVICES[name]["deploy"]["resources"]["limits"]["memory"] == "128M", name
+    # And the tunnel end's collector, which peaked at 94.6 of its old 96M (T166).
+    assert SERVICES["tunnel-end-collector"]["deploy"]["resources"]["limits"][
+        "memory"
+    ] == ("128M")
     assert SERVICES["dev-relay"]["networks"] == ["internal"]
     assert SERVICES["relay"]["networks"] == ["internal", "edge"]

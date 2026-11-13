@@ -326,12 +326,13 @@ def test_a_service_missing_from_every_sample_is_named_never_counted_zero() -> No
 # --- The run's plumbing ------------------------------------------------------------------------------------------------
 
 
-# deploy/compose.yaml's memory limits on the five, in MiB, as docker stats reports each container's: 528 MiB together.
+# deploy/compose.yaml's memory limits on the five, in MiB, as docker stats reports each container's: 592 MiB together,
+# since T166 raised the relay's and the collector's to 128M (2026-11-13).
 LIMITS = {
     "tunnel-end": 32,
-    "relay": 96,
+    "relay": 128,
     "snapshot-sink": 48,
-    "tunnel-end-collector": 96,
+    "tunnel-end-collector": 128,
     "shared-state": 256,
 }
 LOAD_LINE = json.dumps(
@@ -470,7 +471,7 @@ def test_the_run_keeps_its_stand_in_secrets_in_a_temporary_folder_and_removes_th
         assert path.is_relative_to(tmp_path)
         assert "deploy/env" not in str(path) and ".config" not in str(path)
         assert not path.exists()
-    # The peaks (50 MiB together) fit t4g.micro; the five's limits (528 MiB) need t4g.small, and the larger stands
+    # The peaks (50 MiB together) fit t4g.micro; the five's limits (592 MiB) need t4g.small, and the larger stands
     # (the safety review's nit 5).
     assert record["type"] == "t4g.small"
     stand_in_values = set()
@@ -644,7 +645,7 @@ def test_the_sampling_window_is_kept_by_the_monotonic_clock(tmp_path: Path) -> N
 
 
 def test_the_record_names_the_limits_and_the_larger_of_the_two_types() -> None:
-    # Nit 5: the five's limits (528 MiB) with the OS's and Docker's 512 MiB need t4g.small, though the peaks fit
+    # Nit 5: the five's limits (592 MiB since T166) with the OS's and Docker's 512 MiB need t4g.small, though the peaks fit
     # t4g.micro; the type the block recommends is the larger.
     te = _te()
     record = te.record_of(
@@ -656,12 +657,12 @@ def test_the_record_names_the_limits_and_the_larger_of_the_two_types() -> None:
         ended=1_800_001_800.0,
         limits={k: v * MIB for k, v in LIMITS.items()},
     )
-    assert record["limits_total_mib"] == 528.0
+    assert record["limits_total_mib"] == 592.0
     assert record["type_by_peaks"] == "t4g.micro"
     assert record["type_by_limits"] == "t4g.small"
     assert record["type"] == "t4g.small"
     text = "\n".join(te.block(record))
-    assert "528.0 MiB" in text and "t4g.small" in text and "t4g.micro" in text
+    assert "592.0 MiB" in text and "t4g.small" in text and "t4g.micro" in text
     assert "h4-snapshot-sink.service" in text and "h4-shared-state-backup.timer" in text
     assert "not counted" in text
 
@@ -686,7 +687,7 @@ def test_the_run_reads_each_services_limit_from_docker_stats(tmp_path: Path) -> 
     te = _te()
     record, _said = run(te, Runner(), tmp_path)
     assert record["limits_mib"] == {k: float(v) for k, v in LIMITS.items()}
-    assert record["limits_total_mib"] == 528.0
+    assert record["limits_total_mib"] == 592.0
 
 
 def test_the_longest_run_stays_under_the_stand_in_daily_cap() -> None:

@@ -21,8 +21,9 @@ What the root must hold:
     W1-only test T175 flips with P-W2 (plan.md §16, "Why a switch"; group 5's review, I8);
   - neither root reading the other: nothing under infra/account names a prod instance or health check, or reads prod's
     state; nothing under infra/prod reads, by a data source or a remote state, what the account makes;
-  - the tunnel end's type as local.tunnel_end_type in the unprotected tunnel-end.tf, holding "measure-in-T166" until
-    T166 measures it; the instance reads it, no other file sets a type, and a precondition refuses the placeholder;
+  - the tunnel end's type as local.tunnel_end_type in the unprotected tunnel-end.tf, "t4g.small", T166's measured type
+    (2026-11-13: "The type, the larger of the two (R-33's rule on the peaks and on the limits): t4g.small."); the
+    instance reads it, no other file sets a type, and a precondition still refuses the placeholder, "measure-in-T166";
   - a changed host file, or a new local.tunnel_end_generation (an OS update), replaces the tunnel end in the plan:
     terraform_data.tunnel_end_host in tunnel-end.tf holds the user data's SHA-256 and the generation, and the instance
     is replace_triggered_by it, though it ignores its user data's and its image's drift (group 5's review, I3).
@@ -84,6 +85,10 @@ PROTECTED_FILES = (
     "failover.tf",
 )
 PLACEHOLDER = "measure-in-T166"
+# T166's block, on the Author's engine (2026-11-13): "The type, the larger of the two (R-33's rule on the peaks and on
+# the limits): t4g.small." The relay's and the collector's limits rise to 128M with it; the five's 592 MiB beside the
+# OS's 512 still fit t4g.small by R-33's rule (deploy/scripts/test_measure_tunnel_end.py).
+MEASURED_TYPE = "t4g.small"
 PUBLIC_ADDRESS = "10.42.0.10"
 PRIVATE_ADDRESS = "10.42.1.10"
 TOPIC_ARN = (
@@ -405,9 +410,9 @@ def check_instance(root: dict[str, list]) -> list[str]:
 def check_type(root: dict[str, list]) -> list[str]:
     found = []
     mine = locals_in(root, "tunnel-end.tf").get("tunnel_end_type")
-    if mine is None or ip.literal(mine) != PLACEHOLDER:
+    if mine is None or ip.literal(mine) != MEASURED_TYPE:
         found.append(
-            f"type: tunnel-end.tf's local.tunnel_end_type isn't \"{PLACEHOLDER}\" (T166 measures it)"
+            f"type: tunnel-end.tf's local.tunnel_end_type isn't \"{MEASURED_TYPE}\", T166's measured type"
         )
     elsewhere = [
         name
