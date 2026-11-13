@@ -727,14 +727,16 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 ### The tunnel end, measured, and the new lines priced (W1)
 
 - [ ] T166 Measure the tunnel end's five services on dev-cpu, as T016 measured the stack: `tunnel-end`, `relay`, `snapshot-sink`, the collector, and `shared-state`, under the relay's load at the gateway's global metered limit, against a stub host. Record each service's peak, and the data volume's size after the run, in research.md R-33 and the note. Name the smallest arm64 type that fits by memory alone (R-20 expects `t4g.small`, 2 GiB), and write no price. Set `local.tunnel_end_type` in `infra/prod/tunnel-end.tf` to it, in place of T046's placeholder. That file isn't protected, so no patch changes: `ec2-market.tf` only reads the local. This replaces T115's "Confirm the tunnel end's measured memory on its `t4g.micro`", since the type is in prod's block (plan.md §16, W1's departure 7). Check: the record names the type and the run's length and load; T046 passes with the local set (FR-021, FR-052) (feat/001-us3-us5-edge)
-- [ ] T167 Author: price, from AWS's pages in his terminal, the lines W1 adds or changes in research.md R-05:
+- [x] T167 Author: price, from AWS's pages in his terminal, the lines W1 adds or changes in research.md R-05:
   - the tunnel end at T166's type, on spot, in place of `t4g.micro`;
   - its data volume, and the backups' storage (question 4);
   - the "to confirm" lines W1's resources use: the health check, the alarms, CloudFront's VPC origin, Scheduler, and EventBridge's rules on AWS events;
   - T017's confirmations: each R-05 line priced on 2026-11-11 from trackers or summaries, `t4g.large`'s spot price among them, read again from AWS's pages or `aws ec2 describe-spot-price-history`.
 
   Then confirm that the $45 figure holds, or set a new one in `~/.config/h4reet-ai/infra/bootstrap.env`, as at T017. RDS's lines and its secret go. Check: R-05's lines carry his prices and their dates, and none is still "to confirm" (FR-021) (feat/001-us3-us5-edge)
-- [ ] T179 Amend spec.md's Expected Cost Impact with T167's prices: the server budget's paragraph and the rows for EC2, the tunnel end, and the shared state's store. They already name the hours, the larger tunnel end, the data volume, and the backups, since the regrouping (2026-11-12), but without prices. Check: each row's figure is T167's, with its date; the figure is the Author's (FR-021) (feat/001-us3-us5-edge)
+  - **Done** (2026-11-13): his figures in research.md R-05, "The server budget's lines, the Author's figures (T167)", each read 2026-11-13, his words "yes t167 confirmed"; the month about $27 to $29 against $45, which he didn't change.
+- [x] T179 Amend spec.md's Expected Cost Impact with T167's prices: the server budget's paragraph and the rows for EC2, the tunnel end, and the shared state's store. They already name the hours, the larger tunnel end, the data volume, and the backups, since the regrouping (2026-11-12), but without prices. Check: each row's figure is T167's, with its date; the figure is the Author's (FR-021) (feat/001-us3-us5-edge)
+  - **Done** (2026-11-13): spec.md's Expected Cost Impact, the server budget's paragraph and the rows for EC2, the tunnel end, and the shared state's store, with T167's figures and their date, as his.
 
 ### The Author's plan block
 
