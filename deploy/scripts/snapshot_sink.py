@@ -1295,9 +1295,9 @@ def run_writes(
     write: Callable[[], str],
     after: Callable[[], None],
     sleep: Callable[[float], None] = time.sleep,
-    clock: Callable[[], float] = time.time,
+    clock: Callable[[], float] = time.monotonic,
 ) -> None:
-    """The write's loop, every EVERY_S at a fixed rate; one round's error is said and the loop goes on, never a
+    """The write's loop, every EVERY_S at a fixed rate by a monotonic clock (the final review, nit 3); one round's error is said and the loop goes on, never a
     restart that would read everything again (group 10's review)."""
     while True:
         started = clock()

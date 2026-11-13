@@ -363,6 +363,19 @@ def export(endpoint: str, spans: dict, metrics: dict) -> None:
             )
 
 
+def run_publishes(
+    once: Callable[[], str],
+    after: Callable[[str], None],
+    sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
+) -> None:
+    """The publisher's loop, every EVERY_S at a fixed rate by a monotonic clock (the final review, nits 1 and 3)."""
+    while True:
+        started = clock()
+        after(once())
+        sleep(next_sleep(EVERY_S, started, clock()))
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="snapshot_publisher.py", description=__doc__.split("\n\n", 1)[0]
@@ -392,18 +405,26 @@ def main(argv: list[str]) -> int:
     endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "")
     since = time.time()
     counts: dict[str, int] = {}
-    while True:
-        start = time.time()
-        outcome = publisher.once()
+    round_started = [time.time()]
+
+    def once() -> str:
+        round_started[0] = time.time()
+        return publisher.once()
+
+    def after(outcome: str) -> None:
         counts[outcome] = counts.get(outcome, 0) + 1
         print(f"snapshot-publisher: {outcome}", flush=True)
         if endpoint:
             export(
-                endpoint, *telemetry(host, outcome, start, time.time(), counts, since)
+                endpoint,
+                *telemetry(host, outcome, round_started[0], time.time(), counts, since),
             )
-        if args.once:
-            return 0
-        time.sleep(next_sleep(EVERY_S, start, time.time()))
+
+    if args.once:
+        after(once())
+        return 0
+    run_publishes(once, after)
+    return 0
 
 
 if __name__ == "__main__":
