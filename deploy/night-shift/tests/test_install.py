@@ -1376,3 +1376,60 @@ def test_never_mounted_targets_absent_on_the_host_still_run_and_count(
     assert re.search(r"\b0 of \d+ skipped", r4), r4
     assert re.search(r"[1-9]\d* absent on the host", r4), r4
     assert not [x for x in lines if x.startswith("row ") and " skipped" in x]
+
+
+# ---- --disk-floor: the Author lowers the disk floor for one install run (2026-11-12) --------------------------------
+def test_disk_floor_lets_one_run_through_and_says_so(make_case) -> None:
+    c = make_case()
+    r = c.run(
+        c.sha,
+        "--branch",
+        "feat/night",
+        "--disk-floor",
+        "8",
+        extra={"H4_NIGHT_TEST_RESOURCES": "10,32,62"},
+    )
+    assert r.returncode == 0, c.output[-3000:]
+    assert "install: done" in c.output
+    assert "disk_floor 8 GB (this run only; nights keep 15 GB)" in summary(c.output)
+    for step in ("R1", "R2", "R3", "R4"):
+        assert any(x.startswith(f"{step} ok") for x in summary(c.output)), step
+
+
+def test_disk_floor_still_refuses_under_itself(make_case) -> None:
+    c = make_case()
+    r = c.run(
+        c.sha, "--disk-floor", "12", extra={"H4_NIGHT_TEST_RESOURCES": "10,32,62"}
+    )
+    assert_refused(c, r, "0 preflight", "/ has 10 GB free, under 12 GB")
+    assert not c.stub_state().get("images")
+
+
+@pytest.mark.parametrize("value", [["4"], ["16"], ["x"], [""], ["08"], []])
+def test_disk_floor_takes_only_5_to_15(make_case, value) -> None:
+    c = make_case()
+    r = c.run(c.sha, "--disk-floor", *value)
+    assert_refused(
+        c, r, "0 preflight", "--disk-floor takes a whole number of GB from 5 to 15"
+    )
+    assert not c.stub_state().get("images")
+
+
+def test_a_night_keeps_the_15_gb_floor() -> None:
+    night = load_night()
+    assert night.MIN_DISK == 15 * 2**30
+    assert night.MIN_DISK_OVERRIDE == 5 * 2**30
+    assert night.Runner.disk_floor == night.MIN_DISK
+    # night.py takes one command and nothing else, so a night can't be given the lowered floor
+    assert night.main(["start", "--disk-floor", "8"]) == 2
+
+
+@pytest.mark.parametrize("extra", [["x"], ["--disk-floor", "8"]])
+def test_undo_refuses_anything_after_it(make_case, extra) -> None:
+    c = make_case()
+    r = c.run(c.sha, "--undo", *extra)
+    assert r.returncode != 0
+    assert (
+        "install: FAILED at undo: usage: install.sh <sha> --undo, with nothing after it"
+        in c.output
+    )

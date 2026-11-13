@@ -80,6 +80,7 @@ The docs (G5's ADRs, how-we-build page, and runbook) were reviewed with the inte
   - Hold lines carry the GB reading, so queued tasks write a new page line for each GB the disk loses.
   - A disk hold with nothing running never ends the night; `night.py stop` does.
   - `H4_NIGHT_TEST_RESOURCES` set in a real shell would fake step 0's check silently.
+  - `--disk-floor` (its review): nothing rechecks disk between step 0 and R1, so at a low floor a cold build could take C: near empty before R1 refuses; and a rerun at the same SHA without the flag replays the rehearsal as `unchanged` without its `disk_floor` line (step 0 checks 15 GB again, so nights are unaffected).
 - No telemetry span or dashboard panel: the night shift is build-time tooling with no runtime path. Its record is the nightly decision page, `installed.txt`, and the egress log. The G1 review asked for this to be confirmed; see "For the Author".
 
 ## Verification
@@ -166,6 +167,7 @@ The steps, in order, are on the runbook artifact as lines of 45 characters or fe
    - **`patch(1)`**: T062's tests read iam.tf through P-6 with patch, which the toolchain image (the gate's too) lacked. `.devcontainer/Dockerfile` now installs it.
    - **`secrets`**: its message was redacted in R3's log (the redactor eats any line beginning `secrets:`; backlog). The gate reads `.gitleaks.toml` from the main working tree, which no task mounts, so it stopped there. The runner now writes `refs/heads/main`'s committed copy at 0444 into `~/.local/share/h4reet-ai/night-shift/gate/`, a folder the install makes (the share folder itself stays 0555), and mounts that, read-only, at the path the gate reads; the main checkout itself stays unmounted (FR-012).
    - Not yet known: whatever the matrix's git-hook and pre-commit rows and the engine-endpoint tests still show once programs can run under `/tmp`. The next R3 says.
+   - The third run stopped at step 0: C: had 11 GB free. WSL's disk file held about 37 GB of freed space, but ext4 can write to parts of the file it never used, so only C: bounds its growth, and only compacting returns that space. You chose not to shut WSL down while sessions ran, so `--disk-floor <GB>` (5 to 15) lowers the floor for one install run and is named in its summary. `night.py` never takes it, so nights keep 15 GB: compact before the first night.
 4. **GitHub**: push before the first night (Q17), since the objects store is writable to sessions.
 5. **Merge**: after spec 001's W1 gate, unless you say otherwise. `toolchain-check` is WARN until P-8 moves the floor to 2.1.322.
 6. **Patches** ([index](2026-11-12-feat-017-patches.md), with each SHA-256): **P-12 on main before this branch's gate**, or its `policy` step fails on the worker's toolchain line; P-1 only where `deploy/night-shift/` already exists, then P-5; P-6 needs your permission set's name in its one local; P-7 on main, with each licence and `outputs_ship` set by you (nothing ships until one is true); plan and gate stay off until P-2, P-3, and P-6 merge and a second install sets `NIGHT_PLAN=on` and `NIGHT_GATE=on` (T092).

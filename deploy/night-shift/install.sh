@@ -5,6 +5,8 @@
 #   bash <(git show "$sha:deploy/night-shift/install.sh") "$sha"          # install, then rehearse
 #   bash <(git show "$sha:deploy/night-shift/install.sh") "$sha" --branch feat/017-the-night-shift
 #                                       # the same, refusing first, naming both SHAs, if that branch's tip isn't $sha
+#   bash <(git show "$sha:deploy/night-shift/install.sh") "$sha" --branch feat/017-the-night-shift --disk-floor 8
+#                                       # the same, with the disk floor at 8 GB for this run only (5 to 15; nights keep 15)
 #   bash <(git show "$sha:deploy/night-shift/install.sh") "$sha" --undo   # remove what installed.txt lists
 #
 # Steps, stopping at the first failure with `install: FAILED at <step>: <reason>`, then the summary so far:
@@ -36,11 +38,25 @@ SHA="${1:-}"
 MODE="${2:-install}"
 BRANCH=""
 BRANCH_GIVEN=""
-if [ "$MODE" = --branch ]; then
-	BRANCH="${3:-}"
+DISK_FLOOR=""
+DISK_FLOOR_GIVEN=""
+rest=("${@:2}")
+if [ "${rest[0]:-}" = --branch ]; then
+	BRANCH="${rest[1]:-}"
 	BRANCH_GIVEN=1
 	MODE=install
+	rest=("${rest[@]:2}")
 fi
+# --disk-floor <GB>: the Author lowers the disk floor for this one run, from 5 to 15 GB; a night keeps 15 (2026-11-12).
+if [ "${rest[0]:-}" = --disk-floor ]; then
+	DISK_FLOOR="${rest[1]-}"
+	DISK_FLOOR_GIVEN=1
+	MODE=install
+	rest=("${rest[@]:2}")
+fi
+EXTRA_ARGS=0
+if [ "$MODE" = install ] && [ "${#rest[@]}" -gt 0 ]; then EXTRA_ARGS=1; fi
+if [ "$MODE" = --undo ] && [ "${#rest[@]}" -gt 1 ]; then EXTRA_ARGS=1; fi
 LABEL="h4-night=install"
 PY=/usr/bin/python3
 CONFIG="$HOME/.config/h4reet-ai/night-shift"
@@ -145,7 +161,16 @@ night_running() {
 preflight() {
 	STEP="0 preflight"
 	[[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || fail "give the reviewed commit as its full 40-hex SHA (usage: install.sh <sha> [--undo])"
-	case "$MODE" in install | --undo) ;; *) fail "usage: install.sh <sha> [--undo | --branch <name>]" ;; esac
+	case "$MODE" in install | --undo) ;; *) fail "usage: install.sh <sha> [--undo | [--branch <name>] [--disk-floor <GB>]]" ;; esac
+	[ "$EXTRA_ARGS" = 0 ] || fail "usage: install.sh <sha> [--undo | [--branch <name>] [--disk-floor <GB>]]"
+	FLOOR_ARGS=()
+	if [ -n "${DISK_FLOOR_GIVEN:-}" ]; then
+		if ! [[ "$DISK_FLOOR" =~ ^([5-9]|1[0-5])$ ]]; then
+			fail "--disk-floor takes a whole number of GB from 5 to 15"
+		fi
+		FLOOR_ARGS=(--disk-floor "$DISK_FLOOR")
+		SUMMARY+=("disk_floor $DISK_FLOOR GB (this run only; nights keep 15 GB)")
+	fi
 	local v
 	for v in ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_VERTEX CLAUDE_CODE_USE_FOUNDRY; do
 		[ -z "${!v+x}" ] || fail "$v is set in this shell; unset it (the night shift never bills API credits, FR-041)"
@@ -181,7 +206,7 @@ preflight() {
 	put deploy/night-shift/runner/night.py "$t/tool/night.py"
 	put deploy/night-shift/images/pins.json "$t/tool/pins.json"
 	local out key value
-	out="$("$PY" -I -B "$t/tool/rehearse.py" facts --night "$t/tool/night.py" --facts "$FACTS" --pins "$t/tool/pins.json" 2>&1)" ||
+	out="$("$PY" -I -B "$t/tool/rehearse.py" facts --night "$t/tool/night.py" --facts "$FACTS" --pins "$t/tool/pins.json" "${FLOOR_ARGS[@]}" 2>&1)" ||
 		fail "$(printf '%s\n' "$out" | tail -n 1)"
 	while IFS=' ' read -r v key value; do
 		[ "$v" = fact ] || continue
@@ -451,7 +476,7 @@ rehearse() {
 		STEP="$n $r"
 		echo "running $r"
 		[ "$(sha_of "$SHARE/rehearse.py")" = "${NEW_FILES[$SHARE/rehearse.py]}" ] || fail "$SHARE/rehearse.py isn't the file this install wrote"
-		out="$("$PY" -I -B "$SHARE/rehearse.py" step "$r" --sha "$SHA" 2>&1)"
+		out="$("$PY" -I -B "$SHARE/rehearse.py" step "$r" --sha "$SHA" "${FLOOR_ARGS[@]}" 2>&1)"
 		rc=$?
 		rows=()
 		while IFS= read -r line; do
@@ -476,6 +501,7 @@ rehearse() {
 undo() {
 	STEP="undo"
 	[[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || fail "give the installed commit as its full 40-hex SHA (usage: install.sh <sha> --undo)"
+	[ "$EXTRA_ARGS" = 0 ] || fail "usage: install.sh <sha> --undo, with nothing after it"
 	command -v docker >/dev/null || fail "docker isn't on PATH"
 	[ -f "$INSTALLED" ] || fail "nothing to undo: there's no $INSTALLED"
 	night_running

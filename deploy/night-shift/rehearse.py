@@ -212,6 +212,18 @@ def parse_facts_data(path: str) -> dict[str, str]:
 
 
 # ---- facts and pins (before the install) -------------------------------------------------------------------------
+def disk_floor(N, gb: int | None) -> int:
+    """The disk floor for this run: the runner's own, or the Author's --disk-floor, from 5 to 15 GB (2026-11-12)."""
+    if gb is None:
+        return N.MIN_DISK
+    if not N.MIN_DISK_OVERRIDE <= gb * 2**30 <= N.MIN_DISK:
+        raise Stop("--disk-floor takes a whole number of GB from 5 to 15")
+    say(
+        f"note: the disk floor is {gb} GB for this run (--disk-floor); a night keeps {N.MIN_DISK // 2**30} GB"
+    )
+    return gb * 2**30
+
+
 def cmd_facts(args) -> int:
     night = load_night(args.night)
     try:
@@ -244,9 +256,8 @@ def cmd_facts(args) -> int:
             f"facts: CLAUDE_VERSION is {facts['CLAUDE_VERSION']}, but the images pin {pins.get('claude_code')}"
         )
         return 1
-    why = night.resources_short(
-        effects(night)
-    )  # before any build (2026-11-12): the heavy-scripts rule
+    # before any build (2026-11-12): the heavy-scripts rule
+    why = night.resources_short(effects(night), disk_floor(night, args.disk_floor))
     if why:
         say(f"facts: {why}")
         return 1
@@ -1034,7 +1045,7 @@ class Rehearsal:
         """The installed runner's own preflight (S1): every live spec (the studio's and ComfyUI's folders included),
         the images, the token, nothing planted in .git, no billing variable, the networks, and the disk and memory
         floors; then the memory sum for the implementer's container. So `install: done` means `night.py start` passes
-        its preflight. Every step runs it first, R3's long builds included."""
+        its preflight, but under a --disk-floor run, whose lowered floor a night never takes. Every step runs it first, R3's long builds included."""
         try:
             self.runner.preflight(keep_lock=False)
             spec = self.runner.load_live_spec("implementer")
@@ -1103,6 +1114,7 @@ def cmd_step(args) -> int:
     name = args.step
     try:
         r = Rehearsal(home, args.sha)
+        r.runner.disk_floor = disk_floor(r.N, args.disk_floor)
     except (Stop, OSError) as e:
         say(f"{name} FAILED {redact(str(e))}")
         return 1
@@ -1134,6 +1146,7 @@ def main(argv: list[str] | None = None) -> int:
     f.add_argument("--night", required=True)
     f.add_argument("--facts", required=True)
     f.add_argument("--pins", required=True)
+    f.add_argument("--disk-floor", type=int)
     p = sub.add_parser("pins")
     p.add_argument("--pins", required=True)
     p.add_argument("--facts", required=True)
@@ -1141,6 +1154,7 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("step")
     s.add_argument("step", choices=("R1", "R2", "R3", "R4"))
     s.add_argument("--sha", required=True)
+    s.add_argument("--disk-floor", type=int)
     s.add_argument(
         "--all", action="store_true", help="R4: every row, not only the rehearsal's"
     )

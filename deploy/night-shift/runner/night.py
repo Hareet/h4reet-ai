@@ -99,6 +99,8 @@ MIN_DISK = (
     15 * 2**30
 )  # / and /mnt/c (C: holds WSL's disk), checked at the start and before every task (2026-11-12)
 MIN_MEM = 8 * 2**30
+# The lowest floor the install's --disk-floor may set, for that one run only; a night always keeps MIN_DISK.
+MIN_DISK_OVERRIDE = 5 * 2**30
 EGRESS_MEM, FWD_MEM = "256m", "128m"  # the helpers' memory limits
 MEM_HEADROOM = (
     8 * 2**30
@@ -251,15 +253,16 @@ LIMIT_CLOCK = re.compile(
 LIMIT_MAX_TEXT = 500
 
 
-def resources_short(fx) -> str | None:
-    """Why the disk or memory is short, or None: the runner's check, and the install's before it builds (step 0)."""
+def resources_short(fx, min_disk: int = MIN_DISK) -> str | None:
+    """Why the disk or memory is short, or None: the runner's check, and the install's before it builds (step 0).
+    min_disk is lower only for one install run the Author names (--disk-floor, never under MIN_DISK_OVERRIDE)."""
     for where in DISKS:
         try:
             free = fx.disk_free(where)
         except OSError:
             return f"can't read the free space on {where}"
-        if free < MIN_DISK:
-            return f"{where} has {free // 2**30} GB free, under {MIN_DISK // 2**30} GB"
+        if free < min_disk:
+            return f"{where} has {free // 2**30} GB free, under {min_disk // 2**30} GB"
     try:
         mem = fx.mem_available()
     except OSError:
@@ -1415,6 +1418,8 @@ class Task:
 
 
 class Runner:
+    disk_floor = MIN_DISK  # only the install's rehearsal lowers it, for its one run (--disk-floor)
+
     def __init__(self, paths: Paths, facts: dict[str, str], fx, night: str):
         self.p = paths
         self.facts = facts
@@ -1701,7 +1706,7 @@ class Runner:
                 )
 
     def check_resources(self) -> str | None:
-        return resources_short(self.fx)
+        return resources_short(self.fx, self.disk_floor)
 
     def preflight(self, keep_lock: bool) -> dict[str, dict]:
         installed = self.installed()
