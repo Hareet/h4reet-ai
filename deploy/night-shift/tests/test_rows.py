@@ -622,3 +622,27 @@ def test_only_rows_that_expect_absence_run_when_the_host_lacks_their_path(rows) 
             assert rehearse.expects_absence(r), r["id"]
         if r["category"] == "write" and "Read-only" in r["expect"]:
             assert not rehearse.expects_absence(r), r["id"]
+
+
+P12_LINE = "FAIL deploy/night-shift/images/worker.Dockerfile:21: FROM: ${TOOLCHAIN_IMAGE}: a build argument without a default"
+
+
+def test_r3_names_the_toolchain_policy_line_as_known_until_p12() -> None:
+    text = (
+        CHECK_OK
+        + "== policy\n"
+        + P12_LINE
+        + "\ncompose policy: 1 refusal(s)\n-> FAIL policy\n"
+    )
+    ok, detail = rehearse.judge_check(text, 2)
+    assert ok, detail
+    assert "policy" in detail and "P-12" in detail
+
+
+def test_r3_fails_on_any_other_policy_line() -> None:
+    other = "FAIL deploy/night-shift/images/egress.Dockerfile:11: FROM: ${PYTHON_IMAGE}: a build argument without a default"
+    text = CHECK_OK + "== policy\n" + P12_LINE + "\n" + other + "\n-> FAIL policy\n"
+    ok, detail = rehearse.judge_check(text, 2)
+    assert not ok and "policy" in detail
+    ok, _ = rehearse.judge_check(CHECK_OK + "== policy\n-> FAIL policy\n", 2)
+    assert not ok

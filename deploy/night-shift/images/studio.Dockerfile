@@ -3,12 +3,12 @@
 #
 # install.sh builds it from a repository-shaped context it writes with `git show <sha>:<path>` for each path that
 # pins.json's images.studio.context lists. Its arguments come from pins.json:
-#   NODE_IMAGE        node:22-bookworm-slim@digest (the container probe's worker base)
+#   NODE_IMAGE        the lock's base:node, node:24.21.0-trixie-slim@digest (T090 round 2)
 #   CLAUDE_CODE_VERSION  the pin the worker image has
 #   BLENDER_URL, BLENDER_SHA256  Blender 5.2.3 LTS and the checksum Blender publishes, as the Author's
 #                     oc-studio-agent.sh pins it; the build stops if the download doesn't match.
 # Blender's runtime libraries are oc-studio-agent.sh's: -b needs no display, but the binary still links X11 and GL.
-ARG NODE_IMAGE
+ARG NODE_IMAGE=public.ecr.aws/docker/library/node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66
 
 FROM ${NODE_IMAGE} AS blender
 ARG BLENDER_URL

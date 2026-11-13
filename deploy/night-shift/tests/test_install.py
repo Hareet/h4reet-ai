@@ -901,7 +901,7 @@ def test_a_null_digest_refuses_and_names_the_line_that_reads_it(make_case) -> No
     pins = json.loads(
         git(c.repo, "show", f"{c.sha}:deploy/night-shift/images/pins.json")
     )
-    pins["bases"]["python:3.12-slim"]["digest"] = None
+    pins["bases"]["python:3.12.15-slim-trixie"]["digest"] = None
     pins["bases"]["ubuntu:24.04"]["digest"] = None
     pins_path.write_text(json.dumps(pins, indent=2) + "\n")
     git(c.repo, "commit", "-q", "-am", "a null digest")
@@ -910,7 +910,7 @@ def test_a_null_digest_refuses_and_names_the_line_that_reads_it(make_case) -> No
     r = c.run(sha)
     assert_refused(c, r, "1 images", "digest is null")
     assert (
-        "docker image inspect --format '{{index .RepoDigests 0}}' docker.io/library/python:3.12-slim"
+        "docker image inspect --format '{{index .RepoDigests 0}}' public.ecr.aws/docker/library/python:3.12.15-slim-trixie"
         in c.output
     )
     assert (
@@ -918,34 +918,69 @@ def test_a_null_digest_refuses_and_names_the_line_that_reads_it(make_case) -> No
         in c.output
     )
     assert (
-        "node:22-bookworm-slim"
+        "node:24.21.0-trixie-slim"
         not in c.output.split("FAILED")[0].split("pins.json has no digest")[-1]
     )
     assert not [x for x in c.docker_calls() if x["argv"][1:2] in (["pull"], ["build"])]
     assert_nothing_installed(c, before)
 
 
-def test_the_committed_pins_hold_every_base_digest_the_author_read() -> None:
-    # T002: the Author read node's, python's, and docker-cli's digests on his engine (2026-11-12); ubuntu's is
-    # the one .devcontainer/Dockerfile pins. A null digest still refuses (test_a_null_digest_* above).
+def lock_lines() -> set[tuple[str, str, str]]:
+    out = set()
+    for raw in (ROOT / "deploy" / "images.lock").read_text().splitlines():
+        if raw.strip() and not raw.lstrip().startswith("#"):
+            f = raw.split()
+            out.add((f[1], f[2], f[3]))
+    return out
+
+
+def test_every_base_is_a_line_of_the_image_lock() -> None:
+    # T090 round 2: make check's policy gate takes a Dockerfile FROM only from deploy/images.lock. Node, python, and
+    # ubuntu are the lock's own base: lines; docker-cli's line carries the digest the Author read (T002).
     pins = json.loads((NIGHT / "images" / "pins.json").read_text())
-    digests = {k: b["digest"] for k, b in pins["bases"].items()}
-    assert all(
-        isinstance(d, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", d)
-        for d in digests.values()
-    ), digests
-    devcontainer = (NIGHT.parent.parent / ".devcontainer" / "Dockerfile").read_text()
-    assert (
-        f"{pins['bases']['ubuntu:24.04']['image']}:24.04@{digests['ubuntu:24.04']}"
-        in devcontainer
+    lock = lock_lines()
+    for key, b in pins["bases"].items():
+        assert re.fullmatch(r"sha256:[0-9a-f]{64}", b["digest"]), key
+        assert (b["image"], b["tag"], b["digest"]) in lock, key
+
+
+def test_each_from_defaults_to_its_pinned_base_but_the_toolchains() -> None:
+    # The default is what the policy gate reads; the install still passes the same value as a build argument.
+    # TOOLCHAIN_IMAGE is the devcontainer image the install builds first, so no registry pins it: P-12.
+    pins = json.loads((NIGHT / "images" / "pins.json").read_text())
+    for name, img in pins["images"].items():
+        text = (ROOT / img["dockerfile"]).read_text()
+        for arg, base in img["bases"].items():
+            if base == "toolchain":
+                assert re.search(rf"^ARG {arg}$", text, re.MULTILINE), (name, arg)
+                continue
+            b = pins["bases"][base]
+            want = f"ARG {arg}={b['image']}:{b['tag']}@{b['digest']}"
+            assert re.search(rf"^{re.escape(want)}$", text, re.MULTILINE), (name, want)
+
+
+def test_the_policy_gate_refuses_only_the_toolchain_line_until_p12() -> None:
+    r = subprocess.run(
+        ["python3", "-I", "-B", "tools/gates/compose_policy.py"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
     )
+    fails = [ln for ln in r.stdout.splitlines() if ln.startswith("FAIL ")]
+    night = [ln for ln in fails if "deploy/night-shift/" in ln]
+    assert all("${TOOLCHAIN_IMAGE}" in ln for ln in night), night
+    assert len(night) <= 1, night
 
 
 def test_a_base_whose_digest_differs_installs_nothing(make_case) -> None:
-    c = make_case({"wrong_digest": "docker.io/library/python"})
+    c = make_case({"wrong_digest": "public.ecr.aws/docker/library/python"})
     before = snapshot(c.home)
     r = c.run()
-    assert_refused(c, r, "1 images", "python:3.12-slim's digest differs from its pin")
+    assert_refused(
+        c, r, "1 images", "python:3.12.15-slim-trixie's digest differs from its pin"
+    )
     assert not [x for x in c.docker_calls() if x["argv"][1:2] == ["build"]]
     assert snapshot(c.home) == before
     assert not c.stub_state().get("networks")

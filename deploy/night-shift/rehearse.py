@@ -99,6 +99,10 @@ KNOWN_FAIL = {
     "toolchain-check": "the night images pin Claude Code at pins.json's version, which toolchain.vars doesn't name until P-8",
     "image": "it builds the compose images on the agents' engine, through engine-fwd; it fails when the engine is down",
 }
+# The policy gate's one line that only P-12 (a tools/gates change, the Author's) clears: the worker's toolchain base.
+P12_POLICY = re.compile(
+    r"FAIL deploy/night-shift/images/worker\.Dockerfile:\d+: FROM: \$\{TOOLCHAIN_IMAGE\}: a build argument without a default"
+)
 R3_COMMAND = "make setup && make check"
 R3_TIMEOUT = 2 * 3600
 ROW_TIMEOUT = 60
@@ -415,6 +419,7 @@ def judge_check(text: str, rc: int = 0) -> tuple[bool, str]:
     gates: dict[str, str] = {}
     current = None
     stage_s, other = 0, 0
+    policy_p12, policy_other = 0, 0
     for line in text.splitlines():
         m = re.match(r"== ([a-z][a-z0-9-]*)\s*$", line)
         if m:
@@ -426,6 +431,12 @@ def judge_check(text: str, rc: int = 0) -> tuple[bool, str]:
         if m:
             gates[m.group(2)] = m.group(1)
             current = None
+            continue
+        if current == "policy" and line.startswith("FAIL "):
+            if P12_POLICY.fullmatch(line):
+                policy_p12 += 1
+            else:
+                policy_other += 1
             continue
         if current == "matrix" and line.startswith("FAIL "):
             field = (line.split() + ["", ""])[1]
@@ -440,6 +451,10 @@ def judge_check(text: str, rc: int = 0) -> tuple[bool, str]:
         if status == "FAIL":
             if label in KNOWN_FAIL:
                 known.append(f"{label} ({KNOWN_FAIL[label]})")
+            elif label == "policy" and policy_p12 and not policy_other:
+                known.append(
+                    "policy: the worker's FROM ${TOOLCHAIN_IMAGE}, a local base no registry pins (P-12)"
+                )
             elif label == "matrix" and stage_s and not other:
                 known.append(
                     f"matrix: {stage_s} stage-S rows (Claude Code's sandbox masks, absent in a container; P-5)"

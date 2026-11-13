@@ -1008,9 +1008,11 @@ def test_bases_come_only_through_pinned_arguments(name: str) -> None:
     for ins in instructions(dockerfile(name)):
         if ins.upper().startswith("FROM "):
             assert re.fullmatch(r"FROM \$\{[A-Z_]+\}( AS [a-z0-9-]+)?", ins), ins
-    assert not re.search(r"[0-9a-f]{64}", dockerfile(name)), (
-        "a digest belongs in pins.json"
-    )
+    # T090 round 2: make check's policy gate reads each FROM's default, so a digest may sit in an ARG default, which
+    # test_install.py holds to pins.json; anywhere else it belongs in pins.json
+    for line in dockerfile(name).splitlines():
+        if re.search(r"[0-9a-f]{64}", line):
+            assert re.fullmatch(r"ARG [A-Z_]+=\S+@sha256:[0-9a-f]{64}", line), line
     assert ":latest" not in dockerfile(name)
 
 
@@ -1141,7 +1143,10 @@ def test_each_image_names_its_pins_and_its_context(name: str) -> None:
     assert froms == set(image["bases"]), (froms, image["bases"])
     for arg, base in image["bases"].items():
         assert base == "toolchain" or base in p["bases"], (arg, base)
-        assert re.search(rf"^ARG {arg}$", text, flags=re.MULTILINE), arg
+        # a pinned default since T090 round 2 (make check's policy gate); test_install.py holds it to pins.json
+    assert re.search(
+        rf"^ARG {arg}(=\S+@sha256:[0-9a-f]{{64}})?$", text, flags=re.MULTILINE
+    ), arg
     # Every COPY source from the context is listed, so the install writes exactly these from `git show`.
     sources = set()
     for ins in instructions(text):
@@ -1631,7 +1636,9 @@ def test_the_plan_allowlist_is_the_aws_hosts_infra_uses(proxy_copy: Path) -> Non
 
 
 @pytest.mark.parametrize("name", SESSION_ROLES)
-def test_a_sessions_tmp_and_home_run_programs(specs: dict[str, dict], name: str) -> None:
+def test_a_sessions_tmp_and_home_run_programs(
+    specs: dict[str, dict], name: str
+) -> None:
     # T090 (2026-11-12): Docker mounts a tmpfs noexec unless told otherwise, and R3's make check failed over 220 tests
     # that write a fake program under /tmp and run it. nosuid stays.
     for t in specs[name]["tmpfs"]:
@@ -1639,3 +1646,13 @@ def test_a_sessions_tmp_and_home_run_programs(specs: dict[str, dict], name: str)
         if where in ("/tmp", "/night/home"):
             assert "exec" in opts.split(","), t
             assert "nosuid" in opts.split(","), t
+
+
+def test_the_toolchain_installs_patch() -> None:
+    # T090 round 2: infra/test/test_account.py reads iam.tf through P-6 with patch(1) until P-6 is applied, and R3's
+    # make check, like the gate's, runs in the image .devcontainer/Dockerfile builds, which had no patch
+    text = (NIGHT.parent.parent / ".devcontainer" / "Dockerfile").read_text()
+    install = re.search(
+        r"apt-get install -y --no-install-recommends \\\n(.*?)\n", text, re.DOTALL
+    )
+    assert install and "patch" in install.group(1).split(), install

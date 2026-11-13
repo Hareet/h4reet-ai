@@ -1,0 +1,76 @@
+P-12 (spec 017, the night shift; T090 round 2): tools/gates/compose_policy.py allows one named local base.
+
+What it changes:
+  - LOCAL_BASES names the (file, build argument) pairs whose FROM may be a bare ${ARG} with no default: today one,
+    deploy/night-shift/images/worker.Dockerfile's TOOLCHAIN_IMAGE. That image is the devcontainer image the night
+    shift's install builds first from .devcontainer/Dockerfile, whose own FROMs this policy checks, so no registry
+    can pin it. The worker's other base (docker-cli) and the studio's, comfyui's, and egress's take their defaults
+    from deploy/images.lock lines on the branch, so the policy checks them as it checks every other Dockerfile.
+  - Any other argument, the same argument in any other file, a FROM that adds to the argument (${TOOLCHAIN_IMAGE}-x),
+    or a default given to it, is checked as before.
+  - tools/gates/test/test_compose_policy.py: two tests (the pair passes only at its own file and argument; a default
+    is held to the lock).
+
+Why: R3, the install's make check in a night container, failed policy on the four night-shift Dockerfiles
+(FROM ${ARG} without a default). Three are fixed on the branch; this is the fourth. Until it merges, the branch's
+make check and the gate's policy step FAIL on that one line, and R3 names it as known (P-12).
+
+Apply from the repository's top: patch -p1 < docs/merge-requests/2026-11-12-feat-017-p12.patch
+
+--- a/tools/gates/compose_policy.py
++++ b/tools/gates/compose_policy.py
+@@ -68,6 +68,12 @@
+ ROOT = Path(__file__).resolve().parents[2]
+ COMPOSE_FILE = "deploy/compose.yaml"
+ LOCK_FILE = "deploy/images.lock"
++# A FROM a build argument names with no default, allowed only at these (file, argument) pairs: an image this repository
++# builds itself, from a Dockerfile this policy checks, so no registry pins it. The night shift's install (spec 017,
++# P-12) builds the toolchain from .devcontainer/Dockerfile first and passes its image by its tag here.
++LOCAL_BASES = {
++    ("deploy/night-shift/images/worker.Dockerfile", "TOOLCHAIN_IMAGE"): ".devcontainer/Dockerfile",
++}
+ DISCLOSURE_FILE = "docs/data-flow-disclosure.md"
+ DEVCONTAINER_FILE = ".devcontainer/devcontainer.json"
+ ENV_FILES = (
+@@ -985,6 +991,9 @@
+             stages.add(tokens[2].lower())
+         if ref.lower() in stages or ref == "scratch":
+             continue
++        bare = re.fullmatch(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?", ref)
++        if bare and (rel, bare.group(1)) in LOCAL_BASES:
++            continue
+         if "$" in ref:
+             found.append(
+                 Finding(
+--- a/tools/gates/test/test_compose_policy.py
++++ b/tools/gates/test/test_compose_policy.py
+@@ -1343,3 +1343,29 @@
+     assert cp.check_service("web", web, model, lock, REPO) == []
+     assert "127.0.0.1:${H4_SITE_PORT}:8087" in model["services"]["edge"]["ports"]
+     assert cp.check_service("edge", model["services"]["edge"], model, lock, REPO) == []
++
++
++def test_a_local_base_passes_only_at_its_own_file_and_argument(tmp_path: Path) -> None:
++    # P-12 (spec 017): the night worker builds FROM the toolchain image the install builds from .devcontainer/Dockerfile
++    write(
++        tmp_path / "deploy/night-shift/images/worker.Dockerfile",
++        "ARG TOOLCHAIN_IMAGE\nARG OTHER\nFROM ${TOOLCHAIN_IMAGE}\nFROM $TOOLCHAIN_IMAGE\nFROM ${OTHER}\n"
++        "FROM ${TOOLCHAIN_IMAGE}-x\n",
++    )
++    write(tmp_path / "x/Dockerfile", "ARG TOOLCHAIN_IMAGE\nFROM ${TOOLCHAIN_IMAGE}\n")
++    found, _ = cp.check_tree(tmp_path, LOCK)
++    got = {(f.where, f.detail.rsplit(": ", 1)[-1]) for f in found if f.rule == "FROM"}
++    assert got == {
++        ("deploy/night-shift/images/worker.Dockerfile:5", "a build argument without a default"),
++        ("deploy/night-shift/images/worker.Dockerfile:6", "a build argument without a default"),
++        ("x/Dockerfile:2", "a build argument without a default"),
++    }
++
++
++def test_a_local_base_with_a_default_is_held_to_the_lock(tmp_path: Path) -> None:
++    write(
++        tmp_path / "deploy/night-shift/images/worker.Dockerfile",
++        "ARG TOOLCHAIN_IMAGE=ghcr.io/x/y:1\nFROM ${TOOLCHAIN_IMAGE}\n",
++    )
++    found, _ = cp.check_tree(tmp_path, LOCK)
++    assert [f.detail for f in found if f.rule == "FROM"] == ["ghcr.io/x/y:1: not pinned by digest"]

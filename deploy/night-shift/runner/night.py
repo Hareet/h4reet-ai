@@ -2177,6 +2177,20 @@ class Runner:
             raise Refused("main's .claude/settings.json isn't an object")
         return data
 
+    def mains_gitleaks_config(self) -> str | None:
+        """make check's secrets gate reads .gitleaks.toml from the main working tree, which no task mounts (FR-012):
+        refs/heads/main's committed copy, written into the runner's own state at 0444, or None while main has none
+        (the gate then says so). T090 round 2."""
+        r = self.git("cat-file", "blob", f"{MAIN}:.gitleaks.toml")
+        if r.rc != 0:
+            return None
+        fd = open_dir_chain(self.p.share, "gate", make=True)
+        try:
+            write_at(fd, "gitleaks.toml", r.out.encode("utf-8"), 0o444)
+        finally:
+            os.close(fd)
+        return f"{self.p.share}/gate/gitleaks.toml"
+
     def task_git_rw(self, t: Task) -> list[str]:
         """The only `.git` paths a writing session may write (FR-012): its commit's objects, its own worktree
         folder, and its own branch's ref and log folders."""
@@ -2256,6 +2270,10 @@ class Runner:
         elif t.role in READING_WT:
             assert t.worktree
             pre += [(t.worktree, t.worktree, "ro"), (g, g, "ro")]
+        if t.role in WRITING_WT or t.role in READING_WT:
+            config = self.mains_gitleaks_config()
+            if config:
+                pre.append((config, f"{self.repo}/.gitleaks.toml", "ro"))
         post = [
             (f"{self.p.share}/claude/{t.role}", CLAUDE_DIR_IN, "rw"),
             (io, IO_IN, "rw"),

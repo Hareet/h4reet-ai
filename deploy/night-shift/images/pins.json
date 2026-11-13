@@ -2,15 +2,15 @@
   "schema": 1,
   "claude_code": "2.1.322",
   "bases": {
-    "node:22-bookworm-slim": {
-      "image": "docker.io/library/node",
-      "tag": "22-bookworm-slim",
-      "digest": "sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee"
+    "node:24.21.0-trixie-slim": {
+      "image": "public.ecr.aws/docker/library/node",
+      "tag": "24.21.0-trixie-slim",
+      "digest": "sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66"
     },
-    "python:3.12-slim": {
-      "image": "docker.io/library/python",
-      "tag": "3.12-slim",
-      "digest": "sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b"
+    "python:3.12.15-slim-trixie": {
+      "image": "public.ecr.aws/docker/library/python",
+      "tag": "3.12.15-slim-trixie",
+      "digest": "sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1"
     },
     "ubuntu:24.04": {
       "image": "public.ecr.aws/docker/library/ubuntu",
@@ -77,7 +77,7 @@
     "studio": {
       "dockerfile": "deploy/night-shift/images/studio.Dockerfile",
       "bases": {
-        "NODE_IMAGE": "node:22-bookworm-slim"
+        "NODE_IMAGE": "node:24.21.0-trixie-slim"
       },
       "args": {
         "CLAUDE_CODE_VERSION": {
@@ -121,7 +121,7 @@
     "egress": {
       "dockerfile": "deploy/night-shift/images/egress.Dockerfile",
       "bases": {
-        "PYTHON_IMAGE": "python:3.12-slim"
+        "PYTHON_IMAGE": "python:3.12.15-slim-trixie"
       },
       "context": [
         "deploy/night-shift/images/egress.Dockerfile",
@@ -132,6 +132,6 @@
     }
   },
   "x-h4": {
-    "note": "Read by install.sh (G4) and checked by P-8. Each base's digest is the one the Author read on his engine on 2026-11-12 (ubuntu's is .devcontainer/Dockerfile's pin): the install refuses to build while any is null, and pulls each base as image@digest. Read a digest with: docker image inspect --format '{{index .RepoDigests 0}}' <image:tag> (the container probe already pulled node:22-bookworm-slim and python:3.12-slim). ubuntu:24.04 is the same image .devcontainer/Dockerfile pins by digest. The toolchain is the devcontainer image, built first from .devcontainer/Dockerfile with these args; its own bases are pinned by digest there. Each image's context is written from git show <sha>:<path> at the same relative paths (a repository-shaped folder), but context_from_main, which comes from refs/heads/main (tasks.md T033). BLENDER_SHA256 is the two halves joined: the published checksum, kept in halves so no 64-hex string sits in a file. Contexts are built with --build-arg NAME=value for each base (image@digest) and arg. An arg whose from is facts.KEY takes that key from the facts file (the Author's uid and gid, for the passwd entry each session image bakes)."
+    "note": "Read by install.sh (G4) and checked by P-8. Each base is a line of deploy/images.lock, which make check's policy gate requires of every Dockerfile FROM: node, python, and ubuntu are the lock's base: lines, and docker-cli's line holds the digest the Author read on his engine on 2026-11-12 (T090 round 2): the install refuses to build while any is null, and pulls each base as image@digest. Read a digest with: docker image inspect --format '{{index .RepoDigests 0}}' <image:tag>. ubuntu:24.04 is the same image .devcontainer/Dockerfile pins by digest. The toolchain is the devcontainer image, built first from .devcontainer/Dockerfile with these args; its own bases are pinned by digest there. Each image's context is written from git show <sha>:<path> at the same relative paths (a repository-shaped folder), but context_from_main, which comes from refs/heads/main (tasks.md T033). BLENDER_SHA256 is the two halves joined: the published checksum, kept in halves so no 64-hex string sits in a file. Contexts are built with --build-arg NAME=value for each base (image@digest) and arg. An arg whose from is facts.KEY takes that key from the facts file (the Author's uid and gid, for the passwd entry each session image bakes)."
   }
 }

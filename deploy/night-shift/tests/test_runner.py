@@ -859,6 +859,31 @@ class TestDockerRun:
         assert t.state == "running", t.state
         return runner, fx, t, fx.spawned[-1][1]
 
+    @pytest.mark.parametrize("role", ["implementer", "reviewer", "gate-runner"])
+    def test_a_task_reads_mains_committed_gitleaks_config(self, night, h, role):
+        # T090 round 2: make check's secrets gate reads .gitleaks.toml from the main working tree, which no task
+        # mounts. The runner writes refs/heads/main's committed copy into its own state and mounts that, read-only.
+        _runner, fx, _t, argv = self.start_role(night, h, role)
+        want = f"{h.repo}/.gitleaks.toml"
+        got = [(host, mode) for host, c, mode in vols(argv) if c == want]
+        assert len(got) == 1, got
+        host, mode = got[0]
+        assert mode == "ro"
+        assert not host.startswith(str(h.repo) + "/"), host
+        assert Path(host).read_text() == fx.main_gitleaks
+        assert Path(host).stat().st_mode & 0o777 == 0o444
+
+    def test_without_one_on_main_none_is_mounted(self, night, h):
+        runner, fx = nf.make_runner(night, h)
+        fx.main_gitleaks = None
+        runner.start_supervisor()
+        nf.write_queue(runner, nf.queue(nf.task("t-1", role="implementer")))
+        assert runner.load_queue()
+        fx.t += 10
+        runner.schedule()
+        argv = fx.spawned[-1][1]
+        assert not [c for _h, c, _m in vols(argv) if c.endswith("/.gitleaks.toml")]
+
     def test_the_implementer_line_exactly(self, night, h):
         _runner, _fx, _t, argv = self.start_role(night, h, "implementer")
         wt = str(h.night_root / nf.NIGHT / "t-1")
@@ -888,6 +913,7 @@ class TestDockerRun:
             "-v", f"{wt}/.specify/memory/constitution.md:{wt}/.specify/memory/constitution.md:ro",
             "-v", f"{wt}/tools/gates:{wt}/tools/gates:ro",
             "-v", f"{wt}/GNUmakefile:{wt}/GNUmakefile:ro",
+            "-v", f"{h.share}/gate/gitleaks.toml:{h.repo}/.gitleaks.toml:ro",
             "-v", "/srv/studio/briefs:/srv/studio/briefs:rw",
             "-v", "/srv/studio/handoff:/srv/studio/handoff:ro",
             "-v", f"{h.engine_certs}:/night/engine-certs:ro",

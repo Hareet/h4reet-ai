@@ -10,7 +10,7 @@
 # install.sh builds it from a repository-shaped context it writes with `git show <sha>:<path>` for each path that
 # pins.json's images.comfyui.context lists. UBUNTU_IMAGE is ubuntu:24.04@digest from pins.json, the same image
 # .devcontainer/Dockerfile pins.
-ARG UBUNTU_IMAGE
+ARG UBUNTU_IMAGE=public.ecr.aws/docker/library/ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55
 
 FROM ${UBUNTU_IMAGE}
 ARG NIGHT_UID

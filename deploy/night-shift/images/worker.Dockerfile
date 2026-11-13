@@ -14,7 +14,7 @@
 # research R-18) and each role's settings layer, read-only. No token or key is ever baked in: the runner passes
 # the night-shift token at run time with --env-file.
 ARG TOOLCHAIN_IMAGE
-ARG DOCKER_CLI_IMAGE
+ARG DOCKER_CLI_IMAGE=docker.io/library/docker:28.3.3-cli@sha256:0135662b510037ea581d99c2e5929c5e01185139c0b86986a418bd4da0b98a44
 
 FROM ${DOCKER_CLI_IMAGE} AS dockercli
 

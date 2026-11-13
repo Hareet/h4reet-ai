@@ -461,6 +461,7 @@ class FakeFx:
         self.dirty: dict[str, str] = {}
         self.procs: dict[str, str] = {}
         self.repo_head = "refs/heads/main"
+        self.main_gitleaks: str | None = "[extend]\nuseDefault = true\n"
         self.repo_dirty = ""
         self.existing_branches: set[str] = set()
         self.main_settings = json.dumps(MAIN_SETTINGS)
@@ -629,6 +630,10 @@ class FakeFx:
                 if self.main_hook is None:
                     return Result(128, "", "fatal: path not in refs/heads/main")
                 return Result(0, self.main_hook)
+            if a[-1] == "refs/heads/main:.gitleaks.toml":
+                if self.main_gitleaks is None:
+                    return Result(128, "", "fatal: path not in refs/heads/main")
+                return Result(0, self.main_gitleaks)
             return Result(0, self.main_settings)
         if a[:1] == ["merge-base"]:
             return Result(0, sha40("merge-base") + "\n")

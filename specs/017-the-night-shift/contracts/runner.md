@@ -65,6 +65,7 @@ docker run --rm --name h4-night-<task> --user <uid>:<gid> \
 - A spec's mount may not lie over a task mount, nor sit at `/`, `/etc`, `/usr`, `/night/claude`, `/night/io`, or `/night/settings*`; and no spec mount (only the runner's task mounts) touches the main checkout, `.git` included.
 - `--bare` never appears.
 - Starts are staggered by 10 s.
+- A task that holds a worktree also gets `refs/heads/main:.gitleaks.toml`, written by the runner into `<share>/gate/gitleaks.toml` at 0444 and mounted read-only at `<repo>/.gitleaks.toml`, where make check's secrets gate reads it; nothing else of the main checkout is mounted (T090 round 2).
 - Before any task starts (with the `gpu` lock or not, since 2026-11-12), the disk and memory checks run again; a failure leaves the task queued and writes the reason on the page (FR-031).
 - Every container (sessions, helpers, the plan, ComfyUI) runs with `--init` (FR-014), so a session's orphaned children are reaped.
 - **The memory sum** (FR-014): a container starts only while the memory limits of every running night container (sessions, the egress helpers and engine-fwd, ComfyUI, a running plan and its egress) plus the new one sum to no more than the host's total memory (`MemTotal`) less 8 GB. Otherwise a queued task stays queued with one page line, a ComfyUI or plan request is refused with the reason, and the supervisor's start refuses. On a studio night that holds the studio's 8 GB and ComfyUI's 24 GB against the workers.
