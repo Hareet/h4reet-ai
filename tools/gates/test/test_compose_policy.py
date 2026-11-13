@@ -1430,6 +1430,77 @@ def tunnel_rules(model: dict, tree: Path) -> set[tuple[str, str]]:
     return {(f.where.rsplit(" ", 1)[-1], f.rule) for f in found}
 
 
+def ec2_model() -> dict:
+    """Group 7's EC2 class on top of the tunnel's: edge's image as EC2's override, and its two doors."""
+    model = tunnel_model()
+    model["services"]["edge"]["image"] = "${H4_IMAGE_EDGE:-" + EDGE_IMAGE + "}"
+    model["services"]["ec2-relay-block"] = service(
+        profiles=["ec2"],
+        image="${H4_REGISTRY:-registry.invalid}/h4reet/edge:"
+        + EDGE_IMAGE.split(":", 1)[1],
+        networks={"internal": None, "edge": None},
+        ports=["10.42.0.20:8085:8085", "10.42.0.20:4318:4318"],
+    )
+    return model
+
+
+EC2_DISCLOSED = TUNNEL_DISCLOSED | {"ec2-relay-block"}
+
+
+def ec2_rules(model: dict, tree: Path) -> set[tuple[str, str]]:
+    found = cp.check_model(model, CLOUD_LOCK, tree, EC2_DISCLOSED)
+    return {(f.where.rsplit(" ", 1)[-1], f.rule) for f in found}
+
+
+def test_ec2s_class_passes(tmp_path: Path) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    assert ec2_rules(ec2_model(), tmp_path) == set()
+
+
+def test_ec2s_doors_publish_exactly_their_two_ports_in_ec2s_class_alone(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    for ports in (
+        ["10.42.0.20:8085:8085"],
+        ["0.0.0.0:8085:8085", "0.0.0.0:4318:4318"],
+        ["10.42.0.20:8085:8085", "10.42.0.20:4318:4318", "10.42.0.20:8083:8083"],
+    ):
+        model = ec2_model()
+        model["services"]["ec2-relay-block"]["ports"] = ports
+        assert ("ec2-relay-block", "ports") in ec2_rules(model, tmp_path), ports
+    model = ec2_model()
+    model["services"]["ec2-relay-block"]["profiles"] = ["ec2", "gpu"]
+    assert ("ec2-relay-block", "ports") in ec2_rules(model, tmp_path)
+    model = ec2_model()
+    model["services"]["ec2-relay-block"]["image"] = EDGE_IMAGE
+    assert ("ec2-relay-block", "image") in ec2_rules(model, tmp_path)
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        "${H4_IMAGE_EDGE:-ghcr.io/nginx/nginx-unprivileged:9.9@sha256:"
+        + "0" * 64
+        + "}",
+        "${H4_IMAGE_LOKI:-" + EDGE_IMAGE + "}",
+        "${H4_IMAGE_EDGE}",
+    ],
+)
+def test_an_override_holds_its_own_services_lock_pin_alone(
+    tmp_path: Path, image: str
+) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    model = ec2_model()
+    model["services"]["edge"]["image"] = image
+    assert ("edge", "image") in ec2_rules(model, tmp_path)
+
+
+def test_no_env_file_names_an_image() -> None:
+    found = cp.check_env_values("x.env", {"H4_IMAGE_EDGE": "elsewhere/edge"})
+    assert [f.rule for f in found] == ["image key"]
+
+
 def test_the_tunnels_ends_pass(tmp_path: Path) -> None:
     (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
     assert tunnel_rules(tunnel_model(), tmp_path) == set()
@@ -1566,7 +1637,9 @@ def shared_model() -> dict:
 
 
 def shared_rules(model: dict, tree: Path) -> set[tuple[str, str]]:
-    found = cp.check_model(model, SHARED_LOCK, tree, TUNNEL_DISCLOSED | {"shared-state"})
+    found = cp.check_model(
+        model, SHARED_LOCK, tree, TUNNEL_DISCLOSED | {"shared-state"}
+    )
     return {(f.where.rsplit(" ", 1)[-1], f.rule) for f in found}
 
 
@@ -1575,7 +1648,9 @@ def test_the_shared_state_passes(tmp_path: Path) -> None:
     assert shared_rules(shared_model(), tmp_path) == set()
 
 
-def test_the_shared_state_publishes_5432_on_the_private_address_alone(tmp_path: Path) -> None:
+def test_the_shared_state_publishes_5432_on_the_private_address_alone(
+    tmp_path: Path,
+) -> None:
     for ports in (
         ["0.0.0.0:5432:5432"],
         ["10.42.0.10:5432:5432"],
@@ -1586,7 +1661,9 @@ def test_the_shared_state_publishes_5432_on_the_private_address_alone(tmp_path: 
         assert ("shared-state", "ports") in shared_rules(model, tmp_path), ports
 
 
-def test_the_shared_states_key_binds_read_only_and_its_data_alone_writable(tmp_path: Path) -> None:
+def test_the_shared_states_key_binds_read_only_and_its_data_alone_writable(
+    tmp_path: Path,
+) -> None:
     model = shared_model()
     model["services"]["shared-state"]["volumes"][0]["read_only"] = False
     assert ("shared-state", "binds") in shared_rules(model, tmp_path)
@@ -1600,12 +1677,18 @@ def test_the_shared_states_key_binds_read_only_and_its_data_alone_writable(tmp_p
     assert ("tunnel-end", "binds") in shared_rules(model, tmp_path)
 
 
-def test_the_shared_state_runs_gateway_states_digest_from_its_own_repository(tmp_path: Path) -> None:
+def test_the_shared_state_runs_gateway_states_digest_from_its_own_repository(
+    tmp_path: Path,
+) -> None:
     model = shared_model()
-    model["services"]["shared-state"]["image"] = SHARED_IMAGE.replace(GATEWAY_STATE.digest, "sha256:" + "f" * 64)
+    model["services"]["shared-state"]["image"] = SHARED_IMAGE.replace(
+        GATEWAY_STATE.digest, "sha256:" + "f" * 64
+    )
     assert ("shared-state", "image") in shared_rules(model, tmp_path)
     model = shared_model()
-    model["services"]["shared-state"]["image"] = SHARED_IMAGE.replace("/shared-state:", "/gateway-state:")
+    model["services"]["shared-state"]["image"] = SHARED_IMAGE.replace(
+        "/shared-state:", "/gateway-state:"
+    )
     assert ("shared-state", "image") in shared_rules(model, tmp_path)
 
 

@@ -82,6 +82,8 @@ ENV_FILES = (
     ("dev-cpu", "deploy/env.agents/dev-cpu.vars"),
     # Spec 001's tunnel end, prod on another host: write_env.py fills its template at boot (contracts/env-cloud.md §1).
     ("prod", "deploy/hosts/tunnel-end/tunnel-end.env.example"),
+    # Spec 001 group 7's EC2, prod on another host, the same way.
+    ("prod", "deploy/hosts/ec2/ec2.env.example"),
 )
 
 BIND_ROOTS = (
@@ -104,9 +106,12 @@ EGRESS_SERVICE = "gateway"
 EGRESS_SERVICES = frozenset({EGRESS_SERVICE, "tunnel", "tunnel-end-collector"})
 # From group 6, the tunnel end's shared state too, which publishes on the private interface (its contracts/shared-
 # state.md §1).
-EDGE_NETWORK_SERVICES = frozenset({PUBLISHER, "tunnel-end", "shared-state"})
+# From group 7, EC2's two doors from the tunnel end, which publish on EC2's private address.
+EDGE_NETWORK_SERVICES = frozenset(
+    {PUBLISHER, "tunnel-end", "shared-state", "ec2-relay-block"}
+)
 # The cloud hosts' classes: the profiles whose services run on a cloud host alone, which no laptop stack selects.
-CLOUD_PROFILES = frozenset({"tunnel-end"})
+CLOUD_PROFILES = frozenset({"tunnel-end", "ec2"})
 # What a cloud class's service publishes, exactly (host address, published port, container port): the tunnel end's
 # public interface's fixed address, a literal no other host has, so the service fails closed anywhere else.
 CLOUD_PORTS = {
@@ -115,6 +120,11 @@ CLOUD_PORTS = {
     ),
     # The shared state's 5432, on the private interface's fixed address alone, which the security group holds to EC2.
     "shared-state": frozenset({("10.42.1.10", "5432", 5432)}),
+    # Group 7: EC2's relay block and its collector, on EC2's one private address, which its group opens to the tunnel
+    # end's two addresses alone.
+    "ec2-relay-block": frozenset(
+        {("10.42.0.20", "8085", 8085), ("10.42.0.20", "4318", 4318)}
+    ),
 }
 # The binds each of spec 001's services takes outside BIND_ROOTS, each read-only but where it says writable: the
 # laptop's client key and pinned host key, which the Author's tunnel-keys target leaves under
@@ -124,7 +134,10 @@ CLOUD_PORTS = {
 SERVICE_BINDS: dict[str, dict[str, bool]] = {
     "tunnel": {"${H4_TUNNEL_DIR}": False},
     "tunnel-end": {"/run/h4reet/tunnel-end/keys": False},
-    "shared-state": {"/run/h4reet/shared-state": False, "/srv/h4reet/shared-state": True},
+    "shared-state": {
+        "/run/h4reet/shared-state": False,
+        "/srv/h4reet/shared-state": True,
+    },
 }
 # A cloud class's images, from the account's registry (the release's ECR repositories; spec 001 contracts/releases-
 # deployer.md §1). An image the release builds runs by the release's digest, which the deployer writes to the
@@ -136,7 +149,23 @@ UPSTREAM_COPIES = {
     "tunnel-end-collector": "otel-collector",
     # Group 6: the shared state runs gateway-state's Postgres, copied to a repository of its own name.
     "shared-state": "gateway-state",
+    # Group 7: EC2's doors run edge's nginx, copied by its index digest.
+    "ec2-relay-block": "edge",
 }
+# Group 7: on EC2, a shared service's upstream image runs as the account's registry's copy, which EC2's deployer names
+# in its release's env file as H4_IMAGE_<SERVICE>; the reference after ":-" is the lock's, and runs on every other
+# host. No env file this policy reads may name one (check_env_values).
+MIRRORED_RE = re.compile(r"\$\{(H4_IMAGE_[A-Z0-9_]+):-([^}]+)\}")
+
+
+def mirrored_pin(name: str, image: str) -> str | None:
+    """The pin inside a shared service's EC2 override; None if image isn't one, or names another service's variable."""
+    m = MIRRORED_RE.fullmatch(image)
+    if m is None or m.group(1) != "H4_IMAGE_" + name.upper().replace("-", "_"):
+        return None
+    return m.group(2)
+
+
 # A copy whose repository isn't its lock line's name.
 COPY_REPOSITORIES = {"shared-state": "shared-state"}
 # Spec 010 (FR-030, FR-032): prod's Anthropic API key, which compose passes to the gateway alone, from the env file.
@@ -645,6 +674,16 @@ def check_service(
                 f"{image} is make up's own build, which no registry has: pull_policy: never, so compose never "
                 "pulls an image by that name",
             )
+    elif str(image).startswith("${H4_IMAGE_"):
+        pin = mirrored_pin(name, str(image))
+        if pin is None:
+            refuse(
+                "image",
+                f"{image}: an override names its own service's variable, as "
+                f"${{H4_IMAGE_{name.upper().replace('-', '_')}:-<the lock's pin>}}",
+            )
+        else:
+            found.extend(check_image(where, name, pin, lock, tree))
     else:
         found.extend(check_image(where, name, str(image), lock, tree))
 
@@ -1015,6 +1054,14 @@ def check_env_values(where: str, values: dict[str, str]) -> list[Finding]:
             found.append(
                 Finding(
                     where, "docker key", f"{key} would point compose at another engine"
+                )
+            )
+        if key.startswith("H4_IMAGE_"):
+            found.append(
+                Finding(
+                    where,
+                    "image key",
+                    f"{key} would replace a pinned image: only EC2's deployer names one, in its release's env file",
                 )
             )
     return found
