@@ -39,6 +39,10 @@ From your terminal, with your SSO session: `make cloud-session HOST=<ec2|tunnel-
 
    A reboot retries every attempt too.
 
+4. **The release's site warnings** (no deployer's alert: `make release` prints them in your terminal, with `SITE_BUCKET=`, from W2; [contracts/releases-deployer.md §2](../../specs/001-cloud-elevation/contracts/releases-deployer.md#2-make-release-the-authors-terminal-refused-to-agents)). The site is already in `site/` when they print, so the release goes on to its pointer:
+   - **`warning: the invalidation failed`:** the edge may serve the release before until its cache expires. The warning prints the one recovery, with your distribution's ID; run it with your SSO session (`AWS_PROFILE=<your profile>`): `aws cloudfront create-invalidation --distribution-id <ID> --paths '/*'`. A later release invalidates again anyway.
+   - **`warning: the retired assets weren't listed`, `the ledger of retired assets was unreadable`, `… wasn't deleted`, or `the ledger … wasn't written`:** nothing was deleted that the release couldn't account for. The assets and content-addressed files a release lacks stay in `site/` a day from the release that first lacked them, so a tab still open on the release before keeps loading; the next release retires them again. The ledger is `releases/retired.json` in the site's bucket.
+
 ## Verify
 
 - The dashboard's release panel shows the host on the release you expect, with `deployer` as who started it.

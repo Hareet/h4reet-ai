@@ -90,6 +90,13 @@ Runner = Callable[..., "tuple[int, str]"]
 IMMUTABLE = "public, max-age=31536000, immutable"
 SITE_BUCKET_RE = re.compile(r"h4reet-ai-site-[0-9]{12}")
 DISTRIBUTION_RE = re.compile(r"E[A-Z0-9]{8,20}")
+# W2 (group 8's review B, nit 1): the hashed assets and the content-addressed files a tab still open on the release
+# before may load, kept a day from the release that first lacked them, by a ledger in the bucket, outside site/ (the
+# distribution serves site/ alone) and under releases/, whose 90-day lifecycle a release's rewrite keeps from it.
+RETIRABLE = ("site/assets/", "site/a/")
+RETIRED_KEY = "releases/retired.json"
+RETIRED_KEPT = datetime.timedelta(days=1)
+STAMP = "%Y%m%dT%H%M%SZ"
 
 
 class Refused(Exception):
@@ -389,11 +396,15 @@ def check_site(
         )
 
 
-def sync_site(runner: Runner, dist: Path, opts: Options, commit: str) -> None:
+def sync_site(
+    runner: Runner, dist: Path, opts: Options, commit: str, stamp: str
+) -> None:
     """Contract §2, step 5 (contracts/edge.md §5): the site the release checked, to releases/<commit>/, each file with
     the Cache-Control the web image's nginx sends, each GLB's gzip copy under its own name with Content-Encoding gzip
-    as gzip_static serves it, and never the PDF's text file; then that copy to site/, deleting what the release lacks
-    but the public view's status/; then one invalidation of the distribution."""
+    as gzip_static serves it, and never the PDF's text file; then that copy to site/, its assets first, then the rest,
+    deleting what the release lacks but the public view's status/ and the assets; then one invalidation of the
+    distribution, whose failure is a warning that names its recovery, since site/ already holds the release; then the
+    assets the release lacks retired, each kept a day (W2; group 8's review B, nit 1)."""
     bucket = opts.site_bucket
     assert bucket is not None
     if not SITE_BUCKET_RE.fullmatch(bucket):
@@ -417,7 +428,13 @@ def sync_site(runner: Runner, dist: Path, opts: Options, commit: str) -> None:
     steps += [
         ["aws", "s3", "sync", str(dist), copy, "--no-progress", "--exclude", "assets/*", "--exclude", "a/*",
          "--exclude", "*.pdf.txt", "--cache-control", "no-cache"],
-        ["aws", "s3", "sync", copy, f"s3://{bucket}/site/", "--no-progress", "--delete", "--exclude", "status/*"],
+        # site/: the assets first, never deleting, so no page names an asset that isn't there yet; then the rest,
+        # deleting what the release lacks, but the public view's status/ and the assets, which retire_assets keeps a
+        # day for the tabs still open on the release before (W2).
+        ["aws", "s3", "sync", copy, f"s3://{bucket}/site/", "--no-progress", "--exclude", "*", "--include", "assets/*",
+         "--include", "a/*"],
+        ["aws", "s3", "sync", copy, f"s3://{bucket}/site/", "--no-progress", "--delete", "--exclude", "status/*",
+         "--exclude", "assets/*", "--exclude", "a/*"],
     ]  # fmt: skip
     for argv in steps:
         if runner(argv)[0] != 0:
@@ -435,9 +452,145 @@ def sync_site(runner: Runner, dist: Path, opts: Options, commit: str) -> None:
             "/*",
         ]
         if runner(invalidate)[0] != 0:
-            raise Refused(
-                "the site synced, but its invalidation failed: run it again; the pointer names the release before"
+            # site/ holds the release already, so the pointer follows it; the edge serves its cached copies until
+            # they expire, or until the invalidation runs (docs/runbooks/deploy.md, Act 4, the release's site warnings).
+            print(
+                f"{PROG}: warning: the invalidation failed; the edge may serve the release before until its cache "
+                f"expires. Run, with your session: aws cloudfront create-invalidation --distribution-id "
+                f"{opts.distribution} --paths '/*'"
             )
+    retire_assets(runner, bucket, dist, stamp)
+
+
+def released_assets(dist: Path) -> set[str]:
+    """The keys under site/ the release's sync gives its assets and content-addressed files: a/'s gzip copies under
+    their names without .gz, as sync_site uploads them."""
+    keys: set[str] = set()
+    for folder in ("assets", "a"):
+        base = dist / folder
+        for path in sorted(base.rglob("*")) if base.is_dir() else []:
+            if not path.is_file():
+                continue
+            rel = path.relative_to(dist).as_posix()
+            if folder == "a" and rel.endswith(".gz"):
+                if path.parent != base:
+                    continue  # sync_site uploads a/'s top-level gzip copies alone
+                rel = rel[:-3]
+            keys.add(f"site/{rel}")
+    return keys
+
+
+def _age(stamp: str, retired: object) -> datetime.timedelta | None:
+    """retired's age at stamp, both UTC in STAMP's form; None for a value that isn't one."""
+    utc = datetime.timezone.utc
+    try:
+        now = datetime.datetime.strptime(stamp, STAMP).replace(tzinfo=utc)
+        then = datetime.datetime.strptime(str(retired), STAMP).replace(tzinfo=utc)
+    except ValueError:
+        return None
+    return now - then
+
+
+def retire_assets(runner: Runner, bucket: str, dist: Path, stamp: str) -> None:
+    """The assets and content-addressed files under site/ the release lacks, each kept a day from the release that
+    first lacked it, then deleted (W2; group 8's review B, nit 1). The ledger, RETIRED_KEY, holds each one's first
+    release's time. Whatever fails deletes nothing it can't account for, and is a warning: the site is already
+    released."""
+    listing = [
+        "aws", "s3api", "list-objects-v2", "--bucket", bucket, "--prefix", "site/", "--query", "Contents[].Key",
+        "--output", "json",
+    ]  # fmt: skip
+    code, out = runner(listing)
+    try:
+        # The CLI lists an empty prefix as null.
+        keys = (json.loads(out) or []) if code == 0 else None
+    except ValueError:
+        keys = None
+    if keys is not None and not (
+        isinstance(keys, list) and all(isinstance(k, str) for k in keys)
+    ):
+        keys = None
+    if keys is None:
+        print(
+            f"{PROG}: warning: the retired assets weren't listed, so none was deleted; the next release retires them"
+        )
+        return
+    code, out = runner(
+        ["aws", "s3", "cp", "--no-progress", f"s3://{bucket}/{RETIRED_KEY}", "-"]
+    )
+    ledger: dict[str, str] = {}
+    if code == 0:
+        try:
+            read = json.loads(out)
+        except ValueError:
+            read = None
+        if isinstance(read, dict):
+            ledger = {str(k): str(v) for k, v in read.items()}
+        else:
+            print(
+                f"{PROG}: warning: the ledger of retired assets was unreadable; each asset the release lacks is kept "
+                "a day from now"
+            )
+    released = released_assets(dist)
+    retired = {
+        k: (ledger[k] if _age(stamp, ledger.get(k)) is not None else stamp)
+        for k in keys
+        if k.startswith(RETIRABLE) and k not in released
+    }
+    zero = datetime.timedelta(0)
+    due = sorted(
+        k for k, then in retired.items() if (_age(stamp, then) or zero) >= RETIRED_KEPT
+    )
+    kept_back: set[str] = set()
+    for i in range(0, len(due), 1000):
+        batch = due[i : i + 1000]
+        spec = dist.parent / f"retire-{i // 1000}.json"
+        spec.write_text(
+            json.dumps({"Objects": [{"Key": k} for k in batch], "Quiet": True}),
+            encoding="utf-8",
+        )
+        code, out = runner(
+            [
+                "aws",
+                "s3api",
+                "delete-objects",
+                "--bucket",
+                bucket,
+                "--delete",
+                f"file://{spec}",
+            ]
+        )
+        if code != 0:
+            kept_back |= set(batch)
+            continue
+        try:
+            errors = (json.loads(out) if out.strip() else {}).get("Errors") or []
+        except (ValueError, AttributeError):
+            errors = [{"Key": k} for k in batch]
+        kept_back |= {str(e.get("Key")) for e in errors if isinstance(e, dict)}
+    if kept_back:
+        n = len(kept_back)
+        what = "1 retired asset wasn't" if n == 1 else f"{n} retired assets weren't"
+        print(f"{PROG}: warning: {what} deleted; the next release tries again")
+    left = {k: v for k, v in retired.items() if k not in set(due) - kept_back}
+    body = dist.parent / "retired.json"
+    body.write_text(json.dumps(left, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if (
+        runner(
+            [
+                "aws",
+                "s3",
+                "cp",
+                "--no-progress",
+                str(body),
+                f"s3://{bucket}/{RETIRED_KEY}",
+            ]
+        )[0]
+        != 0
+    ):
+        print(
+            f"{PROG}: warning: the ledger of retired assets wasn't written; the next release keeps each a day from then"
+        )
 
 
 def run(
@@ -565,7 +718,7 @@ def released(
 
     # The site, as the release checked it, before release.json and the pointer (contract §2, step 5; group 8).
     if opts.site_bucket is not None:
-        sync_site(runner, work / "dist", opts, head)
+        sync_site(runner, work / "dist", opts, head, now())
     else:
         print(
             f"{PROG}: the site isn't synced: no site bucket named (the edge is W2's; contracts/edge.md §5)"
