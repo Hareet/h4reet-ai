@@ -17,8 +17,8 @@ What the root must hold:
   - the return rule, h4-tunnel-end-running, beside it, the tunnel end entering running, to h4-alerts as tunnel_end_back
     (FR-076, "its return SHALL be alerted"; contracts/handover.md §2: its h4-alerts target in W1, its start-function
     target behind the switch in W2; group 5's review, "Missing");
-  - both roots' handover.tf holding local.wired as a boolean literal, so no plan's value decides it; false in W1, a
-    W1-only test T175 flips with P-W2 (plan.md §16, "Why a switch"; group 5's review, I8);
+  - both roots' handover.tf holding local.wired as a boolean literal, so no plan's value decides it; false in W1, and
+    true from W2's P-W2, which a test T175 flipped holds (plan.md §16, "Why a switch"; group 5's review, I8);
   - neither root reading the other: nothing under infra/account names a prod instance or health check, or reads prod's
     state; nothing under infra/prod reads, by a data source or a remote state, what the account makes;
   - the tunnel end's type as local.tunnel_end_type in the unprotected tunnel-end.tf, holding "measure-in-T166" until
@@ -841,7 +841,7 @@ def wired(root: dict[str, list]) -> object:
 
 
 def check_switch(root: dict[str, list]) -> list[str]:
-    # A literal either way: W1 holds it false and W2's P-W2 true (test_w1_holds_both_switches_off, below).
+    # A literal either way: W1 held it false and W2's P-W2 sets it true (test_w2_holds_both_switches_on, below).
     if not isinstance(wired(root), bool):
         return [
             "switch: prod's handover.tf doesn't hold local.wired as a boolean literal"
@@ -1137,15 +1137,16 @@ def test_both_roots_hold_the_switch_as_a_literal() -> None:
     assert isinstance(wired(parsed(account_texts())), bool)
 
 
-# W1 only (plan.md §16, "Why a switch"; group 5's review, I8): W1's three plan blocks are made before any of its
-# applies, so both switches are off. T175's P-W2 sets both true, and flips this test to `is True` in the same patch.
-def test_w1_holds_both_switches_off() -> None:
-    assert wired(parsed(root_texts())) is False
-    assert wired(parsed(account_texts())) is False
+# W2 (plan.md §16, "Why a switch"; group 5's review, I8; tasks.md T175): W2's blocks are made after W1's applies, so
+# P-W2 sets both switches on. W1 held this test as `test_w1_holds_both_switches_off`, `is False`; W2 flips it, test-
+# first, and the tree reads P-W2 as the patch leaves it until the Author applies it (patches.py).
+def test_w2_holds_both_switches_on() -> None:
+    assert wired(parsed(root_texts())) is True
+    assert wired(parsed(account_texts())) is True
 
 
-def switched_on(root: dict[str, list]) -> dict[str, list]:
-    """The root as P-W2 leaves it (tasks.md T175): handover.tf's local.wired = true, and nothing else changed."""
+def switched(root: dict[str, list], value: bool) -> dict[str, list]:
+    """The root with handover.tf's local.wired set to value, and nothing else changed."""
     out = {
         name: [
             b
@@ -1155,15 +1156,32 @@ def switched_on(root: dict[str, list]) -> dict[str, list]:
         for name, body in root.items()
     }
     out.setdefault("handover.tf", []).extend(
-        ip.parse_hcl("locals {\n  wired = true\n}\n")
+        ip.parse_hcl(f"locals {{\n  wired = {'true' if value else 'false'}\n}}\n")
     )
     return out
+
+
+def switched_on(root: dict[str, list]) -> dict[str, list]:
+    """The root as P-W2 leaves it (tasks.md T175): handover.tf's local.wired = true, and nothing else changed."""
+    return switched(root, True)
+
+
+def switched_off(root: dict[str, list]) -> dict[str, list]:
+    """The root as W1 applied it: handover.tf's local.wired = false, and nothing else changed. With P-W2 in the tree,
+    the "off" half of each "off and on" test reads it from here (W2's departure 2)."""
+    return switched(root, False)
 
 
 def test_the_checks_pass_with_both_switches_on_as_p_w2_sets_them() -> None:
     # Group 5's review, I8: T175's P-W2 sets both switches true, and T046's checks must pass on its patched copy.
     assert problems(switched_on(parsed(root_texts()))) == []
     assert account_problems(switched_on(parsed(account_texts()))) == []
+
+
+def test_the_checks_pass_with_both_switches_off_as_w1_applied_them() -> None:
+    # W2: the tree holds them on, so the "off" half reads them off by hand.
+    assert problems(switched_off(parsed(root_texts()))) == []
+    assert account_problems(switched_off(parsed(account_texts()))) == []
 
 
 def test_neither_root_reads_the_other() -> None:

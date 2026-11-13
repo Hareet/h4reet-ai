@@ -1648,6 +1648,16 @@ def test_the_functions_run_their_images_on_arm64_and_the_bridge_retries_then_fai
     assert check_functions(parsed(root_texts())) == []
 
 
+def test_each_functions_digest_is_empty_or_an_image_digest() -> None:
+    # W2 (tasks.md T174, T175): the start function's and the guard's slots hold "" until the Author reports each pushed
+    # digest, the one form their preconditions refuse (handover.tf), so a plan can't run with a placeholder; then a
+    # digest the session copies from his report, which a typo mustn't reach a plan as.
+    images = locals_of(parsed(root_texts())).get("lambda_images")
+    assert isinstance(images, dict)
+    for key, value in images.items():
+        assert value == "" or re.fullmatch(r"sha256:[0-9a-f]{64}", str(value)), key
+
+
 def test_the_bridge_is_h4_alerts_subscriber() -> None:
     assert check_bridge_subscription(parsed(root_texts())) == []
 

@@ -1,4 +1,4 @@
-"""The tree as the Author's unapplied patches would leave it (spec 001 W1; plan.md §16, "Four gates"; tasks.md
+"""The tree as the Author's unapplied patches would leave it (spec 001 W1 and W2; plan.md §16, "Four gates"; tasks.md
 Format, "Patches").
 
 A protected file changes only by the Author's patch, which he applies on W1's `-p` branch after the review. Until
@@ -31,7 +31,12 @@ PI5 = MERGE_REQUESTS / "2026-11-13-feat-001-pi5-edge.patch"
 # Group 9's, after P-I5: the handover's health check, alarm, rules, functions, roles, schedules, and the hours, with
 # the tunnel end's dashboard reads and the bridge's new kinds (tasks.md T124).
 PI6 = MERGE_REQUESTS / "2026-11-13-feat-001-pi6-handover.patch"
+# W2's, after W1's (tasks.md T175): P-W2, both roots' local.wired = true. A patch that isn't in the tree yet is skipped,
+# so a test that needs it fails until it is (W2's RED).
+PW2 = MERGE_REQUESTS / "2026-11-13-feat-001-pw2-switch-on.patch"
 W1_PATCHES = (PI3, PI7, PI4, PI5, PI6)
+W2_PATCHES = (PW2,)
+PATCHES = W1_PATCHES + W2_PATCHES
 
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 
@@ -186,7 +191,7 @@ def _unapplied(text: str | None, diffs: list[tuple[str, FileDiff]]) -> str | Non
 
 
 def patched_text(
-    rel: str, patches: tuple[Path, ...] = W1_PATCHES, repo: Path = REPO
+    rel: str, patches: tuple[Path, ...] = PATCHES, repo: Path = REPO
 ) -> str | None:
     """rel's text once each patch is applied, in order; None if the file doesn't exist either way. A tree that holds
     every patch already, which a later patch changing an earlier one's file leaves past each one's own check, is read
@@ -211,7 +216,7 @@ def patched_text(
         return current
 
 
-def touched(patches: tuple[Path, ...] = W1_PATCHES) -> set[str]:
+def touched(patches: tuple[Path, ...] = PATCHES) -> set[str]:
     """Every path the patches create or change."""
     out: set[str] = set()
     for patch in patches:

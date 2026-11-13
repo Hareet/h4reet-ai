@@ -747,14 +747,18 @@ def test_the_probe_enabled_by_the_accounts_switch_with_its_alarm() -> None:
 
 
 def test_the_checks_pass_with_each_switch_off_and_on() -> None:
-    # W1's tree holds both off (test_w1_holds_both_switches_off); P-W2 sets both on, and every check holds either way.
-    assert problems(prod()) == []
+    # W1 applied both off; W2's P-W2 sets both on (test_w2_holds_both_switches_on), and every check holds either way.
+    assert problems(net.switched_off(prod())) == []
     assert problems(net.switched_on(prod())) == []
     assert (
-        check_probe(account()) == [] and check_probe(net.switched_on(account())) == []
+        check_probe(net.switched_off(account())) == []
+        and check_probe(net.switched_on(account())) == []
     )
     # And the network's own checks, with the edge's files among prod's.
-    assert net.problems(prod()) == [] and net.problems(net.switched_on(prod())) == []
+    assert (
+        net.problems(net.switched_off(prod())) == []
+        and net.problems(net.switched_on(prod())) == []
+    )
 
 
 def test_no_access_logs_anywhere_in_prod() -> None:
