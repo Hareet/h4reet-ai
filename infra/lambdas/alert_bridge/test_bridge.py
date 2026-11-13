@@ -126,16 +126,16 @@ def anomaly_notice() -> str:
     )
 
 
-def alarm_notice(state: str) -> str:
+def alarm_notice(state: str, name: str = "h4-probe-failing") -> str:
     return json.dumps(
         {
-            "AlarmName": "h4-probe-failing",
+            "AlarmName": name,
             "AWSAccountId": ACCOUNT,
             "NewStateValue": state,
             "OldStateValue": "OK" if state == "ALARM" else "ALARM",
             "NewStateReason": f"Threshold Crossed: 5 datapoints from {ADDRESS}",
             "StateChangeTime": "2026-11-10T06:01:00.000+0000",
-            "AlarmArn": f"arn:aws:cloudwatch:us-east-1:{ACCOUNT}:alarm:h4-probe-failing",
+            "AlarmArn": f"arn:aws:cloudwatch:us-east-1:{ACCOUNT}:alarm:{name}",
         }
     )
 
@@ -179,6 +179,9 @@ NOTICES: dict[str, str] = {
     ),
     "probe_failing": alarm_notice("ALARM"),
     "probe_recovered": alarm_notice("OK"),
+    # W1's two alarms (tasks.md T159; infra/account/alerts.tf).
+    "credential_audit_failed": alarm_notice("ALARM", "h4-credential-audit-errors"),
+    "alert_bridge_failed": alarm_notice("ALARM", "h4-alert-bridge-failed"),
     "credential_finding": ours(
         "credential_finding",
         "2 findings",
@@ -413,6 +416,63 @@ def test_the_probes_alarm_reads_alarm_as_failing_and_ok_as_recovered() -> None:
     assert telegram.texts[0].startswith("[hareet.ai aws] probe_recovered: ")
     _, telegram, _ = deliver(alarm_notice("INSUFFICIENT_DATA"))
     assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: ")
+
+
+def test_w1s_alarms_read_alarm_as_their_kind_and_nothing_else() -> None:
+    # tasks.md T159: neither alarm has an OK action, so an OK or an unknown alarm's notice carries nothing.
+    _, telegram, _ = deliver(alarm_notice("ALARM", "h4-credential-audit-errors"))
+    assert telegram.texts[0].splitlines()[0] == (
+        "[hareet.ai aws] credential_audit_failed: the weekly credential audit raised, since 2026-11-10T06:01:00"
+    )
+    assert (
+        telegram.texts[0].splitlines()[-1]
+        == "Runbook: docs/runbooks/credential-audit.md"
+    )
+    _, telegram, _ = deliver(alarm_notice("ALARM", "h4-alert-bridge-failed"))
+    assert telegram.texts[0].splitlines()[0] == (
+        "[hareet.ai aws] alert_bridge_failed: a notice the bridge couldn't send is in its failure queue, "
+        "since 2026-11-10T06:01:00"
+    )
+    assert (
+        telegram.texts[0].splitlines()[-1] == "Runbook: docs/runbooks/alert-bridge.md"
+    )
+    for name in (
+        "h4-credential-audit-errors",
+        "h4-alert-bridge-failed",
+        "h4-something-else",
+    ):
+        _, telegram, _ = deliver(alarm_notice("OK", name))
+        assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: "), name
+    _, telegram, _ = deliver(alarm_notice("ALARM", "h4-something-else"))
+    assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: ")
+
+
+# EventBridge's input transformer, given a string template, publishes that string's JSON text: its quotes, and each
+# line break as the two characters \n (infra/prod/handover.tf's rules; group 5's review, I6).
+EVENTBRIDGE_STRING = (
+    '"[hareet.ai aws] tunnel_end_interruption: AWS will stop the tunnel end in two minutes'
+    '\\n- action: stop\\n- at: 2026-11-13T05:00:00Z"'
+)
+
+
+def test_an_eventbridge_string_template_is_read_as_the_notice_it_encodes() -> None:
+    assert json.loads(EVENTBRIDGE_STRING).count("\n") == 2
+    _, telegram, _ = deliver(EVENTBRIDGE_STRING)
+    (text,) = telegram.texts
+    assert text.splitlines() == [
+        "[hareet.ai aws] tunnel_end_interruption: AWS will stop the tunnel end in two minutes",
+        "- action: stop",
+        "- at: 2026-11-13T05:00:00Z",
+        "Runbook: docs/runbooks/tunnel-end.md",
+    ]
+    # A JSON string is read once, as text: one of no known shape, or a string inside a string, is unrecognized.
+    for message in (
+        json.dumps("not a notice of ours"),
+        json.dumps(EVENTBRIDGE_STRING),
+        json.dumps("[hareet.ai aws] no_such_kind: x"),
+    ):
+        _, telegram, _ = deliver(message)
+        assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: "), message
 
 
 def test_a_notice_of_ours_passes_with_its_fact_lines_and_the_tables_runbook() -> None:

@@ -25,6 +25,8 @@ Message format as September: `[hareet.ai aws] <kind>: <facts>`, one line, then f
 | `cert_expiring` | ACM | as September | `certificate.md` |
 | `probe_failing`, `probe_recovered` | the probe's alarm | 5 failed minutes; the next pass | `probe-failing.md` |
 | `credential_finding` | the credential audit | any finding | `credential-audit.md` |
+| `credential_audit_failed` | the alarm `h4-credential-audit-errors` (W1) | the audit raised, so its run wrote no result | `credential-audit.md` |
+| `alert_bridge_failed` | the alarm `h4-alert-bridge-failed` (W1) | a notice the bridge couldn't send to Telegram is in its failure queue | `alert-bridge.md` |
 | `ec2_started`, `ec2_start_refused` (`paused`, meaning the autostart switch is `off`; `server_budget_stopped`, `laptop_serving`, `start_failed`) | `h4-ec2-start` | each invocation | `handover.md` |
 | `ec2_stopped_laptop_serving`, `ec2_stopped_paused`, `ec2_stopped_server_budget` | `h4-ec2-guard` | each stop | `handover.md`; `server-budget.md` for the last |
 | `ec2_stopped_by_author` | `make ec2-stop` | each stop | `handover.md` |

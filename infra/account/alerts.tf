@@ -101,3 +101,50 @@ resource "aws_lambda_permission" "credential_audit_events" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.credential_audit.arn
 }
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Two alarms to h4-alerts (tasks.md T159; group 4's Backlog; contracts/aws-alerts.md §2). Each reads missing data as
+# not breaching, so neither pages while its function or queue is idle; h4-alerts lets CloudWatch's alarms publish for
+# this account alone (the bootstrap's alerts.tf, T160).
+
+# The credential audit raised: its weekly run didn't finish, so no result was written and no finding was sent.
+resource "aws_cloudwatch_metric_alarm" "credential_audit_errors" {
+  count               = length(aws_lambda_function.credential_audit)
+  alarm_name          = "h4-credential-audit-errors"
+  alarm_description   = "h4-credential-audit raised: the weekly audit didn't finish (spec 001 FR-022)"
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  dimensions          = { FunctionName = aws_lambda_function.credential_audit[0].function_name }
+  statistic           = "Sum"
+  period              = 3600
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [data.aws_sns_topic.alerts.arn]
+
+  tags = {
+    component = "credential-audit"
+  }
+}
+
+# A notice the bridge couldn't send to Telegram, after Lambda's two retries, waits in its failure queue. The email half
+# still has SNS's own copy, and this alarm's.
+resource "aws_cloudwatch_metric_alarm" "bridge_failed" {
+  alarm_name          = "h4-alert-bridge-failed"
+  alarm_description   = "A notice the bridge couldn't send to Telegram is in h4-alert-bridge-failed (spec 001 FR-022)"
+  namespace           = "AWS/SQS"
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  dimensions          = { QueueName = aws_sqs_queue.alert_bridge_failed.name }
+  statistic           = "Maximum"
+  period              = 300
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [data.aws_sns_topic.alerts.arn]
+
+  tags = {
+    component = "alert-bridge"
+  }
+}
