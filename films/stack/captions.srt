@@ -1,0 +1,111 @@
+1
+00:00:00,460 --> 00:00:03,727
+Fifteen containers run hareet.ai in production.
+
+2
+00:00:03,777 --> 00:00:07,677
+Here's what each one does, why it's there, and what happens when it fails.
+
+3
+00:00:08,470 --> 00:00:15,950
+The edge is the only door: nginx, unprivileged, listening on six ports, all on the machine's own loopback address.
+
+4
+00:00:16,000 --> 00:00:21,444
+If it fails, nothing can reach the stack, but the stack keeps running, and the meter keeps its state.
+
+5
+00:00:22,090 --> 00:00:24,066
+Behind it, web serves the room.
+
+6
+00:00:24,116 --> 00:00:27,189
+If web is down, the edge answers with its own page:
+
+7
+00:00:27,416 --> 00:00:29,585
+"The room is unavailable right now."
+
+8
+00:00:30,240 --> 00:00:34,774
+The gateway is the brain: routing, the meter, the kill switch, and every alert.
+
+9
+00:00:34,824 --> 00:00:37,069
+It's the only container with a road out.
+
+10
+00:00:37,119 --> 00:00:43,865
+If it fails, the edge answers "unavailable", nothing is spent, and alerts wait in the outbox until it's back.
+
+11
+00:00:44,510 --> 00:00:50,138
+Gateway-state is the gateway's own database: the meter, the switch, the ledger, the audit log.
+
+12
+00:00:50,188 --> 00:00:56,513
+If it can't be reached, every request fails closed at once, and after sixty seconds, one alert goes out.
+
+13
+00:00:57,180 --> 00:01:00,923
+The model server is llama dot cpp, on the GPU.
+
+14
+00:01:00,973 --> 00:01:02,334
+Nothing waits on it.
+
+15
+00:01:02,384 --> 00:01:12,415
+If it's down, the gateway notices within a second and answers from the capped paid fallback; if that's down too, the answer is the degraded line, and an alert says so.
+
+16
+00:01:14,160 --> 00:01:15,272
+Then the eyes.
+
+17
+00:01:15,322 --> 00:01:24,951
+The OpenTelemetry collector strips prompts and answers out of the telemetry, then sends metrics to Prometheus, logs to Loki, and traces to Langfuse.
+
+18
+00:01:25,001 --> 00:01:32,061
+If it fails, exports stop, a freshness panel shows how stale the data is, and enforcement never notices.
+
+19
+00:01:32,710 --> 00:01:41,251
+Prometheus keeps thirty days of metrics, Loki thirty days of the gateway's logs, and Grafana draws them on one read-only dashboard.
+
+20
+00:01:41,900 --> 00:01:48,939
+The alerts that guard the budget are the gateway's job, on Telegram first, then email, and they never wait on a dashboard.
+
+21
+00:01:48,989 --> 00:01:54,245
+And every day, a summary reports the CPU metrics, with alerts based on them too.
+
+22
+00:01:55,800 --> 00:02:07,068
+Langfuse keeps the traces, and it takes six containers: its web app and a worker, its own Postgres, ClickHouse for the traces, Valkey for the queue, and SeaweedFS for storage.
+
+23
+00:02:07,720 --> 00:02:15,014
+If any of them fails, traces arrive late, or are dropped after ten minutes of retries, and a panel counts the drops.
+
+24
+00:02:15,064 --> 00:02:16,638
+The twin keeps answering.
+
+25
+00:02:17,590 --> 00:02:22,320
+Every container runs with no new privileges, on a network with no route out.
+
+26
+00:02:22,370 --> 00:02:25,473
+Only the edge listens, and only the gateway leaves.
+
+27
+00:02:25,523 --> 00:02:32,868
+And every alert names its runbook: what you see, what it means, what to do, how to check, how to undo, and what to record.
+
+28
+00:02:33,610 --> 00:02:38,315
+Fifteen containers, one command. Built in the open, at hareet dot A I.

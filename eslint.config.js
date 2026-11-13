@@ -15,6 +15,9 @@ export default defineConfig([
       ".specify/**",
       "tools/gates/lint-node/**",
       ".claude/**",
+      // Intent 015's films: compositions the Author renders with the Author's own tools, and their vendored third-party
+      // runtimes (GSAP, huashu-motion's om.js) kept as they shipped; nothing in the site or the stack loads them.
+      "films/*/vendor/**",
     ],
   },
   js.configs.recommended,

@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="en" data-om-signature="off" data-composition-variables='[
+  {"id":"containers","type":"number","label":"Containers make up starts on prod (deploy/compose.yaml)","default":15,"min":1,"max":99,"step":1,"group":"Numbers"},
+  {"id":"model","type":"string","label":"Prod model (deploy/models.lock)","default":"Qwen3-30B-A3B-Instruct-2507","group":"Words"},
+  {"id":"paramsB","type":"number","label":"Parameters, billions (the model name)","default":30,"min":1,"max":999,"step":1,"group":"Numbers"},
+  {"id":"vramUsed","type":"number","label":"VRAM used, MiB (ADR 0019, make status 2026-11-08)","default":21229,"min":0,"max":99999,"step":1,"group":"Numbers"},
+  {"id":"vramTotal","type":"number","label":"VRAM total, MiB (ADR 0019)","default":24463,"min":1,"max":99999,"step":1,"group":"Numbers"},
+  {"id":"localCost","type":"number","label":"Local price, USD (config/prices.yaml)","default":0,"min":0,"max":1,"step":0.01,"group":"Numbers"},
+  {"id":"subBudget","type":"number","label":"Fallback sub-budget, USD a day (config/routing.yaml)","default":2,"min":0,"max":100,"step":0.01,"group":"Numbers"},
+  {"id":"digest12","type":"string","label":"model-server-gpu digest, first 12 (deploy/images.lock:13)","default":"fff6185edd2f","group":"Words"},
+  {"id":"modelMB","type":"number","label":"Voice for CHT models, MB (corpus/facts/voice-for-cht.yaml)","default":273,"min":1,"max":9999,"step":1,"group":"Numbers"},
+  {"id":"phoneGB","type":"number","label":"The phone, GB (corpus/facts/voice-for-cht.yaml)","default":4,"min":1,"max":64,"step":1,"group":"Numbers"},
+  {"id":"ground","type":"color","label":"Ground (resume ink)","default":"#17232e","group":"Colour"},
+  {"id":"green","type":"color","label":"Green (resume green-bar)","default":"#47a386","group":"Colour"},
+  {"id":"crimson","type":"color","label":"Crimson (resume crimson)","default":"#ad2549","group":"Colour"},
+  {"id":"endHold","type":"number","label":"End hold (s)","default":1.5,"min":0,"max":10,"step":0.1,"group":"Timing"}
+]'>
+<head>
+<meta charset="utf-8">
+<title>hareet.ai · Local models first</title>
+<script src="vendor/gsap.min.js"></script>
+<script src="vendor/om.js"></script>
+<style id="om-fonts">
+@font-face { font-family: "Overpass"; src: url("assets/fonts/Overpass-normal.woff2") format("woff2"); font-weight: 100 900; }
+@font-face { font-family: "Literata"; src: url("assets/fonts/Literata-normal.woff2") format("woff2"); font-weight: 200 900; }
+@font-face { font-family: "Plex Mono"; src: url("assets/fonts/IBMPlexMono-Regular.woff") format("woff"); font-weight: 400; }
+@font-face { font-family: "Plex Sans"; src: url("assets/fonts/IBMPlexSans-Bold.woff") format("woff"); font-weight: 700; }
+</style>
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #111b24; }
+  #film { position: relative; width: 1920px; height: 1080px; overflow: hidden; color: #e8eef1; font-family: "Overpass", sans-serif;
+    background: radial-gradient(1500px 900px at 40% 45%, #1d2b37 0%, var(--ground) 55%, #0f1820 100%); }
+  .grain { position: absolute; inset: 0; pointer-events: none; opacity: .5; background: radial-gradient(1700px 1000px at 50% 50%, transparent 60%, #060b10 100%); }
+  .shot { position: absolute; inset: 0; opacity: 0; }
+  #claim { opacity: 1; }
+  .mono { font-family: "Plex Mono", monospace; }
+  .k { font-weight: 800; font-size: 32px; letter-spacing: .22em; color: #47a386; }
+  .src { font-family: "Plex Mono", monospace; font-size: 24px; color: #7f939f; }
+  .huge { font-weight: 900; letter-spacing: -.05em; line-height: .9; font-variant-numeric: tabular-nums; }
+
+  /* the claim, as the resume prints it; this film's chip is the first */
+  #claim .row { position: absolute; left: 0; right: 0; top: 500px; display: flex; justify-content: center; align-items: center; gap: 20px; white-space: nowrap; font-weight: 800; font-size: 26px; letter-spacing: .1em; color: #47a386; }
+  #claim .row i { font-style: normal; color: #3a5560; }
+  #claim .row b { display: inline-block; color: #fff; background: var(--crimson); padding: 11px 18px 5px; border-radius: 6px; font-weight: 800; }
+  #claim .name { position: absolute; left: 0; right: 0; top: 300px; text-align: center; font-weight: 800; font-size: 150px; letter-spacing: -.02em; color: #fff; }
+  #claim .name span { color: #47a386; }
+
+  /* make up: the command, then fifteen services landing healthy */
+  #makeup .cmd { position: absolute; left: 110px; top: 96px; font-family: "Plex Mono", monospace; font-size: 60px; color: #fff; white-space: nowrap; }
+  #makeup .cmd .caret { display: inline-block; width: 30px; height: 62px; margin-left: 4px; background: #47a386; vertical-align: -10px; }
+  #makeup .count { position: absolute; right: 110px; top: 40px; text-align: right; opacity: 0; }
+  #makeup .count .n { font-weight: 900; font-size: 200px; letter-spacing: -.04em; line-height: .9; color: #fff; }
+  #makeup .count .d { font-weight: 800; font-size: 60px; color: #47a386; margin-top: 4px; }
+  #makeup .grid { position: absolute; left: 110px; top: 330px; display: grid; grid-template-columns: repeat(3, 560px); grid-auto-rows: 136px; }
+  #makeup .svc { opacity: 0; padding: 18px 20px 0 0; box-sizing: border-box; }
+  #makeup .svc .nm { font-family: "Plex Mono", monospace; font-size: 44px; color: #fff; white-space: nowrap; }
+  #makeup .svc .nm i { display: inline-block; width: 22px; height: 22px; margin-right: 16px; border-radius: 50%; background: #47a386; box-shadow: 0 0 16px #47a386; vertical-align: 4px; }
+  #makeup .svc .st { margin: 6px 0 0 38px; font-weight: 700; font-size: 34px; color: #8fa1ad; white-space: nowrap; }
+  #makeup .ok { position: absolute; left: 114px; top: 200px; font-family: "Plex Mono", monospace; font-size: 38px; color: #6fe0b8; opacity: 0; }
+  #makeup .svc.hero { border-left: 6px solid #47a386; padding-left: 16px; margin-left: -22px; }
+
+  /* EC2: the cloud server */
+  #ec2 .huge { position: absolute; left: 120px; top: 100px; font-size: 380px; color: #fff; }
+  #ec2 .what { position: absolute; left: 900px; top: 236px; font-weight: 800; font-size: 56px; color: #8fa1ad; }
+  #ec2 .nogpu { position: absolute; left: 130px; top: 470px; font-weight: 900; font-size: 140px; color: #d0587a; opacity: 0; }
+  #ec2 .q { position: absolute; left: 130px; right: 100px; top: 690px; font-family: "Literata", serif; font-size: 64px; line-height: 1.2; color: #fff; }
+  #ec2 .q .caret { display: inline-block; width: 5px; height: 62px; margin-left: 6px; background: #d0587a; vertical-align: -8px; }
+  #ec2 .src { position: absolute; left: 134px; top: 860px; opacity: 0; }
+
+  /* production, not a demo */
+  #prod .huge { position: absolute; left: 120px; top: 90px; font-size: 220px; letter-spacing: -.03em; color: #fff; }
+  #prod .not { position: absolute; left: 130px; top: 320px; font-weight: 900; font-size: 110px; letter-spacing: .02em; color: #d0587a; opacity: 0; }
+  #prod .not s { position: relative; text-decoration: none; }
+  #prod .not s::after { content: ""; position: absolute; left: -6px; right: -6px; top: 46%; height: 12px; background: #d0587a; transform-origin: 0 50%; transform: scaleX(var(--k, 0)); }
+  #prod .lock { position: absolute; left: 130px; top: 500px; width: 1680px; opacity: 0; }
+  #prod .lock .r { display: flex; align-items: baseline; height: 76px; }
+  #prod .lock .r span { width: 300px; font-family: "Plex Mono", monospace; font-size: 36px; color: #7f939f; }
+  #prod .lock .r b { font-family: "Plex Mono", monospace; font-weight: 400; font-size: 52px; color: #fff; }
+  #prod .lock .r b.dg { color: #e8eef1; padding: 2px 10px; margin-left: -10px; border-radius: 8px; }
+  #prod .lock .src { margin-top: 18px; font-size: 26px; }
+
+  /* one commit, one image */
+  #commit .l1 { position: absolute; left: 120px; top: 90px; font-weight: 900; font-size: 340px; letter-spacing: -.03em; line-height: .9; color: #fff; }
+  #commit .l2 { position: absolute; left: 120px; top: 420px; font-weight: 900; font-size: 340px; letter-spacing: -.03em; line-height: .9; color: #47a386; opacity: 0; }
+  #commit .l3 { position: absolute; left: 136px; top: 790px; font-family: "Plex Mono", monospace; font-size: 40px; color: #cfdae0; opacity: 0; }
+  #commit .src { position: absolute; left: 138px; top: 860px; font-size: 26px; opacity: 0; }
+
+  /* the turn: the stop */
+  #turn .huge { position: absolute; left: 130px; top: 270px; font-size: 300px; letter-spacing: -.04em; color: #2a3a46; }
+  #turn .sub { position: absolute; left: 144px; top: 610px; font-weight: 900; font-size: 130px; color: #d0587a; opacity: 0; }
+
+  /* Medic */
+  #medic .k { position: absolute; left: 124px; top: 150px; opacity: 0; }
+  #medic .chw { position: absolute; left: 120px; top: 214px; font-weight: 800; font-size: 76px; color: #fff; opacity: 0; }
+  #medic .cht { position: absolute; left: 122px; top: 318px; font-weight: 700; font-size: 54px; color: #8fa1ad; opacity: 0; }
+  #medic .old { position: absolute; left: 116px; top: 460px; font-weight: 900; font-size: 116px; letter-spacing: -.01em; color: #fff; opacity: 0; }
+  #medic .net { position: absolute; left: 116px; top: 640px; font-weight: 900; font-size: 116px; letter-spacing: -.01em; color: #d0587a; opacity: 0; }
+  .phone { position: absolute; box-sizing: border-box; border: 8px solid #3a5463; border-radius: 64px; background: #142029; }
+  .phone .bars { position: absolute; display: flex; align-items: flex-end; gap: 7px; }
+  .phone .bars i { display: block; width: 12px; background: #8fa1ad; border-radius: 2px; }
+  .phone .slash { position: absolute; height: 7px; background: #d0587a; border-radius: 4px; transform-origin: 0 50%; transform: rotate(-35deg) scaleX(0); }
+  #mPhone { left: 1420px; top: 150px; width: 400px; height: 780px; }
+  #mPhone .bars { right: 46px; top: 34px; }
+  #mPhone .slash { right: 34px; top: 60px; width: 96px; }
+  #mPhone .scr { position: absolute; left: 0; right: 0; top: 300px; text-align: center; font-weight: 900; font-size: 84px; letter-spacing: .06em; color: #2f4250; }
+
+  /* 273 MB on a 4 GB phone */
+  #size .lbl { position: absolute; left: 140px; top: 100px; font-family: "Plex Mono", monospace; font-size: 44px; color: #47a386; }
+  #size .huge { position: absolute; left: 120px; top: 180px; font-size: 340px; color: #fff; opacity: 0; }
+  #size .side { position: absolute; left: 140px; top: 520px; font-weight: 800; font-size: 56px; color: #8fa1ad; opacity: 0; }
+  #size .ph { position: absolute; left: 134px; top: 600px; font-weight: 900; font-size: 120px; color: #d0587a; opacity: 0; }
+  #size .bar { position: absolute; left: 140px; top: 800px; width: 1640px; height: 60px; border-radius: 10px; border: 3px solid rgba(238,243,245,.4); background: rgba(5,10,14,.55); box-sizing: border-box; transform-origin: 0 50%; transform: scaleX(0); }
+  #size .bar .m { position: absolute; left: 0; top: 0; bottom: 0; background: #47a386; border-radius: 6px 0 0 6px; box-shadow: 0 0 30px #47a386; }
+  #size .bl { position: absolute; top: 880px; font-family: "Plex Mono", monospace; font-size: 38px; opacity: 0; }
+
+  /* the end: the resume's twin section */
+  #end .card { position: absolute; left: 260px; top: 190px; width: 1400px; height: 640px; border-radius: 12px; background: #fff; color: #17232e; box-shadow: 0 60px 140px -40px #000c; }
+  #end .card .nm { position: absolute; left: 0; right: 0; top: 90px; text-align: center; font-weight: 800; font-size: 180px; letter-spacing: -.02em; line-height: 1; }
+  #end .card .nm span { color: #1c6b54; }
+  #end .card .pitch { position: absolute; left: 130px; right: 130px; top: 310px; text-align: center; font-family: "Literata", serif; font-size: 40px; line-height: 1.42; color: #2b3843; }
+  #end .card .claims { position: absolute; left: 0; right: 0; top: 520px; display: flex; justify-content: center; align-items: center; gap: 16px; white-space: nowrap; font-weight: 800; font-size: 20px; letter-spacing: .11em; color: #1c6b54; }
+  #end .card .claims i { font-style: normal; color: #9bb0a8; }
+  #end .card .claims b { display: inline-block; color: #fff; background: #ad2549; padding: 8px 14px 4px; border-radius: 4px; }
+
+  /* the flow: the stack as a circuit, flat; then the phone's and the office's, in the same world */
+  #flow { overflow: hidden; }
+  #fworld { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  #fworld svg { position: absolute; left: 0; top: 0; overflow: visible; }
+  .wire { stroke: #3a5463; stroke-width: 6; fill: none; stroke-linecap: round; }
+  .node { position: absolute; box-sizing: border-box; padding: 26px 28px; border-radius: 22px; background: #1c2c38; border: 3px solid #3a5463; }
+  .node h4 { margin: 0; font-weight: 900; font-size: 48px; letter-spacing: .04em; line-height: 1; color: #fff; }
+  .node p { margin: 12px 0 0; font-family: "Plex Mono", monospace; font-size: 28px; line-height: 1.35; color: #a9b8c1; }
+  .node .flood { position: absolute; inset: -3px; border-radius: 22px; border: 3px solid #d0587a; background: rgba(173,37,73,.38); box-shadow: 0 0 80px rgba(208,88,122,.5); opacity: 0; }
+  #nGw { border-color: #47a386; }
+  #nModel { border-color: #47a386; }
+  #nModel p { margin-top: 10px; opacity: 0; }
+  #nModel .mdl { margin-top: 8px; font-family: "Plex Mono", monospace; font-size: 28px; color: #e8eef1; white-space: nowrap; opacity: 0; }
+  #nModel .zero { position: absolute; right: 28px; top: 18px; font-family: "Plex Mono", monospace; font-size: 60px; color: #6fe0b8; opacity: 0; }
+  .vbar { position: relative; margin-top: 18px; height: 28px; border-radius: 6px; background: rgba(5,10,14,.6); border: 2px solid rgba(238,243,245,.3); opacity: 0; }
+  .vfill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; border-radius: 4px; transform-origin: 0 50%; transform: scaleX(0); background: #47a386; }
+  .vram { margin-top: 10px; font-family: "Plex Mono", monospace; font-size: 40px; color: #fff; white-space: nowrap; opacity: 0; }
+  .vram .tot { color: #8fa1ad; opacity: 0; }
+  .vl { margin-top: 6px; font-family: "Plex Mono", monospace; font-size: 28px; color: #7f939f; opacity: 0; }
+  #nPaid { background: #232e36; border-style: dashed; border-color: #6b7f8c; opacity: .45; }
+  #nPaid h4 { letter-spacing: 0; }
+  .lamp { position: absolute; left: 28px; top: 92px; padding: 10px 20px; border-radius: 30px; border: 3px solid currentColor; font-family: "Plex Mono", monospace; font-size: 28px; white-space: nowrap; opacity: 0; }
+  .lamp.ok { color: #47a386; } .lamp.fb { color: #ffd27a; } .lamp.bad { color: #ff9db5; background: rgba(173,37,73,.35); }
+  #lDown { left: auto; right: 28px; top: 20px; }
+  .wall { position: absolute; border: 5px dashed rgba(238,243,245,.4); border-radius: 36px; box-sizing: border-box; }
+  .wall > span { position: absolute; left: 34px; bottom: 22px; font-weight: 900; font-size: 54px; letter-spacing: .1em; color: rgba(238,243,245,.8); white-space: nowrap; }
+  #fHost { left: 20px; top: 40px; width: 1760px; height: 1000px; }
+  .ftag { position: absolute; font-family: "Plex Mono", monospace; font-size: 38px; color: #eef3f5; white-space: nowrap; opacity: 0; }
+  #t30 { left: 770px; top: 90px; font-family: "Overpass", sans-serif; }
+  #t30 .n { font-weight: 900; font-size: 200px; letter-spacing: -.04em; line-height: .9; color: #fff; }
+  #t30 .d { font-weight: 800; font-size: 56px; color: #47a386; margin-top: 6px; }
+  #tNoOut { left: 1150px; top: 880px; color: #d8f3ea; }
+  #tInt { left: 1210px; top: 494px; font-size: 28px; color: #8fd4bd; }
+  #tCap { left: 1240px; top: 592px; font-size: 36px; color: #ffd27a; }
+  .bead { position: absolute; left: -15px; top: -15px; width: 30px; height: 30px; border-radius: 50%; opacity: 0; }
+  .bead.q { background: #eef3f5; box-shadow: 0 0 22px #eef3f5; } .bead.l { background: #6fe0b8; box-shadow: 0 0 22px #47a386; }
+  .bead.p { background: #ffd27a; box-shadow: 0 0 24px #ffb84a; } .bead.s { width: 22px; height: 22px; left: -11px; top: -11px; background: #eef3f5; box-shadow: 0 0 16px #eef3f5; }
+
+  /* the phone, in the world */
+  #pPhone { left: 2700px; top: 60px; width: 600px; height: 960px; }
+  #pPhone .bars { right: 60px; top: 22px; }
+  #pPhone .slash { right: 46px; top: 44px; width: 100px; }
+  #pGlow { position: absolute; left: 2700px; top: 60px; width: 600px; height: 960px; border-radius: 64px; border: 8px solid #47a386; box-shadow: 0 0 60px rgba(71,163,134,.6), inset 0 0 40px rgba(71,163,134,.25); box-sizing: border-box; opacity: 0; }
+  #nVisit p, #nSpeech p, #nAI p { font-size: 34px; }
+  #nVisit { left: 2740px; top: 120px; width: 520px; height: 165px; }
+  #nVisit .wave { position: absolute; right: 30px; top: 40px; height: 70px; display: flex; align-items: center; gap: 9px; }
+  #nVisit .wave i { display: block; width: 12px; height: 12px; border-radius: 6px; background: #eef3f5; }
+  #nSpeech { left: 2740px; top: 375px; width: 520px; height: 170px; }
+  #nForm { left: 2740px; top: 640px; width: 520px; height: 350px; }
+  #nForm .fld { margin-top: 12px; }
+  #nForm .fld p { margin: 0; font-family: "Overpass", sans-serif; font-weight: 700; font-size: 32px; color: #cfdae0; }
+  #nForm .fld .fb { position: relative; margin-top: 6px; height: 22px; border-radius: 5px; background: rgba(5,10,14,.6); border: 2px solid rgba(238,243,245,.25); }
+  #nForm .fld .fb i { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; border-radius: 3px; background: #47a386; transform-origin: 0 50%; transform: scaleX(0); }
+  .col { position: absolute; left: 3400px; width: 900px; }
+  #vLbl { top: 170px; opacity: 0; }
+  #vTitle { top: 215px; font-weight: 900; font-size: 120px; letter-spacing: -.01em; line-height: 1; color: #fff; opacity: 0; }
+  #vS1, #vS2 { font-weight: 800; font-size: 72px; color: #e8eef1; opacity: 0; }
+  #vS1 { top: 420px; } #vS2 { top: 520px; }
+  #vOff { top: 640px; font-weight: 900; font-size: 160px; letter-spacing: -.02em; color: #47a386; opacity: 0; }
+  #vNo { top: 380px; font-weight: 800; font-size: 76px; line-height: 1.12; color: #fff; opacity: 0; }
+  #vNoSrc { top: 760px; opacity: 0; }
+
+  /* the office, in the world */
+  #oTitle { left: 4860px; top: 80px; font-family: "Overpass", sans-serif; font-weight: 900; font-size: 130px; letter-spacing: -.02em; line-height: 1; color: #fff; }
+  #oQ { left: 4860px; top: 290px; width: 860px; font-family: "Literata", serif; font-size: 60px; line-height: 1.3; color: #fff; opacity: 0; }
+  #oQs { left: 4864px; top: 720px; width: 860px; font-size: 26px; color: #7f939f; opacity: 0; }
+  #oWall { left: 5760px; top: 200px; width: 800px; height: 760px; opacity: 0; border-color: rgba(71,163,134,.8); }
+  #oWall > span { color: #8fd4bd; }
+  #nAI { left: 5820px; top: 290px; width: 680px; height: 180px; opacity: .35; }
+  #nFiles { left: 5820px; top: 620px; width: 680px; height: 180px; opacity: .35; }
+</style>
+</head>
+<body>
+<script type="application/json" id="om-cues">{"source": "tts:kokoro:af_heart", "precision": "tts", "offset": 0, "duration": 94.979, "words": [{"word": "The", "start": 0.5, "end": 0.673}, {"word": "whole", "start": 0.673, "end": 1.019}, {"word": "production", "start": 1.019, "end": 1.538}, {"word": "stack", "start": 1.538, "end": 1.711}, {"word": "runs", "start": 1.711, "end": 2.056}, {"word": "on", "start": 2.056, "end": 2.229}, {"word": "one", "start": 2.229, "end": 2.575}, {"word": "laptop", "start": 2.575, "end": 2.921}, {"word": "with", "start": 3.236, "end": 3.416}, {"word": "one", "start": 3.416, "end": 3.776}, {"word": "command", "start": 3.776, "end": 4.136}, {"word": "Make", "start": 4.94, "end": 5.318}, {"word": "up", "start": 5.318, "end": 5.507}, {"word": "starts", "start": 5.507, "end": 5.695}, {"word": "fifteen", "start": 5.695, "end": 6.073}, {"word": "containers", "start": 6.073, "end": 6.64}, {"word": "the", "start": 6.64, "end": 7.325}, {"word": "edge", "start": 7.325, "end": 7.711}, {"word": "the", "start": 7.711, "end": 8.092}, {"word": "gateway", "start": 8.092, "end": 8.666}, {"word": "the", "start": 8.666, "end": 8.859}, {"word": "site", "start": 8.859, "end": 9.435}, {"word": "the", "start": 9.435, "end": 9.625}, {"word": "meter's", "start": 9.625, "end": 10.192}, {"word": "database", "start": 10.192, "end": 10.949}, {"word": "the", "start": 10.949, "end": 11.139}, {"word": "model", "start": 11.139, "end": 11.773}, {"word": "server", "start": 11.773, "end": 12.155}, {"word": "and", "start": 12.155, "end": 12.345}, {"word": "the", "start": 12.345, "end": 12.534}, {"word": "tools", "start": 12.534, "end": 12.724}, {"word": "that", "start": 12.724, "end": 12.914}, {"word": "watch", "start": 12.914, "end": 13.486}, {"word": "them", "start": 13.486, "end": 13.676}, {"word": "from", "start": 13.676, "end": 13.865}, {"word": "metrics", "start": 13.865, "end": 14.241}, {"word": "and", "start": 14.241, "end": 14.429}, {"word": "logs", "start": 14.429, "end": 14.618}, {"word": "to", "start": 14.618, "end": 14.806}, {"word": "Grafana", "start": 14.806, "end": 15.371}, {"word": "and", "start": 15.371, "end": 15.559}, {"word": "Langfuse", "start": 15.559, "end": 16.124}, {"word": "The", "start": 16.92, "end": 17.171}, {"word": "model", "start": 17.171, "end": 17.672}, {"word": "server", "start": 17.672, "end": 18.173}, {"word": "is", "start": 18.173, "end": 18.423}, {"word": "llama", "start": 18.423, "end": 18.924}, {"word": "dot", "start": 18.924, "end": 19.175}, {"word": "cpp", "start": 19.175, "end": 19.425}, {"word": "on", "start": 19.425, "end": 19.676}, {"word": "the", "start": 19.676, "end": 19.926}, {"word": "laptop's", "start": 19.926, "end": 20.703}, {"word": "GPU", "start": 20.703, "end": 20.953}, {"word": "running", "start": 21.426, "end": 21.993}, {"word": "Qwen3", "start": 21.993, "end": 22.559}, {"word": "thirty", "start": 22.886, "end": 23.25}, {"word": "billion", "start": 23.25, "end": 23.613}, {"word": "parameters", "start": 23.613, "end": 24.34}, {"word": "in", "start": 24.744, "end": 24.899}, {"word": "twenty-one", "start": 24.899, "end": 25.519}, {"word": "of", "start": 25.519, "end": 25.673}, {"word": "the", "start": 25.673, "end": 25.828}, {"word": "card's", "start": 25.828, "end": 26.138}, {"word": "twenty-four", "start": 26.138, "end": 26.603}, {"word": "gigabytes", "start": 26.603, "end": 27.222}, {"word": "Every", "start": 28.02, "end": 28.617}, {"word": "question", "start": 28.617, "end": 29.015}, {"word": "tries", "start": 29.015, "end": 29.215}, {"word": "it", "start": 29.215, "end": 29.414}, {"word": "first", "start": 29.414, "end": 29.613}, {"word": "A", "start": 29.862, "end": 30.062}, {"word": "local", "start": 30.062, "end": 30.46}, {"word": "answer", "start": 30.46, "end": 30.859}, {"word": "costs", "start": 30.859, "end": 31.058}, {"word": "nothing", "start": 31.058, "end": 31.456}, {"word": "and", "start": 31.768, "end": 31.918}, {"word": "nothing", "start": 31.918, "end": 32.218}, {"word": "leaves", "start": 32.218, "end": 32.518}, {"word": "the", "start": 32.518, "end": 32.668}, {"word": "machine", "start": 32.668, "end": 33.117}, {"word": "Only", "start": 34.62, "end": 34.991}, {"word": "when", "start": 34.991, "end": 35.177}, {"word": "it's", "start": 35.177, "end": 35.549}, {"word": "down", "start": 35.549, "end": 35.734}, {"word": "does", "start": 35.734, "end": 35.92}, {"word": "the", "start": 35.92, "end": 36.106}, {"word": "capped", "start": 36.106, "end": 36.478}, {"word": "paid", "start": 36.478, "end": 36.663}, {"word": "fallback", "start": 36.663, "end": 37.035}, {"word": "answer", "start": 37.035, "end": 37.407}, {"word": "On", "start": 37.657, "end": 37.849}, {"word": "the", "start": 37.849, "end": 38.041}, {"word": "cloud", "start": 38.041, "end": 38.233}, {"word": "server", "start": 38.233, "end": 38.617}, {"word": "which", "start": 38.768, "end": 39.073}, {"word": "has", "start": 39.073, "end": 39.379}, {"word": "no", "start": 39.379, "end": 39.684}, {"word": "GPU", "start": 39.684, "end": 39.99}, {"word": "the", "start": 40.378, "end": 40.625}, {"word": "Anthropic", "start": 40.625, "end": 41.367}, {"word": "API", "start": 41.367, "end": 41.861}, {"word": "answers", "start": 41.861, "end": 42.356}, {"word": "first", "start": 42.356, "end": 42.603}, {"word": "This", "start": 43.4, "end": 43.598}, {"word": "is", "start": 43.598, "end": 43.795}, {"word": "production", "start": 43.795, "end": 44.388}, {"word": "not", "start": 44.521, "end": 44.803}, {"word": "a", "start": 44.803, "end": 44.943}, {"word": "demo", "start": 44.943, "end": 45.225}, {"word": "every", "start": 45.746, "end": 46.248}, {"word": "image", "start": 46.248, "end": 46.749}, {"word": "pinned", "start": 46.749, "end": 47.084}, {"word": "by", "start": 47.084, "end": 47.251}, {"word": "its", "start": 47.251, "end": 47.418}, {"word": "digest", "start": 47.418, "end": 47.753}, {"word": "and", "start": 47.983, "end": 48.131}, {"word": "one", "start": 48.131, "end": 48.426}, {"word": "build", "start": 48.426, "end": 48.573}, {"word": "at", "start": 48.573, "end": 48.721}, {"word": "one", "start": 48.721, "end": 49.016}, {"word": "commit", "start": 49.016, "end": 49.311}, {"word": "the", "start": 49.611, "end": 49.74}, {"word": "same", "start": 49.74, "end": 49.997}, {"word": "image", "start": 49.997, "end": 50.383}, {"word": "everywhere", "start": 50.383, "end": 51.026}, {"word": "Offline-first", "start": 52.33, "end": 53.098}, {"word": "isn't", "start": 53.098, "end": 53.482}, {"word": "new", "start": 53.482, "end": 53.674}, {"word": "for", "start": 53.674, "end": 53.866}, {"word": "Hareet", "start": 53.866, "end": 54.25}, {"word": "At", "start": 54.5, "end": 54.68}, {"word": "Medic", "start": 54.68, "end": 55.04}, {"word": "the", "start": 55.22, "end": 55.39}, {"word": "community", "start": 55.39, "end": 56.068}, {"word": "health", "start": 56.068, "end": 56.237}, {"word": "workers", "start": 56.237, "end": 56.576}, {"word": "using", "start": 56.576, "end": 56.915}, {"word": "the", "start": 56.915, "end": 57.085}, {"word": "Community", "start": 57.085, "end": 57.763}, {"word": "Health", "start": 57.763, "end": 57.932}, {"word": "Toolkit", "start": 57.932, "end": 58.599}, {"word": "had", "start": 58.599, "end": 58.769}, {"word": "older", "start": 58.769, "end": 59.108}, {"word": "Android", "start": 59.108, "end": 59.447}, {"word": "phones", "start": 59.447, "end": 59.955}, {"word": "and", "start": 60.305, "end": 60.485}, {"word": "mostly", "start": 60.485, "end": 60.843}, {"word": "no", "start": 60.843, "end": 61.023}, {"word": "network", "start": 61.023, "end": 61.561}, {"word": "So", "start": 62.31, "end": 62.525}, {"word": "Hareet", "start": 62.525, "end": 62.955}, {"word": "designed", "start": 62.955, "end": 63.599}, {"word": "Voice", "start": 63.599, "end": 64.028}, {"word": "for", "start": 64.028, "end": 64.243}, {"word": "CHT", "start": 64.243, "end": 64.458}, {"word": "the", "start": 64.458, "end": 65.193}, {"word": "health", "start": 65.193, "end": 65.408}, {"word": "worker", "start": 65.408, "end": 65.839}, {"word": "speaks", "start": 65.839, "end": 66.054}, {"word": "the", "start": 66.054, "end": 66.27}, {"word": "visit", "start": 66.27, "end": 67.001}, {"word": "and", "start": 67.001, "end": 67.217}, {"word": "the", "start": 67.217, "end": 67.433}, {"word": "form", "start": 67.433, "end": 67.65}, {"word": "fills", "start": 67.65, "end": 67.866}, {"word": "itself", "start": 67.866, "end": 68.298}, {"word": "offline", "start": 68.298, "end": 68.957}, {"word": "Hareet", "start": 69.207, "end": 69.545}, {"word": "helped", "start": 69.545, "end": 69.883}, {"word": "the", "start": 69.883, "end": 70.052}, {"word": "team", "start": 70.052, "end": 70.221}, {"word": "fine-tune", "start": 70.221, "end": 70.897}, {"word": "its", "start": 70.897, "end": 71.067}, {"word": "models", "start": 71.067, "end": 71.823}, {"word": "to", "start": 71.823, "end": 71.992}, {"word": "two", "start": 71.992, "end": 72.161}, {"word": "hundred", "start": 72.161, "end": 72.499}, {"word": "seventy-three", "start": 72.499, "end": 73.175}, {"word": "megabytes", "start": 73.175, "end": 73.851}, {"word": "to", "start": 74.268, "end": 74.435}, {"word": "run", "start": 74.435, "end": 74.603}, {"word": "beside", "start": 74.603, "end": 75.105}, {"word": "the", "start": 75.105, "end": 75.272}, {"word": "app", "start": 75.272, "end": 75.439}, {"word": "on", "start": 75.439, "end": 75.607}, {"word": "a", "start": 75.607, "end": 75.774}, {"word": "four-gigabyte", "start": 75.774, "end": 76.61}, {"word": "phone", "start": 76.61, "end": 76.945}, {"word": "No", "start": 77.195, "end": 77.386}, {"word": "audio", "start": 77.386, "end": 77.77}, {"word": "or", "start": 77.77, "end": 77.962}, {"word": "transcript", "start": 77.962, "end": 78.345}, {"word": "leaves", "start": 78.345, "end": 79.031}, {"word": "the", "start": 79.031, "end": 79.222}, {"word": "phone", "start": 79.222, "end": 79.606}, {"word": "as", "start": 79.606, "end": 79.798}, {"word": "telemetry", "start": 79.798, "end": 80.565}, {"word": "At", "start": 81.38, "end": 81.556}, {"word": "denverlocal", "start": 81.556, "end": 82.257}, {"word": "dot", "start": 82.257, "end": 82.432}, {"word": "A", "start": 82.432, "end": 82.607}, {"word": "I", "start": 82.607, "end": 82.782}, {"word": "the", "start": 83.072, "end": 83.301}, {"word": "same", "start": 83.301, "end": 83.758}, {"word": "idea", "start": 83.758, "end": 84.215}, {"word": "serves", "start": 84.215, "end": 84.672}, {"word": "small", "start": 84.672, "end": 84.901}, {"word": "Denver", "start": 84.901, "end": 85.358}, {"word": "teams", "start": 85.358, "end": 85.586}, {"word": "private", "start": 86.127, "end": 86.844}, {"word": "AI", "start": 86.844, "end": 87.083}, {"word": "with", "start": 87.399, "end": 87.579}, {"word": "sensitive", "start": 87.579, "end": 88.295}, {"word": "files", "start": 88.295, "end": 88.653}, {"word": "kept", "start": 88.653, "end": 88.833}, {"word": "on", "start": 88.833, "end": 89.012}, {"word": "hardware", "start": 89.012, "end": 89.549}, {"word": "they", "start": 89.549, "end": 89.728}, {"word": "own", "start": 89.728, "end": 89.907}, {"word": "Local", "start": 90.66, "end": 91.086}, {"word": "models", "start": 91.086, "end": 91.725}, {"word": "first", "start": 91.725, "end": 91.938}, {"word": "Built", "start": 92.187, "end": 92.38}, {"word": "in", "start": 92.38, "end": 92.572}, {"word": "the", "start": 92.572, "end": 92.764}, {"word": "open", "start": 92.764, "end": 93.148}, {"word": "at", "start": 93.376, "end": 93.569}, {"word": "hareet", "start": 93.569, "end": 93.953}, {"word": "dot", "start": 93.953, "end": 94.145}, {"word": "A", "start": 94.145, "end": 94.337}, {"word": "I", "start": 94.337, "end": 94.529}]}</script>
+<audio id="om-voice" src="assets/voice.wav" data-start="0" data-duration="94.979" data-track-index="9" data-volume="1"></audio>
+<div id="film" data-composition-id="film" data-width="1920" data-height="1080">
+  <audio id="om-sound" src="assets/sound.wav" data-start="0" data-duration="96.029" data-track-index="8" data-volume="1"></audio>
+  <div class="grain"></div>
+
+  <section class="shot" id="claim" data-om-id="claim">
+    <div class="name">hareet<span>.ai</span></div>
+    <div class="row"><b id="chip">LOCAL MODELS FIRST</b> <i>•</i> A REAL-TIME COST METER <i>•</i> A $5-A-DAY KILL SWITCH <i>•</i> EVERY DATA FLOW DISCLOSED</div>
+  </section>
+
+  <section class="shot" id="makeup" data-om-id="make-up">
+    <div class="cmd"><span id="cmdTxt"></span><span class="caret" id="cmdCaret"></span></div>
+    <div class="ok" id="cmdOk">then every service, healthy</div>
+    <div class="count" id="cnt"><div class="n" id="cntN">15</div><div class="d">containers</div></div>
+    <div class="grid" id="svcs"></div>
+  </section>
+
+  <section class="shot" id="flow" data-om-id="flow">
+    <div id="fworld">
+      <svg width="6600" height="1080" viewBox="0 0 6600 1080">
+        <path class="wire" id="wIn" d="M210 550 L955 550"/>
+        <path class="wire" id="wLocal" d="M955 550 L1470 265"/>
+        <path class="wire" id="wPaid" d="M955 550 L2010 550"/>
+        <path class="wire" id="wPhone" d="M3000 205 L3000 815"/>
+        <path class="wire" id="wOffice" d="M6160 380 L6160 710"/>
+      </svg>
+      <div class="wall" id="fHost" data-om-id="the-laptop"><span>THE LAPTOP</span></div>
+      <div class="ftag" id="t30" data-om-id="params"><div class="n" id="t30n">30B</div><div class="d">parameters</div></div>
+      <div class="ftag" id="tNoOut">nothing leaves the machine</div>
+      <div class="ftag" id="tInt">internal: no route out</div>
+      <div class="ftag" id="tCap"></div>
+      <div class="phone" id="pPhone" data-om-id="phone"><div class="bars"><i style="height:12px"></i><i style="height:20px"></i><i style="height:28px"></i><i style="height:36px"></i></div><div class="slash" id="pSlash"></div></div>
+      <div id="pGlow"></div>
+      <div class="wall" id="oWall" data-om-id="their-hardware"><span>HARDWARE THEY OWN</span></div>
+      <div id="beads"></div>
+      <div class="node" id="nRoom" data-om-id="room" style="left:40px;top:450px;width:340px;height:200px"><h4>THE ROOM</h4><p>every question</p></div>
+      <div class="node" id="nEdge" data-om-id="edge" style="left:420px;top:450px;width:290px;height:200px"><h4>EDGE</h4><p>ports on 127.0.0.1 only</p></div>
+      <div class="node" id="nGw" data-om-id="gateway" style="left:760px;top:450px;width:400px;height:200px"><h4>GATEWAY</h4>
+        <div class="lamp ok" id="lOk">primary: local</div><div class="lamp fb" id="lFb">fallback: anthropic</div></div>
+      <div class="node" id="nModel" data-om-id="model-server" style="left:1200px;top:60px;width:540px;height:420px"><div class="flood" id="mFlood"></div><h4>MODEL-SERVER</h4>
+        <p id="m1">llama.cpp</p><p id="m2">on the laptop’s GPU</p><div class="mdl" id="mMdl"></div>
+        <div class="vbar" id="vBar"><div class="vfill" id="vFill"></div></div>
+        <div class="vram" id="vram"><span id="vUsed">0</span><span class="tot" id="vTot"></span></div>
+        <div class="vl" id="vl">VRAM · measured 2026-11-08</div>
+        <div class="zero" id="mZero"></div><div class="lamp bad" id="lDown">unhealthy</div></div>
+      <div class="node" id="nPaid" data-om-id="anthropic" style="left:1830px;top:440px;width:360px;height:220px"><h4>ANTHROPIC API</h4><p>the paid fallback</p></div>
+
+      <div class="node" id="nVisit" data-om-id="the-visit"><h4>THE VISIT</h4><p>speaks the visit</p><div class="wave" id="wave"><i></i><i></i><i></i><i></i><i></i></div></div>
+      <div class="node" id="nSpeech" data-om-id="speech-model"><h4>SPEECH MODEL</h4><p>beside the app</p></div>
+      <div class="node" id="nForm" data-om-id="the-form"><h4>THE FORM</h4>
+        <div class="fld"><p>a child’s age</p><div class="fb"><i></i></div></div>
+        <div class="fld"><p>how long a fever has lasted</p><div class="fb"><i></i></div></div>
+        <div class="fld"><p>a weight</p><div class="fb"><i></i></div></div></div>
+      <div class="col k" id="vLbl">HAREET DESIGNED</div>
+      <div class="col" id="vTitle">Voice for CHT</div>
+      <div class="col" id="vS1">speaks the visit</div>
+      <div class="col" id="vS2">the form fills itself</div>
+      <div class="col" id="vOff">offline</div>
+      <div class="col" id="vNo">No audio or transcript leaves the phone as telemetry.</div>
+      <div class="col src" id="vNoSrc">Voice for CHT, “Honest by design” · corpus/01-ai-strategy-and-cht.md:111</div>
+
+      <div class="ftag" id="oTitle" style="opacity:1">denverlocal.ai</div>
+      <div class="ftag" id="oQ" style="white-space:normal">“Private AI for small Denver teams, with sensitive files kept on hardware they own.”</div>
+      <div class="ftag src" id="oQs" style="white-space:normal">Hareet’s resume · corpus/07-denver-local-ai.md:9</div>
+      <div class="node" id="nAI" data-om-id="private-ai"><h4>PRIVATE AI</h4><p>in your office</p></div>
+      <div class="node" id="nFiles" data-om-id="sensitive-files"><h4>SENSITIVE FILES</h4></div>
+    </div>
+  </section>
+
+  <section class="shot" id="ec2" data-om-id="ec2">
+    <div class="huge">EC2</div>
+    <div class="what">the cloud server</div>
+    <div class="nogpu" id="noGpu">no GPU</div>
+    <div class="q"><span id="qTxt"></span><span class="caret" id="qCaret"></span></div>
+    <div class="src" id="qSrc">Hareet, 2026-11-09 · docs/adr/0044-ec2-as-prods-default-host.md:11</div>
+  </section>
+
+  <section class="shot" id="prod" data-om-id="production">
+    <div class="huge" id="prodN">PRODUCTION</div>
+    <div class="not" id="notDemo">not a <s id="demo">demo</s></div>
+    <div class="lock" id="lock">
+      <div class="r"><span>service</span><b>model-server-gpu</b></div>
+      <div class="r"><span>repository</span><b>ghcr.io/ggml-org/llama.cpp</b></div>
+      <div class="r"><span>tag</span><b>server-cuda-b11459</b></div>
+      <div class="r"><span>digest</span><b class="dg" id="dg"></b></div>
+      <div class="src">deploy/images.lock:13 · the digest cut to 12 characters</div>
+    </div>
+  </section>
+
+  <section class="shot" id="commit" data-om-id="one-commit">
+    <div class="l1" id="c1">1 commit</div>
+    <div class="l2" id="c2">1 image</div>
+    <div class="l3" id="c3">prod and dev at one commit run one image, with one ID</div>
+    <div class="src" id="c3s">deploy/scripts/gateway_image.py:14</div>
+  </section>
+
+  <section class="shot" id="turn" data-om-id="turn">
+    <div class="huge" id="offN">Offline-first</div>
+    <div class="sub" id="offSub">isn’t new for Hareet.</div>
+  </section>
+
+  <section class="shot" id="medic" data-om-id="medic">
+    <div class="k" id="mdK">MEDIC</div>
+    <div class="chw" id="mdChw">community health workers</div>
+    <div class="cht" id="mdCht">using the Community Health Toolkit</div>
+    <div class="old" id="mdOld">older Android phones</div>
+    <div class="net" id="mdNet">mostly no network</div>
+    <div class="phone" id="mPhone"><div class="bars" id="mBars"><i style="height:12px"></i><i style="height:20px"></i><i style="height:28px"></i><i style="height:36px"></i></div><div class="slash" id="mSlash"></div><div class="scr">CHT</div></div>
+  </section>
+
+  <section class="shot" id="size" data-om-id="size">
+    <div class="lbl" id="szL">fine-tune its models to</div>
+    <div class="huge" id="szN"></div>
+    <div class="side" id="szS">to run beside the app</div>
+    <div class="ph" id="szP"></div>
+    <div class="bar" id="szBar"><div class="m" id="szM"></div></div>
+    <div class="bl" id="szB1" style="left:140px;color:#6fe0b8"></div>
+    <div class="bl" id="szB2" style="right:140px;color:#cfdae0"></div>
+  </section>
+
+  <section class="shot" id="end" data-om-id="endcard">
+    <div class="card">
+      <div class="nm">hareet<span>.ai</span></div>
+      <div class="pitch">Come talk to my AI twin about my work and my life. It’s built in the open, so you can see how I build AI that is secure, cost-effective, and observable.</div>
+      <div class="claims"><b id="endChip">LOCAL MODELS FIRST</b> <i>•</i> A REAL-TIME COST METER <i>•</i> A $5-A-DAY KILL SWITCH <i>•</i> EVERY DATA FLOW DISCLOSED</div>
+    </div>
+  </section>
+</div>
+
+<script>
+  const V = OM.vars();
+  const $ = (s) => document.querySelector(s);
+  const num = (n) => Math.round(n).toLocaleString('en-US');
+  document.documentElement.style.setProperty('--ground', V.ground);
+  document.documentElement.style.setProperty('--green', V.green);
+  document.documentElement.style.setProperty('--crimson', V.crimson);
+  $('#cntN').textContent = V.containers;
+  $('#t30n').textContent = `${V.paramsB}B`;
+  $('#mMdl').textContent = V.model;
+  $('#vTot').textContent = ` / ${num(V.vramTotal)} MiB`;
+  $('#mZero').textContent = `$${V.localCost}`;
+  $('#tCap').textContent = `$${V.subBudget} a day sub-budget`;
+  $('#dg').textContent = `sha256:${String(V.digest12).slice(0, 12)}`;
+  $('#szN').textContent = `${V.modelMB} MB`;
+  $('#szP').textContent = `on a ${V.phoneGB} GB phone`;
+  $('#szB1').textContent = `${V.modelMB} MB`;
+  $('#szB2').textContent = `${V.phoneGB} GB`;
+  $('#szM').style.width = `${(V.modelMB / (V.phoneGB * 1024)) * 100}%`;
+
+  // the fifteen services of prod (deploy/compose.yaml), each with the narration's word for it
+  const SVC = [['edge', 'the edge'], ['gateway', 'the gateway'], ['web', 'the site'], ['gateway-state', 'the meter’s database'],
+    ['model-server-gpu', 'the model server'], ['otel-collector', 'the tools that watch them'], ['prometheus', 'metrics'], ['loki', 'logs'],
+    ['grafana', 'Grafana'], ['langfuse-web', 'Langfuse'], ['langfuse-worker', 'Langfuse'], ['langfuse-db', 'Langfuse'], ['clickhouse', 'Langfuse'],
+    ['valkey', 'Langfuse'], ['seaweedfs', 'Langfuse']];
+  SVC.forEach(([n, w], i) => { const d = document.createElement('div'); d.className = 'svc' + (n === 'model-server-gpu' ? ' hero' : ''); d.id = `s${i}`;
+    d.innerHTML = `<div class="nm"><i></i>${n}</div><div class="st">${w}</div>`; $('#svcs').appendChild(d); });
+
+  // ---------- word times, read from the respaced take's om-cues (tools/respace.py): exact word, nth occurrence ----------
+  // Every cut, landing and bead below follows W, so a re-voice needs only a new respace PLAN and a fresh om-cues.
+  const WORDS = OM.words();
+  const cue = (w, n = 1) => { let k = 0; for (const x of WORDS) if (x.word === w && ++k === n) return x.start; throw new Error(`no cue "${w}" #${n}`); };
+  const cueEnd = (w, n = 1) => { let k = 0; for (const x of WORDS) if (x.word === w && ++k === n) return x.end; throw new Error(`no cue "${w}" #${n}`); };
+  const W = { laptop: cue('laptop'), command: cue('command'), make: cue('Make'), fifteen: cue('fifteen'), edge: cue('edge'), gateway: cue('gateway'),
+    site: cue('site'), meters: cue("meter's"), model1: cue('model'), tools: cue('tools'), metrics: cue('metrics'), logs: cue('logs'), grafana: cue('Grafana'), langfuse: cue('Langfuse'),
+    model2: cue('model', 2), llama: cue('llama'), gpu: cue('GPU'), qwen: cue('Qwen3'), thirty: cue('thirty'), twentyOne: cue('twenty-one'), twentyFour: cue('twenty-four'), gigabytes: cue('gigabytes'),
+    every: cue('Every'), first: cue('first'), local: cue('local'), nothing: cue('nothing'), leaves: cue('leaves'), machine: cue('machine'),
+    only: cue('Only'), down: cue('down'), capped: cue('capped'), paid: cue('paid'), fallback: cue('fallback'), cloud: cue('cloud'), no: cue('no'), anthropic: cue('Anthropic'), answersFirst: cue('first', 2),
+    this: cue('This'), production: cue('production', 2), demo: cue('demo'), everyImage: cue('every'), pinned: cue('pinned'), digest: cue('digest'), one: cue('one', 3), commit: cue('commit'),
+    image: cue('image', 2), everywhere: cue('everywhere'), everywhereEnd: cueEnd('everywhere'),
+    offline: cue('Offline-first'), isnt: cue("isn't"), newW: cue('new'), at: cue('At'), medic: cue('Medic'), community: cue('community'), cht: cue('Community'), older: cue('older'), noNet: cue('no', 2),
+    so: cue('So'), designed: cue('designed'), voice: cue('Voice'), speaks: cue('speaks'), visit: cue('visit'), form: cue('form'), fills: cue('fills'), offline2: cue('offline'),
+    fineTune: cue('fine-tune'), two: cue('two'), megabytes: cue('megabytes'), run: cue('run'), fourGb: cue('four-gigabyte'), phone: cue('phone'), noAudio: cue('No'), leavesPhone: cue('leaves', 2),
+    at2: cue('At', 2), small: cue('small'), private: cue('private'), sensitive: cue('sensitive'), hardware: cue('hardware'), own: cue('own'), local2: cue('Local'),
+    last: WORDS[WORDS.length - 1].end };
+  const F = 30, cut = (t) => (Math.floor(t * F) + 0.5) / F;                 // cuts half a frame in (contract: clean under --blur)
+  const D = W.last + V.endHold;
+  const tl = gsap.timeline({ paused: true, defaults: { ease: 'expo.out', immediateRender: false } });
+  OM.music({ product: 'devtool', variant: 0, bpm: 110, drop: 'production', ending: 'button',
+             energy: { claim: .6, makeup: .75, gpu: .65, local: .6, fallback: .8, ec2: .7, production: .9, commit: .85, turn: 0,
+                       medic: .4, voice: .55, size: .8, phone: .5, denver: .55, end: .3 } });
+
+  // shots, in order; the flow comes back six times, in its state at that moment
+  const order = [['claim', 0, 'claim'], ['makeup', W.command - 0.05, 'makeup'], ['flow', W.model2 - 0.05, 'gpu'], ['flow', W.every - 0.05, 'local'],
+                 ['flow', W.only - 0.05, 'fallback'], ['ec2', W.cloud - 0.05, 'ec2'], ['prod', W.this - 0.05, 'production'], ['commit', W.one - 0.05, 'commit'],
+                 ['turn', Math.min(W.everywhereEnd + 0.4, W.offline - 0.3), 'turn'], ['medic', W.at - 0.05, 'medic'], ['flow', W.so - 0.05, 'voice'], ['size', W.fineTune - 0.05, 'size'],
+                 ['flow', W.noAudio - 0.05, 'phone'], ['flow', W.at2 - 0.05, 'denver'], ['end', W.local2 - 0.05, 'end']];
+  const at = (label) => cut(order.find((o) => o[2] === label)[1]);
+  order.forEach(([id, t, label], i) => {
+    const a = cut(t), b = i + 1 < order.length ? cut(order[i + 1][1]) : D + 1;
+    tl.addLabel(`scene:${label}`, a);
+    const prev = i ? order[i - 1][0] : null;
+    if (i > 0 && prev !== id) tl.fromTo(`#${id}`, { opacity: 0 }, { opacity: 1, duration: 0.001, ease: 'none' }, a);
+    if (!['flow', 'claim', 'end'].includes(id)) tl.fromTo(`#${id}`, { scale: 1 }, { scale: 1.08, duration: Math.min(b, D) - a, ease: 'none', transformOrigin: '50% 45%' }, a);
+    const next = i + 1 < order.length ? order[i + 1][0] : null;
+    if (b < D && next !== id) tl.fromTo(`#${id}`, { opacity: 1 }, { opacity: 0, duration: 0.001, ease: 'none' }, b);
+    if (i > 0 && id !== 'turn') OM.sfx(i % 2 ? 'hit' : 'whoosh', a, { gain: .3 });
+  });
+
+  // claim: frame 0 is the resume's line; push into the chip, which sits first in the line
+  tl.fromTo('#claim', { scale: 1 }, { scale: 2.0, duration: at('makeup'), ease: 'power1.inOut', transformOrigin: '-150px 512px' }, 0)
+    .fromTo('#chip', { scale: 1 }, { scale: 1.12, duration: .3, yoyo: true, repeat: 1, ease: 'power2.out' }, OM.sfx('pop', 0.9, { gain: .5 }));
+
+  // make up: the command types, enter on "Make", fifteen slams, the services land on their words
+  OM.sfx('type', at('makeup') + 0.05, { gain: .3, dur: 0.75 }); OM.sfx('tick', W.make, { gain: .5 });
+  tl.fromTo('#cmdCaret', { backgroundColor: '#47a386' }, { backgroundColor: '#eef3f5', duration: .12, yoyo: true, repeat: 1 }, W.make);
+  tl.fromTo('#cmdOk', { opacity: 0, x: -24 }, { opacity: 1, x: 0, duration: .3, ease: 'power4.out' }, W.make + 0.1);
+  tl.fromTo('#cnt', { opacity: 0, scale: 1.35, transformOrigin: '100% 30%' }, { opacity: 1, scale: 1, duration: .35, ease: 'power4.out' }, W.fifteen - 0.1);
+  OM.sfx('impact', W.fifteen, { gain: .7 });
+  const land = [W.edge, W.gateway, W.site, W.meters, W.model1, W.tools, W.metrics, W.logs, W.grafana, ...[0, 1, 2, 3, 4, 5].map((i) => W.langfuse + i * 0.13)];
+  land.forEach((t, i) => { tl.fromTo(`#s${i}`, { opacity: 0, x: -24 }, { opacity: 1, x: 0, duration: .18, ease: 'power3.out' }, t - 0.05);
+    OM.sfx('tick', t, { gain: .32, pitch: 1 + (i % 8) * .04 }); });
+  OM.sfx('pop', W.model1, { gain: .45 });
+
+  // ---------- the flow's camera: front-on, cut on words, a slow push while it holds ----------
+  const fcam = OM.camera('#fworld');
+  const FS = [ // [shot, focus, zoom at the cut, zoom at the end of the hold]
+    ['gpu', [1250, 265], 1.75, 1.9], ['local', [1105, 545], 0.84, 0.89], ['fallback', [1485, 480], 1.24, 1.32],
+    ['voice', [3500, 540], 1.0, 1.08], ['phone', [3500, 540], 1.06, 1.12], ['denver', [5700, 540], 1.0, 1.08] ];
+  fcam.set({ focus: FS[0][1], zoom: FS[0][2] });
+  FS.forEach(([label, f, z0, z1], i) => {
+    const k = order.findIndex((o) => o[2] === label), a = cut(order[k][1]), b = Math.min(cut(order[k + 1][1]), D);
+    if (i) fcam.to(tl, a - 0.001, { focus: f, zoom: z0, duration: 0.001, ease: 'none' });
+    fcam.to(tl, a, { focus: f, zoom: z1, duration: b - a - 0.002, ease: 'none' });
+  });
+
+  // ---------- the calls: every bead is a function of time ----------
+  const P = { room: [210, 550], edge: [565, 550], gw: [955, 550], model: [1470, 265], paid: [2010, 550],
+              visit: [3000, 205], speech: [3000, 460], form: [3000, 815], ai: [6160, 380], files: [6160, 710] };
+  const lerp = (a, b, u) => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
+  const along = (pts, u) => { const n = pts.length - 1, k = Math.min(n - 1, Math.floor(u * n)); return lerp(pts[k], pts[k + 1], u * n - k); };
+  const beads = [];
+  const mk = (cls) => { const d = document.createElement('div'); d.className = `bead ${cls}`; $('#beads').appendChild(d); return d; };
+  // a leg: [path, duration, bead class]; a call: a start time and its legs; returns when each leg ends
+  const IN = [[P.room, P.edge, P.gw], 0.5, 'q'], TO_L = [[P.gw, P.model], 0.3, 'l'], FROM_L = [[P.model, P.gw], 0.3, 'l'],
+        OUT_L = [[P.gw, P.edge, P.room], 0.45, 'l'], TO_P = [[P.gw, P.paid], 0.4, 'p'], FROM_P = [[P.paid, P.gw], 0.4, 'p'], OUT_P = [[P.gw, P.edge, P.room], 0.45, 'p'],
+        SPEAK = [[P.visit, P.speech], 0.35, 's'], FILL = [[P.speech, P.form], 0.35, 'l'],
+        ASK = [[P.files, P.ai], 0.4, 'q'], BACK = [[P.ai, P.files], 0.4, 'l'];
+  const call = (t0, legs) => { let t = t0; const ends = []; legs.forEach(([pts, d, cls]) => { beads.push({ pts, a: t, b: t + d, el: mk(cls) }); t += d; ends.push(t); }); return ends; };
+  const LOCAL = [IN, TO_L, FROM_L, OUT_L], PAID = [IN, TO_P, FROM_P, OUT_P];
+  // the model server answering while the camera holds on it
+  [0, 1, 2, 3, 4, 5, 6].forEach((i) => call(at('gpu') + 0.2 + i * 1.55, LOCAL));
+  // every question tries it first: a stream of local answers, $0 each, nothing past the wall; it keeps running through the breath
+  const locals = [];
+  for (let t = at('local') + 0.05; t <= W.only - 0.2; t += 0.5) locals.push(call(t, LOCAL)[2]);
+  locals.forEach((t, i) => OM.sfx('pop', t, { gain: .24, note: (i % 5) + 1 }));
+  // the model server goes down on "down"; paid calls go out through the wall to the API and back
+  const paidAt = [0, 1, 2, 3, 4].map((i) => call(W.down - 0.25 + i * 0.6, PAID)[1]);
+  paidAt.forEach((t) => OM.sfx('ding', t, { gain: .28 }));
+  // Voice for CHT: the visit spoken into the model, the model filling the form
+  for (let t = W.speaks; t < W.visit + 0.6; t += 0.12) call(t, [SPEAK]);
+  for (let t = W.form - 0.35; t < W.offline2 - 0.1; t += 0.15) call(t, [FILL]);
+  for (let t = W.offline2 + 0.3; t < at('size'); t += 0.5) call(t, [SPEAK, FILL]);
+  for (let t = at('phone') + 0.05; t < at('denver'); t += 0.45) call(t, [SPEAK, FILL]);
+  // the office: files and the private AI, on the same hardware
+  for (let t = at('denver') + 0.3; t < at('end'); t += 0.9) { call(t, [ASK, BACK]); }
+
+  const fields = [...document.querySelectorAll('#nForm .fld .fb i')], bars = [...document.querySelectorAll('#wave i')];
+  const quote = '“On the ec2 server, anthropic api will answer first.”', CMD = '$ make up ENV=prod', OQ = $('#oQ').textContent;
+  const k01 = (t, a, d) => Math.max(0, Math.min(1, (t - a) / d)), easeOut = (k) => 1 - Math.pow(1 - k, 3);
+  OM.clock(tl, (t) => {
+    for (const x of beads) {
+      if (t >= x.a && t < x.b) { const p = along(x.pts, (t - x.a) / (x.b - x.a)); x.el.style.opacity = 1; x.el.style.transform = `translate(${p[0]}px, ${p[1]}px)`; }
+      else x.el.style.opacity = 0;
+    }
+    const kc = Math.max(0, Math.min(1, (t - (at('makeup') + 0.05)) / 0.75));
+    $('#cmdTxt').textContent = CMD.slice(0, Math.round(kc * CMD.length));
+    const kv = Math.max(0, Math.min(1, (t - W.twentyOne) / 0.9));
+    $('#vUsed').textContent = num(V.vramUsed * (1 - Math.pow(1 - kv, 3)));
+    $('#oQ').textContent = OQ.slice(0, Math.round(k01(t, W.small - 0.2, W.hardware - W.small) * OQ.length));   // the resume's line, typed as the voice says it
+    $('#szN').textContent = `${Math.round(V.modelMB * easeOut(k01(t, W.two, W.megabytes - W.two + 0.3)))} MB`;   // counts up to 273 on "two hundred seventy-three"
+    const kq = Math.max(0, Math.min(1, (t - W.anthropic) / 1.3));
+    $('#qTxt').textContent = quote.slice(0, Math.round(kq * quote.length));
+    const talking = t >= W.speaks - 0.1 && t < W.offline2 + 0.4;
+    bars.forEach((b, i) => { b.style.height = `${talking ? 14 + 54 * Math.abs(Math.sin(t * (7 + i * 1.7) + i)) : 12}px`; });
+  }, D);
+
+  // ---------- the circuit's state ----------
+  const sw = (sel, t, on) => tl.fromTo(sel, { opacity: on ? 0 : 1 }, { opacity: on ? 1 : 0, duration: .15, ease: 'none' }, t);
+  const slam = (sel, t, from) => tl.fromTo(sel, { opacity: 0, ...(from || { y: 30 }) }, { opacity: 1, x: 0, y: 0, scale: 1, duration: .35, ease: 'power4.out' }, t);
+  // the model server, as the narration names it
+  slam('#m1', W.llama - 0.05, { x: -20 }); slam('#m2', W.gpu - 0.05, { x: -20 }); slam('#mMdl', W.qwen - 0.05, { x: -20 });
+  OM.sfx('pop', W.llama, { gain: .4 }); OM.sfx('pop', W.gpu, { gain: .4, note: 3 }); OM.sfx('type', W.qwen, { gain: .25, dur: .5 });
+  slam('#t30', W.thirty - 0.1, { scale: 1.3, transformOrigin: '0% 50%' }); OM.sfx('impact', W.thirty, { gain: .6 });
+  sw('#vBar', W.twentyOne - 0.1, true); sw('#vram', W.twentyOne - 0.1, true); sw('#vl', W.twentyOne - 0.1, true);
+  tl.fromTo('#vFill', { scaleX: 0 }, { scaleX: V.vramUsed / V.vramTotal, duration: .9, ease: 'power3.out' }, W.twentyOne);
+  tl.fromTo('#vTot', { opacity: 0 }, { opacity: 1, duration: .25 }, W.twentyFour - 0.05);
+  OM.sfx('count', W.twentyOne, { gain: .3, dur: .9 }); OM.sfx('thud', W.twentyFour, { gain: .45 });
+  // every question tries it first; a local answer costs nothing; nothing leaves the machine
+  tl.fromTo('#t30', { opacity: 1 }, { opacity: 0, duration: 0.001, ease: 'none' }, at('local'));
+  slam('#lOk', W.first - 0.1, { x: -16 }); OM.sfx('tick', W.first, { gain: .5 });
+  tl.fromTo('#wLocal', { stroke: '#3a5463' }, { stroke: '#47a386', duration: .3 }, W.first);
+  slam('#mZero', W.nothing - 0.1, { scale: 1.4, transformOrigin: '100% 0%' }); OM.sfx('impact', W.nothing, { gain: .5 });
+  tl.fromTo('#fHost', { borderColor: 'rgba(238,243,245,.4)' }, { borderColor: 'rgba(71,163,134,.95)', duration: .4 }, W.leaves);
+  slam('#tNoOut', W.leaves, { x: -20 }); slam('#tInt', W.machine, { x: -20 }); OM.sfx('thud', W.machine, { gain: .55 });
+  // only when it's down: the model server fails, the gateway falls back to the capped paid route
+  sw('#mFlood', W.down, true); sw('#lDown', W.down, true); sw('#mZero', W.down, false); sw('#tNoOut', W.down, false); sw('#tInt', W.down, false);
+  tl.fromTo('#wLocal', { stroke: '#47a386' }, { stroke: '#2a3a46', duration: .1 }, W.down)
+    .fromTo('#fHost', { borderColor: 'rgba(71,163,134,.95)' }, { borderColor: 'rgba(238,243,245,.4)', duration: .2 }, W.down);
+  OM.sfx('glitch', W.down, { gain: .5 }); OM.sfx('subdrop', W.down, { gain: .5 });
+  slam('#tCap', W.capped - 0.05, { x: -20 }); OM.sfx('stamp', W.capped, { gain: .45 });
+  tl.fromTo('#nPaid', { opacity: .45, borderColor: '#6b7f8c' }, { opacity: 1, borderColor: '#ffd27a', duration: .3 }, W.paid)
+    .fromTo('#wPaid', { stroke: '#3a5463' }, { stroke: '#ffd27a', duration: .3 }, W.paid);
+  sw('#lOk', W.fallback, false); slam('#lFb', W.fallback, { x: -16 });
+  // Voice for CHT: designed by Hareet; the visit, the form, offline
+  slam('#vLbl', W.designed - 0.05, { x: -20 }); slam('#vTitle', W.voice - 0.1, { scale: 1.15, transformOrigin: '0% 50%' });
+  OM.sfx('impact', W.voice, { gain: .55 });
+  slam('#vS1', W.speaks - 0.05, { x: -24 }); OM.sfx('whoosh', W.speaks, { gain: .3 });
+  slam('#vS2', W.form - 0.05, { x: -24 });
+  fields.forEach((f, i) => { tl.fromTo(f, { scaleX: 0 }, { scaleX: 1, duration: .35, ease: 'power3.out' }, W.fills + i * 0.22); OM.sfx('pop', W.fills + i * 0.22, { gain: .35, note: i + 2 }); });
+  slam('#vOff', W.offline2 - 0.1, { scale: 1.3, transformOrigin: '0% 50%' }); OM.sfx('stamp', W.offline2, { gain: .6 });
+  tl.fromTo('#pSlash', { scaleX: 0, rotation: -35 }, { scaleX: 1, rotation: -35, duration: .3, ease: 'power3.out' }, W.offline2);
+  tl.fromTo('#pPhone .bars', { opacity: 1 }, { opacity: .35, duration: .2 }, W.offline2);
+  // no audio or transcript leaves the phone: the phone's own wall, lit
+  ['#vS1', '#vS2', '#vOff'].forEach((s) => sw(s, at('phone'), false));
+  slam('#vNo', W.noAudio - 0.1, { y: 40 }); sw('#vNoSrc', W.noAudio + 0.4, true);
+  tl.fromTo('#pGlow', { opacity: 0 }, { opacity: 1, duration: .4 }, W.leavesPhone);
+  OM.sfx('thud', W.noAudio, { gain: .5 }); OM.sfx('chime', W.leavesPhone, { gain: .4 });
+  // denverlocal.ai: private AI and sensitive files, on hardware they own
+  sw('#oQ', W.small - 0.25, true); sw('#oQs', W.hardware, true); OM.sfx('type', W.small - 0.2, { gain: .2, dur: W.hardware - W.small });
+  tl.fromTo('#oTitle', { scale: 1.25, transformOrigin: '0% 50%' }, { scale: 1, duration: .4, ease: 'power4.out' }, at('denver')); OM.sfx('impact', W.at2 + 0.2, { gain: .45 });
+  tl.fromTo('#nAI', { opacity: .35, borderColor: '#3a5463' }, { opacity: 1, borderColor: '#47a386', duration: .3 }, W.private - 0.05);
+  tl.fromTo('#nFiles', { opacity: .35, borderColor: '#3a5463' }, { opacity: 1, borderColor: '#47a386', duration: .3 }, W.sensitive - 0.05);
+  tl.fromTo('#wOffice', { stroke: '#3a5463' }, { stroke: '#47a386', duration: .3 }, W.private);
+  tl.fromTo('#oWall', { opacity: 0, scale: 1.04, transformOrigin: '50% 50%' }, { opacity: 1, scale: 1, duration: .45 }, W.hardware - 0.05);
+  OM.sfx('pop', W.private, { gain: .4 }); OM.sfx('pop', W.sensitive, { gain: .4, note: 3 }); OM.sfx('thud', W.hardware, { gain: .55 });
+
+  // ---------- the kinetic shots ----------
+  // EC2: no GPU; Hareet's words, typed
+  tl.fromTo('#ec2 .huge', { scale: 1.35, transformOrigin: '0% 50%' }, { scale: 1, duration: .4, ease: 'power4.out' }, at('ec2'));
+  OM.sfx('impact', W.cloud, { gain: .6 });
+  slam('#noGpu', W.no - 0.1, { x: -30 }); OM.sfx('thud', W.no, { gain: .55 });
+  sw('#qCaret', at('ec2'), false); sw('#qCaret', W.anthropic - 0.1, true); sw('#qSrc', W.anthropic + 1.4, true);
+  OM.sfx('type', W.anthropic, { gain: .25, dur: 1.3 });
+  // production, not a demo; every image pinned by its digest
+  tl.fromTo('#prodN', { scale: 1.3, transformOrigin: '0% 50%' }, { scale: 1, duration: .35, ease: 'power4.out' }, at('production'))
+    .fromTo('#prodN', { scale: 1 }, { scale: 1.06, duration: .16, yoyo: true, repeat: 1, ease: 'power2.out' }, W.production);
+  OM.sfx('impact', W.production, { gain: .8 });
+  slam('#notDemo', W.demo - 0.4, { x: -24 });
+  tl.fromTo('#demo', { '--k': 0 }, { '--k': 1, duration: .25, ease: 'power3.out' }, W.demo); OM.sfx('stamp', W.demo, { gain: .6 });
+  slam('#lock', W.everyImage - 0.05, { y: 40 }); OM.sfx('whoosh', W.everyImage, { gain: .3 });
+  tl.fromTo('#dg', { backgroundColor: 'rgba(255,210,122,0)', color: '#e8eef1' }, { backgroundColor: 'rgba(255,210,122,.22)', color: '#ffd27a', duration: .25 }, W.digest);
+  OM.sfx('tick', W.digest, { gain: .55 });
+  // one commit, one image
+  tl.fromTo('#c1', { scale: 1.3, transformOrigin: '0% 50%' }, { scale: 1, duration: .35, ease: 'power4.out' }, at('commit'));
+  OM.sfx('thud', W.one, { gain: .6 });
+  slam('#c2', W.image - 0.1, { scale: 1.3, transformOrigin: '0% 50%' }); OM.sfx('impact', W.image, { gain: .6 });
+  slam('#c3', W.everywhere, { x: -20 }); sw('#c3s', W.everywhere + 0.3, true); OM.sfx('type', W.everywhere, { gain: .2, dur: .6 });
+  // the turn: the stop, then the word lights
+  tl.fromTo('#offN', { color: '#2a3a46' }, { color: '#ffffff', duration: .25, ease: 'none' }, W.offline - 0.05);
+  OM.sfx('impact', W.offline, { gain: .6 });
+  slam('#offSub', W.newW - 0.1, { y: 30 });
+  // Medic: community health workers, older Android phones, mostly no network
+  slam('#mdK', W.medic - 0.05, { x: -16 }); slam('#mdChw', W.community - 0.05, { y: 24 }); slam('#mdCht', W.cht - 0.05, { y: 20 });
+  slam('#mdOld', W.older - 0.1, { scale: 1.2, transformOrigin: '0% 50%' }); slam('#mdNet', W.noNet - 0.1, { scale: 1.2, transformOrigin: '0% 50%' });
+  OM.sfx('pop', W.medic, { gain: .4 }); OM.sfx('pop', W.community, { gain: .3, note: 2 }); OM.sfx('thud', W.older, { gain: .5 }); OM.sfx('glitch', W.noNet, { gain: .45 });
+  tl.fromTo('#mSlash', { scaleX: 0, rotation: -35 }, { scaleX: 1, rotation: -35, duration: .3, ease: 'power3.out' }, W.noNet)
+    .fromTo('#mBars', { opacity: 1 }, { opacity: .35, duration: .2 }, W.noNet);
+  // 273 MB, beside the app, on a 4 GB phone
+  slam('#szN', W.two - 0.1, { scale: 1.3, transformOrigin: '0% 50%' }); OM.sfx('impact', W.two, { gain: .75 });
+  slam('#szS', W.run - 0.05, { x: -20 });
+  slam('#szP', W.fourGb - 0.1, { scale: 1.2, transformOrigin: '0% 50%' }); OM.sfx('impact', W.fourGb, { gain: .65 });
+  tl.fromTo('#szBar', { scaleX: 0 }, { scaleX: 1, duration: .6, ease: 'power3.out' }, W.fourGb + 0.15);
+  sw('#szB1', W.fourGb + 0.5, true); sw('#szB2', W.fourGb + 0.6, true); OM.sfx('count', W.fourGb + 0.15, { gain: .25, dur: .6 });
+
+  // the end: the resume's twin section, flat
+  tl.fromTo('#end .card', { scale: .9, y: 40 }, { scale: 1, y: 0, duration: 1.0 }, at('end'))
+    .fromTo('#end .card', { scale: 1 }, { scale: 1.03, duration: D - (at('end') + 1), ease: 'none' }, at('end') + 1)
+    .fromTo('#endChip', { scale: 1 }, { scale: 1.12, duration: .35, yoyo: true, repeat: 1, ease: 'power2.out' }, W.local2 + 0.3);
+  OM.sfx('chime', W.local2 + 0.3, { gain: .5 });
+  tl.to({}, { duration: 0 }, D);
+
+  window.__timelines['film'] = tl;
+</script>
+</body>
+</html>

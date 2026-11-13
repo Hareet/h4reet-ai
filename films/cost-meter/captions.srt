@@ -1,0 +1,71 @@
+1
+00:00:00,500 --> 00:00:03,944
+Every answer the twin gives has a price, and you can watch it.
+
+2
+00:00:04,740 --> 00:00:09,582
+In the room, a neon sign shows what each call cost, to the millionth of a dollar.
+
+3
+00:00:09,632 --> 00:00:12,703
+It reads the gateway's own reply, not a dashboard.
+
+4
+00:00:13,540 --> 00:00:21,259
+Every model call goes through the gateway, and every call carries four things: the provider, the model, the tokens, and the cost.
+
+5
+00:00:23,240 --> 00:00:25,061
+Local answers cost nothing.
+
+6
+00:00:25,111 --> 00:00:30,516
+The paid fallback is Claude Haiku: ten cents per million tokens in, fifty cents out.
+
+7
+00:00:31,440 --> 00:00:32,436
+Why Haiku?
+
+8
+00:00:32,486 --> 00:00:33,750
+In Hareet's words:
+
+9
+00:00:33,963 --> 00:00:39,360
+"we chose haiku since our context base is small and manually evaluated haiku and sonnet."
+
+10
+00:00:40,240 --> 00:00:45,821
+Money is counted in whole micro-dollars, never a float, in the gateway's own database.
+
+11
+00:00:46,640 --> 00:00:50,928
+Every call is also traced in Langfuse, which runs inside the stack.
+
+12
+00:00:52,640 --> 00:01:02,390
+And it's locked down: no route out, sign-up switched off, its own telemetry off, and no prompts or answers kept, unless sampling is switched on in development.
+
+13
+00:01:03,240 --> 00:01:09,157
+Grafana puts spend beside latency and errors: today, this month, and the fallback's own budget.
+
+14
+00:01:11,040 --> 00:01:12,364
+Why measure all of it?
+
+15
+00:01:12,414 --> 00:01:14,374
+Because the meter is the control.
+
+16
+00:01:14,424 --> 00:01:18,677
+Cloud billing alerts lag by hours; this one decides in real time.
+
+17
+00:01:19,540 --> 00:01:25,629
+A full evaluation run, a hundred and eighty-six cases on Haiku, cost about twenty-one cents.
+
+18
+00:01:26,640 --> 00:01:30,932
+A real-time cost meter. Built in the open, at hareet dot A I.

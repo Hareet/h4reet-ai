@@ -11,9 +11,18 @@ check's `arrival` and the Author's gate over every commit since main, and make p
 Standard library only. Human-only: the hook, make check, and the gate each run the main working tree's copy.
 
 - Where a file may be (rules A): images, videos, and models only under the asset roots, assets/ (but assets/policy/)
-  and docs/research/images/, found by extension and by their leading bytes; model weights nowhere; in an asset
-  directory only PNG, JPEG, WebP, GLB, records.json, and LICENSE.md; camera metadata (EXIF, XMP, a GPS directory) in
-  no binary file anywhere, but the mark's own packet in a file the M rules admit.
+  and docs/research/images/, and a film's renders in its media folder (A11), found by extension and by their leading
+  bytes; model weights nowhere; in an asset directory only PNG, JPEG, WebP, GLB, records.json, and LICENSE.md; camera
+  metadata (EXIF, XMP, a GPS directory) in no binary file anywhere, but the mark's own packet in a file the M rules
+  admit.
+- A film's renders (rule A11, ADR 0050): in films/<name>/media/, where films/<name>/ holds the film's index.html, only
+  an MP4 (its name, an ftyp box at byte 4, an MP4 brand) of up to 60 MiB and a GIF (its name, GIF87a or GIF89a) of up
+  to 10 MiB, each a file, never a link or a subfolder; no place and no XMP in either (an MP4's ©xyz or loci atom, a
+  location key, an XMP_ or uuid box, or a timed-metadata track; a GIF's XMP, or any application extension but the
+  loop count's), and no byte its boxes or blocks don't account for. The encoder's own tags (©too, the handler names)
+  pass, and meet the B rules with every udta and meta box and a GIF's comments; the whole file meets A4. No record, no
+  notice, no mark: the films are code, and their renders this code's output. Anywhere else under films/, an image or
+  a video meets A1 as it would anywhere.
 - What a file holds (rules M): each admitted format parsed down to its chunks, and only research R-03's allowlist and
   one mark admitted: the XMP packet holding only the IPTC digital source type (KHR_xmp_json_ld's, in a GLB); no name
   or uri in a GLB that holds a file name or a path; no byte a container doesn't account for.
@@ -150,6 +159,69 @@ BY_EXTENSION = {
     **{ext: "a video" for ext in VIDEO_EXT},
     **{ext: "a model" for ext in MODEL_EXT},
 }
+
+# A film's renders (rule A11; ADR 0050): films/<name>/media/, in a film's own folder, the one holding its index.html.
+FILMS_MEDIA = re.compile(r"films/(?P<film>[a-z0-9-]+)/media/")
+FILM_PAGE = "index.html"
+FILM_MEDIA = {".mp4": "mp4", ".gif": "gif"}
+FILM_SIGNATURE = {"mp4": "isobmff", "gif": "gif"}
+FILM_CAPS = {
+    "mp4": 60 * 1024 * 1024,
+    "gif": 10 * 1024 * 1024,
+}  # 62,914,560 and 10,485,760 bytes
+# An MP4's own brands, as ffmpeg writes them (isom, with iso2, avc1, and mp41): never QuickTime's `qt  `, HEIF's, AVIF's.
+MP4_BRANDS = frozenset(
+    {b"isom", b"iso2", b"iso4", b"iso5", b"iso6", b"mp41", b"mp42", b"avc1"}
+)
+MP4_TOP = frozenset(
+    {
+        b"ftyp",
+        b"moov",
+        b"mdat",
+        b"free",
+        b"skip",
+        b"wide",
+        b"moof",
+        b"mfra",
+        b"sidx",
+        b"styp",
+    }
+)
+# The boxes walked: those that hold the tracks and their metadata. Sample entries and mdat aren't (the pixel-data rule).
+MP4_CONTAINERS = frozenset(
+    {
+        b"moov",
+        b"trak",
+        b"mdia",
+        b"minf",
+        b"stbl",
+        b"edts",
+        b"dinf",
+        b"udta",
+        b"meta",
+        b"ilst",
+        b"mvex",
+        b"moof",
+        b"traf",
+    }
+)
+MP4_DEPTH = 16
+# Where a camera or an editor puts a place or its own record: QuickTime's ©xyz, 3GPP's loci, Adobe's XMP_, and the uuid
+# box XMP rides in (any uuid box: what another holds, nothing here can read).
+MP4_REFUSED = {
+    b"\xa9xyz": "a location atom (©xyz)",
+    b"loci": "a location atom (loci)",
+    b"XMP_": "an XMP box (XMP_)",
+    b"uuid": "a uuid box",
+}
+XMP_UUID = bytes.fromhex("be7acfcb97a942e89c71999491e3afac")
+# A track's handler: video, sound, or text (captions); never a timed-metadata track, where a camera keeps its GPS. A
+# metadata box's: iTunes-style tags (mdir), or keys (mdta).
+TRACK_HANDLERS = frozenset({b"vide", b"soun", b"text", b"sbtl", b"subt"})
+META_HANDLERS = frozenset({b"mdir", b"mdta"})
+# A GIF's one admitted application extension: the loop count, as NETSCAPE2.0 or ANIMEXTS1.0 writes it.
+GIF_APPLICATIONS = frozenset({b"NETSCAPE2.0", b"ANIMEXTS1.0"})
+GIF_XMP = b"XMP DataXMP"
 
 # The mark (research R-03, FR-034): an XMP packet holding exactly this property, and nothing else. Its value is one of
 # three terms of IPTC's digital source type, the one the file's record calls for (spec 004, Amendment C1).
@@ -1696,6 +1768,167 @@ def container_findings(data: bytes, kind: str) -> list[tuple[str, str]]:
 
 
 # --------------------------------------------------------------------------------------------------
+# A film's renders (A11; ADR 0050)
+# --------------------------------------------------------------------------------------------------
+def box_name(raw: bytes) -> str:
+    """A box's type, a brand, or a handler, quoted, when it's four plain characters; never the raw bytes otherwise."""
+    return (
+        f"'{raw.decode('ascii')}'"
+        if re.fullmatch(rb"[A-Za-z0-9 ]{4}", raw)
+        else "of no readable type"
+    )
+
+
+def parse_film_mp4(data: bytes, out: Parsed) -> None:
+    """A film's MP4, walked down the boxes that hold its tracks and their metadata: an MP4 brand; only an MP4's own
+    boxes at the top; no location atom, location key, XMP, uuid box, or timed-metadata track; every byte in a box. The
+    udta and meta boxes, and the handler boxes outside them, are its text."""
+    if data[8:12] not in MP4_BRANDS:
+        out.bad(
+            "A11",
+            f"its ftyp brand, {box_name(data[8:12])}, isn't an MP4's (QuickTime's, HEIF's, and AVIF's aren't)",
+        )
+
+    def walk(lo: int, hi: int, parents: tuple[bytes, ...]) -> None:
+        if len(parents) > MP4_DEPTH:
+            out.bad("A11", f"boxes nested deeper than {MP4_DEPTH} at byte {lo}")
+            return
+        at = lo
+        while at < hi:
+            if hi - at < 8:
+                # QuickTime ends a udta box's children with a 32-bit zero.
+                if not (parents and hi - at == 4 and data[at:hi] == bytes(4)):
+                    out.bad("A11", f"bytes no box accounts for at byte {at}")
+                return
+            size, kind = struct.unpack(">I4s", data[at : at + 8])
+            head = 8
+            if size == 1 and hi - at >= 16:
+                (size,) = struct.unpack(">Q", data[at + 8 : at + 16])
+                head = 16
+            elif size == 0 and not parents:
+                size = hi - at  # the last box runs to the end of the file
+            if size < head or at + size > hi:
+                out.bad("A11", f"a box at byte {at} runs past its container")
+                return
+            body, end = at + head, at + size
+            udta = b"udta" in parents
+            if kind in MP4_REFUSED:
+                what = MP4_REFUSED[kind]
+                if kind == b"uuid" and data[body : body + 16] == XMP_UUID:
+                    what = "an XMP uuid box"
+                out.bad("A11", f"{what} at byte {at}")
+            elif not parents and kind not in MP4_TOP:
+                out.bad(
+                    "A11",
+                    f"a top-level box {box_name(kind)} at byte {at}, which an MP4 doesn't hold",
+                )
+            elif kind == b"hdlr":
+                if parents and parents[-1] in (b"mdia", b"meta"):
+                    handler = data[body + 8 : body + 12]
+                    allowed = (
+                        META_HANDLERS if parents[-1] == b"meta" else TRACK_HANDLERS
+                    )
+                    if handler not in allowed:
+                        out.bad(
+                            "A11",
+                            f"a handler {box_name(handler)} in a {parents[-1].decode()} box at byte {at} "
+                            "(a timed-metadata track, where a camera keeps its GPS, or another program's tags)",
+                        )
+                if not udta:
+                    out.texts.append(("an hdlr box", body, data[body:end]))
+            elif kind == b"keys" and b"location" in data[body:end].lower():
+                out.bad("A11", f"a location key in a keys box at byte {at}")
+            if kind in (b"udta", b"meta") and not udta:
+                out.texts.append((f"a {kind.decode()} box", body, data[body:end]))
+            if kind in MP4_CONTAINERS:
+                start = body
+                if kind == b"meta" and data[body : body + 4] == bytes(4):
+                    start += 4  # ISO's meta is a full box; QuickTime's isn't
+                walk(start, end, parents + (kind,))
+            at = end
+
+    walk(0, len(data), ())
+
+
+def gif_blocks(data: bytes, at: int) -> tuple[int, bytes] | None:
+    """A GIF's data sub-blocks from `at`: the offset past their terminator, and their bytes; None when it's cut short."""
+    parts = []
+    while at < len(data):
+        size = data[at]
+        at += 1
+        if size == 0:
+            return at, b"".join(parts)
+        if at + size > len(data):
+            return None
+        parts.append(data[at : at + size])
+        at += size
+    return None
+
+
+def parse_film_gif(data: bytes, out: Parsed) -> None:
+    """A film's GIF, block by block: its images, their graphic controls, comments, and the loop count's application
+    extension; no XMP or other application extension; nothing after the trailer. The comments are its text."""
+    short = "the GIF ends before its trailer"
+    if len(data) < 13:
+        out.bad("A11", short)
+        return
+    at = 13
+    if data[10] & 0x80:
+        at += 3 << ((data[10] & 7) + 1)  # the global color table
+    while True:
+        if at >= len(data):
+            out.bad("A11", short)
+            return
+        block, start = data[at], at
+        if block == 0x3B:
+            at += 1
+            break
+        if block == 0x21 and at + 2 < len(data):
+            label = data[at + 1]
+            if label == 0xFF:
+                ident = data[at + 3 : at + 14]
+                if data[at + 2] != 11 or len(ident) != 11:
+                    out.bad(
+                        "A11",
+                        f"an application extension at byte {at} whose header isn't 11 bytes",
+                    )
+                    return
+                got = gif_blocks(data, at + 14)
+                if ident == GIF_XMP:
+                    out.bad("A11", f"an XMP application extension at byte {start}")
+                elif ident not in GIF_APPLICATIONS:
+                    out.bad(
+                        "A11",
+                        f"an application extension at byte {start} other than the loop count's (NETSCAPE2.0)",
+                    )
+            elif label in (0xF9, 0xFE, 0x01):
+                got = gif_blocks(data, at + 2)
+                if got and label != 0xF9:
+                    what = "a comment" if label == 0xFE else "a plain-text extension"
+                    out.texts.append((what, start, got[1]))
+            else:
+                out.bad(
+                    "A11", f"an extension of unknown label {label:#04x} at byte {at}"
+                )
+                return
+        elif block == 0x2C and at + 11 <= len(data):
+            flags = data[at + 9]
+            at += 10
+            if flags & 0x80:
+                at += 3 << ((flags & 7) + 1)  # the local color table
+            got = gif_blocks(data, at + 1)  # past the LZW minimum code size
+        else:
+            out.bad("A11", f"bytes no block accounts for at byte {at}")
+            return
+        if got is None:
+            out.bad("A11", short)
+            return
+        at = got[0]
+    if at != len(data):
+        out.bad("A11", f"{len(data) - at:,} bytes after the GIF's trailer")
+
+
+# --------------------------------------------------------------------------------------------------
 # The policy, from the main branch (R-05)
 # --------------------------------------------------------------------------------------------------
 @dataclass
@@ -2434,6 +2667,9 @@ class Checker:
             return
         if path.startswith(POLICY):
             return
+        if FILMS_MEDIA.match(path):
+            self.check_film_media(tree, path, item, data, found, weights, commit)
+            return
         media = (
             found in DESCRIBE
             and found not in ("safetensors", "gguf")
@@ -2450,6 +2686,86 @@ class Checker:
         if binary(data):
             for reason in camera_metadata(data):
                 self.add("A4", path, f"camera metadata: {reason}", commit)
+
+    def check_film_media(
+        self,
+        tree: Tree,
+        path: str,
+        item: Item,
+        data: bytes,
+        found: str | None,
+        weights: bool,
+        commit: str | None,
+    ) -> None:
+        """Rule A11 (ADR 0050): a film's render, in films/<name>/media/ of a film's own folder, as an MP4 or a GIF,
+        within its cap, with no place, no XMP, and no byte its container doesn't account for; its text meets the B
+        rules, and the whole file A4."""
+        match = FILMS_MEDIA.match(path)
+        assert match is not None
+        folder = f"films/{match['film']}/"
+        ext = ext_of(path)
+        what = DESCRIBE.get(found or "") or BY_EXTENSION.get(ext) or "a file"
+        if "/" in path[match.end() :]:
+            self.add(
+                "A11",
+                path,
+                f"{what} in a subfolder of a film's media folder, which holds only MP4 and GIF files",
+                commit,
+            )
+            return
+        if item.mode in ("120000", "160000"):
+            self.add(
+                "A11", path, "a link or a submodule in a film's media folder", commit
+            )
+            return
+        if tree.read(folder + FILM_PAGE) is None:
+            self.add(
+                "A11",
+                path,
+                f"{what} in a media folder whose folder isn't a film's (no {FILM_PAGE} beside it)",
+                commit,
+            )
+            return
+        kind = FILM_MEDIA.get(ext)
+        if kind is None:
+            if not weights:
+                self.add(
+                    "A11",
+                    path,
+                    f"{what} of a kind a film's media folder doesn't take (only MP4 and GIF)",
+                    commit,
+                )
+            if binary(data):
+                for reason in camera_metadata(data):
+                    self.add("A4", path, f"camera metadata: {reason}", commit)
+            return
+        if found != FILM_SIGNATURE[kind]:
+            self.add(
+                "A11",
+                path,
+                f"its bytes aren't the {kind.upper()} its name says",
+                commit,
+            )
+            return
+        cap = FILM_CAPS[kind]
+        if len(data) > cap:
+            self.add(
+                "A11",
+                path,
+                f"{len(data):,} bytes, over a film's {kind.upper()} cap of {cap:,} (ADR 0050)",
+                commit,
+            )
+        parsed = Parsed()
+        (parse_film_mp4 if kind == "mp4" else parse_film_gif)(data, parsed)
+        for rule, reason in parsed.problems:
+            self.add(rule, path, reason, commit)
+        for part, at, text in parsed.texts:
+            for rule, offset, description in text_hits(text):
+                self.add(
+                    rule, path, f"{description} in {part} at byte {at + offset}", commit
+                )
+        for reason in camera_metadata(data):
+            self.add("A4", path, f"camera metadata: {reason}", commit)
 
     def scan_text(self, data: bytes, path: str, what: str, commit: str | None) -> None:
         for rule, offset, description in text_hits(data):

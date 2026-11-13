@@ -2045,3 +2045,241 @@ def test_a10_staged_on_a_branch_but_not_the_authors_commit_on_main(
     repo.git("add", "-A")
     run = check(repo, "--staged")
     assert run.code == 0, run.out
+
+
+# --------------------------------------------------------------------------------------------------
+# Rule A11 (ADR 0050): a film's renders, in films/<name>/media/ beside the film's index.html, as an MP4 or a GIF
+# within its cap, with no place, no XMP, and no byte its container doesn't account for. Anywhere else under films/,
+# an image or a video meets A1 as before.
+# --------------------------------------------------------------------------------------------------
+FILM = "films/kill-switch"
+MEDIA = f"{FILM}/media"
+PAGE = b"<!doctype html><title>kill switch</title>\n"
+
+
+def in_film(repo: fx.Repo, name: str, data: bytes, *, page: bool = True) -> Run:
+    if page:
+        repo.write(f"{FILM}/index.html", PAGE)
+    repo.write(name, data)
+    return check(repo, *paths(repo, name))
+
+
+def test_a11_a_films_mp4_and_gif_pass(repo: fx.Repo) -> None:
+    repo.write(f"{FILM}/index.html", PAGE)
+    repo.write(f"{MEDIA}/kill-switch.mp4", fx.film_mp4())
+    repo.write(f"{MEDIA}/kill-switch.gif", fx.film_gif())
+    run = check(
+        repo, *paths(repo, f"{MEDIA}/kill-switch.mp4", f"{MEDIA}/kill-switch.gif")
+    )
+    assert run.code == 0 and run.findings == [], run.out
+
+
+def test_a11_staged_in_range_and_in_history_alike(repo: fx.Repo) -> None:
+    repo.write(f"{FILM}/index.html", PAGE)
+    repo.commit("the film's code")
+    repo.write(f"{MEDIA}/kill-switch.mp4", fx.film_mp4())
+    repo.write(f"{MEDIA}/kill-switch.gif", fx.film_gif())
+    repo.git("add", "-A")
+    staged = check(repo, "--staged")
+    assert staged.code == 0 and staged.findings == [], staged.out
+    repo.commit("the film's final cut")
+    for args in (("--range", "main..HEAD"), ("--history",)):
+        run = check(repo, *args)
+        assert run.code == 0 and run.findings == [], run.out
+    repo.write(f"{MEDIA}/still.png", fx.png())
+    bad = repo.commit("a still beside it")
+    for args in (("--range", "main..HEAD"), ("--history",)):
+        run = check(repo, *args)
+        assert run.code == 1 and run.has("A11", f"{MEDIA}/still.png", bad), run.out
+
+
+def test_a11_a_films_narration_and_fonts_arent_media(repo: fx.Repo) -> None:
+    wav = (
+        b"RIFF"
+        + struct.pack("<I", 36)
+        + b"WAVEfmt "
+        + struct.pack("<I", 16)
+        + bytes(24)
+    )
+    woff = b"wOFF" + bytes(40)
+    repo.write(f"{FILM}/index.html", PAGE)
+    repo.write(f"{FILM}/assets/voice.wav", wav)
+    repo.write(f"{FILM}/assets/fonts/Plex.woff", woff)
+    run = check(
+        repo, *paths(repo, f"{FILM}/assets/voice.wav", f"{FILM}/assets/fonts/Plex.woff")
+    )
+    assert run.code == 0 and run.findings == [], run.out
+
+
+@pytest.mark.parametrize(
+    "name, data",
+    [
+        ("still.png", fx.png()),
+        ("poster.jpg", fx.jpeg()),
+        ("clip.mov", fx.isobmff(b"qt  ")),
+        ("README.md", b"# the film\n"),
+        ("records.json", b'{"schema": 1, "entries": []}\n'),
+        ("not-an.mp4", fx.film_gif()),  # its bytes aren't what its name says
+        ("not-a.gif", fx.png()),
+    ],
+    ids=ident,
+)
+def test_a11_anything_but_an_mp4_or_a_gif_in_a_films_media(
+    repo: fx.Repo, name: str, data: bytes
+) -> None:
+    run = in_film(repo, f"{MEDIA}/{name}", data)
+    assert run.code == 1 and run.has("A11", f"{MEDIA}/{name}"), run.out
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        f"{FILM}/out/kill-switch.mp4",
+        f"{FILM}/out/share/kill-switch.gif",
+        f"{FILM}/assets/kill-switch.mp4",
+        f"{FILM}/kill-switch.gif",
+        "films/kill-switch.mp4",
+        "films/Kill_Switch/media/kill-switch.mp4",  # not a film folder's name
+        "assets/films/kill-switch.mp4",
+    ],
+)
+def test_a11_an_mp4_or_a_gif_outside_a_films_media_meets_a1(
+    repo: fx.Repo, name: str
+) -> None:
+    data = fx.film_gif() if name.endswith(".gif") else fx.film_mp4()
+    run = in_film(repo, name, data)
+    assert run.code == 1 and not run.has("A11"), run.out
+    assert run.has("A1", name) or run.has("A3", name), run.out
+
+
+def test_a11_a_media_folder_beside_no_film(repo: fx.Repo) -> None:
+    run = in_film(repo, f"{MEDIA}/kill-switch.mp4", fx.film_mp4(), page=False)
+    assert run.code == 1 and run.has("A11", f"{MEDIA}/kill-switch.mp4"), run.out
+
+
+def test_a11_a_subfolder_of_a_films_media(repo: fx.Repo) -> None:
+    run = in_film(repo, f"{MEDIA}/old/kill-switch.mp4", fx.film_mp4())
+    assert run.code == 1 and run.has("A11", f"{MEDIA}/old/kill-switch.mp4"), run.out
+
+
+@pytest.mark.parametrize("name", ["over.mp4", "over.gif"])
+def test_a11_a_render_over_its_cap(repo: fx.Repo, name: str) -> None:
+    # Built in the test, not at collection, so the 70 MB stay out of the session's memory.
+    if name.endswith(".mp4"):
+        data = fx.film_mp4(mdat=60 * 1024 * 1024)
+    else:
+        data = fx.film_gif(image=10 * 1024 * 1024)
+    run = in_film(repo, f"{MEDIA}/{name}", data)
+    assert run.code == 1 and run.has("A11", f"{MEDIA}/{name}"), run.out
+    assert "cap of" in run.out
+
+
+def test_a11_a_render_at_its_cap_passes(repo: fx.Repo) -> None:
+    data = fx.film_mp4()
+    data = fx.film_mp4(mdat=60 * 1024 * 1024 - len(data) + 64)
+    assert len(data) == 60 * 1024 * 1024
+    run = in_film(repo, f"{MEDIA}/full.mp4", data)
+    assert run.code == 0, run.out
+
+
+def _keys(*names: bytes) -> bytes:
+    entries = b"".join(struct.pack(">I", 8 + len(n)) + b"mdta" + n for n in names)
+    return fx._box(b"keys", bytes(4) + struct.pack(">I", len(names)) + entries)
+
+
+def _mdta_meta(*names: bytes) -> bytes:
+    mdta = fx._box(b"hdlr", bytes(8) + b"mdta" + bytes(13))
+    return fx._box(b"meta", bytes(4) + mdta + _keys(*names))
+
+
+ISO6709 = b"+48.8584+002.2945/"
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"udta": fx._box(b"\xa9xyz", struct.pack(">HH", len(ISO6709), 0) + ISO6709)},
+        {"tags": fx.mp4_tag(b"\xa9xyz", ISO6709)},
+        {"udta": fx._box(b"loci", bytes(4) + b"\x15\xc7" + bytes(20))},
+        {"moov": _mdta_meta(b"com.apple.quicktime.location.ISO6709")},
+        {"udta": fx._box(b"XMP_", fx.xmp())},
+        {"top": fx._box(b"uuid", fx.XMP_UUID + fx.xmp())},
+        {"moov": fx._box(b"uuid", bytes(range(16)) + b"a vendor's record")},
+        {"handler": b"meta"},  # a timed-metadata track: where a camera keeps its GPS
+        {"top": fx._box(b"meta", bytes(4) + fx._box(b"Exif", bytes(8)))},
+        {"brand": b"qt  "},
+        {"trailing": b"\x00\x00\x00"},
+    ],
+    ids=[
+        "xyz-in-udta",
+        "xyz-tag",
+        "loci",
+        "location-key",
+        "xmp-box",
+        "xmp-uuid",
+        "other-uuid",
+        "metadata-track",
+        "top-level-meta",
+        "quicktime-brand",
+        "trailing-bytes",
+    ],
+)
+def test_a11_an_mp4_with_a_place_xmp_or_bytes_no_box_holds(
+    repo: fx.Repo, kwargs: dict
+) -> None:
+    run = in_film(repo, f"{MEDIA}/kill-switch.mp4", fx.film_mp4(**kwargs))
+    assert run.code == 1 and run.has("A11", f"{MEDIA}/kill-switch.mp4"), run.out
+
+
+def test_a11_an_xmp_uuid_box_also_meets_a4(repo: fx.Repo) -> None:
+    data = fx.film_mp4(top=fx._box(b"uuid", fx.XMP_UUID + fx.xmp()))
+    run = in_film(repo, f"{MEDIA}/kill-switch.mp4", data)
+    assert run.rules(f"{MEDIA}/kill-switch.mp4") == {"A11", "A4"}, run.out
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"extensions": fx.gif_xmp(fx.xmp())},
+        {"extensions": fx.gif_application(b"ICCRGBG1012", bytes(64))},
+        {"trailing": b"after the trailer"},
+    ],
+    ids=["xmp", "icc", "trailing-bytes"],
+)
+def test_a11_a_gif_with_xmp_another_application_or_bytes_after_its_trailer(
+    repo: fx.Repo, kwargs: dict
+) -> None:
+    run = in_film(repo, f"{MEDIA}/kill-switch.gif", fx.film_gif(**kwargs))
+    assert run.code == 1 and run.has("A11", f"{MEDIA}/kill-switch.gif"), run.out
+
+
+@pytest.mark.parametrize(
+    "name, data",
+    [
+        (
+            "titled.mp4",
+            fx.film_mp4(tags=fx.mp4_tag(b"\xa9cmt", b"/home/someone/films/out.mp4")),
+        ),
+        (
+            "titled.gif",
+            fx.film_gif(extensions=fx.gif_comment(b"rendered from /tmp/om/frames")),
+        ),
+    ],
+    ids=ident,
+)
+def test_b3_a_local_path_in_a_renders_tags_or_comment(
+    repo: fx.Repo, name: str, data: bytes
+) -> None:
+    run = in_film(repo, f"{MEDIA}/{name}", data)
+    assert run.code == 1 and run.rules(f"{MEDIA}/{name}") == {"B3"}, run.out
+    assert (
+        "/home/" not in run.out and "/tmp/om" not in run.out
+    )  # the offset, never the bytes
+
+
+def test_a11_the_encoders_own_tags_pass(repo: fx.Repo) -> None:
+    tags = fx.mp4_tag(b"\xa9too", b"Lavf60.16.100") + fx.mp4_tag(
+        b"\xa9nam", b"Kill switch"
+    )
+    run = in_film(repo, f"{MEDIA}/kill-switch.mp4", fx.film_mp4(tags=tags))
+    assert run.code == 0, run.out
