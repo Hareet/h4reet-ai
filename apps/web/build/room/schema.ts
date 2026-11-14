@@ -20,6 +20,7 @@ import {
   TYPEFACE_USES,
 } from "../../src/room/compose/vocabulary";
 import { CHASE_DEFAULTS } from "../../src/room/scene/chase-steer";
+import { PET_DEFAULTS, PET_TURN_MAX_DEG_CEILING } from "../../src/room/scene/pet-config";
 import { isUiKey } from "../../src/room/ui-keys";
 import { AVATARS } from "../../src/choice/avatars";
 
@@ -405,6 +406,9 @@ const selectable = z.strictObject({
   /** Spec 018 (FR-005; D-V3): the conversation panel's emblem, a name src/room/hud/icons.ts draws; any other name, or
    *  none, has the speech glyph. */
   emblem: name("an emblem's name").optional(),
+  /** Spec 026 (FR-013, FR-014; plan.md R-09): a room figure the selectable also picks, at its home, front-only; `dog`,
+   *  the one value allowed now. */
+  figure: z.literal("dog").optional(),
   action: z
     .strictObject({
       talk: z
@@ -602,6 +606,22 @@ const chaseBlock = z.strictObject({
     .default(() => ({ ...C.clip_thresholds })),
 });
 
+const P = PET_DEFAULTS;
+/** `figures.pet` (spec 026; plan.md §3, R-08): the petting's tunables, every key optional with plan §3's default
+ *  (pet-config.ts's PET_DEFAULTS). `turn_max_deg` at most 90°, spec 025's director's ceiling (chase.ts's FACE_MAX_RAD);
+ *  `reach_m` against the chase block's `separation_m` is R-08's refine on the whole scene, below. */
+const petBlock = z.strictObject({
+  reach_m: z.number().positive().max(2).default(P.reach_m),
+  cooldown_s: z.number().min(0).max(600).default(P.cooldown_s),
+  turn_max_deg: z.number().min(0).max(PET_TURN_MAX_DEG_CEILING).default(P.turn_max_deg),
+  crouch_max_m: z.number().min(0).max(0.6).default(P.crouch_max_m),
+  lean_max_deg: z.number().min(0).max(75).default(P.lean_max_deg),
+  stroke_m: z.number().min(0).max(0.3).default(P.stroke_m),
+  stroke_n: z.number().int().min(1).max(10).default(P.stroke_n),
+  pet_s: z.number().min(0.5).max(30).default(P.pet_s),
+  elbow_deg: z.number().min(0).max(180).default(P.elbow_deg),
+});
+
 /** `figures` (spec 009, FR-037; plan.md §3.1): `twin_stand_in` an avatar of the room's table, which RI8 holds to it,
  *  absent for none; `texture_px` "a power of two from 256 to 4,096", 1,024 by default; `wait_ms` "an integer from 0 to
  *  3,000", 1,500 by default. */
@@ -623,6 +643,8 @@ const figures = z
     dog: dogBlock.optional(),
     // Spec 025 (FR-005; R-09): the run's block, optional; absent, the run takes CHASE_DEFAULTS.
     chase: chaseBlock.optional(),
+    // Spec 026 (plan.md §3): the petting's block, optional; absent, the pet director takes PET_DEFAULTS.
+    pet: petBlock.optional(),
   })
   .default(() => ({ ...FIGURES_DEFAULTS }));
 
@@ -645,6 +667,16 @@ export const sceneSchema = z
     figures,
   })
   .superRefine((s, ctx) => {
+    // Spec 026's R-08: spec 025's R-09 keeps the dog's home at least `separation_m` from the twin's, so a `reach_m`
+    // below it leaves no home in reach.
+    const pet = s.figures.pet;
+    const separation = s.figures.chase?.separation_m ?? CHASE_DEFAULTS.separation_m;
+    if (pet !== undefined && pet.reach_m > 0 && pet.reach_m < separation)
+      ctx.addIssue({
+        code: "custom",
+        message: `RD3: below figures.chase.separation_m, ${separation} m (spec 026, R-08)`,
+        path: ["figures", "pet", "reach_m"],
+      });
     const chase = s.figures.chase;
     if (chase === undefined) return;
     const least = s.walking.speed_mps + chase.speed_margin_mps;

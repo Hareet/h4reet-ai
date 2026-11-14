@@ -256,7 +256,15 @@ figures:
   # conversations, and the map's resting clip waits for the studio's re-export, which brings back this line:
   #   lean: { against: work-desk, behind_m: 0.679, right_m: 0.45 }
   twin:
-    clips: { arriving: greeting, answering: talking, listening: listening, resting: desk-lean, present: idle }
+    # Spec 026 (FR-009; plan.md R-05): petting plays the studio's `petting` clip where his intake bundles it, else the
+    # idle with the reach layer.
+    clips:
+      arriving: greeting
+      petting: petting
+      answering: talking
+      listening: listening
+      resting: desk-lean
+      present: idle
     rest_after_s: 20
     speak_wpm: 150
     speak_s: [3, 20]
@@ -288,3 +296,17 @@ figures:
     lookahead_s: 1.0
     headings: 16
     clip_thresholds: { walk_mps: 0.3, run_mps: 1.5 }
+  # Spec 026's petting (its plan.md §3, R-08; Q212, taken provisionally): plan §3's defaults, written out so each is a
+  # data edit, placeholders the Author's look sets. `crouch_max_m` and `lean_max_deg` are T003's measure on the twin's
+  # and the man's rigs; `reach_m` is at least `chase.separation_m` (the build refuses less); `turn_max_deg` at most 90.
+  # The `dog` selectable, which starts a petting, isn't here: its line is the human patch's (spec FR-016).
+  pet:
+    reach_m: 0.55
+    cooldown_s: 20
+    turn_max_deg: 60
+    crouch_max_m: 0.35
+    lean_max_deg: 66
+    stroke_m: 0.05
+    stroke_n: 3
+    pet_s: 3.5
+    elbow_deg: 150

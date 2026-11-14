@@ -4,28 +4,14 @@
 // heading stays chase-figures.ts), pets it (the studio's `petting` clip where it is loaded, else the reach layer's
 // numbers, which the twin's controller applies), and turns it back. The dog stays at its home throughout (Q159): the
 // director reads its view and never writes it. A run from the dinosaur outranks the petting (FR-011).
-import { PET_REACH_DEFAULTS, Point, strokeShare, strokeTarget, weightAt } from "./pet-reach";
+import { PET_DEFAULTS } from "./pet-config";
+import type { PetConfig } from "./pet-config";
+import { Point, strokeShare, strokeTarget, weightAt } from "./pet-reach";
 import type { Vec3 } from "./pet-reach";
 
-/** The pet block's tunables (spec "Pet block"; plan §3): scene data in `figures.pet`, these its defaults. */
-export interface PetConfig {
-  readonly reach_m: number;
-  readonly cooldown_s: number;
-  readonly turn_max_deg: number;
-  readonly crouch_max_m: number;
-  readonly lean_max_deg: number;
-  readonly stroke_m: number;
-  readonly stroke_n: number;
-  readonly pet_s: number;
-  readonly elbow_deg: number;
-}
-
-export const PET_DEFAULTS: PetConfig = Object.freeze({
-  reach_m: 0.55,
-  cooldown_s: 20,
-  turn_max_deg: 60,
-  ...PET_REACH_DEFAULTS,
-});
+/** The pet block's tunables and their defaults (plan §3), in pet-config.ts so the build reads them without three.js. */
+export { PET_DEFAULTS } from "./pet-config";
+export type { PetConfig } from "./pet-config";
 
 /** A figure's home on the floor: its place, and its heading in radians, spec 008's (h faces (−sin h, −cos h)). */
 export interface PetHome {

@@ -25,17 +25,9 @@ export class Point implements Vec3 {
   z = 0;
 }
 
-/** The reach's tunables (spec FR-007, FR-008; plan §3): scene data in `figures.pet`, these its defaults. Placeholders,
- *  the Author's to set at lookdev. `crouch_max_m` and `lean_max_deg` are measured by T003 on both rigs (Q162, Q212) and
- *  recorded in plan §3: the crouch within the thighs' level, the lean the larger need at that crouch plus 5°. */
-export const PET_REACH_DEFAULTS = Object.freeze({
-  crouch_max_m: 0.35,
-  lean_max_deg: 66,
-  stroke_m: 0.05,
-  stroke_n: 3,
-  pet_s: 3.5,
-  elbow_deg: 150,
-});
+/** The reach's tunables (spec FR-007, FR-008; plan §3): scene data in `figures.pet`, these its defaults, kept in
+ *  pet-config.ts so the build reads them without three.js. */
+export { PET_REACH_DEFAULTS } from "./pet-config";
 
 /** The reach-in's and the withdraw's length, in seconds (FR-007). */
 export const EASE_IN_OUT_S = 0.5;

@@ -76,6 +76,7 @@ import type { AvatarSet, FileRole } from "./avatars";
 import { TWIN_DEFAULTS } from "./schema";
 import { isTwinClipRole, TWIN_CLIPS_DEFAULT, TWIN_STATES } from "../../src/room/scene/twin-states";
 import type { ChaseConfig } from "../../src/room/scene/chase-steer";
+import type { PetConfig } from "../../src/room/scene/pet-config";
 import type { TwinClipRole, TwinState } from "../../src/room/scene/twin-states";
 import type { TwinBlock } from "../../src/room/compose/bundle";
 import { RULE_IDS } from "./checks/family";
@@ -275,6 +276,20 @@ function chaseOf(c: ChaseConfig): ChaseConfig {
     lookahead_s: m6(c.lookahead_s),
     headings: c.headings,
     clip_thresholds: { walk_mps: m6(c.clip_thresholds.walk_mps), run_mps: m6(c.clip_thresholds.run_mps) },
+  };
+}
+/** Spec 026's pet block (plan.md §3), each figure to 1e-6 and `stroke_n` whole. */
+function petOf(p: PetConfig): PetConfig {
+  return {
+    reach_m: m6(p.reach_m),
+    cooldown_s: m6(p.cooldown_s),
+    turn_max_deg: m6(p.turn_max_deg),
+    crouch_max_m: m6(p.crouch_max_m),
+    lean_max_deg: m6(p.lean_max_deg),
+    stroke_m: m6(p.stroke_m),
+    stroke_n: p.stroke_n,
+    pet_s: m6(p.pet_s),
+    elbow_deg: m6(p.elbow_deg),
   };
 }
 const turnOf = (t: Turn | undefined): Turn => ({ x: m6(t?.x ?? 0), y: m6(t?.y ?? 0), z: m6(t?.z ?? 0) });
@@ -1142,6 +1157,8 @@ function indexBody(c: Composed, placeholders: boolean, models: readonly string[]
       members: [...x.members],
       action: x.action.talk ? { kind: "talk" as const, topic: x.action.talk.topic } : { kind: "resume" as const },
       ...(x.emblem !== undefined ? { emblem: x.emblem } : {}),
+      // Spec 026 (R-09): the figure it also picks, as the scene gives it.
+      ...(x.figure !== undefined ? { figure: x.figure } : {}),
       side_wall: sideWall[k] ?? false,
     })),
     // Ready only as the twin's readiness says, by FR-030's rule (spec 007, FR-037); nothing without it.
@@ -1486,6 +1503,8 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
           }),
       // Spec 025 (FR-005; plan.md R-09): the run's block, resolved, as the scene gives it.
       ...(scene?.figures.chase === undefined ? {} : { chase: chaseOf(scene.figures.chase) }),
+      // Spec 026 (plan.md §3): the petting's block, resolved, as the scene gives it.
+      ...(scene?.figures.pet === undefined ? {} : { pet: petOf(scene.figures.pet) }),
     },
     handoff: {
       from: { placement: scene?.handoff.from.placement ?? "", anchor: scene?.handoff.from.anchor ?? "" },

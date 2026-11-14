@@ -130,7 +130,8 @@ describe("a selectable's figure (R-09)", () => {
 });
 
 describe("the shipped scene.yaml's petting data (plan §3; R-08)", () => {
-  const part = repositoryBundle().scene;
+  const bundle = repositoryBundle();
+  const part = bundle.scene;
   const twinWorld = resolveMounts(part.placements, part.pieces).world.get(part.figures.twin);
   if (!twinWorld) throw new Error("no twin placement");
   const twinAt = origin(twinWorld);
@@ -146,8 +147,8 @@ describe("the shipped scene.yaml's petting data (plan §3; R-08)", () => {
   });
 
   it("has no dog selectable: its line is the human patch's (FR-016)", () => {
-    expect(part.selectables.map((s) => s.id)).not.toContain("dog");
-    expect(part.selectables.filter((s) => s.figure !== undefined)).toEqual([]);
+    expect(bundle.index.selectables.map((s) => s.id)).not.toContain("dog");
+    expect(bundle.index.selectables.filter((s) => s.figure !== undefined)).toEqual([]);
   });
 
   it("puts the dog's home within reach_m of the twin's, and prints the aim for his look", () => {
