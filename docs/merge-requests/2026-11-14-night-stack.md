@@ -699,6 +699,81 @@ Candidate SHA-256: `5de0e7eeaed34587d4d79e29f0cbfb7c577a224ce31616f1d75fcbe4e0ff
 
 The table's one home is `films/resume-links.json` (with `pdf_sha256`, the hash above); the code and the checks read it, and these notes quote it.
 
+What was built, each task test-first (T001 to T010; notes in `specs/023-resume-pdf-with-film-links/notes.md`):
+
+- **The table** (T001, T002): `films/resume-links.json`, the claims in the PDF's own capitals as pdf.js reads them, each film's folder and MP4 (`kill-switch-b2`'s is `media/kill-switch.mp4`; no film file renamed), and `pdf_sha256`.
+- **The locator and the writer** (T003 to T005): `apps/web/build/film-links.ts`. T003's read of the approved file: PDF 1.4, a classic xref table, page `2 0`, an inline `/Annots` of four links, no `/ID` in the trailer, each claim one letter-spaced run on one line. `locateClaims` matches whole text runs case-blind with whitespace removed (a wrapped claim gets one rectangle a line) and fails naming a claim that's absent or there twice. `addLinks` appends an incremental update (the page object under its own number with `/Annots` extended, four `/Annot /Link` objects with `/Border [0 0 0]`, `/QuadPoints`, a `/URI` action, and nothing drawn; an xref section; a trailer with `/Prev`), writes nothing time-based, and refuses any file whose SHA-256 isn't C-0002's. No command line: the candidate was written by one opt-in vitest case (`WRITE_CANDIDATE=1`).
+- **The candidate** (T006, T007): 245,437 bytes, C-0002's 243,644 as its prefix plus 1,793 appended. It passes PDF1 to PDF9 under the tree's header, is one page, and keeps the file's four links first; `tools/gates/arrival_check.py`, run read-only: 0 findings.
+- **The checks' three states** (T006; FR-013): `apps/web/test/content/film-links.test.ts`, cases 0 to 11. On this branch the state is "before": cases 0 to 9 and 11 run, 10 skips ("before: not published yet"). Rehearsed in an exported copy (never on the branch): with the candidate moved onto the served path, the state reads "published", cases 5, 7, 8, 9 skip ("published: the served file is the candidate"), and case 10 and `author-pdf.test.ts`'s "the Author's PDF in this tree" pass, with no test edited (`Test Files 2 passed (2) · Tests 36 passed | 5 skipped (41)`).
+- **The notes** (T008): human patch 023's hash, and this item's table and "For the Author" (case 9 holds both to the table).
+- **RESUME-LINKS-PLAN** (T009; Q98): four dated note lines beside step 5 and the three open decisions; his session's text unchanged (`git diff --word-diff`: no removed word).
+- **The disclosure** (T010; FR-011): one sentence in V1's Trigger, after "following the PDF link": " (a link in the downloaded PDF, such as a claim's link to its film's page in the repository on github.com, isn't this row's flow: only when the visitor clicks it does the visitor's own PDF viewer, or the browser it opens, send the request, from the visitor's device to that host; the site's origin isn't involved)". The host is plain text, so the disclosure gate doesn't count it as disclosed (rv-rework-spec-023's R1). Case 11, added, holds its three copies in spec, plan, and tasks alike and the row holding it.
+
+Departures, in plan.md's "Departures in the implementation": case 11 added; the nit's wording; the claims in capitals; no `/ID` to copy; `pdfinfo` not installed here; and case 2 reading the gate's export (no `.git`) as the commit's files. Untouched (FR-004, FR-005): `resume.yaml`, its lock, the narration, the served PDF, `assets/**`, `corpus/**`, `.claude/**`, and `build/resume-pdf.ts`'s allowlist (`git diff --name-only` over those paths from the merge commit: none).
+
+### Acceptance criteria
+
+FR-001, FR-002: cases 3, 4, 5 (the four URLs, in the table's order, after the file's own). FR-003: case 1; the hash only in the table (cases 0, 9). FR-004, FR-005: untouched (above); every link passes PDF5 as it is (case 6). FR-006: case 4 (the prefix, the guard), case 7. FR-007, FR-010, SC-005: "For the Author" below, case 9. FR-008: the candidate's path; no build step reads it (`contentFiles` lists `resume.yaml`, `narration/`, `room/`, `room/outlines/`; `resumePart` reads only the served path). FR-009, SC-002: case 5. FR-011: case 11 and the disclosure runs below. FR-012: case 2. FR-013: cases 0, 5, 7 to 10 and their skip titles; "neither" seen in T006's RED, "published" in the rehearsal above. SC-001: by file existence (case 2), and by his click after publication. SC-003: the served file is untouched (case 0 reads it as C-0002's). SC-004, US1-AC3: case 8.
+
+### Constitution check
+
+I (local-first): a static file, $0, no run-time dependency. IV: no agent wrote `assets/policy/**` or the served file; the writer runs only in an opt-in vitest case, never from anything the Author runs; the human-only gates were run read-only, never edited. VII and VIII: no new claim about him; the claims are C-0002's own text, and the links are pointers. The repository's URL is the corpus's, in his words (`corpus/08-hareet-ai.md`). Data flow: V1's Trigger has one sentence (FR-011). No control deferred or dropped.
+
+### Review
+
+The reviewer follows this branch (rv-impl-023, rule 6; T011 is theirs). The spec's reviews:
+
+- **rv-spec-023** (B1 to B3, I1, I2, N1 to N5, two nits) and **rv-rework-spec-023** (R1, I-1, N1 to N5, a nit): blocking, fixed by the two reworks (`specs/023-*/analysis.md` maps each to where it's fixed).
+- **rv-rework2-spec-023**: not blocking. Its two nits: (1) FR-011's sentence could say "the visitor's own PDF viewer, or the browser it opens, sends the request" (with Q31). **Fixed** in T010, the same words in its three copies, held alike by case 11. (2) The appended trailer's second `/ID` may change, deterministically. **Moot here**: the approved file's trailer has no `/ID` (T003), so the writer writes none. It copies an original's `/ID` unchanged when there is one (case 4, over PDFKit's), so the output stays deterministic.
+- The analysis's F2 (the spec names the kinds of skip; the plan the titles): kept, as the analysis left it.
+
+Found by this session, not blocking: the new links carry no `/StructParent`. The file is tagged, and adding the links to its structure tree would rewrite more objects than US1-AC3 allows, so a screen reader reads the claims' text as before but doesn't announce the links. And the locator matches whole text runs only: a claim inside a longer run would read "isn't on the PDF". That is enough for his file (each claim is its own run) and fails loudly otherwise.
+
+### Verification (small runs only, the order's rule 4)
+
+The test files this item adds or changes, those covering the files it changes (`resume-pdf.ts`'s, which the new code imports; the disclosure's), the disclosure gate run read-only, and the docs' links. At the branch's tip, from the root and `apps/web`:
+
+```
+$ (apps/web) npx vitest run test/content/film-links.test.ts test/content/author-pdf.test.ts test/disclosure.test.ts test/site.test.ts
+     × gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+     × names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ Test Files  1 failed | 3 passed (4)
+      Tests  2 failed | 64 passed | 2 skipped (68)
+$ pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py deploy/scripts/test_preflight.py
+FAILED evals/test_disclosure.py::test_the_rooms_rows_are_in_its_own_section_with_the_specs_words
+1 failed, 204 passed in 2.15s
+$ python3 -I -B -X pycache_prefix=/dev/null -m pytest -q -p no:cacheprovider tools/gates/test/test_disclosure_check.py
+13 passed in 0.23s
+$ python3 -I -B -X pycache_prefix=/dev/null tools/gates/disclosure_check.py
+disclosure-check: PASS, every outward thing the tree holds has its row
+$ python3 -I evals/docs_links.py
+docs links: 0 failed, 2434 relative links in 401 files
+```
+
+The three failures are **D-V2's** (Q164, carried under Q165): V1's Carries cell as item 1 changed it, against tests that pin it to spec 002's and 016's words. They aren't this item's. They fail the same with the disclosure file as it was before T010 (`test/disclosure.test.ts`: `Tests 2 failed | 9 passed (11)`; `evals/test_disclosure.py`: `1 failed, 35 passed`, the same names). In an exported copy with `docs/merge-requests/proposed/018-verify-test-amendments.patch` applied to the copy only, never to this branch, with this item's disclosure: `test/disclosure.test.ts test/site.test.ts`: `Test Files 2 passed (2) · Tests 27 passed (27)`; `evals/test_disclosure.py`: `36 passed`.
+
+`film-links.test.ts` alone, verbose: cases 0 to 9 and 11 pass; 10 skips ("before: not published yet"); the writer case skips ("WRITE_CANDIDATE=1 only"). `Tests 11 passed | 2 skipped (13)`, in the worktree and in a `git archive HEAD` export with no `.git`, as the gate runs it.
+
+`make lint`, exit 0 (shellcheck's file list left out):
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+778 files already formatted
+```
+
+No full suite here: the stack's one `make check` is another task's (rule 4; the supervisor's instruction).
+
+### Cost and data-flow impact
+
+$0, no model call, no new service, endpoint, or telemetry. Link clicks happen in the reader's PDF viewer and aren't visible to the site, by design. One sentence in V1's Trigger: a click sends a request from the visitor's device to github.com, not through the site's origin.
+
 ### For the Author
 
 **Before publishing**, both must be true (FR-010; RESUME-LINKS-PLAN step 6): the repository is public (the links 404 until then), and you have clicked each of the four links from the PDF itself, on desktop and on a phone, and each lands on its film's page and the film plays.
@@ -723,3 +798,13 @@ That puts the link checks in their "published" state (the candidate file absent,
 ```
 
 and add `.twin__proof a { color: inherit; text-decoration: none; }` to its style. Step 2: render with `resume/source/render.sh twin` and check it's still one page. Step 3: `pdfinfo -url out/twin.pdf` lists the four URLs. Step 4: export the copy you send as before. Then, on `main` after the merge, in one commit: your render at `apps/web/content/resume-author.pdf`, `pdf_sha256` in `films/resume-links.json` set to its SHA-256, `apps/web/content/candidates/resume-author-links.pdf` removed, and the entry above with that hash. Without the table's hash the checks fail, naming the three hashes (FR-013).
+
+What waits for you, item 6 (none of it is needed for this item's gate):
+
+1. **Your approval entry** (human patch 023), on `main` after the merge, with the `git mv` or route (b)'s render, after the repository is public and you have clicked each link.
+2. The page's Q25 to Q31 and Q98, each answered with its recommended answer under your order; you confirm or overturn them there.
+3. Nothing else of yours: no human-only path is changed on this branch, and no corpus change is proposed.
+
+Open for others: rv-impl-023's review (T011); T012, the stack's one `make check`, isn't this task's (the supervisor's instruction). verify-021 isn't merged here: the stack note on `refs/heads/night/verify-021/verify-021` (68f1eced) doesn't end item 4 with "verify-021: green" (its last line is item 4's "Interruptions"), so the line's tip for this branch stays verify2-020 (3767859f).
+
+Interruptions: none. No hook or bash-gate refusal in this session.

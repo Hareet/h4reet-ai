@@ -36,9 +36,9 @@
 
 ## Phase 5: Review and the full run
 
-- [ ] T011 Review by a reviewer that didn't write the code: `REVIEW.md`, the spec, this plan. Findings and their fixes in the note.
-- [ ] T012 One run of `make check` at the stack's end (rule 4); paste its summary into the stack note. A failure in a test this stack doesn't touch is reported with the evidence, not chased (`apps/web/test/room/twin-2d.test.ts` is a known flaky test under load). After the paste, since case 9 reads the stack note's hash and URLs and `evals/docs_links.py` reads `docs/**`: `vitest run test/content/film-links.test.ts` and `python3 -I evals/docs_links.py`, their output in the notes.
-- [ ] T013 The stack note's item for 023, finished from the template: what changed, FR/SC coverage, constitution check, review, verification (the small runs), cost and data flow, for the Author. Then the same two small runs as T012's paste, after the edit: `vitest run test/content/film-links.test.ts` and `python3 -I evals/docs_links.py`. Ends the branch; no merge.
+- [ ] T011 (rv-impl-023's, after impl-023) Review by a reviewer that didn't write the code: `REVIEW.md`, the spec, this plan. Findings and their fixes in the note.
+- [ ] T012 (not impl-023's: the stack's one `make check` is another task's, by the supervisor's instruction) One run of `make check` at the stack's end (rule 4); paste its summary into the stack note. A failure in a test this stack doesn't touch is reported with the evidence, not chased (`apps/web/test/room/twin-2d.test.ts` is a known flaky test under load). After the paste, since case 9 reads the stack note's hash and URLs and `evals/docs_links.py` reads `docs/**`: `vitest run test/content/film-links.test.ts` and `python3 -I evals/docs_links.py`, their output in the notes.
+- [x] T013 The stack note's item for 023, finished from the template: what changed, FR/SC coverage, constitution check, review, verification (the small runs), cost and data flow, for the Author. Then the same two small runs as T012's paste, after the edit: `vitest run test/content/film-links.test.ts` and `python3 -I evals/docs_links.py`. Ends the branch; no merge.
 
 ## Dependencies
 

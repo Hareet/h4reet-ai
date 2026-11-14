@@ -196,3 +196,13 @@ The three failures are **D-V2's** (Q164, carried under Q165): V1's **Carries** c
 
 - The same three fail with the disclosure file as it was before T010 (`git show HEAD:docs/data-flow-disclosure.md` put in place, run, and mine restored): `Tests 2 failed | 9 passed (11)` for `test/disclosure.test.ts`; `1 failed, 35 passed` for `evals/test_disclosure.py`, the same three names.
 - In a copy of the tree (`git archive HEAD` into `mktemp -d`, my disclosure copied in, `node_modules` linked) with `docs/merge-requests/proposed/018-verify-test-amendments.patch` applied **to the copy only** (never to this branch): `test/disclosure.test.ts test/site.test.ts`: `Test Files 2 passed (2) · Tests 27 passed (27)`; `evals/test_disclosure.py`: `36 passed`. So the sentence breaks nothing those tests hold.
+
+## Case 2 in the gate's export, and the "published" rehearsal
+
+The gate runs the suite in a `git archive` export with no `.git` (`tools/gates/gate`), where case 2's `git ls-files` would fail. Case 2 now takes a file's presence as tracked there (an export holds only the commit's files); in a checkout it still asks git. Its own commit; plan "Departures in the implementation". In a `git archive HEAD` export (`mktemp -d`, `node_modules` linked): `Tests 11 passed | 2 skipped (13)`. Then, in that copy only, the candidate moved onto the served path, which is his `git mv`: the state reads "published", cases 5, 7, 8, 9 skip with "published: the served file is the candidate", and case 10 and `author-pdf.test.ts`'s "the Author's PDF in this tree" pass (`Test Files 2 passed (2) · Tests 36 passed | 5 skipped (41)`), with no test edited.
+
+## T011, T012, T013
+
+T011 is rv-impl-023's (the reviewer follows this branch). T012 isn't this task's: the stack's one `make check` is another task's (the supervisor's instruction). T013: item 6 of `docs/merge-requests/2026-11-14-night-stack.md` finished, with the small runs pasted there. verify-021 isn't merged: its stack note (68f1eced) doesn't end item 4 with "verify-021: green".
+
+No question for the page: every question about spec 023 (Q25 to Q31, Q98) is answered, and this session raised none. No hook or bash-gate refusal.
