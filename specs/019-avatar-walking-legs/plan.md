@@ -47,7 +47,7 @@ No scene-data, schema, compose, asset, policy, or human-only change. No new byte
 
 ### 2.4 Lookdev (P3, optional)
 
-`apps/web/src/lookdev/` loads the same avatar controller for the Author's look pass. If its pose list can drive `driver.frame` with a synthetic walking pose in a few lines, a "walk" pose lets him judge the gait there (T010); if not, the task is dropped with a note and he judges in the room, which is where a gait is judged anyway. The look approval is his either way (SC-005).
+`apps/web/src/lookdev/` loads the same avatar controller for the Author's look pass. If its pose list can drive `driver.frame` with a synthetic walking pose in a few lines, a "walk" pose lets him judge the gait there (T009); if not, the task is dropped with a note and he judges in the room, which is where a gait is judged anyway. The look approval is his either way (SC-005).
 
 ### 2.5 Departures found in implementation (T001 to T010)
 
@@ -99,7 +99,7 @@ No principle deferred. No endpoint, model call, or data-flow row (CLAUDE.md's "n
 ## 5. Files expected to touch
 
 New: `apps/web/src/room/scene/gait.ts`; `apps/web/test/room/gait.test.ts`; `apps/web/test/room/gait-rig.test.ts`; `apps/web/test/room/avatar-gait.test.ts`; in the rework, `apps/web/test/room/gait-alloc.test.ts`.
-Changed: `apps/web/src/room/scene/avatars.ts` (the controller: §2.3, §2.6, §2.7); `apps/web/src/room/stage.ts` (the signal's type only); `apps/web/src/room/signals/frame-log.ts` (the event kind `gait`); `apps/web/src/room/app.ts` (records the `gait` signal in the frame log); `apps/web/test/helpers/glb.ts` (an opt-in `legs` option on the fixture rig at line 1174, which adds the six leg bones, so no other test's skeleton changes); `apps/web/test/room/avatar-driver.test.ts` (its "slides in idle-holding" expectations now hold for a model without leg bones only); `apps/web/README.md` (a short note); possibly `apps/web/src/lookdev/*` (T010).
+Changed: `apps/web/src/room/scene/avatars.ts` (the controller: §2.3, §2.6, §2.7); `apps/web/src/room/stage.ts` (the signal's type only); `apps/web/src/room/signals/frame-log.ts` (the event kind `gait`); `apps/web/src/room/app.ts` (records the `gait` signal in the frame log); `apps/web/test/helpers/glb.ts` (an opt-in `legs` option on the fixture rig at line 1174, which adds the six leg bones, so no other test's skeleton changes); `apps/web/test/room/avatar-driver.test.ts` (its "slides in idle-holding" expectations now hold for a model without leg bones only); `apps/web/README.md` (a short note; reworded by T015 and T016); not `apps/web/src/lookdev/*` (T009 dropped, §2.5).
 Not touched, by the rework either: `scene/walking.ts`, `scene/figure.ts`, `walk/*`, `room/scene.yaml`, compose and build code, `assets/**`, `.claude/**`, CLAUDE.md, REVIEW.md, the constitution, `corpus/**`, `tools/gates/**`, `evals/agent-config/**`, `assets/policy/**`.
 
 Overlap with the night's other items: `avatars.ts` and `stage.ts` are shared ground with the dog, dinosaur, and twin-running specs (d, e, h, i); this stack's edits to them are additive and small, and the implementer merges this branch first (the supervisor's one line).
