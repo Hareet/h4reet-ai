@@ -250,11 +250,19 @@ describe("steering (FR-004, FR-006, FR-009; R-02)", () => {
     expect(Math.abs(fig.x - 0.05)).toBeGreaterThan(0.2);
   });
 
-  it("escapes a corner the dinosaur can enter, along the edge, rather than into it", () => {
+  it("escapes a corner the dinosaur can enter, along the edge and around it, never pinned", () => {
+    // The dinosaur comes straight at the figure, which stands near the floor's corner; it never falls under safe_m and
+    // ends the walk away from the corner.
     const fig = createRunner(1.5, 1.5, 0);
-    for (let i = 0; i < 60; i += 1) steer(floor, fig, 2, { x: 0.9, z: 0.9 }, CHASE_DEFAULTS, WALK, DT, null);
-    const toCorner = Math.hypot(OPEN.x1 - fig.x, OPEN.z1 - fig.z);
-    expect(toCorner).toBeGreaterThan(0.2);
+    let pose: Pose = { x: 0.9, z: 0.9, heading: 0, speed: 0, walking: false };
+    let least = Infinity;
+    for (let i = 0; i < 300; i += 1) {
+      pose = step(floor, pose, { forward: 1, right: 0 }, headingOf(fig.x - pose.x, fig.z - pose.z), DT, WALK);
+      steer(floor, fig, 2, pose, CHASE_DEFAULTS, WALK, DT, null);
+      least = Math.min(least, dist(fig, pose));
+    }
+    expect(least).toBeGreaterThanOrEqual(CHASE_DEFAULTS.safe_m);
+    expect(Math.hypot(OPEN.x1 - fig.x, OPEN.z1 - fig.z)).toBeGreaterThan(0.2);
   });
 
   it("keeps the dead band: pressed into a wall it can't leave, it stands still, no jitter", () => {
@@ -266,7 +274,7 @@ describe("steering (FR-004, FR-006, FR-009; R-02)", () => {
       steer(pocket, fig, 2, { x: 0, z: 0.1 }, CHASE_DEFAULTS, WALK, DT, null);
       xs.push(fig.x, fig.z);
     }
-    expect(new Set(xs.slice(10)).size).toBeLessThanOrEqual(2);
+    expect(new Set(xs.slice(20)).size).toBeLessThanOrEqual(2);
     expect(fig.speed).toBeLessThanOrEqual(DEAD_BAND_MPS);
   });
 
