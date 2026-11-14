@@ -49,7 +49,7 @@ No violation; one reading is named in the spec's Assumptions (spec 003's FR-017,
 
 ## 3. Research decisions
 
-- **R-01, where the gate goes.** `apps/web/build/room/avatars.ts`'s `readAvatars` already refuses per file (RA1, RA2, RA4) and leaves a refused file out of the bundled set; `lineFor` (twin's RA6, §`readTwin`) looks up main's likeness approval by the model's SHA-256 and a non-empty line. RA9 reuses `lineFor` for a visitor model whose record says `likeness: true` or `source.type: "photo"`, except the twin's stand-in, which RA3 already holds to "never a likeness". A clip is bundled only where its model is. Decided: reuse, one new rule id, the twin's rules untouched. Rejected: gating by folder name (`dog`), which would miss the next likeness.
+- **R-01, where the gate goes.** `apps/web/build/room/avatars.ts`'s `readAvatars` already refuses per file (RA1, RA2, RA4) and leaves a refused file out of the bundled set; `lineFor` (twin's RA6, §`readTwin`) looks up main's likeness approval by the model's SHA-256 and a non-empty line. RA9 reuses `lineFor`, its parameter loosened from the twin's file type to anything with a `sha256`, for a visitor model whose record says `likeness: true` or `source.type: "photo"`, except the twin's stand-in, which RA3 already holds to "never a likeness". A clip is bundled only where its model is. Decided: reuse, one new rule id, the twin's rules untouched. Rejected: gating by folder name (`dog`), which would miss the next likeness.
 - **R-02, where the line travels.** The line is data: `AvatarSet`'s dog entry gets `line: string | null`, emitted in the bundle's `avatars.<id>` entry beside its files (`compose/bundle.ts`), never in code or in a UI word. The room's note and "Around the room" read it through `text-copy.ts`, beside the twin's slot: a second slot, `{ visitor_line: true }`, which the room fills when the visitor's own picture shows (the avatar controller's signal for the visitor's figure, as `own` is the twin's, `scene/avatars.ts`) and leaves empty (hidden) otherwise. Rejected: a UI-word string, because the approval's words are his and change with his answer.
 - **R-03, a quadruped's driver.** `scene/avatars.ts` scales by the rest pose's precise bounds to the table's height, lifts the lowest point, faces +z, plays `walk` while walking. A model whose rest pose has a raised head or tail would make the height wrong, so FR-012 asks the studio for a level-headed standing rest pose, and a test pins the scaling on a fixture with a tail above the back. No hand bone: R-08's "with neither bone, none" path, pinned by a test (`dog-avatar.test.ts`). No code change expected here; if a test finds one, it lands in `scene/avatars.ts` with the test first.
 - **R-04, copy order pin.** Adding the slot moves the text copy's order, which the compose tests pin; a test pinning today's order changes in the same commit as the code (spec 016's plan R-18); no other existing test is edited.
@@ -61,7 +61,7 @@ No violation; one reading is named in the spec's Assumptions (spec 003's FR-017,
 
 - `records.json` (`assets/visitors/dog/`), per spec 003's asset-record contract: `dog.glb` kind `avatar`, `likeness: true`, `source.type: "photo"` with the photo-batch id and no photo, each step by `model` or `hand` with its tool and license from the list; `dog-idle.glb`, `dog-walk.glb` kind `animation`, `likeness: true`.
 - Approval entry (his, `assets/policy/approvals.json`): `{id, sha256, path_when_approved: "assets/visitors/dog/dog.glb", kind: "avatar", date, confirms: {likeness_accepted: true, nothing_locates: true, no_screen_logo_text_or_art: true, recreation_not_photo: true, record_complete: true}, disclosure_line, reason}`; one entry per file, as the twin's seven.
-- Bundle: `avatars.dog = {model, clips, line}` where `line` is new and optional (absent for every other avatar). Types in `src/room/compose/bundle.ts`.
+- Bundle: `avatars.dog = {model, clips, line}` where `line` is new and optional (absent for every other avatar). Types in `src/room/compose/bundle.ts`; in the build, `Avatar` (`build/room/avatars.ts`) gains `line: string | null`.
 
 ## 5. The studio round and the intake (not code)
 
@@ -85,7 +85,7 @@ New:
 
 Modified:
 - `apps/web/build/room/avatars.ts` (RA9; the line on the avatar's entry)
-- `apps/web/build/room/checks/ra.ts` (RA9's header and registration, if the family lists rules there)
+- `apps/web/build/room/checks/family.ts` (RA9 registered beside RA6, lenient as RA1 is) and `checks/ra.ts` (the header comment only)
 - `apps/web/build/room/emit.ts` (the entry's `line`; the copy's slot)
 - `apps/web/build/room/report.ts` (the dog's lines)
 - `apps/web/src/room/compose/bundle.ts` (types)
@@ -107,7 +107,7 @@ Each task runs only its own files and the ones covering what it changes, and `ma
 
 | Covers | Files |
 |---|---|
-| RA9, the line, the bundle | `test/room/likeness-visitor.test.ts`, `test/room/avatars-compose.test.ts`, `test/room/twin-compose.test.ts` |
+| RA9, the line, the bundle | `test/room/likeness-visitor.test.ts`, `test/room/avatars-compose.test.ts`, `test/room/twin-compose.test.ts`, `test/room/compose.test.ts` (it lists the rule table) |
 | The dog in the scene: scale, walk, no hand, fallback | `test/room/dog-avatar.test.ts`, `test/room/avatar-scene.test.ts`, `test/room/avatar-loader.test.ts`, `test/room/avatar-handoff.test.ts` |
 | The line in the room's copy | `test/room/dog-line.test.ts`, `test/room/compose.test.ts`, `test/room/mount.test.ts` |
 | Lookdev's Avatars view | `test/lookdev/avatars-view.test.ts`, `test/lookdev/page.test.ts` |

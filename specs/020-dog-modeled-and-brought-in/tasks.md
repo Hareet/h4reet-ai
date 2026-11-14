@@ -26,7 +26,7 @@ description: "Task list for spec 020, the dog modeled and brought in"
 
 ### Implementation (GREEN)
 
-- [ ] T002 [US2] In `apps/web/build/room/avatars.ts` (and `checks/ra.ts` if the family registers rules there): add RA9 to `readAvatars` as plan R-01 has it, reusing `lineFor`; put `line` on the avatar's entry; leave RA3 and the twin's RA6 as they are. Run `likeness-visitor.test.ts`, `avatars-compose.test.ts`, `twin-compose.test.ts`, `avatars.test.ts`, and `make lint`.
+- [ ] T002 [US2] In `apps/web/build/room/avatars.ts` and `build/room/checks/family.ts` (RA9 beside RA6; `lineFor`'s parameter loosened to anything with a `sha256`; `Avatar` gains `line`), with `checks/ra.ts`'s header comment: add RA9 to `readAvatars` as plan R-01 has it, reusing `lineFor`; put `line` on the avatar's entry; leave RA3 and the twin's RA6 as they are. Run `likeness-visitor.test.ts`, `avatars-compose.test.ts`, `twin-compose.test.ts`, `compose.test.ts` (rule table; change only a pin RA9 moves), `avatars.test.ts`, and `make lint`.
 - [ ] T003 [US1] In `apps/web/src/room/compose/bundle.ts` and `build/room/emit.ts`: the bundle's `avatars.<id>.line` (optional); `build/room/report.ts`: the dog's lines (files, bytes, texture memory, whether an approval holds, RA9's reason). Tests: extend `likeness-visitor.test.ts` with the bundle's shape and `report.test.ts`'s cases for the lines (new cases in a new file `test/room/dog-report.test.ts` if `report.test.ts` pins a whole report). Run those, `avatars-compose.test.ts`, `report.test.ts`, `make lint`.
 
 **Checkpoint**: the compose holds the gate; no runtime change yet.
@@ -37,7 +37,7 @@ description: "Task list for spec 020, the dog modeled and brought in"
 
 ### Tests first (RED)
 
-- [ ] T004 [P] [US1] Write `apps/web/test/room/dog-avatar.test.ts` on spec 009's fake stage and generated GLBs (test/helpers/glb.ts): a quadruped fixture (four legs, a tail above the back, no hand bone) scaled to 0.62 m by the standing bounds with the tail counted as the model's top only as the fixture says, lowest point on the floor, facing +z (FR-001); `walk` plays while walking, the idle with the slide where no walk clip (FR-005); no hand bone: the paper stays at the anchor, no throw, the idle plays through the hand-off (FR-008); a model failing in each way of spec 009's FR-002 leaves the cut-out and one `avatar_failed` (FR-006, SC-003); reduced motion plays no walk. Run: fails where behaviour is missing; where it already passes, it is a pin and says so in its header.
+- [ ] T004 [P] [US1] Write `apps/web/test/room/dog-avatar.test.ts` on spec 009's fake stage and generated GLBs (test/helpers/glb.ts): a quadruped fixture (four legs, a tail above the back, no hand bone) scaled to 0.62 m by its rest pose's precise bounds (the fixture's tail stays under its head's top, as FR-012 asks of the studio's model), lowest point on the floor, facing +z (FR-001); `walk` plays while walking, the idle with the slide where no walk clip (FR-005); no hand bone: the paper stays at the anchor, no throw, the idle plays through the hand-off (FR-008); a model failing in each way of spec 009's FR-002 leaves the cut-out and one `avatar_failed` (FR-006, SC-003); reduced motion plays no walk. Run: fails where behaviour is missing; where it already passes, it is a pin and says so in its header.
 
 ### Implementation (GREEN)
 
