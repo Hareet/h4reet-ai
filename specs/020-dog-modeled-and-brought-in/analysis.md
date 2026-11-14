@@ -17,7 +17,7 @@ Cross-artifact check of `spec.md`, `plan.md`, `tasks.md`, the intent, and `docs/
 | FR-009 choice screen unchanged, fetch only if chosen | T004, T016 (d) | existing `avatars.test.ts`, `avatar-loader.test.ts`; `dog-run.test.ts` |
 | FR-010 to FR-013 the studio round | T011 (the brief, from step 2, no photo path); the round is a later studio task | the arrival check and RA family at intake; his look |
 | FR-011 no session reads a photo | T011 (its check); human patch 020, items 1 and 2 | `git grep` in T011; his move of the photos |
-| FR-014 records and the credit | T018, T019 (the credit); the records are his intake (patch item 3) | `test_credits_likeness.py`, `test_credits.py`; the arrival check at intake |
+| FR-014 records and the credit | T018, T019 (the credit); the records are his intake (patch item 4, after his approval, item 3, is on main) | `test_credits_likeness.py`, `test_credits.py`; the arrival check at intake |
 | FR-015 no new event; report lines | T003 | `report.test.ts` / `dog-report.test.ts` |
 | FR-016 no new byte off-device | T012 | `disclosure.test.ts`, if a row is touched |
 | FR-017 the `run` role | T016, T017; T009, T010 (its frame in lookdev) | `dog-run.test.ts`, `avatars.test.ts`, `avatar-driver.test.ts`, `avatar-gait.test.ts` |

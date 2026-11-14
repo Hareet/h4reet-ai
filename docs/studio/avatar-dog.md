@@ -33,10 +33,12 @@ To the studio's hand-off folder, `/srv/studio/handoff/dog/<round>/`, for his int
 
 No other clip role: no `idle-holding` and no `take` (spec Q4, FR-008).
 
-**The records** (plan §4; Q78), each file's SHA-256 and kind, each step with its model or `hand` and its tool and licence from the list, and no `approval`:
+**The records** (plan §4; Q78), each file's SHA-256 and kind, each step with its model or `hand` and its tool and licence from the list:
 
-- `dog.glb`: `likeness: true`, `source.type: "photo"` with an opaque batch ID, never a photo's name.
-- `dog-idle.glb`, `dog-walk.glb`, `dog-run.glb`: `likeness: false`, made in Blender on the model's rig from no photo. Their `source.type` is `"asset"`, its `id` the opaque ID naming the model's entry.
+- `dog.glb`: `likeness: true`, `source.type: "photo"` with an opaque batch ID, never a photo's name, and `"approval": "<the Author's approval ID>"`, as the work orders write it. The studio leaves the placeholder; the ID is his, from his approval entry (step 3 below), and the intake commit carries it.
+- `dog-idle.glb`, `dog-walk.glb`, `dog-run.glb`: `likeness: false`, made in Blender on the model's rig from no photo, and no `approval`. Their `source.type` is `"asset"`, its `id` the opaque ID naming the model's entry.
+
+Why the model's record needs the key, as main's arrival check has it (`tools/gates/arrival_check.py`, read at `refs/heads/main`): `entry()` adds `approval` to the required keys when `item.get("likeness") is True` or `item["source"].get("type") == "photo"`, and a record without it fails R4 ("{where} lacks approval"); rule P1 then needs, on the main branch, an approval naming the file's SHA-256 ("it needs the Author's approval on the main branch, and no approval names this file's hash"), and the record's ID must be that approval's ("its record's approval ID isn't the one the main branch's approval of this hash carries"). REVIEW.md: "A branch never carries its own approval." The twin's records on main carry theirs the same way, for example `"approval": "A-20261110-twin-desk-lean"` (`assets/twin/records.json`). The clips, `likeness: false` from an `asset` source under `assets/visitors/`, are none of the files rule P holds, so they need no key.
 
 Rendered into `assets/CREDITS.md`, the model reads "- A likeness of the Author's dog: yes", and each clip "- A likeness of the Author's dog: no" (`scripts/assets/credits.py`, T019).
 
@@ -69,9 +71,9 @@ Not used: every entry that reads `UNREVIEWED` (`comfyui-manager`, `comfyui-flowt
 
 ## The hand-off and after
 
-1. The studio writes the outputs to `/srv/studio/handoff/dog/<round>/`. A judge runs `line.py candidate`. Until his approval names the model's SHA-256, the arrival check's P1 line ("needs the Author's approval") is expected for the likeness, and it is the approval's turn, not a defect (decision page Q72).
-2. **His intake** (patch 020, item 3): a commit of `assets/visitors/dog/**`, his consent quoted in the intake note. The arrival check runs on it.
-3. **His look.** He opens the model in a glTF viewer or Blender. The room's bundle leaves the dog out until step 4 (RA9). Lookdev's Avatars view was dropped this night (the stack's note, T009 and T010).
-4. **His approval** (patch 020, item 4): an entry in `assets/policy/approvals.json` for the model, all five confirms true, and a `disclosure_line` in his words. The clips, `likeness: false` and from no photo, need none by the arrival check's rule P; he may add one per clip. RA9 then bundles the dog, and the room shows the line once while any figure shows the model: the visitor's, or spec 025's room dog figure.
+1. The studio writes the outputs to `/srv/studio/handoff/dog/<round>/`. A judge runs `line.py candidate`. Until his approval names the model's SHA-256 on main, the arrival check's P1 line ("needs the Author's approval") is expected for the likeness, and it is the approval's turn, not a defect (decision page Q72).
+2. **His look**, from the hand-off folder. He opens `dog.glb` in a glTF viewer or Blender. Lookdev's Avatars view was dropped this night (the stack's note, T009 and T010; Q87), and the room's bundle leaves the dog out until step 4 (RA9).
+3. **His approval, merged to main** (patch 020, item 3): an entry in `assets/policy/approvals.json` for the model's SHA-256, all five confirms true, and a `disclosure_line` in his words. Its `id` is the one the model's record carries. The clips need none by the arrival check's rule P; he may add one per clip. This lands on `main` before the intake: a branch never carries its own approval.
+4. **His intake** (patch 020, item 4): a commit of `assets/visitors/dog/**`, the model's record carrying `"approval"` with step 3's ID, his consent quoted in the intake note. The arrival check runs on it and finds step 3's approval on main. RA9 then bundles the dog, and the room shows the line once while any figure shows the model: the visitor's, or spec 025's room dog figure.
 
-Until step 4, every visitor who chooses the dog sees the flat cut-out. That's the stand-in, and the build passes with it.
+Until step 4, every visitor who chooses the dog sees the flat cut-out. That's the stand-in, and the build passes with it. If the model changes after step 3, its SHA-256 changes, and step 3 is his again for the new file.

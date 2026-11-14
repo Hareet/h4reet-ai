@@ -132,7 +132,7 @@ Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at th
 
 His item d): "dog modeled and brought in", and his consent: "it's okay that we use the likeness of my dog". The code path for the dog's model is built and gated. **The model itself isn't here.** The studio's round 1 stopped before its mesh step with no candidate (`/srv/studio/handoff/dog/1/note.md`: "stopped before step 3. No candidate."), because his reviewed concept image isn't in the inbox. So nothing was brought in.
 
-**The stand-in until his look approval:** the flat cut-out (`AVATAR_SHAPES.dog`), which every visitor who picks the dog sees today, with no likeness line and an unchanged layout. RA9 keeps it so in every build, drafts and lenient included, until main's approvals name the model's SHA-256 with a disclosure line. Swapping in the model takes his intake of `assets/visitors/dog/**` and his approval entry (patch 020, items 3 and 4), and no code change.
+**The stand-in until his look approval:** the flat cut-out (`AVATAR_SHAPES.dog`), which every visitor who picks the dog sees today, with no likeness line and an unchanged layout. RA9 keeps it so in every build, drafts and lenient included, until main's approvals name the model's SHA-256 with a disclosure line. Swapping in the model takes his look, his approval entry merged to main, then his intake of `assets/visitors/dog/**` (patch 020, items 3 and 4, in that order since fix-020), and no code change.
 
 By impl-020 (T001 to T008, T011, T012):
 
@@ -154,7 +154,7 @@ Departures, in plan §11 in the same commits: the holder skips the twin's figure
 
 ### Acceptance criteria
 
-FR-001, FR-004 to FR-006, FR-008: `dog-avatar.test.ts` (pins). FR-002, FR-003, SC-001: `likeness-visitor.test.ts`. FR-007: `dog-line.test.ts` and `likeness-line-anywhere.test.ts`. FR-012 and FR-017 (`run`): `dog-run.test.ts`. FR-014's credit: `scripts/assets/test_credits_likeness.py`. SC-002: RA4 and RK5 at his intake (plan R-10). SC-003: `dog-avatar.test.ts` and `avatar-loader.test.ts`. FR-009 is unchanged. FR-010, FR-011, FR-013 are the studio round's and his intake's (`docs/studio/avatar-dog.md`).
+FR-001, FR-004 to FR-006, FR-008: `dog-avatar.test.ts` (pins). FR-002, FR-003, SC-001: `likeness-visitor.test.ts`. FR-007: `dog-line.test.ts` and `likeness-line-anywhere.test.ts`. FR-012 and FR-017 (`run`): `dog-run.test.ts`. FR-014's credit: `scripts/assets/test_credits_likeness.py`. FR-015, the report's lines (the dog's files, bytes, texture memory, and whether the approval holds): `dog-report.test.ts`; no usage event kind is added. FR-016, no byte off the visitor's device beyond the site's origin: it holds (the dog's files are served from the origin as the other avatars' are; one sentence in D1, T012), and no test of this item's covers it. FR-009: the choice screen is untouched (spec 009's FR-010 and its tests), and the new half, "THE ROOM SHALL fetch the dog's files only when the visitor chose it", is `dog-run.test.ts`'s "the loader's run" case ((d): `dog-run.glb` with the dog's other clips, and no dog file for the man or the woman). SC-002: RA4 and RK5 at his intake (plan R-10). SC-003: `dog-avatar.test.ts` and `avatar-loader.test.ts`. FR-010, FR-011, FR-013 are the studio round's and his intake's (`docs/studio/avatar-dog.md`).
 
 ### Verification (small tests, the order's rule 4)
 
@@ -194,6 +194,30 @@ Per task, before each GREEN commit: T015 (likeness-line-anywhere, dog-line, text
 
 `make lint`: exit 0 after T015, after T017 (the first try failed on tsc, `avatars.test.ts`'s helper, fixed in the same commit), after T019, and after the T011 rework (eslint with zero warnings, tsc for the three workspaces, prettier, ruff, shellcheck). No full suite here: the stack's last task runs it once (T013's `make check`).
 
+fix-020's run (documents only: `docs/studio/avatar-dog.md`, `docs/merge-requests/human-patches/020.md`, this note, and `specs/020-*/plan.md`, `spec.md`, `analysis.md`; no file under `apps/`, `scripts/`, `tools/`, or `assets/`). The tests covering those documents, from the repository's root:
+
+```
+pytest -q -p no:cacheprovider --import-mode=importlib evals/test_docs_links.py evals/test_repository_docs.py
+.............................................................            [100%]
+61 passed in 0.94s
+```
+
+`make lint`, in full (after `make setup`, which this worktree lacked: "node_modules is missing: run make setup"; its git-hooks step said the hooks folder "isn't writable here (the agent sandbox)"), exit 0:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+771 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+```
+
 ### Review
 
 **rv-spec-020** (Opus, on the spec): blocking (B1 to B3, I1, I2), reworked by rework-spec-020 and built here. Its report isn't on any branch this session can read. Its non-blocking findings, as the reworked analysis and the decision page record them:
@@ -206,7 +230,19 @@ Per task, before each GREEN commit: T015 (likeness-line-anywhere, dog-line, text
 - A16: the decision page's Q51 (the studio reads the photos) is reopened by Q68, not acted on.
 - REVIEW.md's C5 conflict (spec Assumptions; Q6/Q70): the model is recorded `likeness: true` though it doesn't show the Author. A reviewer reading C5 literally will flag it. Whether C5's words should change is his (patch 020, item 7).
 
-**rv-rework-020**: queued, to review this rework (it wrote none of it).
+**rv-rework-020** (Opus, on impl-020 and rework-020, tip 31784235): not blocking. Its question, Q103, was answered by his order ("any new one: the recommended answer stands"): a docs-only fix on this branch, no code change, before the stack's one full suite. Its report isn't on a branch this session can read; its findings, as the supervisor listed them to fix-020:
+
+Fixed by fix-020 (one commit, documents only; plan §11, "Departures in the fix"):
+
+- **I1, the intake would be refused.** The brief and patch 020 had the intake commit before his approval and the model's record with no `approval`. Main's `tools/gates/arrival_check.py`, read at `refs/heads/main`: `entry()` appends `"approval"` to the required keys when `item.get("likeness") is True` or the source's `type` is `"photo"`, and a record lacking it fails R4 (`f"{where} lacks {', '.join(missing)}"`); rule P1 then reports "it needs the Author's approval on the main branch, and no approval names this file's hash" until main's `assets/policy/approvals.json` names the file's SHA-256, and "its record's approval ID isn't the one the main branch's approval of this hash carries" if the IDs differ. REVIEW.md: "A branch never carries its own approval." Main's twin records carry theirs the same way (`assets/twin/records.json`: `"approval": "A-20261110-twin-desk-lean"`, one ID per file; the review's summary had `"A-20261110-twin"`). Now: the model's record carries `"approval": "<the Author's approval ID>"`, as the work orders write it; the clips (`likeness: false`, `source.type: "asset"`) carry none; after hand-off, his look, then his approval merged to main, then the intake. Patch 020's items 3 and 4 are swapped (3 the approval, 4 the intake, whose record text carries the key); `docs/studio/avatar-dog.md` ("The records", "The hand-off and after"), this note's "For the Author", plan §1, §4, §5 step 5, and analysis.md's row for FR-014 say the same.
+- **N3, the acceptance criteria.** FR-015 (`dog-report.test.ts`), FR-016 (holds; no test), and FR-009's "fetch the dog's files only when the visitor chose it" (`dog-run.test.ts` (d)) added, where this note said "FR-009 is unchanged".
+- **N4, the plan's departures.** Plan §11 records that the merge-request note is this note's item 3, not §6's and T013's `<date>-spec-020-dog.md` (his words: "as few patches and gates"). Q77, Q78, and Q87 are named beside Q70 and R-05 where the spec (Q6) and the plan (§4, R-05, R-08, §11) settle the records, the credit, and the dropped lookdev view.
+
+Recorded, not fixed (code or tests, for another task):
+
+- **N1, the report's `Likeness` line.** `apps/web/build/room/report.ts` says "main's approval holds for its model, with the line …" whenever `a.line !== null`, though `readAvatars` sets `line` even where RA4, RA2, or RA1 leaves the model out. So a capped-out or refused model with an approval would read as held. Suggested fix: set `line` only where the model is bundled, or say "but RAn leaves it out". It's code; this task changes none.
+- **N2, two test comments cite FR-003 for the line instead of FR-007:** `apps/web/test/room/bundle.test.ts` (the copy-order pin's comment) and `apps/web/test/room/dog-line.test.ts` (its header; A13 above). Test files aren't edited in a fix task.
+- **N5, lint given as "exit 0", not pasted.** rework-020's lint runs above are as they were recorded; fix-020's is pasted in full under Verification.
 
 ### Cost and data-flow impact
 
@@ -218,8 +254,8 @@ What waits for you (patch 020, `docs/merge-requests/human-patches/020.md`; none 
 
 1. **The photos' move** (item 1; Q67): from the folder your order names into the photos folder, by `docs/studio/photo-guide.md`; delete the copy under `briefs/`; say on the page whether any session has read them. Today that folder is outside the photo deny and mounted into four night-shift session kinds. rework-020 opened nothing in it. Round 1's machine brief, `1.json`, sits beside them and names their path (question below).
 2. **The concept image** (item 2; Q68): you queue it from the photos inside the photos folder (the local FLUX.2 klein 4B), review it, and put only the reviewed image in the studio's inbox. The next studio round is queued only after that, from `docs/studio/avatar-dog.md`.
-3. **The intake** (item 3) of the round's outputs into `assets/visitors/dog/**`, with your consent quoted in the intake note.
-4. **Your look approval** (item 4): in a glTF viewer or Blender, since lookdev's view was dropped (Q87). Then the model's entry in `assets/policy/approvals.json` with its `disclosure_line` in your words (the session's draft: "The dog is an AI-made, stylized likeness of the Author's dog, shown by his choice."). Until then the cut-out shows.
+3. **Your look approval, then your approval entry on main** (item 3): you look at the hand-off folder's `dog.glb` in a glTF viewer or Blender, since lookdev's view was dropped (Q87). Then the model's entry in `assets/policy/approvals.json`, naming its SHA-256, with its `disclosure_line` in your words (the session's draft: "The dog is an AI-made, stylized likeness of the Author's dog, shown by his choice."), merged to `main` before step 4: the arrival check's rule P1 reads the approval from main, and "A branch never carries its own approval" (REVIEW.md).
+4. **The intake** (item 4) of the round's outputs into `assets/visitors/dog/**`, the model's record carrying `"approval"` with step 3's ID (main's arrival check refuses a `likeness: true` or photo-sourced record without the key: R4, "lacks approval"), and your consent quoted in the intake note. Until then the cut-out shows.
 5. Only if needed: a studio tool (item 5), C5's words (item 7).
 
-Also: the questions on the morning page with their recommended answers (the spec's Q1 to Q6, D1 to D5; Q77, Q78 taken; Q87; and rework-020's, in `/night/io/out/questions.md`). Open for others: rv-rework-020's review; T013, the stack's one `make check`.
+Also: the questions on the morning page with their recommended answers (the spec's Q1 to Q6, D1 to D5; Q77, Q78 taken; Q87; and rework-020's, in `/night/io/out/questions.md`). Open for others: N1 (the report's `Likeness` line) and N2 (two test comments), for a later task; verify-020's merge into the line; T013, the stack's one `make check`.
