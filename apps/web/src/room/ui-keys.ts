@@ -90,6 +90,22 @@ export const UI_KEYS = {
   "hints.play": [],
   "hints.previous": [],
   "hints.next": [],
+  // Spec 018's split HUD: the list's label and the panel's close, the key caps' names, and the three stats' labels and tier words.
+  "hud.select": [],
+  "hud.back": [],
+  "hud.close": [],
+  "key.esc": [],
+  "key.enter": [],
+  "stat.serving": [],
+  "stat.call": [],
+  "stat.visit": [],
+  "stat.unknown": [],
+  "stat.tier.local": [],
+  "stat.tier.cloud": [],
+  "stat.tier.resting": [],
+  "stat.tier.budget": [],
+  "stat.tier.unavailable": [],
+  "stat.tier.unknown": [],
 } as const satisfies Record<string, readonly Slot[]>;
 
 export type UiKey = keyof typeof UI_KEYS;

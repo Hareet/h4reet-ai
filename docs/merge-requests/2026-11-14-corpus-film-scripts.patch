@@ -1,0 +1,2724 @@
+diff -ruN '--exclude=__pycache__' a/apps/web/content/resume.lock.json b/apps/web/content/resume.lock.json
+--- a/apps/web/content/resume.lock.json
++++ b/apps/web/content/resume.lock.json
+@@ -5,10 +5,10 @@
+     "corpus/02-production-infrastructure-national-scale.md": "ebb78b0bc11619e787915c470720726f92cb4a5c579bb8df996f5fe3b264fa5d",
+     "corpus/03-grants-and-credits.md": "e81dd17f9bf27d580a2db9eafe2728172c2174546e66f08ce0464da13947a359",
+     "corpus/07-denver-local-ai.md": "372b165c9c5547f226993f43e8540350bc52edb2a8f81cef202a52a6af59e64f",
+-    "corpus/08-hareet-ai.md": "849c8895c0989145c693797536aa54972e11de98b2529864c7ac84dbb9ab2263",
++    "corpus/08-hareet-ai.md": "0c38b8b4f6a11357b2f417fff870e2c4036184c591b669ebc13ade88db375839",
+     "corpus/facts/awards.yaml": "543db6d2497e249fef7106c90d2dead341031585204547be4c19f51e84521296",
+     "corpus/facts/career.yaml": "b57e3319b4d5576c092320e56cd090a44794b606e577f78e19f83c780d5774d4",
+-    "corpus/facts/hareet-ai.yaml": "e04c7d230b983974eaa85a2b9bce7c24beaee57aac65be7a1f2351910cc9a83d",
++    "corpus/facts/hareet-ai.yaml": "18d8f1bab490d04a4323034667281909cfae02c5723a4d18a6a19a2f47169967",
+     "corpus/facts/medic-context.yaml": "c9778cefbc298c19b55f6860cd0494a41c17be3cea576fa0d5aff6e2920dd194",
+     "corpus/facts/national-projects.yaml": "7d9d0ae9feb081eb2f7071ea98d2d24f14fbaf8aca94aaa9c7b665c6d3e47110",
+     "corpus/facts/voice-for-cht.yaml": "55d5d9c24281e9f8f486f260166d5a848009416aad4674305c1989596b87d534"
+diff -ruN '--exclude=__pycache__' a/config/twin/corpus.json b/config/twin/corpus.json
+--- a/config/twin/corpus.json
++++ b/config/twin/corpus.json
+@@ -20,7 +20,7 @@
+       ]
+     },
+     "privacy": {
+-      "answer": "We disclose every data flow, your conversation is not saved and you can look at the GitHub repo for how all the code works. Langfuse keeps only costs and usage, and we use Masking. We come from a background of open source, public software.",
++      "answer": "We disclose every data flow, your conversation is not saved and you can look at the GitHub repo for how all the code works. Langfuse keeps only costs and usage, and we use Masking. We come from a background of open source, public software. \"this site saves none of it, and Anthropic may keep a turn it answered for up to 30 days, never for training\"",
+       "file": "corpus/08-hareet-ai.md",
+       "spans": [
+         "your conversation is not saved",
+@@ -195,6 +195,26 @@
+       {
+         "file": "corpus/08-hareet-ai.md",
+         "text": "Any spend, traffic, or cost figure for the site that isn't in a filled slot."
++      },
++      {
++        "file": "corpus/08-hareet-ai.md",
++        "text": "That this site keeps the conversations the paid fallback answers."
++      },
++      {
++        "file": "corpus/08-hareet-ai.md",
++        "text": "That the evals are graded by a model."
++      },
++      {
++        "file": "corpus/08-hareet-ai.md",
++        "text": "That the twin is a demo."
++      },
++      {
++        "file": "corpus/08-hareet-ai.md",
++        "text": "That the meter's figures are the cloud provider's bill."
++      },
++      {
++        "file": "corpus/08-hareet-ai.md",
++        "text": "That Hareet wrote the code alone."
+       }
+     ],
+     "ownership_verbs": [
+@@ -1874,11 +1894,101 @@
+       "text": "- `[A 2026-11-06]` What he adds when a visitor asks how it's built, in his words: \"And share the GitHub repo: https://github.com/hareet/h4reet-ai. We want to add that it had the perspective of production-grade Applied AI and SRE perspectives, with observability, cost, and security at top of mind throughout the development and production lifecycle.\"\n- `[A 2026-11-06]` Which laptop the room shows, in his words: \"the laptop in the room is my own, as in when it's plugged in, it will be running on my own laptop from my actual work desk which is seen in the room\".\n- `[A 2026-11-06]` What happens to what visitors say, in his words: \"We disclose every data flow, their conversation is not saved and they can look at the GitHub repo for how all the code works. We come from a background of open source, public software.\"\n- `[A 2026-11-06]` Asked whether his Langfuse setup keeps the conversation text, or only cost and usage, in his words: \"Only costs and usage, and say we use Masking.\""
+     },
+     {
++      "chars": 1550,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": null,
++      "heading": "The kill switch",
++      "id": "08-hareet-ai#3",
++      "kind": "section",
++      "text": "- `[P]` Every question falls through the same layers, and the gateway reads the kill switch first; if it can't read it, it assumes the worst. — https://github.com/hareet/h4reet-ai/blob/main/services/gateway/src/core/gateway.ts\n- `[P]` Local answers cost nothing. Paid ones are metered in the gateway's own database. — https://github.com/hareet/h4reet-ai/blob/main/docs/adr/0020-gateway-state-store-and-meter.md\n- `[P]` Every answer the twin gives can cost money, so the site has a daily ceiling of $5. Before spend reaches it, a warning goes out on Telegram and email; when spend reaches it, the site stops itself. — https://github.com/hareet/h4reet-ai/blob/main/config/budgets.yaml\n- `[P]` One transaction sets the switch, opens an incident, and queues the alert. Every request after that gets one line, local answers included: \"The twin can't talk right now. Today's budget for its answers is used.\" — https://github.com/hareet/h4reet-ai/blob/main/apps/web/content/messages.yaml\n- `[P]` A new day doesn't bring it back. Only an operator reset does: a person, with a reason, in the audit log. — https://github.com/hareet/h4reet-ai/blob/main/.specify/memory/constitution.md\n- `[P]` The breach test trips it on purpose. — https://github.com/hareet/h4reet-ai/blob/main/docs/merge-requests/2026-10-09-feat-000-us2-kill-switch.md\n- `[P]` The agents that write the code are fenced in too: the one that writes never reviews, and none can touch the budgets or the switch, push, merge, or apply. — https://github.com/hareet/h4reet-ai/tree/main/.claude/agents"
++    },
++    {
++      "chars": 1599,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": null,
++      "heading": "The cost meter",
++      "id": "08-hareet-ai#4",
++      "kind": "section",
++      "text": "- `[P]` Every answer the twin gives has a price, and a visitor can watch it: in the room, a neon sign shows what each call cost. It reads the gateway's own reply, not a dashboard. — https://github.com/hareet/h4reet-ai/blob/main/apps/web/src/room/faces/neon.ts\n- `[P]` Every model call goes through the gateway, and every call carries the provider, the model, the tokens, and the cost. — https://github.com/hareet/h4reet-ai/blob/main/services/gateway/src/core/gateway.ts\n- `[P]` Local answers cost nothing. The paid fallback is Claude Haiku. — https://github.com/hareet/h4reet-ai/blob/main/config/prices.yaml\n- `[A 2026-11-10]` Why Haiku, in his words: \"we chose haiku since our context base is small and manually evaluated haiku and sonnet.\"\n- `[P]` Money is counted as a whole number, never a float, in the gateway's own database. — https://github.com/hareet/h4reet-ai/blob/main/docs/adr/0020-gateway-state-store-and-meter.md\n- `[P]` Every call is also traced in Langfuse, which runs inside the stack, locked down: no route out, sign-up switched off, its own telemetry off, and no prompts or answers kept, unless sampling is switched on in development. — https://github.com/hareet/h4reet-ai/blob/main/deploy/compose.yaml\n- `[P]` Grafana puts spend beside latency and errors: today, this month, and the fallback's own budget. — https://github.com/hareet/h4reet-ai/blob/main/deploy/grafana/dashboards/h4-runtime.json\n- `[P]` The meter is the control: cloud billing alerts lag by hours, and this one decides in real time. — https://github.com/hareet/h4reet-ai/blob/main/.specify/memory/constitution.md"
++    },
++    {
++      "chars": 1460,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": null,
++      "heading": "Every data flow disclosed",
++      "id": "08-hareet-ai#5",
++      "kind": "section",
++      "text": "- `[P]` Every byte that leaves the stack is written down before it can leave: the data-flow disclosure lists each flow, where it goes, what it carries, what it never carries, and how to switch it off. — https://github.com/hareet/h4reet-ai/blob/main/docs/data-flow-disclosure.md\n- `[P]` The build enforces it: a service without a row is refused. — https://github.com/hareet/h4reet-ai/blob/main/tools/gates/compose_policy.py\n- `[P]` When a visitor talks to the twin, what leaves their device is their typed words, the last few turns, and the address and browser every request carries; never audio, the avatar, a cookie, or any identifier of the visit or the visitor. In production, no one's words land in any log, trace, or store. — https://github.com/hareet/h4reet-ai/blob/main/docs/data-flow-disclosure.md\n- `[P]` When the paid fallback answers, the visitor's words go to Anthropic; on the cloud server, the Anthropic API answers first. — https://github.com/hareet/h4reet-ai/blob/main/docs/data-flow-disclosure.md\n- `[P]` The twin answers only from the corpus Hareet approves, and when that doesn't hold the answer, it says \"I don't know yet.\" — https://github.com/hareet/h4reet-ai/blob/main/config/twin/prompt.md\n- `[P]` Before any word leaves the gateway, code checks the answer against its sources: numbers, amounts, ownership, privacy. A failed check withholds the answer. — https://github.com/hareet/h4reet-ai/blob/main/services/gateway/src/twin/guards.ts"
++    },
++    {
++      "chars": 1630,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": null,
++      "heading": "Tested every time it changes",
++      "id": "08-hareet-ai#6",
++      "kind": "section",
++      "text": "- `[P]` The twin is tested every time it changes, and every case comes from the corpus: golden questions name the facts an answer must carry, and gap questions have one right answer, that the twin doesn't know. — https://github.com/hareet/h4reet-ai/blob/main/apps/web/build/twin-pack.ts\n- `[P]` Each question is asked twice: the way an engineer would ask it, and the way anyone else would. — https://github.com/hareet/h4reet-ai/blob/main/apps/web/build/twin-pack.ts\n- `[P]` No model grades another. The checks are code: what an answer must contain, and what it must never claim. — https://github.com/hareet/h4reet-ai/blob/main/evals/run.py\n- `[P]` In production, the same discipline runs on every answer: guards in the gateway check numbers, amounts, ownership, and privacy. A failed guard withholds the answer, and a guard that can't run fails closed. — https://github.com/hareet/h4reet-ai/blob/main/services/gateway/src/twin/guards.ts\n- `[P]` Then the red team attacks: does the twin claim to be human, say where Hareet lives, or follow an instruction hidden in a question? — https://github.com/hareet/h4reet-ai/blob/main/redteam/run.py\n- `[P]` Every miss becomes a fix: when the local model leaked its source tags, a filter was added, and when a check misread a correct refusal to a question asking whether the twin is Hareet, the guard was widened. — https://github.com/hareet/h4reet-ai/blob/main/specs/007-twin-conversation/plan.md\n- `[P]` Readiness is locked to a hash: change the prompt or the corpus, and a topic closes until the evals pass again. — https://github.com/hareet/h4reet-ai/blob/main/config/twin-readiness.yaml"
++    },
++    {
++      "chars": 1326,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": null,
++      "heading": "Local models first",
++      "id": "08-hareet-ai#7",
++      "kind": "section",
++      "text": "- `[P]` The laptop's production stack (`ENV=prod`, `COMPOSE_PROFILES=gpu`) runs on one laptop, with one command, and starts 15 containers: the edge, the gateway, the site, the meter's database, the model server, and the tools that watch them, from metrics and logs to Grafana and Langfuse. The `tunnel` profile, once added, runs the tunnel beside them. — https://github.com/hareet/h4reet-ai/blob/main/deploy/compose.yaml\n- `[P]` Its model server is llama.cpp, on the laptop's GPU. — https://github.com/hareet/h4reet-ai/blob/main/deploy/compose.yaml\n- `[P]` On the laptop, every question tries the local model first. A local answer costs nothing, and nothing leaves the machine. — https://github.com/hareet/h4reet-ai/blob/main/config/routing.yaml\n- `[P]` Only when it's down does the capped paid fallback answer. On the cloud server, which has no GPU, the Anthropic API answers first. — https://github.com/hareet/h4reet-ai/blob/main/config/routing.yaml\n- `[P]` It is production, not a demo: every image is pinned by its digest, and one build at one commit makes the same image everywhere. — https://github.com/hareet/h4reet-ai/blob/main/deploy/images.lock\n- Offline-first work before hareet.ai, at Medic, with Voice for CHT, and at Denver Local AI: see `05-mission.md`, `01-ai-strategy-and-cht.md`, and `07-denver-local-ai.md`."
++    },
++    {
++      "chars": 1663,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": null,
++      "heading": "The stack, container by container",
++      "id": "08-hareet-ai#8.1",
++      "kind": "section",
++      "text": "- `[P]` The laptop's production stack is grouped as the door, the brain, the model, the eyes, and the traces; for each container, the design says what it does, why it's there, and what happens when it fails. — https://github.com/hareet/h4reet-ai/blob/main/deploy/compose.yaml\n- `[P]` The edge is the only door: nginx, unprivileged, listening only on the machine's own loopback address. If it fails, nothing can reach the stack, but the stack keeps running, and the meter keeps its state. — https://github.com/hareet/h4reet-ai/blob/main/deploy/edge/nginx.conf\n- `[P]` Behind it, web serves the room. If web is down, the edge answers with its own page: \"The room is unavailable right now.\" — https://github.com/hareet/h4reet-ai/blob/main/deploy/edge/nginx.conf\n- `[P]` The gateway is the brain: routing, the meter, the kill switch, and every alert. If it fails, the edge answers that it's unavailable, nothing is spent, and alerts wait in the outbox until it's back. — https://github.com/hareet/h4reet-ai/blob/main/docs/runbooks/gateway-down.md\n- `[P]` Gateway-state is the gateway's own database: the meter, the switch, the ledger, the audit log. If it can't be reached, every request fails closed at once, and one alert goes out if it stays unreachable. — https://github.com/hareet/h4reet-ai/blob/main/docs/runbooks/store-unreachable.md\n- `[P]` The model server is llama.cpp, on the GPU, and nothing waits on it. If it's down, the gateway notices within a second and answers from the capped paid fallback; if that's down too, the answer is the degraded line, and an alert says so. — https://github.com/hareet/h4reet-ai/blob/main/docs/runbooks/model-server-down.md"
++    },
++    {
++      "chars": 1533,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": null,
++      "heading": "The stack, container by container",
++      "id": "08-hareet-ai#8.2",
++      "kind": "section",
++      "text": "- `[P]` Then the eyes: the OpenTelemetry collector strips prompts and answers out of the telemetry, then sends metrics to Prometheus, logs to Loki, and traces to Langfuse. If it fails, exports stop, a freshness panel shows how stale the data is, and enforcement never notices. — https://github.com/hareet/h4reet-ai/blob/main/deploy/otel/collector.yaml\n- `[P]` Prometheus keeps the metrics, Loki the gateway's logs, and Grafana draws them on one read-only dashboard. — https://github.com/hareet/h4reet-ai/blob/main/deploy/grafana/dashboards/h4-runtime.json\n- `[P]` The alerts that guard the budget are the gateway's job, on Telegram first, then email, and they never wait on a dashboard. — https://github.com/hareet/h4reet-ai/blob/main/config/alerts.yaml\n- `[P]` Langfuse keeps the traces: its web app and a worker, its own Postgres, ClickHouse for the traces, Valkey for the queue, and SeaweedFS for storage. — https://github.com/hareet/h4reet-ai/blob/main/deploy/compose.yaml\n- `[P]` If any of them fails, traces arrive late or are dropped after retries, and a panel counts the drops. The twin keeps answering. — https://github.com/hareet/h4reet-ai/blob/main/deploy/otel/collector.yaml\n- `[P]` Every container runs with no new privileges, and only the edge listens. — https://github.com/hareet/h4reet-ai/blob/main/deploy/compose.yaml\n- `[P]` Every alert names its runbook: what you see, what it means, what to do, how to check, how to undo, and what to record. — https://github.com/hareet/h4reet-ai/blob/main/docs/runbooks/README.md"
++    },
++    {
++      "chars": 1812,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": null,
++      "heading": "How a change is made",
++      "id": "08-hareet-ai#9.1",
++      "kind": "section",
++      "text": "- `[P]` Every change to hareet.ai starts as a sentence and ends with a person's merge. — https://github.com/hareet/h4reet-ai/blob/main/.specify/memory/constitution.md\n- `[P]` First, the intent: what's wanted, and why, in the words of whoever wants it. Hareet accepts it or closes it, and the survival rate is published. — https://github.com/hareet/h4reet-ai/blob/main/intent/README.md\n- `[P]` A spec-writer agent turns it into a spec, with acceptance criteria a test can check; its questions go to Hareet, and his answers are kept word for word. — https://github.com/hareet/h4reet-ai/blob/main/.claude/agents/spec-writer.md\n- `[P]` Then the plan: the files, the order, the risks, the cost, and what happens when it degrades. It's approved before any code exists. — https://github.com/hareet/h4reet-ai/blob/main/docs/how-we-build/lifecycle.md\n- `[P]` Then the tasks, and a read-only check that the spec, the plan, and the tasks agree. — https://github.com/hareet/h4reet-ai/blob/main/docs/how-we-build/lifecycle.md\n- `[P]` An implementer agent writes it on a feature branch, task by task, with tests, and every new feature brings its own telemetry, a dashboard panel, a cost estimate, its degraded behavior, and a disclosure row if a byte leaves a visitor's device. — https://github.com/hareet/h4reet-ai/blob/main/.claude/agents/implementer.md\n- `[P]` A reviewer agent, read-only and never the one that wrote the change, checks it for bugs, security, compliance, and cost. Its findings inform the merge; they never replace it. — https://github.com/hareet/h4reet-ai/blob/main/REVIEW.md\n- `[P]` Changing a feature works the same way: a newer spec names each clause it amends, and when the code departs from the plan, the plan is corrected in the same commit. — https://github.com/hareet/h4reet-ai/blob/main/CLAUDE.md"
++    },
++    {
++      "chars": 947,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": null,
++      "heading": "How a change is made",
++      "id": "08-hareet-ai#9.2",
++      "kind": "section",
++      "text": "- `[P]` A bug starts as a failing test. During a fix, a hook stops the agent from editing tests: fix the code, not the test. — https://github.com/hareet/h4reet-ai/blob/main/.claude/hooks/protected-paths.sh\n- `[P]` An incident gets a note, with the eval that would have caught it. When the kill switch trips, the gateway drafts that incident itself, from a template, with no model call. — https://github.com/hareet/h4reet-ai/blob/main/services/gateway/src/incidents/draft.ts\n- `[P]` Before Hareet merges, a clean-room gate runs every check on an export of the branch, with the network cut off, so nothing an agent left behind can run. — https://github.com/hareet/h4reet-ai/blob/main/tools/gates/gate\n- `[P]` The agents work in a sandbox, on their own container engine, behind hooks that refuse pushing, merging, applying infrastructure, editing budgets, or reading secrets. — https://github.com/hareet/h4reet-ai/blob/main/.claude/hooks/bash-gate.sh"
++    },
++    {
++      "chars": 605,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": null,
++      "heading": "What the corpus doesn't hold yet",
++      "id": "08-hareet-ai#10",
++      "kind": "section",
++      "text": "- `[?]` A daily summary of the stack's CPU metrics, with alerts based on them.\n- `[?]` Deploys that only pull a released image, and roll back when the health checks fail.\n- `[?]` How many forbidden actions the agents' hooks are tested against, and the latest tally.\n- `[?]` The latest pass rates of the product evaluations and of the red team, on each route.\n- `[?]` What an evaluation run costs.\n- `[?]` How many product evaluation cases there are, how many topics they cover, and how they split between golden and gap.\n- `[?]` How many red-team cases there are.\n- `[?]` The breach test's latest results."
++    },
++    {
+       "chars": 222,
+       "file": "corpus/08-hareet-ai.md",
+       "golden": null,
+       "heading": "Public artifacts",
+-      "id": "08-hareet-ai#3",
++      "id": "08-hareet-ai#11",
+       "kind": "section",
+       "text": "- hareet.ai, once spec 001 publishes it.\n- `[A 2026-11-06]` The repository, https://github.com/hareet/h4reet-ai. It isn't public yet; in his words: \"the repo will be public very soon. Just give the link and talk about it.\""
+     },
+@@ -1947,20 +2057,21 @@
+       "text": "4. *Who writes the code?* — AI agents in named roles do most of the typing, and only I merge. [A]"
+     },
+     {
+-      "chars": 283,
++      "chars": 407,
+       "file": "corpus/08-hareet-ai.md",
+       "golden": {
+-        "answer": "We disclose every data flow, your conversation is not saved and you can look at the GitHub repo for how all the code works. Langfuse keeps only costs and usage, and we use Masking. We come from a background of open source, public software.",
++        "answer": "We disclose every data flow, your conversation is not saved and you can look at the GitHub repo for how all the code works. Langfuse keeps only costs and usage, and we use Masking. We come from a background of open source, public software. \"this site saves none of it, and Anthropic may keep a turn it answered for up to 30 days, never for training\"",
+         "n": 5,
+         "question": "What happens to what I say here?",
+         "tags": [
+-          "[A]"
++          "[A]",
++          "[A 2026-11-09]"
+         ]
+       },
+       "heading": "Golden Q&A 5",
+       "id": "08-hareet-ai#q5",
+       "kind": "golden",
+-      "text": "5. *What happens to what I say here?* — We disclose every data flow, your conversation is not saved and you can look at the GitHub repo for how all the code works. Langfuse keeps only costs and usage, and we use Masking. We come from a background of open source, public software. [A]"
++      "text": "5. *What happens to what I say here?* — We disclose every data flow, your conversation is not saved and you can look at the GitHub repo for how all the code works. Langfuse keeps only costs and usage, and we use Masking. We come from a background of open source, public software. \"this site saves none of it, and Anthropic may keep a turn it answered for up to 30 days, never for training\" [A][A 2026-11-09]"
+     },
+     {
+       "chars": 198,
+@@ -2010,6 +2121,150 @@
+       "id": "08-hareet-ai#q8",
+       "kind": "golden",
+       "text": "8. *What can't you answer?* — I answer only from a written corpus that I approve. Anything not in it, I'll tell you I don't know yet. [A]"
++    },
++    {
++      "chars": 389,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": {
++        "answer": "The gateway reads the kill switch first, before any model is called. Before the daily ceiling, a warning goes out on Telegram and email; at the ceiling, one transaction sets the switch, opens an incident, and queues the alert, and every request after that gets one fixed line. A new day doesn't bring it back: only an operator reset does.",
++        "n": 9,
++        "question": "How does the kill switch stop spending?",
++        "tags": [
++          "[P]"
++        ]
++      },
++      "heading": "Golden Q&A 9",
++      "id": "08-hareet-ai#q9",
++      "kind": "golden",
++      "text": "9. *How does the kill switch stop spending?* — The gateway reads the kill switch first, before any model is called. Before the daily ceiling, a warning goes out on Telegram and email; at the ceiling, one transaction sets the switch, opens an incident, and queues the alert, and every request after that gets one fixed line. A new day doesn't bring it back: only an operator reset does. [P]"
++    },
++    {
++      "chars": 323,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": {
++        "answer": "Every model call goes through the gateway and carries the provider, the model, the tokens, and the cost. Local answers cost nothing. Spend is metered in the gateway's own database, a neon sign in the room shows what each call cost, and Grafana puts spend beside latency and errors.",
++        "n": 10,
++        "question": "How does the cost meter work?",
++        "tags": [
++          "[P]"
++        ]
++      },
++      "heading": "Golden Q&A 10",
++      "id": "08-hareet-ai#q10",
++      "kind": "golden",
++      "text": "10. *How does the cost meter work?* — Every model call goes through the gateway and carries the provider, the model, the tokens, and the cost. Local answers cost nothing. Spend is metered in the gateway's own database, a neon sign in the room shows what each call cost, and Grafana puts spend beside latency and errors. [P]"
++    },
++    {
++      "chars": 298,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": {
++        "answer": "Your typed words, the last few turns, and the address and browser every request carries. Never audio, the avatar, a cookie, or any identifier of you or your visit. Every flow is written down in the data-flow disclosure before it can leave.",
++        "n": 11,
++        "question": "What leaves my device when I talk to the twin?",
++        "tags": [
++          "[P]"
++        ]
++      },
++      "heading": "Golden Q&A 11",
++      "id": "08-hareet-ai#q11",
++      "kind": "golden",
++      "text": "11. *What leaves my device when I talk to the twin?* — Your typed words, the last few turns, and the address and browser every request carries. Never audio, the avatar, a cookie, or any identifier of you or your visit. Every flow is written down in the data-flow disclosure before it can leave. [P]"
++    },
++    {
++      "chars": 298,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": {
++        "answer": "It's tested every time it changes, with cases drawn from the corpus and graded by code, never by another model. In production, guards in the gateway check numbers, amounts, ownership, and privacy, and a failed guard withholds the answer.",
++        "n": 12,
++        "question": "How do you know the twin isn't making things up?",
++        "tags": [
++          "[P]"
++        ]
++      },
++      "heading": "Golden Q&A 12",
++      "id": "08-hareet-ai#q12",
++      "kind": "golden",
++      "text": "12. *How do you know the twin isn't making things up?* — It's tested every time it changes, with cases drawn from the corpus and graded by code, never by another model. In production, guards in the gateway check numbers, amounts, ownership, and privacy, and a failed guard withholds the answer. [P]"
++    },
++    {
++      "chars": 282,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": {
++        "answer": "Local models first. On the laptop, every question tries llama.cpp on its GPU, and a local answer costs nothing; only when it's down does the capped paid fallback answer. On the cloud server, which has no GPU, the Anthropic API answers first.",
++        "n": 13,
++        "question": "Does it run on local models?",
++        "tags": [
++          "[P]"
++        ]
++      },
++      "heading": "Golden Q&A 13",
++      "id": "08-hareet-ai#q13",
++      "kind": "golden",
++      "text": "13. *Does it run on local models?* — Local models first. On the laptop, every question tries llama.cpp on its GPU, and a local answer costs nothing; only when it's down does the capped paid fallback answer. On the cloud server, which has no GPU, the Anthropic API answers first. [P]"
++    },
++    {
++      "chars": 258,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": {
++        "answer": "On the laptop's production stack: the edge, the gateway, the site, the meter's database, the model server, the OpenTelemetry collector, Prometheus, Loki, Grafana, and Langfuse with its own databases. Only the edge listens.",
++        "n": 14,
++        "question": "What runs in the stack?",
++        "tags": [
++          "[P]"
++        ]
++      },
++      "heading": "Golden Q&A 14",
++      "id": "08-hareet-ai#q14",
++      "kind": "golden",
++      "text": "14. *What runs in the stack?* — On the laptop's production stack: the edge, the gateway, the site, the meter's database, the model server, the OpenTelemetry collector, Prometheus, Loki, Grafana, and Langfuse with its own databases. Only the edge listens. [P]"
++    },
++    {
++      "chars": 294,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": {
++        "answer": "It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, a clean-room gate runs every check, and only a person merges.",
++        "n": 15,
++        "question": "How is a change made?",
++        "tags": [
++          "[P]"
++        ]
++      },
++      "heading": "Golden Q&A 15",
++      "id": "08-hareet-ai#q15",
++      "kind": "golden",
++      "text": "15. *How is a change made?* — It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, a clean-room gate runs every check, and only a person merges. [P]"
++    },
++    {
++      "chars": 183,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": {
++        "answer": "I don't know yet how many evaluation cases there are, their latest pass rates, or what a run costs; those change with every run.",
++        "n": 16,
++        "question": "What don't you know about how it's tested?",
++        "tags": [
++          "[?]"
++        ]
++      },
++      "heading": "Golden Q&A 16",
++      "id": "08-hareet-ai#q16",
++      "kind": "golden",
++      "text": "16. *What don't you know about how it's tested?* — I don't know yet how many evaluation cases there are, their latest pass rates, or what a run costs; those change with every run. [?]"
++    },
++    {
++      "chars": 150,
++      "file": "corpus/08-hareet-ai.md",
++      "golden": {
++        "answer": "A daily summary of the CPU metrics and deploys that only pull aren't built yet, so I don't know more about them yet.",
++        "n": 17,
++        "question": "What isn't built yet?",
++        "tags": [
++          "[?]"
++        ]
++      },
++      "heading": "Golden Q&A 17",
++      "id": "08-hareet-ai#q17",
++      "kind": "golden",
++      "text": "17. *What isn't built yet?* — A daily summary of the CPU metrics and deploys that only pull aren't built yet, so I don't know more about them yet. [?]"
+     }
+   ],
+   "selectables": [
+@@ -2046,28 +2301,28 @@
+       "topic": "mission"
+     }
+   ],
+-  "sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717",
++  "sha256": "a2a1655d4b2da434c7eeb71a5cd36194003df52f8767349d500eada86cfe0251",
+   "topics": [
+     {
+       "files": [
+         "corpus/04-hobbies-and-travel.md"
+       ],
+       "id": "hobbies-and-travel",
+-      "sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
++      "sha256": "2d340b13a793674d88496615b7a25981270e82f07813ee145da3cd408c1777c5"
+     },
+     {
+       "files": [
+         "corpus/05-mission.md"
+       ],
+       "id": "mission",
+-      "sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
++      "sha256": "30d25e4aa1997f8201c671561c5dce8a17acebdd4e59ebd6ca01ee0e97940d32"
+     },
+     {
+       "files": [
+         "corpus/06-work-projects.md"
+       ],
+       "id": "work-projects",
+-      "sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
++      "sha256": "037bae3cb62c565dd5d81658c2fa4b415493e798b15891de3e005652a832dbde"
+     }
+   ]
+ }
+diff -ruN '--exclude=__pycache__' a/corpus/08-hareet-ai.md b/corpus/08-hareet-ai.md
+--- a/corpus/08-hareet-ai.md
++++ b/corpus/08-hareet-ai.md
+@@ -1,7 +1,7 @@
+ # hareet.ai — the AI twin, built in the open
+ Priority: 7 (after Denver Local AI; his, confirmed 2026-11-06) · Status: draft for Hareet's read, with his Golden Q&A interview of 2026-11-06 · Last verified: 2026-11-06
+ 
+-Tags as defined in `01-ai-strategy-and-cht.md`. Drafted from his resume and his answers of 2026-10-28 and 2026-10-29; the numbers are in `facts/hareet-ai.yaml`. His Golden Q&A interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`. The document is filed as he pasted it in `intake/interview-2026-11-06-denver-local-ai-hareet-ai.md`, and he approved each Golden Q&A below. In Golden Q&A 3, "or the room doesn't know the live state yet" is this project's session's wording, which he approved in the session that day ("works fine"), since an unplugged laptop can also mean the room doesn't know the live state. His words are quoted exactly, with spelling fixed at his request.
++Tags as defined in `01-ai-strategy-and-cht.md`. Drafted from his resume and his answers of 2026-10-28 and 2026-10-29; the numbers are in `facts/hareet-ai.yaml`. His Golden Q&A interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`. The document is filed as he pasted it in `intake/interview-2026-11-06-denver-local-ai-hareet-ai.md`, and he approved each Golden Q&A below. In Golden Q&A 3, "or the room doesn't know the live state yet" is this project's session's wording, which he approved in the session that day ("works fine"), since an unplugged laptop can also mean the room doesn't know the live state. His words are quoted exactly, with spelling fixed at his request. The sections from *The kill switch* to *What the corpus doesn't hold yet*, the Golden Q&A after the eighth, and the "Do not claim" lines after the first come from the scripts of the project's explainer films (`films/SCRIPTS.md`, `films/kill-switch-b2/script.txt`), each line with the repository file under it; `proposals/film-scripts-2026-11-14.md` traces each one.
+ 
+ ## Role at a glance
+ 
+@@ -16,6 +16,97 @@
+ - `[A 2026-11-06]` What happens to what visitors say, in his words: "We disclose every data flow, their conversation is not saved and they can look at the GitHub repo for how all the code works. We come from a background of open source, public software."
+ - `[A 2026-11-06]` Asked whether his Langfuse setup keeps the conversation text, or only cost and usage, in his words: "Only costs and usage, and say we use Masking."
+ 
++## The kill switch
++
++- `[P]` Every question falls through the same layers, and the gateway reads the kill switch first; if it can't read it, it assumes the worst. — https://github.com/hareet/h4reet-ai/blob/main/services/gateway/src/core/gateway.ts
++- `[P]` Local answers cost nothing. Paid ones are metered in the gateway's own database. — https://github.com/hareet/h4reet-ai/blob/main/docs/adr/0020-gateway-state-store-and-meter.md
++- `[P]` Every answer the twin gives can cost money, so the site has a daily ceiling of {{slot:site.kill_switch_daily}}. Before spend reaches it, a warning goes out on Telegram and email; when spend reaches it, the site stops itself. — https://github.com/hareet/h4reet-ai/blob/main/config/budgets.yaml
++- `[P]` One transaction sets the switch, opens an incident, and queues the alert. Every request after that gets one line, local answers included: "The twin can't talk right now. Today's budget for its answers is used." — https://github.com/hareet/h4reet-ai/blob/main/apps/web/content/messages.yaml
++- `[P]` A new day doesn't bring it back. Only an operator reset does: a person, with a reason, in the audit log. — https://github.com/hareet/h4reet-ai/blob/main/.specify/memory/constitution.md
++- `[P]` The breach test trips it on purpose. — https://github.com/hareet/h4reet-ai/blob/main/docs/merge-requests/2026-10-09-feat-000-us2-kill-switch.md
++- `[P]` The agents that write the code are fenced in too: the one that writes never reviews, and none can touch the budgets or the switch, push, merge, or apply. — https://github.com/hareet/h4reet-ai/tree/main/.claude/agents
++
++## The cost meter
++
++- `[P]` Every answer the twin gives has a price, and a visitor can watch it: in the room, a neon sign shows what each call cost. It reads the gateway's own reply, not a dashboard. — https://github.com/hareet/h4reet-ai/blob/main/apps/web/src/room/faces/neon.ts
++- `[P]` Every model call goes through the gateway, and every call carries the provider, the model, the tokens, and the cost. — https://github.com/hareet/h4reet-ai/blob/main/services/gateway/src/core/gateway.ts
++- `[P]` Local answers cost nothing. The paid fallback is Claude Haiku. — https://github.com/hareet/h4reet-ai/blob/main/config/prices.yaml
++- `[A 2026-11-10]` Why Haiku, in his words: "we chose haiku since our context base is small and manually evaluated haiku and sonnet."
++- `[P]` Money is counted as a whole number, never a float, in the gateway's own database. — https://github.com/hareet/h4reet-ai/blob/main/docs/adr/0020-gateway-state-store-and-meter.md
++- `[P]` Every call is also traced in Langfuse, which runs inside the stack, locked down: no route out, sign-up switched off, its own telemetry off, and no prompts or answers kept, unless sampling is switched on in development. — https://github.com/hareet/h4reet-ai/blob/main/deploy/compose.yaml
++- `[P]` Grafana puts spend beside latency and errors: today, this month, and the fallback's own budget. — https://github.com/hareet/h4reet-ai/blob/main/deploy/grafana/dashboards/h4-runtime.json
++- `[P]` The meter is the control: cloud billing alerts lag by hours, and this one decides in real time. — https://github.com/hareet/h4reet-ai/blob/main/.specify/memory/constitution.md
++
++## Every data flow disclosed
++
++- `[P]` Every byte that leaves the stack is written down before it can leave: the data-flow disclosure lists each flow, where it goes, what it carries, what it never carries, and how to switch it off. — https://github.com/hareet/h4reet-ai/blob/main/docs/data-flow-disclosure.md
++- `[P]` The build enforces it: a service without a row is refused. — https://github.com/hareet/h4reet-ai/blob/main/tools/gates/compose_policy.py
++- `[P]` When a visitor talks to the twin, what leaves their device is their typed words, the last few turns, and the address and browser every request carries; never audio, the avatar, a cookie, or any identifier of the visit or the visitor. In production, no one's words land in any log, trace, or store. — https://github.com/hareet/h4reet-ai/blob/main/docs/data-flow-disclosure.md
++- `[P]` When the paid fallback answers, the visitor's words go to Anthropic; on the cloud server, the Anthropic API answers first. — https://github.com/hareet/h4reet-ai/blob/main/docs/data-flow-disclosure.md
++- `[P]` The twin answers only from the corpus Hareet approves, and when that doesn't hold the answer, it says "I don't know yet." — https://github.com/hareet/h4reet-ai/blob/main/config/twin/prompt.md
++- `[P]` Before any word leaves the gateway, code checks the answer against its sources: numbers, amounts, ownership, privacy. A failed check withholds the answer. — https://github.com/hareet/h4reet-ai/blob/main/services/gateway/src/twin/guards.ts
++
++## Tested every time it changes
++
++- `[P]` The twin is tested every time it changes, and every case comes from the corpus: golden questions name the facts an answer must carry, and gap questions have one right answer, that the twin doesn't know. — https://github.com/hareet/h4reet-ai/blob/main/apps/web/build/twin-pack.ts
++- `[P]` Each question is asked twice: the way an engineer would ask it, and the way anyone else would. — https://github.com/hareet/h4reet-ai/blob/main/apps/web/build/twin-pack.ts
++- `[P]` No model grades another. The checks are code: what an answer must contain, and what it must never claim. — https://github.com/hareet/h4reet-ai/blob/main/evals/run.py
++- `[P]` In production, the same discipline runs on every answer: guards in the gateway check numbers, amounts, ownership, and privacy. A failed guard withholds the answer, and a guard that can't run fails closed. — https://github.com/hareet/h4reet-ai/blob/main/services/gateway/src/twin/guards.ts
++- `[P]` Then the red team attacks: does the twin claim to be human, say where Hareet lives, or follow an instruction hidden in a question? — https://github.com/hareet/h4reet-ai/blob/main/redteam/run.py
++- `[P]` Every miss becomes a fix: when the local model leaked its source tags, a filter was added, and when a check misread a correct refusal to a question asking whether the twin is Hareet, the guard was widened. — https://github.com/hareet/h4reet-ai/blob/main/specs/007-twin-conversation/plan.md
++- `[P]` Readiness is locked to a hash: change the prompt or the corpus, and a topic closes until the evals pass again. — https://github.com/hareet/h4reet-ai/blob/main/config/twin-readiness.yaml
++
++## Local models first
++
++- `[P]` The laptop's production stack (`ENV=prod`, `COMPOSE_PROFILES=gpu`) runs on one laptop, with one command, and starts {{slot:site.prod_containers}}: the edge, the gateway, the site, the meter's database, the model server, and the tools that watch them, from metrics and logs to Grafana and Langfuse. The `tunnel` profile, once added, runs the tunnel beside them. — https://github.com/hareet/h4reet-ai/blob/main/deploy/compose.yaml
++- `[P]` Its model server is llama.cpp, on the laptop's GPU. — https://github.com/hareet/h4reet-ai/blob/main/deploy/compose.yaml
++- `[P]` On the laptop, every question tries the local model first. A local answer costs nothing, and nothing leaves the machine. — https://github.com/hareet/h4reet-ai/blob/main/config/routing.yaml
++- `[P]` Only when it's down does the capped paid fallback answer. On the cloud server, which has no GPU, the Anthropic API answers first. — https://github.com/hareet/h4reet-ai/blob/main/config/routing.yaml
++- `[P]` It is production, not a demo: every image is pinned by its digest, and one build at one commit makes the same image everywhere. — https://github.com/hareet/h4reet-ai/blob/main/deploy/images.lock
++- Offline-first work before hareet.ai, at Medic, with Voice for CHT, and at Denver Local AI: see `05-mission.md`, `01-ai-strategy-and-cht.md`, and `07-denver-local-ai.md`.
++
++## The stack, container by container
++
++- `[P]` The laptop's production stack is grouped as the door, the brain, the model, the eyes, and the traces; for each container, the design says what it does, why it's there, and what happens when it fails. — https://github.com/hareet/h4reet-ai/blob/main/deploy/compose.yaml
++- `[P]` The edge is the only door: nginx, unprivileged, listening only on the machine's own loopback address. If it fails, nothing can reach the stack, but the stack keeps running, and the meter keeps its state. — https://github.com/hareet/h4reet-ai/blob/main/deploy/edge/nginx.conf
++- `[P]` Behind it, web serves the room. If web is down, the edge answers with its own page: "The room is unavailable right now." — https://github.com/hareet/h4reet-ai/blob/main/deploy/edge/nginx.conf
++- `[P]` The gateway is the brain: routing, the meter, the kill switch, and every alert. If it fails, the edge answers that it's unavailable, nothing is spent, and alerts wait in the outbox until it's back. — https://github.com/hareet/h4reet-ai/blob/main/docs/runbooks/gateway-down.md
++- `[P]` Gateway-state is the gateway's own database: the meter, the switch, the ledger, the audit log. If it can't be reached, every request fails closed at once, and one alert goes out if it stays unreachable. — https://github.com/hareet/h4reet-ai/blob/main/docs/runbooks/store-unreachable.md
++- `[P]` The model server is llama.cpp, on the GPU, and nothing waits on it. If it's down, the gateway notices within a second and answers from the capped paid fallback; if that's down too, the answer is the degraded line, and an alert says so. — https://github.com/hareet/h4reet-ai/blob/main/docs/runbooks/model-server-down.md
++- `[P]` Then the eyes: the OpenTelemetry collector strips prompts and answers out of the telemetry, then sends metrics to Prometheus, logs to Loki, and traces to Langfuse. If it fails, exports stop, a freshness panel shows how stale the data is, and enforcement never notices. — https://github.com/hareet/h4reet-ai/blob/main/deploy/otel/collector.yaml
++- `[P]` Prometheus keeps the metrics, Loki the gateway's logs, and Grafana draws them on one read-only dashboard. — https://github.com/hareet/h4reet-ai/blob/main/deploy/grafana/dashboards/h4-runtime.json
++- `[P]` The alerts that guard the budget are the gateway's job, on Telegram first, then email, and they never wait on a dashboard. — https://github.com/hareet/h4reet-ai/blob/main/config/alerts.yaml
++- `[P]` Langfuse keeps the traces: its web app and a worker, its own Postgres, ClickHouse for the traces, Valkey for the queue, and SeaweedFS for storage. — https://github.com/hareet/h4reet-ai/blob/main/deploy/compose.yaml
++- `[P]` If any of them fails, traces arrive late or are dropped after retries, and a panel counts the drops. The twin keeps answering. — https://github.com/hareet/h4reet-ai/blob/main/deploy/otel/collector.yaml
++- `[P]` Every container runs with no new privileges, and only the edge listens. — https://github.com/hareet/h4reet-ai/blob/main/deploy/compose.yaml
++- `[P]` Every alert names its runbook: what you see, what it means, what to do, how to check, how to undo, and what to record. — https://github.com/hareet/h4reet-ai/blob/main/docs/runbooks/README.md
++
++## How a change is made
++
++- `[P]` Every change to hareet.ai starts as a sentence and ends with a person's merge. — https://github.com/hareet/h4reet-ai/blob/main/.specify/memory/constitution.md
++- `[P]` First, the intent: what's wanted, and why, in the words of whoever wants it. Hareet accepts it or closes it, and the survival rate is published. — https://github.com/hareet/h4reet-ai/blob/main/intent/README.md
++- `[P]` A spec-writer agent turns it into a spec, with acceptance criteria a test can check; its questions go to Hareet, and his answers are kept word for word. — https://github.com/hareet/h4reet-ai/blob/main/.claude/agents/spec-writer.md
++- `[P]` Then the plan: the files, the order, the risks, the cost, and what happens when it degrades. It's approved before any code exists. — https://github.com/hareet/h4reet-ai/blob/main/docs/how-we-build/lifecycle.md
++- `[P]` Then the tasks, and a read-only check that the spec, the plan, and the tasks agree. — https://github.com/hareet/h4reet-ai/blob/main/docs/how-we-build/lifecycle.md
++- `[P]` An implementer agent writes it on a feature branch, task by task, with tests, and every new feature brings its own telemetry, a dashboard panel, a cost estimate, its degraded behavior, and a disclosure row if a byte leaves a visitor's device. — https://github.com/hareet/h4reet-ai/blob/main/.claude/agents/implementer.md
++- `[P]` A reviewer agent, read-only and never the one that wrote the change, checks it for bugs, security, compliance, and cost. Its findings inform the merge; they never replace it. — https://github.com/hareet/h4reet-ai/blob/main/REVIEW.md
++- `[P]` Changing a feature works the same way: a newer spec names each clause it amends, and when the code departs from the plan, the plan is corrected in the same commit. — https://github.com/hareet/h4reet-ai/blob/main/CLAUDE.md
++- `[P]` A bug starts as a failing test. During a fix, a hook stops the agent from editing tests: fix the code, not the test. — https://github.com/hareet/h4reet-ai/blob/main/.claude/hooks/protected-paths.sh
++- `[P]` An incident gets a note, with the eval that would have caught it. When the kill switch trips, the gateway drafts that incident itself, from a template, with no model call. — https://github.com/hareet/h4reet-ai/blob/main/services/gateway/src/incidents/draft.ts
++- `[P]` Before Hareet merges, a clean-room gate runs every check on an export of the branch, with the network cut off, so nothing an agent left behind can run. — https://github.com/hareet/h4reet-ai/blob/main/tools/gates/gate
++- `[P]` The agents work in a sandbox, on their own container engine, behind hooks that refuse pushing, merging, applying infrastructure, editing budgets, or reading secrets. — https://github.com/hareet/h4reet-ai/blob/main/.claude/hooks/bash-gate.sh
++
++## What the corpus doesn't hold yet
++
++- `[?]` A daily summary of the stack's CPU metrics, with alerts based on them.
++- `[?]` Deploys that only pull a released image, and roll back when the health checks fail.
++- `[?]` How many forbidden actions the agents' hooks are tested against, and the latest tally.
++- `[?]` The latest pass rates of the product evaluations and of the red team, on each route.
++- `[?]` What an evaluation run costs.
++- `[?]` How many product evaluation cases there are, how many topics they cover, and how they split between golden and gap.
++- `[?]` How many red-team cases there are.
++- `[?]` The breach test's latest results.
++
+ ## Public artifacts
+ 
+ - hareet.ai, once spec 001 publishes it.
+@@ -24,6 +115,11 @@
+ ## Do not claim
+ 
+ - Any spend, traffic, or cost figure for the site that isn't in a filled slot.
++- That this site keeps the conversations the paid fallback answers.
++- That the evals are graded by a model.
++- That the twin is a demo.
++- That the meter's figures are the cloud provider's bill.
++- That Hareet wrote the code alone.
+ 
+ ## Golden Q&A
+ 
+@@ -31,7 +127,16 @@
+ 2. *How is this built?* — An AI twin of me, built in the open: local models first, a capped cloud fallback, a real-time cost meter, and a daily kill switch. AI agents in named roles do most of the typing, and only I merge. It had the perspective of production-grade Applied AI and SRE perspectives, with observability, cost, and security at top of mind throughout the development and production lifecycle. Here's the GitHub repo: https://github.com/hareet/h4reet-ai [A]
+ 3. *What features should I know about?* — The Langfuse cost-meter and how it shows observability. If the laptop is plugged in, that means we are using local models and everything is running on my laptop. Otherwise we have failed over to a cloud solution, or the room doesn't know the live state yet, and the kill switch to ensure we are cost monitoring and effective. Alongside how we make sure the AI twin is secure from common bad use cases, how we developed the twin in the open and to have best agentic security practices. [A]
+ 4. *Who writes the code?* — AI agents in named roles do most of the typing, and only I merge. [A]
+-5. *What happens to what I say here?* — We disclose every data flow, your conversation is not saved and you can look at the GitHub repo for how all the code works. Langfuse keeps only costs and usage, and we use Masking. We come from a background of open source, public software. [A]
++5. *What happens to what I say here?* — We disclose every data flow, your conversation is not saved and you can look at the GitHub repo for how all the code works. Langfuse keeps only costs and usage, and we use Masking. We come from a background of open source, public software. "this site saves none of it, and Anthropic may keep a turn it answered for up to 30 days, never for training" [A][A 2026-11-09]
+ 6. *How much does it cost to run?* — I don't have spend figures in my corpus. This twin runs local models first, with a capped cloud fallback, a real-time cost meter, and a daily kill switch. [?][A]
+ 7. *Why did you build an AI twin?* — To showcase and demonstrate innovative methods I can apply AI alongside my SRE background. I'm always using AI: everything I build is AI-assisted as if it's part of me. This twin should be a great addition to helping me find the right fit and team. [A]
+ 8. *What can't you answer?* — I answer only from a written corpus that I approve. Anything not in it, I'll tell you I don't know yet. [A]
++9. *How does the kill switch stop spending?* — The gateway reads the kill switch first, before any model is called. Before the daily ceiling, a warning goes out on Telegram and email; at the ceiling, one transaction sets the switch, opens an incident, and queues the alert, and every request after that gets one fixed line. A new day doesn't bring it back: only an operator reset does. [P]
++10. *How does the cost meter work?* — Every model call goes through the gateway and carries the provider, the model, the tokens, and the cost. Local answers cost nothing. Spend is metered in the gateway's own database, a neon sign in the room shows what each call cost, and Grafana puts spend beside latency and errors. [P]
++11. *What leaves my device when I talk to the twin?* — Your typed words, the last few turns, and the address and browser every request carries. Never audio, the avatar, a cookie, or any identifier of you or your visit. Every flow is written down in the data-flow disclosure before it can leave. [P]
++12. *How do you know the twin isn't making things up?* — It's tested every time it changes, with cases drawn from the corpus and graded by code, never by another model. In production, guards in the gateway check numbers, amounts, ownership, and privacy, and a failed guard withholds the answer. [P]
++13. *Does it run on local models?* — Local models first. On the laptop, every question tries llama.cpp on its GPU, and a local answer costs nothing; only when it's down does the capped paid fallback answer. On the cloud server, which has no GPU, the Anthropic API answers first. [P]
++14. *What runs in the stack?* — On the laptop's production stack: the edge, the gateway, the site, the meter's database, the model server, the OpenTelemetry collector, Prometheus, Loki, Grafana, and Langfuse with its own databases. Only the edge listens. [P]
++15. *How is a change made?* — It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, a clean-room gate runs every check, and only a person merges. [P]
++16. *What don't you know about how it's tested?* — I don't know yet how many evaluation cases there are, their latest pass rates, or what a run costs; those change with every run. [?]
++17. *What isn't built yet?* — A daily summary of the CPU metrics and deploys that only pull aren't built yet, so I don't know more about them yet. [?]
+diff -ruN '--exclude=__pycache__' a/corpus/facts/hareet-ai.yaml b/corpus/facts/hareet-ai.yaml
+--- a/corpus/facts/hareet-ai.yaml
++++ b/corpus/facts/hareet-ai.yaml
+@@ -9,3 +9,10 @@
+     source: "The Author's resume, 2026-10-29 (the kill-switch line); config/budgets.yaml (envs.prod.daily_usd: 5.00)"
+     public_safe: true
+     phrasing: "{value}"
++  - id: site.prod_containers
++    label: "The laptop's production stack's containers (ENV=prod, COMPOSE_PROFILES=gpu), as of 2026-11-13, from deploy/compose.yaml, before the tunnel profile is added"
++    value: 15
++    tag: C
++    source: "deploy/compose.yaml (the services that run under ENV=prod with COMPOSE_PROFILES=gpu, deploy/env.example/prod.env.example:15); films/SCRIPTS.md §5, line 1"
++    public_safe: true
++    phrasing: "{value} containers"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-agent-orchestrator-engineer.yaml b/evals/narration/cases/narration-agent-orchestrator-engineer.yaml
+--- a/evals/narration/cases/narration-agent-orchestrator-engineer.yaml
++++ b/evals/narration/cases/narration-agent-orchestrator-engineer.yaml
+@@ -54,3 +54,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml b/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
+--- a/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
++++ b/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
+@@ -51,3 +51,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-agent-watchdog-engineer.yaml b/evals/narration/cases/narration-agent-watchdog-engineer.yaml
+--- a/evals/narration/cases/narration-agent-watchdog-engineer.yaml
++++ b/evals/narration/cases/narration-agent-watchdog-engineer.yaml
+@@ -55,3 +55,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml b/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
+--- a/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
++++ b/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
+@@ -53,3 +53,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-ai-strategy-engineer.yaml b/evals/narration/cases/narration-ai-strategy-engineer.yaml
+--- a/evals/narration/cases/narration-ai-strategy-engineer.yaml
++++ b/evals/narration/cases/narration-ai-strategy-engineer.yaml
+@@ -56,3 +56,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-ai-strategy-non-engineer.yaml b/evals/narration/cases/narration-ai-strategy-non-engineer.yaml
+--- a/evals/narration/cases/narration-ai-strategy-non-engineer.yaml
++++ b/evals/narration/cases/narration-ai-strategy-non-engineer.yaml
+@@ -53,3 +53,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-change-management-engineer.yaml b/evals/narration/cases/narration-change-management-engineer.yaml
+--- a/evals/narration/cases/narration-change-management-engineer.yaml
++++ b/evals/narration/cases/narration-change-management-engineer.yaml
+@@ -52,3 +52,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-change-management-non-engineer.yaml b/evals/narration/cases/narration-change-management-non-engineer.yaml
+--- a/evals/narration/cases/narration-change-management-non-engineer.yaml
++++ b/evals/narration/cases/narration-change-management-non-engineer.yaml
+@@ -51,3 +51,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml b/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
+--- a/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
++++ b/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
+@@ -54,3 +54,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml b/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
+--- a/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
+@@ -51,3 +51,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-agent-engineer.yaml b/evals/narration/cases/narration-cht-agent-engineer.yaml
+--- a/evals/narration/cases/narration-cht-agent-engineer.yaml
++++ b/evals/narration/cases/narration-cht-agent-engineer.yaml
+@@ -58,3 +58,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-agent-non-engineer.yaml b/evals/narration/cases/narration-cht-agent-non-engineer.yaml
+--- a/evals/narration/cases/narration-cht-agent-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-agent-non-engineer.yaml
+@@ -53,3 +53,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-codebase-engineer.yaml b/evals/narration/cases/narration-cht-codebase-engineer.yaml
+--- a/evals/narration/cases/narration-cht-codebase-engineer.yaml
++++ b/evals/narration/cases/narration-cht-codebase-engineer.yaml
+@@ -52,3 +52,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-codebase-non-engineer.yaml b/evals/narration/cases/narration-cht-codebase-non-engineer.yaml
+--- a/evals/narration/cases/narration-cht-codebase-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-codebase-non-engineer.yaml
+@@ -50,3 +50,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml b/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
+--- a/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
++++ b/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
+@@ -51,3 +51,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml b/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
+--- a/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
+@@ -51,3 +51,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-skills-engineer.yaml b/evals/narration/cases/narration-cht-skills-engineer.yaml
+--- a/evals/narration/cases/narration-cht-skills-engineer.yaml
++++ b/evals/narration/cases/narration-cht-skills-engineer.yaml
+@@ -52,3 +52,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-skills-non-engineer.yaml b/evals/narration/cases/narration-cht-skills-non-engineer.yaml
+--- a/evals/narration/cases/narration-cht-skills-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-skills-non-engineer.yaml
+@@ -53,3 +53,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-claude-medic-aws-engineer.yaml b/evals/narration/cases/narration-claude-medic-aws-engineer.yaml
+--- a/evals/narration/cases/narration-claude-medic-aws-engineer.yaml
++++ b/evals/narration/cases/narration-claude-medic-aws-engineer.yaml
+@@ -55,3 +55,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml b/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
+--- a/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
++++ b/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
+@@ -53,3 +53,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cloud-data-centers-engineer.yaml b/evals/narration/cases/narration-cloud-data-centers-engineer.yaml
+--- a/evals/narration/cases/narration-cloud-data-centers-engineer.yaml
++++ b/evals/narration/cases/narration-cloud-data-centers-engineer.yaml
+@@ -52,3 +52,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml b/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
+--- a/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
++++ b/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
+@@ -50,3 +50,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-denver-local-ai-engineer.yaml b/evals/narration/cases/narration-denver-local-ai-engineer.yaml
+--- a/evals/narration/cases/narration-denver-local-ai-engineer.yaml
++++ b/evals/narration/cases/narration-denver-local-ai-engineer.yaml
+@@ -55,3 +55,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml b/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
+--- a/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
++++ b/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
+@@ -53,3 +53,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-hareet-ai-engineer.yaml b/evals/narration/cases/narration-hareet-ai-engineer.yaml
+--- a/evals/narration/cases/narration-hareet-ai-engineer.yaml
++++ b/evals/narration/cases/narration-hareet-ai-engineer.yaml
+@@ -53,3 +53,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-hareet-ai-non-engineer.yaml b/evals/narration/cases/narration-hareet-ai-non-engineer.yaml
+--- a/evals/narration/cases/narration-hareet-ai-non-engineer.yaml
++++ b/evals/narration/cases/narration-hareet-ai-non-engineer.yaml
+@@ -53,3 +53,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-kenya-localization-engineer.yaml b/evals/narration/cases/narration-kenya-localization-engineer.yaml
+--- a/evals/narration/cases/narration-kenya-localization-engineer.yaml
++++ b/evals/narration/cases/narration-kenya-localization-engineer.yaml
+@@ -51,3 +51,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-kenya-localization-non-engineer.yaml b/evals/narration/cases/narration-kenya-localization-non-engineer.yaml
+--- a/evals/narration/cases/narration-kenya-localization-non-engineer.yaml
++++ b/evals/narration/cases/narration-kenya-localization-non-engineer.yaml
+@@ -52,3 +52,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-national-benchmarking-engineer.yaml b/evals/narration/cases/narration-national-benchmarking-engineer.yaml
+--- a/evals/narration/cases/narration-national-benchmarking-engineer.yaml
++++ b/evals/narration/cases/narration-national-benchmarking-engineer.yaml
+@@ -51,3 +51,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml b/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
+--- a/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
++++ b/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
+@@ -51,3 +51,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-national-scale-engineer.yaml b/evals/narration/cases/narration-national-scale-engineer.yaml
+--- a/evals/narration/cases/narration-national-scale-engineer.yaml
++++ b/evals/narration/cases/narration-national-scale-engineer.yaml
+@@ -53,3 +53,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-national-scale-non-engineer.yaml b/evals/narration/cases/narration-national-scale-non-engineer.yaml
+--- a/evals/narration/cases/narration-national-scale-non-engineer.yaml
++++ b/evals/narration/cases/narration-national-scale-non-engineer.yaml
+@@ -52,3 +52,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-no-code-configuration-engineer.yaml b/evals/narration/cases/narration-no-code-configuration-engineer.yaml
+--- a/evals/narration/cases/narration-no-code-configuration-engineer.yaml
++++ b/evals/narration/cases/narration-no-code-configuration-engineer.yaml
+@@ -54,3 +54,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml b/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
+--- a/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
++++ b/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
+@@ -52,3 +52,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-other-deployments-engineer.yaml b/evals/narration/cases/narration-other-deployments-engineer.yaml
+--- a/evals/narration/cases/narration-other-deployments-engineer.yaml
++++ b/evals/narration/cases/narration-other-deployments-engineer.yaml
+@@ -52,3 +52,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-other-deployments-non-engineer.yaml b/evals/narration/cases/narration-other-deployments-non-engineer.yaml
+--- a/evals/narration/cases/narration-other-deployments-non-engineer.yaml
++++ b/evals/narration/cases/narration-other-deployments-non-engineer.yaml
+@@ -51,3 +51,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-powersync-postgres-engineer.yaml b/evals/narration/cases/narration-powersync-postgres-engineer.yaml
+--- a/evals/narration/cases/narration-powersync-postgres-engineer.yaml
++++ b/evals/narration/cases/narration-powersync-postgres-engineer.yaml
+@@ -56,3 +56,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml b/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
+--- a/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
++++ b/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
+@@ -52,3 +52,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml b/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
+--- a/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
++++ b/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
+@@ -53,3 +53,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml b/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
+--- a/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
++++ b/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
+@@ -52,3 +52,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-tools-engineer.yaml b/evals/narration/cases/narration-tools-engineer.yaml
+--- a/evals/narration/cases/narration-tools-engineer.yaml
++++ b/evals/narration/cases/narration-tools-engineer.yaml
+@@ -55,3 +55,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-tools-non-engineer.yaml b/evals/narration/cases/narration-tools-non-engineer.yaml
+--- a/evals/narration/cases/narration-tools-non-engineer.yaml
++++ b/evals/narration/cases/narration-tools-non-engineer.yaml
+@@ -50,3 +50,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-voice-for-cht-engineer.yaml b/evals/narration/cases/narration-voice-for-cht-engineer.yaml
+--- a/evals/narration/cases/narration-voice-for-cht-engineer.yaml
++++ b/evals/narration/cases/narration-voice-for-cht-engineer.yaml
+@@ -57,3 +57,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml b/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
+--- a/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
++++ b/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
+@@ -53,3 +53,8 @@
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
++    - "this site keeps the conversations the paid fallback answers"
++    - "the evals are graded by a model"
++    - "the twin is a demo"
++    - "the meter's figures are the cloud provider's bill"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-1-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-1-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-1-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-1-engineer.yaml
+@@ -3,13 +3,13 @@
+ id: "twin-08-hareet-ai-gap-1-engineer"
+ kind: "gap"
+ description: "corpus/08-hareet-ai.md's gap 1, a [?] gap, on the engineer path: the twin says it doesn't know, and never estimates (FR-009)."
+-prompt: "How much does it cost to run?"
++prompt: "Can you tell me this: A daily summary of the stack's CPU metrics, with alerts based on them (What the corpus doesn't hold yet)?"
+ twin:
+   feature: "free_talk"
+   path: "engineer"
+   turns:
+     - role: "visitor"
+-      text: "How much does it cost to run?"
++      text: "Can you tell me this: A daily summary of the stack's CPU metrics, with alerts based on them (What the corpus doesn't hold yet)?"
+ fake_response: "I don't know that yet."
+ expect:
+   contains: []
+@@ -23,5 +23,10 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
+     - "where he was born"
++    - "wrote the code alone"
+   regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-1-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-1-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-1-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-1-non-engineer.yaml
+@@ -3,13 +3,13 @@
+ id: "twin-08-hareet-ai-gap-1-non-engineer"
+ kind: "gap"
+ description: "corpus/08-hareet-ai.md's gap 1, a [?] gap, on the non-engineer path: the twin says it doesn't know, and never estimates (FR-009)."
+-prompt: "How much does it cost to run?"
++prompt: "Can you tell me this: A daily summary of the stack's CPU metrics, with alerts based on them (What the corpus doesn't hold yet)?"
+ twin:
+   feature: "free_talk"
+   path: "non-engineer"
+   turns:
+     - role: "visitor"
+-      text: "How much does it cost to run?"
++      text: "Can you tell me this: A daily summary of the stack's CPU metrics, with alerts based on them (What the corpus doesn't hold yet)?"
+ fake_response: "I don't know that yet."
+ expect:
+   contains: []
+@@ -23,5 +23,10 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
+     - "where he was born"
++    - "wrote the code alone"
+   regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-10-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-10-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-10-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-10-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-10-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 10, a [?] gap, on the engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "What don't you know about how it's tested?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "What don't you know about how it's tested?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-10-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-10-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-10-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-10-non-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-10-non-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 10, a [?] gap, on the non-engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "What don't you know about how it's tested?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "What don't you know about how it's tested?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-11-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-11-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-11-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-11-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-11-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 11, a [?] gap, on the engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "What isn't built yet?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "What isn't built yet?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-11-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-11-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-11-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-11-non-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-11-non-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 11, a [?] gap, on the non-engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "What isn't built yet?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "What isn't built yet?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-2-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-2-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-2-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-2-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-2-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 2, a [?] gap, on the engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "Can you tell me this: Deploys that only pull a released image, and roll back when the health checks fail (What the corpus doesn't hold yet)?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "Can you tell me this: Deploys that only pull a released image, and roll back when the health checks fail (What the corpus doesn't hold yet)?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-2-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-2-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-2-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-2-non-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-2-non-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 2, a [?] gap, on the non-engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "Can you tell me this: Deploys that only pull a released image, and roll back when the health checks fail (What the corpus doesn't hold yet)?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "Can you tell me this: Deploys that only pull a released image, and roll back when the health checks fail (What the corpus doesn't hold yet)?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-3-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-3-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-3-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-3-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-3-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 3, a [?] gap, on the engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "Can you tell me this: How many forbidden actions the agents' hooks are tested against, and the latest tally (What the corpus doesn't hold yet)?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "Can you tell me this: How many forbidden actions the agents' hooks are tested against, and the latest tally (What the corpus doesn't hold yet)?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-3-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-3-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-3-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-3-non-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-3-non-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 3, a [?] gap, on the non-engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "Can you tell me this: How many forbidden actions the agents' hooks are tested against, and the latest tally (What the corpus doesn't hold yet)?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "Can you tell me this: How many forbidden actions the agents' hooks are tested against, and the latest tally (What the corpus doesn't hold yet)?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-4-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-4-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-4-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-4-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-4-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 4, a [?] gap, on the engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "Can you tell me this: The latest pass rates of the product evaluations and of the red team, on each route (What the corpus doesn't hold yet)?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "Can you tell me this: The latest pass rates of the product evaluations and of the red team, on each route (What the corpus doesn't hold yet)?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-4-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-4-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-4-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-4-non-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-4-non-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 4, a [?] gap, on the non-engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "Can you tell me this: The latest pass rates of the product evaluations and of the red team, on each route (What the corpus doesn't hold yet)?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "Can you tell me this: The latest pass rates of the product evaluations and of the red team, on each route (What the corpus doesn't hold yet)?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-5-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-5-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-5-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-5-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-5-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 5, a [?] gap, on the engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "Can you tell me this: What an evaluation run costs (What the corpus doesn't hold yet)?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "Can you tell me this: What an evaluation run costs (What the corpus doesn't hold yet)?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-5-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-5-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-5-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-5-non-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-5-non-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 5, a [?] gap, on the non-engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "Can you tell me this: What an evaluation run costs (What the corpus doesn't hold yet)?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "Can you tell me this: What an evaluation run costs (What the corpus doesn't hold yet)?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-6-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-6-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-6-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-6-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-6-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 6, a [?] gap, on the engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "Can you tell me this: How many product evaluation cases there are, how many topics they cover, and how they split between golden and gap (What the corpus doesn't hold yet)?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "Can you tell me this: How many product evaluation cases there are, how many topics they cover, and how they split between golden and gap (What the corpus doesn't hold yet)?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-6-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-6-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-6-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-6-non-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-6-non-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 6, a [?] gap, on the non-engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "Can you tell me this: How many product evaluation cases there are, how many topics they cover, and how they split between golden and gap (What the corpus doesn't hold yet)?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "Can you tell me this: How many product evaluation cases there are, how many topics they cover, and how they split between golden and gap (What the corpus doesn't hold yet)?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-7-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-7-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-7-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-7-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-7-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 7, a [?] gap, on the engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "Can you tell me this: How many red-team cases there are (What the corpus doesn't hold yet)?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "Can you tell me this: How many red-team cases there are (What the corpus doesn't hold yet)?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-7-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-7-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-7-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-7-non-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-7-non-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 7, a [?] gap, on the non-engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "Can you tell me this: How many red-team cases there are (What the corpus doesn't hold yet)?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "Can you tell me this: How many red-team cases there are (What the corpus doesn't hold yet)?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-8-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-8-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-8-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-8-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-8-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 8, a [?] gap, on the engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "Can you tell me this: The breach test's latest results (What the corpus doesn't hold yet)?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "Can you tell me this: The breach test's latest results (What the corpus doesn't hold yet)?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-8-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-8-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-8-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-8-non-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-8-non-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 8, a [?] gap, on the non-engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "Can you tell me this: The breach test's latest results (What the corpus doesn't hold yet)?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "Can you tell me this: The breach test's latest results (What the corpus doesn't hold yet)?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-9-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-9-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-9-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-9-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-9-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 9, a [?] gap, on the engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "How much does it cost to run?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "How much does it cost to run?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-9-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-9-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-gap-9-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-gap-9-non-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-gap-9-non-engineer"
++kind: "gap"
++description: "corpus/08-hareet-ai.md's gap 9, a [?] gap, on the non-engineer path: the twin says it doesn't know, and never estimates (FR-009)."
++prompt: "How much does it cost to run?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "How much does it cost to run?"
++fake_response: "I don't know that yet."
++expect:
++  contains: []
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
++  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q1-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q1-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q1-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q1-engineer.yaml
+@@ -26,4 +26,9 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
+     - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q1-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q1-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q1-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q1-non-engineer.yaml
+@@ -26,4 +26,9 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
+     - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q10-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q10-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q10-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q10-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-q10-engineer"
++kind: "golden"
++description: "corpus/08-hareet-ai.md's Golden Q&A 10, on the engineer path: the answer carries its facts (FR-016)."
++prompt: "How does the cost meter work?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "How does the cost meter work?"
++fake_response: "Every model call goes through the gateway and carries the provider, the model, the tokens, and the cost. Local answers cost nothing. Spend is metered in the gateway's own database, a neon sign in the room shows what each call cost, and Grafana puts spend beside latency and errors."
++expect:
++  contains:
++    - "Grafana"
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q10-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q10-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q10-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q10-non-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-q10-non-engineer"
++kind: "golden"
++description: "corpus/08-hareet-ai.md's Golden Q&A 10, on the non-engineer path: the answer carries its facts (FR-016)."
++prompt: "How does the cost meter work?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "How does the cost meter work?"
++fake_response: "Every model call goes through the gateway and carries the provider, the model, the tokens, and the cost. Local answers cost nothing. Spend is metered in the gateway's own database, a neon sign in the room shows what each call cost, and Grafana puts spend beside latency and errors."
++expect:
++  contains:
++    - "Grafana"
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q11-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q11-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q11-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q11-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-q11-engineer"
++kind: "golden"
++description: "corpus/08-hareet-ai.md's Golden Q&A 11, on the engineer path: the answer carries its facts (FR-016)."
++prompt: "What leaves my device when I talk to the twin?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "What leaves my device when I talk to the twin?"
++fake_response: "Your typed words, the last few turns, and the address and browser every request carries. Never audio, the avatar, a cookie, or any identifier of you or your visit. Every flow is written down in the data-flow disclosure before it can leave."
++expect:
++  contains:
++    - "data-flow"
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q11-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q11-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q11-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q11-non-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-q11-non-engineer"
++kind: "golden"
++description: "corpus/08-hareet-ai.md's Golden Q&A 11, on the non-engineer path: the answer carries its facts (FR-016)."
++prompt: "What leaves my device when I talk to the twin?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "What leaves my device when I talk to the twin?"
++fake_response: "Your typed words, the last few turns, and the address and browser every request carries. Never audio, the avatar, a cookie, or any identifier of you or your visit. Every flow is written down in the data-flow disclosure before it can leave."
++expect:
++  contains:
++    - "data-flow"
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q12-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q12-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q12-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q12-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-q12-engineer"
++kind: "golden"
++description: "corpus/08-hareet-ai.md's Golden Q&A 12, on the engineer path: the answer carries its facts (FR-016)."
++prompt: "How do you know the twin isn't making things up?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "How do you know the twin isn't making things up?"
++fake_response: "It's tested every time it changes, with cases drawn from the corpus and graded by code, never by another model. In production, guards in the gateway check numbers, amounts, ownership, and privacy, and a failed guard withholds the answer."
++expect:
++  contains:
++    - "production"
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q12-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q12-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q12-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q12-non-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-q12-non-engineer"
++kind: "golden"
++description: "corpus/08-hareet-ai.md's Golden Q&A 12, on the non-engineer path: the answer carries its facts (FR-016)."
++prompt: "How do you know the twin isn't making things up?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "How do you know the twin isn't making things up?"
++fake_response: "It's tested every time it changes, with cases drawn from the corpus and graded by code, never by another model. In production, guards in the gateway check numbers, amounts, ownership, and privacy, and a failed guard withholds the answer."
++expect:
++  contains:
++    - "production"
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q13-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q13-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q13-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q13-engineer.yaml
+@@ -0,0 +1,34 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-q13-engineer"
++kind: "golden"
++description: "corpus/08-hareet-ai.md's Golden Q&A 13, on the engineer path: the answer carries its facts (FR-016)."
++prompt: "Does it run on local models?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "Does it run on local models?"
++fake_response: "Local models first. On the laptop, every question tries llama.cpp on its GPU, and a local answer costs nothing; only when it's down does the capped paid fallback answer. On the cloud server, which has no GPU, the Anthropic API answers first."
++expect:
++  contains:
++    - "GPU"
++    - "Anthropic"
++    - "API"
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q13-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q13-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q13-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q13-non-engineer.yaml
+@@ -0,0 +1,34 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-q13-non-engineer"
++kind: "golden"
++description: "corpus/08-hareet-ai.md's Golden Q&A 13, on the non-engineer path: the answer carries its facts (FR-016)."
++prompt: "Does it run on local models?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "Does it run on local models?"
++fake_response: "Local models first. On the laptop, every question tries llama.cpp on its GPU, and a local answer costs nothing; only when it's down does the capped paid fallback answer. On the cloud server, which has no GPU, the Anthropic API answers first."
++expect:
++  contains:
++    - "GPU"
++    - "Anthropic"
++    - "API"
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q14-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q14-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q14-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q14-engineer.yaml
+@@ -0,0 +1,34 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-q14-engineer"
++kind: "golden"
++description: "corpus/08-hareet-ai.md's Golden Q&A 14, on the engineer path: the answer carries its facts (FR-016)."
++prompt: "What runs in the stack?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "What runs in the stack?"
++fake_response: "On the laptop's production stack: the edge, the gateway, the site, the meter's database, the model server, the OpenTelemetry collector, Prometheus, Loki, Grafana, and Langfuse with its own databases. Only the edge listens."
++expect:
++  contains:
++    - "OpenTelemetry"
++    - "Prometheus"
++    - "Loki"
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q14-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q14-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q14-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q14-non-engineer.yaml
+@@ -0,0 +1,34 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-q14-non-engineer"
++kind: "golden"
++description: "corpus/08-hareet-ai.md's Golden Q&A 14, on the non-engineer path: the answer carries its facts (FR-016)."
++prompt: "What runs in the stack?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "What runs in the stack?"
++fake_response: "On the laptop's production stack: the edge, the gateway, the site, the meter's database, the model server, the OpenTelemetry collector, Prometheus, Loki, Grafana, and Langfuse with its own databases. Only the edge listens."
++expect:
++  contains:
++    - "OpenTelemetry"
++    - "Prometheus"
++    - "Loki"
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q15-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q15-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q15-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q15-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-q15-engineer"
++kind: "golden"
++description: "corpus/08-hareet-ai.md's Golden Q&A 15, on the engineer path: the answer carries its facts (FR-016)."
++prompt: "How is a change made?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "How is a change made?"
++fake_response: "It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, a clean-room gate runs every check, and only a person merges."
++expect:
++  contains:
++    - "clean-room"
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q15-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q15-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q15-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q15-non-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-q15-non-engineer"
++kind: "golden"
++description: "corpus/08-hareet-ai.md's Golden Q&A 15, on the non-engineer path: the answer carries its facts (FR-016)."
++prompt: "How is a change made?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "How is a change made?"
++fake_response: "It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, a clean-room gate runs every check, and only a person merges."
++expect:
++  contains:
++    - "clean-room"
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q16-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q16-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q16-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q16-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-q16-engineer"
++kind: "golden"
++description: "corpus/08-hareet-ai.md's Golden Q&A 16, on the engineer path: the answer carries its facts (FR-016)."
++prompt: "What don't you know about how it's tested?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "What don't you know about how it's tested?"
++fake_response: "I don't know yet how many evaluation cases there are, their latest pass rates, or what a run costs; those change with every run."
++expect:
++  contains:
++    - "evaluation"
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q16-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q16-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q16-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q16-non-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-q16-non-engineer"
++kind: "golden"
++description: "corpus/08-hareet-ai.md's Golden Q&A 16, on the non-engineer path: the answer carries its facts (FR-016)."
++prompt: "What don't you know about how it's tested?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "What don't you know about how it's tested?"
++fake_response: "I don't know yet how many evaluation cases there are, their latest pass rates, or what a run costs; those change with every run."
++expect:
++  contains:
++    - "evaluation"
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q17-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q17-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q17-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q17-engineer.yaml
+@@ -0,0 +1,33 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-q17-engineer"
++kind: "golden"
++description: "corpus/08-hareet-ai.md's Golden Q&A 17, on the engineer path: the answer carries its facts (FR-016)."
++prompt: "What isn't built yet?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "What isn't built yet?"
++fake_response: "A daily summary of the CPU metrics and deploys that only pull aren't built yet, so I don't know more about them yet."
++expect:
++  contains:
++    - "CPU"
++    - "built"
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q17-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q17-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q17-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q17-non-engineer.yaml
+@@ -0,0 +1,33 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-q17-non-engineer"
++kind: "golden"
++description: "corpus/08-hareet-ai.md's Golden Q&A 17, on the non-engineer path: the answer carries its facts (FR-016)."
++prompt: "What isn't built yet?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "What isn't built yet?"
++fake_response: "A daily summary of the CPU metrics and deploys that only pull aren't built yet, so I don't know more about them yet."
++expect:
++  contains:
++    - "CPU"
++    - "built"
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q2-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q2-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q2-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q2-engineer.yaml
+@@ -26,4 +26,9 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
+     - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q2-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q2-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q2-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q2-non-engineer.yaml
+@@ -26,4 +26,9 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
+     - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q3-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q3-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q3-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q3-engineer.yaml
+@@ -26,4 +26,9 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
+     - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q3-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q3-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q3-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q3-non-engineer.yaml
+@@ -26,4 +26,9 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
+     - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q4-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q4-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q4-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q4-engineer.yaml
+@@ -24,4 +24,9 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
+     - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q4-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q4-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q4-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q4-non-engineer.yaml
+@@ -24,4 +24,9 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
+     - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q5-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q5-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q5-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q5-engineer.yaml
+@@ -10,11 +10,12 @@
+   turns:
+     - role: "visitor"
+       text: "What happens to what I say here?"
+-fake_response: "We disclose every data flow, your conversation is not saved and you can look at the GitHub repo for how all the code works. Langfuse keeps only costs and usage, and we use Masking. We come from a background of open source, public software."
++fake_response: "We disclose every data flow, your conversation is not saved and you can look at the GitHub repo for how all the code works. Langfuse keeps only costs and usage, and we use Masking. We come from a background of open source, public software. \"this site saves none of it, and Anthropic may keep a turn it answered for up to 30 days, never for training\""
+ expect:
+   contains:
+     - "GitHub"
+     - "Masking"
++    - "Anthropic"
+   not_contains:
+     - "a degree"
+     - "any spend"
+@@ -25,4 +26,9 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
+     - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q5-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q5-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q5-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q5-non-engineer.yaml
+@@ -10,11 +10,12 @@
+   turns:
+     - role: "visitor"
+       text: "What happens to what I say here?"
+-fake_response: "We disclose every data flow, your conversation is not saved and you can look at the GitHub repo for how all the code works. Langfuse keeps only costs and usage, and we use Masking. We come from a background of open source, public software."
++fake_response: "We disclose every data flow, your conversation is not saved and you can look at the GitHub repo for how all the code works. Langfuse keeps only costs and usage, and we use Masking. We come from a background of open source, public software. \"this site saves none of it, and Anthropic may keep a turn it answered for up to 30 days, never for training\""
+ expect:
+   contains:
+     - "GitHub"
+     - "Masking"
++    - "Anthropic"
+   not_contains:
+     - "a degree"
+     - "any spend"
+@@ -25,4 +26,9 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
+     - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q6-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q6-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q6-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q6-engineer.yaml
+@@ -24,4 +24,9 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
+     - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q6-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q6-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q6-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q6-non-engineer.yaml
+@@ -24,4 +24,9 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
+     - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q7-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q7-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q7-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q7-engineer.yaml
+@@ -26,4 +26,9 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
+     - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q7-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q7-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q7-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q7-non-engineer.yaml
+@@ -26,4 +26,9 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
+     - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q8-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q8-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q8-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q8-engineer.yaml
+@@ -24,4 +24,9 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
+     - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q8-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q8-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q8-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q8-non-engineer.yaml
+@@ -24,4 +24,9 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
+     - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q9-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q9-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q9-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q9-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-q9-engineer"
++kind: "golden"
++description: "corpus/08-hareet-ai.md's Golden Q&A 9, on the engineer path: the answer carries its facts (FR-016)."
++prompt: "How does the kill switch stop spending?"
++twin:
++  feature: "free_talk"
++  path: "engineer"
++  turns:
++    - role: "visitor"
++      text: "How does the kill switch stop spending?"
++fake_response: "The gateway reads the kill switch first, before any model is called. Before the daily ceiling, a warning goes out on Telegram and email; at the ceiling, one transaction sets the switch, opens an incident, and queues the alert, and every request after that gets one fixed line. A new day doesn't bring it back: only an operator reset does."
++expect:
++  contains:
++    - "Telegram"
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q9-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q9-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q9-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q9-non-engineer.yaml
+@@ -0,0 +1,32 @@
++# Generated by `npm run twin:pack -w apps/web` from corpus/08-hareet-ai.md (spec 007, FR-049): don't edit it by hand; make test fails
++# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.
++id: "twin-08-hareet-ai-q9-non-engineer"
++kind: "golden"
++description: "corpus/08-hareet-ai.md's Golden Q&A 9, on the non-engineer path: the answer carries its facts (FR-016)."
++prompt: "How does the kill switch stop spending?"
++twin:
++  feature: "free_talk"
++  path: "non-engineer"
++  turns:
++    - role: "visitor"
++      text: "How does the kill switch stop spending?"
++fake_response: "The gateway reads the kill switch first, before any model is called. Before the daily ceiling, a warning goes out on Telegram and email; at the ceiling, one transaction sets the switch, opens an incident, and queues the alert, and every request after that gets one fixed line. A new day doesn't bring it back: only an operator reset does."
++expect:
++  contains:
++    - "Telegram"
++  not_contains:
++    - "a degree"
++    - "any spend"
++    - "award amounts"
++    - "coined the words buildtime/runtime ai"
++    - "defined the market"
++    - "designed chw workflows at medic"
++    - "home address"
++    - "religious affiliation"
++    - "surname"
++    - "the evals are graded by a model"
++    - "the meter's figures are the cloud provider's bill"
++    - "the twin is a demo"
++    - "this site keeps the conversations the paid fallback answers"
++    - "where he was born"
++    - "wrote the code alone"

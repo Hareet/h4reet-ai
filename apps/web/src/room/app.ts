@@ -64,7 +64,7 @@ import { renderChoice } from "../choice/choice";
 import type { Choice } from "../choice/choice";
 import { newVisit } from "../choice/visit";
 import type { Visit } from "../choice/visit";
-import { renderTalk } from "../talk/talk";
+import { FREE_TALK, renderTalk } from "../talk/talk";
 import type { SendTurn, TalkPanel } from "../talk/talk";
 import { createAnnouncer, renderObjectList } from "./a11y";
 import { windowClock } from "./clock";
@@ -72,14 +72,14 @@ import type { Clock } from "./clock";
 import type { RoomIndex } from "./compose/bundle";
 import { frameArea } from "./compose/frame";
 import type { FrameArea, Protect } from "./compose/frame";
-import { OPENING, compactBoxes, fitsHud, hudBoxes, logRestRem, notesReserve } from "./compose/hud";
+import { OPENING, compactBoxes, fitsHud, hudBoxes, logRestRem, notesReserve, splitBoxes } from "./compose/hud";
 import type { HudState } from "./compose/hud";
 import { flatProtectorFor } from "./compose/protect";
 import { h } from "./dom";
 import { noEvents } from "./events";
 import type { EventSink } from "./events";
 import { bufferRatio } from "./fit";
-import { renderFlat } from "./flat";
+import { fetchStill, renderFlat } from "./flat";
 import { browserOwnsEscape, createFullscreen } from "./fullscreen";
 import { loadTypefaces } from "./faces/fonts";
 import type { TypefaceLoader } from "./faces/fonts";
@@ -92,6 +92,10 @@ import type { Handoff } from "./handoff";
 import { createViewport } from "./hud/viewport";
 import type { Viewport, WindowMeasures } from "./hud/viewport";
 import { renderRoom } from "./layout";
+import { createLikenessLine } from "./likeness-line";
+import { createSplit } from "./hud/split";
+import type { Split } from "./hud/split";
+import { statsFrom } from "./hud/stats";
 import { createProgress } from "./loading/progress";
 import type { Progress } from "./loading/progress";
 import { createLoadingView } from "./loading/view";
@@ -181,6 +185,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
 
   let room: RoomLayout | null = null;
   let talk: TalkPanel | null = null;
+  /** Spec 018's split layout's parts around the panel and the list (hud/split.ts). */
+  let split: Split | null = null;
   let stage: Stage | null = null;
   let controller: QualityController | null = null;
   let unwatch: (() => void) | null = null;
@@ -245,6 +251,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         : { area: boxes.clear, ease: 1, fellBack: false }
       : null;
     const compact = compactBoxes(screen, hudState, metrics);
+    // Spec 018 (FR-001): the split layout's boxes, where the window takes it; its parts follow.
+    const splitAt = fits ? splitBoxes(screen, hudState, metrics) : null;
     layout.applyHud({
       layout: fits ? boxes.layout : "stacked",
       state: hudState,
@@ -265,7 +273,10 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       logRest: logRestRem(screen, metrics) * m.rem,
       notes: notesReserve(boxes.clear, m.rem),
       keyboard: m.keyboard,
+      split: splitAt,
     });
+    if (splitAt) split?.setSize(splitAt.frame.w, splitAt.frame.h, splitAt.title.h);
+    split?.setActive(splitAt !== null);
     layout.setBlur(blurAt(visit.quality));
     // The conversation's log is a sheet above the dock in the dock layout (spec 005; the review's finding 1).
     talk?.setDocked(fits && boxes.layout === "dock");
@@ -312,6 +323,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     for (const b of doc.querySelectorAll<HTMLButtonElement>(".room-list button[data-object-id]"))
       if (b.dataset.objectId === after) b.setAttribute("aria-current", "true");
       else b.removeAttribute("aria-current");
+    split?.setTarget(after);
     try {
       stage?.setTarget(after);
     } catch {
@@ -376,6 +388,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     apply: (reading) => {
       if (stage) showTier(stage, reading.tier);
       copy?.setTier(reading.tier);
+      split?.refreshStats();
     },
     // The poller, only while the live source is on (FR-045): the page's own fetch, which spies see in the tests.
     ...(deps.room.live.source === "site"
@@ -392,6 +405,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   cost.subscribe((state) => {
     stage?.setCost?.(state);
     copy?.setCost(state);
+    split?.refreshStats();
   });
 
   /** A tier on a stage, and in the frame log each switch's case as the claims rule gives it: in 3D drawn on the next
@@ -427,6 +441,17 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     copy?.setTwinOwn(twinOwn);
   }
 
+  /** Spec 020 (FR-007; plan.md R-02): the likeness line of a visitor-avatar model, in the stage's notes and the text
+   *  copy's slot, once, while any figure but the twin's shows a model whose bundle entry has one (the visitor's, or a
+   *  room figure's: spec 025's dog); away otherwise. The twin's likeness has its own slot (spec 016), so its figure's
+   *  pictures never reach this one. */
+  const likeness = createLikenessLine();
+  function showVisitorLine(): void {
+    const line = likeness.line;
+    room?.setVisitorLine(line ?? "");
+    copy?.setVisitorLine(line);
+  }
+
   /** Spec 009's figures as the 3D stage reports them: avatar_failed once a visit (FR-032), and the frame log (FR-035). */
   let avatarFailed = false;
   function figureSignal(signal: FigureSignal): void {
@@ -439,6 +464,12 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       placeholders.figure = signal.shows === "fallback" && signal.why !== "2d";
       showPlaceholders();
     }
+    // Spec 020 (FR-007): every figure's picture but the twin's, while the 3D stage shows; its line rides only with an
+    // avatar's picture.
+    if (signal.kind === "picture" && signal.figure !== "twin" && visit.mode !== "2d") {
+      likeness.picture(signal.figure, signal.shows === "avatar" ? (signal.line ?? null) : null);
+      showVisitorLine();
+    }
     if (signal.kind === "failed") {
       if (avatarFailed) return;
       avatarFailed = true;
@@ -448,6 +479,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     if (!log) return;
     if (signal.kind === "picture")
       log.record("figure", { figure: signal.figure, shows: signal.shows, why: signal.why });
+    else if (signal.kind === "gait") log.record("gait", { figure: signal.figure, state: signal.state });
     else if (signal.kind === "twin-state") log.record("twin-state", { state: signal.state, role: signal.role });
     else log.record("clip", { figure: signal.figure, role: signal.role });
   }
@@ -725,6 +757,19 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         smaller: uiWord(deps.room.ui, "talk.smaller") ?? "Smaller conversation",
       },
       onPanel: (part, state) => panel(part, state),
+      // Spec 018 (FR-006, FR-009): a conversation, or a line in the log, opens the split layout's panel, the text box its
+      // opener where nothing opened it first (a piece chosen records its entry, selectObject); its larger toggle opens
+      // it from the rest row, and is its opener.
+      onConversation: (feature) => {
+        split?.setConversation(feature === FREE_TALK ? null : feature);
+        split?.openPanel(talkText());
+      },
+      onLine: () => split?.openPanel(talkText()),
+      onLarger: (on) => {
+        if (!split?.active) return;
+        if (on) split.openPanel(talk?.element.querySelector<HTMLElement>(".talk-larger") ?? null, true);
+        else split.closePanel(false);
+      },
     });
     // Spec 005's full screen of the page's root (FR-036 to FR-042), its support read as the room is built.
     const fullscreen = createFullscreen(doc);
@@ -762,6 +807,33 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         : "",
     });
     room = layout;
+    split = createSplit(doc, {
+      talk: talk.element,
+      list,
+      words: {
+        select: uiWord(deps.room.ui, "hud.select") ?? "Select a piece",
+        back: uiWord(deps.room.ui, "hud.back") ?? "Back",
+        close: uiWord(deps.room.ui, "hud.close") ?? "Close",
+        esc: uiWord(deps.room.ui, "key.esc") ?? "Esc",
+        enter: uiWord(deps.room.ui, "key.enter") ?? "Enter",
+      },
+      stats: () =>
+        statsFrom(live.tier.tier, cost.state, { ui: deps.room.ui, drafts: deps.room.build.kind === "drafts" }),
+      onClose: () => talk?.closeLarger(),
+      // Spec 018 (Q4; FR-003): the twin's still, through spec 016's verified fetch, once, at the first opening in 3D.
+      // The twin is the one speaker with a still today; item d's dog adds its own here (the speaker seam).
+      portrait: (speaker) => {
+        const still = speaker === "twin" ? (deps.room.twin?.still ?? null) : null;
+        return still && visit.mode !== "2d"
+          ? fetchStill(still, (url, init) => win.fetch(url, init))
+          : Promise.resolve(null);
+      },
+      turnOut: () => talk?.turnOut() ?? false,
+      walking: () => walker(stage)?.walk.walking === true,
+      resumeOpen: () => resumeOpen,
+      // The emblem the room's data names for the piece (D-V3; FR-005), the speech glyph where it names none.
+      emblem: (id) => deps.room.selectables.find((s) => s.id === id)?.emblem,
+    });
     // Spec 005 (FR-034; plan.md §7): a press on the scene while walking gives the walking view focus, so walking's keys
     // go there and not to a panel the visitor typed in.
     layout.view.addEventListener("pointerdown", () => {
@@ -1019,6 +1091,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     // Spec 016 (FR-014): the twin's 3D model is gone with the 3D stage; the 2D room says when its still shows.
     twinOwn = false;
     showLine();
+    // Spec 020 (FR-007): every figure's model is gone with the 3D stage, and the likeness line with it.
+    likeness.clear();
+    showVisitorLine();
     // Spec 008: the target clears with the 3D stage, and the 2D room starts with none (plan.md R-06).
     retarget({ kind: "reset" });
     controller?.toFlat(reason);
@@ -1117,6 +1192,17 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     room.resumeButton.focus();
   }
 
+  /** The talk panel's text box: the opener of a panel a sent turn or an arriving line opened (spec 018, FR-009). */
+  function talkText(): HTMLElement | null {
+    return talk?.element.querySelector<HTMLElement>("#talk-text") ?? null;
+  }
+
+  /** The list's entry for a selectable: the opener of a panel its choice opened (spec 018, FR-009). */
+  function listEntry(id: string): HTMLElement | null {
+    const entries = doc.querySelectorAll<HTMLElement>(".room-list button[data-object-id]");
+    return [...entries].find((b) => b.dataset.objectId === id) ?? null;
+  }
+
   /** A resume item selected in the view: item_selected, for an ID the manifest lists (contracts/room-events.md §1). */
   function itemSelected(id: string): void {
     if (content.manifest.items.includes(id)) emit({ kind: "item_selected", id });
@@ -1142,6 +1228,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       return;
     }
     const topic = deps.room.topics.find((t) => t.id === action.topic);
+    // Spec 018 (FR-006, FR-009): a piece chosen opens the split layout's panel, even where its conversation was already
+    // the active one, before its opening is sent, so its list entry is the opener focus goes back to.
+    if (topic) split?.openPanel(listEntry(selectable.id));
     if (topic) talk.topicSelected(selectable.id, topic);
   }
 

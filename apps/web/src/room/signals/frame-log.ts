@@ -39,6 +39,8 @@ export type FrameEvent =
   // Spec 016's twin (its FR-052; contracts/twin-states.md §7): each state change (`state`, `role`); its pictures are
   // `figure` entries, `shows` `own`, `still`, or `drawing`.
   | "twin-state"
+  // Spec 019's walking legs (its FR-008): the visitor's model has no leg bones, so it slides (`figure`, `state`).
+  | "gait"
   // Spec 005's re-fits (its FR-063; plan.md §12.4): the window, the layout, the clear area, the buffer's size, and its
   // ratio (null, and the size "none", in 2D). Spec 014 (its FR-064): the frame area, `frame_area`, and its `ease`.
   | "refit"

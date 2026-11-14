@@ -1590,3 +1590,70 @@ def test_round_refuses_an_asset_that_isnt_an_id(
             repo,
         )
     )
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 021 (T008; FR-007, FR-013, SC-004; plan.md R-06): the dinosaur's brief, the first ```json block of
+# specs/021-dinosaur-modeled-and-brought-in/contracts/dinosaur-brief.md, through `line.py brief` on a fixture
+# repository whose main holds the repository's own studio-tools.json and caps.json (read as files here only).
+# --------------------------------------------------------------------------------------------------
+REPO_ROOT = HERE.parents[1]
+DINOSAUR_BRIEF = (
+    REPO_ROOT / "specs/021-dinosaur-modeled-and-brought-in/contracts/dinosaur-brief.md"
+)
+
+
+def dinosaur_brief() -> dict:
+    text = DINOSAUR_BRIEF.read_text(encoding="utf-8")
+    start = text.index("```json\n") + len("```json\n")
+    return json.loads(text[start : text.index("\n```", start)])
+
+
+def real_policy() -> tuple[dict, dict]:
+    tools = json.loads((REPO_ROOT / TOOLS_PATH).read_text(encoding="utf-8"))
+    caps = json.loads((REPO_ROOT / CAPS_PATH).read_text(encoding="utf-8"))
+    return tools, caps
+
+
+def write_dinosaur(root: Path, doc: dict) -> Path:
+    folder = root / "briefs" / "dinosaur"
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "1.json"
+    path.write_text(json.dumps(doc))
+    return path
+
+
+def test_the_dinosaurs_brief_passes_on_the_repositorys_tools_and_caps(
+    tmp_path: Path,
+) -> None:
+    tools, caps = real_policy()
+    repo = make_repo(tmp_path, tools=tools, caps=caps)
+    doc = dinosaur_brief()
+    assert doc["asset"] == "dinosaur" and doc["round"] == 1
+    done = brief(write_dinosaur(tmp_path, doc), repo)
+    assert done.returncode == 0, done.stdout + done.stderr
+
+
+def test_the_dinosaurs_brief_fails_with_one_of_its_tools_not_shippable(
+    tmp_path: Path,
+) -> None:
+    tools, caps = real_policy()
+    doc = dinosaur_brief()
+    named = doc["tools"][0]
+    for entry in tools["tools"]:
+        if entry["id"] == named:
+            entry["outputs_ship"] = False
+    repo = make_repo(tmp_path, tools=tools, caps=caps)
+    done = brief(write_dinosaur(tmp_path, doc), repo)
+    assert done.returncode == 1, done.stdout + done.stderr
+    found = starting(done, "tools")
+    assert len(found) == 1 and named in found[0], done.stdout
+
+
+def test_the_dinosaurs_brief_names_shippable_tools_and_no_franchise() -> None:
+    tools, _ = real_policy()
+    doc = dinosaur_brief()
+    ship = {t["id"]: t.get("outputs_ship") is True for t in tools["tools"]}
+    assert doc["tools"] and all(ship.get(t) is True for t in doc["tools"]), doc["tools"]
+    notes = doc["notes"] if isinstance(doc["notes"], str) else " ".join(doc["notes"])
+    assert "no film or franchise creature" in notes

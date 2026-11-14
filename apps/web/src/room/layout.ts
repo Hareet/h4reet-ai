@@ -27,7 +27,7 @@
 // "Around the room"; setLoading sets data-loading on the page's root, which tints the room's parts (loading/loading.css),
 // and makes "Around the room" inert while the loader shows. The AI disclosure's strip and the stage's notes are never
 // tinted or covered: the card sits below the strip and the notes' reserve, or first in the page's flow when stacked.
-import type { Box, HudLayout, HudMetrics, HudState } from "./compose/hud";
+import type { Box, HudLayout, HudMetrics, HudState, SplitBoxes } from "./compose/hud";
 import { h } from "./dom";
 import { icon } from "./hud/icons";
 import type { IconName } from "./hud/icons";
@@ -61,6 +61,8 @@ export interface HudApplied {
   readonly notes: number;
   /** The on-screen keyboard's inset over the window's foot. */
   readonly keyboard: number;
+  /** Spec 018 (FR-001, FR-004): the split layout's boxes where the window takes it; absent or null, today's layout. */
+  readonly split?: SplitBoxes | null;
 }
 
 export interface RoomLayout {
@@ -90,6 +92,10 @@ export interface RoomLayout {
   /** Spec 016 (FR-014; contracts/twin-states.md §4): the line slot's words, in place: the twin's line while its own
    *  picture shows, the stand-in line otherwise. The paragraph isn't a live region, so nothing is announced. */
   setLine(words: string): void;
+  /** Spec 020 (FR-007; plan.md R-02): the likeness line of a visitor-avatar model any figure shows, a note of its own
+   *  after the line slot's, only while it has words: "" takes the paragraph away, so the layout holds no empty line.
+   *  Not a live region. */
+  setVisitorLine(words: string): void;
   /** Shows whether the room is paused, in "Pause the room"'s aria-pressed. */
   setPaused(on: boolean): void;
   /** Spec 008's walking control (FR-020, FR-021; R-09): in the stage's bottom-right corner, inert with the rest. */
@@ -226,6 +232,8 @@ export function renderRoom(
   const walkHelp = h(doc, "p", { id: "room-walk-help", class: "visually-hidden", hidden: true }, walkWords.help);
   const standIn = h(doc, "p", { class: "room-note room-stand-in", hidden: !parts.standIn }, parts.standIn ?? "");
   const notes = h(doc, "div", { class: "room-notes" }, note, standIn);
+  /** Spec 020's visitor line, in the notes after the line slot's while it has words. */
+  let visitorLine: HTMLElement | null = null;
   const clear = h(doc, "div", { class: "room-clear" }, notes, walkButton, walkHelp);
   const stage = h(doc, "div", { class: "room-stage" }, view, clear);
   const panels = h(doc, "div", { class: "hud-panels hud-glass" }, parts.list, parts.talk);
@@ -280,6 +288,17 @@ export function renderRoom(
     setLine(words) {
       if (standIn.textContent !== words) standIn.textContent = words;
       standIn.hidden = words === "";
+    },
+    setVisitorLine(words) {
+      if (words === "") {
+        visitorLine?.remove();
+        visitorLine = null;
+      } else if (visitorLine) {
+        if (visitorLine.textContent !== words) visitorLine.textContent = words;
+      } else {
+        visitorLine = h(doc, "p", { class: "room-note room-visitor-line" }, words);
+        standIn.after(visitorLine);
+      }
     },
     setPlaceholders(on) {
       const words = [on.pieces ? parts.note : "", on.figure ? (parts.noteAvatar ?? "") : ""].filter((w) => w !== "");
@@ -345,6 +364,29 @@ export function renderRoom(
         ["--frame-w", applied.frame.w],
         ["--frame-h", applied.frame.h],
       ];
+      // Spec 018: the split layout's boxes for hud/split.css, and data-split beside data-hud. The walking control's
+      // place is compact.walk's, above (R-3); the rest row is in the bar's band (R-2), and the open panel's frame is the
+      // panel with the rest row below it, its title row at its top.
+      const sp = applied.layout === "column" ? (applied.split ?? null) : null;
+      root.setAttribute("data-split", sp ? "on" : "off");
+      if (sp)
+        sizes.push(
+          ["--split-panel-x", sp.panel.x],
+          ["--split-panel-y", sp.panel.y],
+          ["--split-panel-w", sp.panel.w],
+          ["--split-panel-h", sp.panel.h],
+          ["--split-title-h", sp.title.h],
+          ["--split-frame-y", sp.frame.y],
+          ["--split-frame-h", sp.frame.h],
+          ["--split-rest-x", sp.rest.x],
+          ["--split-rest-y", sp.rest.y],
+          ["--split-rest-w", sp.rest.w],
+          ["--split-rest-h", sp.rest.h],
+          ["--split-list-x", sp.list.x],
+          ["--split-list-y", sp.list.y],
+          ["--split-list-w", sp.list.w],
+          ["--split-list-h", sp.list.h],
+        );
       for (const [name, value] of sizes) root.style.setProperty(name, px(value));
       // The stacked layout's header is sticky in the page's flow, its own height: the scroll padding takes its 4rem
       // fallback there, as before spec 005.
