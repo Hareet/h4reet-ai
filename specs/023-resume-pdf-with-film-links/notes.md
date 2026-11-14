@@ -98,3 +98,52 @@ $ make lint
 … All matched files use Prettier code style! · ruff: All checks passed! · 778 files already formatted · shellcheck clean
 lint exit 0
 ```
+
+## T006 (RED): the tree's state and cases 0, 5, 7, 8, 10
+
+`treeState()` reads the served file's SHA-256, C-0002's (`c0002Sha` over `assets/policy`), the table's `pdf_sha256`, and the candidate file's SHA-256 or its absence (never the folder's). A skipped case's title says why, as `(skipped: neither: see case 0)`, `(skipped: published: the served file is the candidate)`, or `(skipped: before: not published yet)`. The opt-in writer case runs only with `WRITE_CANDIDATE=1`, its title saying so. RED, verbose:
+
+```
+ × 0. the tree is in the "before" or the "published" state (FR-013)
+   AssertionError: neither "before" nor "published": the served file's SHA-256 is 5523e532…549d6d, C-0002's is 5523e532…549d6d, the table's pdf_sha256 is (empty), and the candidate file (apps/web/content/candidates/resume-author-links.pdf) is absent
+ ↓ 5. … (skipped: neither: see case 0)
+ ↓ 7. … (skipped: neither: see case 0)
+ ↓ 8. … (skipped: neither: see case 0)
+ ↓ 10. … (skipped: neither: see case 0)
+ ↓ writes the candidate … (WRITE_CANDIDATE=1 only)
+      Tests  1 failed | 5 passed | 5 skipped (11)
+```
+
+## T007 (GREEN): the candidate
+
+`mkdir -p apps/web/content/candidates`, then `WRITE_CANDIDATE=1 npx vitest run test/content/film-links.test.ts -t "writes the candidate"` (1 passed, 10 skipped). It wrote the candidate and set the table's `pdf_sha256`:
+
+- `apps/web/content/candidates/resume-author-links.pdf`: 245,437 bytes (the approved file's 243,644 plus 1,793), SHA-256 **`5de0e7eeaed34587d4d79e29f0cbfb7c577a224ce31616f1d75fcbe4e0ff21fb`**.
+- `pdfinfo` (poppler-utils) isn't installed in this container, so the links are read with the build's reader instead (case 5: the approved file's four, then the table's four, in that order) and the appended section as text (case 8). The four new annotations, as written:
+
+```
+539 0 obj  /Rect [64.814 578.89 154.337 586.782]   /URI (https://github.com/hareet/h4reet-ai/tree/main/films/local-first)
+540 0 obj  /Rect [173.541 578.89 282.736 586.782]  /URI (https://github.com/hareet/h4reet-ai/tree/main/films/cost-meter)
+541 0 obj  /Rect [302.054 578.89 406.276 586.782]  /URI (https://github.com/hareet/h4reet-ai/tree/main/films/kill-switch-b2)
+542 0 obj  /Rect [425.369 578.89 552.15 586.782]   /URI (https://github.com/hareet/h4reet-ai/tree/main/films/data-flows)
+page 2 0 obj: /Annots [20 0 R 21 0 R 22 0 R 23 0 R 539 0 R 540 0 R 541 0 R 542 0 R], every other line as the approved file's
+trailer <</Size 543 /Root 142 0 R /Info 1 0 R /Prev 232782>>   (the original has no /ID, so none is written)
+```
+
+Small tests and the arrival check (human-only, run read-only):
+
+```
+$ (apps/web) npx vitest run test/content/film-links.test.ts --reporter=verbose
+ ✓ 1. … ✓ 2. … ✓ 3. … ✓ 4. … ✓ 6. …
+ ✓ 0. the tree is in the "before" or the "published" state (FR-013)
+ ✓ 5. the candidate passes PDF1 to PDF9 under the tree's header, keeps the approved file as its prefix and its links
+ ✓ 7. the committed candidate is what addLinks writes from the approved file and the table
+ ✓ 8. the appended section holds only the page object and four invisible link annotations
+ ↓ 10. the served file's links hold the table's four URLs, one over each claim (skipped: before: not published yet)
+ ↓ writes the candidate from the approved file and records its SHA-256 in the table (WRITE_CANDIDATE=1 only)
+      Tests  9 passed | 2 skipped (11)
+$ python3 -I -B -X pycache_prefix=/dev/null tools/gates/arrival_check.py apps/web/content/candidates/resume-author-links.pdf
+arrival-check: 0 findings in 1 file
+```
+
+The build doesn't read `apps/web/content/candidates/`: `contentFiles` (`build/approvals.ts`) lists `resume.yaml`, `narration/`, `room/`, and `room/outlines/` only, and `resumePart` reads `AUTHOR_PDF_PATH` only.
