@@ -25,7 +25,7 @@ R4  the new text states no number outside a slot (digits, or G1's number words; 
     root holds and no glob; a backticked `:<line>` suffix only on a file that holds every line it names), a setting
     such as ENV=prod whose value holds no digit and no number word, dates, a list item's number, and the quotes R5
     accepts) and no currency amount (check_corpus.py's CURRENCY, redteam/run.py's AMOUNT_WORDS, guards.ts's
-    EXTRA_PATTERN); every slot exists; and the whole file holds no CURRENCY match, since corpus-check reads
+    EXTRA_PATTERN), read with no exempt span: only slots removed, and the marks that split an amount dropped; every slot exists; and the whole file holds no CURRENCY match, since corpus-check reads
     `corpus/proposals/` too.
 R5  every quotation in the new text is the Author's words as `SCRIPTS.md` quotes them or his one sentence in the
     disclosure's row F3 (the checker's fixed lists, HIS_WORDS and F3_WORDS), or a cited file's own text: a carried or
@@ -42,9 +42,11 @@ tests hold its copies equal to those files' text. Exit 0 when clean, 1 with one 
 from __future__ import annotations
 
 import argparse
+import html
 import posixpath
 import re
 import sys
+import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -703,9 +705,37 @@ def numbers_in(text: str) -> list[str]:
 
 
 def currency_in(text: str) -> list[str]:
-    return [
-        m.group(0) for p in (CURRENCY, AMOUNT_WORDS, EXTRA) for m in p.finditer(text)
+    return [m.group(0) for _, m in _currency_matches(text)]
+
+
+def _currency_matches(text: str) -> list[tuple[int, re.Match[str]]]:
+    found = [
+        (m.start(), m)
+        for p in (CURRENCY, AMOUNT_WORDS, EXTRA)
+        for m in p.finditer(text)
     ]
+    return sorted(found, key=lambda x: x[0])
+
+
+# The marks that can split a number from its unit, which the currency read drops (rv-rework4-022's F-1): quote marks
+# of every kind, backticks, emphasis, and brackets.
+_SPLITTING = str.maketrans("", "", "\"“”„‟'‘’‚‛«»‹›`*_~()[]{}<>")
+
+
+def currency_line(raw: str) -> str:
+    """A new-prose line as R4's currency read takes it: FR-004 grants no exempt span, so only `{{slot:…}}` is removed.
+    Entities are decoded, compatibility forms folded (NFKC), format characters (a zero-width space) dropped, the
+    splitting marks dropped, and each run of whitespace made one space, so `"5" dollars`, `*5* dollars`, and
+    `5&nbsp;dollars` read as `5 dollars`."""
+    text = unicodedata.normalize("NFKC", html.unescape(raw))
+    text = "".join(c for c in text if unicodedata.category(c) != "Cf")
+    return " ".join(_SLOT.sub(" ", text).translate(_SPLITTING).split())
+
+
+def currency_text(lines: Iterable[str]) -> str:
+    """A block's lines for the currency read, one per line and joined by line breaks, so an amount a line break
+    splits (`5` at a line's end, `dollars` on the next) is read whole; the patterns' `\\s?` takes the break."""
+    return "\n".join(currency_line(raw) for raw in lines)
 
 
 # ---- The check ----
@@ -982,10 +1012,13 @@ def check(
     }
     heading = ""
     for block in prose:
-        for raw in block.splitlines():
+        lines = block.splitlines()
+        headings: list[str] = []
+        for raw in lines:
             h = re.match(r"^##\s+(.*?)\s*$", raw)
             if h:
                 heading = h.group(1)
+            headings.append(heading)
             for slot in re.findall(r"\{\{slot:\s*([a-z0-9_.-]+)", raw):
                 if slot in new_slots and slot not in ctx.slots:
                     out["R4"].append(
@@ -998,14 +1031,17 @@ def check(
                 if slot not in ctx.slots and slot not in new_slots:
                     out["R4"].append(f"R4: new text, {heading!r}: unknown slot {slot}")
             plain = without_exempt(raw, accepted, root)
-            for amount in currency_in(plain):
-                out["R4"].append(
-                    f"R4: new text, {heading!r}: a currency amount: {amount!r}"
-                )
             for number in numbers_in(plain):
                 out["R4"].append(
                     f"R4: new text, {heading!r}: a number outside a slot: {number!r}"
                 )
+        # FR-004: the currency read takes no exempt span (rv-rework4-022's F-1); a block's lines are read together.
+        money = currency_text(lines)
+        for start, m in _currency_matches(money):
+            where = headings[money.count("\n", 0, start)] if headings else heading
+            out["R4"].append(
+                f"R4: new text, {where!r}: a currency amount: {m.group(0)!r}"
+            )
     for i, raw in enumerate(text.splitlines(), 1):
         m = CURRENCY.search(raw)
         if m:
