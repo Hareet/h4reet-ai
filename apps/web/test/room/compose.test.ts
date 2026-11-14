@@ -382,8 +382,8 @@ describe("the rule catalogue (contracts/room-data-files.md §13, §15)", () => {
     // Spec 014's RD6 (a glow's shape), RD7 (the figures' grips), and RG10 (a path glow's bounds).
     // Spec 016's RA6, the twin's line, RA7, its lean, and RA8, its reach (its FR-015, FR-029, FR-010; changed with
     // T015, T041, and T083, its plan's R-18 and R-19). Spec 020's RA9, a visitor's likeness's approval (its FR-002, T002).
-    // Spec 021's RA10, the rig's bones (its FR-005, T003), and RA11, the body's box (its FR-004, T004).
-    const counts = { RD: 7, RI: 11, RG: 10, RS: 6, RT: 17, RV: 3, RX: 10, RA: 11, RK: 5, RL: 4 };
+    // Spec 021's RA10, the rig's bones (its FR-005, T003), RA11, the body's box (its FR-004, T004), and RA12, the clips (its FR-003, T005).
+    const counts = { RD: 7, RI: 11, RG: 10, RS: 6, RT: 17, RV: 3, RX: 10, RA: 12, RK: 5, RL: 4 };
     const expected = Object.entries(counts).flatMap(([family, n]) =>
       Array.from({ length: n }, (_, i) => `${family}${i + 1}`),
     );
@@ -392,7 +392,7 @@ describe("the rule catalogue (contracts/room-data-files.md §13, §15)", () => {
     for (const rule of RULE_IDS) expect(RULES[rule].family).toBe(rule.replace(/\d+$/, ""));
   });
 
-  it("makes RT17, RX, RA1 to RA4, spec 016's RA6 to RA8, spec 020's RA9, spec 021's RA10 and RA11, RK2, and RK5 alone lenient, RG8 and RA5 alone reports, and RT8, RT9, RT13, and RT14 strict-only", () => {
+  it("makes RT17, RX, RA1 to RA4, spec 016's RA6 to RA8, spec 020's RA9, spec 021's RA10 to RA12, RK2, and RK5 alone lenient, RG8 and RA5 alone reports, and RT8, RT9, RT13, and RT14 strict-only", () => {
     expect(RULE_IDS.filter((r) => RULES[r].lenient)).toEqual([
       "RT17",
       "RX1",
@@ -415,6 +415,7 @@ describe("the rule catalogue (contracts/room-data-files.md §13, §15)", () => {
       "RA9",
       "RA10",
       "RA11",
+      "RA12",
       "RK2",
       "RK5",
     ]);

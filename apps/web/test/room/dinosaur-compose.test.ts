@@ -6,6 +6,7 @@
 //   has_bone reads it).
 // - RA11, a model whose rest-pose box, scaled to AVATAR_SHAPES[id].height, is over AVATAR_SHAPES[id].width × 1.05
 //   along x or z.
+// - RA12, a model without a usable `idle` or `walk` clip, a clip RA1, RA2, or RA4 refuses counting as missing.
 // The dinosaur's folder is made in the test (test/helpers/glb.ts's dinosaurGlb and dinosaurClip, laid out by
 // room-avatars.ts's avatarFolder), never the asset (spec 009's FR-043).
 import { readFileSync } from "node:fs";
@@ -21,7 +22,7 @@ import { loadRoom } from "../../build/room/load";
 import type { RoomPolicy } from "../../build/room/policy";
 import type { Tree } from "../../build/room/source";
 import { AVATAR_SHAPES, AVATARS } from "../../src/choice/avatars";
-import { dinosaurClip } from "../helpers/glb";
+import { clipGlb, DINOSAUR_BONES, dinosaurClip } from "../helpers/glb";
 import { REPO } from "../helpers/room";
 import { overlay } from "../helpers/room-fixtures";
 import { avatarModel, avatarPolicy, nightFiles } from "../helpers/room-avatars";
@@ -201,5 +202,66 @@ describe("RA11: the body's box (FR-004)", () => {
     const set = avatarsIn(tree(null, { woman: small, man: small }));
     expect(ruleFindings(set, "RA11")).toEqual([]);
     expect(set.problems).toEqual([]);
+  });
+});
+
+// T005 (FR-003; plan.md R-04): RA12, an avatar with a rig-table row needs a usable `idle` and `walk`; a clip that RA1,
+// RA2, or RA4 refuses counts as missing. `take` is optional (spec 009's FR-003: the idle in its place).
+describe("RA12: the required clips (FR-003)", () => {
+  it("refuses a model with no walk clip strictly, on the model, and leaves it and its clips out leniently", () => {
+    const t = tree({ clips: { walk: null } });
+    const strict = compose(t, avatarPolicy(), STRICT);
+    expect(where(strict.findings)).toEqual([`RA12 ${MODEL}:-`]);
+    expect(strict.findings[0]?.reason).toBe("no usable walk clip");
+    const lenient = compose(t, avatarPolicy(), LENIENT);
+    expect(where(lenient.findings)).toEqual([`RA12 ${MODEL}:-`]);
+    expect(lenient.scene.avatars.dinosaur).toBeUndefined();
+    expect(bundled(avatarsIn(t), "dinosaur")).toEqual([]);
+  });
+
+  it("refuses a model with no idle clip, and names both where both are missing", () => {
+    expect(reasonsOf(avatarsIn(tree({ clips: { idle: null } })), "RA12")).toEqual(["no usable idle clip"]);
+    expect(reasonsOf(avatarsIn(tree({ clips: { idle: null, walk: null } })), "RA12")).toEqual([
+      "no usable idle clip; no usable walk clip",
+    ]);
+  });
+
+  it("asks nothing of take: a model with idle and walk alone is bundled with both", () => {
+    const set = avatarsIn(tree({ clips: { take: null } }));
+    expect(set.problems).toEqual([]);
+    expect(bundled(set, "dinosaur")).toEqual(["dinosaur.glb", "dinosaur-idle.glb", "dinosaur-walk.glb"]);
+  });
+
+  it("counts a walk clip RA2 refuses (no animation) as missing", () => {
+    const empty = clipGlb("walk", { bones: DINOSAUR_BONES }).bytes;
+    const set = avatarsIn(tree({ clips: { walk: empty } }));
+    expect(where(set.problems).sort()).toEqual([
+      "RA12 assets/visitors/dinosaur/dinosaur.glb:-",
+      "RA2 assets/visitors/dinosaur/dinosaur-walk.glb:-",
+    ]);
+    expect(reasonsOf(set, "RA12")).toEqual(["no usable walk clip"]);
+  });
+
+  it("counts an idle clip RA1 refuses (not recorded) or RA4 refuses (over main's animation cap) as missing", () => {
+    const unrecorded = avatarsIn(
+      tree({
+        folder: { records: (e) => void e.splice(e.findIndex((x) => x.file === "dinosaur-idle.glb"), 1) },
+      }),
+    );
+    expect(ruleFindings(unrecorded, "RA1")).toEqual(["RA1 assets/visitors/dinosaur/dinosaur-idle.glb:-"]);
+    expect(reasonsOf(unrecorded, "RA12")).toEqual(["no usable idle clip"]);
+    const idle = dinosaurClip("idle").bytes.length;
+    const capped = avatarsIn(tree(), avatarPolicy({ animation: { bytes: idle - 1 } }));
+    expect(reasonsOf(capped, "RA12")).toEqual(
+      dinosaurClip("walk").bytes.length > idle - 1
+        ? ["no usable idle clip; no usable walk clip"]
+        : ["no usable idle clip"],
+    );
+  });
+
+  it("asks no clip of the woman and the man: neither has a walk clip, and no RA12", () => {
+    const set = avatarsIn(tree(null));
+    expect(ruleFindings(set, "RA12")).toEqual([]);
+    expect(set.avatars.find((a) => a.id === "woman")?.clips.some((c) => c.role === "walk")).toBe(false);
   });
 });
