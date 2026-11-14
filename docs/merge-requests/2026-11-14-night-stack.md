@@ -579,7 +579,7 @@ What waits for you (patch 020, `docs/merge-requests/human-patches/020.md`; none 
 
 1. **The photos' move** (item 1; Q67): from the folder your order names into the photos folder, by `docs/studio/photo-guide.md`; delete the copy under `briefs/`; say on the page whether any session has read them. Today that folder is outside the photo deny and mounted into four night-shift session kinds. rework-020 opened nothing in it. Round 1's machine brief, `1.json`, sits beside them and names their path (question below).
 2. **The concept image** (item 2; Q68): you queue it from the photos inside the photos folder (the local FLUX.2 klein 4B), review it, and put only the reviewed image in the studio's inbox. The next studio round is queued only after that, from `docs/studio/avatar-dog.md`.
-3. **Your look approval, then your approval entry on main** (item 3): you look at the hand-off folder's `dog.glb` in a glTF viewer or Blender, since lookdev's view was dropped (Q87). Then the model's entry in `assets/policy/approvals.json`, naming its SHA-256, with its `disclosure_line` in your words (the session's draft: "The dog is an AI-made, stylized likeness of the Author's dog, shown by his choice."), merged to `main` before step 4: the arrival check's rule P1 reads the approval from main, and "A branch never carries its own approval" (REVIEW.md).
+3. **Your look approval, then your approval entry on main** (item 3): you look at the hand-off folder's `dog.glb` in a glTF viewer or Blender, since lookdev's view was dropped (Q87). Then the model's entry in `assets/policy/approvals.json`, naming its SHA-256, with its `disclosure_line` in your words (the session's draft: "The dog is an AI-made, stylized likeness of the Author's dog, shown by his choice."), merged to `main` before step 4: the arrival check's rule P1 reads the approval from main, and "A branch never carries its own approval" (REVIEW.md). *(Done for round 4: `020-approval-round-4.md`, applied by him on main as `b6985ad2`. See "Round 4 recorded (record-dog-r4)" below.)*
 4. **The intake** (item 4) of the round's outputs into `assets/visitors/dog/**`, the model's record carrying `"approval"` with step 3's ID (main's arrival check refuses a `likeness: true` or photo-sourced record without the key: R4, "lacks approval"), and your consent quoted in the intake note. Until then the cut-out shows.
 5. Only if needed: a studio tool (item 5), C5's words (item 7).
 
@@ -673,6 +673,43 @@ Nothing: no failure outside D-V2's six, so no code, test, or plan changed. The d
 Interruptions: none. No hook or bash-gate refusal in this session.
 
 verify-020: green, carrying D-V2's six (Q165)
+
+### Round 4 recorded (record-dog-r4)
+
+Branch `night/record-dog-r4/record-dog-r4`, from the line's tip `ce3f6305` (`night/merge-2/merge-2`), under rule 15 of his orders. His words (2026-11-14, about 23:06Z): "Let's approve the round4 dog".
+
+- **The approval patch is applied:** `docs/merge-requests/human-patches/020-approval-round-4.md` (judge-dog-r4) was **applied by him on main as `b6985ad2`** ("policy(020): approve the dog, round 4"). It adds A-20261114-dog, A-20261114-dog-idle, and A-20261114-dog-walk, with `likeness_accepted: true` and the drafted disclosure line (Q278, Q280). `b6985ad2`'s 48 added lines are the patch's diff, line for line. The patch's status and judge-dog-r4's note now say so.
+- **Round 4 is recorded:** `line: pass; round 4`, 0 findings, dry and then with `--record`. `/srv/studio/briefs/dog/4.result.json` says pass, round 4, with no findings. Its SHA-256 is `61b91249c3d7d3a67051604ed570fac4ae7ae1bf53703353e32a9a817ea150dc`. `line.py round dog` prints `passed 4`. Before judging, the handoff's three SHA-256s were checked against main's entries and the patch, and they match. The runs are pasted whole in `specs/020-dog-modeled-and-brought-in/studio-round-4.md`, "Round 4 recorded (record-dog-r4)".
+- **Round 3 stays recorded, unused:** `3.result.json` (pass) is untouched, and so is its handoff.
+- **What this changes for "For the Author" above:** step 3 (his look, then his approval entry on main) is done for round 4, as `b6985ad2`. Step 4, the intake into `assets/visitors/dog/**`, is intake-020's, from this branch's tip. This task changes nothing under `assets/**`.
+- **Main isn't merged here.** `git merge refs/heads/main` was refused by the filesystem: `error: unable to unlink old 'assets/policy/approvals.json': Read-only file system`. `assets/policy/` is a read-only mount in this container. It left no merge state, and judge-dog-r4 then merged cleanly (merge commit `e53b85ec`). The judge reads the policy from `refs/heads/main` itself, so the record doesn't depend on the merge. Main's merge into the line is on the page (Interruptions, and a question with a recommended answer).
+
+Small runs (rule 4; docs only, so `scripts/studio/`'s tests, the docs tests, and lint). There was no `node_modules`, so the setup target ran first and exited 0.
+
+```
+pytest -q -p no:cacheprovider --import-mode=importlib scripts/studio/
+137 passed in 12.76s
+pytest -q -p no:cacheprovider --import-mode=importlib evals/test_docs_links.py evals/test_repository_docs.py
+61 passed in 0.99s
+```
+
+`make lint`: exit 0 (shellcheck's file list left out):
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+828 files already formatted
+```
+
+Interruptions: one filesystem refusal (the main merge, above), not retried another way. No hook or bash-gate refusals.
+
+record-dog-r4: round 4 recorded, pass
 
 ---
 

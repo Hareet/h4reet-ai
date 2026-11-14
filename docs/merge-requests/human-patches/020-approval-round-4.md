@@ -3,7 +3,9 @@
 Spec: specs/020-dog-modeled-and-brought-in/ (FR-002, FR-007; plan.md §2's approval entry) · Written by: implementer (judge-dog-r4) · Date: 2026-11-14
 Branch: `night/judge-dog-r4/judge-dog-r4`. Built from a `git archive` export of `refs/heads/main` at `3c0e4cd0`. The judge's output and the checks are in `specs/020-dog-modeled-and-brought-in/studio-round-4.md`, under "Judged dry (judge-dog-r4)".
 
-## Status: waits for your look
+## Status: applied by you on main as `b6985ad2` (2026-11-14, about 23:06Z)
+
+Your words: "Let's approve the round4 dog". You applied this patch as written: `b6985ad2`, "policy(020): approve the dog, round 4". Its 48 added lines are this diff's. record-dog-r4 then recorded round 4 as a pass (`/srv/studio/briefs/dog/4.result.json`). The runs are in `specs/020-dog-modeled-and-brought-in/studio-round-4.md`, under "Round 4 recorded (record-dog-r4)". Round 3 stays recorded, unused. The text below is as it was written before you applied it.
 
 Apply it only after you've looked at the renders and want this dog:
 
@@ -13,7 +15,7 @@ Apply it only after you've looked at the renders and want this dog:
 
 The studio's note, `/srv/studio/handoff/dog/4/note.md`, compares the renders with the photo marking by marking. It also lists four things for your look that aren't markings: a jagged ruff behind the right ear, a small white spot on the right of the neck, a flat tail, and the head turned slightly to the dog's left.
 
-Nothing is recorded yet. After these entries are on main, a later task judges round 4 again with `--record`.
+Nothing is recorded yet. After these entries are on main, a later task judges round 4 again with `--record`. *(Done: record-dog-r4 recorded round 4 as a pass, after `b6985ad2`.)*
 
 ## Why
 

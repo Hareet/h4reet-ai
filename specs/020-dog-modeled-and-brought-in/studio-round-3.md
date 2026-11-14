@@ -901,7 +901,7 @@ $ ls /srv/studio/handoff/dog/
 
 - It's the fallback candidate, recorded `pass`, as rule 13 says.
 - It waits for his look approval (the page's Q260): his approvals.json entry naming `dog.glb`'s SHA-256 (`4a9157ab94b860c95e8b9a9f7078ba5f4a0eb82ce2b68d3d997d668abbb0ccb5`), with a non-empty disclosure line. That entry is his hand, and the intake into `assets/visitors/dog/` comes after it.
-- Rule 13's round 4, from his Toller photo, is judged dry first and recorded only after he approves the photo's SHA-256. Nothing here queues it (rule 9: no further round on its own).
+- Rule 13's round 4, from his Toller photo, is judged dry first and recorded only after he approves the photo's SHA-256. Nothing here queues it (rule 9: no further round on its own). *(Since then: he approved round 4's three files on main, `b6985ad2`, "Let's approve the round4 dog". record-dog-r4 recorded round 4 as a pass (`studio-round-4.md`, "Round 4 recorded (record-dog-r4)"). Round 3 stays recorded, unused.)*
 - **Main's `line.py` won't take a round-4 brief now.** It refuses one on two counts:
   - A brief's `round` must be 1 to `ROUNDS`, which is 3 (`scripts/studio/line.py:69`, `:427` to `:428`).
   - Round N must follow round N−1's recorded failure. After a pass, it adds the finding "after round 3's failure; it passed" (`:528` to `:529`).
