@@ -724,6 +724,38 @@ def test_number_words_are_guards_ts_g1s() -> None:
     assert list(fc.SCALES) == _ts_keys("SCALES")
 
 
+def test_word_is_guards_ts_g1s() -> None:
+    # rv-impl-022's N-4: G1's WORD, its template filled in from its own UNITS, TENS, and SCALES keys, with its groups
+    # made non-capturing, is the checker's WORD; and the units it allows after a tens word are those under ten.
+    m = re.search(
+        r"const WORD = new RegExp\(\n\s*`(.*?)`,\n\s*\"(\w+)\",\n\);",
+        GUARDS.read_text(),
+        re.DOTALL,
+    )
+    assert m, "guards.ts's WORD"
+    template, flags = m.group(1), m.group(2)
+    parts = re.split(r"\$\{(.*?)\}", template, flags=re.DOTALL)
+    expressions = parts[1::2]
+    assert [re.sub(r"\s+", "", e) for e in expressions] == [
+        'Object.keys(TENS).join("|")',
+        'Object.keys(UNITS).filter((u)=>UNITS[u]!==undefined&&(UNITS[u]??0)<10).join("|")',
+        'Object.keys(UNITS).join("|")',
+        'Object.keys(SCALES).join("|")',
+    ]
+    fills = [
+        "|".join(_ts_keys("TENS")),
+        "|".join(u for u in _ts_keys("UNITS") if fc.UNITS[u] < 10),
+        "|".join(_ts_keys("UNITS")),
+        "|".join(_ts_keys("SCALES")),
+    ]
+    filled = "".join(
+        part if i % 2 == 0 else fills[i // 2] for i, part in enumerate(parts)
+    )
+    as_python = re.sub(r"\((?!\?)", "(?:", filled.replace("\\\\", "\\"))
+    assert fc.WORD.pattern == as_python
+    assert "i" in flags and fc.WORD.flags & re.IGNORECASE
+
+
 def test_extra_patterns_fixed_words_are_guards_ts() -> None:
     m = re.search(
         r"export const EXTRA_PATTERN = pythonPattern\((.*?)\n\);",
