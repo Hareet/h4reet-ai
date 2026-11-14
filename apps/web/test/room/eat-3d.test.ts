@@ -1,0 +1,359 @@
+// T008 (spec 024; FR-003, FR-004, FR-006 to FR-008, FR-015; RB-1, N-3; plan.md §5.4): the 3D side, on stub meshes and
+// on the four real pieces built as three.js trees in GLTFLoader's names (helpers/eat-pieces.ts), no GPU. A first bite
+// splits the piece: one mesh per chunk and primitive, sharing its primitive's attributes and material; a cut-face mesh
+// beside each, one back-side cut material per original material, base colour × 0.7, no texture; the set-aside part's
+// meshes, fixed; every one taking its source's visibility. A bite flies a chunk to the mouth in 600 ms and hides it; the
+// last regrowth gives the piece back its own meshes, each with its recorded visibility, nothing disposed.
+import {
+  BackSide,
+  BufferAttribute,
+  BufferGeometry,
+  Color,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  MeshStandardMaterial,
+  Vector3,
+} from "three";
+import type { Material, Object3D } from "three";
+import { describe, expect, it, vi } from "vitest";
+
+import type { RoomScene } from "../../src/room/compose/bundle";
+import { CUT_SHADE, FLIGHT_MS, GROW_MS, createEat3d } from "../../src/room/eat/eat3d";
+import type { EatKind } from "../../src/room/eat/eat3d";
+import { createMeal } from "../../src/room/eat/meal";
+import { pieceModel, roomGlb } from "../helpers/eat-pieces";
+import { repositoryBundle } from "../helpers/room";
+
+type Part = Pick<RoomScene, "pieces" | "placements" | "switches">;
+
+/** Each effective visibility: the node and its ancestors up to the model's root. */
+function shown(node: Object3D, root: Object3D): boolean {
+  for (let n: Object3D | null = node; n; n = n === root ? null : n.parent) if (!n.visible) return false;
+  return true;
+}
+
+const kindOf = (node: Object3D): EatKind | undefined => (node.userData.eat as { kind?: EatKind } | undefined)?.kind;
+
+/** The eating's meshes under a model, by kind. */
+function eatMeshes(root: Object3D, kind: EatKind): Mesh[] {
+  const out: Mesh[] = [];
+  root.traverse((n) => {
+    if (kindOf(n) === kind) out.push(n as Mesh);
+  });
+  return out;
+}
+
+/** The meshes a model draws: each mesh shown, its own and its ancestors' visibility. */
+function drawn(root: Object3D): number {
+  let n = 0;
+  root.traverse((node) => {
+    if ((node as Partial<Mesh>).isMesh && shown(node, root)) n++;
+  });
+  return n;
+}
+
+/** A small grid of triangles in the plane z = `z`, x and y from 0 to `w` × step, with normal and uv attributes. */
+function sheet(w: number, h: number, z: number, step = 0.05, x0 = -0.15): BufferGeometry {
+  const positions: number[] = [];
+  for (let i = 0; i < w; i++)
+    for (let j = 0; j < h; j++) {
+      const [x, y] = [x0 + i * step, -0.1 + j * step];
+      positions.push(x, y, z, x + step, y, z, x, y + step, z);
+    }
+  const g = new BufferGeometry();
+  const count = positions.length / 3;
+  g.setAttribute("position", new BufferAttribute(new Float32Array(positions), 3));
+  g.setAttribute("normal", new BufferAttribute(new Float32Array(count * 3).fill(1), 3));
+  g.setAttribute("uv", new BufferAttribute(new Float32Array(count * 2).fill(0.5), 2));
+  g.setIndex(Array.from({ length: count }, (_, i) => i));
+  return g;
+}
+
+interface Stub {
+  readonly root: Group;
+  readonly part: Part;
+  readonly body: readonly Mesh[];
+  readonly lettering: Mesh;
+  readonly materials: readonly Material[];
+}
+
+/** A stub piece: a two-primitive mesh `body` (a group, as GLTFLoader makes it) of two materials, behind a face whose
+ *  one-primitive mesh `lettering` is hidden as prepareModel hides it. */
+function stub(): Stub {
+  const root = new Group();
+  root.name = "model";
+  const red = new MeshStandardMaterial({ color: new Color(1, 0, 0) });
+  const blue = new MeshStandardMaterial({ color: new Color(0, 0, 1) });
+  const body = new Group();
+  body.name = "body";
+  const a = new Mesh(sheet(8, 6, -0.02), red);
+  a.name = "body_1";
+  const b = new Mesh(sheet(8, 6, -0.3, 0.05, 0.5), blue);
+  b.name = "body_2";
+  body.add(a, b);
+  const lettering = new Mesh(sheet(2, 1, 0.001, 0.05, -0.05), red);
+  lettering.name = "lettering";
+  lettering.visible = false;
+  root.add(body, lettering);
+  root.position.set(1, 0.5, -2);
+  root.updateMatrixWorld(true);
+  const part = {
+    pieces: {
+      stub: {
+        scale: 1,
+        anchors: {},
+        standin: [],
+        faces: { lettering: { at: [0, 0, 0], size: [0.1, 0.05], facing: [0, 0, 1], up: [0, 1, 0] } },
+        glows: {},
+      },
+    },
+    placements: [
+      {
+        id: "stub",
+        piece: "stub",
+        mount: null,
+        offset: [0, 0, 0],
+        turn: { x: 0, y: 0, z: 0 },
+        framed: true,
+        frame_box: { min: [0, 0, 0], max: [1, 1, 1] },
+        label: null,
+        model: null,
+        edible: { chunks: 3 },
+      },
+    ],
+    switches: [],
+  } as unknown as Part;
+  return { root, part, body: [a, b], lettering, materials: [red, blue] };
+}
+
+interface Rig {
+  readonly eat: ReturnType<typeof createEat3d>;
+  readonly meal: ReturnType<typeof createMeal>;
+  readonly clock: { t: number };
+  readonly refresh: ReturnType<typeof vi.fn>;
+  readonly warn: ReturnType<typeof vi.fn>;
+  readonly mouth: Group;
+}
+
+function rig(part: Part, models: Record<string, Object3D>, regrow_s = 5, over: { reduced?: boolean } = {}): Rig {
+  const clock = { t: 1000 };
+  const meal = createMeal({ regrow_s, now: () => clock.t });
+  const refresh = vi.fn();
+  const warn = vi.fn();
+  const mouth = new Group();
+  mouth.position.set(3, 1, 0);
+  mouth.updateMatrixWorld(true);
+  const eat = createEat3d({
+    part,
+    model: (id) => models[id] ?? null,
+    figure: () => ({ root: mouth, height: 1.2 }),
+    meal,
+    highlight: { refresh },
+    now: () => clock.t,
+    reduced: () => over.reduced === true,
+    warn,
+  });
+  return { eat, meal, clock, refresh, warn, mouth };
+}
+
+const centreOf = (meshes: readonly Mesh[]): Vector3 => {
+  const c = new Vector3();
+  let n = 0;
+  for (const m of meshes) {
+    m.updateMatrixWorld(true);
+    m.geometry.computeBoundingBox();
+    const box = m.geometry.boundingBox;
+    if (!box) continue;
+    c.add(box.getCenter(new Vector3()).applyMatrix4(m.matrixWorld));
+    n++;
+  }
+  return c.divideScalar(Math.max(n, 1));
+};
+
+describe("a first bite splits the piece (FR-003, FR-006; plan.md §5.4)", () => {
+  it("builds one mesh per chunk and primitive, sharing every attribute and the material, and a cut mesh beside each", () => {
+    const s = stub();
+    const r = rig(s.part, { stub: s.root });
+    expect(r.eat.bite("stub")).toBe(true);
+    const chunks = eatMeshes(s.root, "chunk");
+    const cuts = eatMeshes(s.root, "cut");
+    expect(chunks.length).toBeGreaterThanOrEqual(3);
+    expect(cuts).toHaveLength(chunks.length);
+    const sources = new Set(s.body);
+    for (const c of chunks) {
+      const source = s.body.find((b) => b.parent === c.parent && b.material === c.material);
+      expect(source, "a chunk mesh beside its source, sharing its material").toBeDefined();
+      sources.delete(source as Mesh);
+      for (const name of ["position", "normal", "uv"]) expect(c.geometry.getAttribute(name)).toBe(source?.geometry.getAttribute(name));
+      expect(c.position.equals((source as Mesh).position)).toBe(true);
+      const cut = cuts.find((x) => x.geometry === c.geometry) as Mesh;
+      expect(cut, "a cut mesh sharing the chunk's geometry").toBeDefined();
+      const material = cut.material as MeshBasicMaterial;
+      expect(material).toBeInstanceOf(MeshBasicMaterial);
+      expect(material.side).toBe(BackSide);
+      expect(material.map).toBeNull();
+      const base = ((source as Mesh).material as MeshStandardMaterial).color;
+      expect(material.color.r).toBeCloseTo(base.r * CUT_SHADE, 6);
+      expect(material.color.b).toBeCloseTo(base.b * CUT_SHADE, 6);
+    }
+    expect(sources.size, "every primitive has a chunk mesh").toBe(0);
+    // One cut material per original material.
+    expect(new Set(cuts.map((c) => c.material)).size).toBe(2);
+    // The chunks hold the body's triangles but the set-aside part's; each chunk's meshes together hold one chunk.
+    const total = s.body.reduce((n, b) => n + (b.geometry.index?.count ?? 0), 0);
+    const held = [...chunks, ...eatMeshes(s.root, "aside")]
+      .filter((m) => s.body.some((b) => b.material === m.material && b.parent === m.parent))
+      .reduce((n, m) => n + (m.geometry.index?.count ?? 0), 0);
+    expect(held).toBe(total);
+    expect(new Set(chunks.map((c) => (c.userData.eat as { chunk: number }).chunk))).toEqual(new Set([0, 1, 2]));
+  });
+
+  it("hides the original meshes, and the set-aside mesh of a hidden face stays hidden while a chunk shows (RB-1)", () => {
+    const s = stub();
+    const r = rig(s.part, { stub: s.root });
+    r.eat.bite("stub");
+    for (const b of s.body) expect(b.visible).toBe(false);
+    const aside = eatMeshes(s.root, "aside");
+    const fromLettering = aside.filter((m) => m.parent === s.lettering.parent && m.geometry.getAttribute("position") === s.lettering.geometry.getAttribute("position"));
+    expect(fromLettering).toHaveLength(1);
+    expect(shown(fromLettering[0] as Mesh, s.root)).toBe(false);
+    const standing = eatMeshes(s.root, "chunk").filter((m) => (m.userData.eat as { chunk: number }).chunk !== r.meal.states("stub").indexOf("flying"));
+    expect(standing.length).toBeGreaterThan(0);
+    for (const m of standing) expect(shown(m, s.root)).toBe(true);
+  });
+
+  it("adds no texture: no cut material, chunk, or set-aside mesh carries a map (spec 004's FR-053)", () => {
+    const s = stub();
+    const r = rig(s.part, { stub: s.root });
+    r.eat.bite("stub");
+    const textures = new Set<unknown>();
+    s.root.traverse((n) => {
+      const m = (n as Partial<Mesh>).material as (Material & { map?: unknown }) | undefined;
+      if (m?.map) textures.add(m.map);
+    });
+    expect(textures.size).toBe(0);
+  });
+});
+
+describe("a bite's flight and the regrowth (FR-007, FR-008, FR-011; N-3)", () => {
+  it("flies one chunk to the mouth in 600 ms and hides it; a later bite takes under 2 ms", () => {
+    const s = stub();
+    const r = rig(s.part, { stub: s.root });
+    r.eat.bite("stub");
+    const index = r.meal.states("stub").indexOf("flying");
+    expect(index).toBeGreaterThanOrEqual(0);
+    const flying = eatMeshes(s.root, "chunk").filter((m) => (m.userData.eat as { chunk: number }).chunk === index);
+    const before = centreOf(flying);
+    const mouth = new Vector3(3, 1, 0);
+    r.clock.t += FLIGHT_MS / 2;
+    r.eat.frame();
+    const half = centreOf(flying);
+    expect(half.distanceTo(mouth)).toBeLessThan(before.distanceTo(mouth));
+    expect(r.meal.states("stub")[index]).toBe("flying");
+    r.clock.t += FLIGHT_MS / 2;
+    r.eat.frame();
+    expect(r.meal.states("stub")[index]).toBe("eaten");
+    for (const m of flying) expect(shown(m, s.root)).toBe(false);
+    expect(r.refresh).toHaveBeenCalledTimes(1);
+    const t = performance.now();
+    expect(r.eat.bite("stub")).toBe(true);
+    expect(performance.now() - t).toBeLessThan(2);
+  });
+
+  it("regrows each eaten chunk over 400 ms, then gives back the piece's own meshes, each as it was, nothing disposed", () => {
+    const s = stub();
+    const r = rig(s.part, { stub: s.root });
+    const disposed = vi.fn();
+    s.root.traverse((n) => (n as Partial<Mesh>).geometry?.addEventListener("dispose", disposed));
+    for (let k = 0; k < 3; k++) {
+      expect(r.eat.bite("stub")).toBe(true);
+      r.clock.t += FLIGHT_MS;
+      r.eat.frame();
+    }
+    expect(r.meal.states("stub")).toEqual(["eaten", "eaten", "eaten"]);
+    const refreshed = r.refresh.mock.calls.length;
+    r.clock.t += 5000;
+    r.eat.frame();
+    expect(r.meal.states("stub").filter((x) => x === "regrowing")).toHaveLength(1);
+    r.clock.t += GROW_MS;
+    r.eat.frame();
+    expect(r.refresh.mock.calls.length).toBe(refreshed + 1);
+    for (let k = 0; k < 2; k++) {
+      r.clock.t += 5000;
+      r.eat.frame();
+      r.clock.t += GROW_MS;
+      r.eat.frame();
+    }
+    expect(r.meal.whole("stub")).toBe(true);
+    for (const b of s.body) expect(b.visible).toBe(true);
+    expect(s.lettering.visible).toBe(false);
+    for (const kind of ["chunk", "cut", "aside"] as const) expect(eatMeshes(s.root, kind)).toHaveLength(0);
+    expect(disposed).not.toHaveBeenCalled();
+    // A new bite takes the memoized split again.
+    expect(r.eat.bite("stub")).toBe(true);
+    expect(eatMeshes(s.root, "chunk").length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("disables the eating once on an exception, with one warning and the piece as loaded", () => {
+    const clock = { t: 1000 };
+    const refresh = vi.fn();
+    const warn = vi.fn();
+    // The figure throws as the bite reads the mouth, after the split.
+    const t = stub();
+    const broke = createEat3d({
+      part: t.part,
+      model: () => t.root,
+      figure: () => {
+        throw new Error("no figure");
+      },
+      meal: createMeal({ regrow_s: 5, now: () => clock.t }),
+      highlight: { refresh },
+      now: () => clock.t,
+      warn,
+    });
+    expect(broke.bite("stub")).toBe(false);
+    expect(broke.disabled()).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]?.[0])).not.toMatch(/no figure/);
+    for (const b of t.body) expect(b.visible).toBe(true);
+    expect(t.lettering.visible).toBe(false);
+    for (const kind of ["chunk", "cut", "aside"] as const) expect(eatMeshes(t.root, kind)).toHaveLength(0);
+    expect(broke.bite("stub")).toBe(false);
+    broke.frame();
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the four real pieces' draw calls (FR-015)", () => {
+  const PIECES = [
+    ["busy-sign", 3],
+    ["chalkboard", 10],
+    ["laptop", 13],
+    ["work-desk", 16],
+  ] as const;
+
+  it("draw their own meshes whole, at most 100 each split, and at most 240 more with all four split", () => {
+    const scene = repositoryBundle().scene;
+    const models: Record<string, Group> = {};
+    for (const [id] of PIECES) models[id] = pieceModel(roomGlb(id), scene.pieces[id]?.scale ?? 1);
+    let whole = 0;
+    for (const [id, count] of PIECES) {
+      expect(drawn(models[id] as Group), `${id} whole`).toBe(count);
+      whole += count;
+    }
+    const r = rig(scene, models);
+    let split = 0;
+    for (const [id] of PIECES) {
+      expect(r.eat.bite(id), id).toBe(true);
+      r.clock.t += FLIGHT_MS;
+      r.eat.frame();
+      const n = drawn(models[id] as Group);
+      console.info(`${id}: ${n} meshes split`);
+      expect(n, `${id} split`).toBeLessThanOrEqual(100);
+      split += n;
+    }
+    console.info(`all four: ${split} split, ${whole} whole, ${split - whole} more`);
+    expect(split - whole).toBeLessThanOrEqual(240);
+  });
+});

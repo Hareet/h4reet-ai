@@ -10,6 +10,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { BufferAttribute, BufferGeometry, Color, Group, Mesh, MeshStandardMaterial } from "three";
+import type { Object3D } from "three";
+
 import { readGlb, transform } from "../../src/room/glb/read";
 import type { Glb } from "../../src/room/glb/read";
 import { meshNameOf } from "../../src/room/eat/chunker";
@@ -130,6 +133,42 @@ export function piecePrimitives(glb: Glb, scale: number): Primitive[] {
     out.push({ mesh: meshNameOf(node), positions, index });
   }
   return out;
+}
+
+/**
+ * A piece's model as a three.js tree in GLTFLoader's names and shape (T008): its groups and meshes from `loaderTree`, each
+ * mesh's positions in the model's frame (the GLB's, at the stylized scale) with identity transforms below the root, its
+ * index, and one MeshStandardMaterial per glTF material, shared as the loader shares them. No textures, so the files
+ * with images build in Node too.
+ */
+export function pieceModel(glb: Glb, scale: number): Group {
+  const prims = piecePrimitives(glb, scale);
+  const materials = new Map<number, MeshStandardMaterial>();
+  const made = new Map<LoaderNode, Object3D>();
+  let root: Group | null = null;
+  let k = 0;
+  for (const node of loaderTree(glb)) {
+    let object: Object3D;
+    if (node.isMesh && node.draws !== null) {
+      const prim = prims[k++] as Primitive;
+      const geometry = new BufferGeometry();
+      geometry.setAttribute("position", new BufferAttribute(prim.positions.map((v) => v * scale), 3));
+      if (prim.index) geometry.setIndex(new BufferAttribute(prim.index, 1));
+      const m = glb.json.meshes?.[node.draws.mesh]?.primitives[node.draws.primitive]?.material ?? -1;
+      let material = materials.get(m);
+      if (!material) {
+        material = new MeshStandardMaterial({ color: new Color().setHSL((m + 1) * 0.13, 0.5, 0.5) });
+        materials.set(m, material);
+      }
+      object = new Mesh(geometry, material);
+    } else object = node.parent === null ? (root = new Group()) : new Group();
+    object.name = node.name;
+    if (node.parent) made.get(node.parent)?.add(object);
+    made.set(node, object);
+  }
+  if (!root) throw new Error("no root");
+  root.updateMatrixWorld(true);
+  return root;
 }
 
 /** A primitive's triangle `t`'s three corners. */
