@@ -67,3 +67,7 @@ His answer to the morning page (2026-11-13):
 ## Order
 
 T000 runs on the Author's time. T001 → T002 → T003 → T004 → T005 → T006 → T007, one after another: each reads the one before it. Nothing here runs in parallel with another of this spec's tasks.
+
+## Notes
+
+- 2026-11-14, spec-writer (spec-027): intent (draft), spec, clarifications Q1 to Q8 (recommended answers taken), plan, ADR 0054 (proposed, with its index row), tasks, analysis, and `docs/merge-requests/human-patches/027.md` (none needed) are on `night/spec-027/spec-027`. Questions Q1 to Q10 are on `/night/io/out/questions.md`. No requests to the runner, no refusals hit, no test run (no code written). **What's left**: T000 (the Author's answers), then T001 to T007 on the line after spec 025, with T005 replacing the ADR's replica figures by the check's.
