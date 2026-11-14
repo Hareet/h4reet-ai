@@ -63,3 +63,20 @@ The Author's item, orders, and the P-7 answer are quoted word for word in the in
 ## Verdict
 
 Consistent; no CRITICAL or HIGH finding. The three open items are low and have a defined resolution. Ready for impl-021, which merges this branch into the line after impl-020.
+
+## Rework notes (rework-spec-021, 2026-11-14)
+
+Small runs only, the order's rule 4 (this rework writes no code; the tests that read its files are the docs-links check and the lint):
+
+```text
+$ python3 -I -m pytest -q -p no:cacheprovider evals/test_docs_links.py
+44 passed in 0.89s
+$ python3 -I -B scripts/studio/line.py brief /tmp/rw021b/dinosaur/1.json   # the contract's first json block
+line: pass
+$ make lint
+… eslint, tsc, prettier ("All matched files use Prettier code style!"), ruff ("All checks passed!", "758 files already formatted"), shellcheck … exit 0
+```
+
+The first docs-links run failed on two links to specs 019 and 020, which are on the line but not on this branch's base; they are now plain paths. One question went to the page (the dog's `null` rig row; recommended: a later spec fills it). No refusal.
+
+What's left: impl-021 merges this branch into the line after impl-020 and runs T001 to T010; the studio round (studio-dino-r1) and the Author's look approval and intake (`human-patches/021.md`) are outside this item.
