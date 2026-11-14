@@ -12,6 +12,7 @@ export interface PetConfig {
   readonly reach_m: number;
   readonly cooldown_s: number;
   readonly turn_max_deg: number;
+  readonly crouch_max_m: number;
   readonly lean_max_deg: number;
   readonly stroke_m: number;
   readonly stroke_n: number;

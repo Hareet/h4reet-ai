@@ -4,6 +4,9 @@
 // records, and asserts only what it reads: the bones are there and the numbers finite. Two leans are measured: about
 // the hips (`solveLean`, the plan's closed form, the shoulder turned about the hips) and over `Spine`, `Spine1`, and
 // `Spine2` in equal parts (FR-007's applier: each turned by a third about the same world axis), the one the reach moves.
+// The second test (Q212, taken provisionally): the crouch, the hips lowered straight down and the feet kept, measured with
+// the lean at each depth; it asserts the defaults T003 sets from it (`crouch_max_m`, `lean_max_deg`) by the plan's rule
+// and that both together reach at the default heading. Its own math, a check on the applier's (`solvePosture`).
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -15,7 +18,7 @@ import { AVATAR_SHAPES } from "../../src/choice/avatars";
 import { stripMorphs } from "../../src/room/scene/avatars";
 import { parseModel } from "../../src/room/scene/gltf-images";
 import type { Decode } from "../../src/room/scene/gltf-images";
-import { solveLean } from "../../src/room/scene/pet-reach";
+import { PET_REACH_DEFAULTS, solveLean } from "../../src/room/scene/pet-reach";
 import type { Vec3 } from "../../src/room/scene/pet-reach";
 import { REPO } from "../helpers/room";
 
@@ -143,5 +146,136 @@ describe("T003's measure: the lean the dog's default home needs (Q162)", () => {
     }
     console.log(rows.join("\n"));
     expect(rows.length).toBe(2 + 2 * HOMES.length * FACINGS.length);
+  }, 120_000);
+});
+
+/** One figure as the crouch's measure reads it, in metres in the room, the twin turned by the aim at one home. */
+interface Posed {
+  readonly reach: number;
+  /** The hip joint's fall to the knee's height at rest: the crouch at which the thighs come level (the limit). */
+  readonly level: number;
+  /** The shoulder after a crouch `c` and a lean `t` over the spine, as FR-007's applier moves it. */
+  shoulder(c: number, t: number): Vec3;
+  /** The knee's bend from straight, in degrees, of each leg at a crouch `c`, the foot kept where it was. */
+  knees(c: number): number[];
+}
+
+function posed(root: Object3D, scale: number, home: Vec3, target: Vec3): Posed {
+  const at = (bone: string): Vec3 => {
+    const p = (root.getObjectByName(`mixamorig${bone}`) as Object3D).getWorldPosition(new Vector3());
+    return v(p.x * scale, p.y * scale, p.z * scale);
+  };
+  const d = sub(home, TWIN_HOME);
+  const psi = Math.max(-TURN_MAX, Math.min(TURN_MAX, Math.atan2(d.x, d.z)));
+  const world = (p: Vec3): Vec3 => add(yaw(p, psi), TWIN_HOME);
+  const [S0, E0, M0, H0] = [at("RightArm"), at("RightForeArm"), at("RightHandMiddle1"), at("Hips")];
+  const spine = ["Spine", "Spine1", "Spine2"].map((b) => world(at(b))) as [Vec3, Vec3, Vec3];
+  const [S, hips] = [world(S0), world(H0)];
+  const legs = ["Right", "Left"].map((s) => [at(`${s}UpLeg`), at(`${s}Leg`), at(`${s}Foot`)] as const);
+  // The lean's axis, as the applier takes it: up × the target's direction on the floor from the hips.
+  const w = sub(target, hips);
+  const wn = Math.hypot(w.x, w.z);
+  const k = v(w.z / wn, 0, -w.x / wn);
+  const down = (p: Vec3, c: number): Vec3 => v(p.x, p.y - c, p.z);
+  return {
+    reach: 0.98 * (len(sub(E0, S0)) + len(sub(M0, E0))),
+    level: Math.min(...legs.map(([hip, knee]) => hip.y - knee.y)),
+    shoulder: (c, t) => {
+      const [p0, p1, p2] = spine;
+      return down(
+        add(p0, add(turn(sub(p1, p0), k, t / 3), add(turn(sub(p2, p1), k, (2 * t) / 3), turn(sub(S, p2), k, t)))),
+        c,
+      );
+    },
+    knees: (c) =>
+      legs.map(([hip, knee, foot]) => {
+        const [thigh, shin] = [len(sub(knee, hip)), len(sub(foot, knee))];
+        const span = len(sub(foot, down(hip, c)));
+        const cos = (thigh * thigh + shin * shin - span * span) / (2 * thigh * shin);
+        return 180 - Math.acos(Math.max(-1, Math.min(1, cos))) / DEG;
+      }),
+  };
+}
+
+/** R-03's target for a dog of `AVATAR_SHAPES.dog.height` at `home`, its head toward `fwd`. */
+function targetOf(home: Vec3, fwd: Vec3): Vec3 {
+  const h = AVATAR_SHAPES.dog.height;
+  const head = v(home.x + fwd.x * 0.35 * h, 0.9 * h, home.z + fwd.z * 0.35 * h);
+  const back = sub(TWIN_HOME, head);
+  const m = Math.hypot(back.x, back.z);
+  return v(head.x + (0.05 * back.x) / m, head.y - 0.03, head.z + (0.05 * back.z) / m);
+}
+
+/** The least lean over the spine, in degrees to 0.1°, that brings `target` within reach at the crouch `c`; NaN past
+ *  120°. */
+function leanAt(f: Posed, target: Vec3, c: number): number {
+  for (let deg = 0; deg <= 120; deg += 0.1) if (len(sub(target, f.shoulder(c, deg * DEG))) <= f.reach) return deg;
+  return Number.NaN;
+}
+
+/** The least share s of both limits (the crouch `s · crouch_max_m`, the lean `s · lean_max_deg`) that brings `target`
+ *  within reach, to 0.001; NaN if s = 1 doesn't. The applier bends both together by one share (plan R-03). */
+function shareAt(f: Posed, target: Vec3, crouchMax: number, leanMaxDeg: number): number {
+  for (let s = 0; s <= 1.0005; s += 0.001)
+    if (len(sub(target, f.shoulder(s * crouchMax, s * leanMaxDeg * DEG))) <= f.reach) return Math.min(1, s);
+  return Number.NaN;
+}
+
+describe("T003's measure, the crouch (Q212, taken provisionally)", () => {
+  it("measures the crouch's limit and the lean each figure needs at it, and checks the defaults reach", async () => {
+    const rows: string[] = [];
+    const figures = await Promise.all(
+      FIGURES.map(async ([name, file, height]) => {
+        const root = await rig(file);
+        return { name, root, scale: name === "twin" ? 1 : height / MAN_HEIGHT };
+      }),
+    );
+    // The crouch's limit: the thighs no lower than level, on the figure that comes level first.
+    const level = Math.min(
+      ...figures.map(({ root, scale }) => posed(root, scale, HOMES[0]![1], targetOf(HOMES[0]![1], v(0, 0, 1))).level),
+    );
+    const { crouch_max_m: crouchMax, lean_max_deg: leanMax } = PET_REACH_DEFAULTS;
+    rows.push(
+      `the thighs come level at a crouch of ${level.toFixed(3)} m (the smaller figure's); crouch_max_m ${crouchMax}, ` +
+        `lean_max_deg ${leanMax}`,
+    );
+    let needed = 0;
+    for (const { name, root, scale } of figures) {
+      for (const [label, home] of HOMES) {
+        const toTwin = sub(TWIN_HOME, home);
+        const n = Math.hypot(toTwin.x, toTwin.z);
+        for (const facing of FACINGS) {
+          const fwd =
+            facing === FACINGS[0] ? v(0, 0, 1) : facing === FACINGS[1] ? v(0, 0, -1) : v(toTwin.x / n, 0, toTwin.z / n);
+          const T = targetOf(home, fwd);
+          const f = posed(root, scale, home, T);
+          const steps = [0.2, 0.25, 0.3, 0.35]
+            .map((c) => {
+              const lean = leanAt(f, T, c);
+              return `${c.toFixed(2)} m ${Number.isNaN(lean) ? "> 120°" : `${lean.toFixed(1)}°`}`;
+            })
+            .join(", ");
+          const lean = leanAt(f, T, crouchMax);
+          const s = shareAt(f, T, crouchMax, leanMax);
+          const knees = f.knees(crouchMax).map((x) => x.toFixed(0));
+          rows.push(
+            `  ${name}, ${label}, head ${facing}: lean over the spine at a crouch of ${steps}; ` +
+              `knees at ${crouchMax} m ${knees.join("/")}°; the defaults' share ` +
+              `${Number.isNaN(s) ? "short" : s.toFixed(3)}` +
+              (Number.isNaN(s) ? ` by ${(len(sub(T, f.shoulder(crouchMax, leanMax * DEG))) - f.reach).toFixed(3)} m` : ""),
+          );
+          if (facing === FACINGS[0]) {
+            // The default heading: the defaults must reach, at a share at most 1.
+            needed = Math.max(needed, lean);
+            expect(s, `${name} at ${label}`).toBeLessThanOrEqual(1);
+          }
+        }
+      }
+    }
+    rows.push(`the larger lean the default heading needs at ${crouchMax} m: ${needed.toFixed(1)}°`);
+    console.log(rows.join("\n"));
+    // The limits: the crouch within the level-thigh limit; the lean the larger need plus 5°, rounded up, capped at 75°.
+    expect(crouchMax).toBeLessThanOrEqual(level);
+    expect(leanMax).toBe(Math.min(75, Math.ceil(needed + 5)));
   }, 120_000);
 });
