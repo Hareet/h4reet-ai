@@ -617,7 +617,7 @@ def test_a_path_is_read_against_the_root_it_is_given(repo: Path) -> None:
     # under one of its top-level directories); a token holding a number must be found, or be a file name in a
     # directory that exists. `corpus/05-mission.md` is cited bare as `05-mission.md` in the real proposal.
     (repo / "corpus/05-mission.md").write_text("# Mission\n")
-    plain = "`05-mission.md`, `src/sign.md`, docs/adr/0020-gateway.md, docs/adr/0021-next.md, evals/run.md:12-14\n"
+    plain = "`05-mission.md`, `src/sign.md`, docs/adr/0020-gateway.md, docs/adr/0021-next.md, `evals/run.md:12-14`\n"
     assert fc.numbers_in(fc.without_exempt(plain, quotes=(), root=repo)) == []
     assert fc.numbers_in(
         fc.without_exempt("`07-other.md`, src/100-per-day\n", quotes=(), root=repo)

@@ -19,8 +19,9 @@ R3  no line `SCRIPTS.md` marks unbuilt or retracted is carried whole, and no car
     `materials.md` row noted "shown as built".
 R4  the new text states no number outside a slot (digits, or G1's number words; its exempt spans aside: slots, URLs,
     the claim tags [P], [?], [A], [A <date>] and [slot `id`], paths (no whitespace, no segment that is a number but a
-    date), a setting such as ENV=prod whose value isn't a number, dates, a list item's number, and the quotes R5
-    accepts) and no currency amount (check_corpus.py's
+    date, inside --root, found under it or rooted at its top-level entry, and, holding a number, found or a file name
+    in a directory it holds), a setting such as ENV=prod whose value holds no digit and no number word, dates, a list
+    item's number, and the quotes R5 accepts) and no currency amount (check_corpus.py's
     CURRENCY, redteam/run.py's AMOUNT_WORDS, guards.ts's EXTRA_PATTERN); every slot exists; and the whole file holds no
     CURRENCY match, since corpus-check reads `corpus/proposals/` too.
 R5  every quotation in the new text is the Author's words as `SCRIPTS.md` quotes them (after a his-words marker), his
@@ -310,6 +311,15 @@ def normalised(path: str) -> str:
     return posixpath.normpath(path)
 
 
+def in_root(root: Path, path: str) -> bool:
+    """The path is in the repository: after normalising, it isn't absolute, doesn't start with `..`, and resolves
+    (through any link) inside `root.resolve()`."""
+    path = normalised(path)
+    if posixpath.isabs(path) or path == ".." or path.startswith("../"):
+        return False
+    return (root / path).resolve().is_relative_to(root.resolve())
+
+
 def under_films(root: Path, path: str) -> bool:
     """A file under `films/`: the films' own text (scripts, captions, notes, materials), written by the agents
     (rv-rework-022's F-1). Read by its normalised spelling and, through a link, by where it resolves."""
@@ -542,27 +552,80 @@ def _numeric(segment: str) -> bool:
     return digits or bool(WORD.fullmatch(segment))
 
 
-def is_path(token: str) -> bool:
-    """A path has no whitespace and no segment that is a number, but a date `_DATE` takes: `52/52`, `100/day`,
-    `52/run`, `twelve/hour`, and `fifty-two of fifty-two passed/run` aren't paths (rv-impl-022's I-2, rv-rework-022's
-    F-2); `docs/adr/0020-x.md`, `history/2026-11-09/run.json`, and `films/kill-switch-b2/` are."""
-    if re.search(r"\s", token):
+def _holds_number(text: str) -> bool:
+    """A digit or one of G1's number words anywhere in the text, its dates aside (a search, not a fullmatch:
+    `100k`, `five-dollars`, `twelve-hundred`, `day/100-requests`; rv2-rework2-022's B-1)."""
+    text = _DATE.sub(" ", text)
+    return bool(re.search(r"\d", text) or WORD.search(text))
+
+
+_LINE_SUFFIX = re.compile(
+    r":\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$"
+)  # `redteam/run.py:267-299`
+_EXTENSION = re.compile(r"\.[a-z]{1,5}$")
+
+
+def _top_level(root: Path) -> set[str]:
+    return {p.name for p in root.iterdir()} if root.is_dir() else set()
+
+
+def found_under(root: Path, path: str) -> bool:
+    """The path, inside the root, names something at the root or under one of its top-level directories (the real
+    proposal cites `05-mission.md`, which is `corpus/05-mission.md`)."""
+    if not in_root(root, path):
         return False
-    return not any(
-        _numeric(s) and not _DATE.fullmatch(s.strip(_PUNCTUATION))
-        for s in token.strip("/").split("/")
+    if exists(root, path):
+        return True
+    return any(
+        (root / top).is_dir()
+        and in_root(root, f"{top}/{path}")
+        and exists(root, f"{top}/{path}")
+        for top in _top_level(root)
     )
 
 
+def is_path(token: str, root: Path | None = None) -> bool:
+    """A path has no whitespace and no segment that is a number, but a date `_DATE` takes: `52/52`, `100/day`,
+    `52/run`, `twelve/hour`, and `fifty-two of fifty-two passed/run` aren't paths (rv-impl-022's I-2, rv-rework-022's
+    F-2). And it is read against the root (rv2-rework2-022's B-1): it is found under the root, or its first segment
+    is a top-level entry of the root; and if it holds a number (a digit or one of G1's words, outside a date and a
+    line suffix), it is found, or it is a file name with an extension in a directory the root holds. So `5k/day`,
+    `day/100-requests`, `docs/100-per-day`, and `100-per-day.md` aren't paths; `docs/adr/0020-x.md`,
+    `history/2026-11-09/run.json`, `films/kill-switch-b2/`, and `redteam/run.py:267-299` are."""
+    root = REPO if root is None else root
+    if re.search(r"\s", token):
+        return False
+    bare = normalised(_LINE_SUFFIX.sub("", token).rstrip("/") or token)
+    segments = bare.split("/")
+    if any(
+        _numeric(s) and not _DATE.fullmatch(s.strip(_PUNCTUATION)) for s in segments
+    ):
+        return False
+    if not in_root(root, bare):
+        return False
+    if found_under(root, bare):
+        return True
+    if segments[0] not in _top_level(root):
+        return False
+    if not _holds_number(bare):
+        return True
+    parent = "/".join(segments[:-1])
+    return bool(
+        parent and _EXTENSION.search(segments[-1]) and (root / parent).is_dir()
+    ) and in_root(root, parent)
+
+
 def _assignment(token: str) -> bool:
-    """`ENV=prod`, `COMPOSE_PROFILES=gpu`: a setting whose value isn't a number (`DAILY_CAP=100` states one)."""
+    """`ENV=prod`, `COMPOSE_PROFILES=gpu`: a setting whose value holds no digit and no G1 word anywhere
+    (`DAILY_CAP=100`, `CAP=100k`, `CAP=five-dollars`, and `LIMIT=per-100` state one; rv2-rework2-022's B-1)."""
     m = re.fullmatch(r"[A-Z_]+=([\w-]+)", token)
-    return bool(m) and not _numeric(m.group(1))
+    return bool(m) and not (re.search(r"\d", m.group(1)) or WORD.search(m.group(1)))
 
 
-def without_exempt(text: str, quotes: Iterable[str]) -> str:
-    """The text with plan §3 R4's exempt spans blanked: slots, URLs, claim tags, paths, dates, a list item's leading
-    number, and the quotes R5 accepts."""
+def without_exempt(text: str, quotes: Iterable[str], root: Path | None = None) -> str:
+    """The text with plan §3 R4's exempt spans blanked: slots, URLs, claim tags, paths (read against the root),
+    dates, a list item's leading number, and the quotes R5 accepts."""
+    root = REPO if root is None else root
     for q in quotes:
         text = text.replace(f'"{q}"', " ").replace(f"“{q}”", " ")
     text = _SLOT.sub(" ", text)
@@ -572,12 +635,14 @@ def without_exempt(text: str, quotes: Iterable[str]) -> str:
         lambda m: (
             " "
             if _assignment(m.group(1))
-            or (_PATHLIKE.search(m.group(1)) and is_path(m.group(1)))
+            or (_PATHLIKE.search(m.group(1)) and is_path(m.group(1), root))
             else m.group(1)
         ),
         text,
     )
-    text = _BARE_PATH.sub(lambda m: " " if is_path(m.group(0)) else m.group(0), text)
+    text = _BARE_PATH.sub(
+        lambda m: " " if is_path(m.group(0), root) else m.group(0), text
+    )
     text = _DATE.sub(" ", text)
     return _LIST_NUMBER.sub(" ", text)
 
@@ -851,7 +916,7 @@ def check(
             for slot in re.findall(r"\[slot `([a-z0-9_.-]+)`\]", raw):
                 if slot not in ctx.slots and slot not in new_slots:
                     out["R4"].append(f"R4: new text, {heading!r}: unknown slot {slot}")
-            plain = without_exempt(raw, accepted)
+            plain = without_exempt(raw, accepted, root)
             for amount in currency_in(plain):
                 out["R4"].append(
                     f"R4: new text, {heading!r}: a currency amount: {amount!r}"
