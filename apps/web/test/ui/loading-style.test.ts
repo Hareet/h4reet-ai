@@ -54,7 +54,7 @@ describe("the loader's card (T016)", () => {
     expect(view.element.querySelector(".room-loader-bar")?.getAttribute("role")).toBe("progressbar");
     expect(view.element.querySelector(".room-loader-percent")?.getAttribute("aria-hidden")).toBe("true");
     // The frame is the card's first child: the heading stays where focus and the name expect it.
-    expect([...view.element.children].map((c) => c.className.split(" ")[0])).toEqual([
+    expect([...view.element.children].map((c) => (c.getAttribute("class") ?? "").split(" ")[0])).toEqual([
       "room-loader-frame",
       "room-loader-heading",
       "room-loader-bar",
