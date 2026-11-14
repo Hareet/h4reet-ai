@@ -119,10 +119,42 @@ The lint didn't run: this worktree has no `node_modules` (neither at the root no
 
 The laptop's measurements (its meshes, the `charge-light` quad's place, the 15 triangles within 6 mm of the charge light, the 20,419 within the screen glow's 0.18 m, the screen glow's 2.4 mm in front of the `screen`) and the four pieces' mesh and primitive counts came from a throwaway Python script over the GLBs as `night/fix-020/fix-020` has them, kept outside the repository (`/tmp`) and run with `python3 -I`; T004, T008, and T009 measure the same on the real files in the implementation.
 
+## Notes, third rework (rework3-spec-024, 2026-11-14)
+
+This task changed documents only: the spec, plan, tasks, and this file in `specs/024-*/`, and `docs/merge-requests/human-patches/024.md`. The intent needed no change. The line's code was read with `git --no-replace-objects show` at `night/rework-018/rework-018` (the framing kernel, the compositor, the room's wiring), with `night/fix-020/fix-020` and `night/rework-spec-021/rework-spec-021` as plan §1 names them. The line numbers the review cited were confirmed: `rg.ts:208` `stageFor(screen, protect)`, `protect.ts:55` `[walkControlBox(clear, rem)]`, and `bundle3d.ts:385` `next.reserved ?? reservedBoxes(next)`. No throwaway script was needed this time.
+
+Small runs, after the last edit to the artifacts:
+
+```
+$ pytest -q evals/test_docs_links.py
+............................................                             [100%]
+44 passed in 0.86s
+
+$ python3 -I evals/docs_links.py
+PASS  every relative link resolves: 2406 links in 383 files
+PASS  README.md links the ADR index (docs/adr/)
+PASS  the ADR index links every ADR file: 50 of 50
+PASS  User Story 6's five decisions have their ADRs: 0001 (local-first routing), 0002 (one compose topology), 0003 (local-compose-first delivery), 0004 (Langfuse and Grafana), 0005 (Telegram alerting)
+docs links: 0 failed, 2406 relative links in 383 files
+
+$ make lint
+node_modules is missing: run make setup
+make: *** [Makefile:227: lint] Error 1
+```
+
+The lint didn't run: this worktree still has no `node_modules`, at the root or in `apps/web`. Nothing this task changed is code.
+
+Questions written to `/night/io/out/questions.md` (this task's two, each with its recommended answer, taken): Q-R3a (RG7 at the dinosaur visit's reference stages) and Q-R3b (the cover rule leaves the Eat box out). Page Q149 and Q150 were the supervisor's; their recommended answers are taken here.
+
 ## Interruptions
 
+- Third rework: `make lint` refused to run again, "node_modules is missing: run make setup". No hook or bash-gate refusal was hit in this task.
 - `make lint` refused to run: "node_modules is missing: run make setup" (NB-3). No hook or bash-gate refusal was hit in this task.
 - The project's post-edit hook flagged lint style (import order, `open` without a context manager) in the throwaway measuring script under `/tmp`, outside the repository; it is not part of any commit.
 - The bash gate refused the cleanup of that scratch folder: "Blocked by .claude/hooks/bash-gate.sh — recursive delete outside workspace. Route: delete only inside the repo". It was a real refusal, not a false match; the folder (`/tmp/rw2-024`, the script and copies of the four GLBs from the line) is left in place, outside the repository, and nothing was respelled to get round the refusal.
 
-**What's left**: the Author's answers to Q1 to Q6, Q107 to Q109, Q117, Q119, and Q-R2a to Q-R2c (all taken provisionally; Q-R2a to Q-R2c are in `/night/io/out/questions.md`); a reviewer's re-read of this second rework (rule 6: a worker that didn't write it); if Q117 stands, the docs role's ADR for its deviation (Q-R2c); then T000 rebases this branch onto the line's tip once spec 021's code is on it, and impl-024 starts.
+**What's left** (after the third rework):
+- the Author's answers to Q1 to Q6, Q107 to Q109, Q117, Q119, Q-R2a to Q-R2c, Q149, Q150, Q-R3a, and Q-R3b, all taken provisionally (Q-R3a and Q-R3b are in `/night/io/out/questions.md`);
+- a reviewer's re-read of this third rework (rule 6: a worker that didn't write it);
+- if Q117 stands, the docs role's one ADR for the deviation that specs 024 and 025 share (Q-R2c, Q149);
+- then T000 rebases this branch onto the line's tip once spec 021's code is on it, and impl-024 starts. If the dinosaur visit's checks refuse today's scene at T011a, that case goes to the page (spec A8).
