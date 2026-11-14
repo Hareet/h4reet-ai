@@ -881,3 +881,21 @@ def test_a_new_slot_is_written_in_its_display_form_until_it_exists(repo: Path) -
         "runs [slot `site.prod_containers`]", "runs [slot `site.prod_boxes`]"
     )
     assert failing(run(repo, unknown), "R4", "unknown slot site.prod_boxes")
+
+
+def test_the_real_proposal_leaves_the_road_out_line_out() -> None:
+    # Q115 (rv-rework2-spec-022's F-1), answered with its recommendation: "only the gateway has a road out" is left out
+    # as contradicted by the repository (`tunnel` and `ec2-snapshot-publisher` join `egress` too), and the count's label
+    # says "before the tunnel profile is added".
+    text = "\n".join(fc.blocks(PROPOSAL.read_text())["corpus-08"]).lower()
+    for claim in ("road out", "only the gateway leaves", "only `gateway` joins"):
+        assert claim not in text, claim
+    rows, _ = fc.read_table(PROPOSAL.read_text())
+    s15 = next(
+        r for r in rows if r.script == "kill-switch-b2" and r.line.startswith("S15 ")
+    )
+    assert s15.status == "left out"
+    assert (
+        "“and only the gateway has a road out.” → contradicted by the repository: `deploy/compose.yaml`"
+        in s15.left
+    )
