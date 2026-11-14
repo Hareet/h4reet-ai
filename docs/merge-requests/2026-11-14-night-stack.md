@@ -1171,6 +1171,28 @@ One refusal, from the filesystem rather than the bash gate: the write to the han
 
 record-dino-r2: not recorded (handoff read-only to implementers); his date checked to keep the pass on a scratch copy; the edit and `--record` wait for him or a task that can write the handoff *(Answered, Q224 and Q225: him. His record and his intake wait for his morning's steps 1 to 4, in order.)*
 
+### Review (rv-intake-021, rv-record-dino-r2)
+
+Neither review is blocking. verify3-021 (Opus 5.5) wrote none of what they reviewed. It fixed the findings below, documents only, one commit each:
+
+- **rv-record-dino-r2, finding 1** (`studio-round-2.md:3`): the status header still said "The record waits only for Q207's date". It now says the record waits on the handoff edit (steps 1 and 2, as one script), then the dry re-judge and `--record`, and it points to "Round 2's record, not made". (`b3bf5e2b`)
+- **rv-record-dino-r2, nit 3**: one sentence under "Steps 1 and 2 as one script". If step 1's older script already ran, drop the insert lines. Checked in memory on the handoff's file, with nothing written: run whole after step 1, the script stops on its `assert` before writing. With the insert lines dropped it dates 11 steps and makes `39b89e14…d4df`, the same file. (`9aeeeb0b`)
+- **rv-record-dino-r2, nit 4**: one line in `studio-round-2.md`. `scripts/studio/` is identical to intake-021's: `git diff --stat fc89bcd1 HEAD -- scripts/studio` prints nothing. (`cb33ff99`)
+- **rv-intake-021, nit 3**: "waits only for Q207's date" undercounted. Annotated where it stands (`studio-round-2.md`, "Not recorded", and intake-021's last line above): the record waited for steps 1 to 4, in order, not only the date. (`cfe78261`)
+- **rv-intake-021, nit 4**: judge-dino-r2's "twelve" against the intake's "eleven". **Eleven is right.** The handoff's `records.json` (`341edde9…f14f9`, read and not changed) has 2 steps `by` `model` in `dinosaur.glb`'s entry (Pixal3D, the build) and 3 in each clip's (those two plus the clip's own step): 2 + 3 × 3 = 11. The judge's own list ("in each of the four entries, the Pixal3D step, the build step, and each clip's own step") also adds up to 11. record-dino-r2's scratch edit dated 11 steps. Annotated beside "twelve". (`86e48d02`)
+
+Also, for task step 2: every status line in this section and in `studio-round-2.md` that named what the record waits for now says that his record and his intake wait for his morning's steps 1 to 4, in order (Q224, Q225). (`3bf6495b`)
+
+**Follow-ups for his answer.** These weren't made tonight. `spec.md` and `contracts/dinosaur-brief.md` are unchanged.
+
+- **Q222: his approval read as his mesh review.** intake-021 read "dinosaur is approved" as his look approval of the candidate. Under Q210 (recommended), it also read those words as his review of the step-3 mesh. Morning step 1 then writes `{"name": "the Author's review of the mesh", "by": "hand"}` into all four entries on that reading. The reading is his to confirm in morning step 1. Proposed rewording of step 1's title and first sentence, in `studio-round-2.md` ("For his morning, in order") and in this section ("What waits before the intake, in order"), once he answers:
+  > 1. **Your review of the mesh in the record (Q210, Q222).** First confirm that your approval of 2026-11-14 ("dinosaur is approved") covers the step-3 mesh (`/srv/studio/outputs/dinosaur/r2-step3/`) as well as the candidate. If it does, add `{"name": "the Author's review of the mesh", "by": "hand"}` after the Pixal3D step in all four entries. If it doesn't, look at the mesh first: the record claims no review you haven't made.
+- **Q223: the record's source is `design`, `D-0003` (Q198, recommended), but two documents still say a prompt.** Proposed rewording, if he keeps `design`:
+  - `spec.md`'s FR-007 (line 116), "ITS BRIEF AND ITS RECORD SHALL say `likeness: false`, its source a prompt (like the shipped avatars')", becomes: "ITS BRIEF AND ITS RECORD SHALL say `likeness: false`, its source his concept, an original design of his (`{"type": "design", "id": "D-0003"}`, spec 004's Amendment C2; Q198, Q223), not a photo."
+  - `contracts/dinosaur-brief.md:18`, the notes' opening "The visitor's dinosaur avatar (spec 021), from a new recorded prompt, no reference image.", becomes: "The visitor's dinosaur avatar (spec 021), from the Author's concept, an original design of his (source `design`, `D-0003`; round 2's brief, in `studio-round-2.md`), no photo."
+  - If he answers that the concept came from a prompt, the record's source becomes `prompt` with that prompt's ID, and both documents stay as they are.
+- **Already owed (rule 9), not tonight:** `line.py` should count a round as answered only when it has a `candidate.json` (record-dino-r2 and judge-dino-r2 above; `studio-round-2.md`'s "Follow-ups for the stack's note" asks for both halves). This is a code change, for a later task with its own tests.
+
 ---
 
 ## Item 6: spec 023, the resume PDF redone with links from the films (`night/impl-023/impl-023`)
