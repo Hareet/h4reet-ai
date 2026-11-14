@@ -51,7 +51,7 @@ interface Figure {
   readonly idle: string;
   readonly scale: number;
   root?: Object3D;
-  clip?: AnimationClip;
+  clip?: AnimationClip | undefined;
 }
 
 const FIGURES: Figure[] = [
