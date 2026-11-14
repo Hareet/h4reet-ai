@@ -1029,3 +1029,14 @@ def test_the_real_proposal_leaves_no_route_out_for_every_container_out() -> None
         in row.left
     )
     assert "“and only the gateway leaves.” → contradicted by the repository" in row.left
+
+
+def test_the_real_proposal_names_the_host_that_tries_the_local_model_first() -> None:
+    # rv-impl-022's N-2: Local models first #3 names its host, as Golden Q&A 13 does ("On the laptop, every question
+    # tries llama.cpp"), since on the cloud server the Anthropic API answers first.
+    items = fc.new_text_items(fc.blocks(PROPOSAL.read_text())["corpus-08"])
+    assert (
+        "On the laptop, every question tries the local model first"
+        in items["Local models first"][3]
+    )
+    assert "On the laptop, every question tries" in items["Golden Q&A"][13]
