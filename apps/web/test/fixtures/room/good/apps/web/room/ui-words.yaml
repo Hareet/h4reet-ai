@@ -71,3 +71,18 @@ words:
   label.fx-slate: fixture slate
   label.fx-lettering: fixture lettering
   label.fx-power: fixture power
+  hud.select: Select a piece
+  hud.back: Back
+  hud.close: Close
+  key.esc: Esc
+  key.enter: Enter
+  stat.serving: Serving
+  stat.call: This call
+  stat.visit: This visit
+  stat.unknown: "—"
+  stat.tier.local: Local
+  stat.tier.cloud: Cloud
+  stat.tier.resting: Resting
+  stat.tier.budget: Budget
+  stat.tier.unavailable: Unavailable
+  stat.tier.unknown: Unknown

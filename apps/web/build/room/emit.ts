@@ -1048,12 +1048,15 @@ function claimsOf(piece: CatalogEntry | undefined): { claims?: { local: string; 
 
 /** The text copy's order (§3.1): the twin's line slot, the bound faces, the switches, the sign's figures, and the
  *  fixed lines. Spec 016 (FR-014; contracts/twin-data.md §4): the slot, first, which the room resolves to the twin's
- *  line while its own picture shows and to spec 009's stand-in line otherwise (spec 009's FR-013, as M9 amends it). */
+ *  line while its own picture shows and to spec 009's stand-in line otherwise (spec 009's FR-013, as M9 amends it).
+ *  Spec 020 (FR-007): the likeness line slot after it. */
 function copyOf(faces: RoomIndex["faces"], switches: RoomIndex["switches"]): RoomIndex["copy"] {
   const regions = faces.flatMap((f) => f.regions);
   const has = (test: (r: IndexRegion) => boolean): boolean => regions.some(test);
   return [
     { twin_line: true as const },
+    // Spec 020 (FR-007; plan.md R-02): the likeness line slot, which the room fills only while a figure shows one.
+    { visitor_line: true as const },
     ...faces.map((f) => ({ face: f.id })),
     ...switches.map((s) => ({ switch: s.id })),
     ...(has((r) => "signal" in r.source) ? [{ figures: true as const }] : []),
@@ -1121,6 +1124,7 @@ function indexBody(c: Composed, placeholders: boolean, models: readonly string[]
       name: x.name,
       members: [...x.members],
       action: x.action.talk ? { kind: "talk" as const, topic: x.action.talk.topic } : { kind: "resume" as const },
+      ...(x.emblem !== undefined ? { emblem: x.emblem } : {}),
       side_wall: sideWall[k] ?? false,
     })),
     // Ready only as the twin's readiness says, by FR-030's rule (spec 007, FR-037); nothing without it.
@@ -1504,6 +1508,8 @@ function avatarsPart(c: Composed): RoomScene["avatars"] {
         texture_bytes: model.measures?.decoded_bytes ?? 0,
       },
       clips,
+      // Spec 020 (FR-007): a likeness's line, where main's approval gives one; absent for every other avatar.
+      ...(avatar.line === null ? {} : { line: avatar.line }),
     };
   }
   return out;
