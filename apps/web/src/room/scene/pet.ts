@@ -183,11 +183,22 @@ export function createPet(options: {
     options.signal?.(activity);
   };
 
+  /** The twin's figure can pet: its model or the man stand-in, with the reach's bones (FR-001). */
+  const usable = (twin: PetTwin): boolean => twin.shows !== "capsule" && twin.rig;
+
+  /** What cuts a petting at once (FR-011, SC-003): reduced motion, quality level 1 or more, the room out of 3D or its
+   *  context lost, or either figure's picture lost or the twin's no longer usable. A pause isn't one: it holds. */
+  const broken = (m: PetMotion): boolean => {
+    if (!m.live || !m.animate || m.level !== 0) return true;
+    const twin = options.twin();
+    return !twin || !usable(twin) || !options.dog();
+  };
+
   /** FR-001's conditions, the selection's moment. */
   const allowed = (twin: PetTwin | null, dog: PetDog | null): boolean => {
     const m = options.motion();
-    if (!twin || !dog) return false;
-    if (m.level !== 0) return false;
+    if (!twin || !dog || !usable(twin)) return false;
+    if (!m.live || !m.animate || m.paused || m.level !== 0) return false;
     if (twin.arriving || twin.phase !== "home" || dog.phase !== "home") return false;
     if (chase.running()) return false;
     return inReach(twin.home, dog.home, config.reach_m);
@@ -221,6 +232,15 @@ export function createPet(options: {
     endPetting();
   };
 
+  /** A cut at once (FR-011): the reach cleared, the twin's heading back to its home's (spec 025's director puts it there
+   *  at once under these), and nothing left under way. */
+  const cutAtOnce = (): void => {
+    reachOn = false;
+    fading = false;
+    if (phase !== "return") endPetting();
+    toIdle();
+  };
+
   const toIdle = (): void => {
     phase = "idle";
     path = null;
@@ -252,6 +272,10 @@ export function createPet(options: {
     frame(dt) {
       if (phase === "idle") return;
       const m = options.motion();
+      if (broken(m)) {
+        cutAtOnce();
+        return;
+      }
       if (m.paused) return;
       const step = Math.max(0, dt);
       if ((phase === "turn" || phase === "petting") && chase.running()) cutByRun();
