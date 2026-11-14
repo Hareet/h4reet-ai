@@ -872,3 +872,52 @@ What waits for you (none of it is needed for this item's gate):
 Also: the questions on the morning page with their recommended answers (the spec's nine, page Q32 to Q38, Q73, Q75; Q88; and this session's, in `/night/io/out/questions.md`). Open for others: N-2's page words; rv-rework-020's N1 (the report's `Likeness` line), still open from item 3; verify-021's merge onto the line; T013, the stack's one `make check`.
 
 Interruptions: one bash-gate refusal. T008's commit command was refused as "an Author-only make target" (`Blocked by .claude/hooks/bash-gate.sh — an Author-only make target. Route: make publish-check, make tools, make matrix-canary, and make evals-agent-config: the Author runs it`). It was a false match on the words I was writing (the commit message and a plan line naming the tools list). Nothing ran. Under rule 5 I didn't respell anything: the plan line and T008's tick in tasks.md were written with the Edit tool, and the message with the Write tool, then `git commit -F`. One harness block, not a hook: a shell `sleep` before reading a log, waited for with a background `until` loop instead.
+
+### Verification (rule 7, verify-021)
+
+Branch `night/verify-021/verify-021`, from impl2-021's tip 77b1a244 (verify2-020's tip 3767859f with item 4 in it), by a different worker (Opus 5.5) from item 4's implementer. No merge: the line already holds items 1 to 3, verified ("verify-020: green, carrying D-V2's six (Q165)"). Read under Q165, as verify2-020 read it.
+
+#### Runs at the tip (68f1eced; the branch's code and tests are impl2-021's, only this note and the spec's text differ)
+
+`node_modules` was there (an earlier session of this task ran the setup target); not run again.
+
+Item 4's test files (every test file in `git diff --stat refs/heads/night/verify2-020/verify2-020...HEAD`; its changed `bad/RA10-no-jaw`, `bad/RA11-long`, and `bad/RA12-no-walk` fixtures are read by `compose.test.ts`, its helpers by these and by the full run below):
+
+```
+cd apps/web && npx vitest run test/room/avatar-gait.test.ts test/room/avatar-hands.test.ts test/room/avatar-scene.test.ts
+  test/room/compose.test.ts test/room/dinosaur-compose.test.ts test/ui/notes-causes.test.ts
+ Test Files  6 passed (6)
+      Tests  318 passed (318)
+   Duration  197.70s (tests 69%, import 30%, transform 1%)
+
+pytest -q -p no:cacheprovider --import-mode=importlib scripts/studio
+130 passed in 11.09s
+```
+
+(`scripts/studio` is the one Python folder item 4 changed: `test_line.py`.)
+
+**Carried (Q165), confirmed on a copy.** `git archive HEAD` (68f1eced) into a fresh `/tmp` folder, `git apply docs/merge-requests/proposed/018-verify-test-amendments.patch` there (`--check` clean; 4 files, 43 insertions, 11 deletions), the worktree's `node_modules` linked in. Never applied on the line; no test file edited.
+
+```
+cd <copy> && pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+80 passed in 1.05s
+cd <copy>/apps/web && npx vitest run test/disclosure.test.ts test/room/legibility.test.ts test/room/report.test.ts
+ Test Files  3 passed (3)
+      Tests  56 passed (56)
+```
+
+`make lint`: exit 0 (shellcheck's file list left out):
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+779 files already formatted
+```
+
+All of `apps/web`: pending (below).
