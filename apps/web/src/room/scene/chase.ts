@@ -106,6 +106,10 @@ export function createChase(options: {
   let on = false;
   /** The figures named at the start, once said; null while nothing has been said this run. */
   let said: ChaseWho | null = null;
+  /** The figures that moved in this run, which its end names (FR-025; rv-impl-025's N-5): a figure that joins mid-run
+   *  (held at the start, then free) among them. */
+  let ranTwin = false;
+  let ranDog = false;
 
   /** Off its home's spot; `away` also counts a facing turned from its home's (it stood and watched). */
   const off = (f: Figure): boolean => Math.hypot(f.runner.x - f.home.x, f.runner.z - f.home.z) > HOME_M;
@@ -159,6 +163,8 @@ export function createChase(options: {
       if (!motion.animate || motion.level >= 1) {
         for (const f of all) if (f.phase !== "home") putHome(f);
         said = null;
+        ranTwin = false;
+        ranDog = false;
         present = dino.present;
         on = false;
         since = 0;
@@ -182,9 +188,13 @@ export function createChase(options: {
       if (on) {
         flee(twin, dino, dt, null);
         flee(dog, dino, dt, twin ? twin.runner : null);
+        // FR-025: said once a figure moves; a figure that only turns to watch isn't running.
+        const twinMoves = twin !== null && moving(twin);
+        const dogMoves = dog !== null && moving(dog);
+        ranTwin ||= twinMoves;
+        ranDog ||= dogMoves;
         if (said === null) {
-          // FR-025: said once a figure moves; a figure that only turns to watch isn't running.
-          const who = whoOf(twin !== null && moving(twin), dog !== null && moving(dog));
+          const who = whoOf(twinMoves, dogMoves);
           if (who) {
             said = who;
             options.note?.({ state: "started", who });
@@ -194,8 +204,11 @@ export function createChase(options: {
         back(twin, dt);
         back(dog, dt);
         if (said !== null && twin?.phase !== "returning" && dog?.phase !== "returning") {
-          options.note?.({ state: "ended", who: said });
+          // The figures that moved in the run, which hold `said`'s at least.
+          options.note?.({ state: "ended", who: whoOf(ranTwin, ranDog) ?? said });
           said = null;
+          ranTwin = false;
+          ranDog = false;
         }
       }
     },
