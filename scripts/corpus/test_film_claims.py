@@ -1402,7 +1402,8 @@ def test_a_glob_or_a_contradicting_file_outside_the_repository_fails(
     ("glob", "inside"),
     [
         ("docs/**", False),
-        ("**", False),
+        # `**` alone names no path to `paths_in` (no `/`, no extension); `./**` does, and normalises to `**`.
+        ("./**", False),
         ("docs/**/plain.txt", False),
         ("**/plain.txt", False),
         ("docs/adr/**", True),

@@ -363,8 +363,14 @@ def is_glob(path: str) -> bool:
 
 def glob_inside(root: Path, path: str) -> bool:
     """A glob is in the repository only if something matches and every match resolves, through any link, inside the
-    root (rv-rework3-022's B-7: `docs/out?ide.txt` matching only a link out, `docs/*` matching one among files)."""
-    matches = list(root.glob(normalised(path)))
+    root (rv-rework3-022's B-7: `docs/out?ide.txt` matching only a link out, `docs/*` matching one among files); a
+    pattern ending in `**` with its `/*` too, so `docs/**` reads every entry under `docs/`, links included."""
+    pattern = normalised(path)
+    matches = list(root.glob(pattern))
+    if pattern == "**" or pattern.endswith("/**"):
+        # A pattern ending in `**` matches directories only on Python 3.12 and files too on 3.13; its `/*` makes it
+        # read the same on both (rv-rework4-022's N-2). `**` never descends into a link to a directory.
+        matches += root.glob(pattern + "/*")
     inside = root.resolve()
     return bool(matches) and all(m.resolve().is_relative_to(inside) for m in matches)
 
