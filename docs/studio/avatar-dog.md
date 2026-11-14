@@ -19,6 +19,7 @@ To the studio's hand-off folder, `/srv/studio/handoff/dog/<round>/`, for his int
 | `dog.glb` | `avatar` | The model: stylized, textured, rigged, four-legged, standing with its head level (FR-012) |
 | `dog-idle.glb` | `animation` | `idle`, a loop, root in place |
 | `dog-walk.glb` | `animation` | `walk`, a four-legged gait, a loop, root in place (FR-005), so the room's walking pose moves the figure |
+| `dog-run.glb` | `animation` | `run`, a faster four-legged gait, a loop, root in place, for spec 025's room dog figure; the visitor's figure never plays it (FR-012, FR-017) |
 | `records.json` | | Spec 003's asset record (FR-014): each file's SHA-256 and kind, `likeness: true`, `source.type: "photo"` with an opaque batch ID, each step with its model or `hand` and its tool and licence from the list, no `approval` |
 | `LICENSE.md` | | As the man's and the woman's folders have it |
 

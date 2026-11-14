@@ -114,11 +114,12 @@ describe("the closed list (FR-012)", () => {
 });
 
 describe("the compose's run (FR-012; RA2, RA4, RA9)", () => {
-  it("bundles run after walk with the model's approval", () => {
+  it("bundles run with the model's approval", () => {
     const t = tree();
     expect(where(compose(t, approved(), STRICT).findings)).toEqual([]);
     const dog = compose(t, approved(), LENIENT).scene.avatars.dog;
-    expect(Object.keys(dog?.clips ?? {})).toEqual(["idle", "walk", "run"]);
+    // The bundle's clip keys are sorted bytewise (emit.ts's avatarsPart); the loader's order is the closed list's.
+    expect(Object.keys(dog?.clips ?? {})).toEqual(["idle", "run", "walk"]);
     expect(dog?.clips.run?.sha256).toBe(sha256(runBytes));
   });
 
@@ -126,7 +127,9 @@ describe("the compose's run (FR-012; RA2, RA4, RA9)", () => {
     expect(bigRunBytes.length).toBeGreaterThan(Math.max(idleBytes.length, walkBytes.length));
     const policy = approved({ animation: { bytes: Math.max(idleBytes.length, walkBytes.length) } });
     const t = tree({ run: bigRunBytes });
-    expect(where(compose(t, policy, STRICT).findings)).toEqual(["RA4 assets/visitors/dog/dog-run.glb:-"]);
+    // The man's and the woman's fixture clips are larger than this cap too; only the dog's folder is asked about.
+    const dogs = where(compose(t, policy, STRICT).findings).filter((w) => w.includes("/dog/"));
+    expect(dogs).toEqual(["RA4 assets/visitors/dog/dog-run.glb:-"]);
     expect(Object.keys(compose(t, policy, LENIENT).scene.avatars.dog?.clips ?? {})).toEqual(["idle", "walk"]);
   });
 

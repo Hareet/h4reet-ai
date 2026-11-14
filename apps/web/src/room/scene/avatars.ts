@@ -121,6 +121,10 @@ export interface AvatarFigures {
   handOf(figure: FigureId): Object3D | null;
   /** The clip role a figure plays now, or null (its fallback, or its rest pose). */
   playing(figure: FigureId): FigureRole | null;
+  /** Spec 020 (FR-012; plan.md R-03): an avatar's loaded clip by its role, or null where none loaded or it was refused
+   *  (a clip naming a bone its model lacks): the clips a figure of the room other than these two (spec 025's dog) plays,
+   *  `run` among them, which neither figure here ever does. */
+  clipOf(avatar: FigureSource, role: FigureRole): AnimationClip | null;
   /** Each frame: advances each shown figure's mixer by `dtMs` while `animate`, at quality 1 or more only the twin's. */
   update(dtMs: number, animate: boolean, level: number): void;
   /** Draws the hand-off at its progress, 0 to 1, of `durationMs` (spec 002's by default), with the avatars' hands as
@@ -876,6 +880,7 @@ export function createAvatarFigures(
     clipScale: (figure) =>
       figures[figure].playing === "walk" ? (figures[figure].actions.get("walk")?.timeScale ?? null) : null,
     playing: (figure) => figures[figure].playing,
+    clipOf: (avatar, role) => sources.get(avatar)?.clips.get(role) ?? null,
     update(dtMs, moving, level) {
       animate = moving;
       // The twin's own states move on the clock whether or not the motion store animates (FR-024).
