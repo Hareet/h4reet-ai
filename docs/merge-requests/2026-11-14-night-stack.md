@@ -673,3 +673,30 @@ Nothing: no failure outside D-V2's six, so no code, test, or plan changed. The d
 Interruptions: none. No hook or bash-gate refusal in this session.
 
 verify-020: green, carrying D-V2's six (Q165)
+
+---
+
+## Item 4: spec 021, the dinosaur modeled and brought in (`night/impl2-021/impl2-021`)
+
+Spec: specs/021-dinosaur-modeled-and-brought-in/ · Intent: intent/021-dinosaur-modeled-and-brought-in.md · Written by: implementer (night shift), impl2-021 on Opus 5.5 (it replaces impl-021, which stopped at its step 1 changing nothing; Q167); the review is for a worker who didn't write the code · Date: 2026-11-14
+Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl2-021 · Repo hooks active: the commit hooks ran (gitleaks, arrival check) on every commit
+Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at the top of plan.md and tasks.md), the spec, and the plan, as reworked after rv-spec-021 (the decision page's Q32 to Q38, Q73, Q75, and Q88, each answered: recommended). Base: verify2-020's tip 3767859f (items 1 to 3, item 3's verification "verify-020: green, carrying D-V2's six (Q165)"), with `night/rework-spec-021/rework-spec-021` (abb2043a, the reviewed spec) merged first: merge commit fb46c911, no conflict.
+
+### Verification (small tests, the order's rule 4)
+
+T001, the base, at fb46c911 before any change of this item. Run on a `git archive` copy of that commit with the worktree's `node_modules` linked in, since a first run in the worktree read two T002 cases written while it ran:
+
+```
+cd apps/web && npx vitest run test/room/compose.test.ts test/room/avatars-compose.test.ts test/room/likeness-visitor.test.ts
+  test/room/report.test.ts test/room/avatar-hands.test.ts test/room/avatar-scene.test.ts test/room/avatar-gait.test.ts
+  test/ui/notes-causes.test.ts
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ Test Files  1 failed | 7 passed (8)
+      Tests  1 failed | 351 passed (352)
+   Duration  257.90s (tests 75%, import 25%)
+
+pytest -q -p no:cacheprovider --import-mode=importlib scripts/studio/test_line.py
+124 passed in 13.34s
+```
+
+The one failure is one of D-V2's six (Q164), carried under Q165; this item doesn't touch the test or the report's legibility rows.
