@@ -1291,3 +1291,49 @@ $0, and no model call: the check runs at build time, in process, reading committ
 - The questions on the morning page with their recommended answers (Q1 to Q8, Q144, Q145, Q157; spec 027's page numbers Q129 to Q138, Q144, Q145, Q157). This task adds none.
 
 Interruptions: none. No hook or bash-gate refusal in this session.
+
+### Verification (rule 7, verify-027)
+
+Branch `night/verify-027/verify-027`, from the line's tip, verify-023 (bb839ff1: items 1 to 4 and 6), by a different worker (Opus 5.5) from item 10's implementer. Items 5 and 7 are still in rework, so item 10's first part (T001 to T004) goes on the line now. Read under Q165, as verify-020 to verify-023 read it.
+
+#### The merge
+
+`git merge refs/heads/night/impl-027/impl-027` (469531f8): merge commit 7d4a87cf. The one conflict was this note: resolved with items 1 to 4 and 6 whole as the line has them, then item 10 whole as impl-027 wrote it, in his order. No code conflict. rv-impl-027's N2 fixed in its own commit, documents only (37ffc54f); N1, N3, N4 recorded above, not fixed.
+
+#### Runs at the merge (3a692923)
+
+Item 10's two files, from `apps/web` (the record's "fresh" case passes after the merge, so no input moved and `twin:pack` wasn't rerun):
+
+```
+$ npx vitest run test/corpus-size.test.ts test/twin-pack.test.ts
+ Test Files  2 passed (2)
+      Tests  44 passed (44)
+   Duration  42.75s (tests 38%, import 36%, transform 25%, worker 1%)
+$ python3 -m pytest evals/test_docs_links.py
+44 passed in 0.92s
+```
+
+All of `apps/web` (1168 s):
+
+```
+$ cd apps/web && npx vitest run
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ FAIL  test/room/scan.test.ts > the committed tree (T107; FR-007, SC-001, User Story 1 scenario 4) > finds 0 IDs only the room's data defines in the room's code
+ Test Files  4 failed | 187 passed (191)
+      Tests  7 failed | 3780 passed | 3 skipped (3790)
+   Duration  1167.66s (tests 72%, import 28%)
+```
+
+Six are D-V2's (Q165). The seventh is item 10's own: spec 004's FR-007 scan, which reads test files too, finds the room's selectable ID `bicycle` as a fixture ID in T002's test (57dc60ff), not from the merge. Alone, RED:
+
+```
+$ npx vitest run test/room/scan.test.ts
++     "FR-007 apps/web/test/corpus-size.test.ts:260: holds \"bicycle\", which only the room's data defines",
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 passed (17)
+```
