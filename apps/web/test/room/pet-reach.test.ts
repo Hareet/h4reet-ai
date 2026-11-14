@@ -308,7 +308,13 @@ describe("solvePosture (R-03, amended: Q212)", () => {
   it("bends nothing with both limits at 0, and nothing for a target straight above or below the hips", () => {
     const zero = solvePosture(CHAIN, v(-0.3, 0.5, 0.45), REACH, { crouch_max_m: 0, lean_max_rad: 0 }, out());
     expect([zero.share, zero.crouch, zero.lean]).toEqual([0, 0, 0]);
-    const below = solvePosture(CHAIN, v(0, -1, 0), REACH, { crouch_max_m: 0, lean_max_rad: LIMITS.lean_max_rad }, out());
+    const below = solvePosture(
+      CHAIN,
+      v(0, -1, 0),
+      REACH,
+      { crouch_max_m: 0, lean_max_rad: LIMITS.lean_max_rad },
+      out(),
+    );
     expect(below.lean).toBe(0);
   });
 

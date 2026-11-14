@@ -262,7 +262,9 @@ describe("T003's measure, the crouch (Q212, taken provisionally)", () => {
             `  ${name}, ${label}, head ${facing}: lean over the spine at a crouch of ${steps}; ` +
               `knees at ${crouchMax} m ${knees.join("/")}°; the defaults' share ` +
               `${Number.isNaN(s) ? "short" : s.toFixed(3)}` +
-              (Number.isNaN(s) ? ` by ${(len(sub(T, f.shoulder(crouchMax, leanMax * DEG))) - f.reach).toFixed(3)} m` : ""),
+              (Number.isNaN(s)
+                ? ` by ${(len(sub(T, f.shoulder(crouchMax, leanMax * DEG))) - f.reach).toFixed(3)} m`
+                : ""),
           );
           if (facing === FACINGS[0]) {
             // The default heading: the defaults must reach, at a share at most 1.

@@ -618,7 +618,9 @@ export function applyReach(rig: ReachRig, target: Vec3, weight: number, cfg: Rea
     _qa.setFromUnitVectors(_u, _w);
     write(leg.up, localTurn(leg.up.base, s.hipsWorld, _qa, _q));
     // The shin: its clip direction as the thigh's turn carries it, to the solve's.
-    _u.set(s.ankle.x - _k.x, s.ankle.y - _k.y, s.ankle.z - _k.z).normalize().applyQuaternion(_qa);
+    _u.set(s.ankle.x - _k.x, s.ankle.y - _k.y, s.ankle.z - _k.z)
+      .normalize()
+      .applyQuaternion(_qa);
     _w.set(TWO.hand.x - TWO.elbow.x, TWO.hand.y - TWO.elbow.y, TWO.hand.z - TWO.elbow.z).normalize();
     _qb.setFromUnitVectors(_u, _w);
     // The knee's parent (the thigh) now holds _qa · upWorld.
@@ -652,7 +654,9 @@ export function applyReach(rig: ReachRig, target: Vec3, weight: number, cfg: Rea
   localTurn(rig.arm.base, _p, _qa, _r);
   write(rig.arm, _q.copy(rig.arm.base).slerp(_r, w));
   // The forearm: the hand's end as the upper arm's turn carries it, to the solve's.
-  _u.set(_a.x - _k.x, _a.y - _k.y, _a.z - _k.z).normalize().applyQuaternion(_qa);
+  _u.set(_a.x - _k.x, _a.y - _k.y, _a.z - _k.z)
+    .normalize()
+    .applyQuaternion(_qa);
   _w.set(TWO.hand.x - TWO.elbow.x, TWO.hand.y - TWO.elbow.y, TWO.hand.z - TWO.elbow.z).normalize();
   _qb.setFromUnitVectors(_u, _w);
   _wa.copy(_qa).multiply(_wb);

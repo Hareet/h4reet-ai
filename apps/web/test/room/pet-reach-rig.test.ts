@@ -176,7 +176,9 @@ describe("applyReach on the real rigs, at the measured defaults (SC-002; Q212)",
         picture.updateMatrixWorld(true);
         const hand = world(root, "RightHandMiddle1");
         const miss = hand.distanceTo(new Vector3(T.x, T.y, T.z));
-        console.log(`${f.name} at ${label}: the hand ${miss.toFixed(4)} m from the target; hips down ${(hips.y - world(root, "Hips").y).toFixed(3)} m`);
+        console.log(
+          `${f.name} at ${label}: the hand ${miss.toFixed(4)} m from the target; hips down ${(hips.y - world(root, "Hips").y).toFixed(3)} m`,
+        );
         expect(miss).toBeLessThan(0.08);
         // The crouch: the hips lowered, never past the limit; the feet where the clip had them.
         const fall = hips.y - world(root, "Hips").y;
@@ -198,7 +200,10 @@ describe("applyReach on the real rigs, at the measured defaults (SC-002; Q212)",
       const before = snap(root);
       applyReach(rig, target(HOMES[1]![1]), 1, CFG);
       const { rotated, moved } = changed(root, before);
-      expect(rotated.filter((b) => !ALLOWED_ROTATED.includes(b)), f.name).toEqual([]);
+      expect(
+        rotated.filter((b) => !ALLOWED_ROTATED.includes(b)),
+        f.name,
+      ).toEqual([]);
       expect(moved, f.name).toEqual(["Hips"]);
       expect(rotated).toContain("RightArm");
       expect(rotated).toContain("RightForeArm");
