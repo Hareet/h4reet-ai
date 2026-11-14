@@ -103,3 +103,9 @@ words:
   stat.tier.budget: Budget
   stat.tier.unavailable: Unavailable
   stat.tier.unknown: Unknown
+  chase.started_both: The twin and the dog are running from the dinosaur.
+  chase.started_twin: The twin is running from the dinosaur.
+  chase.started_dog: The dog is running from the dinosaur.
+  chase.ended_both: The twin and the dog are back in their places.
+  chase.ended_twin: The twin is back in its place.
+  chase.ended_dog: The dog is back in its place.

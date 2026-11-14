@@ -492,6 +492,13 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       likeness.picture(signal.figure, signal.shows === "avatar" ? (signal.line ?? null) : null);
       showVisitorLine();
     }
+    // Spec 025 (FR-025; plan.md R-07): the run's start and end, said once each in the polite live region.
+    if (signal.kind === "chase") {
+      const said = uiWord(deps.room.ui, `chase.${signal.state}_${signal.who}`);
+      if (said) announcer.say(said);
+      log?.record("chase", { state: signal.state, who: signal.who });
+      return;
+    }
     if (signal.kind === "failed") {
       if (avatarFailed) return;
       avatarFailed = true;

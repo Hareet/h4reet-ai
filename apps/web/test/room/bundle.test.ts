@@ -1406,6 +1406,7 @@ describe("the twin in the bundle (spec 016, T010)", () => {
     );
     expect(result.scene.twin?.block).toEqual({
       clips: {
+        fleeing: "idle",
         arriving: "greeting",
         answering: "talking",
         listening: "listening",

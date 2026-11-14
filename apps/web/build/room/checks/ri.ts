@@ -412,6 +412,11 @@ function twinBlock(ctx: Context, ri8: (path: string, reason: string) => void): v
   if (!s || !twin) return;
   for (const [state, role] of Object.entries(twin.clips ?? {})) {
     if (!isTwinState(state)) ri8(ctx.path("figures", "twin", "clips", state), "a state outside the twin's closed list");
+    else if (state === "fleeing")
+      ri8(
+        ctx.path("figures", "twin", "clips", state),
+        "a state the run sets, whose clip is the idle (spec 025, FR-011)",
+      );
     else if (!isTwinClipRole(role))
       ri8(ctx.path("figures", "twin", "clips", state), "a clip role outside the twin's closed list");
   }

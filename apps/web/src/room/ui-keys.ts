@@ -110,6 +110,13 @@ export const UI_KEYS = {
   "stat.tier.budget": [],
   "stat.tier.unavailable": [],
   "stat.tier.unknown": [],
+  // Spec 025 (FR-025; plan.md R-07): the run's start and end in the polite live region, by the figures that move.
+  "chase.started_both": [],
+  "chase.started_twin": [],
+  "chase.started_dog": [],
+  "chase.ended_both": [],
+  "chase.ended_twin": [],
+  "chase.ended_dog": [],
 } as const satisfies Record<string, readonly Slot[]>;
 
 export type UiKey = keyof typeof UI_KEYS;

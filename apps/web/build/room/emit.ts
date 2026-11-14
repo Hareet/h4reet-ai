@@ -75,6 +75,7 @@ import type { FigureBlock, TwinFileRole, TwinSet } from "./avatars";
 import type { AvatarSet, FileRole } from "./avatars";
 import { TWIN_DEFAULTS } from "./schema";
 import { isTwinClipRole, TWIN_CLIPS_DEFAULT, TWIN_STATES } from "../../src/room/scene/twin-states";
+import type { ChaseConfig } from "../../src/room/scene/chase-steer";
 import type { TwinClipRole, TwinState } from "../../src/room/scene/twin-states";
 import type { TwinBlock } from "../../src/room/compose/bundle";
 import { RULE_IDS } from "./checks/family";
@@ -260,6 +261,22 @@ const m6 = (n: number): number => quantize(n, 1e6);
 /** View-box units and CSS pixels: to 1e-4. */
 const u4 = (n: number): number => quantize(n, 1e4);
 const vec = (v: readonly number[]): [number, number, number] => [m6(v[0] ?? 0), m6(v[1] ?? 0), m6(v[2] ?? 0)];
+/** Spec 025's run block (plan.md R-09), each figure to 1e-6 and `headings` whole. */
+function chaseOf(c: ChaseConfig): ChaseConfig {
+  return {
+    flee_end_delay_s: m6(c.flee_end_delay_s),
+    flee_m: m6(c.flee_m),
+    safe_m: m6(c.safe_m),
+    separation_m: m6(c.separation_m),
+    twin_run_mps: m6(c.twin_run_mps),
+    dog_run_mps: m6(c.dog_run_mps),
+    speed_margin_mps: m6(c.speed_margin_mps),
+    turn_rate_rad_s: m6(c.turn_rate_rad_s),
+    lookahead_s: m6(c.lookahead_s),
+    headings: c.headings,
+    clip_thresholds: { walk_mps: m6(c.clip_thresholds.walk_mps), run_mps: m6(c.clip_thresholds.run_mps) },
+  };
+}
 const turnOf = (t: Turn | undefined): Turn => ({ x: m6(t?.x ?? 0), y: m6(t?.y ?? 0), z: m6(t?.z ?? 0) });
 const boxOf = (b: Box): Box => ({ min: vec(b.min), max: vec(b.max) });
 const point = (p: readonly [number, number]): [number, number] => [u4(p[0]), u4(p[1])];
@@ -1457,6 +1474,20 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
       twin_height: m6((twin && c.pieces.get(twin.piece)?.value.size.h) ?? 0),
       // Spec 014 (FR-039): the grips, each avatar of the table's and each hand's, as the scene gives them.
       ...(c.avatars.figures.grips === undefined ? {} : { grips: gripsOf(c.avatars.figures.grips) }),
+      // Spec 025 (FR-018; plan.md R-09): the room's dog's block, as the scene gives it.
+      ...(scene?.figures.dog === undefined
+        ? {}
+        : {
+            dog: {
+              home: {
+                at: [m6(scene.figures.dog.home.at[0]), m6(scene.figures.dog.home.at[1])] as [number, number],
+                heading_deg: m6(scene.figures.dog.home.heading_deg),
+              },
+              footprint_m: m6(scene.figures.dog.footprint_m),
+            },
+          }),
+      // Spec 025 (FR-005; plan.md R-09): the run's block, resolved, as the scene gives it.
+      ...(scene?.figures.chase === undefined ? {} : { chase: chaseOf(scene.figures.chase) }),
     },
     handoff: {
       from: { placement: scene?.handoff.from.placement ?? "", anchor: scene?.handoff.from.anchor ?? "" },
