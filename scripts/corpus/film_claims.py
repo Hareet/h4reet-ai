@@ -11,7 +11,9 @@ by sentence. Its columns: Script | Line | Script line | Status | Carried | Left 
 R1  each row's script line is found verbatim (whitespace collapsed) in its script, a `kill-switch-b2` row's file lines
     are the sentence's, and each row names a repository source: for a carried row, one that exists; for a
     `kill-switch-b2` row, a path `materials.md` lists, or one `SCRIPTS.md`'s notes give where materials.md has no row
-    for the claim (plan §9). Its corpus lines are in the new text and carry its tags; its mark is in the one form.
+    for the claim (plan §9). No row's source is outside the repository: after normalising, a path that is absolute,
+    starts with `..`, or resolves (through a link) outside the root fails, for carried and left-out rows alike.
+    Its corpus lines are in the new text and carry its tags; its mark is in the one form.
 R2  every line in scope is in the table once, carried, in part, or left out, each left-out span with a reason from the
     closed list (FR-006), each span found in its line; "contradicted by the repository" names the file, and "a
     duplicate of" names the corpus file. An "about you" line is carried only under the Author's tag.
@@ -25,8 +27,8 @@ R4  the new text states no number outside a slot (digits, or G1's number words; 
     CURRENCY, redteam/run.py's AMOUNT_WORDS, guards.ts's EXTRA_PATTERN); every slot exists; and the whole file holds no
     CURRENCY match, since corpus-check reads `corpus/proposals/` too.
 R5  every quotation in the new text is the Author's words as `SCRIPTS.md` quotes them (after a his-words marker), his
-    words in the disclosure's row F3, or a cited file's own text; no file under `films/` is ever a cited file here, its
-    path normalised.
+    words in the disclosure's row F3, or a cited file's own text; no file under `films/`, and no file outside the
+    repository, is ever a cited file here, its path normalised and resolved.
 R6  with --third-party, no quoted span longer than a title, anywhere in the proposal, that the repository doesn't hold.
 R7  the summary says the denylist was not applied: this checker never reads `corpus/intake/private/`.
 
@@ -331,8 +333,14 @@ def under_films(root: Path, path: str) -> bool:
 
 
 def exists(root: Path, path: str) -> bool:
+    """The path names something in the repository: inside the root (`in_root`), and, for a glob, a match that
+    resolves inside it (rv2-rework2-022's B-2)."""
+    if not in_root(root, path):
+        return False
+    path = normalised(path)
     if any(ch in path for ch in "*?["):
-        return any(root.glob(path))
+        inside = root.resolve()
+        return any(m.resolve().is_relative_to(inside) for m in root.glob(path))
     return (root / path).exists()
 
 
@@ -764,7 +772,15 @@ def check(
         carrying = status in ("carried", "in part")
         if not sources:
             out["R1"].append(f"R1: {row.label}: no repository source")
+        # A path outside the repository is no repository source, whatever the row's status (rv2-rework2-022's B-2).
+        outside = [p for p in sources if not in_root(root, p)]
+        for path in outside:
+            out["R1"].append(
+                f"R1: {row.label}: source `{path}` isn't in the repository (it resolves outside the root)"
+            )
         for path in sources if carrying else ():
+            if path in outside:
+                continue
             if not exists(root, path):
                 out["R1"].append(
                     f"R1: {row.label}: source `{path}` isn't in the repository"
@@ -871,11 +887,15 @@ def check(
     # ---- R5: quotes in the new text ----
     # The films' files are the agents' text, not a source's: a row may cite `films/SCRIPTS.md` (§1 line 5 does, for
     # his words), but a quote from it stands only as his words (author_quotes), and no file under `films/`, however
-    # its path is spelled, is a cited file's text (rv-impl-022's I-2, rv-rework-022's F-1).
+    # its path is spelled, is a cited file's text (rv-impl-022's I-2, rv-rework-022's F-1). Nor is a file outside the
+    # repository, by its spelling or through a link, for any row (rv2-rework2-022's B-2).
     cited_texts = [
         norm((root / p).read_text())
         for p in sorted({normalised(c) for c in cited})
-        if "*" not in p and (root / p).is_file() and not under_films(root, p)
+        if "*" not in p
+        and in_root(root, p)
+        and (root / p).is_file()
+        and not under_films(root, p)
     ]
     accepted: list[str] = []
     for block in prose:
