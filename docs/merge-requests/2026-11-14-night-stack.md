@@ -76,38 +76,59 @@ None: $0; no request, no storage, no new disclosure entry (the still is a same-o
 
 ---
 
-## Item 2: spec 019, the visitor's walking legs (`night/impl-019/impl-019`)
+## Item 2: spec 019, the visitor's walking legs (`night/impl-019/impl-019`, reworked on `night/rework-019/rework-019`)
 
-Spec: specs/019-avatar-walking-legs/ · Intent: intent/019-avatar-walking-legs.md · Written by: implementer (night shift); the review (T011) is for a worker who didn't write the code · Date: 2026-11-14
-Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl-019 · Repo hooks active: not checked from this session
-Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at the top of plan.md and tasks.md), the spec, and the plan. Base: `night/impl-018/impl-018`, with `night/spec-019/spec-019` merged.
+Spec: specs/019-avatar-walking-legs/ · Intent: intent/019-avatar-walking-legs.md · Written by: implementer (night shift: impl-019 on Sonnet, rework-019 on Opus); reviews by workers who didn't write the code (review-019 and rv2-impl-019 of T001 to T010; T020 for the rework) · Date: 2026-11-14
+Session: /home/h4reet/h4reet-ai/night/2026-11-13/rework-019 (rework), /home/h4reet/h4reet-ai/night/2026-11-13/impl-019 (first build) · Repo hooks active: not checked from this session
+Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at the top of plan.md and tasks.md), the spec, and the plan; the rework by his answers to Q61 to Q63 on the morning page (spec.md Q6 to Q8). Base: `night/impl-018/impl-018`, with `night/spec-019/spec-019` merged; the rework on `night/impl-019/impl-019` with `night/rework-spec-019/rework-spec-019` merged.
 
 ### What changed and why
 
-His item c): "avatar walking leg animations". The man and the woman have no `walk` clip, so they slid. A code gait now lays six leg-bone rotations over the playing idle clip, after the mixer, driven by the distance walked (feet don't skate), eased in and out, and given back to the clip with no residue. Legs only; the holding hand, arms, spine, and head are the clip's.
+His item c): "avatar walking leg animations". The man and the woman have no `walk` clip, so they slid. A code gait now lays six leg-bone rotations over the playing idle clip, after the mixer, driven by the distance walked (the steps keep pace with the distance at any speed), eased in and out, and given back to the clip with no residue. The hips bone lowers by the standing leg's lift, so the standing foot stays within 2 cm of the floor; the hips' rotation and everything above them (the holding hand, arms, spine, head) are the clip's.
 
-- `scene/gait.ts`: the pure part (`cycleLength`, `advance`, `legOffsets`, named constants) and the bones' part (`findLegRig`, `applyGait`, `clearGait`, base/applied tracking so a frame the mixer didn't write leaves nothing behind).
-- `scene/avatars.ts`: the leg rig found on the visitor's instance, the distance from the pose, the gait after the mixer in `update` (gates: motion on, level 0, an idle clip, no loaded `walk` clip), cleared on fallback, swap, `rest()`; a loaded `walk` clip plays at `clamp(speed / speed_mps, 0.5, 1.5)`; `clipScale` accessor.
-- `stage.ts`, `signals/frame-log.ts`, `app.ts`: the `gait` signal (`unavailable`) for a model without the six bones, one frame-log entry.
-- R-07 measured, not assumed: `gait-rig.test.ts` builds the real man's and woman's leg chains from their GLB node data; a positive hip offset moves the ankle toward +z, a positive knee offset bends the shin back.
-- Plan departures are listed in plan.md §2.5. T009 (lookdev) is dropped with a note there.
+- `scene/gait.ts`: the pure part (`cycleLength`, `advance`, `legOffsets`, `standingLift`, named constants) and the bones' part (`findLegRig`, `applyGait`, `clearGait`, base/applied tracking on the six rotations and the hips' position, so a frame the mixer didn't write leaves nothing behind).
+- `scene/avatars.ts`: the leg rig found on the visitor's instance, the distance from the pose, the gait after the mixer in `update` (gates: motion on, level 0, an idle clip, no loaded `walk` clip), cleared on fallback, swap, `rest()`; a loaded `walk` clip plays at its own speed; the `clipScale` and `gaitFrame` windows for the tests.
+- `stage.ts`, `signals/frame-log.ts`, `app.ts`: the `gait` signal (`unavailable`) for a model without the six leg bones or the hips bone, one frame-log entry.
+- R-07 measured, not assumed: `gait-rig.test.ts` builds the real man's and woman's leg chains from their GLB node data; a positive hip offset moves each ankle toward +z, a positive knee offset bends each shin back, left and right.
+
+**The rework (T013 to T019, on Opus, by his answers to Q61 to Q63):**
+
+- **The hips lowered by the standing leg's lift (Q62; FR-005 amended, FR-015, SC-006).** The real legs don't hang straight at the clip's pose (both lean back; the woman's knees are bent), so plan §2.6's straight-leg formula was off by up to 4.3 cm (man) and 7.5 cm (woman). `standingLift(offsets, shape)` takes each leg's thigh and shin as `findLegRig` measures them, in-plane lengths and rest angles, in the hips bone's parent space; with both angles 0 it is the straight-leg formula. Measured on the real GLBs at their room heights through a cycle: the lower ankle's worst offset is −0.6 cm (man) and −1.9 cm (woman), a sink from the clamp at 0; without the lowering it rises 5.6 cm and 7.0 cm. The woman's 1 mm margin is deterministic; whether the hips should also rise there is a new question on the page.
+- **The walk clip's time scale removed (Q63; FR-007).** `update` sets no `timeScale`; a loaded `walk` clip plays at its own speed, as spec 009 has it.
+- **No object made in a frame's gait (Q61; FR-011; rv2-impl-019's finding 1).** `advance` writes into a mutable state it is given; `legOffsets` fills the `out` it is given (the controller's own, made once, rather than a module scratch: the pure functions stay pure); `gait.last` is two numbers and a flag; `applyGait` and `clearGait` walk the bones by name, with no array literal. **FR-011 is now claimed, and tested** by `gait-alloc.test.ts`: the outs' identity, the controller's `gait.state`, `gait.offsets`, `gait.last` the same objects through a walk, stops, `rest()`, and a fallback, and no `[` in `applyGait`'s or `clearGait`'s source. A byte measure was tried and removed (plan §2.7): after the fix it still read 95 to 176 bytes a frame, from V8 boxing numbers inside three's setters, unsteady with inlining, so it couldn't tell "no object" from that. SC-007's reading is a new question on the page.
+- **SC-004 measured (T019):** the avatar controller's chunk 4.73 → 6.09 kB gzip (+1.36 kB, under 2 KB); three's `scene` chunk unchanged; the entry chunk +0.02 kB (the frame log's `gait` kind). Plan §2.8 has the table and how it was built.
+- **rv2-impl-019's nits:** R-07's sign test loops over the right leg too (T013, passed at once); US1 scenario 2 checked from the 12th frame after the stop (0.19 s) to the 24th; T009's box reads dropped, not done; spec US3 points to plan.md §2.5; T007's note and the signal set name `test/room/live.test.ts` and `test/ui/loading-degraded.test.ts`.
+- Plan departures: plan.md §2.5 (first build), §2.6 and §2.7 (rework), §2.8 (SC-004). T009 (lookdev) dropped with a note.
 
 ### Acceptance criteria
 
-FR-001 to FR-010 by `gait.test.ts`, `gait-rig.test.ts`, `avatar-gait.test.ts`, and `avatar-driver.test.ts`. SC-001 (two identical seeded runs, finite) and SC-002 (no residue after stop, rest, fallback, to 1e-9) are tests; SC-003 (N cycles of distance, N turns of phase) is a test. SC-004 (chunk size) is read from the stack's `make build` at T012. SC-005 is his look approval, by sight.
+FR-001 to FR-010 and FR-015 by `gait.test.ts`, `gait-rig.test.ts`, `avatar-gait.test.ts`, and `avatar-driver.test.ts`; FR-011 by `gait-alloc.test.ts`. SC-001 (two identical seeded runs), SC-002 (no residue on the rotations or the hips' position after stop, rest, fallback, to 1e-9), SC-003 (N cycles of distance, N turns of phase), SC-006 (the lower ankle within 2 cm on the real models, with a control that rises past it) are tests; SC-007 by identity (the page's question). SC-004 measured: +1.36 kB gzip. SC-005 is his look approval, by sight.
 
 ### Verification (small tests, the order's rule 4)
 
+The rework's last run, from `apps/web`, every set it touches (the gait set with `gait-alloc`, the controller set, the signal set, `stage-walk`, `avatar-loader`, smoke):
+
 ```
-vitest run test/room/gait.test.ts test/room/gait-rig.test.ts test/room/avatar-gait.test.ts test/room/avatar-driver.test.ts test/room/avatar-hands.test.ts test/room/avatar-loader.test.ts test/room/avatars.test.ts test/room/stage-walk.test.ts test/smoke.test.ts
- Test Files  9 passed (9)
-      Tests  96 passed (96)
-vitest run test/room/avatar-handoff.test.ts test/room/avatar-scene.test.ts test/room/twin-handoff.test.ts test/room/twin-reach.test.ts
- Test Files  4 passed (4)
-      Tests  33 passed (33)
+vitest run test/room/gait.test.ts test/room/gait-rig.test.ts test/room/avatar-gait.test.ts test/room/gait-alloc.test.ts test/room/avatar-driver.test.ts test/room/avatar-handoff.test.ts test/room/avatar-hands.test.ts test/room/avatar-scene.test.ts test/room/avatars.test.ts test/room/twin-faults.test.ts test/room/twin-figure.test.ts test/room/twin-handoff.test.ts test/room/twin-network.test.ts test/room/twin-reach.test.ts test/ui/avatars.test.ts test/room/live.test.ts test/ui/loading-degraded.test.ts test/room/stage-walk.test.ts test/room/avatar-loader.test.ts test/smoke.test.ts
+ Test Files  20 passed (20)
+      Tests  273 passed (273)
 ```
 
-`make lint`: exit 0 (eslint with zero warnings, tsc for the three workspaces, prettier, ruff, shellcheck). `tsc --noEmit -p apps/web`: clean. No full suite here: the stack's last task runs it once.
+`make lint`, the rework's last run (exit 0; shellcheck's file list left out):
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+763 files already formatted
+```
+
+Each rework task's own runs are in its commit message (T015: 14 files, 159 tests; T016: 17 files, 253; T018: 17 files, 240). `make lint`: exit 0 after every task (eslint with zero warnings, tsc for the three workspaces, prettier, ruff, shellcheck). RED was seen before each GREEN: T014's 14 new cases, T016's FR-007 case, T017's four. No full suite here: the stack's last task (T012) runs it once.
 
 ### Cost and data-flow impact
 
@@ -115,7 +136,8 @@ None: $0; no request, no byte leaves the device, no disclosure entry; no model c
 
 ### For the Author
 
-- Questions: the spec's Q1 to Q5 on the morning page, each with its recommended answer; none new from the build.
-- Look approval of the gait on the real models (SC-005); the amplitudes are one-line edits in `gait.ts` (README).
+- Questions: the spec's Q1 to Q5 on the morning page, each with its recommended answer; two new from the rework: the woman's 1.9 cm sink (keep the clamp, recommended) and SC-007 read by identity (yes, recommended).
+- Look approval of the gait on the real models, with the hips' lowering (SC-005); the amplitudes are one-line edits in `gait.ts` (README).
 - No human-only patch (`docs/merge-requests/human-patches/019.md` says so).
-- Open for others: T011 (a review by a worker who didn't write this), T012 (the stack's one `make check`).
+- Open for others: T020 (a review of the rework by a worker who didn't write it), T011 (the supervisor ticks it with review-019's verdict), T012 (the stack's one `make check`).
+- Interruptions: one permission prompt denied in this session (a `cd` then `sed -n` over the Makefile, to read its test target); read it with `grep` instead. No hook or bash-gate refusal.
