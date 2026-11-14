@@ -18,6 +18,8 @@ A visitor who chose the Dinosaur eats chunks of four pieces. The split is code, 
 
 The implementation branch is `feat/024-dino-eats-room-assets`, **off the line's tip with spec 021's code on it**. The line, as the supervisor names it on 2026-11-14 (`refs/heads/`, read with `git --no-replace-objects`): spec 018's HUD at `night/rework-018/rework-018`; specs 019 and 020 at `night/fix-020/fix-020`; spec 021's spec at `night/rework-spec-021/rework-spec-021`, then its implementation. T000 rebases this documents branch onto that tip before any code (rule 6: a spec changed by a review is rebased into the line before its item's code starts). Until spec 021's code is on the line, the tests use a stub figure (§3), so nothing but the by-hand look waits on it.
 
+**Departure (T000, 2026-11-14, impl-024).** The supervisor named the implementation branch `night/impl-024/impl-024`, not `feat/024-…`, and the rebase is a merge (its instruction: "merge, never rebase") of `night/impl2-021/impl2-021` at 77b1a244, item 4's reviewed tip on the line's items 1 to 3. On that tip, spec 021's code has `AvatarId` `dinosaur` at 1.2 m (`AVATAR_SHAPES`), the rig table's `Jaw` (`build/room/avatars.ts`'s `RIG_BONES`), and no `assets/visitors/dinosaur/dinosaur.glb` yet (the studio's round waits on the Author's look approval), so the room shows the dinosaur's flat stand-in and the eating stays off (FR-001) until the model lands; §3's names hold. Every name §5.5 lists was confirmed on the tip, unchanged, and the T000 tests pass there (6 files, 114 tests).
+
 ## 2. Technical Context
 
 - **Language**: TypeScript (`apps/web`); Three.js in the lazy 3D chunk only; Vitest.
