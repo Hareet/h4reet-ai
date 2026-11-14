@@ -300,7 +300,7 @@ describe("the repository's scene in the variant (plan §8)", () => {
       const under = pickProblems(areas, view, held, reserved).filter((p) => p.problem === "reserved");
       expect(under, `${screen.w} × ${screen.h}, ${state.list}`).toEqual([]);
     }
-    // Where no variant frame falls back to the clear area, the claim holds of no stage; the count says which.
-    expect(atClear).toMatchSnapshot();
+    // The claim is judged, not vacuous: on 2026-11-14 the variant framed 1,968 of its screens at the clear area.
+    expect(atClear).toBeGreaterThan(0);
   });
 });

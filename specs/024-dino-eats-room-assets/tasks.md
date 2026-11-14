@@ -35,7 +35,7 @@
 ## Phase 4: Input, the HUD tile, and its box (US1, US3)
 
 - [x] T010 [US1] Test first: `eat-input.test.ts` — key B gives an `eat` intent; ignored in a text field and with the twin's chat focused (FR-012); ignored for the woman, the man, the dog; ignored at a non-edible piece (US1 AS2, AS3); ignored while a chunk is in flight; the walking keys (W A S D Q E R F, the arrows, Enter, Escape) unchanged. Then `walk/input.ts` and `scene/walking.ts`. — `npx vitest run test/ui/eat-input.test.ts test/room/input.test.ts test/room/walking.test.ts test/room/reach.test.ts test/ui/walking.test.ts test/ui/fullscreen.test.ts`.
-- [ ] T011a [US1] The box, its framing, and its judgement (plan §5.5; FR-012, SC-004; Q-R2a, Q150, Q-R3a, Q-R3b; `compose/*`, `protect.ts`, the RG tests).
+- [x] T011a [US1] The box, its framing, and its judgement (plan §5.5; FR-012, SC-004; Q-R2a, Q150, Q-R3a, Q-R3b; `compose/*`, `protect.ts`, the RG tests).
 
   Test first: `eat-box.test.ts`, the kernel.
   - **Option off.** Every box, `all`, `walkPlace`, `reservedBoxes`, and the split's choice equal today's at the windows `hud.test.ts` and `hud-split-geometry.test.ts` use. `protectorFor` without the option gives today's `key` and boxes (SC-004).
@@ -46,7 +46,7 @@
   Test first: `eat-checks.test.ts`, the compositor, on the repository's scene and a stub.
   - **The variant's stages.** `framedStages`/`supportedStages` over `g.protectEat` give stages whose `reserved` hold the Eat box. The plain sweep's stages are unchanged.
   - **RG6.** `pickSweep` runs both sweeps. On a stub scene whose side-wall core collides with the Eat box only, the problem or hold is found in the variant alone, and its reason names the dinosaur visit.
-  - **RG5.** `ASPECTS` covers every variant stage's aspect, one step past each end, as `stages.test.ts` holds for the plain stages.
+  - **RG5.** `ASPECTS` covers every variant stage's aspect: `ASPECTS[0]` at or below the lowest, `ASPECTS.at(-1)` at or above the highest, as `stages.test.ts`'s frame-area test holds (the cover only; rv-rework3-spec-024's nit 1).
   - **RG7** (Q-R3a). The floor is judged at `referenceEat`. The bundle's frame boxes, canvases, and index are byte-identical with and without the variant.
   - **The report.** Its existing lines are unchanged, plus the dinosaur visit's lines.
   - **The runtime picker.** At every variant stage, `selectablePicker` with that stage holds exactly the variant's held set, as the report lists it.
@@ -56,7 +56,7 @@
   Then `compose/hud.ts`, `compose/frame.ts`, `compose/protect.ts`, `compose/stages.ts`, `build/room/checks/rg.ts`, `build/room/report.ts`, and `scene.ts`'s protector option (`{ eat: avatarId === "dinosaur" }`). Paste the compose test's time before and after (plan §8).
 
   Small tests:
-  - New: `test/room/eat-box.test.ts test/room/eat-checks.test.ts`.
+  - New: `test/room/eat-box.test.ts test/room/eat-checks.test.ts`, and `test/room/compose.test.ts` (rv-rework3-spec-024's nit 2).
   - The tests importing the files it changes (read on the line, 2026-11-14): `test/lookdev/page.test.ts test/lookdev/phone.test.ts`, then `test/room/{budgets,bundle,data-only,events,fit,flat-frame,flat,frame,framing,geometry,highlight,hud-split-geometry,hud,hud-frame,legacy-stages,legibility,objects,pick,protect,report,scene-fit,scene,stages-checks,stages-floor,stages,standins,twin-compose,twin-reach,walk-hold,walking,avatar-scene,faces,quality,stage-walk,twin-network}.test.ts`, then `test/ui/{a11y,degraded,flat-frame,highlight,hud-a11y,hud-faults,hud-look,hud-model,hud-notes,hud-split-a11y,hud-split-model,hud-split,hud,loading-a11y,loading-notes,pick,resize}.test.ts`.
   - Run as `npx vitest run <those files>`, the braces expanded by the shell.
 - [ ] T011b [US1] The tile (plan §5.5; FR-001, FR-012; NB-1; `layout.ts`, `split.ts`, `room.css`, `app.ts`, `hud/icons.ts`).

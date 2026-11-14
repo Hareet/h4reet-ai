@@ -639,7 +639,9 @@ export function splitBoxes(
     h: Math.min(t.list.heightRem * rem, walk.y - gap - band.y),
   };
   // (e) At rest, at most a quarter of the window (Q58). Spec 024 (Q-R3b): judged as with the option off, the list at
-  // its full height and no Eat box, so the option never changes where the split layout is taken.
+  // its full height and no Eat box, since (e) caps "the always-on interface at rest" (spec 018's FR-001 (e)), and the
+  // tile shows only while the eating is available (spec 024's FR-001); the decision is page Q58's. So the option
+  // never changes where the split layout is taken.
   const cover = unionArea([strip, cluster, rest, list, walk, notesBox(clear, rem)]) / (screen.w * screen.h);
   if (cover > t.coverMax) return null;
   const title: Box = { x: panel.x, y: panel.y, w: panel.w, h: t.panel.titleRem * rem };
