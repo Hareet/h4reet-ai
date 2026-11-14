@@ -29,3 +29,7 @@ room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
 ## T006 (GREEN)
 
 `vitest run test/room/chase-director.test.ts`: Tests 12 passed (12). `make lint`: exit 0.
+
+## T007 (RED)
+
+`vitest run test/room/chase-degraded.test.ts`: Tests 8 failed | 7 passed (15). The 2D room, below the floor, and a lost context are the shell's, tested in T014's chase-figures.test.ts (plan §4).
