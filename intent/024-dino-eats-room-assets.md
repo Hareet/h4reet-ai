@@ -13,7 +13,11 @@ The Author's item 7 from his orders of 2026-11-13, word for word:
 
 ## Proposed outcome
 
-The dinosaur can eat chunks of the room's assets, among them the desk, the busy sign, the laptop, and the chalkboard: his words, no more. How a chunk is made, when the dinosaur eats, and what happens to a piece afterwards are not his words yet; they are the spec's open questions below.
+In his words, and no more:
+
+> "dino being able to eat chunks of assets like desk, busy sign, laptop, chalkboard"
+
+How a chunk is made, when the dinosaur eats, and what happens to a piece afterwards are not his words yet; they are the spec's open questions below.
 
 ## Affected users and systems
 
@@ -31,7 +35,7 @@ None in cloud or model spend; the work runs in the visitor's browser.
 
 ## Data-flow impact
 
-None expected. If the spec adds a usage event for a bite, it is a byte that leaves the device and needs a row in `docs/data-flow-disclosure.md` first (open question 3).
+None expected. If the spec adds a usage event for a bite, it is a byte that leaves the device and needs a row in `docs/data-flow-disclosure.md` first (open question 3). The spec's provisional answer (its Q3, as the rework's page Q108 has it) adds one, `eat_started`, once a visit, with no identifier, named in row V4's trigger; his answer on the page confirms or overturns it.
 
 ## Open questions
 
