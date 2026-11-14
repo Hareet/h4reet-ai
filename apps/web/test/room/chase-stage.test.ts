@@ -61,8 +61,16 @@ function staged(avatar: AvatarId) {
     pretendToBeVisual: true,
   }).window as unknown as TestWindow;
   win.HTMLCanvasElement.prototype.getContext = (() => null) as unknown as HTMLCanvasElement["getContext"];
-  // Every file's fetch stays pending: the figures keep their stand-ins, and the controller exists all the same.
-  Object.defineProperty(win, "fetch", { configurable: true, value: () => new Promise<Response>(() => undefined) });
+  // Every file's fetch stays pending: the figures keep their stand-ins, and the controller exists all the same. The
+  // loader's first fetch comes just after the stage makes the controller (scene.ts), so it says the controller is there.
+  let fetches = 0;
+  Object.defineProperty(win, "fetch", {
+    configurable: true,
+    value: () => {
+      fetches += 1;
+      return new Promise<Response>(() => undefined);
+    },
+  });
   const clock = new FakeClock();
   const signals: FigureSignal[] = [];
   let end: () => void = () => undefined;
@@ -76,6 +84,7 @@ function staged(avatar: AvatarId) {
     reducedMotion: false,
     select: () => undefined,
     onFrame: () => undefined,
+    floor: true,
     onFigure: (s) => signals.push(s),
     handoff,
   });
@@ -88,7 +97,18 @@ function staged(avatar: AvatarId) {
       await flush();
     }
   };
-  return { stage, view, signals, frames, end };
+  /** Frames until the avatars' chunk has loaded and the stage has made the controller (its import takes real time). */
+  const ready = async (): Promise<void> => {
+    await vi.waitFor(
+      async () => {
+        await frames(1);
+        if (fetches === 0) throw new Error("no controller yet");
+      },
+      { timeout: 30_000, interval: 20 },
+    );
+    await frames(5);
+  };
+  return { stage, view, signals, frames, ready, end };
 }
 
 const chased = (signals: readonly FigureSignal[]): FigureSignal[] => signals.filter((s) => s.kind === "chase");
@@ -96,7 +116,7 @@ const chased = (signals: readonly FigureSignal[]): FigureSignal[] => signals.fil
 describe("the stage's use of chaseDue (rv-rework-025's Nit-3; B-1 (b); FR-001)", () => {
   it("makes no shell and signals no chase while the hand-off is pending, the dinosaur chosen and walking", async () => {
     const r = staged("dinosaur");
-    await r.frames(5);
+    await r.ready();
     r.stage.walk.enter(r.view);
     await r.frames(60);
     expect(swapped.made).toEqual([]);
@@ -106,9 +126,11 @@ describe("the stage's use of chaseDue (rv-rework-025's Nit-3; B-1 (b); FR-001)",
 
   it("makes the shell once the hand-off's promise resolves, and only once", async () => {
     const r = staged("dinosaur");
-    await r.frames(5);
+    await r.ready();
     expect(swapped.made).toEqual([]);
     r.end();
+    // The promise's `then` runs before the next frame, which makes the shell.
+    await flush();
     await r.frames(1);
     expect(swapped.made).toEqual(["dinosaur"]);
     r.stage.walk.enter(r.view);
@@ -120,6 +142,7 @@ describe("the stage's use of chaseDue (rv-rework-025's Nit-3; B-1 (b); FR-001)",
   it.each(["woman", "man", "dog"] as const)("never makes it for the %s, the hand-off ended", async (avatar) => {
     const r = staged(avatar);
     r.end();
+    await r.ready();
     await r.frames(10);
     expect(swapped.made).toEqual([]);
     r.stage.dispose();
