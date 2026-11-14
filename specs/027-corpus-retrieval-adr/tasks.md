@@ -14,6 +14,8 @@ His answer to the morning page (2026-11-13):
 
 **Reworked 2026-11-14** after the Opus review rv-spec-027 (blocking B1; I1 to I4; N1 to N4): T001 (the line's order, after item f), T002 and T003 (T1 per pack topic, the lead), T005 (the measurement's commit), T007 (both pending corpus patches), and a new T008 after T004 (Q145). Task IDs T001 to T007 keep their numbers so the review's references hold; the order is under "Order". Q144 and Q145 are taken under the orders file's rule ("Every question, new ones included: the recommended answer stands"), provisional.
 
+**Implemented 2026-11-14** (impl-027): T001 to T004 done; T008, T005, and T007 wait for specs 022's and 026's corpus patches on the line (Q171); T006 is the reviewer's.
+
 **Reworked again 2026-11-14** after the Opus review rv-rework-spec-027 (not blocking): T005 takes the pending patches' final figures from T008's records and corrects each place they appear (I-1); T007 and T008 carry the figures from 026's patch at b12ac0ba (136; mission 1; hobbies and travel −7); T008 drops its order clause (nit 5) and says what it writes under `corpus/proposals/` (I-2); T000 adds Q157 (nit 3).
 
 **Input**: [plan.md](plan.md), [spec.md](spec.md), [ADR 0054](../../docs/adr/0054-when-file-context-stops-being-enough.md). **Tests**: required, written first, RED then GREEN, one commit each. A save point per task: `git commit -m "wip(spec-027): T0nn"`.

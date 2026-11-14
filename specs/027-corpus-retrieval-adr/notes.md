@@ -141,3 +141,9 @@ Nothing, not even under `corpus/proposals/`. Neither pending corpus patch is on 
 - **T005**: the ADR's file and pack figures need no change (the check equals the replica), but its measurement commit moves to T004's (0d257fe6, or its hash on the line), and its pending patches' figures come from T008's records. rework2-spec-027 read 026's patch at b12ac0ba; 026's final tip (9bba8f36) changed `04`'s framing line, not FR-021's bullet, so T005's final figures still come from T008's records. T005 waits with T008.
 - **T007**: the patches' stages and figures (T008's records) wait; item 10's section of the stack note carries the rest now.
 - **T006**: the review, by another worker (the reviewer follows this task).
+
+### verify-021's merge, and the end of this task
+
+verify-021's stack note ends item 4 with "verify-021: green, carrying D-V2's six (Q165)", so `night/verify-021/verify-021` (b3d043a2) was merged: merge commit 1da30321, one conflict in the stack note (items 1 to 4 as verify-021 has them, then item 10). Small tests rerun after it: `npx vitest run test/corpus-size.test.ts test/twin-pack.test.ts`, 44 passed (the record still fresh); `evals/test_docs_links.py`, 44 passed; `make lint`, exit 0 (787 files formatted). The stack note's item 10 carries the outputs.
+
+Done here: T001 to T004. Waiting: T008, T005, T007 (the pending patches, Q171), and T006 (the review). No question added to the page; no request to the runner; no refusal hit.

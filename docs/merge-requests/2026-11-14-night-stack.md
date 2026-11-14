@@ -995,7 +995,31 @@ $ npx vitest run test/corpus-size.test.ts test/twin-pack.test.ts
    Duration  43.26s (tests 44%, import 39%, transform 16%, worker 1%)
 ```
 
-`make lint` after T003 and after T004: exit 0 (eslint with zero warnings, tsc for the three workspaces, prettier, ruff, ruff format "779 files already formatted", shellcheck). The full lint output and each task's run are in `specs/027-corpus-retrieval-adr/notes.md`. After verify-021's merge, below. No full suite here: the stack's one `make check` is another task's.
+`make lint` after T003 and after T004: exit 0 (eslint with zero warnings, tsc for the three workspaces, prettier, ruff, ruff format "779 files already formatted", shellcheck). The full lint output and each task's run are in `specs/027-corpus-retrieval-adr/notes.md`. No full suite here: the stack's one `make check` is another task's.
+
+**verify-021's merge** (step 5 of the supervisor's task): verify-021's stack note ends item 4 with "verify-021: green, carrying D-V2's six (Q165)", so `git merge refs/heads/night/verify-021/verify-021` (b3d043a2) is the line's new tip here, merge commit 1da30321. One conflict, in this note, both sides having added a section after item 3: resolved as items 1 to 4 exactly as verify-021 has them, then item 10 whole. No code conflicted; verify-021 touches nothing the record measures (`git diff --stat HEAD...refs/heads/night/verify-021/verify-021 -- corpus/ config/ apps/web/package.json apps/web/build/twin-pack.ts docs/adr/ docs/corpus-size.json`: empty). Small tests rerun after the merge, from the worktree's root (the record still fresh at the new tip):
+
+```
+$ cd apps/web && npx vitest run --reporter=verbose test/corpus-size.test.ts test/twin-pack.test.ts
+ ✓ test/corpus-size.test.ts (15 tests: fresh 17ms, deterministic 10ms, every other case 0 to 1ms)
+ Test Files  2 passed (2)
+      Tests  44 passed (44)
+   Duration  45.43s (tests 40%, import 36%, transform 23%, worker 1%)
+$ python3 -I -m pytest -q -p no:cacheprovider evals/test_docs_links.py
+44 passed in 0.88s
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+787 files already formatted
+(shellcheck: no finding; exit 0)
+```
+
+The check's own 15 cases take about 35 ms together (SC-003: under 2 seconds); the rest of the run is the two site builds every `apps/web` vitest run makes first. None of D-V2's six (Q165) is in these files, so none was hit.
 
 ### What waits
 
