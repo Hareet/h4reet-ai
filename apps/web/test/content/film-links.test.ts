@@ -281,7 +281,7 @@ async function linkRects(bytes: Uint8Array): Promise<{ url: string; rect: number
     const page = await (await task.promise).getPage(1);
     return ((await page.getAnnotations()) as Record<string, unknown>[])
       .filter((a) => a.subtype === "Link")
-      .map((a) => ({ url: String(a.unsafeUrl ?? a.url), rect: [...(a.rect as ArrayLike<number>)] }));
+      .map((a) => ({ url: String(a.unsafeUrl ?? a.url), rect: Array.from(a.rect as ArrayLike<number>) }));
   } finally {
     await task.destroy();
   }
