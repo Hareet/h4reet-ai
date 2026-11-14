@@ -72,3 +72,14 @@ pdf.js's text of the approved file (`apps/web/content/resume-author.pdf`, SHA-25
 ```
 
 The glyphs are stored as capitals, letter-spaced (pdf.js puts spaces between some letters). The table's claims are the PDF's own wording, in its capitals: `LOCAL MODELS FIRST`, `A REAL-TIME COST METER`, `A $5-A-DAY KILL SWITCH`, `EVERY DATA FLOW DISCLOSED` (plan §1 showed step 1's sentence case; the locator compares case-blind and with whitespace removed, so either matches). Cases 1 and 2: 2 passed.
+
+## T003 (spike, a read): what R-1 needs
+
+Read with a scratch script outside the repository (`/tmp/spike023`, pdf.js from `apps/web/node_modules`, and Python's `re` over the bytes), nothing committed but these lines:
+
+- `%PDF-1.4`, 243,644 bytes, one page (612 × 792), one `xref` keyword and one `trailer`: a classic xref table, no `/XRef` stream, no `/ObjStm`. `startxref 232782`.
+- Trailer: `<</Size 539 /Root 142 0 R /Info 1 0 R>>`. **No `/ID`**, no `/Encrypt`. So the update has no `/ID` to copy (rv-rework2-spec-023's nit on the second `/ID`: moot for this file; the writer copies one only when the original has it, unchanged, so the output stays deterministic either way).
+- Page object `2 0 obj`, its `/Annots` an inline array, `[20 0 R 21 0 R 22 0 R 23 0 R]`: the four existing links (`mailto:` contact, `https://github.com/Hareet`, `https://hareet.ai/` twice), each `/Border [0 0 0]`, `/F 4`, and a `/StructParent` (the file is tagged: `/StructParents 0`, `/Tabs /S`).
+- The four claims: one text run each, on one line (y 580.33), none wraps (T002's table).
+
+R-1's answer: an incremental update over a classic xref is workable; no stream xref, no `pdf-lib`, no question. The new links get no `/StructParent` (the structure tree is the original's, unchanged: adding to it would rewrite more objects than US1-AC3 allows); a screen reader still reads the claims' text, as before.
