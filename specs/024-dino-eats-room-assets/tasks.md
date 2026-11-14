@@ -81,7 +81,7 @@
 
 ## Phase 5: Budgets and notes
 
-- [ ] T014 [US1] The budgets: `npx vitest run test/room/chunk.test.ts test/room/budgets.test.ts test/room/eat-3d.test.ts` (the chunk test builds through its global setup), pasting the sizes and FR-015's mesh counts; the entry chunk must be unchanged and the draw-call ceilings hold. `make lint`. If a budget fails, fix the code, not the budget. — those three files, `make lint`.
+- [x] T014 [US1] The budgets: `npx vitest run test/room/chunk.test.ts test/room/budgets.test.ts test/room/eat-3d.test.ts` (the chunk test builds through its global setup), pasting the sizes and FR-015's mesh counts; the entry chunk must be unchanged and the draw-call ceilings hold. `make lint`. If a budget fails, fix the code, not the budget. — those three files, `make lint`.
 - [ ] T015 A merge-request note, `docs/merge-requests/2026-11-1x-feat-024-dino-eats-room-assets.md`: what changed, the small tests' output, the Author's look approval to do by hand (A4: the cut colour, the flight, the regrowth, the set-aside part, on dev-cpu with spec 021's model), Q1 to Q6, Q107 to Q109, Q117, Q119, Q-R2a to Q-R2c, Q149, Q150, Q-R3a, Q-R3b with their recommended answers, spec A5's named deviations (Principle II, Development Workflow 7: no event, span, or panel) and their one ADR for specs 024 and 025 (Q-R2c, Q149: on main before the merge, or named as waiting), the dinosaur visit's checks and the report's new lines (Q150, spec A8), rv-spec-024's, rv-rework-spec-024's, and rv-rework2-spec-024's non-blocking findings as fixed (I-4 to I-6, N-1 to N-5; NB-1 to NB-5; RV-2, N-1 to N-3), spec 021's contract line 7 (T007), and what's left. The full `make check` is the stack's one, not this task's.
 
 ## Dependencies

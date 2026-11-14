@@ -146,6 +146,12 @@ One predicate, `eatingAvailable(state)` in `src/room/eat/available.ts`, pure, re
 ### 5.7 What is not done
 No usage event, request, span, or panel (FR-014; Q117; spec A5's named deviations). No `CLIP_ROLES` change (FR-013). No corpus change (FR-017). No asset record or approval entry. No gateway code change. No second bundle: a dinosaur visit's stages are checked, not emitted (spec A8, Q-R3a). No change to the 2D room's protector, sweep, or drawing. No change to a plain visit's framing, stages, reserves, layout choice, or report lines (SC-004). (The second rework's "no change to RG6 or `compose/protect.ts`" goes, by Q150: §5.5.)
 
+**Departure (T014, impl-024).** The budgets hold. `chunk.test.ts`, `budgets.test.ts`, and `eat-3d.test.ts` pass (3 files, 62 tests). The entry chunk is not byte-for-byte unchanged, as §2 had it. The tile's code in `layout.ts`, `app.ts`, and `room.css`, and the Eat box's lines in `compose/hud.ts`, are in the entry, since the HUD is. Measured on the built site, gzip, the choice screen's JavaScript and CSS:
+- release: 56,242 bytes on the line's tip before item 7 (282279d5), 57,108 after (+866), under the 153,600 budget;
+- drafts: 59,380 before, 60,195 after (+815);
+- the 3D chunk: 111,928 before, 118,126 after (+6,198), its budget measured, not raised;
+- FR-015's meshes (T008): busy sign 10, chalkboard 37, laptop 62, desk 75 split, 142 more than whole (42), under 100 a piece and 240 for all four.
+
 ## 6. Files the implementation expects to touch
 
 New: `apps/web/src/room/eat/{chunker,meal,eat3d,mouth,available}.ts`; tests `apps/web/test/room/eat-{chunker,meal,mouth,available,data,3d,box,checks}.test.ts`, `apps/web/test/ui/eat-{input,button,degraded,reduced}.test.ts`.
