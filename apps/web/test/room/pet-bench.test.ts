@@ -43,21 +43,27 @@ const FRAMES = 20_000;
 const MAX_BYTES_PER_FRAME = 8;
 /** Below one object a petting: a step that is a whole petting makes none. */
 const MAX_BYTES_PER_PETTING = 12;
-/** The bench's own limit: its warm-ups run the measured function 20,000 times a pass until V8 optimizes it, and
+/** The bench's own limit: its warm-ups run the measured step 20 passes and until V8 optimizes it, and
  *  under load the eight `pet-*` files together took 63 s, over vitest's 60 s a test (rv-rework-026's nit 5). */
 const BENCH_TIMEOUT_MS = 300_000;
 
-/** The heap's growth per call of `step` (a frame, or a whole petting) over `calls` calls, once `hot` is optimized
- *  (warmed up to 100 times `calls`) and after a collection; the median of five, since a collection inside the loop can only lower one and the
- *  compiler's work can only raise one. */
-function bytesPerFrame(step: () => void, hot: (...args: never[]) => unknown, calls = FRAMES): number {
+/** Warm-up passes before any measure, past `hot`'s optimization: the functions a petting calls once (its end, its
+ *  return to idle, the selection's checks) tier up through V8's lower tiers, which box fractions, after the frame does;
+ *  measured on the first pass once `frame` was optimized, they made 232 bytes a petting, and none by the twentieth. */
+const MIN_PASSES = 20;
+
+/** The heap's growth per call of `step` (a frame, or a whole petting) over `calls` calls, after `MIN_PASSES` passes
+ *  and once every function in `hot` is optimized by TurboFan (up to 100 passes), and after a collection; the median of
+ *  five, since a collection inside the loop can only lower one and the compiler's work can only raise one. */
+function bytesPerCall(step: () => void, hot: ReadonlyArray<(...args: never[]) => unknown>, calls = FRAMES): number {
   const loop = (n: number): void => {
     for (let i = 0; i < n; i += 1) step();
   };
-  loop(calls);
-  for (let r = 0; r < 100 && !(status(hot) & TURBOFANNED); r += 1) loop(calls);
-  expect(status(hot) & TURBOFANNED, "the measured function is optimized before the measure").toBe(TURBOFANNED);
-  loop(calls);
+  const cold = (): boolean => hot.some((f) => !(status(f) & TURBOFANNED));
+  for (let r = 0; r < 100 && (r < MIN_PASSES || cold()); r += 1) loop(calls);
+  hot.forEach((f, i) => {
+    expect(status(f) & TURBOFANNED, `hot function ${i} optimized before the measure`).toBe(TURBOFANNED);
+  });
   const runs: number[] = [];
   for (let r = 0; r < 5; r += 1) {
     gc();
@@ -159,13 +165,14 @@ describe("no allocation per frame (FR-027, SC-007; I-1)", () => {
       const rig = new Rig();
       const pet = director({ cooldown_s: 0 }, rig);
       const frame = framer(pet, rig);
-      // A step is a whole petting, from its selection to idle: the measure's noise is the heap's, a few kilobytes a
-      // pass, so over 2,000 pettings it is about 2 bytes a petting, and an object a petting (12 bytes or more) shows.
+      // A step is a whole petting, from its selection to idle. The measure's noise is a constant a pass, about 16 KB
+      // here (7.86 bytes a petting over 2,000 pettings, 3.14 over 5,000), so over 5,000 pettings an object a petting
+      // (12 bytes or more) shows above it.
       const step = (): void => {
         select(pet, rig);
         for (let i = 0; i < 1000 && pet.phase !== "idle"; i += 1) frame();
       };
-      const perPetting = bytesPerFrame(step, pet.frame, 2_000);
+      const perPetting = bytesPerCall(step, [pet.frame], 5_000);
       expect(rig.seen[REFUSED], "selections refused").toBe(0);
       const s = rig.seen;
       const all = s[0]! + s[1]! + s[2]! + s[3]!;
@@ -198,7 +205,7 @@ describe("no allocation per frame (FR-027, SC-007; I-1)", () => {
         select(pet, rig);
         for (let i = 0; i < 100 && pet.phase !== "idle"; i += 1) frame();
       };
-      const perPetting = bytesPerFrame(step, pet.frame);
+      const perPetting = bytesPerCall(step, [pet.frame]);
       expect(rig.seen[REFUSED], "selections refused").toBe(0);
       const pettings = rig.seen[2]! > 0 ? rig.seen[0]! : 0;
       expect(pettings).toBeGreaterThan(0);
@@ -227,7 +234,7 @@ describe("no allocation per frame (FR-027, SC-007; I-1)", () => {
         rig.running = true;
         for (let i = 0; i < 300 && pet.phase !== "idle"; i += 1) frame();
       };
-      const perCut = bytesPerFrame(step, pet.frame);
+      const perCut = bytesPerCall(step, [pet.frame]);
       expect(rig.seen[REFUSED], "selections refused").toBe(0);
       const cuts = rig.seen[0]!;
       expect(cuts).toBeGreaterThan(0);
@@ -287,8 +294,8 @@ describe("no allocation per frame (FR-027, SC-007; I-1)", () => {
         };
         for (const w of [1, 0.37]) {
           layer.weight = w;
-          const crouched = bytesPerFrame(step(true), applyReachLayer);
-          const cut = bytesPerFrame(step(false), applyReachLayer);
+          const crouched = bytesPerCall(step(true), [applyReachLayer]);
+          const cut = bytesPerCall(step(false), [applyReachLayer]);
           process.stderr.write(
             `\napplyReachLayer at weight ${w}: ${crouched.toFixed(2)} bytes a frame; legs off ${cut.toFixed(2)}\n`,
           );
