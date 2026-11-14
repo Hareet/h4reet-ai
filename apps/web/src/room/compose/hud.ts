@@ -130,7 +130,7 @@ export const HUD_PLACEMENTS = {
    *  `heightRem` tall. The panel keeps the notes' reserve above it and the walking control's corner beside it. */
   split: {
     minWidthRem: 48,
-    panel: { shareMax: 0.5, maxRem: 40, minWidthRem: 18, minHeightRem: 14, gapRem: 0.5 },
+    panel: { shareMax: 0.5, maxRem: 40, minWidthRem: 18, minHeightRem: 14, gapRem: 0.5, titleRem: 2.75 },
     list: { widthRem: 24, heightRem: 22 },
   },
   /** The dock, across the foot above the bar: its padding around the list's strip and the text box's row. */
@@ -504,7 +504,8 @@ export function splitBoxes(
   const height = clear.h - reserve;
   if (width < p.minWidthRem * rem || height < p.minHeightRem * rem) return null;
   const panel: Box = { x: clear.x, y: clear.y + reserve, w: width, h: height };
-  const talk = (t.talk.labelRem * t.talk.lineHeight + t.talk.gapRem + t.talk.rowRem) * rem + 2 * t.dock.padRem * rem;
+  const talk =
+    (t.talk.labelRem * t.talk.lineHeight + t.talk.gapRem + t.talk.rowRem + p.titleRem) * rem + 2 * t.dock.padRem * rem;
   const bar: Box = { x: panel.x, y: panel.y + panel.h - talk, w: panel.w, h: talk };
   const listW = Math.min(t.split.list.widthRem * rem, bands.column.w - safe.right);
   const list: Box = {

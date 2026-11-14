@@ -27,7 +27,7 @@
 // "Around the room"; setLoading sets data-loading on the page's root, which tints the room's parts (loading/loading.css),
 // and makes "Around the room" inert while the loader shows. The AI disclosure's strip and the stage's notes are never
 // tinted or covered: the card sits below the strip and the notes' reserve, or first in the page's flow when stacked.
-import type { Box, HudLayout, HudMetrics, HudState } from "./compose/hud";
+import type { Box, HudLayout, HudMetrics, HudState, SplitBoxes } from "./compose/hud";
 import { h } from "./dom";
 import { icon } from "./hud/icons";
 import type { IconName } from "./hud/icons";
@@ -61,6 +61,8 @@ export interface HudApplied {
   readonly notes: number;
   /** The on-screen keyboard's inset over the window's foot. */
   readonly keyboard: number;
+  /** Spec 018 (FR-001, FR-004): the split layout's boxes where the window takes it; absent or null, today's layout. */
+  readonly split?: SplitBoxes | null;
 }
 
 export interface RoomLayout {
@@ -345,6 +347,22 @@ export function renderRoom(
         ["--frame-w", applied.frame.w],
         ["--frame-h", applied.frame.h],
       ];
+      // Spec 018: the split layout's boxes for room.css and hud/split.css, and data-split beside data-hud.
+      const sp = applied.layout === "column" ? (applied.split ?? null) : null;
+      root.setAttribute("data-split", sp ? "on" : "off");
+      if (sp)
+        sizes.push(
+          ["--split-panel-x", sp.panel.x],
+          ["--split-panel-y", sp.panel.y],
+          ["--split-panel-w", sp.panel.w],
+          ["--split-panel-h", sp.panel.h],
+          ["--split-bar-y", sp.bar.y],
+          ["--split-bar-h", sp.bar.h],
+          ["--split-list-x", sp.list.x],
+          ["--split-list-y", sp.list.y],
+          ["--split-list-w", sp.list.w],
+          ["--split-list-h", sp.list.h],
+        );
       for (const [name, value] of sizes) root.style.setProperty(name, px(value));
       // The stacked layout's header is sticky in the page's flow, its own height: the scroll padding takes its 4rem
       // fallback there, as before spec 005.

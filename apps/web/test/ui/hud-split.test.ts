@@ -43,7 +43,10 @@ async function room(screen: { w: number; h: number } = WIDE) {
   const viewport = stubViewport(screen);
   const v = start({
     room: ready(),
-    sendTurn: (request, _ended, signal) => sent.push({ request, signal }),
+    sendTurn: (request, ended, signal) => {
+      sent.push({ request, signal });
+      signal?.addEventListener("abort", () => ended({ kind: "error", error: "aborted" }));
+    },
     viewport: viewport.factory,
   });
   await enter(v, "engineer");
@@ -97,12 +100,14 @@ describe("the panel (T008; FR-005, FR-006, FR-009)", () => {
     expect(order[1]?.compareDocumentPosition(order[2] as Node)).toBe(4);
   });
 
-  it("opens from the title while a bar", async () => {
+  it("opens from the bar by the larger toggle, and the hint closes it, ending the larger view", async () => {
     const { v } = await room();
-    (v.doc.querySelector(".talk-log-toggle") as HTMLButtonElement).click();
+    const larger = v.doc.querySelector(".talk-larger") as HTMLButtonElement;
+    larger.click();
     expect(talk(v).getAttribute("data-panel")).toBe("open");
-    (v.doc.querySelector(".talk-log-toggle") as HTMLButtonElement).click();
+    (v.doc.querySelector(".split-hint") as HTMLButtonElement).click();
     expect(talk(v).getAttribute("data-panel")).toBe("bar");
+    expect(larger.getAttribute("aria-expanded")).toBe("false");
   });
 
   it("with a turn out, Escape stops the turn first; then Escape closes to the bar and focuses the selected entry", async () => {

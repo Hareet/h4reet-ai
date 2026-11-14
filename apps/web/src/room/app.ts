@@ -64,7 +64,7 @@ import { renderChoice } from "../choice/choice";
 import type { Choice } from "../choice/choice";
 import { newVisit } from "../choice/visit";
 import type { Visit } from "../choice/visit";
-import { renderTalk } from "../talk/talk";
+import { FREE_TALK, renderTalk } from "../talk/talk";
 import type { SendTurn, TalkPanel } from "../talk/talk";
 import { createAnnouncer, renderObjectList } from "./a11y";
 import { windowClock } from "./clock";
@@ -72,7 +72,7 @@ import type { Clock } from "./clock";
 import type { RoomIndex } from "./compose/bundle";
 import { frameArea } from "./compose/frame";
 import type { FrameArea, Protect } from "./compose/frame";
-import { OPENING, compactBoxes, fitsHud, hudBoxes, logRestRem, notesReserve } from "./compose/hud";
+import { OPENING, compactBoxes, fitsHud, hudBoxes, logRestRem, notesReserve, splitBoxes } from "./compose/hud";
 import type { HudState } from "./compose/hud";
 import { flatProtectorFor } from "./compose/protect";
 import { h } from "./dom";
@@ -92,6 +92,9 @@ import type { Handoff } from "./handoff";
 import { createViewport } from "./hud/viewport";
 import type { Viewport, WindowMeasures } from "./hud/viewport";
 import { renderRoom } from "./layout";
+import { createSplit } from "./hud/split";
+import type { Split } from "./hud/split";
+import { statsFrom } from "./hud/stats";
 import { createProgress } from "./loading/progress";
 import type { Progress } from "./loading/progress";
 import { createLoadingView } from "./loading/view";
@@ -181,6 +184,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
 
   let room: RoomLayout | null = null;
   let talk: TalkPanel | null = null;
+  /** Spec 018's split layout's parts around the panel and the list (hud/split.ts). */
+  let split: Split | null = null;
   let stage: Stage | null = null;
   let controller: QualityController | null = null;
   let unwatch: (() => void) | null = null;
@@ -245,6 +250,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         : { area: boxes.clear, ease: 1, fellBack: false }
       : null;
     const compact = compactBoxes(screen, hudState, metrics);
+    // Spec 018 (FR-001): the split layout's boxes, where the window takes it; its parts follow.
+    const splitAt = fits ? splitBoxes(screen, hudState, metrics) : null;
     layout.applyHud({
       layout: fits ? boxes.layout : "stacked",
       state: hudState,
@@ -265,7 +272,10 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       logRest: logRestRem(screen, metrics) * m.rem,
       notes: notesReserve(boxes.clear, m.rem),
       keyboard: m.keyboard,
+      split: splitAt,
     });
+    if (splitAt) split?.setSize(splitAt.panel.w, splitAt.panel.h);
+    split?.setActive(splitAt !== null);
     layout.setBlur(blurAt(visit.quality));
     // The conversation's log is a sheet above the dock in the dock layout (spec 005; the review's finding 1).
     talk?.setDocked(fits && boxes.layout === "dock");
@@ -312,6 +322,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     for (const b of doc.querySelectorAll<HTMLButtonElement>(".room-list button[data-object-id]"))
       if (b.dataset.objectId === after) b.setAttribute("aria-current", "true");
       else b.removeAttribute("aria-current");
+    split?.setTarget(after);
     try {
       stage?.setTarget(after);
     } catch {
@@ -376,6 +387,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     apply: (reading) => {
       if (stage) showTier(stage, reading.tier);
       copy?.setTier(reading.tier);
+      split?.refreshStats();
     },
     // The poller, only while the live source is on (FR-045): the page's own fetch, which spies see in the tests.
     ...(deps.room.live.source === "site"
@@ -392,6 +404,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   cost.subscribe((state) => {
     stage?.setCost?.(state);
     copy?.setCost(state);
+    split?.refreshStats();
   });
 
   /** A tier on a stage, and in the frame log each switch's case as the claims rule gives it: in 3D drawn on the next
@@ -725,6 +738,17 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         smaller: uiWord(deps.room.ui, "talk.smaller") ?? "Smaller conversation",
       },
       onPanel: (part, state) => panel(part, state),
+      // Spec 018 (FR-006): a conversation, or a line in the log, opens the split layout's panel; its larger toggle opens it from the bar.
+      onConversation: (feature) => {
+        split?.setConversation(feature === FREE_TALK ? null : feature);
+        split?.openPanel();
+      },
+      onLine: () => split?.openPanel(),
+      onLarger: (on) => {
+        if (!split?.active) return;
+        if (on) split.openPanel();
+        else split.closePanel(false);
+      },
     });
     // Spec 005's full screen of the page's root (FR-036 to FR-042), its support read as the room is built.
     const fullscreen = createFullscreen(doc);
@@ -762,6 +786,22 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         : "",
     });
     room = layout;
+    split = createSplit(doc, {
+      talk: talk.element,
+      list,
+      words: {
+        select: uiWord(deps.room.ui, "hud.select") ?? "Select a piece",
+        back: uiWord(deps.room.ui, "hud.back") ?? "Back",
+        close: uiWord(deps.room.ui, "hud.close") ?? "Close",
+        esc: uiWord(deps.room.ui, "key.esc") ?? "Esc",
+        enter: uiWord(deps.room.ui, "key.enter") ?? "Enter",
+      },
+      stats: () =>
+        statsFrom(live.tier.tier, cost.state, { ui: deps.room.ui, drafts: deps.room.build.kind === "drafts" }),
+      onClose: () => talk?.closeLarger(),
+      turnOut: () => talk?.turnOut() ?? false,
+      walking: () => walker(stage)?.walk.walking === true,
+    });
     // Spec 005 (FR-034; plan.md §7): a press on the scene while walking gives the walking view focus, so walking's keys
     // go there and not to a panel the visitor typed in.
     layout.view.addEventListener("pointerdown", () => {
@@ -1143,6 +1183,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     }
     const topic = deps.room.topics.find((t) => t.id === action.topic);
     if (topic) talk.topicSelected(selectable.id, topic);
+    // Spec 018: a piece chosen opens the split layout's panel, even where its conversation was already the active one.
+    if (topic) split?.openPanel();
   }
 
   return {
