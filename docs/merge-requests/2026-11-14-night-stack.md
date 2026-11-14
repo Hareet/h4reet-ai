@@ -248,4 +248,4 @@ FAILED evals/test_disclosure.py::test_the_rooms_rows_are_in_its_own_section_with
 - **N-4**: `splitModel` (`test/ui/hud-model.ts`) was written in T023's GREEN, not with T021's RED.
 - **N-5**: `frame.test.ts`'s title, R5 and R6's order, and T020's tick.
 
-verify-018: not green: six expectations of other specs' tests wait on the Author's patch (D-V2, `docs/merge-requests/proposed/018-verify-test-amendments.patch`, on the page); with it applied, every run above passes.
+verify-018: not green: six expectations of other specs' tests wait on the Author's patch (D-V2, `docs/merge-requests/proposed/018-verify-test-amendments.patch`, on the page); with it applied to a copy of the tree, those six pass, and they are the only failures in the runs above.
