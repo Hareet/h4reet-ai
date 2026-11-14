@@ -13,10 +13,15 @@ Read-only, deterministic, standard library only. Two modes:
   ``evals/agent-config/**``, ``redteam/forbidden-actions.sh``, ``assets/**``) or in ``corpus/`` other than
   ``04-hobbies-and-travel.md`` and ``facts/hobbies-and-travel.yaml``; the slot ``hobbies.room_dog_name`` missing or with
   a field other than null (FR-018); a ``<his answer>`` or ``<his disclosure line>`` placeholder; a Golden Q&A 9 whose
-  answer isn't found verbatim inside a quotation on an "Answered:" line of the page's entry QID, that line not reading
-  "Answered: recommended" (FR-020; Q143); a digit the patch adds to ``04`` outside a ``{{slot:…}}``, a claim tag's date,
-  a Golden item's leading number, or a quoted span found verbatim in its named source, his approval's
-  ``disclosure_line`` or his consent in main's spec 017 (N-2); and the patch while the approval isn't there (FR-019).
+  answer is empty or holds no word, or isn't found verbatim inside a quotation on an "Answered:" line of the page's
+  entry QID, a line holding "recommended" in any case or spelling (Recommended, as recommended, recomended, the
+  recommendation) never counting (FR-020; Q143); any numbered item the patch adds to ``04`` that isn't Golden Q&A 9 in
+  its one form; a digit the patch adds to ``04`` outside a ``{{slot:…}}``, a claim tag's date, Golden Q&A 9's leading
+  ``9``, or a quotation that is the dog's approval's ``disclosure_line`` whole or lies inside his consent's own sentence
+  in main's spec 017, line 48 (N-2; rv-impl-026's B-1); and the patch while the approval isn't there (FR-019).
+
+In proposal mode too, a span named from ``approvals.json`` is looked up in the dog's approval's line only, and one named
+from main's spec 017 in his consent's own sentence only: the rest of either file isn't his words for this proposal.
 
 It never reads ``corpus/intake/private/``. Exit 0 with "OK" when nothing is refused, 1 otherwise, 2 on a usage error.
 """
@@ -37,6 +42,9 @@ CORPUS_04 = "corpus/04-hobbies-and-travel.md"
 FACTS_04 = "corpus/facts/hobbies-and-travel.yaml"
 APPROVALS = "assets/policy/approvals.json"
 CONSENT_SOURCE = "main:specs/017-the-night-shift/spec.md"
+#: His consent, in his words (spec FR-019); its own sentence in CONSENT_SOURCE is the one part of that file a span may
+#: come from.
+CONSENT = "it's okay that we use the likeness of my dog"
 DOG_MODEL = "assets/visitors/dog/dog.glb"
 SLOT_ID = "hobbies.room_dog_name"
 SLOT_FIELDS = ("value", "tag", "source", "public_safe")
@@ -58,8 +66,18 @@ PLACEHOLDERS = ("<his answer>", "<his disclosure line>")
 QUOTED = re.compile(r'"([^"\n]+)"')
 SLOT = re.compile(r"\{\{slot:[a-z0-9_.]+\}\}")
 CLAIM_TAG = re.compile(r"`\[[A-Z]+ \d{4}-\d{2}-\d{2}\]`")
-GOLDEN_LEAD = re.compile(r"^\d+(?=\.\s)")
+#: Golden Q&A 9's leading number, the one lead the digit rule exempts (FR-023: "9.").
+GOLDEN_LEAD = re.compile(r"^9(?=\.\s)")
 GOLDEN_9 = re.compile(r"^9\.\s+\*(?P<q>[^*]+)\*\s+—\s+(?P<a>.*?)\s*(?:\[[A-Z]+\]\s*)*$")
+#: Any numbered item, in any form: each one the patch adds to `04` must be Golden Q&A 9 in GOLDEN_9's form.
+NUMBERED = re.compile(r"^\s*\d+\s*[.)]")
+#: An "Answered:" line, in any case, bold or listed.
+ANSWERED = re.compile(r"^(?:[-*+]\s+)?(?:\*\*|__)?answered\s*:", re.IGNORECASE)
+#: "recommended" in any case or spelling: recommend, Recommended, recomended, reccommended, the recommendation.
+RECOMMENDED = re.compile(r"rec+om+end", re.IGNORECASE)
+#: A sentence's end inside a line: its stop (an ellipsis too), a closing quote, then a space.
+SENTENCE_END = re.compile(r"[.!?]+[\"”]?\s+")
+WORD = re.compile(r"\w")
 DIGIT = re.compile(r"\d")
 
 
@@ -105,22 +123,38 @@ class Sources:
         )
         return r.stdout if r.returncode == 0 else None
 
-    def disclosure_lines(self) -> list[str]:
-        """Every non-empty `disclosure_line` in approvals.json."""
+    def dog_lines(self) -> list[str]:
+        """The non-empty `disclosure_line` of each approval of the dog's model: no other approval's line (B-1)."""
         return [
             a["disclosure_line"]
             for a in self._approvals()
-            if isinstance(a.get("disclosure_line"), str) and a["disclosure_line"]
+            if a.get("path_when_approved") == DOG_MODEL
+            and isinstance(a.get("disclosure_line"), str)
+            and a["disclosure_line"].strip()
         ]
+
+    def consent_sentence(self) -> str | None:
+        """His consent's own sentence in main's spec 017 (line 48, his order): from the stop before CONSENT to the stop
+        after it, within its line. None where the file or the consent isn't there. The rest of the file is the spec's
+        words, not his (B-1)."""
+        text = self.read(CONSENT_SOURCE)
+        if text is None:
+            return None
+        at = text.find(CONSENT)
+        if at < 0:
+            return None
+        line_start = text.rfind("\n", 0, at) + 1
+        line_end = text.find("\n", at)
+        if line_end < 0:
+            line_end = len(text)
+        starts = [m.end() for m in SENTENCE_END.finditer(text, line_start, at)]
+        start = starts[-1] if starts else line_start
+        stop = re.compile(r"[.!?]").search(text, at + len(CONSENT), line_end)
+        return text[start : stop.end() if stop else line_end]
 
     def dog_approved(self) -> bool:
         """An approval of the dog's model with a non-empty line (FR-019)."""
-        return any(
-            a.get("path_when_approved") == DOG_MODEL
-            and isinstance(a.get("disclosure_line"), str)
-            and a["disclosure_line"].strip()
-            for a in self._approvals()
-        )
+        return bool(self.dog_lines())
 
     def _approvals(self) -> list[dict]:
         text = self.read(APPROVALS)
@@ -138,9 +172,13 @@ class Sources:
         )
 
     def found(self, span: str, name: str) -> bool:
-        """`span` verbatim in the source `name`: an approval's line for approvals.json, else the file's text."""
+        """`span` verbatim in the source `name`: the dog's approval's line for approvals.json, his consent's own
+        sentence for main's spec 017, else the file's text (B-1)."""
         if name == APPROVALS:
-            return any(span in line for line in self.disclosure_lines())
+            return any(span in line for line in self.dog_lines())
+        if name == CONSENT_SOURCE:
+            sentence = self.consent_sentence()
+            return sentence is not None and span in sentence
         text = self.read(name)
         return text is not None and span in text
 
@@ -200,7 +238,13 @@ def check_proposal(text: str, sources: Sources) -> list[str]:
                 problems.append(str(why))
                 break
             if not ok:
-                problems.append(f'the span "{span}" is not found verbatim in {name}')
+                where = {
+                    APPROVALS: " (the dog's approval's disclosure_line)",
+                    CONSENT_SOURCE: " (his consent's own sentence, line 48)",
+                }.get(name, "")
+                problems.append(
+                    f'the span "{span}" is not found verbatim in {name}{where}'
+                )
     return problems
 
 
@@ -286,8 +330,11 @@ def _new_positions(new: str, old: str | None) -> list[bool]:
 
 
 def digit_problems(diff: FileDiff, sources: Sources) -> list[str]:
-    known = [*sources.disclosure_lines()]
-    consent = sources.read(CONSENT_SOURCE)
+    """A digit the patch adds outside an exemption (FR-023, N-2). A quotation exempts its digits only where it is the
+    dog's approval's line whole, or lies inside his consent's own sentence: not another approval's line, not the rest
+    of spec 017, and not a bare fragment such as "4" of the dog's line (rv-impl-026's B-1)."""
+    dog = [line.strip() for line in sources.dog_lines()]
+    consent = sources.consent_sentence()
     problems: list[str] = []
     for new, old in diff.pairs:
         spans = [m.span() for m in SLOT.finditer(new)] + [
@@ -298,9 +345,7 @@ def digit_problems(diff: FileDiff, sources: Sources) -> list[str]:
             spans.append(lead.span())
         for m in QUOTED.finditer(new):
             span = m.group(1)
-            if any(span in line for line in known) or (
-                consent is not None and span in consent
-            ):
+            if span.strip() in dog or (consent is not None and span in consent):
                 spans.append(m.span())
         exempt = _mask(new, spans)
         fresh = _new_positions(new, old)
@@ -369,10 +414,21 @@ def golden_problems(
 ) -> list[str]:
     corpus = next((f for f in files if f.path == CORPUS_04), None)
     for line in corpus.added if corpus else []:
+        if not NUMBERED.match(line):
+            continue
         m = GOLDEN_9.match(line.strip())
         if not m:
-            continue
+            # A numbered item in another form would skip every rule below (B-1's class): refused, not skipped.
+            return [
+                (
+                    "Golden Q&A: the patch adds a numbered item that isn't Golden Q&A 9 in its one form, "
+                    f'`9. *<question>* — <answer> [A]`: "{line.strip()[:120]}"'
+                )
+            ]
         answer = m.group("a").strip()
+        if not WORD.search(answer):
+            # An empty answer is inside every quotation (B-1).
+            return ["Golden Q&A 9: its answer is empty, or holds no word (FR-020)"]
         if page is None or entry is None:
             return [
                 "Golden Q&A 9 is in the patch with no page entry to check its answer against (--page, --entry; FR-020)"
@@ -382,16 +438,15 @@ def golden_problems(
             return [f"Golden Q&A 9: the page has no entry {entry}"]
         for at in lines:
             text = at.strip()
-            if not text.startswith("Answered:") or re.match(
-                r"^Answered:\s*recommended\b", text
-            ):
+            # "recommended" in any case or spelling, anywhere on the line, makes it the rule's, not his (Q143; B-1).
+            if not ANSWERED.match(text) or RECOMMENDED.search(text):
                 continue
             if any(answer in span for span in QUOTED.findall(text)):
                 return []
         return [
             (
                 f'Golden Q&A 9: its answer isn\'t found inside a quotation of his own words on an "Answered:" line of {entry} '
-                "(a recommended answer is not his; Q143)"
+                '(a line holding "recommended", in any case or spelling, is not his; Q143)'
             )
         ]
     return []
