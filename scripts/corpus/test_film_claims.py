@@ -827,6 +827,110 @@ def test_a_path_holding_a_number_against_this_repository() -> None:
     assert fc.numbers_in(fc.without_exempt(real, quotes=())) == []
 
 
+# rv-rework4-022's F-3: a URL ends at whitespace, a closing bracket, a quote mark, a dash, or trailing punctuation
+# (only ASCII URL characters, none of `,;!*'"()[]{}<>`, and `.:?!#&=+@-` stripped from its end). Page Q234, the
+# recommended answer: a URL under this repository's `blob/main/` or `tree/main/` reads the path after `main/` as
+# B-8 reads a path, its `#L<n>` exempt only where the file holds the lines (B-5's rule); another of this
+# repository's URLs, or another repository's on GitHub, reads after the host; other hosts' URLs stay exempt whole.
+REPO_URL = "https://github.com/hareet/h4reet-ai"
+
+
+@pytest.mark.parametrize(
+    ("added", "needle"),
+    [
+        # The review's three.
+        ("(https://h4reet.ai)—100/day", "100"),
+        ("<https://h4reet.ai/>,100-per-day", "100"),
+        ('"https://h4reet.ai"100', "100"),
+        # Siblings: a comma, an en dash, an apostrophe, a link's bracket, a semicolon, an exclamation mark, emphasis,
+        # and curly quotes, each glued on.
+        ("https://h4reet.ai/,100 a day", "100"),
+        ("https://h4reet.ai–100 a day", "100"),
+        ("https://h4reet.ai'100 a day", "100"),
+        ("[the site](https://h4reet.ai)100 a day", "100"),
+        ("https://h4reet.ai;100 a day", "100"),
+        ("https://h4reet.ai!100 a day", "100"),
+        ("*https://h4reet.ai*100 a day", "100"),
+        ("“https://h4reet.ai”100 a day", "100"),
+        # Q234: this repository's URL form of a path that names no file, bare, before a full stop, and as a tree.
+        (f"{REPO_URL}/blob/main/docs/adr/0100-per-day.md", "0100"),
+        (f"see {REPO_URL}/blob/main/docs/adr/0100-per-day.md.", "0100"),
+        (f"{REPO_URL}/tree/main/docs/100-per-day", "100"),
+        # Siblings: a line anchor past the file's end, on a directory, and on a missing file; a query; another of
+        # this repository's URLs; another branch; another repository on GitHub; a climb out of the root.
+        (f"{REPO_URL}/blob/main/redteam/run.py#L5000", "5000"),
+        (f"{REPO_URL}/blob/main/redteam/run.py#L1-L5000", "5000"),
+        (f"{REPO_URL}/tree/main/docs/adr#L100", "100"),
+        (f"{REPO_URL}/blob/main/docs/missing.md#L1", "1"),
+        (f"{REPO_URL}/blob/main/redteam/run.py?plain=100", "100"),
+        (f"{REPO_URL}/issues/100", "100"),
+        (f"{REPO_URL}/blob/abc100/redteam/run.py", "100"),
+        ("https://github.com/someone/repo100", "100"),
+        (f"{REPO_URL}/blob/main/../../docs/100.md", "100"),
+    ],
+    ids=[
+        "a-bracket-and-a-dash",
+        "angle-brackets-and-a-comma",
+        "quote-marks",
+        "a-comma",
+        "an-en-dash",
+        "an-apostrophe",
+        "a-link",
+        "a-semicolon",
+        "an-exclamation-mark",
+        "emphasis",
+        "curly-quotes",
+        "repo-url-no-file",
+        "repo-url-full-stop",
+        "repo-url-tree",
+        "anchor-past-the-end",
+        "anchor-range-past-the-end",
+        "anchor-on-a-directory",
+        "anchor-on-a-missing-file",
+        "a-query",
+        "an-issue",
+        "another-branch",
+        "another-repository",
+        "climbs-out",
+    ],
+)
+def test_a_url_ends_where_it_should_and_this_repositorys_path_is_read(
+    repo: Path, added: str, needle: str
+) -> None:
+    problems = run(repo, changed(GAP, f"{GAP} {added}"))
+    assert failing(problems, "R4", "number", f"'{needle}'"), problems
+
+
+def test_other_hosts_urls_and_this_repositorys_real_paths_read_no_number(
+    repo: Path,
+) -> None:
+    good = (
+        "https://h4reet.ai/100-per-day and (https://example.com/v2/5) and "
+        f"{REPO_URL}/blob/main/docs/adr/0020-gateway.md#L1, {REPO_URL}/blob/main/redteam/run.py#L1-L5. "
+        f"{REPO_URL}/tree/main/docs/adr/ and {REPO_URL}/blob/main/evals/run.md#L14."
+    )
+    assert run(repo, changed(GAP, f"{GAP} {good}")) == []
+
+
+def test_a_url_against_this_repository() -> None:
+    made_up = (
+        "(https://h4reet.ai)—100/day <https://h4reet.ai/>,100-per-day "
+        f"{REPO_URL}/blob/main/docs/adr/0100-per-day.md {REPO_URL}/blob/main/redteam/run.py#L5000\n"
+    )
+    assert fc.numbers_in(fc.without_exempt(made_up, quotes=())) == [
+        "100",
+        "100",
+        "0100",
+        "5000",
+    ]
+    real = (
+        f"{REPO_URL}/blob/main/docs/adr/0020-gateway-state-store-and-meter.md, "
+        f"{REPO_URL}/blob/main/deploy/grafana/dashboards/h4-runtime.json. {REPO_URL}/tree/main/.claude/agents "
+        f"{REPO_URL}/blob/main/redteam/run.py#L267-L299\n"
+    )
+    assert fc.numbers_in(fc.without_exempt(real, quotes=())) == []
+
+
 def test_number_words_are_g1s() -> None:
     assert fc.numbers_in("one command and a first run") == []
     assert fc.numbers_in("twenty-one of twenty-four, a dozen, thousands") == [
