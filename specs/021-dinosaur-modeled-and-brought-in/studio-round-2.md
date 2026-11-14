@@ -2,7 +2,7 @@
 
 **Approved by the Author on 2026-11-14 (`intake-021`), and not yet recorded or taken in.** His date is given (`2026-11-11`), but the handoff is read-only to implementers, so the record waits on his morning's steps, in order: the edit to the handoff's `records.json` (steps 1 and 2, his mesh review and his date, as one script), then the dry re-judge (step 3), then `--record` (step 4). His intake follows the record. See "Round 2's record, not made (`record-dino-r2`)" below, and "For his morning, in order".
 
-**Judged dry (`judge-dino-r2`): round 2's candidate passes `line.py`, and the round isn't recorded.** See "Round 2's candidate, judged dry" below.
+**Judged dry (`judge-dino-r2`): round 2's candidate passes `line.py`, and the round isn't recorded.** See "Round 2's candidate, judged dry" below. *(Still not recorded: the record and his intake wait for his morning's steps 1 to 4, in order, as the status above says.)*
 
 **Live.** Task `brief-dino-r3` recorded round 1 as `fail` and put this brief at `/srv/studio/briefs/dinosaur/2.json`, byte for byte. `line.py brief` passes it. `studio-dino-r5` may run. See "Made live (`brief-dino-r3`)" below. The rest of this section, up to that one, is `brief-dino-r2`'s text, unchanged.
 
@@ -245,7 +245,7 @@ a05c2deca3904d5e402aad62a61b9d6c8744ef94f0cbfd645dbe5cc866fe56e4  side.png
 
 ### The `--record` command, for his morning
 
-Run it once, after the `models_checked` date is settled (Question 1) and the mesh-review step is settled (Question 2). Run it from the line's checkout: this stack's branch, or main once it's merged. Re-run the dry command above first and check that it still passes:
+Run it once, after the `models_checked` date is settled (Question 1) and the mesh-review step is settled (Question 2). Run it from the line's checkout: this stack's branch, or main once it's merged. Re-run the dry command above first and check that it still passes *(now his morning's step 4, after steps 1 to 3 under "For his morning, in order"; his intake follows it)*:
 
 ```
 python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dinosaur/2 --brief /srv/studio/briefs/dinosaur/2.json --record
@@ -254,6 +254,8 @@ python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dinosaur/2 --
 **What it will record,** with the files as they are tonight: `pass`, round 2, no findings, in `/srv/studio/briefs/dinosaur/2.result.json`. A pass sends the candidate to his look judgement. It doesn't bring the dinosaur into the room: only his word does, and then his intake to `assets/visitors/dinosaur/`.
 
 ### What waits for him
+
+*(Overtaken: his date (`2026-11-11`) and his look approval are given. What waits now is his morning's steps 1 to 4, in order, under "For his morning, in order", then his intake.)*
 
 - **The `models_checked` date** (Question 1; Q199 is the dog's twin). It's `2026-11-14` on every model step now. Any date up to 2026-11-14 keeps the pass.
 - **His look approval of the step-3 mesh** (step 4, which the studio built past). It's the raw mesh, in `/srv/studio/outputs/dinosaur/r2-step3/`.
@@ -353,6 +355,8 @@ Then comes his intake into `assets/visitors/dinosaur/` (FR-015). The steps, the 
 ## Round 2's record, not made (`record-dino-r2`)
 
 Task `record-dino-r2` (night of 2026-11-13, implementer, Opus 5.5) ran on 2026-11-14 around 18:30Z, from intake-021's tip, `fc89bcd1`. Its job was to make steps 1 and 2 above with his date, then run steps 3 and 4. **It recorded nothing.** The handoff folder is mounted read-only in an implementer's container, so the edit to `records.json` failed before it wrote a byte. The supervisor's rule for anything other than a clean pass is "record nothing, and stop with a question", so I followed it. The question is on the page, and in item 4's section of `docs/merge-requests/2026-11-14-night-stack.md`.
+
+*(Answered, Q224 and Q225, as recommended: the edit, the dry re-judge, and `--record` are his, in the morning. His record and his intake wait for his morning's steps 1 to 4, in order: the one script below for steps 1 and 2, then steps 3 and 4 above. verify3-021.)*
 
 ### His words
 

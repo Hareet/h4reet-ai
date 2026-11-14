@@ -684,7 +684,7 @@ Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at th
 
 ### What changed and why
 
-His item e): "dinosaur modeled and brought in". The code that brings a modeled dinosaur into the room is built, checked, and tested. **The model itself isn't here.** It waits on the studio's round (studio-dino-r1, which waits for Q92, ComfyUI on the studio host), then his look approval, then his intake of `assets/visitors/dinosaur/**` (human patch 021). No studio round was started in this session.
+His item e): "dinosaur modeled and brought in". The code that brings a modeled dinosaur into the room is built, checked, and tested. **The model itself isn't here.** It waits on the studio's round (studio-dino-r1, which waits for Q92, ComfyUI on the studio host), then his look approval, then his intake of `assets/visitors/dinosaur/**` (human patch 021). No studio round was started in this session. *(Overtaken: round 2's candidate passed dry and has his look approval. The record and his intake wait for his morning's steps 1 to 4, in order: "His look approval (intake-021)" and "Round 2's record (record-dino-r2)" below.)*
 
 **The stand-in until then:** the flat green cut-out (`AVATAR_SHAPES.dinosaur`, 1.2 m high, 1.1 m wide), which every visitor who picks the dinosaur sees today, in both modes, with spec 014's note `standin.avatar` ("Your figure is a flat placeholder until its model arrives.") while the 3D room shows it. Nothing changes for a visitor until his intake: on the repository's real tree the room's report is byte for byte the same as the base's (below). Swapping in the model takes his intake and no code change.
 
@@ -864,6 +864,8 @@ $0, and no model call. No byte leaves a visitor's device that didn't before: the
 
 What waits for you (none of it is needed for this item's gate):
 
+*(Overtaken: 1 to 3 are done (round 2 passed dry, and you approved its look). Before 4, your record waits for your morning's steps 1 to 4, in order, under "His look approval (intake-021)" below; then your intake, under "The intake (intake-021)".)*
+
 1. **Q92**, ComfyUI on the studio host. Studio-dino-r1 (round 1, from `/srv/studio/briefs/dinosaur/1.json`) waits for it. No studio round was started in this session.
 2. **The studio round**: at most three rounds; a passing candidate goes to your look judgement.
 3. **Your look approval** of the candidate, in a glTF viewer or Blender.
@@ -966,6 +968,8 @@ His words, 2026-11-14, about 17:25Z, verbatim:
 2. **Q207's date**, on the eleven model steps' `models_checked`. Any date up to 2026-11-14 keeps the pass. *(His answer, about 17:35Z: `2026-11-11`. With steps 1 and 2 together, the file is `39b89e14bf309fdfdc367d8b0a45f1943363014eb9cdcf4e405367fde7cad4df`. See "Round 2's record (record-dino-r2)" below.)*
 3. **The dry re-judge.** I previewed it on a `/tmp` copy with step 1's record. The result was `arrival-check: 0 findings in 6 files, 4 warnings`, `line: pass; round 2`, and exit 0, with no `2.result.json` written.
 4. **`--record`**, once: `python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dinosaur/2 --brief /srv/studio/briefs/dinosaur/2.json --record`.
+
+All four are his, in the morning, in this order (Q224, Q225, answered as recommended: the handoff is read-only to implementers). Steps 1 and 2 are one script now, in `studio-round-2.md`. His intake follows step 4.
 
 Nothing under `/srv/studio/` was changed and nothing was recorded. No agent wrote `assets/**`.
 
@@ -1132,6 +1136,8 @@ His answer to Q199 and Q207, about 17:35Z, verbatim:
 > **Q: The handoff folder is read-only to implementers, so the dinosaur's record wasn't edited or recorded. Who makes the edit to `/srv/studio/handoff/dinosaur/2/records.json` (his date and his mesh review) and runs `--record`?**
 > Recommended: you, in the morning. Run the one script under "Steps 1 and 2 as one script" in `studio-round-2.md` (it should print `model steps dated: 11` and make `39b89e14…d4df`), then steps 3 and 4 as written. This widens no mount. Others: re-queue record-dino-r2 with `/srv/studio/handoff/dinosaur/` mounted read-write for that one task; a studio task makes the edit (the studio writes the handoff), then an implementer runs steps 3 and 4.
 
+*Answered (Q224, Q225), as recommended: his, in the morning. His record and his intake wait for his morning's steps 1 to 4, in order. (verify3-021)*
+
 **The dog's records:** none changed tonight. Round 2 is already recorded (fail, on `files`). Round 3 handed nothing back (studio-dog-r7 stopped, Q220).
 
 **Follow-up (rule 9), not tonight:** `line.py` should count a round as answered only when it has a `candidate.json`.
@@ -1163,7 +1169,7 @@ SC-006: `git diff --stat fc89bcd1 HEAD -- .claude tools/gates corpus assets CLAU
 
 One refusal, from the filesystem rather than the bash gate: the write to the handoff's `records.json` (`EROFS`). I didn't try it again or another way. Nothing was respelled. I didn't open, view, copy, or list the inbox, the dog's photos folder, or the handoff's renders.
 
-record-dino-r2: not recorded (handoff read-only to implementers); his date checked to keep the pass on a scratch copy; the edit and `--record` wait for him or a task that can write the handoff
+record-dino-r2: not recorded (handoff read-only to implementers); his date checked to keep the pass on a scratch copy; the edit and `--record` wait for him or a task that can write the handoff *(Answered, Q224 and Q225: him. His record and his intake wait for his morning's steps 1 to 4, in order.)*
 
 ---
 
