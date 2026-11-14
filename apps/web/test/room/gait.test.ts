@@ -10,8 +10,9 @@ import {
   advance,
   cycleLength,
   legOffsets,
+  standingLift,
 } from "../../src/room/scene/gait";
-import type { GaitState } from "../../src/room/scene/gait";
+import type { GaitState, LegAngles, LegShape } from "../../src/room/scene/gait";
 
 const START: GaitState = { phase: 0, amp: 0 };
 
@@ -86,6 +87,57 @@ describe("the legs' offsets", () => {
       for (const v of [left.hip, left.knee, left.ankle, right.hip, right.knee, right.ankle])
         expect(Math.abs(v)).toBe(0);
     }
+  });
+});
+
+describe("the standing leg's lift (T014; FR-015, plan §2.6)", () => {
+  const straight = (thigh: number, shin: number): LegShape => ({ thigh, shin, thighAngle: 0, shinAngle: 0 });
+  const STRAIGHT = { left: straight(0.45, 0.4), right: straight(0.45, 0.4) };
+  /** One leg's lift by plan §2.6: its ankle's depth below the hip at rest, less its depth now, in the swing plane. */
+  const liftOf = (s: LegShape, a: LegAngles): number =>
+    s.thigh * Math.cos(s.thighAngle) +
+    s.shin * Math.cos(s.shinAngle) -
+    (s.thigh * Math.cos(s.thighAngle + a.hip) + s.shin * Math.cos(s.shinAngle + a.hip - a.knee));
+
+  it("is 0 at amplitude 0", () => {
+    for (const phase of [0, 0.1, 0.25, 0.37, 0.5, 0.9]) expect(standingLift(legOffsets(phase, 0), STRAIGHT)).toBe(0);
+  });
+
+  it("is (thigh + shin)(1 − cos θ) for straight legs at hip angle θ", () => {
+    for (const theta of [0.05, 0.2, 0.45]) {
+      const offsets = { left: { hip: theta, knee: 0, ankle: 0 }, right: { hip: -theta, knee: 0, ankle: 0 } };
+      expect(standingLift(offsets, STRAIGHT)).toBeCloseTo(0.85 * (1 - Math.cos(theta)), 12);
+    }
+  });
+
+  it("is the smaller of the two legs' lifts, never negative, with each leg's own rest angles", () => {
+    const leaning = {
+      left: { thigh: 0.39, shin: 0.37, thighAngle: -0.06, shinAngle: -0.18 },
+      right: { thigh: 0.38, shin: 0.36, thighAngle: -0.07, shinAngle: -0.14 },
+    };
+    for (const shape of [STRAIGHT, leaning])
+      for (let i = 0; i <= 200; i += 1) {
+        const offsets = legOffsets(i / 200, (i % 11) / 10);
+        const lift = standingLift(offsets, shape);
+        expect(lift).toBeGreaterThanOrEqual(0);
+        const expected = Math.max(0, Math.min(liftOf(shape.left, offsets.left), liftOf(shape.right, offsets.right)));
+        expect(lift).toBeCloseTo(expected, 12);
+      }
+  });
+
+  it("is the same on two runs of a seeded walk", () => {
+    const run = (): number[] => {
+      let seed = 7;
+      let s = START;
+      const out: number[] = [];
+      for (let i = 0; i < 2_000; i += 1) {
+        seed = (seed * 16807) % 2147483647;
+        s = advance(s, 0.02 * (seed / 2147483647), 1, 0.016, true, 1.12);
+        out.push(standingLift(legOffsets(s.phase, s.amp), STRAIGHT));
+      }
+      return out;
+    };
+    expect(run()).toEqual(run());
   });
 });
 
