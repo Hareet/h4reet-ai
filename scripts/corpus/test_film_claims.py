@@ -493,7 +493,7 @@ def test_an_unknown_slot_fails(repo: Path) -> None:
 def test_exempt_spans_read_no_number() -> None:
     text = (
         "9. *How does the kill switch stop spending?* — The gateway reads the kill switch first. [P]\n"
-        "- `[A 2026-11-06]` As of 2026-11-13, one command, `docs/adr/0020-gateway.md`, "
+        "- `[A 2026-11-06]` As of 2026-11-13, one command, `docs/adr/0020-gateway-state-store-and-meter.md`, "
         "https://github.com/hareet/h4reet-ai/blob/main/docs/adr/0044-ec2.md, {{slot:site.prod_containers}}.\n"
     )
     assert fc.numbers_in(fc.without_exempt(text, quotes=())) == []
@@ -528,7 +528,7 @@ def test_a_number_in_brackets_or_a_ratio_fails(
 def test_claim_tags_and_paths_read_no_number_but_brackets_and_ratios_do() -> None:
     tags = "- `[P]` `[?][A]` [A 2026-11-06] [?] [A] [slot `site.prod_containers`] [A][A 2026-11-09]\n"
     assert fc.numbers_in(fc.without_exempt(tags, quotes=())) == []
-    paths = "`docs/adr/0020-gateway.md`, deploy/compose.yaml, films/kill-switch-b2/, 2026-11-13/14\n"
+    paths = "`docs/adr/0020-gateway-state-store-and-meter.md`, deploy/compose.yaml, films/kill-switch-b2/, 2026-11-13/14\n"
     assert fc.numbers_in(fc.without_exempt(paths, quotes=())) == []
     # `v2/notes` is no path since rv2-rework2-022's B-1: the repository has no top-level `v2`.
     prose = "[3 runs] [twelve cases] 24/7 `52/52` `v2/notes`\n"
@@ -622,16 +622,21 @@ def test_a_path_is_read_against_the_root_it_is_given(repo: Path) -> None:
     # under one of its top-level directories); a token holding a number must be found, or be a file name in a
     # directory that exists. `corpus/05-mission.md` is cited bare as `05-mission.md` in the real proposal.
     (repo / "corpus/05-mission.md").write_text("# Mission\n")
-    plain = "`05-mission.md`, `src/sign.md`, docs/adr/0020-gateway.md, docs/adr/0021-next.md, `evals/run.md:12-14`\n"
+    plain = "`05-mission.md`, `src/sign.md`, docs/adr/0020-gateway.md, `evals/run.md:12-14`\n"
     assert fc.numbers_in(fc.without_exempt(plain, quotes=(), root=repo)) == []
+    # `docs/adr/0021-next.md` reads its number since rv-rework3-022's B-8 (Q216): the fixture holds no such file.
     assert fc.numbers_in(
-        fc.without_exempt("`07-other.md`, src/100-per-day\n", quotes=(), root=repo)
-    ) == ["07", "100"]
+        fc.without_exempt(
+            "`07-other.md`, src/100-per-day, docs/adr/0021-next.md\n",
+            quotes=(),
+            root=repo,
+        )
+    ) == ["07", "100", "0021"]
 
 
 def test_real_paths_with_numbers_in_them_read_no_number() -> None:
     paths = (
-        "`docs/adr/0020-gateway.md`, `evals/product/history/2026-11-09/run.json`, `redteam/run.py:267-299`, "
+        "`docs/adr/0020-gateway-state-store-and-meter.md`, `evals/product/history/2026-11-09/run.json`, `redteam/run.py:267-299`, "
         "`ENV=prod`, `COMPOSE_PROFILES=gpu`, films/kill-switch-b2/, specs/001-cloud-elevation/spec.md, 2026-11-13/14\n"
     )
     assert fc.numbers_in(fc.without_exempt(paths, quotes=())) == []
@@ -697,6 +702,66 @@ def test_a_line_suffix_against_this_repository() -> None:
     assert (
         fc.numbers_in(fc.without_exempt("`redteam/run.py:267-299`\n", quotes=())) == []
     )
+
+
+# rv-rework3-022's B-8 (page Q216, the recommended answer): a path token that holds a number (a digit, or one of
+# G1's words, outside a date) is a path only if it names an entry the root holds, itself or under a top-level
+# directory; a glob that holds a number names none. Otherwise its number counts.
+@pytest.mark.parametrize(
+    ("token", "needle"),
+    [
+        # The review's four, bare.
+        ("docs/adr/0100-per-day.md", "0100"),
+        ("docs/five-dollars.md", "five"),
+        ("docs/*100-per-day*.md", "100"),
+        ("films/100.txt", "100"),
+        # Siblings: the four in backticks, a glob with a number that matches a real file, a directory that isn't
+        # there, a file name found nowhere under a top-level directory, and a number word in a directory segment.
+        ("`docs/adr/0100-per-day.md`", "0100"),
+        ("`docs/five-dollars.md`", "five"),
+        ("`docs/*100-per-day*.md`", "100"),
+        ("`films/100.txt`", "100"),
+        ("`docs/adr/0020-*.md`", "0020"),
+        ("`docs/twelve-cases/`", "twelve"),
+        ("`0100-per-day.md`", "0100"),
+        ("`docs/five-runs/notes.md`", "five"),
+    ],
+    ids=[
+        "adr-0100",
+        "five-dollars",
+        "a-glob",
+        "films-100",
+        "adr-0100-backticked",
+        "five-dollars-backticked",
+        "a-glob-backticked",
+        "films-100-backticked",
+        "a-glob-matching-a-real-file",
+        "a-missing-directory",
+        "a-bare-file-name",
+        "a-number-word-directory",
+    ],
+)
+def test_a_path_holding_a_number_names_a_real_entry_or_its_number_counts(
+    repo: Path, token: str, needle: str
+) -> None:
+    problems = run(repo, changed(RUNS, RUNS + f", {token} and more"))
+    assert failing(problems, "R4", "number", f"'{needle}'"), problems
+
+
+def test_a_path_holding_a_number_against_this_repository() -> None:
+    made_up = "docs/adr/0100-per-day.md docs/five-dollars.md `docs/*100-per-day*.md` `films/100.txt` docs/adr/0020-gateway.md\n"
+    assert fc.numbers_in(fc.without_exempt(made_up, quotes=())) == [
+        "0100",
+        "five",
+        "100",
+        "100",
+        "0020",
+    ]
+    real = (
+        "`docs/adr/0020-gateway-state-store-and-meter.md` `proposals/film-scripts-2026-11-14.md` `05-mission.md` "
+        "films/kill-switch-b2/ evals/product/history/2026-11-10T063144Z-anthropic.json\n"
+    )
+    assert fc.numbers_in(fc.without_exempt(real, quotes=())) == []
 
 
 def test_number_words_are_g1s() -> None:
