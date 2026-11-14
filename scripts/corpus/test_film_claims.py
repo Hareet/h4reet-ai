@@ -88,7 +88,8 @@ DISCLOSURE_MD = """# Data-flow disclosure (fixture)
 
 | ID | From → to | Why |
 |---|---|---|
-| F3 | `gateway` → Anthropic. In the Author's words: this site saves none of it, and Anthropic may keep a turn it answered for up to 30 days, never for training. | the fallback |
+| F1 | `gateway` → Bedrock. The gateway signs each call. | the fallback |
+| F3 | `gateway` → Anthropic, over HTTPS: `POST /v1/messages` for a call, and `GET /v1/models/claude-haiku-5-5` for the health check. The model is Claude Haiku 5.5, `claude-haiku-5-5`. A request its safety systems flag can be kept up to 2 years. Against my promise that a visitor's conversation isn't saved: this site saves none of it, and Anthropic may keep a turn it answered for up to 30 days, never for training. What a visitor types is sent as typed. | the fallback |
 """
 
 FACTS_YAML = """topic: 08-hareet-ai
@@ -858,6 +859,82 @@ def test_his_words_are_the_checkers_fixed_list_each_verbatim_on_its_scripts_md_l
     quotes = fc.read_context(ROOT).author_quotes
     assert "up to 30 days" not in quotes
     assert not any(q.startswith("We will get a daily summary") for q in quotes)
+
+
+# rv-rework3-022's B-6: F3's words are one sentence, after "Against my promise that a visitor's conversation isn't
+# saved:" in row F3, on the checker's fixed list; R5 reads no other part of the row, as F3's words or through a cited
+# disclosure. The disclosure's other rows are a cited file's text as before.
+F3_CLAUSES = [
+    "The model is Claude Haiku 5.5, `claude-haiku-5-5`.",
+    "A request its safety systems flag can be kept up to 2 years.",
+    "and `GET /v1/models/claude-haiku-5-5` for the health check",
+    "What a visitor types is sent as typed.",
+]
+DISCLOSURE_CITES = [
+    None,
+    "docs/data-flow-disclosure.md",
+    "./docs/data-flow-disclosure.md",
+    "docs/adr/../data-flow-disclosure.md",
+    "docs/disclosure-link.md",
+]
+DISCLOSURE_IDS = ["not-cited", "cited", "dot-slash", "climb-back", "a-link"]
+
+
+def _citing_the_disclosure(repo: Path, source: str | None) -> str:
+    (repo / "docs/disclosure-link.md").symlink_to("data-flow-disclosure.md")
+    if source is None:
+        return GOOD
+    return changed(*(s.format(source=source) for s in CARRIED_ROW))
+
+
+@pytest.mark.parametrize("source", DISCLOSURE_CITES, ids=DISCLOSURE_IDS)
+@pytest.mark.parametrize(
+    "clause",
+    F3_CLAUSES,
+    ids=["model-and-version", "years-kept", "health-check", "sent-as-typed"],
+)
+def test_r5_reads_no_part_of_row_f3_but_his_one_sentence(
+    repo: Path, clause: str, source: str | None
+) -> None:
+    cites = _citing_the_disclosure(repo, source)
+    assert run(repo, cites) == []
+    bad = changed(
+        "- `[?]` The daily summary of the CPU metrics.",
+        f'- `[?]` The daily summary of the CPU metrics. The disclosure: "{clause}"',
+        cites,
+    )
+    assert failing(run(repo, bad), "R5", clause[:20]), run(repo, bad)
+
+
+@pytest.mark.parametrize("source", DISCLOSURE_CITES, ids=DISCLOSURE_IDS)
+def test_his_f3_sentence_stands_and_the_disclosures_other_rows_only_when_cited(
+    repo: Path, source: str | None
+) -> None:
+    cites = _citing_the_disclosure(repo, source)
+    other_row = "The gateway signs each call."
+    bad = changed(
+        "- `[?]` The daily summary of the CPU metrics.",
+        f'- `[?]` The daily summary of the CPU metrics. The disclosure: "{other_row}"',
+        cites,
+    )
+    assert failing(run(repo, bad), "R5", other_row) is (source is None)
+    assert '"this site saves none of it' in cites and run(repo, cites) == []
+
+
+def test_f3s_words_are_the_checkers_fixed_sentence_verbatim_in_row_f3() -> None:
+    marker, sentence = fc.F3_WORDS
+    assert marker == "Against my promise that a visitor's conversation isn't saved:"
+    assert sentence == (
+        "this site saves none of it, and Anthropic may keep a turn it answered for up to 30 days, never for training."
+    )
+    rows = [
+        raw
+        for raw in (ROOT / "docs/data-flow-disclosure.md").read_text().splitlines()
+        if raw.startswith("| F3 |")
+    ]
+    assert len(rows) == 1
+    assert f"{marker} {sentence}" in rows[0]
+    assert fc.read_context(ROOT).f3 == sentence
 
 
 FILM_FILES = {
