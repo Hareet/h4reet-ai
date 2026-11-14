@@ -25,3 +25,7 @@ room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
 ## T005 (RED)
 
 `vitest run test/room/chase-director.test.ts`: "Cannot find module '../../src/room/scene/chase'", Test Files 1 failed (1).
+
+## T006 (GREEN)
+
+`vitest run test/room/chase-director.test.ts`: Tests 12 passed (12). `make lint`: exit 0.

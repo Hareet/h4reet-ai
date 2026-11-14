@@ -91,7 +91,7 @@ Per figure: `{ home: {x, z, heading}, pose: Pose, phase: "home" | "fleeing" | "r
 ## 4. Interface contracts
 
 - `steer(floor, figure, dino, config, dt, out) → void` (chase-steer.ts), pure, writing into `out`; `out` carries the step's heading and the picture's facing apart (FR-009).
-- `createChase({ floor, config, walkMps, figures: { twin?, dog? }, now }) → { frame(dino, dt, motion): void; poses; phase; notes }` (chase.ts), pure.
+- `createChase({ floor, config, walkMps, figures: { twin?, dog? }, now }) → { frame(dino, dt, motion): void; poses; phase; notes }` (chase.ts), pure. **As built (T006):** `createChase({ floor, config, walkMps, figures: { twin?, dog? }, note? }) → { frame(dino, dt, motion), on, runner(id), phase(id), moving(id), hold(id, held) }`: no `now`, the delay counts the room's clock's `dt`; the poses are the runners, written in place; the notes go through the `note` callback, once a start and once an end, with nothing kept a frame. Two pure helpers beside it: `pursuerPresent({ chosen, shows, walking })` (FR-001, which chase-figures.ts calls) and `dogRole(speed, clip_thresholds, { walk, run })` (FR-010). `moving(id)`, FR-012's `fleeing`, is the figure off its home's spot or stepping, in the run's or the return's phase; a figure that only turns at home to watch the dinosaur isn't moving.
 - `createChaseFigures({ chase, avatars, walking, chosen, signal }) → { frame(dt, animate, level): void }` (chase-figures.ts).
 - `FigureId = "twin" | "visitor" | "dog"`; `FigureSignal` gains `{ kind: "chase"; state: "started" | "ended"; who: "both" | "twin" | "dog" }` (stage.ts).
 - `AvatarFigures` gains `pictureOf(figure: FigureId): Object3D | null` and `legsOf(figure: FigureId): LegRig | null` (avatars.ts).
