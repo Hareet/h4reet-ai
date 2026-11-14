@@ -14,8 +14,10 @@ Read-only, deterministic, standard library only. Two modes:
   ``04-hobbies-and-travel.md`` and ``facts/hobbies-and-travel.yaml``; the slot ``hobbies.room_dog_name`` missing or with
   a field other than null (FR-018); a ``<his answer>`` or ``<his disclosure line>`` placeholder; a Golden Q&A 9 whose
   answer is empty or holds no word, or isn't found verbatim inside a quotation on an "Answered:" line of the page's
-  entry QID, a line holding "recommended" in any case or spelling (Recommended, as recommended, recomended, the
-  recommendation) never counting (FR-020; Q143); any numbered item the patch adds to ``04`` that isn't Golden Q&A 9 in
+  entry QID, a line holding ``RECOMMENDED``'s match never counting: "rec", one or more "c", "o", one or more "m",
+  "end", in any case (Recommended, as recommended, recomended, reccommended, the recommendation); other misspellings
+  (recommeded, recommanded), a hyphen or an invisible character inside the word, and look-alike letters of other
+  scripts or fullwidth forms aren't caught, a deviation the stack note's Backlog holds (FR-020; Q143; rule 11); any numbered item the patch adds to ``04`` that isn't Golden Q&A 9 in
   its one form; a digit the patch adds to ``04`` outside a ``{{slot:…}}``, a claim tag's date, Golden Q&A 9's leading
   ``9``, or a quotation that is the dog's approval's ``disclosure_line`` whole or lies inside his consent's own sentence
   in main's spec 017, line 48 (N-2; rv-impl-026's B-1); and the patch while the approval isn't there (FR-019).
@@ -73,7 +75,9 @@ GOLDEN_9 = re.compile(r"^9\.\s+\*(?P<q>[^*]+)\*\s+—\s+(?P<a>.*?)\s*(?:\[[A-Z]+
 NUMBERED = re.compile(r"^\s*\d+\s*[.)]")
 #: An "Answered:" line, in any case, bold or listed.
 ANSWERED = re.compile(r"^(?:[-*+]\s+)?(?:\*\*|__)?answered\s*:", re.IGNORECASE)
-#: "recommended" in any case or spelling: recommend, Recommended, recomended, reccommended, the recommendation.
+#: "recommend" in any case, its "c" and "m" doubled or not: recommend, Recommended, recomended, reccommended, the
+#: recommendation. Not other misspellings, a hyphen or an invisible character inside the word, or look-alike letters
+#: (the stack note's Backlog, B-2).
 RECOMMENDED = re.compile(r"rec+om+end", re.IGNORECASE)
 #: A sentence's end inside a line: its stop (an ellipsis too), a closing quote, then a space.
 SENTENCE_END = re.compile(r"[.!?]+[\"”]?\s+")
@@ -438,7 +442,7 @@ def golden_problems(
             return [f"Golden Q&A 9: the page has no entry {entry}"]
         for at in lines:
             text = at.strip()
-            # "recommended" in any case or spelling, anywhere on the line, makes it the rule's, not his (Q143; B-1).
+            # RECOMMENDED's match, anywhere on the line, makes it the rule's, not his (Q143; B-1).
             if not ANSWERED.match(text) or RECOMMENDED.search(text):
                 continue
             if any(answer in span for span in QUOTED.findall(text)):
@@ -446,7 +450,7 @@ def golden_problems(
         return [
             (
                 f'Golden Q&A 9: its answer isn\'t found inside a quotation of his own words on an "Answered:" line of {entry} '
-                '(a line holding "recommended", in any case or spelling, is not his; Q143)'
+                '(a line holding "recommend", in any case, its "c" and "m" doubled or not, is not his; Q143)'
             )
         ]
     return []
