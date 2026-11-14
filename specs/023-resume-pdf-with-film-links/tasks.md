@@ -1,0 +1,43 @@
+# Tasks: The resume PDF, redone with links from the films
+
+**Approved provisionally by the Author's order of 2026-11-13**, which reads, in his words: "Okay, we want the night-shift, in order of importance, from the"improvements, in your words" section: a) "better HUD with examples provided, and load screen", c) "avatar walking leg animations", d) "dog modeled and brought in", e) "dinosaur modeled and brought in", g) "hareet-ai corpus from film scripts", "b) "re-do PDF resume with links from films", i) "dino being able to eat chunks of assets like desk, busy sign, laptop, chalkboard", h) "twin and dog running from dino" .... I will give you the examples of the HUD and placement of the interface layout, and provide you photos of my dog to model and it's okay that we use the likeness of my dog." And: "I'd like them to keep going beyond the plan and approval and finish implementation and keep merging down to as few patches and gates as we've seen the difficulty there. Ensure there are small tests that can be run instead of the whole suite over and over".
+
+**Input**: [plan.md](plan.md), [spec.md](spec.md). **Tests**: required, test-first: each test task is committed RED, then the code GREEN, one commit each. Small tests run from `apps/web` as `vitest run <files>`. Each task pastes its small-test output and `make lint` into its notes. The full `make check` runs once, in T012.
+
+**Rules**: no write to `apps/web/content/resume-author.pdf`, `assets/policy/**`, `corpus/**`, `.claude/**`. No command-line script an Author's terminal runs. No push, no merge.
+
+## Phase 1: Table and facts
+
+- [ ] T001 [US3] RED: `apps/web/test/content/film-links.test.ts`, cases 1 and 2 (table shape and URLs; each film's `README.md` and `media/<film>.mp4` tracked). Small tests: `vitest run test/content/film-links.test.ts`. Covers FR-003, FR-012.
+- [ ] T002 [US3] GREEN: `films/resume-links.json` with the four entries of plan §1, the claim strings read from the approved PDF's text (read-only; record them in the note). Same small tests. Covers FR-002, FR-003.
+
+## Phase 2: Locate and write
+
+- [ ] T003 Spike (no commit of code): read the approved PDF's trailer, xref kind, page object, `/Annots`, and the four claims' text positions with pdfjs; record what R-1 needs (classic or stream xref; claims wrap or not). Output in the note. If neither an incremental update nor a stream update is workable, stop and tell the Author via Q-D; do not add a dependency. Small tests: none (a read).
+- [ ] T004 [US1] RED: `film-links.test.ts` cases 3, 4, 6 over a PDFKit fixture (wrapped claim, missing claim, original bytes as prefix, URLs read back by `readPdf`, an out-of-allowlist owner fails PDF5). Small tests: `vitest run test/content/film-links.test.ts test/content/author-pdf.test.ts`. Covers FR-001, FR-006, FR-009.
+- [ ] T005 [US1] GREEN: `apps/web/build/film-links.ts` (`locateClaims`, `addLinks`, the SHA-256 guard). Same small tests. Covers FR-001, FR-005, FR-006.
+
+## Phase 3: The candidate
+
+- [ ] T006 [US1][US2] RED: cases 5 and 7 over the real approved file (guard; PDF1 to PDF9 under a header like `main`'s; one page; content stream unchanged; the committed candidate equals what `addLinks` writes). Skipped with a stated reason, never silently, when the tree lacks the approved file. Same small tests. Covers FR-009, SC-002, SC-004.
+- [ ] T007 [US1][US2] GREEN: write the candidate with the opt-in case (`WRITE_CANDIDATE=1 vitest run test/content/film-links.test.ts`) to `apps/web/content/candidates/resume-author-links.pdf`; commit it. Record its SHA-256 and `pdfinfo -url` output in the note. Covers FR-008, SC-001 (by file existence), SC-003.
+
+## Phase 4: The Author's side
+
+- [ ] T008 [US2] Write `docs/merge-requests/human-patches/023.md` (path, intended change, why, on main before the gate: no) with the C-0005 entry text and the candidate's SHA-256; and the merge note's "For the Author": the two preconditions (repository public; each link clicked), the `git mv` step, and his route (b) with the exact `twin.html` edit. Covers FR-007, FR-010, SC-005. Small tests: `vitest run test/content/film-links.test.ts` (a case that the note's SHA-256 equals the candidate's).
+- [ ] T009 [P] Correct `films/RESUME-LINKS-PLAN.md` step 5 and mark its open decisions answered provisionally, with their sources. Small tests: none (prose); `make lint`.
+- [ ] T010 [P] FR-011: one sentence in `docs/data-flow-disclosure.md` row V1. Small tests: `vitest run test/site.test.ts`, `pytest deploy/scripts/test_preflight.py`.
+
+## Phase 5: Review and the full run
+
+- [ ] T011 Review by a reviewer that didn't write the code: `REVIEW.md`, the spec, this plan. Findings and their fixes in the note.
+- [ ] T012 One run of `make check` at the stack's end (rule 4); paste its summary into the merge-request note. A failure in a test this stack doesn't touch is reported with the evidence, not chased (`apps/web/test/room/twin-2d.test.ts` is a known flaky test under load).
+- [ ] T013 The merge-request note, `docs/merge-requests/<date>-feat-023-resume-pdf-with-film-links.md`, from the template: what changed, FR/SC coverage, constitution check, review, verification, cost and data flow, for the Author. Ends the branch; no merge.
+
+## Dependencies
+
+T001 → T002 → T003 → T004 → T005 → T006 → T007 → T008. T009 and T010 are independent of T004 to T008. T011 after T008 to T010; T012 after T011; T013 last.
+
+## Coverage
+
+FR-001 T004/T005 · FR-002 T002 · FR-003 T001/T002 · FR-004 untouched (no task; T012 shows it) · FR-005 T005 · FR-006 T005 · FR-007 T008 · FR-008 T007 · FR-009 T004/T006 · FR-010 T008 · FR-011 T010 · FR-012 T001 · SC-001 T007 · SC-002 T006 · SC-003 T007 · SC-004 T006 · SC-005 T008.
