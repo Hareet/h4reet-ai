@@ -1,0 +1,122 @@
+// T012 (spec 024; FR-010; US3): reduced motion and the polite line. Under reduced motion a bite hides its chunk at once
+// (no flight) and a regrowth returns it whole at once (no growth); one polite line, eat.first_bite with the piece's
+// label, is said at a piece's first bite of the visit and never again for it; the room says it in its live region.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { Group, Mesh } from "three";
+import type { Object3D } from "three";
+import { describe, expect, it, vi } from "vitest";
+import { parse } from "yaml";
+
+import { createEat3d } from "../../src/room/eat/eat3d";
+import { createMeal } from "../../src/room/eat/meal";
+import { pieceModel, roomGlb } from "../helpers/eat-pieces";
+import { announcer, button, enter, flush, repositoryBundle, start, throughLoader, WEB } from "../helpers/room";
+import type { Visit } from "../helpers/room";
+
+const WORDS = (parse(readFileSync(join(WEB, "room/ui-words.yaml"), "utf8")) as { words: Record<string, string> }).words;
+
+function shown(node: Object3D, root: Object3D): boolean {
+  for (let n: Object3D | null = node; n; n = n === root ? null : n.parent) if (!n.visible) return false;
+  return true;
+}
+
+const chunkMeshes = (root: Object3D, chunk: number): Mesh[] => {
+  const out: Mesh[] = [];
+  root.traverse((n) => {
+    const eat = n.userData.eat as { kind?: string; chunk?: number } | undefined;
+    if (eat?.kind === "chunk" && eat.chunk === chunk) out.push(n as Mesh);
+  });
+  return out;
+};
+
+/** The 3D side over two real pieces, reduced motion as given, the clock and the polite line's calls kept. */
+function rig(reduced: boolean) {
+  const scene = repositoryBundle().scene;
+  const models: Record<string, Group> = {};
+  for (const id of ["busy-sign", "chalkboard"]) models[id] = pieceModel(roomGlb(id), scene.pieces[id]?.scale ?? 1);
+  const clock = { t: 1000 };
+  const meal = createMeal({ regrow_s: 5, now: () => clock.t });
+  const said = vi.fn();
+  const mouth = new Group();
+  mouth.position.set(3, 1, 0);
+  mouth.updateMatrixWorld(true);
+  const eat = createEat3d({
+    part: scene,
+    model: (id) => models[id] ?? null,
+    figure: () => ({ root: mouth, height: 1.2 }),
+    meal,
+    highlight: { refresh: vi.fn() },
+    now: () => clock.t,
+    reduced: () => reduced,
+    warn: vi.fn(),
+    said,
+  });
+  return { eat, meal, clock, said, models };
+}
+
+describe("reduced motion (FR-010)", () => {
+  it("hides the bitten chunk at once, no flight, and returns it whole at once, no growth", () => {
+    const r = rig(true);
+    expect(r.eat.bite("busy-sign")).toBe(true);
+    const states = r.meal.states("busy-sign");
+    const index = states.indexOf("eaten");
+    expect(index, "eaten at once, never flying").toBeGreaterThanOrEqual(0);
+    expect(states).not.toContain("flying");
+    const root = r.models["busy-sign"] as Group;
+    for (const m of chunkMeshes(root, index)) expect(shown(m, root)).toBe(false);
+    // A second bite needs no frame between: nothing is in flight.
+    expect(r.eat.bite("busy-sign")).toBe(true);
+    r.clock.t += 5000;
+    r.eat.frame();
+    expect(r.meal.states("busy-sign")[index]).toBe("standing");
+    for (const m of chunkMeshes(root, index)) {
+      expect(shown(m, root)).toBe(true);
+      expect(m.scale.toArray()).toEqual([1, 1, 1]);
+    }
+  });
+
+  it("flies and grows with motion on", () => {
+    const r = rig(false);
+    r.eat.bite("busy-sign");
+    expect(r.meal.states("busy-sign")).toContain("flying");
+  });
+});
+
+describe("the polite line (FR-010)", () => {
+  it("is asked once for a piece's first bite of the visit, and once for another piece's", () => {
+    const r = rig(true);
+    r.eat.bite("busy-sign");
+    r.eat.bite("busy-sign");
+    r.clock.t += 5000;
+    r.eat.frame();
+    r.eat.bite("busy-sign");
+    expect(r.said.mock.calls).toEqual([["busy-sign"]]);
+    r.eat.bite("chalkboard");
+    expect(r.said.mock.calls).toEqual([["busy-sign"], ["chalkboard"]]);
+  });
+
+  async function dinosaurVisit(): Promise<Visit> {
+    const v = start({ webgl: true });
+    await enter(v, "engineer", "dinosaur");
+    await throughLoader(v);
+    v.clock.advance(5000);
+    button(v.doc, "Keep it for later").click();
+    await flush();
+    return v;
+  }
+
+  it("is said by the room in its live region, eat.first_bite with the piece's label", async () => {
+    const v = await dinosaurVisit();
+    const eating = v.scene.created.at(-1)?.eating;
+    expect(eating?.said).toBeDefined();
+    const label = repositoryBundle().index.flat.labels.find((l) => l.placement === "laptop")?.label as string;
+    expect(label).toBeTruthy();
+    eating?.said?.("laptop");
+    await flush();
+    const region = announcer(v.doc);
+    expect(region.getAttribute("aria-live")).toBe("polite");
+    expect(region.textContent).toBe((WORDS["eat.first_bite"] as string).replace("{name}", label));
+  });
+});
