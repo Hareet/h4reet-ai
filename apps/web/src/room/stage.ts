@@ -128,10 +128,11 @@ export interface SceneOptions {
   /** Spec 014 (FR-064): the walking view's hold at entry, `hold`, and its hand-over, `follow` with its cause (a turn,
    *  a tilt, a zoom, or the edge), for a drafts build's frame log. Absent, nothing is reported. */
   walkHeld?(state: "hold" | "follow", cause: "turn" | "tilt" | "zoom" | "edge" | null): void;
-  /** Spec 024 (FR-001, FR-009, FR-010, FR-012): the dinosaur's eating's link to the room. `state`, read each frame: the
-   *  room paused (or its page hidden) and the loader showing. `available`, told on each change: whether the "Eat" tile
-   *  shows. `said`, a piece's first bite of the visit, for the polite line, with its placement's label word's key. Absent, nothing pauses or holds the eating
-   *  but the stage's own state, and nothing is told. */
+  /** Spec 024 (FR-001, FR-009, FR-010, FR-012): the dinosaur's eating's link to the room. `state`, read each frame and
+   *  at each `eat.sync()` (Stage3D's `eat`, above): the room paused (or its page hidden) and the loader showing.
+   *  `available`, told on each change: whether the "Eat" tile shows. `said`, a piece's first bite of the visit, for the
+   *  polite line, with its placement's label word's key. Absent, nothing pauses or holds the eating but the stage's own
+   *  state, and nothing is told. */
   eating?: {
     state(): { readonly paused: boolean; readonly loading: boolean };
     available?(on: boolean): void;
