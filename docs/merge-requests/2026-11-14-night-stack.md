@@ -351,3 +351,96 @@ None: $0; no request, no byte leaves the device, no disclosure entry; no model c
 - No human-only patch (`docs/merge-requests/human-patches/019.md` says so).
 - Open for others: T020 (rv-rework-019 reviewed the rework, not blocking; the supervisor ticks it), T011 (the supervisor ticks it with review-019's verdict), T012 (the stack's one `make check`); verify-019 merges this branch into the line.
 - Interruptions: one permission prompt denied in this session (a `cd` then `sed -n` over the Makefile, to read its test target); read it with `grep` instead. One bash-gate refusal: `rm -rf /tmp/scratch019` ("recursive delete outside workspace"), the rework's scratch scripts and build logs; not retried, the directory is left in place. fix-019: none.
+
+### Verification (rule 7, verify-019)
+
+Branch `night/verify2-019/verify2-019` (it replaces verify-019, which ran under the stricter reading), from fix-019's tip a9ecd26c, by a different worker (Opus 5.5) from item 2's implementers. Read under Q165 (answered: recommended): a failure that only a pending test-amendment patch for the Author's hand fixes, shown passing with that patch on a copy of the line's tree, is carried, not fixed and not skipped.
+
+#### The merge
+
+Before it, item 1's "Verification (rule 7, verify-018)" at 8831ef33 was read: its last line is "not green" only for D-V2's six; its one other failure (scan's FR-007) it fixed (D-V3). So the merge went ahead.
+
+`git merge refs/heads/night/verify-018/verify-018` (8831ef33), merge commit 657945af. Resolutions:
+- **This note** conflicted (both branches appended after item 1's "For the Author"). Kept item 1 whole as verify-018 has it (its corrections, "Rule 6's rework", "Verification (rule 7, verify-018)"), then item 2 whole as fix-019 has it, in item order. Checked by diff: item 1's part equals verify-018's file line for line, item 2's equals fix-019's.
+- **`apps/web/src/room/app.ts`** auto-merged with no conflict: spec 019 adds one line, the `gait` kind's frame-log entry in the signal handler; spec 018's rework changes other hunks. No resolution by hand.
+- No other conflict; no code conflict to settle by the specs' words.
+
+#### Runs at the merged tip (657945af)
+
+Item 2's test files (every test file it added or changed: the gait set, fix-019's two new files, and `avatar-driver`, which the first build changed):
+
+```
+cd apps/web && npx vitest run test/room/gait.test.ts test/room/gait-rig.test.ts test/room/gait-alloc.test.ts
+  test/room/avatar-gait.test.ts test/room/avatar-gait-lift.test.ts test/room/gait-frame-path.test.ts test/room/avatar-driver.test.ts
+ Test Files  7 passed (7)
+      Tests  70 passed (70)
+```
+
+Spec 018's split HUD and spec 019's gait both working in the merged tree: item 1's own set, as verify-018 ran it, with `test/ui/walking.test.ts`. H-8's place of the walking control (the band's foot, at its right, in the split layout) is pinned by `hud.test.ts` (verify-018's applied amendment) and `hud-split-geometry.test.ts`:
+
+```
+cd apps/web && npx vitest run test/room/frame.test.ts test/room/hud-frame.test.ts test/room/hud-split-geometry.test.ts
+  test/room/hud-stats.test.ts test/room/hud.test.ts test/room/vocabulary.test.ts test/ui/hud-look.test.ts
+  test/ui/hud-split-a11y.test.ts test/ui/hud-split-contrast.test.ts test/ui/hud-split-fallback.test.ts
+  test/ui/hud-split-model.test.ts test/ui/hud-split-rest-row.test.ts test/ui/hud-split.test.ts
+  test/ui/loading-style.test.ts test/room/protect.test.ts test/room/emblem-data.test.ts test/room/scan.test.ts
+  test/ui/walking.test.ts
+ Test Files  18 passed (18)
+      Tests  194 passed (194)
+```
+
+All of `apps/web` (the first attempt was stopped at the session's 10-minute background limit before it ended; the second ran to the end, 2790 s):
+
+```
+cd apps/web && npx vitest run
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ Test Files  3 failed | 179 passed (182)
+      Tests  6 failed | 3672 passed | 1 skipped (3679)
+```
+
+Those six are exactly D-V2's, the same as verify-018's full run. `test/room/data-only.test.ts` and `test/room/twin-2d.test.ts` passed in the full run.
+
+`evals/test_disclosure.py` on the line (item 2 changed no Python folder; run to show the carried case):
+
+```
+pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+FAILED evals/test_disclosure.py::test_the_rooms_rows_are_in_its_own_section_with_the_specs_words
+1 failed, 79 passed in 1.14s
+```
+
+**Carried (Q165), confirmed on a copy.** `git archive HEAD` (657945af) into a fresh `/tmp` folder, `git apply docs/merge-requests/proposed/018-verify-test-amendments.patch` there (`--check` clean; 4 files), the worktree's `node_modules` linked in. Never applied on the line; no test file edited.
+
+```
+cd <copy>/apps/web && npx vitest run test/disclosure.test.ts test/room/legibility.test.ts test/room/report.test.ts
+ Test Files  3 passed (3)
+      Tests  56 passed (56)
+cd <copy> && pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+80 passed in 1.06s
+```
+
+`make lint`: exit 0 (shellcheck's file list left out):
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+763 files already formatted
+```
+
+#### Fixed
+
+Nothing: no failure outside D-V2's six, so no code, test, or plan changed. The setup target was run first (no `node_modules`).
+
+Interruptions: none refused by a hook or the bash gate. One shell `until` loop that waited on the log asked for approval in the monitor tool and was run as a background command instead; it hit its own time limit, and the run's completion notice was used.
+
+verify-019: green, carrying D-V2's six (Q165)
