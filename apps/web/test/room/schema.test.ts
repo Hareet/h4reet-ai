@@ -1243,6 +1243,10 @@ describe("RI8 over the twin block (spec 016, T009)", () => {
     expect(ri8({ clips: { resting: "dance" } })).toEqual([`RI8 ${FILES.scene}:figures.twin.clips.resting`]);
   });
 
+  it("refuses fleeing as a key: a state the run sets, whose clip is the idle (spec 025, FR-011)", () => {
+    expect(ri8({ clips: { fleeing: "idle" } })).toEqual([`RI8 ${FILES.scene}:figures.twin.clips.fleeing`]);
+  });
+
   it("refuses a lean against a placement that isn't the desk's, or none", () => {
     expect(ri8({ lean: { against: "fx-board" } })).toEqual([`RI8 ${FILES.scene}:figures.twin.lean.against`]);
     expect(ri8({ lean: { against: "fx-nowhere" } })).toEqual([`RI8 ${FILES.scene}:figures.twin.lean.against`]);

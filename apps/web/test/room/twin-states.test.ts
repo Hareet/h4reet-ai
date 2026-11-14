@@ -6,7 +6,7 @@
 // - resting after 20 s of quiet, within 50 ms; left on a draft, a turn, a selection, or an answer.
 import { describe, expect, it } from "vitest";
 
-import { createTwinStates } from "../../src/room/scene/twin-states";
+import { TWIN_CLIPS_DEFAULT, TWIN_CLIP_ROLES, TWIN_STATES, createTwinStates } from "../../src/room/scene/twin-states";
 import type { TwinState } from "../../src/room/scene/twin-states";
 
 const BLOCK = { rest_after_s: 20, speak_wpm: 150, speak_s: [3, 20] as [number, number] };
@@ -129,5 +129,45 @@ describe("the twin's states (FR-021; SC-004)", () => {
     expect(t.tick(5 * S + 50)).toBe("present");
     expect(t.tick(15 * S + 50)).toBe("resting");
     expect(t.state).toBe("resting");
+  });
+});
+
+// T003 (spec 025; FR-011, FR-012; plan.md R-04): `fleeing`, first in the order, set by `{ kind: "flee", on }`, its clip
+// the idle; the machine's timers keep running under it, so what holds after the run is what they say then.
+describe("fleeing, the run's state (spec 025, FR-011)", () => {
+  it("is first in the order and the map's default plays the idle", () => {
+    expect(TWIN_STATES[0]).toBe("fleeing");
+    expect(TWIN_CLIPS_DEFAULT.fleeing).toBe("idle");
+    expect([...TWIN_CLIP_ROLES]).toEqual(["idle", "talking", "listening", "greeting", "desk-lean"]);
+  });
+
+  it("outranks arriving, answering, listening, and resting while it's on, and ends with its signal", () => {
+    const t = createTwinStates(BLOCK);
+    t.arrive(0, 2.47);
+    t.signal({ kind: "flee", on: true }, 100);
+    expect(t.tick(100)).toBe("fleeing");
+    t.signal({ kind: "answer", words: 10 }, 200);
+    t.signal({ kind: "draft", holds: true }, 300);
+    expect(t.tick(300)).toBe("fleeing");
+    t.signal({ kind: "flee", on: false }, 1000);
+    expect(t.tick(1000)).toBe("arriving");
+  });
+
+  it("keeps the timers running: an answer during the run talks for what is left of it after", () => {
+    const t = createTwinStates(BLOCK);
+    t.signal({ kind: "flee", on: true }, 0);
+    t.signal({ kind: "answer", words: 10 }, 0);
+    expect(t.tick(2 * S)).toBe("fleeing");
+    t.signal({ kind: "flee", on: false }, 2 * S);
+    expect(t.tick(2 * S)).toBe("answering");
+    expect(t.tick(4 * S + 50)).toBe("present");
+  });
+
+  it("rests after the run where the quiet's time passed under it", () => {
+    const t = createTwinStates(BLOCK);
+    t.signal({ kind: "flee", on: true }, 0);
+    expect(t.tick(25 * S)).toBe("fleeing");
+    t.signal({ kind: "flee", on: false }, 25 * S);
+    expect(t.tick(25 * S)).toBe("resting");
   });
 });
