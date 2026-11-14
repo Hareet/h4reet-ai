@@ -1875,15 +1875,30 @@ $ cd <HEAD copy>/apps/web && npx vitest run --maxWorkers=4 test/disclosure.test.
       Tests  56 passed (56)
 ```
 
-**The corpus patch on `main`.** `git archive refs/heads/main` (3c0e4cd0) into a fresh `mktemp` folder, `patch -p1 --dry-run < docs/merge-requests/2026-11-14-corpus-film-scripts.patch` there: 104 `checking file` lines, no offset, no fuzz, no reject, exit 0. It was never applied here, and the folder was removed.
+**The corpus patch on `main`.** `git archive refs/heads/main` (3c0e4cd0) into a fresh `mktemp` folder, `patch -p1 --dry-run < docs/merge-requests/2026-11-14-corpus-film-scripts.patch` there: 104 `checking file` lines, no offset, no fuzz, no reject, exit 0. It was never applied here, and that folder was removed in the same command.
 
-LINT-PLACEHOLDER
+The lint target, from the repository's root, after this section's first draft was committed: exit 0 (shellcheck's file list left out):
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+804 files already formatted
+exit 0
+```
+
+After the lint output was pasted in, `prettier --check` on this note alone printed "All matched files use Prettier code style!".
 
 **Fixes.** None: no run failed for a cause this item or the merge introduced. No code, test, plan, `spec.md`, or file under `corpus/` changed.
 
-**The hooks.** Every commit on this branch printed gitleaks' `no leaks found` and an arrival-check line: the save point, `0 findings in 0 files`; the merge, `0 findings in 53 files`.
+**The hooks.** Every commit on this branch printed gitleaks' `no leaks found` and an arrival-check line: the save point, `0 findings in 0 files`; the merge, `0 findings in 53 files`; this section's first draft, `0 findings in 1 file`. The last commit's hook output is in its own run, after this note was written.
 
-**Interruptions.** None: no hook, bash gate, or permission refused a command in verify-022. Nothing was respelled.
+**Interruptions.** One. The bash gate refused a command that committed these notes and then ran `rm -rf` on verify-022's two `/tmp` copies (main's and HEAD's archives): "recursive delete outside workspace", route "delete only inside the repo". The whole command was refused, so the commit ran again on its own. The two copies were left in `/tmp`, where the container's restart clears them. Nothing was respelled.
 
 The review's words for the backlog table and the CLAUDE.md line are still missing (above, and on the page). That's a documents-only gap. It isn't a failed run.
 
