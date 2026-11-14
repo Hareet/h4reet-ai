@@ -34,7 +34,8 @@ const ready = (): RoomIndex => {
 };
 
 async function room(): Promise<Visit> {
-  const viewport = stubViewport({ w: 1280, h: 720 });
+  // T024 (plan.md §13): a window the split layout takes by FR-001's rule.
+  const viewport = stubViewport({ w: 1920, h: 1080 });
   const v = start({ room: ready(), sendTurn: () => undefined, viewport: viewport.factory });
   await enter(v, "engineer");
   await throughLoader(v);
@@ -98,10 +99,15 @@ describe("motion, zoom, and spacing (FR-017, FR-018)", () => {
   });
   it("sizes in rem, so 200% text takes twice the window, and falls back to today's layouts where the half is too small", () => {
     expect(css).not.toMatch(/font-size:\s*[\d.]+px/);
-    const t = HUD_PLACEMENTS.split;
-    // At 16px per rem a 200% zoom halves the window in rem: 1280 × 720 at 200% is 640 × 360 CSS pixels, under 48rem.
-    expect(splitBoxes({ w: 640, h: 360 })).toBeNull();
-    expect(t.minWidthRem).toBe(48);
+    // At 16px per rem a 200% zoom halves the window in CSS pixels: 1920 × 1080 at 200% is 960 × 540, where FR-001's
+    // rule takes no split, so today's column layout reflows it.
+    expect(splitBoxes({ w: 1920, h: 1080 })).not.toBeNull();
+    expect(splitBoxes({ w: 960, h: 540 })).toBeNull();
+    // The table is in rem, so a 32-pixel root at 1920 × 1080 is the same as 960 × 540 at 16.
+    expect(
+      splitBoxes({ w: 1920, h: 1080 }, undefined, { rem: 32, safe: { top: 0, right: 0, bottom: 0, left: 0 } }),
+    ).toBeNull();
+    expect(HUD_PLACEMENTS.split.panel.titleRem).toBeGreaterThan(0);
   });
   it("lets the text spacing grow without a fixed height on any text: the rows' heights are minimums or table values", () => {
     expect(css).not.toMatch(/\.split-stat[^{]*\{[^}]*(?<![-\w])height:/);
