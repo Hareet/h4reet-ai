@@ -1006,3 +1006,26 @@ def test_the_real_proposal_leaves_the_road_out_line_out() -> None:
         "“and only the gateway has a road out.” → contradicted by the repository: `deploy/compose.yaml`"
         in s15.left
     )
+
+
+def test_the_real_proposal_leaves_no_route_out_for_every_container_out() -> None:
+    # rv-impl-022's I-1 and page Q192, answered with its recommendation: `deploy/compose.yaml` puts `gateway` on
+    # `egress`, so §5 line 12's "on a network with no route out" is left out as contradicted by the repository, and the
+    # line carries "Every container runs with no new privileges" and "Only the edge listens".
+    text = "\n".join(fc.blocks(PROPOSAL.read_text())["corpus-08"])
+    for line in text.splitlines():
+        if "every container" in line.lower():
+            assert "route out" not in line.lower(), line
+    stack = fc.new_text_items([text])["The stack, container by container"]
+    assert "Every container runs with no new privileges" in stack[12]
+    assert "only the edge listens" in stack[12]
+    rows, _ = fc.read_table(PROPOSAL.read_text())
+    row = next(r for r in rows if (r.script, r.line) == ("§5", "12"))
+    assert row.status == "in part"
+    assert "“Every container runs with no new privileges,”" in row.carried
+    assert "“Only the edge listens,”" in row.carried
+    assert (
+        "“on a network with no route out.” → contradicted by the repository: `deploy/compose.yaml`"
+        in row.left
+    )
+    assert "“and only the gateway leaves.” → contradicted by the repository" in row.left
