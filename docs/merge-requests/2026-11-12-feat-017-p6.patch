@@ -1,0 +1,223 @@
+P-6 (spec 017, the night shift; plan.md §10; research.md R-06; tasks.md T063): infra/account/iam.tf gains
+h4-agent-plan, the plan-only role a night-shift plan runs as.
+
+What it adds (FR-032):
+  - local.plan_permission_set = "<ADMIN_PERMISSION_SET>", in iam.tf's locals beside laptop_permission_set. The
+    repository doesn't hold your administrator permission set's name (spec 001's plan.md notes the same, for the
+    state bucket's administrator-only clause), so write it there before you apply: IAM Identity Center, Multi-account
+    permissions, Permission sets, the one your h4reet-admin profile signs in with. Until you do, the role's
+    precondition refuses the account root's plan, and its message says where to find the name. A wrong name admits no
+    one; it can't lock you out of anything.
+  - its trust: only that set's role, AWSReservedSSO_<set>_<16 characters> under Identity Center's path (and with a
+    Region's segment), by the pattern h4-laptop-bedrock's trust uses; sts:AssumeRole; max_session_duration 3600.
+  - its permissions: AWS's ReadOnlyAccess, attached alone, and these explicit denies, so a plan reads resources'
+    settings and the state, and no data's contents:
+      - ssm:GetParameter, GetParameters, GetParametersByPath, GetParameterHistory, secretsmanager:GetSecretValue and
+        BatchGetSecretValue on "*" (IAM has no condition key for a parameter read's decryption, so the deny takes every
+        value read; Terraform here reads none, rule T9);
+      - logs:GetLogEvents, FilterLogEvents, GetLogRecord, StartQuery, GetQueryResults, StartLiveTail on "*";
+      - ce:* on every resource but arn:aws:ce::<account>:anomalymonitor/* and anomalysubscription/*, and
+        ce:GetAnomalies on "*". The carve-out is the one read the roots need: the bootstrap's aws_ce_anomaly_monitor
+        and aws_ce_anomaly_subscription refresh through ce:GetAnomalyMonitors, GetAnomalySubscriptions, and
+        ListTagsForResource on those ARNs. Unconfirmed until the first plan of the bootstrap under the role (the
+        rehearsal's R5): that AWS authorizes those reads against the resources' ARNs. A refusal names the action;
+      - s3:GetObject and GetObjectVersion on every object but arn:aws:s3:::h4reet-ai-tfstate-*/* (the state);
+    and the one grant, s3:PutObject and s3:DeleteObject on arn:aws:s3:::h4reet-ai-tfstate-*/*.tflock only. The
+    bucket's suffix is yours and isn't in the account root, so both name the bootstrap's bucket prefix. No data source
+    in either root reads a log event, a cost figure, or an object (they are aws_caller_identity, aws_iam_policy_document,
+    aws_ami, aws_sns_topic, aws_ssoadmin_instances, aws_ssoadmin_permission_set), and no resource's refresh reads an
+    object or a log event.
+  - its tags: component agent-plan, with project and environment from the provider's default_tags.
+  - the file's header comment names it.
+Your apply, then: a profile for the runner (PLAN_AWS_PROFILE) whose role_arn is h4-agent-plan and whose source is your
+SSO session; the runbook (T061) has it.
+
+Spec IDs: decision 1, FR-032, his Q4 answer taken as recommended (the plan takes the state's lock, *.tflock only),
+the Assumptions' named deviation of Principle IV (an agent's command gets cloud access through a role assumed from his
+SSO identity; ADR 0052).
+
+Needed for: plan on. Not for the merge: until you apply it, the branch's tests read iam.tf from this patch.
+
+How to apply, on your own branch, from the repository's root (one line each):
+  B=feat/017-g5-patches
+  F=docs/merge-requests/2026-11-12-feat-017-p6.patch
+  git show "refs/heads/$B:$F" > /tmp/p6.patch
+  sha256sum /tmp/p6.patch
+  patch -p1 --dry-run < /tmp/p6.patch
+  patch -p1 < /tmp/p6.patch
+Then write the set's name in infra/account/iam.tf, plan the account root as you do today, and apply.
+
+Verified on a fresh `git archive refs/heads/main` export (main 9d35ac9b; rebuilt after W1 merged): dry run and apply
+clean; `tools/gates/infra_policy.py`: "infra-policy: PASS, 32 files"; `terraform fmt -check` on iam.tf: clean. In the
+branch's worktree, where infra/test/test_account.py reads iam.tf through this patch: 101 passed. On the patched export,
+`pytest infra/test/` fails (138 failed, 222 passed), and not because of this role: spec 001's infra/test/patches.py
+checks that W1's applied patches (P-I6 here) still match iam.tf at their exact line numbers, so any lines added above
+P-I6's hunks make it StalePatch. That check needs offsets, or to stop reading applied patches, before this patch goes
+on main (the note says so). Not run here: terraform validate and plan, which need your provider mirror and your session.
+--- a/infra/account/iam.tf
++++ b/infra/account/iam.tf
+@@ -1,9 +1,10 @@
+ # The account's identities (spec 001 FR-012, FR-013, FR-023; research.md R-15; contracts/aws-alerts.md §4): the
+ # laptop's Bedrock permission set, imported from spec 000's hand-made one and narrowed; h4-laptop-bedrock, the ordinary
+ # role it assumes, which holds Bedrock and takes the model action's deny; h4-rehearsal-target, a role of the same shape
+-# for the rehearsal; the three functions' roles; and, from group 9 (P-I6), the handover's: the start function's and the
+-# guard's roles, the hours' schedules' role, and the Author's stop of EC2. Protected (FR-012; rule T5): it changes only
+-# by the Author's patch. Nothing here changes at run time (FR-070).
++# for the rehearsal; h4-agent-plan, the night shift's plan-only role (spec 017 FR-032); the three functions' roles;
++# and, from group 9 (P-I6), the handover's: the start function's and the guard's roles, the hours' schedules' role, and
++# the Author's stop of EC2. Protected (FR-012; rule T5): it changes only by the Author's patch. Nothing here changes at
++# run time (FR-070).
+ 
+ # ----------------------------------------------------------------------------------------------------------------------
+ # The laptop's Bedrock permission set (row F2): imported, then holding nothing but sts:AssumeRole on h4-laptop-bedrock.
+@@ -18,6 +19,12 @@
+   # (T038's review, I4). The Author read it from IAM Identity Center on 2026-11-11 (the merge-request note, For the
+   # Author, 2), and the session put it in this patch.
+   laptop_permission_set = "h4reet-ai-cloud"
++
++  # The name of the Author's administrator permission set, the one his h4reet-admin profile signs in with, whose role
++  # alone may assume h4-agent-plan (spec 017 FR-032). The repository doesn't hold it, so the Author writes it here, from
++  # IAM Identity Center's Permission sets, before he applies; until he does, h4-agent-plan's precondition refuses the
++  # plan, naming this local.
++  plan_permission_set = "<ADMIN_PERMISSION_SET>"
+ }
+ 
+ data "aws_ssoadmin_instances" "this" {}
+@@ -184,6 +191,137 @@
+ }
+ 
+ # ----------------------------------------------------------------------------------------------------------------------
++# h4-agent-plan, the night shift's plan-only role (spec 017 FR-032; its research.md R-06; ADR 0052): the runner, outside
++# every container, assumes it from the Author's live SSO session with `aws configure export-credentials`, for one plan,
++# and the plan's container holds those credentials for that run alone. AWS's ReadOnlyAccess, minus any parameter's or
++# secret's value: IAM has no condition key for a parameter read's decryption, so every ssm:GetParameter* read is denied,
++# and Terraform here reads none (rule T9). Plus the state's lock files, so an agent's plan takes the lock as his apply
++# does and never races it. Only his administrator permission set's role may assume it, by the pattern
++# h4-laptop-bedrock's trust uses, for at most an hour. Its apply is his.
++
++data "aws_iam_policy_document" "agent_plan_trust" {
++  statement {
++    sid     = "TheAuthorsAdministratorRoleOnly"
++    effect  = "Allow"
++    actions = ["sts:AssumeRole"]
++
++    principals {
++      type        = "AWS"
++      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
++    }
++
++    condition {
++      test     = "ArnLike"
++      variable = "aws:PrincipalArn"
++      values = [
++        "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_${local.plan_permission_set}_????????????????",
++        "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_${local.plan_permission_set}_????????????????",
++      ]
++    }
++  }
++}
++
++# A plan reads resources' settings and the state, and no data's contents, so ReadOnlyAccess's content reads are denied:
++# log events (and Logs Insights' queries), Cost Explorer's figures, and every object but the state's. The roots' data
++# sources read none of these; their refresh reads Cost Explorer's anomaly monitor and subscription (the bootstrap's),
++# so ce:* is denied on every resource but those two, and ce:GetAnomalies, which takes a monitor, on its own. The
++# carve-out assumes AWS authorizes those reads against the monitor's and the subscription's ARNs; the first plan of the
++# bootstrap under the role (the rehearsal's R5) says, and a refusal names the action.
++# The bootstrap's state bucket is h4reet-ai-tfstate-<suffix>, and the suffix is the Author's, never in this root (its
++# variable is denied to agent sessions), so the state and its lock files are named by the bucket's prefix: S3's lock
++# file for each root's state is <key>.tflock.
++data "aws_iam_policy_document" "agent_plan" {
++  statement {
++    sid    = "NoParameterOrSecretValue"
++    effect = "Deny"
++    actions = [
++      "ssm:GetParameter",
++      "ssm:GetParameters",
++      "ssm:GetParametersByPath",
++      "ssm:GetParameterHistory",
++      "secretsmanager:GetSecretValue",
++      "secretsmanager:BatchGetSecretValue",
++    ]
++    resources = ["*"]
++  }
++
++  statement {
++    sid    = "NoLogEvents"
++    effect = "Deny"
++    actions = [
++      "logs:GetLogEvents",
++      "logs:FilterLogEvents",
++      "logs:GetLogRecord",
++      "logs:StartQuery",
++      "logs:GetQueryResults",
++      "logs:StartLiveTail",
++    ]
++    resources = ["*"]
++  }
++
++  statement {
++    sid     = "NoCostFiguresButTheAnomalyResources"
++    effect  = "Deny"
++    actions = ["ce:*"]
++    not_resources = [
++      "arn:aws:ce::${data.aws_caller_identity.current.account_id}:anomalymonitor/*",
++      "arn:aws:ce::${data.aws_caller_identity.current.account_id}:anomalysubscription/*",
++    ]
++  }
++
++  statement {
++    sid       = "NoAnomalyFigures"
++    effect    = "Deny"
++    actions   = ["ce:GetAnomalies"]
++    resources = ["*"]
++  }
++
++  statement {
++    sid           = "NoObjectButTheState"
++    effect        = "Deny"
++    actions       = ["s3:GetObject", "s3:GetObjectVersion"]
++    not_resources = ["arn:aws:s3:::h4reet-ai-tfstate-*/*"]
++  }
++
++  statement {
++    sid       = "TheStatesLockFiles"
++    effect    = "Allow"
++    actions   = ["s3:PutObject", "s3:DeleteObject"]
++    resources = ["arn:aws:s3:::h4reet-ai-tfstate-*/*.tflock"]
++  }
++}
++
++resource "aws_iam_role" "agent_plan" {
++  name                 = "h4-agent-plan"
++  path                 = "/"
++  description          = "The night shift's plans: read-only, and the state's lock files (spec 017 FR-032)"
++  assume_role_policy   = data.aws_iam_policy_document.agent_plan_trust.json
++  max_session_duration = 3600
++
++  tags = {
++    component = "agent-plan"
++  }
++
++  lifecycle {
++    precondition {
++      condition     = can(regex("^[A-Za-z0-9+=,.@_-]{1,32}$", local.plan_permission_set))
++      error_message = "local.plan_permission_set: write the name of the Author's administrator permission set, the one his h4reet-admin profile signs in with, in infra/account/iam.tf. IAM Identity Center lists it under Multi-account permissions, Permission sets (spec 017 P-6)."
++    }
++  }
++}
++
++resource "aws_iam_role_policy_attachment" "agent_plan_read_only" {
++  role       = aws_iam_role.agent_plan.name
++  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
++}
++
++resource "aws_iam_role_policy" "agent_plan" {
++  name   = "no-values-and-the-state-locks"
++  role   = aws_iam_role.agent_plan.id
++  policy = data.aws_iam_policy_document.agent_plan.json
++}
++
++# ----------------------------------------------------------------------------------------------------------------------
+ # The functions' roles: each writes its own log group, and holds what its function needs, no more.
+ 
+ data "aws_iam_policy_document" "lambda_trust" {

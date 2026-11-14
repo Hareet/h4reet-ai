@@ -12,8 +12,10 @@
 Standard library plus PyYAML.
 
 `status` runs everywhere and starts nothing. It checks the cases, thresholds.yaml, and every history entry as data,
-then computes the trigger hash: SHA-256 over CLAUDE.md, REVIEW.md, .claude/**, and evals/agent-config/** (without
-history/, so committing an entry doesn't change the hash it records), the files git lists there, tracked or new
+then computes the trigger hash: SHA-256 over CLAUDE.md, REVIEW.md, .claude/**, the night shift's settings layers,
+prompts, and image pins (deploy/night-shift/claude/**, deploy/night-shift/runner/prompts/**, and
+deploy/night-shift/images/pins.json, spec 017 Q13), and evals/agent-config/**
+(without history/, so committing an entry doesn't change the hash it records), the files git lists there, tracked or new
 but not ignored (every file there, in a git archive export), with their executable bits, plus the Claude Code pin
 in .devcontainer/toolchain.vars, a floor (ADR 0023). The gate calls status(export=True) on its export, which walks the tree and never
 runs git, even where the tree holds a .git folder or file, whose config could name programs git runs. An entry
@@ -125,7 +127,18 @@ import yaml
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
-TRIGGER_PATHS = ("CLAUDE.md", "REVIEW.md", ".claude", "evals/agent-config")
+# The night shift's settings layers, prompts, and image pins (the Claude Code its sessions run) are agent configuration
+# outside .claude/ (spec 017, Q13; its P-10): the gate's step is triggered by them, and the hash covers them, so a run
+# for the hash before they changed doesn't count.
+TRIGGER_PATHS = (
+    "CLAUDE.md",
+    "REVIEW.md",
+    ".claude",
+    "deploy/night-shift/claude",
+    "deploy/night-shift/runner/prompts",
+    "deploy/night-shift/images/pins.json",
+    "evals/agent-config",
+)
 PIN_FILE = ".devcontainer/toolchain.vars"
 PIN_KEY = "CLAUDE_CODE_VERSION"
 COMMAND = "make evals-agent-config"

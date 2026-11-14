@@ -1,0 +1,62 @@
+{
+  "role": "studio",
+  "parent": "ceiling",
+  "image": "h4-night-studio:{{IMAGE_TAG}}",
+  "user": "{{UID}}:{{GID}}",
+  "mounts": [
+    {
+      "host": "/srv/studio/briefs",
+      "container": "/srv/studio/briefs",
+      "mode": "ro"
+    },
+    {
+      "host": "/srv/studio/handoff",
+      "container": "/srv/studio/handoff",
+      "mode": "rw"
+    },
+    {
+      "host": "/srv/studio/outputs",
+      "container": "/srv/studio/outputs",
+      "mode": "rw"
+    },
+    {
+      "host": "/srv/studio/workflows",
+      "container": "/srv/studio/workflows",
+      "mode": "ro"
+    }
+  ],
+  "networks": ["h4-night-studio"],
+  "env": {
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "CLAUDE_CONFIG_DIR": "/night/claude",
+    "COMFYUI_URL": "http://h4-night-comfyui:{{COMFYUI_PORT}}",
+    "DISABLE_AUTOUPDATER": "1",
+    "DISABLE_ERROR_REPORTING": "1",
+    "DISABLE_TELEMETRY": "1",
+    "HOME": "/night/home",
+    "HTTPS_PROXY": "http://egress-studio:3128",
+    "NO_PROXY": "h4-night-comfyui,localhost,127.0.0.1",
+    "NPM_CONFIG_CACHE": "/tmp/npm-cache",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "SANDBOX_RUNTIME": "1",
+    "TMPDIR": "/tmp",
+    "UV_CACHE_DIR": "/tmp/uv-cache",
+    "XDG_CACHE_HOME": "/tmp/cache"
+  },
+  "env_file": "{{HOME}}/.config/h4reet-ai/night-shift/claude.env",
+  "cap_drop": ["ALL"],
+  "security_opt": ["no-new-privileges"],
+  "read_only": false,
+  "tmpfs": ["/tmp:rw,exec,nosuid,size=4g", "/night/home:rw,exec,nosuid,size=1g"],
+  "limits": {
+    "memory": "8g",
+    "cpus": "4",
+    "pids": 1024
+  },
+  "gpus": "all",
+  "requests": ["comfyui"],
+  "x-h4": {
+    "example": true,
+    "task": "none"
+  }
+}

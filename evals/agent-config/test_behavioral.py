@@ -795,6 +795,32 @@ def test_a_new_file_in_a_trigger_path_is_in_the_hash_before_its_commit(
     assert bh.trigger_hash(repo) != before
 
 
+def test_the_night_shifts_settings_layers_prompts_and_pins_are_in_the_hash(
+    repo: Path, tmp_path: Path
+) -> None:
+    # Spec 017's P-10 (Q13): its agent configuration outside .claude/; its runner, specs, and Dockerfiles aren't.
+    before = bh.trigger_hash(repo)
+    write(repo / "deploy" / "night-shift" / "runner" / "night.py", "# the runner\n")
+    write(repo / "deploy" / "night-shift" / "containers" / "ops.json", "{}\n")
+    write(repo / "deploy" / "night-shift" / "images" / "worker.Dockerfile", "FROM x\n")
+    assert bh.trigger_hash(repo) == before
+    write(repo / "deploy" / "night-shift" / "runner" / "prompts" / "ops.md", "# ops\n")
+    with_prompt = bh.trigger_hash(repo)
+    assert with_prompt != before
+    write(repo / "deploy" / "night-shift" / "claude" / "ops.settings.json", "{}\n")
+    with_layer = bh.trigger_hash(repo)
+    assert with_layer != with_prompt
+    pins = repo / "deploy" / "night-shift" / "images" / "pins.json"
+    write(pins, '{"claude_code": "2.1.322"}\n')
+    with_pins = bh.trigger_hash(repo)
+    assert with_pins != with_layer
+    write(pins, '{"claude_code": "2.1.330"}\n')
+    assert bh.trigger_hash(repo) != with_pins
+    export = tmp_path / "export"
+    shutil.copytree(repo, export, ignore=shutil.ignore_patterns(".git"))
+    assert bh.trigger_hash(export, export=True) == bh.trigger_hash(repo)
+
+
 def test_the_executable_bit_is_in_the_hash(repo: Path) -> None:
     before = bh.trigger_hash(repo)
     (repo / ".claude" / "hooks" / "bash-gate.sh").chmod(0o644)

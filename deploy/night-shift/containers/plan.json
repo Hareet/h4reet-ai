@@ -1,0 +1,57 @@
+{
+  "role": "plan",
+  "parent": "runner",
+  "image": "h4-night-worker:{{IMAGE_TAG}}",
+  "user": "{{UID}}:{{GID}}",
+  "mounts": [
+    {
+      "host": "{{HOME}}/.config/h4reet-ai/infra",
+      "container": "{{HOME}}/.config/h4reet-ai/infra",
+      "mode": "ro"
+    },
+    {
+      "host": "{{HOME}}/.config/h4reet-ai/infra/data",
+      "container": "{{HOME}}/.config/h4reet-ai/infra/data",
+      "mode": "rw"
+    },
+    {
+      "host": "{{HOME}}/.config/h4reet-ai/infra/plans",
+      "container": "{{HOME}}/.config/h4reet-ai/infra/plans",
+      "mode": "rw"
+    },
+    {
+      "host": "{{HOME}}/.config/h4reet-ai/infra/state",
+      "container": "{{HOME}}/.config/h4reet-ai/infra/state",
+      "mode": "rw"
+    },
+    {
+      "host": "{{HOME}}/.local/share/h4reet/terraform-providers",
+      "container": "{{HOME}}/.local/share/h4reet/terraform-providers",
+      "mode": "ro"
+    }
+  ],
+  "networks": ["h4-night-plan"],
+  "env": {
+    "CHECKPOINT_DISABLE": "1",
+    "HOME": "{{HOME}}",
+    "HTTPS_PROXY": "http://egress-plan:3128",
+    "NO_PROXY": "localhost,127.0.0.1",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "TMPDIR": "/tmp"
+  },
+  "env_file": null,
+  "cap_drop": ["ALL"],
+  "security_opt": ["no-new-privileges"],
+  "read_only": true,
+  "tmpfs": ["/tmp:rw,nosuid,size=1g"],
+  "limits": {
+    "memory": "4g",
+    "cpus": "2",
+    "pids": 512
+  },
+  "requests": [],
+  "x-h4": {
+    "example": true,
+    "task": "plan"
+  }
+}

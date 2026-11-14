@@ -1,0 +1,25 @@
+{
+  "sandbox": {
+    "network": {
+      "allowedDomains": [
+        "*.s3.amazonaws.com",
+        "*.s3.us-east-1.amazonaws.com",
+        "api.ecr.us-east-1.amazonaws.com",
+        "budgets.amazonaws.com",
+        "ce.us-east-1.amazonaws.com",
+        "ec2.us-east-1.amazonaws.com",
+        "events.us-east-1.amazonaws.com",
+        "iam.amazonaws.com",
+        "lambda.us-east-1.amazonaws.com",
+        "logs.us-east-1.amazonaws.com",
+        "s3.amazonaws.com",
+        "s3.us-east-1.amazonaws.com",
+        "sns.us-east-1.amazonaws.com",
+        "sqs.us-east-1.amazonaws.com",
+        "sso.us-east-1.amazonaws.com",
+        "sts.amazonaws.com",
+        "sts.us-east-1.amazonaws.com"
+      ]
+    }
+  }
+}
