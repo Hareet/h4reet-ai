@@ -812,6 +812,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       turnOut: () => talk?.turnOut() ?? false,
       walking: () => walker(stage)?.walk.walking === true,
       resumeOpen: () => resumeOpen,
+      // The emblem the room's data names for the piece (D-V3; FR-005), the speech glyph where it names none.
+      emblem: (id) => deps.room.selectables.find((s) => s.id === id)?.emblem,
     });
     // Spec 005 (FR-034; plan.md §7): a press on the scene while walking gives the walking view focus, so walking's keys
     // go there and not to a panel the visitor typed in.

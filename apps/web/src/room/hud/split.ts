@@ -39,8 +39,9 @@ export interface SplitDraw {
   readonly keycap: (doc: Document, name: string) => HTMLElement;
   /** The portrait's plain form for a speaker, shown until its still arrives, and where it doesn't. */
   readonly portrait: (doc: Document, speaker: string) => HTMLElement;
-  /** The emblem for the open conversation's piece, or for free talk (null): hud/icons.ts's (FR-005, Q60). */
-  readonly emblem: (doc: Document, piece: string | null) => Element;
+  /** The emblem by its name, the open conversation's piece's as the room's data gives it, or none (null) for free talk
+   *  and a piece without one: hud/icons.ts's (FR-005, Q60; D-V3). */
+  readonly emblem: (doc: Document, name: string | null) => Element;
 }
 
 export interface SplitOptions {
@@ -60,6 +61,9 @@ export interface SplitOptions {
   /** Who speaks in the conversation, whose portrait stands at the frame's edge: "twin" where absent. A seam for item d
    *  (the dog), which adds a speaker without a change here. */
   readonly speaker?: () => string;
+  /** A piece's emblem name, the selectable's `emblem` in the room's data (D-V3; spec 002's FR-007 keeps the IDs out of
+   *  the code); absent, or none for the piece, the speech glyph. */
+  readonly emblem?: (piece: string) => string | undefined;
   readonly draw?: Partial<SplitDraw>;
   /** The panel closed, by any means: the room's larger view ends with it. */
   readonly onClose?: () => void;
@@ -101,8 +105,8 @@ const DEFAULT_DRAW: SplitDraw = {
       svg(doc, "circle", { cx: 50, cy: 38, r: 22 }),
       svg(doc, "path", { d: "M10 160 C10 105 30 84 50 84 C70 84 90 105 90 160 Z" }),
     ) as unknown as HTMLElement,
-  emblem: (doc, piece) => {
-    const { name, d } = emblemIcon(piece);
+  emblem: (doc, named) => {
+    const { name, d } = emblemIcon(named);
     return svg(
       doc,
       "svg",
@@ -155,6 +159,8 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
   };
 
   const selected = (): string | null => target ?? hover ?? conversation;
+  /** The open conversation's emblem name, from the room's data; null in free talk. */
+  const emblemName = (): string | null => (conversation === null ? null : (options.emblem?.(conversation) ?? null));
 
   const clearStrokes = (): void => {
     for (const el of list.querySelectorAll(".split-stroke, .split-confirm")) el.remove();
@@ -249,7 +255,7 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
     // The emblem, the open piece's icon or the speech glyph (Q60), and beside it the three stats: a small label over a
     // large value. An emblem that can't be drawn is none (FR-002).
     attempt(() => {
-      const emblem = attempt(() => draw.emblem(doc, conversation));
+      const emblem = attempt(() => draw.emblem(doc, emblemName()));
       const stats = h(doc, "dl", { class: "split-stats" });
       for (const s of options.stats())
         stats.append(
@@ -433,7 +439,7 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
       // An open panel's emblem follows the conversation; one that can't be drawn is none (FR-002).
       const top = talk.querySelector(".split-top");
       if (open && top) {
-        const fresh = attempt(() => draw.emblem(doc, conversation));
+        const fresh = attempt(() => draw.emblem(doc, emblemName()));
         const old = top.querySelector(".split-emblem");
         if (fresh) {
           if (old) old.replaceWith(fresh);
