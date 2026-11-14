@@ -558,10 +558,11 @@ def read_context(root: Path) -> Context:
 
 # The corpus's claim tags and nothing else (rv-impl-022's I-2): [P], [?], [A], [A YYYY-MM-DD], runs of them such as
 # [?][A], and a new slot's display form [slot `id`]; any other bracketed span is prose, and its numbers count.
-_CLAIM_TAG = re.compile(
-    r"`?(?:\[(?:P|\?|A(?: \d{4}-\d{2}-\d{2})?|slot `[a-z0-9_.-]+`)\])+`?"
-)
-_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}(?:/\d{1,2})?\b")
+# A date: a month from 01 to 12 and a day from 01 to 31, its `/NN` a day too (rv-rework4-022's N-1).
+_DAY = r"(?:0[1-9]|[12]\d|3[01])"
+_ISO = rf"\d{{4}}-(?:0[1-9]|1[0-2])-{_DAY}"
+_CLAIM_TAG = re.compile(rf"`?(?:\[(?:P|\?|A(?: {_ISO})?|slot `[a-z0-9_.-]+`)\])+`?")
+_DATE = re.compile(rf"\b{_ISO}(?:/{_DAY})?\b")
 _LIST_NUMBER = re.compile(r"^\s*\d+\.\s", re.MULTILINE)
 _SLOT = re.compile(r"\{\{slot:[^}]*\}\}")
 # A URL (rv-rework4-022's F-3): ASCII URL characters only, so it ends at whitespace, a bracket, a quote mark, a dash
