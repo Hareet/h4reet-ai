@@ -574,6 +574,54 @@
       },
       "disclosure_line": null,
       "reason": "typical lean when talking to someone"
+    },
+    {
+      "id": "A-20261114-dog",
+      "sha256": "d31c085cfa6dc92449f3ada3873417c829acd8e4989a3ae54c2bacc524842078",
+      "path_when_approved": "assets/visitors/dog/dog.glb",
+      "kind": "avatar",
+      "date": "2026-11-14",
+      "confirms": {
+        "likeness_accepted": true,
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "disclosure_line": "The dog is an AI-made, stylized Nova Scotia Duck Tolling Retriever, a dog of the breed and not a likeness of the Author's dog, shown by his choice.",
+      "reason": "Let's go with the approval of the SHA and use the actual image /srv/studio/workflows/inbox/duck-toller.jpg"
+    },
+    {
+      "id": "A-20261114-dog-idle",
+      "sha256": "1bd5ee9454ed654700dbbec6279ec54861419d8ae47ffc61d243aa8107e9ff25",
+      "path_when_approved": "assets/visitors/dog/dog-idle.glb",
+      "kind": "animation",
+      "date": "2026-11-14",
+      "confirms": {
+        "likeness_accepted": true,
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "disclosure_line": null,
+      "reason": "Let's go with the approval of the SHA and use the actual image /srv/studio/workflows/inbox/duck-toller.jpg"
+    },
+    {
+      "id": "A-20261114-dog-walk",
+      "sha256": "f35b742a6b8070faddf9f184fc1ac94d4560e1d4c501e2bee9a2c1ad3e53e306",
+      "path_when_approved": "assets/visitors/dog/dog-walk.glb",
+      "kind": "animation",
+      "date": "2026-11-14",
+      "confirms": {
+        "likeness_accepted": true,
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "disclosure_line": null,
+      "reason": "Let's go with the approval of the SHA and use the actual image /srv/studio/workflows/inbox/duck-toller.jpg"
     }
   ]
 }
