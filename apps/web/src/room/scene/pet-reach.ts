@@ -527,8 +527,12 @@ function localTurn(base: Quaternion, parentWorld: Quaternion, r: Quaternion, q: 
  * `solveTwoBone`, the elbow toward a pole out and down from the clip's elbow, within `elbow_deg`, its two bones slerped
  * from the clip's by the weight; the hand keeps the clip's rotation. Each bone's base is the mixer's last write
  * (spec 019's tracking). A weight of 0 or less clears the reach. No object is made (FR-027).
+ *
+ * `legs` false is a run's cut (Q226; FR-011): the hips and both legs are given back to the clip at once, where the
+ * reach's write is still on them (a bone the run's mixer or leg layer wrote since keeps that write), and are neither
+ * read as a base nor written while it lasts; only the spine's lean and the arm ease out by the weight.
  */
-export function applyReach(rig: ReachRig, target: Vec3, weight: number, cfg: ReachConfig): void {
+export function applyReach(rig: ReachRig, target: Vec3, weight: number, cfg: ReachConfig, legs = true): void {
   if (!(weight > 0)) {
     clearReach(rig);
     return;
@@ -536,15 +540,19 @@ export function applyReach(rig: ReachRig, target: Vec3, weight: number, cfg: Rea
   const w = Math.min(1, weight);
   // 1. The clip's pose back on every bone the reach turns, the mixer's write taken as the base where it wrote.
   const { hips } = rig;
-  if (!hips.on || !hips.node.position.equals(hips.applied)) hips.base.copy(hips.node.position);
-  hips.node.position.copy(hips.base);
+  if (legs) {
+    if (!hips.on || !hips.node.position.equals(hips.applied)) hips.base.copy(hips.node.position);
+    hips.node.position.copy(hips.base);
+  } else clearLegs(rig);
   for (const b of rig.spine) sync(b);
   sync(rig.arm);
   sync(rig.fore);
-  for (const leg of rig.legs) {
-    sync(leg.up);
-    sync(leg.knee);
-    sync(leg.foot);
+  if (legs) {
+    for (const leg of rig.legs) {
+      sync(leg.up);
+      sync(leg.knee);
+      sync(leg.foot);
+    }
   }
   hips.node.updateWorldMatrix(true, true);
   // 2. The clip's pose, read in world space.
@@ -558,7 +566,7 @@ export function applyReach(rig: ReachRig, target: Vec3, weight: number, cfg: Rea
   const elbow0 = worldPos(rig.fore.node, _w);
   const a = elbow0.distanceTo(_u.setFromMatrixPosition(rig.arm.node.matrixWorld));
   const b = elbow0.distanceTo(_u.setFromMatrixPosition(rig.end.matrixWorld));
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; legs && i < 2; i++) {
     const leg = rig.legs[i]!;
     const s = LEG_SCRATCH[i]!;
     worldPos(leg.up.node, s.hip);
@@ -573,7 +581,8 @@ export function applyReach(rig: ReachRig, target: Vec3, weight: number, cfg: Rea
   _fwd.setFromMatrixColumn(rig.root.matrixWorld, 2).setY(0).normalize();
   _out.setFromMatrixColumn(rig.root.matrixWorld, 0).setY(0).normalize();
   if (rig.side === "right") _out.negate();
-  // 3. The posture, scaled by the weight.
+  // 3. The posture, scaled by the weight. On a run's cut the crouch is solved as before (so the lean eases from where
+  // it was) but not laid (Q226).
   solvePosture(
     CHAIN,
     target,
@@ -581,14 +590,16 @@ export function applyReach(rig: ReachRig, target: Vec3, weight: number, cfg: Rea
     { crouch_max_m: cfg.crouch_max_m, lean_max_rad: (cfg.lean_max_deg * Math.PI) / 180 },
     POSTURE,
   );
-  const crouch = w * POSTURE.crouch;
+  const crouch = legs ? w * POSTURE.crouch : 0;
   const lean = w * POSTURE.lean;
   // The crouch: the hips straight down.
-  _u.set(_hips.x, _hips.y - crouch, _hips.z);
-  (hips.node.parent as Object3D).worldToLocal(_u);
-  hips.node.position.copy(_u);
-  hips.applied.copy(_u);
-  hips.on = true;
+  if (legs) {
+    _u.set(_hips.x, _hips.y - crouch, _hips.z);
+    (hips.node.parent as Object3D).worldToLocal(_u);
+    hips.node.position.copy(_u);
+    hips.applied.copy(_u);
+    hips.on = true;
+  }
   // The lean: each spine bone turned by a third about the axis, in world space.
   _w.set(POSTURE.axis.x, 0, POSTURE.axis.z);
   _r.setFromAxisAngle(_w, lean / 3);
@@ -598,7 +609,7 @@ export function applyReach(rig: ReachRig, target: Vec3, weight: number, cfg: Rea
   }
   // The legs: the hip joint lowered with the hips, the ankle kept, the knee by the two-bone solve, the foot's world
   // rotation kept.
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; legs && i < 2; i++) {
     const leg = rig.legs[i]!;
     const s = LEG_SCRATCH[i]!;
     const thigh = s.knee.distanceTo(s.hip);
@@ -671,12 +682,9 @@ function unlay(b: ReachBone): void {
   b.on = false;
 }
 
-/** Puts the clip's rotations and the hips' position back wherever the reach laid itself over them, and forgets: no
- *  residue (FR-008). */
-export function clearReach(rig: ReachRig): void {
-  for (const b of rig.spine) unlay(b);
-  unlay(rig.arm);
-  unlay(rig.fore);
+/** The crouch's bones, the hips' position and both legs, given back to the clip where the reach's write is still on
+ *  them, and forgotten (Q226: a run's cut clears them at once). */
+function clearLegs(rig: ReachRig): void {
   for (const leg of rig.legs) {
     unlay(leg.up);
     unlay(leg.knee);
@@ -685,4 +693,13 @@ export function clearReach(rig: ReachRig): void {
   const { hips } = rig;
   if (hips.on && hips.node.position.equals(hips.applied)) hips.node.position.copy(hips.base);
   hips.on = false;
+}
+
+/** Puts the clip's rotations and the hips' position back wherever the reach laid itself over them, and forgets: no
+ *  residue (FR-008). */
+export function clearReach(rig: ReachRig): void {
+  for (const b of rig.spine) unlay(b);
+  unlay(rig.arm);
+  unlay(rig.fore);
+  clearLegs(rig);
 }

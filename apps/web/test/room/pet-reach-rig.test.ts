@@ -336,16 +336,18 @@ describe("clearReach: every bone the clip's own (FR-008)", () => {
     }
   });
 
-  it("a run's cut (legs off) never writes a leg bone or the hips the run's mixer wrote (Q226)", () => {
+  it("a run's cut (legs off) never writes a leg bone or the hips the run wrote (Q226)", () => {
+    const axis = new Vector3(1, 0, 0);
     for (const f of FIGURES) {
       const { root } = placed(f, HOMES[1]![1]);
       const rig = findReachRig(root, "right") as ReachRig;
-      const mixer = new AnimationMixer(root);
-      mixer.clipAction(f.clip as AnimationClip).play();
-      mixer.update(0.2);
       applyReach(rig, target(HOMES[1]![1]), 1, CFG);
-      // The run's layers write the legs this frame (here the mixer stands in for them), then the reach eases out.
-      mixer.update(0.4);
+      // The run's layers write the legs and the hips this frame (by hand here: the idle clip has no track for them, so
+      // its mixer can't stand in), then the reach eases out.
+      LEG_BONES.forEach((b, i) =>
+        (root.getObjectByName(`mixamorig${b}`) as Object3D).quaternion.setFromAxisAngle(axis, 0.1 + 0.05 * i),
+      );
+      rig.hips.node.position.y += 0.02;
       const run = snap(root);
       applyReach(rig, target(HOMES[1]![1]), 0.8, CFG, false);
       const { rotated, moved } = changed(root, run);

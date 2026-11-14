@@ -85,11 +85,14 @@ export type PetPhase = "idle" | "turn" | "petting" | "return";
 export type PetPath = "clip" | "reach";
 export type PetSide = "right" | "left";
 
-/** The reach layer's numbers this frame, written in place: the arm, the layer's weight, and the hand's target. */
+/** The reach layer's numbers this frame, written in place: the arm, the layer's weight, the hand's target, and whether
+ *  the crouch (the hips and both legs) is laid: true through the petting, false from a run's cut on, when the hips and
+ *  legs are the clip's again at once and only the arm and the spine ease out (Q226; FR-011). */
 export interface PetReach {
   readonly side: PetSide;
   readonly weight: number;
   readonly target: Readonly<Vec3>;
+  readonly legs: boolean;
 }
 
 /** The frame log's `twin-pet` record (FR-026): one per petting, done, cut, or skipped; no payload. */
@@ -116,7 +119,7 @@ export interface Pet {
 
 /** The `dog` selectable's ID (spec FR-013). */
 export const DOG_SELECTABLE = "dog";
-/** The run's cut eases the reach out over this (FR-011). */
+/** The run's cut eases the arm and the spine out over this; the crouch clears at once (FR-011; Q226). */
 export const CUT_EASE_S = 0.2;
 /** The twin's heading is at the aim within this (radians). */
 const AT_HEADING = 1e-3;
@@ -188,7 +191,7 @@ export function createPet(options: {
 
   const head: Vec3 = { x: 0, y: 0, z: 0 };
   const base: Vec3 = { x: 0, y: 0, z: 0 };
-  const reach = { side: "right" as PetSide, weight: 0, target: { x: 0, y: 0, z: 0 } as Vec3 };
+  const reach = { side: "right" as PetSide, weight: 0, target: { x: 0, y: 0, z: 0 } as Vec3, legs: true };
   let reachOn = false;
 
   const near = (heading: number): boolean => Math.abs(wrap(chase.twinHeading() - heading)) <= AT_HEADING;
@@ -241,10 +244,12 @@ export function createPet(options: {
     t = 0;
   };
 
-  /** A run's cut (FR-011): the reach eases out over 0.2 s from where it is. */
+  /** A run's cut (FR-011; Q226): the crouch clears at once, since the run drives the legs; the arm and the spine ease
+   *  out over 0.2 s from where they are. */
   const cutByRun = (): void => {
     fadeFrom = reachOn ? reach.weight : 0;
     fading = fadeFrom > 0;
+    reach.legs = false;
     endPetting("cut");
   };
 
@@ -282,6 +287,7 @@ export function createPet(options: {
       side = a.side;
       homeHeading = twin.home.heading;
       reach.side = side;
+      reach.legs = true;
       path = twin.petting_s !== null && twin.petting_s > 0 ? "clip" : "reach";
       length = path === "clip" ? (twin.petting_s as number) : config.pet_s;
       aimAt(twin, dog);
