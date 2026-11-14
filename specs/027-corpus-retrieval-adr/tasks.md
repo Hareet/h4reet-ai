@@ -34,7 +34,7 @@ His answer to the morning page (2026-11-13):
 
 ## Phase 3: User Story 1, the ADR (P1)
 
-- [ ] T005 [US1] Finalize ADR 0054's figures from `docs/corpus-size.json`: every figure in "Today's corpus, measured", the context table's room, Decision 2's "Today" column, and the index row in `docs/adr/README.md`. Where the record differs from the replica's figure, the ADR takes the record's, and plan §9 records each difference. Rerun the ADR's two shell commands and paste their output; their totals must equal the record's `files`. Covers FR-001 to FR-007, FR-014; SC-001. Tests: `npx vitest run test/corpus-size.test.ts` (the record the ADR cites is fresh); `make lint`.
+- [ ] T005 [US1] Finalize ADR 0054's figures from `docs/corpus-size.json`: every figure in "Today's corpus, measured", Decision 1's and Decision 2's figures (the "Today" column included), Alternatives' and Consequences' figures, and the index row in `docs/adr/README.md`. Where the record differs from the replica's figure, the ADR takes the record's, and plan §9 records each difference. Rerun the ADR's two shell commands and paste their output; their totals must equal the record's `files`. Covers FR-001 to FR-007, FR-014; SC-001. Tests: `npx vitest run test/corpus-size.test.ts` (the record the ADR cites is fresh); `make lint`.
 
 ## Phase 4: Review and hand-off
 
