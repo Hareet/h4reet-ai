@@ -4,9 +4,9 @@
 
 > "I'd like them to keep going beyond the plan and approval and finish implementation and keep merging down to as few patches and gates as we've seen the difficulty there. Ensure there are small tests that can be run instead of the whole suite over and over"
 
-and: "Okay, we want the night-shift, in order of importance, from the"improvements, in your words" section: a) "better HUD with examples provided, and load screen", …". The order's rule 1, the supervisor's statement of his order and not his words: the spec-writer takes the recommended answer at clarify and at the plan. Q1 to Q5 and D1 to D8 stand as taken. Q53 to Q60 are recorded on the night's page as "Answered: recommended, the Author 2026-11-13", and R1 to R5 are taken at their recommended answers. Each is on the morning page, and an overturned answer is reworked before he merges.
+and: "Okay, we want the night-shift, in order of importance, from the"improvements, in your words" section: a) "better HUD with examples provided, and load screen", …". The order's rule 1, the supervisor's statement of his order and not his words: the spec-writer takes the recommended answer at clarify and at the plan. Q1 to Q5 and D1 to D8 stand as taken. Q53 to Q60 are recorded on the night's page as "Answered: recommended, the Author 2026-11-13", and R1 to R6 are taken at their recommended answers. Each is on the morning page, and an overturned answer is reworked before he merges.
 
-**Reworked 2026-11-14 by rule 6** (the Opus re-reviews rv-spec-018 and rv2-impl-018, both blocking), on `night/rework-spec-018/rework-spec-018` from impl-018's tip (b9378980). What changed is in §2, §3, §7, §13, and the rework's decisions, R-1 to R-6. The code it needs is tasks.md's T021 to T030, on `night/rework-018/rework-018`.
+**Reworked 2026-11-14 by rule 6** (the Opus re-reviews rv-spec-018 and rv2-impl-018, both blocking), on `night/rework-spec-018/rework-spec-018` from impl-018's tip (b9378980). What changed is in §2, §3, §7, §13, and the rework's decisions, R-1 to R-7. The code it needs is tasks.md's T021 to T030, on `night/rework-018/rework-018`.
 
 **Branch**: `night/hud-spec/spec-018` (first documents), `night/impl-018/impl-018` (code), this rework | **Spec**: [spec.md](spec.md) | **Created**: 2026-11-14
 
@@ -48,7 +48,7 @@ Documentation: `spec.md`, `plan.md`, `tasks.md`, `analysis.md`, this folder; the
 | `src/talk/talk.ts` | T009 (impl-018); T025 (rework) if the opener needs a hook | `onConversation`, `onLarger`; the sent turn's hook |
 | `src/room/flat.ts` | T010 (impl-018) | `fetchStill` exported, spec 016's verified fetch, the panel's only path (D-I4); no behaviour change |
 | `src/room/loading/view.ts`, `loading/loading.css` | T017 (impl-018) | the loader's frame and title |
-| `src/room/hud/icons.ts` | T026 (rework), read; changed only if the speech glyph has no export | the pieces' icons and the speech glyph for the emblem |
+| `src/room/hud/icons.ts` | T026 (rework) | gains an icon for each of the scene's four pieces and a speech glyph, keyed by the selectable's id, the speech glyph for any id without one (Q60, R6) |
 | `room/ui-words.yaml`, `src/room/ui-keys.ts` | T005 (impl-018) | §6's words |
 | `test/fixtures/room/good/apps/web/room/ui-words.yaml` | T005 (impl-018) | the fixture's words, kept equal to the room's |
 | `room.css` | none | named by the first plan; impl-018 didn't need it, and the rework doesn't |
@@ -185,6 +185,7 @@ The test files spec 018 itself added change where FR-001's rule moved 1280 × 72
 - **R-4 (FR-004, H-6, H-7)**: `compactBoxes` is the one place that knows the split layout's boxes at rest, so the frame area, the stages' reserved boxes, the coverage, and `layout.ts` take them from one kernel function (spec 014's FR-016). `frame.ts` and `stages.ts` need no edit.
 - **R-5 (FR-009; R5)**: Escape's order is written out (defaultPrevented, `browserOwnsEscape`, the turn, walking, the resume, the larger view, the panel). Focus follows spec 005's FR-045 to the opener.
 - **R-6 (FR-003, H-11)**: row V1 is amended in the same branch as the fetch's code.
+- **R-7 (FR-005; Q60, R6)**: the emblem's icons are drawn in `hud/icons.ts`, one per selectable id of the scene and a speech glyph, which also stands in for any piece without one.
 
 ## Complexity Tracking
 
