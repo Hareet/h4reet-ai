@@ -17,11 +17,13 @@ R2  every line in scope is in the table once, carried, in part, or left out, eac
     duplicate of" names the corpus file. An "about you" line is carried only under the Author's tag.
 R3  no line `SCRIPTS.md` marks unbuilt or retracted is carried whole, and no carried `kill-switch-b2` row cites a
     `materials.md` row noted "shown as built".
-R4  the new text states no number outside a slot (digits, or G1's number words; its exempt spans aside) and no
-    currency amount (check_corpus.py's CURRENCY, redteam/run.py's AMOUNT_WORDS, guards.ts's EXTRA_PATTERN); every slot
-    exists; and the whole file holds no CURRENCY match, since corpus-check reads `corpus/proposals/` too.
+R4  the new text states no number outside a slot (digits, or G1's number words; its exempt spans aside: slots, URLs,
+    the claim tags [P], [?], [A], [A <date>] and [slot `id`], paths with a segment that isn't a number or with a file
+    extension, dates, a list item's number, and the quotes R5 accepts) and no currency amount (check_corpus.py's
+    CURRENCY, redteam/run.py's AMOUNT_WORDS, guards.ts's EXTRA_PATTERN); every slot exists; and the whole file holds no
+    CURRENCY match, since corpus-check reads `corpus/proposals/` too.
 R5  every quotation in the new text is the Author's words as `SCRIPTS.md` quotes them, his words in the disclosure's
-    row F3, or a cited file's own text.
+    row F3, or a cited file's own text; `SCRIPTS.md` and the films' `script.txt` are never a cited file here.
 R6  with --third-party, no quoted span longer than a title, anywhere in the proposal, that the repository doesn't hold.
 R7  the summary says the denylist was not applied: this checker never reads `corpus/intake/private/`.
 
@@ -297,6 +299,11 @@ def read_materials(text: str) -> tuple[set[str], set[str]]:
     return listed, shown
 
 
+def is_script(path: str) -> bool:
+    """`films/SCRIPTS.md`, or a film's `script.txt`: the films' own text, written by the agents."""
+    return path == SCRIPTS_MD or bool(re.fullmatch(r"films/[\w-]+/script\.txt", path))
+
+
 def exists(root: Path, path: str) -> bool:
     if any(ch in path for ch in "*?["):
         return any(root.glob(path))
@@ -471,17 +478,36 @@ def read_context(root: Path) -> Context:
 
 # ---- R4's reading ----
 
-_CLAIM_TAG = re.compile(r"`?\[[^\]\n]*\]`?")
+# The corpus's claim tags and nothing else (rv-impl-022's I-2): [P], [?], [A], [A YYYY-MM-DD], runs of them such as
+# [?][A], and a new slot's display form [slot `id`]; any other bracketed span is prose, and its numbers count.
+_CLAIM_TAG = re.compile(
+    r"`?(?:\[(?:P|\?|A(?: \d{4}-\d{2}-\d{2})?|slot `[a-z0-9_.-]+`)\])+`?"
+)
 _DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}(?:/\d{1,2})?\b")
 _LIST_NUMBER = re.compile(r"^\s*\d+\.\s", re.MULTILINE)
 _SLOT = re.compile(r"\{\{slot:[^}]*\}\}")
 _URL = re.compile(r"\bhttps?://\S+")
 _CODE = re.compile(r"`([^`\n]*)`")
 _BARE_PATH = re.compile(
-    r"(?<![\w/])[\w.-]+(?:/[\w.*-]+)+|\b[\w-]+\.(?:md|ya?ml|ts|py|json|txt|sh)\b"
+    r"(?<![\w/])[\w.-]+(?:/[\w.*-]+)+/?|\b[\w-]+\.(?:md|ya?ml|ts|py|json|txt|sh)\b"
 )
 _PATHLIKE = re.compile(r"/|\.[a-z]{1,5}$|^[A-Z_]+=[\w-]+$")
+_EXTENSION = re.compile(r"\.[a-z]{1,5}$")
 _QUOTE = re.compile(r'"([^"\n]+)"|“([^”\n]+)”')
+
+
+def _numeric(segment: str) -> bool:
+    """A path segment that reads as a number: no letter or underscore, or one of G1's number words."""
+    segment = segment.strip(".")  # a sentence's full stop isn't the segment's
+    return not re.search(r"[A-Za-z_]", segment) or bool(WORD.fullmatch(segment))
+
+
+def is_path(token: str) -> bool:
+    """A path needs a segment that isn't a number, or a file extension: `52/52` and `fifty-two/fifty-two` are ratios
+    (rv-impl-022's I-2), `docs/adr/0020-x.md` and `films/kill-switch-b2/` are paths."""
+    if _EXTENSION.search(token):
+        return True
+    return not all(_numeric(s) for s in token.strip("/").split("/"))
 
 
 def without_exempt(text: str, quotes: Iterable[str]) -> str:
@@ -493,9 +519,15 @@ def without_exempt(text: str, quotes: Iterable[str]) -> str:
     text = _URL.sub(" ", text)
     text = _CLAIM_TAG.sub(" ", text)
     text = _CODE.sub(
-        lambda m: " " if _PATHLIKE.search(m.group(1)) else m.group(1), text
+        lambda m: (
+            " "
+            if _PATHLIKE.search(m.group(1))
+            and ("/" not in m.group(1) or is_path(m.group(1)))
+            else m.group(1)
+        ),
+        text,
     )
-    text = _BARE_PATH.sub(" ", text)
+    text = _BARE_PATH.sub(lambda m: " " if is_path(m.group(0)) else m.group(0), text)
     text = _DATE.sub(" ", text)
     return _LIST_NUMBER.sub(" ", text)
 
@@ -722,10 +754,13 @@ def check(
                 out["R2"].append(f"R2: {label}: not in the table")
 
     # ---- R5: quotes in the new text ----
+    # The scripts themselves are the agents' text, not a source's: a row may cite `films/SCRIPTS.md` (§1 line 5 does,
+    # for his words), but a quote from it stands only as his words (author_quotes), and a film's script.txt not at
+    # all (rv-impl-022's I-2).
     cited_texts = [
         norm((root / p).read_text())
         for p in sorted(cited)
-        if "*" not in p and (root / p).is_file()
+        if "*" not in p and (root / p).is_file() and not is_script(p)
     ]
     accepted: list[str] = []
     for block in prose:
