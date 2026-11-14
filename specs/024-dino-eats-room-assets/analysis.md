@@ -1,27 +1,45 @@
 # Analysis: spec 024 (spec.md, plan.md, tasks.md)
 
-`/speckit-analyze`, non-destructive on the three artifacts (fixes below were made to them in the same step). 2026-11-13, by the spec-writer; the implementer and the reviewer read it before starting.
+`/speckit-analyze`, non-destructive on the three artifacts (fixes below were made to them in the same step). First run 2026-11-13 by the spec-writer; **re-run 2026-11-14** after the rework of rv-spec-024's findings (B-1 to B-3, I-4 to I-6, N-1 to N-5), on Opus. The implementer and the reviewer read it before starting.
 
-## Findings
+## Findings, re-run of 2026-11-14
 
 | ID | Severity | Finding | Resolution |
 |---|---|---|---|
-| A-1 | HIGH | The spec's action key **E** is the walking view's turn-right (`src/room/walk/input.ts` `HELD`: W A S D Q E R F, arrows; Enter and Escape are also taken). Pressing it would turn and bite. | The key is **B**. Spec, plan, tasks changed; Revision note at the spec's end. |
-| A-2 | MEDIUM | The plan said the build refuses a piece with fewer than 2 edible chunks, but which chunks are edible comes from the model's triangles and the mounts, known only after a split. | A test (T004, on the four real GLBs) holds it, not a build check; plan §5.1 and §8 corrected. |
-| A-3 | LOW | FR-001 said "more than one chunk"; US1 AS4 and FR-005 mean "one edible chunk standing besides the last". | FR-001 reworded. |
-| A-4 | LOW | FR-012 puts the button in "the walking view's controls"; the file that builds them isn't named (plan §6 lists `app.ts`, `room.css`). | T011 names the geometry test (`hud-notes.test.ts`); the implementer confirms the file at T011 and updates plan §6 in the same commit. |
-| A-5 | INFO | The laptop mounts on `laptop-stand`, not on the desk; its cable runs to the outlet, and its screen carries the tier's face. | FR-004's rule covers it (a face's mesh, and anything mounted); eating its other chunks doesn't touch the cable. T009 asserts the face. |
-| A-6 | INFO | Spec 021 isn't on the branch; the figure's file, clips, and `mouth` node are assumed. | Plan §3 names them and isolates them in `eat/mouth.ts`; T000 reads spec 021's names; tests use stubs, so no task waits on 021 but the by-hand look (SC-007). |
+| R-1 | MEDIUM | FR-001 offered the eating while "one of its chunks stands", but FR-005 keeps the last chunk of a piece with an empty set-aside part, so the tile would show over a bite that does nothing. | FR-001 and T006 say "a chunk FR-005 lets it eat". |
+| R-2 | LOW | FR-004 (b) said "wholly behind that plane"; plan §5.2 allows +0.5 mm, which the measured faces need (a holder can share the face's plane). | FR-004 (b) names the 0.5 mm. |
+| R-3 | LOW | Plan §6 and T016 change spec 002's `contracts/room-events.md` §1; FR-014 didn't name it. | FR-014 names it. |
+| R-4 | INFO | FR-015's 100-mesh ceiling for one piece is close to the desk's measured 95 to 97 (a throwaway split, plan §5.4); the implementation's own seeding can land either side. | Kept: the ceiling binds the phone's cost; plan §8 names the way out (drop the cut-face meshes first, a look change for the Author). T008 and T014 measure it on the real files. |
+| R-5 | INFO | The mouth's lookup (plan §3) takes a node ending in `Jaw` after a prefix, so a bone named, say, `LowerJaw` would match too. Spec 021's rig has `Jaw` only. | Kept; T007 pins the first in traversal order. |
+| R-6 | INFO | T016 is numbered after T015 but sits in Phase 4; its dependencies say where it runs (after T005 and T010, before T013). | None needed: IDs are stable for the review's references (T004, T008, T009, T011, T014). |
+
+The first run's findings, as the rework leaves them: A-1 (key **B**, not E) stands. A-2 (no build check for edible chunks) stands; T004 now asserts an edible chunk on each of the four real files. A-3 is superseded by R-1. A-4 (the button's file) is resolved by B-2: `layout.ts`'s tile beside the walking control (plan §5.5), with T000 confirming it on the line. A-5 (the laptop) is now FR-004's rule: the `screen` and the lid behind it, and the `port` under the plugged charger, are set aside. A-6 (spec 021's names) is resolved by I-5: plan §3 takes spec 021's `Jaw` bone, T007 pins it.
+
+## The review's findings, where each went
+
+| Review | Where |
+|---|---|
+| B-1 (Q107) | spec Q2, Q4, Q107, FR-003 to FR-005, US2 AS2 and AS4, Revision 2026-11-14; plan §5.2, §5.4, §8; T004, T009 |
+| B-2 (Q109) | spec Q1, Q109, FR-012; plan §1, §5.5 (overlaps: `scene/avatars.ts`, `scene/gait.ts`, the HUD files); T000, T011 |
+| B-3 (Q108) | spec Q3, Q108, US1 AS5, FR-014, FR-016, SC-006, A5, A6, Cost; plan §1, §2, §4, §5.5, §6; T013, T016; intent's data-flow note; `docs/merge-requests/human-patches/024.md` |
+| I-4 | FR-003, FR-006, FR-015, SC-005; plan §5.4; T008, T014 |
+| I-5 | A1; plan §3; T007 |
+| I-6 | plan §7; T002, T003, T010 (and T011, T012, T016) |
+| N-1 | intent's Proposed outcome: his words quoted, not labelled on a paraphrase |
+| N-2 | FR-011, SC-003, plan §5.1, T001, T005: `eating.regrow_s` only |
+| N-3 | FR-007, US2 AS3, plan §5.4, T008 |
+| N-4 | T014: no build line (the chunk test builds through its global setup) |
+| N-5 | A6, plan §4: Principle I, Data-Local by Default, with FR-014's one disclosed event |
 
 ## Coverage: requirement → task
 
-FR-001 → T006, T010, T011. FR-002 → T001, T002. FR-003 → T004, T008. FR-004 → T004, T009. FR-005 → T005, T009. FR-006 → T008 (the look is the Author's, A4). FR-007 → T005, T008. FR-008 → T008. FR-009 → T006, T013. FR-010 → T003, T012. FR-011 → T001, T005. FR-012 → T010, T011. FR-013 → none, by design (no clip role; plan §5.7). FR-014 → T013 (a fetch spy; `disclosure.test.ts`). FR-015 → T004, T008. FR-016 → T005, T013. FR-017 → none: a negative (the twin isn't told); plan §5.7 and the files list don't touch `services/` or the twin's pack. SC-001 → T004; SC-002 → T009; SC-003 → T005; SC-004 → T013; SC-005 → T008, T014; SC-006 → T013; SC-007 → T015 (by hand). Every FR is covered or left out on purpose.
+FR-001 → T006, T010, T011. FR-002 → T001, T002. FR-003 → T004, T008. FR-004 → T004, T009. FR-005 → T005, T009. FR-006 → T008 (the look is the Author's, A4). FR-007 → T005, T008. FR-008 → T008. FR-009 → T006, T013. FR-010 → T003, T012. FR-011 → T001, T005. FR-012 → T010, T011. FR-013 → none, by design (no clip role; plan §5.7). FR-014 → T016, T013. FR-015 → T004, T008, T014. FR-016 → T005, T013. FR-017 → none: a negative (the twin isn't told); plan §6 doesn't touch the twin's pack or `services/**` code. SC-001 → T004; SC-002 → T009; SC-003 → T005; SC-004 → T013; SC-005 → T004, T008, T014; SC-006 → T016, T013; SC-007 → T015 (by hand). 17 FRs, 15 covered by a task and 2 left out on purpose; 17 tasks (T000 to T016), each mapped to a story or the note.
 
 ## Checks
 
-- **Constitution**: I, II, III, IV, V, VIII met as plan §4 says; VI by the note (T015); no principle deferred. One CLAUDE.md deviation (the span, the panel, the disclosure row: none, no byte leaves) is named in spec A5, as CLAUDE.md asks.
-- **Rule 4**: each task names its small tests; no task runs `make check`; T014 builds the web app and runs two chunk tests. The flaky `twin-2d.test.ts` is in no list.
-- **Human-only paths**: none is written; the plan's "not touched" list holds. `docs/merge-requests/human-patches/024.md` says so, and lists what stays the Author's.
-- **Test files named exist** (`test/room/{scene,walking,input,reach,pick,words,schema,compose,motion,highlight,gltf-images,flat,chunk,budgets,avatars,manifest-readiness}.test.ts`, `test/ui/{hud,hud-notes,degraded,a11y}.test.ts`, `test/disclosure.test.ts`); the `eat-*` ones are new, written first.
-- **Overlap** with other stacks is additive (plan §6); the one real collision risk is `walk/input.ts` (a new key) and `app.ts`/`room.css`.
-- **No CRITICAL finding.** Open questions: Q1 to Q6, on the morning page with recommendations.
+- **Constitution**: I (every byte that leaves is enumerated: the one event is in row V4's trigger in the same commit, T016), II, III, IV, V, VIII met as plan §4 says; VI by the note (T015); the agent that implements doesn't review (the night's rule 6 and the reviewer task). No principle deferred. CLAUDE.md's new-feature list: the cost, the degraded mode, the disclosure entry, the panel are here; the span is row V4's existing request span (spec A5).
+- **Rule 4**: each task names its small tests, including the tests that import the files it changes (plan §7); no task runs `make check`; T014 runs three test files and the lint. The flaky `twin-2d.test.ts` is in no list.
+- **Human-only paths**: none is written; the plan's "not touched" list holds. `docs/data-flow-disclosure.md`, the dashboard, and the gateway's test file are not human-only. `docs/merge-requests/human-patches/024.md` says so.
+- **Test files named exist** on the line (`night/rework-018/rework-018`, checked 2026-11-14): `test/room/{scene,walking,input,reach,pick,words,vocabulary,schema,compose,bundle,data-only,standins,generated,events,objects,motion,highlight,gltf-images,flat,chunk,budgets,avatars,manifest-readiness,hud-split-geometry,hud-frame}.test.ts`, `test/ui/{hud,hud-notes,hud-split,hud-split-a11y,hud-split-contrast,hud-split-fallback,walking,fullscreen,notes-causes,degraded,a11y}.test.ts`, `test/{events,manifest,disclosure}.test.ts`, `services/gateway/test/unit/room-events-config.test.ts`, `deploy/scripts/test_dashboard.py`; the `eat-*` ones are new, written first.
+- **Overlap** with other stacks (plan §5.5): additive. The real collision risks are `walk/input.ts` (a new key), `layout.ts` and `room.css` (a new tile after the walking control), `events.ts` and the generated kinds (a kind at the list's end, after spec 012's), and the dashboard's Room row (a panel's grid position).
+- **No CRITICAL finding.** Open questions: Q1 to Q6 and the rework's Q107 to Q109, on the morning page with recommendations, taken provisionally.
