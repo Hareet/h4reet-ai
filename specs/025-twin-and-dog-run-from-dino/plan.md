@@ -18,7 +18,7 @@ A pure "chase director" reads the visitor's figure, the dinosaur, from the walki
 
 ## Constitution Check
 
-Same table as the spec's: passes before and after design, with one named deviation (spec Assumptions): Principle II's production telemetry and Development Workflow 7's graph, for the run alone, because an event would carry the visitor's avatar, which row V4 promises it never does (Q10). Principle I: degraded mode first (spec §Degraded-Mode, User Story 2), row V1 amended for the room's dog's files. Principle VIII: the twin's line and answers are untouched; the dog's likeness line shows wherever the room's dog shows the model.
+Same table as the spec's: passes before and after design, with one named deviation (spec Assumptions): Principle II's production telemetry and Development Workflow 7's graph, for the run alone, because an event would carry the visitor's avatar, which row V4 promises it never does (Q10). If he confirms it, an ADR (the docs role's) is on main before the implementation merges (Q13, as spec 024's page Q-R2c). Principle I: degraded mode first (spec §Degraded-Mode, User Story 2), row V1 amended for the room's dog's files. Principle VIII: the twin's line and answers are untouched; the dog's likeness line shows wherever the room's dog shows the model.
 
 ## 2. Decisions (research)
 
