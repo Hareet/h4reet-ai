@@ -278,6 +278,23 @@ describe("the pet director (R-01, R-07; FR-001, FR-002, FR-005, FR-006, FR-010)"
     expect(w.pet.phase).toBe("idle");
   });
 
+  it("on a run's cut, clears the crouch at once and eases only the arm and spine (Q226; FR-011)", () => {
+    const w = world();
+    w.pet.select("dog");
+    w.run(0.4 + 1);
+    // Through the petting, the crouch (the hips and both legs) is laid with the arm and the spine.
+    expect(w.pet.reach?.legs).toBe(true);
+    w.running = true;
+    w.run(FRAME_S);
+    // The cut's first frame: the reach still has weight for the arm and the spine, and none of it is the legs'.
+    expect(w.pet.reach?.weight ?? 0).toBeGreaterThan(0);
+    expect(w.pet.reach?.legs).toBe(false);
+    w.run(0.1);
+    expect(w.pet.reach?.legs).toBe(false);
+    w.run(0.12);
+    expect(w.pet.reach).toBeNull();
+  });
+
   it("is cut by a run that starts during the turn", () => {
     const w = world();
     w.pet.select("dog");

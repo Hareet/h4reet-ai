@@ -312,6 +312,49 @@ describe("clearReach: every bone the clip's own (FR-008)", () => {
     }
   });
 
+  const LEG_BONES = ["LeftUpLeg", "LeftLeg", "LeftFoot", "RightUpLeg", "RightLeg", "RightFoot"];
+
+  it("a run's cut (legs off): from its first frame no leg bone, and not the hips, is the reach's; the arm and spine ease (Q226)", () => {
+    for (const f of FIGURES) {
+      const { root } = placed(f, HOMES[1]![1]);
+      const rig = findReachRig(root, "right") as ReachRig;
+      const own = snap(root);
+      applyReach(rig, target(HOMES[1]![1]), 1, CFG);
+      expect(changed(root, own).moved, f.name).toEqual(["Hips"]);
+      // The cut's first frame: the arm and the spine at a weight still easing, the crouch gone at once.
+      applyReach(rig, target(HOMES[1]![1]), 0.9, CFG, false);
+      const { rotated, moved } = changed(root, own);
+      expect(moved, f.name).toEqual([]);
+      expect(rotated.filter((b) => LEG_BONES.includes(b)), f.name).toEqual([]);
+      expect(rotated, f.name).toContain("RightArm");
+      expect(rotated, f.name).toContain("Spine");
+      expect(rig.hips.on, f.name).toBe(false);
+      for (const leg of rig.legs) for (const b of [leg.up, leg.knee, leg.foot]) expect(b.on, f.name).toBe(false);
+      // The ease's last frame clears the rest.
+      applyReach(rig, target(HOMES[1]![1]), 0, CFG, false);
+      expect(changed(root, own), f.name).toEqual({ rotated: [], moved: [] });
+    }
+  });
+
+  it("a run's cut (legs off) never writes a leg bone or the hips the run's mixer wrote (Q226)", () => {
+    for (const f of FIGURES) {
+      const { root } = placed(f, HOMES[1]![1]);
+      const rig = findReachRig(root, "right") as ReachRig;
+      const mixer = new AnimationMixer(root);
+      mixer.clipAction(f.clip as AnimationClip).play();
+      mixer.update(0.2);
+      applyReach(rig, target(HOMES[1]![1]), 1, CFG);
+      // The run's layers write the legs this frame (here the mixer stands in for them), then the reach eases out.
+      mixer.update(0.4);
+      const run = snap(root);
+      applyReach(rig, target(HOMES[1]![1]), 0.8, CFG, false);
+      const { rotated, moved } = changed(root, run);
+      expect(moved, f.name).toEqual([]);
+      expect(rotated.filter((b) => LEG_BONES.includes(b)), f.name).toEqual([]);
+      expect(rotated, f.name).toContain("RightArm");
+    }
+  });
+
   it("a weight of 0 clears the reach", () => {
     const f = FIGURES[1]!;
     const { root } = placed(f, HOMES[1]![1]);
