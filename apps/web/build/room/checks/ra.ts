@@ -16,6 +16,11 @@
 // Spec 020 (its FR-002; plan.md R-01): RA9, a visitor's model recorded as a likeness or from a photo (the stand-in aside,
 // RA3's) without an approval in main's likeness approvals naming its current SHA-256 with a non-empty line, which leaves
 // the avatar's files out of a lenient build, its figure on the cut-out. avatars.ts's readAvatars reads it.
+// Spec 021 (its FR-003 to FR-005; plan.md §4; contracts/dinosaur-rig.md): for an avatar whose row in the rig table
+// (avatars.ts's RIG_BONES) isn't null, the dinosaur alone today: RA10, a model whose raw node names lack a bone of its
+// row, exactly or after a `:`; RA11, a model whose rest-pose box, scaled to the table's height, is over the table's
+// width with 5% slack along x or z; RA12, a model without a usable `idle` or `walk` clip (one that RA1, RA2, or RA4
+// stands on counts as missing). avatars.ts's readAvatars reads them; lenient, so its figure keeps the cut-out.
 // RA7 (spec 016, FR-029, FR-030; contracts/twin-data.md §7; SC-017): the scene's lean, measured from the resolved
 // placements, in the twin placement's frame: the desk's origin `behind_m` behind the twin's root along its facing, within
 // 1 cm; the desk facing as the twin faces, within 1°; and the desk's top reaching at least `right_m` to the twin's right
