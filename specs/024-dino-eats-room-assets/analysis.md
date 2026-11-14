@@ -43,3 +43,30 @@ FR-001 → T006, T010, T011. FR-002 → T001, T002. FR-003 → T004, T008. FR-00
 - **Test files named exist** on the line (`night/rework-018/rework-018`, checked 2026-11-14): `test/room/{scene,walking,input,reach,pick,words,vocabulary,schema,compose,bundle,data-only,standins,generated,events,objects,motion,highlight,gltf-images,flat,chunk,budgets,avatars,manifest-readiness,hud-split-geometry,hud-frame}.test.ts`, `test/ui/{hud,hud-notes,hud-split,hud-split-a11y,hud-split-contrast,hud-split-fallback,walking,fullscreen,notes-causes,degraded,a11y}.test.ts`, `test/{events,manifest,disclosure}.test.ts`, `services/gateway/test/unit/room-events-config.test.ts`, `deploy/scripts/test_dashboard.py`; the `eat-*` ones are new, written first.
 - **Overlap** with other stacks (plan §5.5): additive. The real collision risks are `walk/input.ts` (a new key), `layout.ts` and `room.css` (a new tile after the walking control), `events.ts` and the generated kinds (a kind at the list's end, after spec 012's), and the dashboard's Room row (a panel's grid position).
 - **No CRITICAL finding.** Open questions: Q1 to Q6 and the rework's Q107 to Q109, on the morning page with recommendations, taken provisionally.
+
+## Rework notes (rework-spec-024, 2026-11-14)
+
+Small runs, this task (documents only):
+
+```
+$ pytest evals/test_docs_links.py
+evals/test_docs_links.py ............................................    [100%]
+============================== 44 passed in 1.31s ==============================
+
+$ python3 -I evals/docs_links.py
+PASS  every relative link resolves: 2406 links in 383 files
+PASS  README.md links the ADR index (docs/adr/)
+PASS  the ADR index links every ADR file: 50 of 50
+PASS  User Story 6's five decisions have their ADRs: 0001 (local-first routing), 0002 (one compose topology), 0003 (local-compose-first delivery), 0004 (Langfuse and Grafana), 0005 (Telegram alerting)
+docs links: 0 failed, 2406 relative links in 383 files
+
+$ make lint
+node_modules is missing: run make setup
+make: *** [Makefile:227: lint] Error 1
+```
+
+The lint didn't run: this worktree has no `node_modules` (no change here is code or a file the lint reads beyond Markdown).
+
+The measurements quoted in spec's Revision 2026-11-14 and plan §5.4 came from a throwaway Python script over the four GLBs as `night/fix-020/fix-020` has them, kept outside the repository; T004 and T008 measure the same on the real files in the implementation.
+
+**What's left**: the Author's answers to Q1 to Q6 and Q107 to Q109 (and the page's Q107a and the draw-call ceilings), all taken provisionally; a reviewer's re-read of this rework (rule 6: a worker that didn't write it); then T000 rebases this branch onto the line's tip once spec 021's code is on it, and impl-024 starts.
