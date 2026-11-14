@@ -132,6 +132,7 @@ The implementer merges this branch first. Each file by its path; none is human-o
 
 **New tests** (`apps/web/test/room/`)
 - `chase-steer.test.ts`, `chase-director.test.ts`, `chase-degraded.test.ts`, `chase-notes.test.ts`, `chase-states.test.ts`, `chase-figures.test.ts`, `chase-schema.test.ts`, `chase-bench.test.ts`, `dog-figure.test.ts`, `dog-first-visit.test.ts`.
+- `dog-disclosure.test.ts` (T015; added on departure): FR-028's clause in row V1, since spec 002's and 016's disclosure tests, which pin V1's Carries whole, fail on the line already (D-V2) and aren't this task's to edit. Their amendment for the clause, after 018's, is `docs/merge-requests/proposed/025-disclosure-test-amendments.patch`, for the Author's hand with 018's (checked on a copy with both applied).
 
 **Changed tests**
 - `apps/web/test/room/twin-states.test.ts`: the new state; the existing cases stay.
