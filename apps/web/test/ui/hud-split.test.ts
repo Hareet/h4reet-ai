@@ -304,3 +304,73 @@ describe("the list (T011; FR-007, FR-008)", () => {
     expect(css).toMatch(/\.room-list[^{]*\{[^}]*text-align:\s*right/);
   });
 });
+
+// ---- T018's findings: the review's (a worker that did not write the code) ----
+
+describe("after review (T018)", () => {
+  it("Escape outside the conversation closes the panel and ends the larger view (finding 1)", async () => {
+    const { v } = await room();
+    (v.doc.querySelector(".talk-larger") as HTMLButtonElement).click();
+    expect(talk(v).getAttribute("data-panel")).toBe("open");
+    const piece = entries(v)[0] as HTMLButtonElement;
+    piece.focus();
+    key(v, piece, "Escape");
+    expect(talk(v).getAttribute("data-panel")).toBe("bar");
+    expect((v.doc.querySelector(".talk-larger") as HTMLButtonElement).getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("a part that throws midway leaves no stray part behind, and the next opening builds one set (finding 2)", () => {
+    let calls = 0;
+    const t = split();
+    const again = createSplit(t.doc, {
+      talk: t.doc.querySelector(".talk") as HTMLElement,
+      list: t.doc.querySelector(".room-list") as HTMLElement,
+      words: { select: "Select a piece", back: "Back", close: "Close", esc: "Esc", enter: "Enter" },
+      stats: () => {
+        calls += 1;
+        if (calls === 1) throw new Error("no stats");
+        return [];
+      },
+      turnOut: () => false,
+      walking: () => false,
+    });
+    again.setActive(true);
+    expect(() => again.openPanel()).not.toThrow();
+    again.closePanel();
+    again.openPanel();
+    expect(t.doc.querySelectorAll(".split-hint")).toHaveLength(1);
+    again.closePanel();
+    expect(t.doc.querySelector(".split-hint, .split-top, .split-portrait")).toBeNull();
+  });
+
+  it("leaves aria-current to the target alone once the split layout goes (finding 3)", async () => {
+    const { v, viewport } = await room();
+    const [first] = entries(v);
+    first?.dispatchEvent(new v.win.Event("pointerover", { bubbles: true }));
+    expect(first?.getAttribute("aria-current")).toBe("true");
+    viewport.set({ w: 700, h: 400 });
+    expect(v.doc.querySelectorAll(".room-list [aria-current]")).toHaveLength(0);
+  });
+
+  it("keeps the focus and the portrait when the window changes size while the panel is open (finding 5)", async () => {
+    const { v, viewport } = await room();
+    (v.doc.querySelector(".talk-larger") as HTMLButtonElement).click();
+    const hint = v.doc.querySelector(".split-hint");
+    const slot = v.doc.querySelector(".split-portrait");
+    expect(v.doc.activeElement).toBe(hint);
+    const before = v.doc.querySelector(".split-frame path")?.getAttribute("d");
+    viewport.set({ w: 1400, h: 800 });
+    expect(v.doc.querySelector(".split-hint")).toBe(hint);
+    expect(v.doc.querySelector(".split-portrait")).toBe(slot);
+    expect(v.doc.activeElement).toBe(hint);
+    expect(v.doc.querySelector(".split-frame path")?.getAttribute("d")).not.toBe(before);
+  });
+
+  it("does not open for a conversation in a window the split layout doesn't take (finding 6)", async () => {
+    const { v, viewport } = await room({ w: 700, h: 400 });
+    talkingPiece(v).click();
+    await flush();
+    viewport.set(WIDE);
+    expect(talk(v).getAttribute("data-panel")).toBe("bar");
+  });
+});

@@ -147,9 +147,10 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
   const showSelection = (): void => {
     clearStrokes();
     const id = active ? selected() : null;
+    // Out of the split layout the mark is spec 014's: the target's alone (app.ts's retarget writes it too).
+    const current = active ? id : target;
     for (const b of buttons()) {
-      if (!active) continue;
-      if (b.dataset.objectId === id) b.setAttribute("aria-current", "true");
+      if (b.dataset.objectId === current) b.setAttribute("aria-current", "true");
       else b.removeAttribute("aria-current");
     }
     if (!active || id === null) return;
@@ -203,61 +204,73 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
     return slot;
   };
 
+  /** Builds the open panel's parts, each in its own try, each recorded the moment it is in the document, so `tear` takes
+   *  away exactly what was added however far a failure got. */
   const build = (): void => {
-    const built: HTMLElement[] = [];
+    parts = [];
+    const keep = (el: HTMLElement): void => {
+      parts.push(el);
+    };
     // The title's hint: one action, its key cap and a short label.
-    if (head) {
+    attempt(() => {
+      if (!head) return;
       const hint = labelled("split-hint", words.close, words.esc, "Escape");
       hint.addEventListener("click", () => api.closePanel(true));
       head.append(hint);
-      built.push(hint);
-    }
+      keep(hint);
+    });
     // The emblem, and beside it the three stats: a small label over a large value.
-    const emblem = attempt(() =>
-      svg(
+    attempt(() => {
+      const emblem = attempt(() =>
+        svg(
+          doc,
+          "svg",
+          { class: "split-emblem", viewBox: "0 0 24 24", "aria-hidden": "true", focusable: "false" },
+          svg(doc, "path", { d: "M4 5h16v10h-9l-4 4v-4H4z" }),
+        ),
+      );
+      const stats = h(doc, "dl", { class: "split-stats" });
+      for (const s of options.stats())
+        stats.append(
+          h(
+            doc,
+            "div",
+            { class: `split-stat split-stat-${s.id}` },
+            h(doc, "dt", {}, s.label),
+            h(doc, "dd", {}, s.value),
+          ),
+        );
+      const top = h(doc, "div", { class: "split-top" }, ...(emblem ? [emblem as unknown as HTMLElement] : []), stats);
+      if (sheet && log && log.parentElement === sheet) sheet.insertBefore(top, log);
+      else talk.append(top);
+      keep(top);
+    });
+    // The frame, drawn from a seed; where it can't be, the panel's plain border (a class) stands in.
+    const fh = Math.max(1, size.h - TITLE_PX);
+    const frame = attempt(() => {
+      const d = draw.frame(size.w, fh, FRAME_SEED);
+      return svg(
         doc,
         "svg",
-        { class: "split-emblem", viewBox: "0 0 24 24", "aria-hidden": "true", focusable: "false" },
-        svg(doc, "path", { d: "M4 5h16v10h-9l-4 4v-4H4z" }),
-      ),
-    );
-    const stats = h(doc, "dl", { class: "split-stats" });
-    for (const s of options.stats())
-      stats.append(
-        h(doc, "div", { class: `split-stat split-stat-${s.id}` }, h(doc, "dt", {}, s.label), h(doc, "dd", {}, s.value)),
-      );
-    const top = h(doc, "div", { class: "split-top" }, ...(emblem ? [emblem as unknown as HTMLElement] : []), stats);
-    if (sheet && log) sheet.insertBefore(top, log);
-    else talk.append(top);
-    built.push(top);
-    // The frame, drawn from a seed; where it can't be, the panel's plain border (a class) stands in.
-    const d = attempt(() => draw.frame(size.w, Math.max(1, size.h - TITLE_PX), FRAME_SEED));
-    if (d === null) talk.classList.add("split-plain");
-    else {
-      const frame = attempt(
-        () =>
-          svg(
-            doc,
-            "svg",
-            {
-              class: "split-frame",
-              viewBox: `0 0 ${size.w} ${Math.max(1, size.h - TITLE_PX)}`,
-              preserveAspectRatio: "none",
-              "aria-hidden": "true",
-              focusable: "false",
-            },
-            svg(doc, "path", { d }),
-          ) as unknown as HTMLElement,
-      );
-      if (frame) {
-        talk.prepend(frame);
-        built.push(frame);
-      } else talk.classList.add("split-plain");
-    }
-    const slot = portraitSlot();
-    talk.append(slot);
-    built.push(slot);
-    parts = built;
+        {
+          class: "split-frame",
+          viewBox: `0 0 ${size.w} ${fh}`,
+          preserveAspectRatio: "none",
+          "aria-hidden": "true",
+          focusable: "false",
+        },
+        svg(doc, "path", { d }),
+      ) as unknown as HTMLElement;
+    });
+    if (frame) {
+      talk.prepend(frame);
+      keep(frame);
+    } else talk.classList.add("split-plain");
+    attempt(() => {
+      const slot = portraitSlot();
+      talk.append(slot);
+      keep(slot);
+    });
   };
 
   const tear = (): void => {
@@ -300,6 +313,12 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
     hover = b?.dataset.objectId ?? null;
     showSelection();
   });
+  // A tap leaves no pointerleave: on touch the hover ends with the press.
+  list.addEventListener("pointerup", (event) => {
+    if (event.pointerType !== "touch") return;
+    hover = null;
+    showSelection();
+  });
   list.addEventListener("pointerleave", () => {
     hover = null;
     showSelection();
@@ -307,8 +326,10 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
 
   // Escape: the turn out or the walking view takes it first, as they did before; seen at capture, before they act.
   const onCapture = (event: KeyboardEvent): void => {
-    if (event.key === "Escape")
-      skipEscape = options.turnOut() || options.walking() || talk.getAttribute("data-larger") === "on";
+    if (event.key !== "Escape") return;
+    // The larger view's Escape, inside the conversation, is talk.ts's: it ends the larger view, which closes the panel.
+    const inTalk = talk.contains(event.target as Node | null);
+    skipEscape = options.turnOut() || options.walking() || (inTalk && talk.getAttribute("data-larger") === "on");
   };
   const onKey = (event: KeyboardEvent): void => {
     if (event.key !== "Escape" || !active || !open || event.defaultPrevented || skipEscape) return;
@@ -334,12 +355,21 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
     setSize(w, h2) {
       if (Math.abs(w - size.w) < 1 && Math.abs(h2 - size.h) < 1) return;
       size = { w, h: h2 };
-      if (active && open) {
-        tear();
-        build();
+      // The frame's path and viewBox in place: the parts, and the focus in them, stay where they are.
+      const frame = talk.querySelector(".split-frame");
+      const path = frame?.querySelector("path");
+      const fh = Math.max(1, size.h - TITLE_PX);
+      if (frame && path) {
+        const d = attempt(() => draw.frame(size.w, fh, FRAME_SEED));
+        if (d !== null) {
+          frame.setAttribute("viewBox", `0 0 ${size.w} ${fh}`);
+          path.setAttribute("d", d);
+        }
       }
     },
     openPanel(focusHint = false) {
+      // Only where the split layout shows: a conversation in a narrower window leaves the bar for a later, wider one.
+      if (!active) return;
       if (!open) {
         open = true;
         sync();
