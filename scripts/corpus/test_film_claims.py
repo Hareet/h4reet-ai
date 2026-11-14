@@ -146,7 +146,7 @@ Prose about the scripts may cite "five dollars a day", fifteen, and 345 freely: 
 
 ## The stack
 
-- `[P]` The laptop's production stack runs {{{{slot:site.prod_containers}}}}. — {URL}/deploy/compose.yaml
+- `[P]` The laptop's production stack runs [slot `site.prod_containers`]. — {URL}/deploy/compose.yaml
 
 ## What it doesn't know yet
 
@@ -434,7 +434,7 @@ def test_a_carried_sentence_citing_the_shown_as_built_row_fails(repo: Path) -> N
     ("old", "new", "needle"),
     [
         ("runs with one command", "runs with 3 commands", "3"),
-        ("runs {{slot:site.prod_containers}}", "runs fifteen containers", "fifteen"),
+        ("runs [slot `site.prod_containers`]", "runs fifteen containers", "fifteen"),
         (
             "So it has a ceiling,",
             "At three fifty, a warning goes out; so it has a ceiling,",
@@ -481,7 +481,7 @@ def test_the_proposal_file_as_a_whole_holds_no_currency_in_digits(repo: Path) ->
 
 
 def test_an_unknown_slot_fails(repo: Path) -> None:
-    bad = changed("runs {{slot:site.prod_containers}}", "runs {{slot:site.prod_boxes}}")
+    bad = changed("runs [slot `site.prod_containers`]", "runs {{slot:site.prod_boxes}}")
     assert failing(run(repo, bad), "R4", "site.prod_boxes")
 
 
@@ -868,3 +868,16 @@ def test_a_tag_needs_to_be_on_one_of_its_corpus_lines(repo: Path) -> None:
         "| The meter #2; The tests #1 | `src/sign.md` | `[A 2026-11-10]` |",
     )
     assert run(repo, ok) == []
+
+
+def test_a_new_slot_is_written_in_its_display_form_until_it_exists(repo: Path) -> None:
+    # corpus-check reads corpus/proposals/ too, and fails a {{slot:…}} whose fact doesn't exist yet; a slot the
+    # proposal adds is written [slot `id`], as the earlier proposals wrote theirs, and the patch writes {{slot:id}}.
+    bad = changed(
+        "runs [slot `site.prod_containers`]", "runs {{slot:site.prod_containers}}"
+    )
+    assert failing(run(repo, bad), "R4", "site.prod_containers", "corpus-check")
+    unknown = changed(
+        "runs [slot `site.prod_containers`]", "runs [slot `site.prod_boxes`]"
+    )
+    assert failing(run(repo, unknown), "R4", "unknown slot site.prod_boxes")
