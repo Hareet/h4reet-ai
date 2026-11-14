@@ -66,7 +66,7 @@ export function loaderTree(glb: Glb, sceneName = "Scene"): LoaderNode[] {
     if (m === undefined || mesh === undefined || meshNames.has(m)) continue;
     meshNames.set(
       m,
-      mesh.primitives.map(() => unique(mesh.name ?? `mesh_${m}`)),
+      mesh.primitives.map(() => unique((mesh as { readonly name?: string }).name ?? `mesh_${m}`)),
     );
   }
   const out: LoaderNode[] = [];

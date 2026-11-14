@@ -10,7 +10,7 @@ import { dot, normalize, rotation, sub } from "./math";
 import type { Turn, Vec3 } from "./math";
 
 /** A stand-in shape, as the catalog authors it or the bundle resolves it. */
-export type ShapeLike = { readonly at: Vec3; readonly turn: Turn; readonly scale?: number | Vec3 } & (
+export type ShapeLike = { readonly at: Vec3; readonly turn: Turn; readonly scale?: number | Vec3 | undefined } & (
   | { readonly shape: "box"; readonly size: Vec3 }
   | { readonly shape: "cylinder"; readonly radius: number; readonly height: number }
   | { readonly shape: "capsule"; readonly radius: number; readonly length: number }
