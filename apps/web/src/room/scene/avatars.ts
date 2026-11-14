@@ -62,7 +62,7 @@ import type { Room3D } from "./bundle3d";
 import type { FigureDriver } from "./figure";
 import { gripCentre, gripMatrix } from "./grip";
 import type { GripData } from "./grip";
-import { advance, applyGait, clearGait, cycleLength, findLegRig, legOffsets } from "./gait";
+import { advance, applyGait, clearGait, cycleLength, findLegRig, legOffsets, standingLift } from "./gait";
 import type { GaitState, LegRig } from "./gait";
 import { disposeModel } from "./loader";
 import type { FigureRole, FigureSource } from "./loader";
@@ -733,8 +733,11 @@ export function createAvatarFigures(
     }
     const on = gait.walking && !f.actions.has("walk");
     gait.state = advance(gait.state, distance, gait.speed / part.walking.speed_mps, dt, on, cycleLength(f.target));
-    if (gait.state.amp > 0) applyGait(f.legs, legOffsets(gait.state.phase, gait.state.amp));
-    else clearGait(f.legs);
+    if (gait.state.amp > 0) {
+      // The legs' angles, and the hips lowered by the standing leg's lift, from the same frame's angles (FR-015).
+      const offsets = legOffsets(gait.state.phase, gait.state.amp);
+      applyGait(f.legs, offsets, standingLift(offsets, f.legs.shape));
+    } else clearGait(f.legs);
   }
 
   /** Spec 016 (FR-019): the twin's arrival, once a visit, for one play of its greeting; the greeting's end ends it. */

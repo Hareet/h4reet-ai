@@ -1,7 +1,8 @@
 // The visitor's avatar's walking legs (spec 019; plan.md §2): a gait laid over the playing clip, so an avatar with no
-// `walk` clip no longer slides on its feet. The math here is pure (phase from the distance walked, an amplitude that
-// eases in and out, six leg-bone angles); the bones' part (findLegRig, applyGait, clearGait) follows it.
-import { PropertyBinding, Quaternion, Vector3 } from "three";
+// `walk` clip no longer slides with its legs still. The math here is pure (phase from the distance walked, an amplitude
+// that eases in and out, six leg-bone angles, the standing leg's lift); the bones' part (findLegRig, applyGait,
+// clearGait) follows it.
+import { Matrix4, PropertyBinding, Quaternion, Vector3 } from "three";
 import type { Object3D } from "three";
 
 /** Tunables, each a one-line edit at the Author's look pass (SC-005). Angles in radians. */
@@ -32,8 +33,8 @@ export interface LegAngles {
 export const cycleLength = (heightM: number): number => CYCLE_PER_HEIGHT * heightM;
 
 /**
- * One frame: the phase moves by the distance walked over the cycle (never by time: feet don't skate, FR-002), and the
- * amplitude eases toward `min(1, speedShare)` while `on`, else toward 0.
+ * One frame: the phase moves by the distance walked over the cycle (never by time, so the steps keep pace with the
+ * distance at any speed, FR-002), and the amplitude eases toward `min(1, speedShare)` while `on`, else toward 0.
  */
 export function advance(
   state: GaitState,
@@ -63,6 +64,36 @@ export function legOffsets(phase: number, amp: number): { left: LegAngles; right
   return { left: leg(phase, amp), right: leg(phase + 0.5, amp) };
 }
 
+/** One leg as the lift reads it (plan.md §2.6): the thigh's and the shin's lengths in the plane of the avatar's down and
+ *  front, and each one's angle from straight down toward the front at the clip's pose, in radians. Measured on the rig
+ *  by `findLegRig`; straight legs have both angles 0. */
+export interface LegShape {
+  readonly thigh: number;
+  readonly shin: number;
+  readonly thighAngle: number;
+  readonly shinAngle: number;
+}
+
+/** How far a leg's ankle hangs below its hip joint with these offsets (a positive hip swings it forward, a positive
+ *  knee bends the shin back), along the avatar's down. */
+const depth = (s: LegShape, hip: number, knee: number): number =>
+  s.thigh * Math.cos(s.thighAngle + hip) + s.shin * Math.cos(s.shinAngle + hip - knee);
+
+/**
+ * The standing leg's lift (FR-015): how far the lower ankle has risen above where the clip's pose holds it, from the
+ * frame's angles. Each leg's lift is its ankle's depth at the clip's pose less its depth now; the standing leg is the
+ * one that rose less, so the lift is the smaller of the two, never negative, and 0 at amplitude 0. Pure, a number.
+ */
+export function standingLift(
+  offsets: { readonly left: LegAngles; readonly right: LegAngles },
+  shape: { readonly left: LegShape; readonly right: LegShape },
+): number {
+  const left = depth(shape.left, 0, 0) - depth(shape.left, offsets.left.hip, offsets.left.knee);
+  const right = depth(shape.right, 0, 0) - depth(shape.right, offsets.right.hip, offsets.right.knee);
+  const lift = Math.min(left, right);
+  return lift > 0 ? lift : 0;
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 // The bones (plan.md §2.2)
 // --------------------------------------------------------------------------------------------------------------------
@@ -82,9 +113,22 @@ export interface LegBones {
   readonly ankle: GaitBone;
 }
 
+/** The hips bone, whose position alone the gait moves (FR-015), tracked as the rotations are: `base`, the clip's. */
+export interface HipsBone {
+  readonly node: Object3D;
+  readonly base: Vector3;
+  readonly applied: Vector3;
+  on: boolean;
+}
+
 export interface LegRig {
   readonly left: LegBones;
   readonly right: LegBones;
+  readonly hips: HipsBone;
+  /** The avatar's down (the root's −y) in the hips bone's parent space, a unit vector: the lift's direction. */
+  readonly down: Vector3;
+  /** Each leg measured in the hips bone's parent space, in its units, which are `hips.position`'s (plan.md §2.6). */
+  readonly shape: { readonly left: LegShape; readonly right: LegShape };
 }
 
 /** The studio rig's leg chain turns about its local X (R-07, measured on the real models by gait-rig.test.ts): a
@@ -102,7 +146,14 @@ const names = (side: "Left" | "Right"): readonly [string, string, string] =>
     string,
   ];
 
-/** The six leg bones by their sanitized Mixamo names, or null if any is missing (FR-008). */
+const HIPS = PropertyBinding.sanitizeNodeName("mixamorig:Hips");
+
+/**
+ * The six leg bones and the hips bone by their sanitized Mixamo names, or null if any is missing (FR-008); found once,
+ * at the pose the model holds then (the clip's: the idle clips hold the legs at the model's own pose). Measures, in the
+ * hips bone's parent space, the avatar's down (the root's −y) and front (+z), and each leg's thigh (hip joint to knee)
+ * and shin (knee to ankle) in the plane of the two, with each one's angle from down toward the front (R-08).
+ */
 export function findLegRig(root: Object3D): LegRig | null {
   const side = (which: "Left" | "Right"): LegBones | null => {
     const found = names(which).map((n) => root.getObjectByName(n));
@@ -117,7 +168,35 @@ export function findLegRig(root: Object3D): LegRig | null {
   };
   const left = side("Left");
   const right = side("Right");
-  return left && right ? { left, right } : null;
+  const hips = root.getObjectByName(HIPS);
+  if (!left || !right || !hips) return null;
+  // The hips bone's parent space: the space `hips.position` is in, and so the lift's.
+  root.updateWorldMatrix(true, true);
+  const toParent = new Matrix4();
+  if (hips.parent) toParent.copy(hips.parent.matrixWorld).invert();
+  const fromRoot = toParent.clone().multiply(root.matrixWorld);
+  const down = new Vector3(0, -1, 0).transformDirection(fromRoot);
+  const front = new Vector3(0, 0, 1).transformDirection(fromRoot);
+  front.addScaledVector(down, -front.dot(down)).normalize();
+  const at = (o: Object3D): Vector3 => new Vector3().setFromMatrixPosition(o.matrixWorld).applyMatrix4(toParent);
+  const measure = (bones: LegBones): LegShape => {
+    const [hip, knee, ankle] = [at(bones.hip.node), at(bones.knee.node), at(bones.ankle.node)];
+    const thigh = knee.clone().sub(hip);
+    const shin = ankle.clone().sub(knee);
+    return {
+      thigh: Math.hypot(thigh.dot(down), thigh.dot(front)),
+      shin: Math.hypot(shin.dot(down), shin.dot(front)),
+      thighAngle: Math.atan2(thigh.dot(front), thigh.dot(down)),
+      shinAngle: Math.atan2(shin.dot(front), shin.dot(down)),
+    };
+  };
+  return {
+    left,
+    right,
+    hips: { node: hips, base: new Vector3(), applied: new Vector3(), on: false },
+    down,
+    shape: { left: measure(left), right: measure(right) },
+  };
 }
 
 const AXIS = new Vector3(1, 0, 0);
@@ -132,8 +211,17 @@ function lay(bone: GaitBone, angle: number): void {
   bone.on = true;
 }
 
-/** Lays the legs' offsets over the clip's rotations, each bone's base kept (no allocation per frame). */
-export function applyGait(rig: LegRig, offsets: { left: LegAngles; right: LegAngles }): void {
+/** Lowers the hips bone from the clip's position by `lift` along the avatar's down; its rotation is never written. */
+function lower(hips: HipsBone, down: Vector3, lift: number): void {
+  if (!hips.on || !hips.node.position.equals(hips.applied)) hips.base.copy(hips.node.position);
+  hips.applied.copy(hips.base).addScaledVector(down, lift);
+  hips.node.position.copy(hips.applied);
+  hips.on = true;
+}
+
+/** Lays the legs' offsets over the clip's rotations and lowers the hips bone by `lift` (the standing leg's, FR-015),
+ *  each bone's base kept. */
+export function applyGait(rig: LegRig, offsets: { left: LegAngles; right: LegAngles }, lift = 0): void {
   for (const [bones, angles] of [
     [rig.left, offsets.left],
     [rig.right, offsets.right],
@@ -142,9 +230,11 @@ export function applyGait(rig: LegRig, offsets: { left: LegAngles; right: LegAng
     lay(bones.knee, KNEE_SIGN * angles.knee);
     lay(bones.ankle, ANKLE_SIGN * angles.ankle);
   }
+  lower(rig.hips, rig.down, lift);
 }
 
-/** Puts the clip's rotations back wherever the gait laid itself over them, and forgets: no residue (FR-006, SC-002). */
+/** Puts the clip's rotations and the hips' position back wherever the gait laid itself over them, and forgets: no
+ *  residue (FR-006, SC-002). */
 export function clearGait(rig: LegRig): void {
   for (const bones of [rig.left, rig.right])
     for (const bone of [bones.hip, bones.knee, bones.ankle]) {
@@ -152,4 +242,7 @@ export function clearGait(rig: LegRig): void {
       if (bone.on && bone.node.quaternion.equals(bone.applied)) bone.node.quaternion.copy(bone.base);
       bone.on = false;
     }
+  const { hips } = rig;
+  if (hips.on && hips.node.position.equals(hips.applied)) hips.node.position.copy(hips.base);
+  hips.on = false;
 }

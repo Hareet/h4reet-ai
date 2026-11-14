@@ -143,7 +143,7 @@ describe.each(["man", "woman"])("the leg rig on the %s", (id) => {
     const rig = findLegRig(root) as LegRig;
     const hips = rig.hips.node;
     const before = hips.position.clone();
-    const offsets = legOffsets(0.2, 1);
+    const offsets = legOffsets(0.125, 1);
     const lift = standingLift(offsets, rig.shape);
     expect(lift).toBeGreaterThan(0.005);
     applyGait(rig, offsets, lift);

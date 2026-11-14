@@ -56,11 +56,11 @@ A content file (the resume's source, a narration script) is published only when 
 
 ## The visitor's walking legs
 
-Spec 019. The man and the woman have no `walk` clip, so the visitor's avatar gets a code gait: `src/room/scene/gait.ts` lays six leg-bone rotations (hip, knee, ankle, each side) over the playing idle clip, after the mixer advances, and gives the clip's own rotations back the moment the gait stops. Its phase follows the distance walked, never time, so feet don't skate at any speed; its amplitude eases in and out over `EASE_S`. Nothing above the hips moves, so the holding hand keeps its grip.
+Spec 019. The man and the woman have no `walk` clip, so the visitor's avatar gets a code gait: `src/room/scene/gait.ts` lays six leg-bone rotations (hip, knee, ankle, each side) over the playing idle clip, after the mixer advances, and gives the clip's own rotations back the moment the gait stops. Its phase follows the distance walked, never time, so the steps keep pace with the distance at any speed; its amplitude eases in and out over `EASE_S`. The hips bone lowers by the standing leg's lift (`standingLift`, from the same frame's angles and each leg's thigh and shin as `findLegRig` measures them), so the standing foot stays within 2 cm of the floor; the hips bone's rotation and every bone above it stay the clip's, so the holding hand keeps its grip. A foot's slide along the floor isn't zero: it is tuned at the look pass.
 
 - **Tune it** at the look pass, one line each, in `gait.ts`: `HIP_MAX`, `KNEE_MAX`, `ANKLE_GAIN` (radians), `CYCLE_PER_HEIGHT` (stride length, 0.7 of the body's height), `EASE_S`. The bone axis and sign are fixed by `test/room/gait-rig.test.ts`, which reads the real GLBs.
 - **A studio `walk` clip wins.** Where one is loaded the gait stays off and the clip plays at `clamp(speed / walking.speed_mps, 0.5, 1.5)`.
-- **Off** under reduced motion, paused or hidden, and at quality level 1 or more; a model without the six leg bones slides and logs one `gait` entry (`state: unavailable`).
+- **Off** under reduced motion, paused or hidden, and at quality level 1 or more; a model without the six leg bones or the hips bone slides and logs one `gait` entry (`state: unavailable`).
 - **Small tests:** `vitest run test/room/gait.test.ts test/room/gait-rig.test.ts test/room/avatar-gait.test.ts`.
 - **Lookdev** has no walking pose: its hands page drives its own mixer, not the room's controller, so the gait is judged in the room.
 
