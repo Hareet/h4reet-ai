@@ -92,6 +92,7 @@ def host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
         lint, "node", "v24.21.0"
     )  # the link make tools leaves for the post-edit hook
     monkeypatch.setenv("PATH", str(bin_dir))
+    monkeypatch.delenv("H4_NIGHT_PINS", raising=False)
     return bin_dir, lint
 
 
@@ -328,3 +329,129 @@ def test_terraform_runs_without_its_update_check(
     fake.chmod(0o755)
     rows = tc.check({**PINS, **SPEC_001}, lint, False, mirror=tmp_path / "none")
     assert status(rows, "terraform") == "OK"
+
+
+# Spec 017's P-8: the night images' Claude Code, pinned once in deploy/night-shift/images/pins.json, is held to the
+# floor the installed Claude Code is.
+def night_pins(folder: Path, claude_code: str, arg: str | None = None) -> Path:
+    path = folder / "pins.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema": 1,
+                "claude_code": claude_code,
+                "toolchain": {
+                    "args": {
+                        "WITH_CLAUDE": "1",
+                        "CLAUDE_CODE_VERSION": arg or claude_code,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_the_night_images_pin_is_held_to_claude_codes_floor(
+    host: tuple[Path, Path], tmp_path: Path
+) -> None:
+    _, lint = host
+    night = tc.NIGHT_TOOL
+    path = night_pins(tmp_path, "2.1.294")
+    assert status(tc.check(PINS, lint, False, night_pins=path), night) == "OK"
+    night_pins(tmp_path, "2.1.322")
+    assert status(tc.check(PINS, lint, False, night_pins=path), night) == "WARN"
+    night_pins(tmp_path, "2.1.293")
+    assert status(tc.check(PINS, lint, False, night_pins=path), night) == "DRIFT"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{"claude_code": "2.1.294", "toolchain": {"args": {"CLAUDE_CODE_VERSION": "2.1.301"}}}',
+        '{"claude_code": "2.1.294"}',
+        '{"claude_code": "latest", "toolchain": {"args": {"CLAUDE_CODE_VERSION": "latest"}}}',
+        '["2.1.294"]',
+        "{not json",
+    ],
+    ids=[
+        "two-versions",
+        "no-toolchain-arg",
+        "not-a-version",
+        "not-an-object",
+        "not-json",
+    ],
+)
+def test_a_night_pins_file_that_cant_say_one_version_drifts(
+    host: tuple[Path, Path], tmp_path: Path, text: str
+) -> None:
+    _, lint = host
+    path = tmp_path / "pins.json"
+    path.write_text(text, encoding="utf-8")
+    rows = tc.check(PINS, lint, False, night_pins=path)
+    assert status(rows, tc.NIGHT_TOOL) == "DRIFT"
+
+
+def test_no_night_row_without_its_file(host: tuple[Path, Path], tmp_path: Path) -> None:
+    _, lint = host
+    for path in (None, tmp_path / "absent.json"):
+        rows = tc.check(PINS, lint, False, night_pins=path)
+        assert tc.NIGHT_TOOL not in [r.tool for r in rows]
+
+
+def test_the_night_pins_sit_beside_a_repositorys_toolchain_vars(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("H4_NIGHT_PINS", raising=False)
+    vars_path = tmp_path / ".devcontainer" / "toolchain.vars"
+    assert (
+        tc.night_pins_for(vars_path) == tmp_path / "deploy/night-shift/images/pins.json"
+    )
+    assert tc.night_pins_for(tmp_path / "toolchain.vars") is None
+    monkeypatch.setenv("H4_NIGHT_PINS", str(tmp_path / "other.json"))
+    assert tc.night_pins_for(vars_path) == tmp_path / "other.json"
+
+
+def test_main_checks_the_night_pins_beside_the_vars(
+    host: tuple[Path, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _, lint = host
+    repo = tmp_path / "repo"
+    vars_path = repo / ".devcontainer" / "toolchain.vars"
+    vars_path.parent.mkdir(parents=True)
+    vars_path.write_text(
+        "".join(f"{k}={v}\n" for k, v in PINS.items()), encoding="utf-8"
+    )
+    images = repo / "deploy" / "night-shift" / "images"
+    images.mkdir(parents=True)
+    monkeypatch.setenv("H4_LINT_NODE", str(lint))
+    monkeypatch.delenv("H4_DEVCONTAINER", raising=False)
+    night_pins(images, "2.1.322")
+    assert tc.main(["toolchain_check.py", str(vars_path)]) == 0
+    (warn,) = [
+        ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("WARN:")
+    ]
+    assert "claude code (night images) 2.1.322" in warn and "floor, 2.1.294" in warn
+    night_pins(images, "2.1.290")
+    assert tc.main(["toolchain_check.py", str(vars_path)]) == 1
+    assert (
+        "differ from their pins (claude code (night images))" in capsys.readouterr().out
+    )
+
+
+def test_the_repositorys_night_pins_hold_one_version_at_the_floor_or_above() -> None:
+    path = REPO / tc.NIGHT_PINS
+    if not path.exists():
+        pytest.skip(
+            "no deploy/night-shift/images/pins.json in this tree yet (spec 017)"
+        )
+    pinned = tc.read_vars(REPO / ".devcontainer" / "toolchain.vars")[
+        "CLAUDE_CODE_VERSION"
+    ]
+    found, where = tc.night_pin(path)
+    assert found is not None, where
+    assert tc.matches(pinned, found) or tc.newer(pinned, found), (pinned, found)
