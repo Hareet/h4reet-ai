@@ -166,66 +166,69 @@ As the Author, I want one proposal and one patch for the corpus half, which I re
 
 ### Key Entities
 
-- **Pet block**: scene data, `figures.pet`: `spot` (offset in the twin's frame), `cooldown_s`, `approach_max_s`, `turn_max_deg`, `lean_max_deg`, `stroke_m`, `stroke_n`, `pet_s`, `elbow_deg`.
-- **Petting**: per visit, the director's state: `idle`, `approach`, `petting`, `return`; its start, path, and outcome.
-- **The `dog` selectable**: scene data, `{ id: dog, name: Dog, members: [dog-sign], action: { talk: { topic: hobbies-and-travel, lead: "The dog first." } } }`.
+- **Pet block**: scene data, `figures.pet`: `reach_m`, `walk_mps`, `cooldown_s`, `approach_max_s`, `turn_max_deg`, `lean_max_deg`, `stroke_m`, `stroke_n`, `pet_s`, `elbow_deg`.
+- **Petting**: per visit, the director's state: `idle`, `approach`, `petting`, `return`; its spot, its start, path, and outcome.
+- **The `dog` selectable**: scene data, `{ id: dog, name: Dog, members: [dog-sign], figure: dog, action: { talk: { topic: hobbies-and-travel, lead: "The dog first." } } }`.
 - **The proposal and the patch**: as spec 022's: a Markdown file with a table of lines and sources, and one unified diff built from plain copies.
 
-## Assumed Interfaces (from specs 016, 019, 020, 025; the last three not on this branch)
+## Assumed Interfaces (from specs 016, 019, 020, 025; the last three not on `main`)
 
-Each is this spec's assumption from those specs as read on their branches; the adapter in plan.md §4 is the one place to change if they differ.
+Each is this spec's assumption from those specs as read on their branches (Input); the adapter in plan.md §4 is the one place to change if they differ when their code is on the line.
 
-- **A016 (the twin, on `main`)**: `scene/twin-states.ts`'s closed lists and machine, as spec 025's FR-010 amends them (`fleeing` first); the twin's figure with its Mixamo-named rig of 55 bones (`assets/twin/records.json`), the bones named `mixamorig:RightArm`, `mixamorig:RightForeArm`, `mixamorig:RightHand`, their `Left` mirrors, `mixamorig:Spine`, `mixamorig:Spine1`, `mixamorig:Spine2`; each twin clip bundled under its own look approval entry (as `assets/policy/approvals.json` holds one per twin file).
-- **A019 (the gait)**: the base and applied tracking of `scene/gait.ts`'s applier (`applyGait`, `clearGait`), reused or copied for the reach layer; nothing of the gait's own behaviour changes.
-- **A020 (the dog)**: one dog model with clips `idle`, `walk`, `run`, held to his look approval by RA9, its height in the room's table 0.62 m (`AVATAR_SHAPES.dog`), its likeness line shown wherever the model shows through `src/room/likeness-line.ts`. Nothing of spec 020 changes here.
-- **A025 (the room's dog figure)**: spec 025's director (`scene/chase.ts`) owns the dog's figure, its home, its movement, and its phases (`home`, `fleeing`, `returning`). This spec assumes, from the director, a dog figure `{ pose, home, radius, headTop(): {x, y, z} } | null` (null while its model isn't showing) and one more input, `goTo(point | null)`, which walks the figure to a floor point and holds it there, and back home on `null`, outranked by fleeing. If spec 025's director has no `goTo`, this spec adds it there as a fourth phase, `visiting` (plan §5), after 025 is on the line. And the twin's figure's heading, fed through the same driver call spec 025 uses.
+- **A016 (the twin, on `main`)**: `scene/twin-states.ts`'s closed lists and machine, as spec 025's FR-011 amends them (`fleeing` first); the twin's figure with its Mixamo-named rig of 55 bones (`assets/twin/records.json`), the bones named `mixamorig:RightArm`, `mixamorig:RightForeArm`, `mixamorig:RightHand`, their `Left` mirrors, `mixamorig:Spine`, `mixamorig:Spine1`, `mixamorig:Spine2`; each twin clip bundled under its own look approval entry (as `assets/policy/approvals.json` holds one per twin file).
+- **A019 (the gait, on the line: `night/fix-019/fix-019`)**: the base and applied tracking of `scene/gait.ts`'s applier (`applyGait`, `clearGait`), copied for the reach layer; nothing of the gait's own behaviour changes.
+- **A020 (the dog, on the line: `night/fix-020/fix-020`)**: one dog model with clips `idle`, `walk`, `run`, held to his look approval by RA9, its height in the room's table `AVATAR_SHAPES.dog.height`, 0.62 m (`src/choice/avatars.ts`), its likeness line shown wherever the model shows through `src/room/likeness-line.ts`. Nothing of spec 020 changes here.
+- **A025 (the room's dog figure, spec 025 as reworked)**: `FigureId` (`src/room/stage.ts`) holds `"dog"`, and `scene/avatars.ts` keeps the room's dog's figure record, its picture a `Group` at its home; `AvatarFigures` gains `pictureOf(figure)` and `legsOf(figure)`. The scene's `figures.dog` is `{ home: { at: [x, z], heading_deg }, footprint_m }`; absent, there is no room dog. Spec 025's pure director (`scene/chase.ts`) gives each figure a pose (spec 008's `Pose`) and a phase, `home`, `fleeing`, or `returning`; its shell, `scene/chase-figures.ts`, places the twin's picture and the dog's group from those poses each frame and plays the dog's `idle`, `walk`, or `run` by its speed (`clip_thresholds`); it is the one writer of both pictures' position and heading. Figures keep `separation_m` (default 0.5 m) from one another. Spec 025 has no way to send the dog somewhere and no head point, so this spec adds, test first in files of its own: a fourth phase, `visiting`, in `chase.ts` and `chase-figures.ts`, driven by `visit(point | null)` (walk to the point at `pet.walk_mps` on spec 025's chase floor and hold, facing the twin; walk home on `null`; outranked by `fleeing`; cut home by reduced motion or quality level 1, as FR-024 of spec 025 cuts a run), and an input `faceTwin(heading | null)` that turns the twin's pose at home, rate-limited, which `chase-figures.ts` writes as it writes every pose (M3). The head point is computed in this spec's adapter from the dog's picture (`pictureOf("dog")`: its world position and heading) and `AVATAR_SHAPES.dog.height`: at 0.9 of the height, 0.35 of it forward of the picture's origin (placeholders, set against the real model by T011's test).
 
 ## Success Criteria *(mandatory)*
 
 - **SC-001**: In seeded runs on a fake floor, each selection under User Story 1's conditions gives one petting that ends `done`, with the dog home within 10 s of its end and the twin back to its facing.
 - **SC-002**: On the twin's real model and the man's, read in Node with the default pet spot and a dog of 0.62 m, the hand on the dog's side comes within 0.08 m of the target at the stroke's middle, and every reached bone equals the clip's own within 0.5 s of the end.
-- **SC-003**: With any one piece missing, failing, or loading, or under reduced motion, pause, 2D, or below the floor, nothing moves, no exception is thrown, and the conversation opens as for any piece.
+- **SC-003**: With any one piece missing, failing, or loading, or under reduced motion, pause, quality level 1 or more, 2D, or below the floor, nothing moves, no exception is thrown, and the conversation opens as for any piece.
 - **SC-004**: Spec 016's and spec 025's twin-state tests pass unchanged except where FR-009 adds the state.
-- **SC-005**: The proposal's checker passes; the patch applies cleanly to a fresh export of the line, `check_corpus.py` passes on the result, and the pack and cases are current.
+- **SC-005**: The proposal's checker passes; the patch applies cleanly to a fresh export of the line; on the result, `check_corpus.py` passes, `npm run content:check -w apps/web` passes and says the lock and the eval cases are current, `vitest run apps/web/test/twin-pack.test.ts apps/web/test/content/narration.test.ts` passes, and the pack, the room's generated files, and the cases are current.
 - **SC-006**: The live region's line appears once per petting, and never for a skipped one.
 - **SC-007**: The reach adds under 0.1 ms a frame and no per-frame allocation (FR-027).
-- **SC-008**: The Author's look at the petting, the stand-in's and then the clip's (his, in the morning and at lookdev), and his evaluation of the topic after the patch.
+- **SC-008**: The Author's look at the petting, the stand-in's and then the clip's (his, in the morning and at lookdev), and his evaluation of the three ready topics after the patch (once for both corpus patches, Q141).
 
 ## Amendments to Earlier Specs
 
 - **Spec 016, FR-021** (and its twin-states contract §2): the state list gains `petting`, after `fleeing` and `arriving` (M1); the clip roles' closed list gains `petting` (M2).
-- **Spec 025, its director**: a fourth phase, `visiting`, driven by `goTo`, outranked by `fleeing` (M3), only if spec 025 hasn't one.
-- **Spec 004's selectables**: a selectable's pick, in 3D, may also take a figure's draws (M4); the compositor's spacing check (RG6) measures placements only, and a figure moves, so the figure's pick area isn't measured by it (named in Assumptions).
+- **Spec 025, its director and its shell** (M3): a fourth phase, `visiting`, driven by `visit(point | null)`, outranked by `fleeing`, and an input `faceTwin(heading | null)` (A025). `chase-figures.ts` stays the one writer of the twin's and the dog's pictures; nothing of the run changes.
+- **Spec 004's selectables** (M4): a selectable's pick, in 3D, may also take a figure's draws, through an optional `figure` field; the compositor's spacing check (RG6) measures placements only, and a figure moves, so the figure's pick area isn't measured by it (named in Assumptions).
+- **Spec 025, FR-018** (M5; the page's Q140, taken provisionally): "It is a figure, not a placement: no pick area, label, frame box, obstacle, reach target, stand-in, 2D drawing, or "In the room" entry" now reads: no pick area except that a selectable whose `figure` is `dog` (this spec's `dog` piece, the only one the schema allows) picks it while it stands at home; no label, frame box, obstacle, reach target, stand-in, 2D drawing, or "In the room" entry. Spec 025's FR-018 is otherwise unchanged, and without the `dog` piece in the room's data the figure has no pick area.
 
 ## Assumptions
 
-- Specs 020 and 025 land before this one's code (plan §9); spec 019's applier pattern is on the line. This spec's tests use fakes of A020 and A025 first, and one integration task runs once they are on the line.
+- Specs 020 and 025 land before this one's code (plan §9); spec 019's applier is on the line (`night/fix-019/fix-019`). This spec's tests use fakes of A020 and A025 first, and the adapter task (T011) moves to their real code once they are on the line.
 - **The look approvals**: the dog's model is spec 020's; the petting clip, `assets/twin/petting.glb`, is a new twin file, made from his photo-derived rig, so it is `likeness: true`, `source.type: "photo"` as the other twin clips are, and needs his own approval entry (human patch 026, items 3 and 4). Until it exists, the reach stands in.
 - **The studio**: the petting clip is keyed on the twin's rig in Blender, which main's tools list (P-7) holds; no new tool or model. Its round is a later studio task; this spec writes its brief only (plan §5).
 - **The corpus**: `corpus/proposals/` is written by the implementer's task, never `corpus/` itself; if the container refuses it, FR-017's fallback.
-- **The topic closes once**: applying the patch closes hobbies-and-travel (the snowboard, the bicycle, and the dog open the fixed `topic_not_ready` message) until he re-runs his evaluations and marks the new hashes. This is his gate, named in the proposal's first lines and the human-patch note.
-- **Spec 022's patch** also regenerates `config/twin/corpus.json` and the narration cases. Whichever of the two patches he applies second is rebuilt on the first (plan §7).
+- **The topics close once** (Q141, taken provisionally): a topic's hash covers the rules, and the rules hold every "Do not claim" bullet (`apps/web/build/twin-pack.ts`, line 17, `topicHashInput`), so applying the patch closes all three ready topics, mission, work projects, and hobbies and travel, until he re-runs his evaluations and marks the new hashes: every piece in the room shows the fixed `topic_not_ready` message meanwhile. The line is kept (Principle VIII). Spec 022's patch closes the same three; he applies the two back to back and evaluates once. This is his gate, named in the proposal's first lines and the human-patch note.
+- **Spec 022's patch** also regenerates `config/twin/corpus.json`, the narration cases, and (Q145) `docs/corpus-size.json`. Whichever of the two patches he applies second is rebuilt on the first (plan §7); spec 022's touches `08` and its facts, not `04`, so only the generated files overlap.
+- **ADR 0054's T1** (proposed, spec 027; Q144, taken provisionally): hobbies and travel's grounding is 20,916 characters of a room of 21,182 (ADR 0054's table, measured on `main` at 3c0e4cd0); the new "## Arya" line, which carries his approval's line, and the "Do not claim" line, which every topic's turn carries, are together longer than the 266 left, so the patch takes the topic past T1. Spec 027's Q1 stands: nothing more is built tonight. The record the patch regenerates reads "stage 1 due"; until stage 1 is built, spec 007's FR-008 drops the topic's last sections in reverse file order (its Golden Q&A come last), and only in long conversations. Spec 022's patch takes mission past it too. The proposal and the human-patch note say so; the exact figures are the record's, not this spec's.
 - **RG6** (spec 004's spacing check of pick areas at the framing) does not measure the dog figure's pick area, since it moves; the figure's pick is a second target for a selectable whose member, the sign, RG6 does measure. Named here as a reading, not a deviation: no control is dropped.
-- **Spec 025's text** calls item i "spec 026's" (its Q2); item i's spec is not this one. Noted for spec 025's next rework; nothing here depends on it.
-- **Deviations from the constitution**: none. No control is deferred or dropped.
+- **Spec 025's text** called item i "spec 026's" (its Q2, at `night/spec-025/spec-025`); item i is spec 024's (`night/rework2-spec-024/rework2-spec-024`), and this spec is item f. Noted for spec 025's rework; nothing here depends on it.
+- **Deviation named** (CLAUDE.md, "Deferring or dropping a control the constitution requires"; the page's Q142, taken provisionally): **Principle II** ("telemetry that makes it observable in production") and **Development Workflow 7** ("A feature without a graph is not done") are not met for the petting itself: it sends no usage event and has no dashboard panel or count. An event counting pettings by outcome would carry `cut`, which only the dinosaur's run causes, so it would tell the stack the visitor chose the dinosaur, which row V4 of the data-flow disclosure says the usage events never carry ("avatar"; the page's Q117, spec 025's Q10). Observed instead: the dog-intro's selection by the existing `object_selected` event with ID `dog` and its turn by the gateway's spans; the petting by the draft build's frame log (FR-026), a development aid that is never sent. If the Author takes Q142's other answer (a once-a-visit event of `done` and `skipped` only), the event, its line in `config/room-events.yaml`, and its panel come with it. No accepted ADR is reversed.
+- No other constitution control is deferred or dropped.
 - Distances, angles, and times are placeholders, data, and the Author's to set at lookdev.
 
 ## Expected Cost Impact
 
-Cloud: the petting, none. The dog-intro: one twin opening per selection, as any piece's, on the existing route (local first, then the host's paid fallback in its sub-budget and caps), metered by the gateway and shown on the sign; no new route, model, or cap. Dev-time: about one implementer session of some twenty small tasks (tasks.md T001 to T021), a review, and a short studio round for the clip.
+Cloud: the petting, none. The dog-intro: one twin opening per selection, as any piece's, on the existing route (local first, then the host's paid fallback in its sub-budget and caps), metered by the gateway and shown on the sign; no new route, model, or cap. Dev-time: about one implementer session of some twenty small tasks (tasks.md T001 to T021), a review, and a short studio round for the clip. The first visit grows by the petting clip's bytes once his approval bundles it (FR-025; RK5 counts them).
 
 ## Degraded-Mode Behavior
 
-Written first (Principle I): the petting happens only when the twin's model with its arm, the dog's figure with its model, motion, and the 3D room above the floor are all there. In any other case, selecting the dog opens its conversation and nothing moves. Without the patch, there is no `dog` selectable and the room is as `main` has it. With the patch applied and the topic not yet re-marked, the dog, the snowboard, and the bicycle show the fixed `topic_not_ready` message, as any closed topic does. The kill switch and the tier affect the conversation as they do any turn; the petting is local.
+Written first (Principle I): the petting happens only when the twin's model with its arm, the dog's figure with its model at home, motion at quality level 0, a pet spot that fits and is free, and the 3D room above the floor are all there. In any other case, selecting the dog opens its conversation and nothing moves. Without the patch, there is no `dog` selectable, the room's dog has no pick area, and the room is as the line has it. With the patch applied and the topics not yet re-marked, every piece of the three ready topics, the dog among them, shows the fixed `topic_not_ready` message, as any closed topic does (Q141); past T1, a long conversation about hobbies and travel loses the topic's last sections first (Q144). The kill switch and the tier affect the conversation as they do any turn; the petting is local.
 
 ## Data-Flow Disclosure Entries
 
-None new: the petting sends nothing (FR-025). The selection's `object_selected` event and the opening turn go where every piece's already go; the generated `config/room-events.yaml` gains the ID `dog`. A task reads `docs/data-flow-disclosure.md` and adds a sentence only if a row names the selectables one by one.
+None new: the petting sends nothing (FR-025). Once his approval bundles `assets/twin/petting.glb`, it is fetched as one of "the twin's model and clips in every 3D visit above the floor, the same for every visitor", which row V1 already says; no row changes. The selection's `object_selected` event and the opening turn go where every piece's already go; the generated `config/room-events.yaml` gains the ID `dog`. A task reads `docs/data-flow-disclosure.md` and adds a sentence only if a row names the selectables one by one.
 
 ## The "New Endpoint or Feature" List (`CLAUDE.md`)
 
-- Telemetry span: FR-026 (and the existing `object_selected` and turn spans).
-- Dashboard panel: FR-026 (a docs change).
+- Telemetry span: none for the petting, a named deviation (Assumptions; Q142); the dog-intro's selection and turn carry the existing `object_selected` event and the gateway's turn spans. The draft build's frame log takes a `twin-pet` record (FR-026), a development aid, never sent.
+- Dashboard panel: none for the petting (the same deviation); the dog-intro's turns show on the existing panels for twin turns.
 - Cost estimate: above.
 - Degraded-mode behavior: above.
 - Data-flow disclosure entry: none needed; checked by a task.
@@ -235,14 +238,14 @@ None new: the petting sends nothing (FR-025). The selection's `object_selected` 
 | Principle | How this complies |
 |---|---|
 | I. Data-Local | The petting is local; the conversation uses the existing route and its disclosure. Degraded mode first. |
-| II. Production-Grade | Tests first (tasks.md), a frame-log record, a dashboard line, a frame budget, degraded modes. |
+| II. Production-Grade | Tests first (tasks.md), a frame budget, degraded modes, the frame log's development record. One named deviation (Assumptions; Q142): no production telemetry and no graph for the petting, which would tell the stack the visitor's avatar (row V4); Development Workflow 7 likewise. |
 | III. Intent, Spec, Code, Humans Merge | The intent is a draft for his acceptance; he merges and applies the patch. |
 | IV. Least Privilege | No human-only path is written; the corpus, the readiness file, the twin's clip, and its approval are his (human patch 026). |
 | V. Cost | None for the petting; the conversation at the route's existing cost. |
 | VI. Build in Public | Questions on the morning page with recommendations; the proposal shows each line's source. |
 | VII. Own the Whole Product | Nothing about him or his dog beyond the corpus and his words; the dog's name in the room is an open slot. |
-| VIII. Honest AI | The room's dog is said to be a likeness, in his approval's line; a "Do not claim" line keeps the twin from saying otherwise. |
+| VIII. Honest AI | The room's dog is said to be a likeness, in his approval's line; a "Do not claim" line keeps the twin from saying otherwise (kept, though it closes all three ready topics: Q141). Golden Q&A 9 and the slot carry only his own words (Q143). |
 
 ## Open Questions
 
-Q1 to Q8 above, each with its recommended answer, each also in `/night/io/out/questions.md`. A ninth on the page asks for his answer to Golden Q&A 9 (FR-020), with a recommended answer made only of his words.
+Q1 to Q8 above, each with its recommended answer, each on the page (Q120 to Q127). Q128 asks for his answer to Golden Q&A 9 (FR-020); its "Answered: recommended" is not his answer (Q143). The rework's: Q140 to Q145 on the page, taken provisionally (Clarifications); and new ones in `/night/io/out/questions.md`, each with its recommended answer (the pet spot derived from the dog's home, RQ1; the "Do not claim" line's new wording, RQ2).
