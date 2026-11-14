@@ -597,6 +597,58 @@ def test_a_quoted_script_line_isnt_a_cited_files_text(
     assert failing(problems, "R4", "currency"), problems
 
 
+FILM_FILES = {
+    "films/kill-switch-b2/captions.srt": (
+        "1\n00:00:01,000 --> 00:00:04,000\nSo it has a ceiling: five dollars a day.\n"
+    ),
+    "films/meter/notes.md": "A sign shows what each call cost, to the millionth of a dollar.\n",
+}
+
+
+@pytest.mark.parametrize(
+    ("source", "quote"),
+    [
+        # rv-rework-022's F-1: a film's other files are the agents' text too, and a leading ./ is the same file.
+        (
+            "films/kill-switch-b2/captions.srt",
+            "So it has a ceiling: five dollars a day.",
+        ),
+        (
+            "./films/kill-switch-b2/script.txt",
+            "So it has a ceiling: five dollars a day.",
+        ),
+        # Siblings the review didn't name: a path that normalises into a film's script, and another film's notes.
+        (
+            "films/meter/../kill-switch-b2/script.txt",
+            "So it has a ceiling: five dollars a day.",
+        ),
+        (
+            "films/meter/notes.md",
+            "A sign shows what each call cost, to the millionth of a dollar.",
+        ),
+    ],
+)
+def test_no_file_under_films_is_a_cited_files_text(
+    repo: Path, source: str, quote: str
+) -> None:
+    for rel, text in FILM_FILES.items():
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text(text)
+    cites = changed(
+        "| The tests #1 | `evals/run.md` | `[P]` |",
+        f"| The tests #1 | `evals/run.md`, `{source}` | `[P]` |",
+    )
+    assert run(repo, cites) == []
+    bad = changed(
+        "- `[?]` The daily summary of the CPU metrics.",
+        f'- `[?]` The daily summary of the CPU metrics. The film says "{quote}"',
+        cites,
+    )
+    problems = run(repo, bad)
+    assert failing(problems, "R5", quote[:20]), problems
+    assert failing(problems, "R4", "currency"), problems
+
+
 # ---- R6: third-party text ----
 
 
