@@ -42,7 +42,7 @@ Documentation: `spec.md`, `plan.md`, `tasks.md`, `analysis.md`, this folder; the
 | `src/room/hud/keycap.ts` **new** | T003 (impl-018) | `keycap(doc, name)` |
 | `src/room/hud/stats.ts` **new** | T004 (impl-018) | `statsFrom(tier, cost, words)` |
 | `src/room/hud/split.ts` **new** | T009, T010, T012, T015, T018 (impl-018); T025, T026 (rework) | the panel's and the list's parts; Escape's order (FR-009); focus to the opener (FR-045); the emblem from `hud/icons.ts` (Q60) |
-| `src/room/hud/split.css` **new** | T012, T014 (impl-018); T025, T027, T028 (rework) | the split layout's rules; the rest row in the bar's band; glass behind the title row (B2); the keyboard inset (B1) |
+| `src/room/hud/split.css` **new** | T012, T014 (impl-018); T025, T027, T028 (rework); verify-018 | the split layout's rules; the rest row in the bar's band; glass behind the title row (B2); the keyboard inset (B1); the rest row's text box may shrink (`min-width: 0`, I-2) |
 | `src/room/layout.ts` | T009 (impl-018), T025 (rework) | `--split-*` properties (the rest row's replace the bar's); `data-split`; the walking control's place from `compact.walk` |
 | `src/room/app.ts` | T009, T018 (impl-018); T025, T028 (rework) | wiring; a sent turn opens the panel; the opener recorded; the keyboard inset passed to the split layout |
 | `src/talk/talk.ts` | T009 (impl-018); T025 (rework) if the opener needs a hook | `onConversation`, `onLarger`; the sent turn's hook |
@@ -59,6 +59,7 @@ Documentation: `spec.md`, `plan.md`, `tasks.md`, `analysis.md`, this folder; the
 | `test/room/frame.test.ts` | T022 (rework) | spec 014's: two cases measured from the list's box (R4, §13) |
 | `test/room/hud.test.ts`, `test/room/__snapshots__/protect.test.ts.snap` | verify-018 | spec 014's: D-R4's amendment, applied under Q94 (§13) |
 | `test/ui/hud-split.test.ts` **new** | T003, T008, T010, T011 (impl-018); T024, T026, T028 (rework) | |
+| `test/ui/hud-split-rest-row.test.ts` **new** | verify-018 | I-2: the rest row's text box has a least width of 0 (FR-004, D-R1) |
 | `test/ui/hud-split-a11y.test.ts`, `hud-split-contrast.test.ts` **new** | T013 (impl-018); T024, T027 (rework) | |
 | `test/ui/hud-split-fallback.test.ts`, `loading-style.test.ts` **new** | T015, T016 (impl-018) | |
 | `test/ui/hud-look.test.ts` | T012 (impl-018) | D-I3, Q55 |
@@ -188,6 +189,7 @@ The test files spec 018 itself added change where FR-001's rule moved 1280 × 72
 - **D-R5 (T025): how the opener is recorded.** `Split.openPanel(opener, focusHint)` records the control at the opening and `closePanel(true)` sends focus back to it, or to the selected entry where it is gone, hidden, inert, or disabled. `app.ts` passes the list's entry from `selectObject`, now called before `talk.topicSelected` so the entry is recorded before the opening turn's `onConversation`; the text box from `onConversation` and `onLine`; and "Larger conversation" from `onLarger`. `talk.ts` needed no hook: a sent turn already reaches `onConversation`. `SplitOptions` gains `resumeOpen` for FR-009's step 5. Escape is one capture listener, as §3 says; impl-018's second, bubbling listener is gone.
 
 - **D-R6 (T026): the emblem and the portrait's speaker.** `hud/icons.ts` gains `PIECE_ICONS` (snowboard, bicycle, laptop, chalkboard), `SPEECH_ICON`, and `emblemIcon(id)`; `SplitDraw.emblem(doc, piece)` draws it, so FR-002's fallback test can force it to throw, and an open panel's emblem follows `setConversation`. From the brief, not tasks.md: `SplitDraw.portrait` and `SplitOptions.portrait` take the speaker, and `SplitOptions.speaker` names it ("twin" where absent; the slot carries `data-speaker`), so item d's dog is a new speaker with no change to `split.ts`. `app.ts` fetches the twin's still alone.
+- **D-V1 (verify-018; rv-rework-018's I-2): the rest row's text box gets `min-width: 0`.** talk.css's `.talk-row input` has `flex: 1 1 6rem` and no `min-width`, so in the rest row (`flex-wrap: nowrap`, 640 px at §2's windows) its least width was the input's intrinsic width, not the 6rem D-R1's model counts, and the row's contents could overflow its glass. split.css now sets `min-width: 0` on the rest row's input only; the column layout's form is unchanged. `test/ui/hud-split-rest-row.test.ts` pins it.
 
 ## The rework's decisions (rule 6; tasks T021 to T030)
 

@@ -291,6 +291,12 @@ html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-row {
   min-width: 0;
 }
 
+/* The text box keeps talk.css's 6rem basis but may shrink below the input's own width, so the row's contents stay inside
+   its glass (verify-018, rv-rework-018's I-2). */
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-row input {
+  min-width: 0;
+}
+
 html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-log,
 html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-status {
   position: absolute;
