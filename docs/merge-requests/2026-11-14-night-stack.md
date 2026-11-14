@@ -1405,3 +1405,208 @@ Commit hooks: each of this session's commits printed gitleaks' "no leaks found" 
 Interruptions: none. No hook, bash-gate, or harness refusal in this session.
 
 verify-023: green, carrying D-V2's six (Q165)
+
+---
+
+## Item 10: spec 027, when the twin's file context stops being enough (`night/impl-027/impl-027`)
+
+Spec: specs/027-corpus-retrieval-adr/ · Intent: intent/027-corpus-retrieval-adr.md (draft) · ADR: docs/adr/0054-when-file-context-stops-being-enough.md (proposed) · Written by: implementer (night shift, impl-027, Opus 5.5); the review is for a worker who didn't write the code (T006; the reviewer follows this task) · Date: 2026-11-14
+Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl-027 · Repo hooks active: each commit printed gitleaks' "no leaks found" and an `arrival-check: 0 findings in <n> file(s)` line (verify-027's commits, below); the setup target's own git-hooks step can't install hooks from the sandbox ("isn't writable here (the agent sandbox); the Author runs make git-hooks")
+Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at the top of plan.md and tasks.md), the spec, and the plan as reworked twice (rv-spec-027, rv-rework-spec-027). Every question about spec 027 on the page (Q129 to Q138, Q144, Q145, Q157) is answered: recommended, under the orders file's rule ("any new one: the recommended answer stands"). Base: rework2-spec-027's tip (13e1da8c), with `night/verify2-020/verify2-020` (3767859f, items 1 to 3) merged as T001, then `night/verify-021/verify-021` (item 4) merged last (below).
+
+### What changed and why
+
+His item j): "future knowledge corpus gains answers or more questions as we go to RAG then we go to vector DB and answers to why we are okay using file context as of now and this size". Its first step is ADR 0054, on when file context stops being enough, with today's corpus measured; it is built only as far as that ADR decides (Q1): no retrieval, nothing the twin reads at run time changes.
+
+- **The size check** (`apps/web/build/corpus-size.ts`, T003): measures the topic and facts files (bytes, words, characters), and, by the fit check's own functions (`fitProblems`' room, `renderRules`, `renderSection`, `instructionsChars`, `fitLimits`), the room a turn's grounding has, each pack topic's grounding, share, and margin, each selectable's longest lead beside it, each topic file as if it were a topic, free talk's share, and the pack's size. It names the stage ADR 0054's three thresholds call for (T1: a topic past the room; T2: free talk under 5% of the rankable sections; T3: the pack past 10 MiB or 10,000 sections). A crossing or a band is a note on stderr, never a failure (Q4). `twin-pack.ts` is unchanged.
+- **The record** (`docs/corpus-size.json`, T004): written by `npm run twin:pack -w apps/web`, whose script now runs the check after the pack (`&&`, so a failed pack writes no record). No commit, no date: two runs give the same bytes. Nothing at run time reads it.
+- **Its test** (`apps/web/test/corpus-size.test.ts`, T002, written and seen failing first): fresh (a stale record fails, naming the command), deterministic, room parity with `fitProblems` on a two-file topic, one character across T1 flipping the stage with one note, a file no topic holds never crossing, the lead counted beside T1 and its template held to the gateway's `renderLead`, T2's and T3's edges, the defaults, reads only, words.
+- Departures in plan §9, D1 to D5 (`computeRecord`; the budgets' source read with the workspace's `yaml`; the import path; small exports; the stage's edges).
+
+### The record's stage
+
+**Stage 0; T1 in band** for mission (21,045 of the room's 21,182, 137 left) and hobbies and travel (20,916, 266 left, 225 after the snowboard's 41-character lead). Free talk 11.7% (9,160 of 78,202); the pack 131 sections, 153,697 bytes. Every figure equals the one ADR 0054 took by a replica at 3c0e4cd0, so T005 has no difference to record (R-1). The command's own lines:
+
+```
+$ npm run twin:pack -w apps/web
+twin:pack: wrote config/twin/corpus.json: 131 sections, 3 topics; 186 cases
+corpus:size: T1 band: the topic hobbies-and-travel is within 266 characters of T1 (20,916 of the room's 21,182; ADR 0054)
+corpus:size: T1 band: the topic mission is within 137 characters of T1 (21,045 of the room's 21,182; ADR 0054)
+corpus:size: wrote docs/corpus-size.json: stage 0; mission 21,045 of 21,182
+$ git diff --exit-code --stat -- config/twin/ evals/product/cases/
+(no output; exit 0: the pack, the cases, and the readiness hashes didn't move, SC-004)
+```
+
+### Acceptance criteria
+
+FR-008 (deterministic, reads only), FR-009 (the fields), FR-010 (room parity; the lead), FR-011 (one note at T1, exit 0), FR-012 (fresh, naming the command), SC-002 (one character flips the stage), SC-003 (one small file): `test/corpus-size.test.ts`. FR-013 and SC-004: T004's `git diff --exit-code` above. FR-001 to FR-007 and FR-014 are the ADR's, drafted on the spec's branch; T005 finalizes its figures (below), and T006 reviews them.
+
+### Verification (small tests, the order's rule 4)
+
+Per task (in `apps/web`): T002 RED (`Cannot find module '../build/corpus-size'`; `make lint` failing on tsc's TS2307, as a RED test must); T003 GREEN but "fresh" (`Tests 1 failed | 43 passed (44)`, the failure `docs/corpus-size.json is missing or stale: run npm run twin:pack -w apps/web and commit it`); T004 all GREEN:
+
+```
+$ npx vitest run test/corpus-size.test.ts test/twin-pack.test.ts
+ Test Files  2 passed (2)
+      Tests  44 passed (44)
+   Duration  43.26s (tests 44%, import 39%, transform 16%, worker 1%)
+```
+
+`make lint` after T003 and after T004: exit 0 (eslint with zero warnings, tsc for the three workspaces, prettier, ruff, ruff format "779 files already formatted", shellcheck). The full lint output and each task's run are in `specs/027-corpus-retrieval-adr/notes.md`. No full suite here: the stack's one `make check` is another task's.
+
+**verify-021's merge** (step 5 of the supervisor's task): verify-021's stack note ends item 4 with "verify-021: green, carrying D-V2's six (Q165)", so `git merge refs/heads/night/verify-021/verify-021` (b3d043a2) is the line's new tip here, merge commit 1da30321. One conflict, in this note, both sides having added a section after item 3: resolved as items 1 to 4 exactly as verify-021 has them, then item 10 whole. No code conflicted; verify-021 touches nothing the record measures (`git diff --stat HEAD...refs/heads/night/verify-021/verify-021 -- corpus/ config/ apps/web/package.json apps/web/build/twin-pack.ts docs/adr/ docs/corpus-size.json`: empty). Small tests rerun after the merge, from the worktree's root (the record still fresh at the new tip):
+
+```
+$ cd apps/web && npx vitest run --reporter=verbose test/corpus-size.test.ts test/twin-pack.test.ts
+ ✓ test/corpus-size.test.ts (15 tests: fresh 17ms, deterministic 10ms, every other case 0 to 1ms)
+ Test Files  2 passed (2)
+      Tests  44 passed (44)
+   Duration  45.43s (tests 40%, import 36%, transform 23%, worker 1%)
+$ python3 -I -m pytest -q -p no:cacheprovider evals/test_docs_links.py
+44 passed in 0.88s
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+787 files already formatted
+(shellcheck: no finding; exit 0)
+```
+
+The check's own 15 cases take about 35 ms together (SC-003: under 2 seconds); the rest of the run is the two site builds every `apps/web` vitest run makes first. None of D-V2's six (Q165) is in these files, so none was hit.
+
+### Review (rv-impl-027)
+
+rv-impl-027 (T006, a worker that didn't write T002 to T004): nothing blocking. Its nits, as the supervisor relayed them; N1, N3, and N4 are recorded here, not fixed (rule 6), and N2 is fixed in the documents:
+
+- **N1**: `limits.source` reads `"defaults"` when `limits.twin` holds only some of its keys (D2's rule: all three keys as integers, or `"defaults"`), though the keys it holds are used.
+- **N2**: plan §9 lacked T001's departure, the merge onto the line before item f. **Fixed** by verify-027 in its own commit, documents only (37ffc54f): plan §9's D6 (Q171).
+- **N3**: band notes print while `band` omits a crossed T1 (my reading: with T1 crossed by one topic, another topic within T1's band still gets its stderr note, but D5 keeps a crossed threshold out of `band`, so the record and the notes disagree).
+- **N4**: a room of zero or less writes `share: null` in the record.
+
+### What waits
+
+- **T008** (the record in both pending corpus patches, Q145), **T005's patch figures and its measurement commit** (the ADR moves "Measured on `main` at 3c0e4cd0" to T004's commit, 0d257fe6 or its hash on the line, and takes the patches' figures from T008's records), and **T007's patch figures**. They need spec 022's `docs/merge-requests/2026-11-14-corpus-film-scripts.patch` and spec 026's dog-intro patch on the line; impl-022 and impl-026 build them beside this task, and neither was on the line's tip at T001. A later task finishes them once both are (Q171).
+- For that task: rework2-spec-027 read 026's patch at b12ac0ba; 026's final tip (9bba8f36) changed `04`'s framing line, not FR-021's bullet, so T005's final figures still come from T008's records. Projected until then: 026's patch takes hobbies and travel past T1 (−7) and leaves mission 1 character; 022's then takes mission past T1.
+- **T006**: the review, by a worker that didn't write T002 to T004.
+- **A note for whoever merges an item after this one**: the record's freshness test fails on a change to `corpus/` topic or facts files, `config/twin/prompt.md`, `config/twin/corpus.json`, or `config/budgets.yaml`'s `limits.twin` made without `npm run twin:pack -w apps/web`; its message names the command, and the pack's own freshness test already needs the same command (R-2).
+
+### Cost and data-flow impact
+
+$0, and no model call: the check runs at build time, in process, reading committed files. No byte leaves a device; no span, panel, or disclosure row (spec, "Cost, degraded mode, telemetry, disclosure"; Q5). Nothing at run time changes, so the degraded modes are ADR 0040's.
+
+### For the Author
+
+- **Human patch 027** (`docs/merge-requests/human-patches/027.md`): none needed. Spec 027 changes no human-only path; nothing under `corpus/` is written (T008, later, writes only each pending proposal's recorded blob ID and SHA-256 under `corpus/proposals/`).
+- **ADR 0054, as proposed**: yours to accept, amend, or reject at the merge. Its thresholds live in one place (`THRESHOLDS` in `apps/web/build/corpus-size.ts`); a change to one is an ADR amendment in the same commit.
+- **FR-002**: ADR 0054's measurement commit is in `main`'s history only if you merge the line without squash or rebase.
+- **The pending corpus patches**: the one you apply second is rebuilt on the first. Once you apply either and the record reads "stage 1 due", stage 1's spec (retrieval within a topic) is the next item (Q144).
+- The questions on the morning page with their recommended answers (Q1 to Q8, Q144, Q145, Q157; spec 027's page numbers Q129 to Q138, Q144, Q145, Q157). This task adds none.
+
+Interruptions: none. No hook or bash-gate refusal in this session.
+
+### Verification (rule 7, verify-027)
+
+Branch `night/verify-027/verify-027`, from the line's tip, verify-023 (bb839ff1: items 1 to 4 and 6), by a different worker (Opus 5.5) from item 10's implementer. Items 5 and 7 are still in rework, so item 10's first part (T001 to T004) goes on the line now. Read under Q165, as verify-020 to verify-023 read it.
+
+#### The merge
+
+`git merge refs/heads/night/impl-027/impl-027` (469531f8): merge commit 7d4a87cf. The one conflict was this note: resolved with items 1 to 4 and 6 whole as the line has them, then item 10 whole as impl-027 wrote it, in his order. No code conflict. rv-impl-027's N2 fixed in its own commit, documents only (37ffc54f); N1, N3, N4 recorded above, not fixed.
+
+#### Runs at the merge (3a692923)
+
+Item 10's two files, from `apps/web` (the record's "fresh" case passes after the merge, so no input moved and `twin:pack` wasn't rerun):
+
+```
+$ npx vitest run test/corpus-size.test.ts test/twin-pack.test.ts
+ Test Files  2 passed (2)
+      Tests  44 passed (44)
+   Duration  42.75s (tests 38%, import 36%, transform 25%, worker 1%)
+$ python3 -m pytest evals/test_docs_links.py
+44 passed in 0.92s
+```
+
+All of `apps/web` (1168 s):
+
+```
+$ cd apps/web && npx vitest run
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ FAIL  test/room/scan.test.ts > the committed tree (T107; FR-007, SC-001, User Story 1 scenario 4) > finds 0 IDs only the room's data defines in the room's code
+ Test Files  4 failed | 187 passed (191)
+      Tests  7 failed | 3780 passed | 3 skipped (3790)
+   Duration  1167.66s (tests 72%, import 28%)
+```
+
+Six are D-V2's (Q165). The seventh is item 10's own: spec 004's FR-007 scan, which reads test files too, finds the room's selectable ID `bicycle` as a fixture ID in T002's test (57dc60ff), not from the merge. Alone, RED:
+
+```
+$ npx vitest run test/room/scan.test.ts
++     "FR-007 apps/web/test/corpus-size.test.ts:260: holds \"bicycle\", which only the room's data defines",
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 passed (17)
+```
+
+#### Fixed
+
+- **T002's lead fixture** (3c63e2d0, plan §9 D7): the selectable `bicycle` in `test/corpus-size.test.ts`'s lead case is now `fx-bicycle`, in the reserved fixture prefix the scan never hits. The ID is a name only; no assertion changed, and `test/room/scan.test.ts` itself is untouched. Test-first: the scan's RED above, then GREEN:
+
+```
+$ npx vitest run test/room/scan.test.ts test/corpus-size.test.ts
+ Test Files  2 passed (2)
+      Tests  32 passed (32)
+   Duration  50.59s (tests 76%, import 12%, transform 11%)
+$ node_modules/.bin/prettier --check apps/web/test/corpus-size.test.ts
+All matched files use Prettier code style!
+```
+
+`twin:pack` wasn't rerun: no input of the record or the pack moved (the "fresh" case passes).
+
+#### D-V2's six, carried (Q165)
+
+`git archive HEAD` (3c63e2d0) into a fresh `/tmp` folder (`mktemp -d`), `git apply docs/merge-requests/proposed/018-verify-test-amendments.patch` there (`--check` clean), the worktree's `node_modules` linked in. Never applied on the line; no test file of the six edited.
+
+```
+$ cd <copy> && python3 -I -m pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+80 passed in 1.27s
+$ cd <copy>/apps/web && npx vitest run test/disclosure.test.ts test/site.test.ts test/room/legibility.test.ts test/room/report.test.ts
+ Test Files  4 passed (4)
+      Tests  72 passed (72)
+   Duration  62.91s (tests 74%, import 19%, transform 7%)
+```
+
+`test/room/twin-2d.test.ts` passed in the full run, so it needed no rerun alone.
+
+#### Lint, at 3c63e2d0
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+794 files already formatted
+(shellcheck: no finding; exit 0)
+```
+
+No Python changed in item 10 or the merge (`git diff --name-only bb839ff1 HEAD -- '*.py'`: empty), so no `pytest` folder beyond the docs' and the disclosure's evals above. Only `apps/web` changed among the workspaces.
+
+#### What stays as it was
+
+`git diff --stat bb839ff1 HEAD -- corpus config .claude tools/gates CLAUDE.md REVIEW.md .specify/memory/constitution.md evals/agent-config redteam/forbidden-actions.sh assets/policy` is empty. ADR 0054 stays `Status: proposed`. **T005, T007, and T008 still wait** for spec 022's and spec 026's patches on the line (Q171); not this task's.
+
+Commit hooks: each of this session's commits printed gitleaks' "no leaks found" and an `arrival-check: 0 findings in <n> file(s)` line (the fix: 2 files).
+
+Interruptions (verify-027): one bash-gate refusal. Removing my own earlier `/tmp` export (`rm -rf /tmp/verify-027-dv2.<random>`) was refused: "recursive delete outside workspace. Route: delete only inside the repo". I didn't retry it in any form; the copy was made again in a new `mktemp -d` folder, and both `/tmp/verify-027-dv2.*` folders stay for whoever clears `/tmp`.
+
+verify-027: green, carrying D-V2's six (Q165)
