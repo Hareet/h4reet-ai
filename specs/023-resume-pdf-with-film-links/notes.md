@@ -51,3 +51,24 @@ No new question: every finding was a fix, not a choice. Q25 to Q31 and Q98 stay 
 
 - A reviewer that didn't write this reviews the branch; then impl-023 starts from impl-022's tip with this branch merged first.
 - For the Author on the page: Q25 to Q31 (this spec's Q1, Q2, Q4 to Q8) and Q98, each with its recommended answer taken provisionally; the approval entry and the `git mv` (`human-patches/023.md`) after the repository is public and each link has been clicked.
+
+# Notes: impl-023 (2026-11-14), spec 023's code
+
+Branch `night/impl-023/impl-023`, from `night/rework2-spec-023/rework2-spec-023` (885befce), with `night/verify2-020/verify2-020` (3767859f, the line's verified tip, items 1 to 3) merged first: no conflict. `make setup` ran first (no `node_modules`).
+
+## T001 (RED)
+
+`apps/web/test/content/film-links.test.ts`, cases 1 and 2. RED: both failed, `films/resume-links.json is missing` (2 failed).
+
+## T002 (GREEN): the claim strings, read from the approved PDF
+
+pdf.js's text of the approved file (`apps/web/content/resume-author.pdf`, SHA-256 `5523e532…549d6d`, C-0002's), the twin section's four runs, read-only:
+
+```
+16 "LO C A L M O D E LS F I R S T"            x 64.81  y 580.33  size 7.17  width 89.52
+18 "A R E A L- T I M E C O S T M E T E R"     x 173.54 y 580.33  size 7.17  width 109.19
+20 "A $ 5 - A - D AY K I LL S WI T C H"       x 302.05 y 580.33  size 7.17  width 104.22
+22 "E V E R Y D ATA F LO W D I S C LO S E D"  x 425.37 y 580.33  size 7.17  width 126.78
+```
+
+The glyphs are stored as capitals, letter-spaced (pdf.js puts spaces between some letters). The table's claims are the PDF's own wording, in its capitals: `LOCAL MODELS FIRST`, `A REAL-TIME COST METER`, `A $5-A-DAY KILL SWITCH`, `EVERY DATA FLOW DISCLOSED` (plan §1 showed step 1's sentence case; the locator compares case-blind and with whitespace removed, so either matches). Cases 1 and 2: 2 passed.
