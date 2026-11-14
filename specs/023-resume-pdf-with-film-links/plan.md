@@ -87,7 +87,7 @@ His session's text stays as written. T009 adds a dated note (2026-11-14, the nig
 The sentence FR-011 gives goes in V1's Trigger cell, right after `following the PDF link` and before `, and following "Credits"`, word for word, between the fences (it starts with one space and holds no pipe and no code span):
 
 ```text
- (a link in the downloaded PDF, such as a claim's link to its film's page in the repository on github.com, isn't this row's flow: only when the visitor clicks it does the visitor's own PDF viewer send the request, from the visitor's device to that host; the site's origin isn't involved)
+ (a link in the downloaded PDF, such as a claim's link to its film's page in the repository on github.com, isn't this row's flow: only when the visitor clicks it does the visitor's own PDF viewer, or the browser it opens, send the request, from the visitor's device to that host; the site's origin isn't involved)
 ```
 
 The host is plain text, not backticked: `tools/gates/disclosure_check.py`'s `Rows.read` takes every backticked token in a row as a name the row discloses, so a backticked `github.com` in V1 would let a later egress line to that host pass the gate without a row of its own (rv-rework-spec-023 R1). Not in the other cells: V1's Carries, Never carries, and Why are spec 002's words plus spec 016's M17, which `apps/web/test/disclosure.test.ts:113-121` and `evals/test_disclosure.py` hold word for word; its Trigger is held only to contain M17's words (`toContain`) and to end with them (`endswith`), so the sentence goes before them. The small tests: `test/disclosure.test.ts`, `test/site.test.ts`, `evals/test_disclosure.py`, and `deploy/scripts/test_preflight.py`; and the gate's own, which is human-only to edit and fine to run, read-only: `python3 -I -B -X pycache_prefix=/dev/null -m pytest -q -p no:cacheprovider tools/gates/test/test_disclosure_check.py` and `python3 -I -B -X pycache_prefix=/dev/null tools/gates/disclosure_check.py` (it reads files as data and runs nothing; it must print PASS).
@@ -108,3 +108,12 @@ Each task runs `vitest run <its files>` from `apps/web` and `make lint`. The fil
 - `films/RESUME-LINKS-PLAN.md` step 5 (the room "keeps serving the approved C-0002 file", and "C-0004"): see Q6 in the spec; a dated note beside it, his text kept (Q98, §6).
 - RESUME-LINKS-PLAN's "What has to be true first" item 1 names `films/<name>/media/<name>.mp4`; `kill-switch-b2`'s file is `media/kill-switch.mp4`. The table records it as it is (§1).
 - Spec 002's contract §7 is unchanged. If the Author takes route (b), nothing in the contract changes either.
+
+## Departures in the implementation (impl-023, 2026-11-14)
+
+- **Case 11, added** (`film-links.test.ts`, T010's RED): FR-011's sentence, its three copies here (spec FR-011, §7, T010) alike, is in V1's Trigger right after `following the PDF link` and before `, and following "Credits"`. §3 had no case for T010; the task was test-first like the others.
+- **FR-011's sentence, reworded by rv-rework2-spec-023's nit** (not blocking; with the page's Q31): "only when the visitor clicks it does the visitor's own PDF viewer, or the browser it opens, send the request". The same words in its three copies, in T010's commit; case 11 holds them alike.
+- **The claim strings are the PDF's capitals** (T002): `LOCAL MODELS FIRST`, `A REAL-TIME COST METER`, `A $5-A-DAY KILL SWITCH`, `EVERY DATA FLOW DISCLOSED`, as pdf.js reads the approved file; §1 showed step 1's sentence case. The locator compares case-blind with whitespace removed, so either matches.
+- **No `/ID` to copy** (T003): the approved file's trailer is `<</Size 539 /Root 142 0 R /Info 1 0 R>>`. The writer copies `/ID` only when the original has one (the PDFKit fixture does, and case 4 checks it is copied unchanged), so the candidate's trailer has none. rv-rework2-spec-023's nit on the second `/ID` is moot for this file.
+- **`pdfinfo` isn't installed** in the agents' container: T007's link listing is the build's reader (case 5) and the appended section read as text (case 8); the Author's check stays `pdfinfo -url` in his terminal.
+- **The writer case doesn't create `candidates/`**: T007 ran `mkdir -p apps/web/content/candidates` first. Git keeps the folder only through the file, and the state never reads the folder (FR-013).

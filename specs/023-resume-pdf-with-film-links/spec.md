@@ -96,7 +96,7 @@ As the Author and the agents, we want the claim-to-film table in one file, so th
 - **FR-011**: `docs/data-flow-disclosure.md` row V1's Trigger cell gains this sentence, inserted right after `following the PDF link` and before `, and following "Credits"` (the cell must still end with spec 016's words, which `evals/test_disclosure.py` checks), word for word, between the fences:
 
   ```text
-   (a link in the downloaded PDF, such as a claim's link to its film's page in the repository on github.com, isn't this row's flow: only when the visitor clicks it does the visitor's own PDF viewer send the request, from the visitor's device to that host; the site's origin isn't involved)
+   (a link in the downloaded PDF, such as a claim's link to its film's page in the repository on github.com, isn't this row's flow: only when the visitor clicks it does the visitor's own PDF viewer, or the browser it opens, send the request, from the visitor's device to that host; the site's origin isn't involved)
   ```
 
   It starts with one space and holds no pipe and no code span: `tools/gates/disclosure_check.py`'s `Rows.read` takes every backticked token in a row as a name the row discloses, so a backticked host here would let a later egress line to that host pass the gate without a row of its own (rv-rework-spec-023 R1). No other cell of V1 changes. The disclosure's checks still pass: `apps/web/test/disclosure.test.ts`, `apps/web/test/site.test.ts`, `evals/test_disclosure.py`, the preflight's, and `tools/gates/disclosure_check.py` with its own tests (run, not edited).

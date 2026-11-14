@@ -168,3 +168,31 @@ docs links: 0 failed, 2434 relative links in 401 files
 ## T009: dated notes in `films/RESUME-LINKS-PLAN.md` (Q98)
 
 Four added lines, his session's text unchanged: `git diff --word-diff films/RESUME-LINKS-PLAN.md` shows no removed word (`grep -c '\[-'` gives 0; `git diff --stat`: 4 insertions). Beside step 5: the render-not-C-0002 reading, the candidate's place, C-0004 taken and the next free ID his (spec Q6, the page's Q29; Q98). Beside each open decision: the URL (Q3, the corpus's), four claims kept (Q4, the page's Q27), landing pages (Q2, the page's Q26). `make lint`: exit 0 (eslint, tsc for three workspaces, prettier, ruff, 778 files formatted, shellcheck).
+
+## T010: FR-011's sentence in V1's Trigger
+
+RED first: case 11 (added; plan "Departures in the implementation"), `AssertionError: expected ' opening the room, which loads its pa…' to contain 'following the PDF link (a link in the…'` (1 failed).
+
+GREEN: rv-rework2-spec-023's nit taken: "the visitor's own PDF viewer, or the browser it opens, send the request", in its three copies (spec FR-011, plan §7, T010), then the sentence into V1's Trigger, after `following the PDF link` and before `, and following "Credits"` (the place occurs once; V4's `following the PDF link` untouched). No backtick, no pipe: the host is plain text.
+
+Small runs, from the root and `apps/web`:
+
+```
+$ (apps/web) npx vitest run test/content/film-links.test.ts test/disclosure.test.ts test/site.test.ts
+     × gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+     × names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ Test Files  1 failed | 2 passed (3)
+      Tests  2 failed | 36 passed | 2 skipped (40)
+$ pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py deploy/scripts/test_preflight.py
+FAILED evals/test_disclosure.py::test_the_rooms_rows_are_in_its_own_section_with_the_specs_words
+1 failed, 204 passed in 1.64s
+$ python3 -I -B -X pycache_prefix=/dev/null -m pytest -q -p no:cacheprovider tools/gates/test/test_disclosure_check.py
+13 passed in 0.18s
+$ python3 -I -B -X pycache_prefix=/dev/null tools/gates/disclosure_check.py
+disclosure-check: PASS, every outward thing the tree holds has its row
+```
+
+The three failures are **D-V2's** (Q164, carried under Q165): V1's **Carries** cell, which item 1's T029 changed (H-11, "or, in a 3D visit, once, when the conversation panel first opens in the split layout (spec 018)"), against tests that pin it to spec 002's and 016's words. Not this item's. The evidence:
+
+- The same three fail with the disclosure file as it was before T010 (`git show HEAD:docs/data-flow-disclosure.md` put in place, run, and mine restored): `Tests 2 failed | 9 passed (11)` for `test/disclosure.test.ts`; `1 failed, 35 passed` for `evals/test_disclosure.py`, the same three names.
+- In a copy of the tree (`git archive HEAD` into `mktemp -d`, my disclosure copied in, `node_modules` linked) with `docs/merge-requests/proposed/018-verify-test-amendments.patch` applied **to the copy only** (never to this branch): `test/disclosure.test.ts test/site.test.ts`: `Test Files 2 passed (2) · Tests 27 passed (27)`; `evals/test_disclosure.py`: `36 passed`. So the sentence breaks nothing those tests hold.
