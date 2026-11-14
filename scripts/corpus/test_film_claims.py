@@ -44,7 +44,7 @@ SCRIPTS_MD = """# Scripts for the films (fixture)
 1. Every answer has a price, and you can watch it.
 2. A sign shows what each call cost, to the millionth of a dollar. It reads the gateway's own reply.
    - `src/sign.md`.
-3. Why this model? In Hareet's words: "we chose it since the context is small."
+3. Why this model? In Hareet's words: "we chose haiku since our context base is small and manually evaluated haiku and sonnet."
    - **about you**: your words, 2026-11-10.
 4. And every day, a summary reports the CPU metrics.
    - The Author's plan. Not in the repository yet; the film shows it as the Author describes it.
@@ -132,7 +132,7 @@ Prose about the scripts may cite "five dollars a day", fifteen, and 345 freely: 
 ## The meter
 
 - `[P]` A sign in the room shows what each call cost. It reads the gateway's own reply. — {URL}/src/sign.md
-- `[A 2026-11-10]` Why this model, in his words: "we chose it since the context is small."
+- `[A 2026-11-10]` Why this model, in his words: "we chose haiku since our context base is small and manually evaluated haiku and sonnet."
 
 ## The kill switch
 
@@ -183,7 +183,7 @@ The suggested second sentence for Golden Q&A 5:
 |---|---|---|---|---|---|---|---|---|---|
 | §1 | 1 | Every answer has a price, and you can watch it. | left out | — | a duplicate of `08-hareet-ai.md`: its real-time cost meter | — | `src/sign.md` | — | — |
 | §1 | 2 | A sign shows what each call cost, to the millionth of a dollar. It reads the gateway's own reply. | in part | “A sign shows what each call cost”<br>“It reads the gateway's own reply.” | “to the millionth of a dollar” → a currency amount | The meter #1 | `src/sign.md` | `[P]` | — |
-| §1 | 3 | Why this model? In Hareet's words: "we chose it since the context is small." | carried | whole | — | The meter #2 | `src/sign.md` | `[A 2026-11-10]` | — |
+| §1 | 3 | Why this model? In Hareet's words: "we chose haiku since our context base is small and manually evaluated haiku and sonnet." | carried | whole | — | The meter #2 | `src/sign.md` | `[A 2026-11-10]` | — |
 | §1 | 4 | And every day, a summary reports the CPU metrics. | left out | — | unbuilt: "Not in the repository yet" | What it doesn't know yet #1 | `evals/run.md` | — | changed after his approval (note, line 44) |
 | §2 | 1 | Every case comes from the corpus. | carried | whole | — | The tests #1 | `evals/run.md` | `[P]` | — |
 | §2 | 2 | Hundreds of forbidden actions are tested on every run. | left out | — | a recorded run's result | — | `evals/run.md` | — | — |
@@ -708,20 +708,59 @@ def test_a_quoted_script_line_isnt_a_cited_files_text(
             "every route passed",
         ),
         (
-            '   - "the cheaper model" was the draft\'s. In Hareet\'s words: "we chose it since the context is small."',
+            '   - "the cheaper model" was the draft\'s. In Hareet\'s words: "we chose haiku since our context base is small and manually evaluated haiku and sonnet."',
             "the cheaper model",
         ),
+        # rv2-rework2-022's B-3: the six notes, each a marker the scan took as his words, though the note says the
+        # words aren't his or are the review's.
+        (
+            '   - **about you**: "every live run" was the review\'s phrase.',
+            "every live run",
+        ),
+        ('   - Not the Author\'s wording: "every route passed".', "every route passed"),
+        (
+            '   - Not in Hareet\'s words: "a cheaper model answers".',
+            "a cheaper model answers",
+        ),
+        (
+            '   - Asked the Author, 2026-11-11, and the review said: "too strong".',
+            "too strong",
+        ),
+        (
+            '   - Not the Author, 2026-11-12, but the review: "the latest committed run".',
+            "the latest committed run",
+        ),
+        (
+            '   - The draft, not **about you**, said: "the meter is the bill".',
+            "the meter is the bill",
+        ),
+        # A sibling: the marker itself, on a line the checker's fixed list doesn't name, gives no words of his.
+        (
+            '   - In Hareet\'s words: "the twin is cheap to run."',
+            "the twin is cheap to run.",
+        ),
     ],
-    ids=["review-note", "the-author-no-date", "a-quote-before-the-marker"],
+    ids=[
+        "review-note",
+        "the-author-no-date",
+        "a-quote-before-the-marker",
+        "about-you",
+        "not-the-authors-wording",
+        "not-in-hareets-words",
+        "asked-the-author-dated",
+        "not-the-author-dated",
+        "not-about-you",
+        "a-marker-on-an-unlisted-line",
+    ],
 )
-def test_a_quote_is_his_only_when_a_his_words_marker_introduces_it(
+def test_a_quote_in_scripts_md_is_his_only_if_the_checker_lists_it(
     repo: Path, note: str, quote: str
 ) -> None:
     anchor = '   - Its recorded run. The earlier "345" didn\'t hold up.\n'
     scripts = SCRIPTS_MD.replace(anchor, anchor + note + "\n", 1)
     assert scripts != SCRIPTS_MD
     (repo / "films/SCRIPTS.md").write_text(scripts)
-    assert quote not in fc.read_context(repo).author_quotes
+    assert not any(quote in q for q in fc.read_context(repo).author_quotes)
     bad = changed(
         "- `[?]` The daily summary of the CPU metrics.",
         f'- `[?]` The daily summary of the CPU metrics. In his words, "{quote}".',
@@ -729,21 +768,30 @@ def test_a_quote_is_his_only_when_a_his_words_marker_introduces_it(
     assert failing(run(repo, bad), "R5", quote), run(repo, bad)
 
 
-def test_the_his_words_markers_give_his_quotes_in_the_real_scripts() -> None:
-    # rv-rework-022's F-3: "In Hareet's words:" (line 18), "the Author's wording" (line 46), and "the Author,
-    # YYYY-MM-DD, …:" (line 121) introduce his words; line 67's review note quotes the review, not him.
+def test_his_words_are_the_checkers_fixed_list_each_verbatim_on_its_scripts_md_line() -> (
+    None
+):
+    # rv2-rework2-022's B-3 (page Q213, the recommended answer): FR-005's Q6 quotes from SCRIPTS.md are a fixed list
+    # in the checker, the Haiku reason on line 18 (F3's words come from the disclosure); no marker scan.
+    assert fc.HIS_WORDS == (
+        (
+            18,
+            "we chose haiku since our context base is small and manually evaluated haiku and sonnet.",
+        ),
+    )
+    lines = (ROOT / "films/SCRIPTS.md").read_text().splitlines()
+    for n, quote in fc.HIS_WORDS:
+        line = lines[n - 1]
+        marker = "In Hareet's words: "
+        assert marker in line, (n, line)
+        assert line.split(marker, 1)[1].startswith(f'"{quote}"'), (n, line)
+    assert fc.read_context(ROOT).author_quotes == [q for _, q in fc.HIS_WORDS]
+    assert not hasattr(fc, "his_quotes")
+    # Line 46's "up to 30 days" and line 121's daily-summary words aren't in the list: F3's words come from the
+    # disclosure, and the summary stays out until it is built (Q6).
     quotes = fc.read_context(ROOT).author_quotes
-    assert any(
-        q.startswith("we chose haiku since our context base is small") for q in quotes
-    )
-    assert "up to 30 days" in quotes
-    assert any(
-        q.startswith("We will get a daily summary on cpu metrics") for q in quotes
-    )
-    assert "every live run" not in quotes
-    assert not any(
-        q in {"claims to be human", "locates the Author", "Hareet"} for q in quotes
-    )
+    assert "up to 30 days" not in quotes
+    assert not any(q.startswith("We will get a daily summary") for q in quotes)
 
 
 FILM_FILES = {
