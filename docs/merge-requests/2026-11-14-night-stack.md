@@ -1787,6 +1787,108 @@ Interruptions:
 8. rework5-022: the session's permissions refused a `sed -n` range read of the Makefile, run to see how the lint target enters its container. rework5-022 read the same lines with `grep -n` instead: a read-only lookup by another tool, not the refused words respelled.
 9. rework5-022: the bash gate refused a shell command that edited these notes from a heredoc ("redirecting git hooks or config"): a false match on the notes' text, which quotes interruption 7's flag. The script was written with the Write tool instead and run by its path, as rule 5 directs.
 
+### Backlog (rule 11, rv-rework5-022)
+
+rv-rework5-022 (Opus) reviewed rework5-022's tip c8d672c4: **not blocking** under rule 11 (the real proposal passes; each hole it found needs text nobody wrote). Its findings B-1 to B-6 and N-a to N-c are backlog: no checker change on this branch.
+
+**Their words aren't here yet.** The review, `/home/h4reet/h4reet-ai/night/.io/rv-rework5-022/out/review.md`, wasn't in verify-022's container (no `night/.io/` folder; `/home/h4reet/h4reet-ai/night/` holds only `2026-11-13/`). This section is meant to hold each finding's fix-later line and its probe in the review's own words. verify-022 didn't write them from memory or from the brief's summary, since that would paraphrase a source. On the page: whether a documents-only follow-up pastes them here (recommended: yes, and item 5 isn't held for it).
+
+| Finding | Fix-later line (the review's words) | Probe (the review's words) |
+| --- | --- | --- |
+| B-1 | not yet copied: see the review | not yet copied: see the review |
+| B-2 | not yet copied: see the review | not yet copied: see the review |
+| B-3 | not yet copied: see the review | not yet copied: see the review |
+| B-4 | not yet copied: see the review | not yet copied: see the review |
+| B-5 | not yet copied: see the review | not yet copied: see the review |
+| B-6 | not yet copied: see the review | not yet copied: see the review |
+| N-a | not yet copied: see the review | not yet copied: see the review |
+| N-b | not yet copied: see the review | not yet copied: see the review |
+| N-c | not yet copied: see the review | not yet copied: see the review |
+
+**A proposed CLAUDE.md line, for his hand** (never written into CLAUDE.md; a human-only path). The review proposes a line for "Things Claude gets wrong" that begins "Bounding a match on word characters only: …". Only those opening words reached verify-022, through the supervisor's brief. The whole line is in the review, to be copied here word for word with the table above.
+
+**Q248, answered as recommended (the Author, 2026-11-13):** "backlog under rule 11, verify-022 goes ahead; the next change to `scripts/corpus/film_claims.py` adds `corpus/intake/private` to `UNREAD` and fails R1 on any source under it, and until then item g's merge-request note names the hole beside the summary line".
+
+**The hole, beside the summary line.** The checker's summary line says:
+
+```
+film-claims: OK — … the denylist was not applied (this checker never reads corpus/intake/private/)
+```
+
+That holds for the real proposal, which cites no file under `corpus/intake/private/` (it names the folder once, in its reading guide, line 12, as the folder the checker doesn't read). It doesn't hold for every proposal. `UNREAD` (`scripts/corpus/film_claims.py:336`) lacks `corpus/intake/private`, and R1 refuses no source under it. So a carried or in-part row that cites a file there passes R1, and R5 reads that file's text for quotes, while the summary line (`scripts/corpus/film_claims.py:1182`) still says it never reads the folder. Fix later, per Q248: the next change to the checker adds `corpus/intake/private` to `UNREAD` and fails R1 on any source under it. Until then, read the summary line with this hole beside it.
+
+### Verification (rule 7, verify-022)
+
+Branch `night/verify-022/verify-022`, from item 5's reviewed tip c8d672c4 (rework5-022, reviewed by rv-rework5-022: not blocking under rule 11), by a worker (Opus 5.5) that wrote none of item 5.
+
+**The merge.** `git merge` of the line's tip, `night/verify3-021/verify3-021` (300944f6, items 1 to 4 with items 6 and 10's documents), at 9880229b. It brought `apps/web` (spec 021's room code and tests, spec 023's `film-links`, spec 027's `corpus-size`) and `scripts/studio/test_line.py`. One conflict: this note, since both sides appended after item 3. Resolved by keeping every section whole, in his order: items 1 to 3 (common to both), item 4 (verify3-021's side), item 5 (this branch's side), then items 6 and 10 (verify3-021's side). Checked with `diff`: each part matches its side's file line for line. No code or test conflicted, so nothing needed a test-first resolution.
+
+**Runs at the merge (9880229b).** No `node_modules`, so the setup target ran first (`npm ci --ignore-scripts`, exit 0; its git-hooks step said `.git/hooks` isn't writable in the sandbox, so the Author installs those). `/sys/fs/cgroup/cpu.max` reads `400000 100000`, which is 4 CPUs, so vitest ran with `--maxWorkers=4`, as rule 7's formula gives. The brief's "2" is asked on the page.
+
+Item g's checker on the real proposal:
+
+```
+$ python3 -I scripts/corpus/film_claims.py corpus/proposals/film-scripts-2026-11-14.md
+film-claims: OK — 0 problems, 90 rows, 90 lines in scope (§1 12, §2 10, §3 10, §4 10, §5 13, §6 14, kill-switch-b2 21); the films' script.txt holds 69 of 69 SCRIPTS.md lines verbatim; the denylist was not applied (this checker never reads corpus/intake/private/)
+exit 0
+```
+
+`pytest` over each Python folder the item or the merge changed (`scripts/corpus` from item 5, `scripts/studio` from the merge):
+
+```
+$ pytest -q -p no:cacheprovider --import-mode=importlib scripts/corpus
+354 passed in 7.96s
+$ pytest -q -p no:cacheprovider --import-mode=importlib scripts/studio
+130 passed in 20.82s
+```
+
+`apps/web`'s whole suite, since the merge changed that workspace (item 5 didn't; `services/gateway` changed in neither):
+
+```
+$ cd apps/web && npx vitest run --maxWorkers=4
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ Test Files  3 failed | 188 passed (191)
+      Tests  6 failed | 3781 passed | 3 skipped (3790)
+   Duration  1084.15s (tests 72%, import 28%)
+```
+
+These six are exactly D-V2's, from item 1 (spec 018's V1 clause and the desktop frame area; expected 52 and 23.1, received 52.7 and 23.4). They're carried under Q165, and item 5 touches none of them. `test/room/twin-2d.test.ts` passed in the full run, so it needed no rerun.
+
+**The six, on main's tip.** `git archive refs/heads/main` (3c0e4cd0) into a fresh `/tmp` folder, with the worktree's `node_modules` linked in:
+
+```
+$ cd <main copy>/apps/web && npx vitest run --maxWorkers=4 test/disclosure.test.ts test/room/legibility.test.ts test/room/report.test.ts
+ Test Files  3 passed (3)
+      Tests  56 passed (56)
+```
+
+**Carried (Q165), confirmed on a copy.** `git archive HEAD` (9880229b) into a fresh `/tmp` folder, then `git apply docs/merge-requests/proposed/018-verify-test-amendments.patch` there (`--check` clean; 4 files changed, 43 insertions, 11 deletions), with the worktree's `node_modules` linked in. The patch was never applied on the line, and no test file was edited.
+
+```
+$ cd <HEAD copy>/apps/web && npx vitest run --maxWorkers=4 test/disclosure.test.ts test/room/legibility.test.ts test/room/report.test.ts
+ Test Files  3 passed (3)
+      Tests  56 passed (56)
+```
+
+**The corpus patch on `main`.** `git archive refs/heads/main` (3c0e4cd0) into a fresh `mktemp` folder, `patch -p1 --dry-run < docs/merge-requests/2026-11-14-corpus-film-scripts.patch` there: 104 `checking file` lines, no offset, no fuzz, no reject, exit 0. It was never applied here, and the folder was removed.
+
+LINT-PLACEHOLDER
+
+**Fixes.** None: no run failed for a cause this item or the merge introduced. No code, test, plan, `spec.md`, or file under `corpus/` changed.
+
+**The hooks.** Every commit on this branch printed gitleaks' `no leaks found` and an arrival-check line: the save point, `0 findings in 0 files`; the merge, `0 findings in 53 files`.
+
+**Interruptions.** None: no hook, bash gate, or permission refused a command in verify-022. Nothing was respelled.
+
+The review's words for the backlog table and the CLAUDE.md line are still missing (above, and on the page). That's a documents-only gap. It isn't a failed run.
+
+verify-022: green, carrying D-V2's six (Q165)
+
 ---
 
 ## Item 6: spec 023, the resume PDF redone with links from the films (`night/impl-023/impl-023`)
