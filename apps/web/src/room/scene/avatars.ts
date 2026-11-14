@@ -62,6 +62,8 @@ import type { Room3D } from "./bundle3d";
 import type { FigureDriver } from "./figure";
 import { gripCentre, gripMatrix } from "./grip";
 import type { GripData } from "./grip";
+import { advance, applyGait, clearGait, cycleLength, findLegRig, legOffsets } from "./gait";
+import type { GaitState, LegRig } from "./gait";
 import { disposeModel } from "./loader";
 import type { FigureRole, FigureSource } from "./loader";
 import { createTwinStates } from "./twin-states";
@@ -113,6 +115,8 @@ export interface AvatarFigures {
   missed(avatar: FigureSource, role: FigureRole | null, why: "failed" | "skipped" | "floor" | "2d"): void;
   /** Whether a figure shows its avatar. */
   shows(figure: FigureId): boolean;
+  /** Spec 019: the visitor's walk clip's time scale, set from its speed, or null where no walk clip plays. */
+  clipScale(figure: FigureId): number | null;
   /** The figure's holding hand's bone, or null. */
   handOf(figure: FigureId): Object3D | null;
   /** The clip role a figure plays now, or null (its fallback, or its rest pose). */
@@ -167,6 +171,8 @@ interface Figure {
   readonly actions: Map<FigureRole, AnimationAction>;
   playing: FigureRole | null;
   hand: Object3D | null;
+  /** Spec 019: the six leg bones, where the model has them. */
+  legs: LegRig | null;
   /** Which hand holds, for its grip (spec 014). */
   side: "right" | "left" | null;
   shown: boolean;
@@ -247,7 +253,7 @@ export function stripMorphs(model: Object3D): void {
 
 export function createAvatarFigures(
   room: Room3D,
-  part: Pick<RoomScene, "figures" | "avatars"> & Partial<Pick<RoomScene, "twin">>,
+  part: Pick<RoomScene, "figures" | "avatars" | "walking"> & Partial<Pick<RoomScene, "twin">>,
   options: AvatarFiguresOptions,
 ): AvatarFigures {
   const signal = options.signal ?? ((): void => undefined);
@@ -281,6 +287,7 @@ export function createAvatarFigures(
       actions: new Map(),
       playing: null,
       hand: null,
+      legs: null,
       side: null,
       shown: false,
       gone: false,
@@ -297,6 +304,7 @@ export function createAvatarFigures(
       actions: new Map(),
       playing: null,
       hand: null,
+      legs: null,
       side: null,
       shown: false,
       gone: false,
@@ -602,6 +610,8 @@ export function createAvatarFigures(
 
   /** A figure back to its fallback, its instance and mixer gone. */
   function fallBack(f: Figure, why: FigureWhy | null): void {
+    if (f.legs) clearGait(f.legs);
+    if (f.id === "visitor") resetGait();
     if (f.instance) {
       f.mixer?.stopAllAction();
       f.mixer?.uncacheRoot(f.instance);
@@ -617,6 +627,7 @@ export function createAvatarFigures(
       mixer: null,
       playing: null,
       hand: null,
+      legs: null,
       side: null,
       shown: false,
       gone: why !== null,
@@ -630,6 +641,22 @@ export function createAvatarFigures(
    *  driver puts it, and the picture group, which holds the avatar, turned to the heading, at its own scale made
    *  positive and its own height, so nothing mirrors or bobs; its first frame since a rest keeps what it found. */
   const visitorNode = room.placements.get(part.figures.visitor) ?? null;
+  /** Spec 019 (plan.md §2.3): the visitor's gait: its phase and amplitude, the last place, the distance walked since the
+   *  last update, and the pose's speed and walking, from the driver's frames. */
+  const gait = {
+    state: { phase: 0, amp: 0 } as GaitState,
+    last: null as { x: number; z: number } | null,
+    dist: 0,
+    speed: 0,
+    walking: false,
+  };
+  function resetGait(): void {
+    gait.state = { phase: 0, amp: 0 };
+    gait.last = null;
+    gait.dist = 0;
+    gait.speed = 0;
+    gait.walking = false;
+  }
   let home: { position: Vector3; rotation: Euler; scale: Vector3; lift: number } | null = null;
   const driver: FigureDriver = {
     frame({ pose }) {
@@ -656,6 +683,11 @@ export function createAvatarFigures(
       group.scale.set(Math.abs(home.scale.x), Math.abs(home.scale.y), Math.abs(home.scale.z));
       group.position.y = home.lift;
       group.updateMatrixWorld(true);
+      // The distance from the pose's places, never from speed × dt (FR-002); the first frame since a rest has none.
+      if (gait.last) gait.dist += Math.hypot(pose.x - gait.last.x, pose.z - gait.last.z);
+      gait.last = { x: pose.x, z: pose.z };
+      gait.speed = pose.speed;
+      gait.walking = pose.walking;
       if (pose.walking !== walkingNow) {
         walkingNow = pose.walking;
         play(figures.visitor);
@@ -677,12 +709,33 @@ export function createAvatarFigures(
         visitorNode.updateMatrixWorld(true);
       }
       home = null;
+      if (figures.visitor.legs) clearGait(figures.visitor.legs);
+      resetGait();
       if (walkingNow) {
         walkingNow = false;
         play(figures.visitor);
       }
     },
   };
+
+  /** Spec 019 (FR-001 to FR-004, FR-009): after the mixer, the gait over the visitor's legs while it walks in an idle
+   *  clip, motion on and at quality 0; every other time the clip's own rotations stand, with no residue (FR-006). */
+  function stepGait(dt: number, moving: boolean, level: number): void {
+    const f = figures.visitor;
+    const distance = gait.dist;
+    gait.dist = 0;
+    if (!f.legs || !f.shown) return;
+    const idling = f.playing === "idle" || f.playing === "idle-holding";
+    if (!moving || level >= 1 || !idling) {
+      clearGait(f.legs);
+      gait.state = { phase: gait.state.phase, amp: 0 };
+      return;
+    }
+    const on = gait.walking && !f.actions.has("walk");
+    gait.state = advance(gait.state, distance, gait.speed / part.walking.speed_mps, dt, on, cycleLength(f.target));
+    if (gait.state.amp > 0) applyGait(f.legs, legOffsets(gait.state.phase, gait.state.amp));
+    else clearGait(f.legs);
+  }
 
   /** Spec 016 (FR-019): the twin's arrival, once a visit, for one play of its greeting; the greeting's end ends it. */
   function arriveTwin(): void {
@@ -718,6 +771,11 @@ export function createAvatarFigures(
       f.instance = instance;
       const mixer = new AnimationMixer(instance as Object3D);
       f.mixer = mixer;
+      // Spec 019 (FR-008): the visitor's leg bones; a model without them slides, and says so once.
+      if (f.id === "visitor") {
+        f.legs = findLegRig(instance as Object3D);
+        if (f.legs === null) signal({ kind: "gait", figure: f.id, state: "unavailable" });
+      }
       for (const [role, clip] of source.clips) addAction(f, role, clip);
       // The greeting's end ends the twin's arrival at once (contracts/twin-states.md §3).
       if (f.id === "twin" && avatar === "twin")
@@ -806,17 +864,23 @@ export function createAvatarFigures(
     },
     shows: (figure) => figures[figure].shown,
     handOf: (figure) => figures[figure].hand,
+    clipScale: (figure) =>
+      figures[figure].playing === "walk" ? (figures[figure].actions.get("walk")?.timeScale ?? null) : null,
     playing: (figure) => figures[figure].playing,
     update(dtMs, moving, level) {
       animate = moving;
       // The twin's own states move on the clock whether or not the motion store animates (FR-024).
       if (figures.twin.shown && figures.twin.wants === "twin") play(figures.twin);
+      // Spec 019 (FR-007): a walk clip plays at the figure's speed, within half to one and a half.
+      const walkAction = figures.visitor.playing === "walk" ? figures.visitor.actions.get("walk") : undefined;
+      if (walkAction) walkAction.timeScale = Math.min(1.5, Math.max(0.5, gait.speed / part.walking.speed_mps));
       if (moving)
         for (const f of both()) {
           if (!f.shown || !f.mixer) continue;
           if (level >= 1 && f.id !== "twin") continue;
           f.mixer.update(dtMs / 1000);
         }
+      stepGait(dtMs / 1000, moving, level);
       holdSheet();
     },
     redress() {

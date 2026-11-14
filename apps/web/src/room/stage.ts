@@ -191,6 +191,7 @@ export type FigureSignal =
       readonly why: FigureWhy | null;
     }
   | { readonly kind: "clip"; readonly figure: FigureId; readonly role: ClipRole | TwinClipRole }
+  | { readonly kind: "gait"; readonly figure: FigureId; readonly state: "unavailable" }
   | { readonly kind: "twin-state"; readonly state: TwinState; readonly role: TwinClipRole }
   | { readonly kind: "failed" };
 

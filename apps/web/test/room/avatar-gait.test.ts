@@ -37,7 +37,11 @@ interface Setup {
   readonly signals: FigureSignal[];
 }
 
-async function setup(legs: boolean, roles: readonly ClipRole[] = ["idle", "idle-holding", "take"]): Promise<Setup> {
+async function setup(
+  legs: boolean,
+  roles: readonly ClipRole[] = ["idle", "idle-holding", "take"],
+  ended = true,
+): Promise<Setup> {
   const room = buildRoom(night.scene, { avatar: "woman", label: () => new Object3D(), index: night.index });
   const signals: FigureSignal[] = [];
   const figures = createAvatarFigures(room, night.scene, { chosen: "woman", signal: (x) => signals.push(x) });
@@ -46,7 +50,7 @@ async function setup(legs: boolean, roles: readonly ClipRole[] = ["idle", "idle-
     const bytes = role === "walk" ? clipGlb("walk", { tracks: IDLE_TRACKS }).bytes : CLIPS[role as "idle"].bytes;
     figures.clip("woman", role, await clipsOf(bytes));
   }
-  figures.handoffEnded();
+  if (ended) figures.handoffEnded();
   const visitor = room.visitor.children.find((c) => c.name === "avatar") as Object3D;
   return { figures, visitor, signals };
 }
@@ -149,7 +153,7 @@ describe("the legs on a walking avatar", () => {
   });
 
   it("has no gait while take plays", async () => {
-    const s = await setup(true);
+    const s = await setup(true, ["idle", "idle-holding", "take"], false);
     const rest = quats(s.visitor, LEGS);
     s.figures.update(16, true, 0);
     s.figures.showHandoff(1, false);
