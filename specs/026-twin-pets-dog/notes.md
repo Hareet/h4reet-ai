@@ -1,5 +1,83 @@
 # Notes: spec-026 and its reworks (2026-11-14)
 
+## impl2-026 (on `night/impl2-026/impl2-026`, from impl-026's tip 5fbedcb5)
+
+No merge was needed: impl-026 had merged verify-021. The worktree held one untracked file, `test/room/zz-scratch-crouch.test.ts`, an earlier attempt's scratch that measured the crouch. It was run once for its numbers, then deleted, and its math went into the measure's second test.
+
+### Q212, taken provisionally
+
+The page's Q212 reads "Answered: recommended, the Author 2026-11-13 (the orders file's rule; yours to confirm or overturn here)". This task takes its recommended answer provisionally, not as his answer. That answer is a crouch: the hips lowered and both legs bent by the same two-bone solve, the feet kept where the clip has them, with a smaller spine lean. `figures.pet.crouch_max_m` is data, re-measured by T003 on both rigs. FR-007 (the legs move during the petting only), FR-008, SC-002, the spec's Clarifications, and plan R-03, R-04, §3, §4 are amended in 7815642b, each marked "Q212, taken provisionally". It is his to confirm or overturn on the page. If he overturns it, the crouch comes out of `applyReach`, and T003 stops RED again with the measure's first table.
+
+### T003: the measure, the crouch (7815642b)
+
+The measure's second test reads both rigs with the hips lowered straight down and the feet kept. It prints the lean over the spine at a crouch of 0.20 m to 0.35 m, and the share of the defaults that reaches (plan §3's second table). The crouch's limit is the thighs coming level: 0.390 m on the twin and 0.401 m on the man. The default is 0.35 m, with the knees then at 111°. At 0.35 m, the default heading needs a lean of 39.2° (the twin) and 60.9° (the man) at spec 025's estimate, and 25.4° and 37.0° at Q158's. So `lean_max_deg` is 66 (60.9° + 5°, rounded up; under the 75° cap). Every figure, home, and facing reaches at a share of at most 1. The nearest to the limits is the man at [0.36, 0.55], at 0.975. No figure is short, so no new question was needed.
+
+```
+$ npx vitest run test/room/pet-reach-measure.test.ts   # its second test's lines
+the thighs come level at a crouch of 0.390 m (the smaller figure's); crouch_max_m 0.35, lean_max_deg 66
+  twin, spec 025's estimate [0.36, 0.55], head +z (heading_deg 0): lean over the spine at a crouch of 0.20 m 77.8°, 0.25 m 65.3°, 0.30 m 52.5°, 0.35 m 39.2°; knees at 0.35 m 111/111°; the defaults' share 0.831
+  twin, Q158's estimate [0.30, 0.45], head +z (heading_deg 0): lean over the spine at a crouch of 0.20 m 65.5°, 0.25 m 52.5°, 0.30 m 39.1°, 0.35 m 25.4°; knees at 0.35 m 111/111°; the defaults' share 0.748
+  man, spec 025's estimate [0.36, 0.55], head +z (heading_deg 0): lean over the spine at a crouch of 0.20 m 107.7°, 0.25 m 94.1°, 0.30 m 78.7°, 0.35 m 60.9°; knees at 0.35 m 111/112°; the defaults' share 0.975
+  man, Q158's estimate [0.30, 0.45], head +z (heading_deg 0): lean over the spine at a crouch of 0.20 m 93.6°, 0.25 m 77.6°, 0.30 m 59.2°, 0.35 m 37.0°; knees at 0.35 m 111/112°; the defaults' share 0.870
+the larger lean the default heading needs at 0.35 m: 60.9°
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+```
+
+(The other two facings per row are in plan §3's table.)
+
+### T003 RED, T004 GREEN
+
+| Commit | What | Run |
+|---|---|---|
+| 1834f432 | RED: `pet-reach-rig.test.ts` (both real rigs: `findReachRig` on each side and null without the bones; SC-002 at both homes; the feet kept; only the reach's bones change, the hips' position and the legs among them; the elbow's limit; a partial weight; determinism; `clearReach` and the mixer's frames), plus `solvePosture`'s six pure cases and the crouch default in `pet-reach.test.ts` | 20 failed, 19 passed |
+| d459cace | The RED commit's two mixer cases corrected (below) | (still RED: no code) |
+| 18947317 | GREEN: `solvePosture`, `findReachRig`, `applyReach`, `clearReach` | 39 passed |
+| 32909058, f1901d29 | A type for `exactOptionalPropertyTypes` in the rig test; prettier over the four files | lint exit 0 |
+
+On both rigs, at both homes, the hand's end (`HandMiddle1`) lands on the target at the stroke's middle, under 0.1 mm off (SC-002 asks 0.08 m). The hips fall 0.291 m and 0.262 m (the twin) and 0.341 m and 0.304 m (the man), which are the measured shares of 0.35 m. The feet stay within 1 mm, with their world rotation kept.
+
+**The correction (d459cace).** The RED commit was meant to compare the mixer cases against the same figure with the idle clip alone. That edit didn't run, because its `cd` failed in a chained command, so the RED commit snapshot the pose after the mixer's frame. There, a bone the idle clip has no track for still holds the reach's rotation, but the clip's own pose for such a bone is the rest pose. The test now compares against the clip-only figure. The change is to the test's reference, not its claim: every bone is the clip's own after `clearReach`. This task owns the file (T003), and it isn't a fix task.
+
+**The type fix.** The GREEN commit went in while `tsc` reported the rig test's `clip?: AnimationClip` (`exactOptionalPropertyTypes`). The type check and the commit were on separate lines of one shell call, so the error didn't stop the commit. The next commit fixed it.
+
+**As built** (plan R-03, §4): the posture is solved each frame against the stroke's moving target, so the body follows the stroke a little. The forearm's palm-down twist isn't built: the rig names no palm axis, so the hand keeps the clip's rotation relative to the forearm. The look is his, and the studio's clip replaces the layer. `PetConfig` gains `crouch_max_m`, from `PET_REACH_DEFAULTS`. The schema's `figures.pet` (T012) takes it there.
+
+### Small runs (rule 4), on f1901d29
+
+```
+$ npx vitest run test/room/pet-reach-rig.test.ts test/room/pet-reach.test.ts test/room/pet-reach-measure.test.ts test/room/avatar-gait.test.ts
+ Test Files  4 passed (4)
+      Tests  50 passed (50)
+   Start at  18:29:55
+   Duration  52.53s (tests 42%, import 30%, transform 28%)
+
+$ npx vitest run test/room/pet-director.test.ts test/room/pet-degraded.test.ts test/room/pet-notes.test.ts   # pet.ts's PetConfig changed
+ Test Files  3 passed (3)
+      Tests  44 passed (44)
+   Start at  18:30:49
+   Duration  70.37s (tests 76%, transform 12%, import 11%)
+
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+788 files already formatted
+# then shellcheck over the repository's scripts: no finding; make exited 0
+```
+
+### What waits
+
+T005, T006, and T011 to T016 wait for impl-025's reviewed tip (Q170). T019 waits for his approval of the dog's model. T021 isn't this task's, and T022 is the review, by another worker (the reach's rig part is new code for it). No new question.
+
+### Interruptions
+
+None: no hook or bash-gate refusal, and nothing respelled. The two slips above (the failed `cd`, the commit before the type check) were this session's own, and both are corrected in commits of their own.
+
 ## impl-026 (on `night/impl-026/impl-026`, from rework3-spec-026's tip 9bba8f36)
 
 Step 1: `night/verify2-020/verify2-020` (3767859f) merged first (92ce0066), with no conflict.
