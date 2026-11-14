@@ -673,3 +673,69 @@ Nothing: no failure outside D-V2's six, so no code, test, or plan changed. The d
 Interruptions: none. No hook or bash-gate refusal in this session.
 
 verify-020: green, carrying D-V2's six (Q165)
+
+---
+
+## Item 5: spec 022, the corpus from the film scripts (`night/impl-022/impl-022`, finished on `night/impl2-022/impl2-022`)
+
+Spec: specs/022-corpus-from-film-scripts/ · Written by: implementer (night shift): impl-022 (T001 to T006, T008 to T010), then impl2-022 (T011), both Claude Opus 5.5; the review is for a worker who didn't write it (rv-impl-022, T007) · Date: 2026-11-14
+Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl-022, then /home/h4reet/h4reet-ai/night/2026-11-13/impl2-022 · Repo hooks active: the commit hooks ran (gitleaks, the arrival check) on every commit
+Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at the top of plan.md and tasks.md), the spec, and the plan as reworked three times. Base: `night/rework3-spec-022/rework3-spec-022`, with the line's verified tip `night/verify2-020/verify2-020` (3767859f, items 1 to 3) merged at 7674f699. Item 4 (spec 021) isn't on this branch: the line's verify tasks merge it and item 5, one at a time. The branch's own note: `docs/merge-requests/2026-11-14-night-spec-022-spec-022.md`.
+
+### What changed and why
+
+His item g), in his words: "hareet-ai corpus from film scripts". The corpus is his hand, so the change to `08` is a proposal in `corpus/proposals/` and a patch he applies. Nothing writes a checkout's `corpus/` except `corpus/proposals/`.
+
+- **The checker**, `scripts/corpus/film_claims.py` with 63 tests (T001 to T003). It holds the proposal to the scripts by plan §3's R1 to R7: every one of the 90 lines in scope accounted for once and found verbatim; nothing unbuilt, retracted, or "shown as built" carried; no number outside a slot and no amount of money, with parity tests against `check_corpus.py`, `redteam/run.py`, and `guards.ts`; quotes only of his recorded words.
+- **The proposal**, `corpus/proposals/film-scripts-2026-11-14.md` (T004 to T006): a reading guide, the table, the new text for `08` (seven sections and a gap section, five "Do not claim" lines, Golden Q&A 9 to 17), Golden Q&A 5's suggested sentence (Q97), Q6's quotes "to confirm", and one slot, `site.prod_containers`.
+- **The patch**, `docs/merge-requests/2026-11-14-corpus-film-scripts.patch` (T008, T009): 104 files, `08` and its facts and what they regenerate, from plain copies.
+- **Human patch 022**'s note (T010), and the two merge-request notes (T011).
+- Departures: plan §9 (among them a ninth reason, "a number outside a slot", Q176).
+
+### Cost and data-flow impact
+
+$0, and no model call; no byte leaves a device, so no disclosure row. Once applied, `08`'s new text costs tokens only, when he opens free talk (`ready: false`). Applying the patch closes the three ready topics until he re-marks them: degraded, not broken, no visitor-paid call (`topicSelected`; the turn route's 409 `not_ready`). Applied alone, mission is 92 characters past ADR 0054's T1 (Q177), and FR-008 drops its last sections in a long conversation.
+
+### Verification (small runs only, the order's rule 4)
+
+Each RED and GREEN commit was replayed on a `git archive` export of itself (full runs in the branch's note): T001 RED (1 error, no module), T002 GREEN 50 passed, T003 55 passed, T004 RED 6 failed, T004 and T005 GREEN 61 passed, T006 RED 1 failed and GREEN 62 passed, Q115 RED 1 failed and GREEN 63 passed. The checker on the proposal exits 0 from T005 on. The patch was rerun on a fresh `main` export (3c0e4cd0): `patch -p1 --dry-run`, then `patch -p1`, 104 files, no `.rej`; `corpus-check: OK`; `pytest evals/test_twin_readiness.py corpus/tools/test_check_corpus.py` 85 passed; `twin:pack` and `content:lock` regenerate byte for byte as patched; `content:check` current; `vitest run test/twin-pack.test.ts test/content/narration.test.ts` 80 passed. At the tip:
+
+```
+$ python3 -I scripts/corpus/film_claims.py corpus/proposals/film-scripts-2026-11-14.md
+film-claims: OK — 0 problems, 90 rows, 90 lines in scope (§1 12, §2 10, §3 10, §4 10, §5 13, §6 14, kill-switch-b2 21); the films' script.txt holds 69 of 69 SCRIPTS.md lines verbatim; the denylist was not applied (this checker never reads corpus/intake/private/)
+$ python3 -I -m pytest -q scripts/corpus/test_film_claims.py corpus/tools/test_check_corpus.py evals/test_docs_links.py evals/test_repository_docs.py
+174 passed in 1.16s
+$ make lint          (exit 0; shellcheck's file list left out)
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+779 files already formatted
+```
+
+D-V2's six (Q165): none of these runs hit them. `make check` is T012's, the stack's closing task's.
+
+### Review: the non-blocking findings, and how each was settled
+
+- **rv-rework2-spec-022 F-1 (Q115)**: the slot's label says "before the tunnel profile is added", and "only the gateway has a road out" is left out wherever a script says it (`kill-switch-b2` S15, `SCRIPTS.md` §5 lines 4 and 12), as contradicted by `deploy/compose.yaml`. Test-first (RED 6f2eefe7, GREEN 2b4648fb); the patch was rebuilt.
+- **n-1** the lint target in T004, T008, T009; **n-2** plan §3 R4's `SCALES` list; **n-3** SC-003's "carried in part"; **n-4** the `[P]` Golden Q&A speak with the system as subject, "I" only in "I don't know yet" (plan §2); **n-5** T007 reads the implementer's pasted runs, which are now in the branch's note. All are in the documents.
+- **rv-rework3-spec-022 I-A**: the human-patch note's "Before you apply it" gives the measured stage in place of spec 027's projection: "the topic mission needs 21274 characters of grounding, past the 21182 the input bound leaves", as page Q177 records it. T000 lists Q144, and now Q176 to Q178 too.
+- **N-1** plan §7 cites `topicSelected` and the turn route's 409, not `talk.ts` line 365; **N-2** `topicHashInput` runs to line 233 (checked), in the human-patch note and plan §6; **N-3** "specs 026 and 027's pages", in the spec and T000.
+
+Open: T007, rv-impl-022's line-by-line pass, follows this branch.
+
+### For the Author
+
+- **Human patch 022** (`docs/merge-requests/human-patches/022.md`): apply it on a short branch, gate, merge, then re-run your evaluations and re-mark mission, work projects, and hobbies and travel. Apply it back to back with spec 026's corpus patch, whichever is second rebuilt on the first, and evaluate once (Q141). `docs/corpus-size.json` joins it when spec 027's T008 rebuilds it (Q145). The resume item's stack and this patch both touch `apps/web/content/resume.lock.json`; whichever merges second regenerates it and re-runs `content:check`.
+- **The page**: Q1 to Q6, Q95 to Q97, Q102, Q104, Q106, Q115, Q141, Q144, Q145, Q176 to Q178, each answered: recommended, yours to confirm or overturn (T000); an overturned one reworks T004 to T010 before you merge. New, from impl2-022: impl-022's refused last question, asked again (below).
+
+Interruptions:
+1. impl-022, 14:39Z: the bash gate refused its `rm -rf` of its own `/tmp` exports ("recursive delete outside workspace"). It then moved them into its worktree and deleted them there.
+2. impl-022, 14:48Z: the same refusal, for a second `/tmp` export that had filled the 2.0 GB tmpfs.
+3. impl-022, 14:48Z: the content scan refused its question about that export twice ("shaped like a secret"). The first text held a `mktemp` name; impl-022 judged the second to be the full `/tmp`. The question never reached the page. impl2-022 asked it again in `/night/io/out/questions.md` in words the scan passed: the export was already gone, since the container restarted. It asks only where replays go from now on (recommended: inside the worktree, removed by a repo-relative delete).
+4. impl2-022: the harness's guard refused an `rm -rf` on a variable path. The exports were deleted once, at the end.
+5. impl2-022: the bash gate refused an `rm -rf` of the exports inside the worktree, by absolute path. Its rule (`bash-gate.sh` line 447) refuses any recursive delete whose path begins with `/`, and its route is "delete only inside the repo". The directory was in the worktree, so impl2-022 deleted it by its repo-relative path, as it had earlier in the session.
