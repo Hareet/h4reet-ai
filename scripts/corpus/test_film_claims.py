@@ -1379,6 +1379,57 @@ def test_r5_reads_a_plain_file_only_from_a_carried_or_in_part_row(
     assert failing(run(trees, bad), "R5", quote) is not quotable, run(trees, bad)
 
 
+# rv-rework4-022's F-4 (page Q235, the recommended answer): scripts/corpus/ holds the checker and its tests, whose
+# fixtures and patterns quote amounts and numbers; R5 reads no file there, by any spelling or link.
+CHECKER_FILES = {
+    "scripts/corpus/test_film_claims.py": "A request its safety systems flag can be kept up to 2 years.\n",
+    "scripts/corpus/film_claims.py": 'NUMBER_WORDS = "a hundred|hundred"  # Exit 0 when clean\n',
+}
+
+
+@pytest.mark.parametrize(
+    ("row_old", "row_new"), [CARRIED_ROW, IN_PART_ROW], ids=["carried", "in-part"]
+)
+@pytest.mark.parametrize(
+    ("source", "quote", "needle"),
+    [
+        # The review's two.
+        ("scripts/corpus/test_film_claims.py", "kept up to 2 years", "'2'"),
+        ("scripts/corpus/film_claims.py", "a hundred", "'hundred'"),
+        # Siblings: a quote with words, a leading ./, a climb back in, a link to the file, a link to the directory.
+        ("scripts/corpus/film_claims.py", "Exit 0 when clean", "'0'"),
+        ("./scripts/corpus/test_film_claims.py", "kept up to 2 years", "'2'"),
+        ("scripts/corpus/../corpus/film_claims.py", "Exit 0 when clean", "'0'"),
+        ("docs/checker-link.py", "Exit 0 when clean", "'0'"),
+        ("docs/checker-dir/test_film_claims.py", "kept up to 2 years", "'2'"),
+    ],
+    ids=[
+        "test-file",
+        "checker",
+        "checker-words",
+        "dot-slash",
+        "climb-back",
+        "a-link",
+        "a-directory-link",
+    ],
+)
+def test_r5_reads_no_file_under_scripts_corpus(
+    repo: Path, row_old: str, row_new: str, source: str, quote: str, needle: str
+) -> None:
+    for rel, text in CHECKER_FILES.items():
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text(text)
+    (repo / "docs/checker-link.py").symlink_to("../scripts/corpus/film_claims.py")
+    (repo / "docs/checker-dir").symlink_to(
+        "../scripts/corpus", target_is_directory=True
+    )
+    cites = changed(row_old, row_new.format(source=source))
+    assert run(repo, cites) == []
+    problems = run(repo, changed(GAP, f'{GAP} It says "{quote}".', cites))
+    assert failing(problems, "R5", quote), problems
+    assert failing(problems, "R4", "number", needle), problems
+
+
 # ---- R6: third-party text ----
 
 
@@ -1684,6 +1735,42 @@ PROPOSAL = ROOT / "corpus" / "proposals" / "film-scripts-2026-11-14.md"
 
 def test_the_real_proposal_passes_every_rule() -> None:
     assert fc.check(PROPOSAL) == []
+
+
+REAL_GAP = (
+    "- `[?]` A daily summary of the stack's CPU metrics, with alerts based on them."
+)
+REAL_CARRIED = "| The cost meter #1 | `apps/web/src/room/faces/neon.ts` |"
+
+
+def real_with(tmp_path: Path, added: str, source: str | None = None) -> list[str]:
+    """A copy of the real proposal, outside the root, with text added to its first gap line and a source added to
+    `SCRIPTS.md` §1 line 1's carried row, checked against this repository."""
+    text = changed(REAL_GAP, f"{REAL_GAP} {added}", PROPOSAL.read_text())
+    if source is not None:
+        text = changed(
+            REAL_CARRIED, REAL_CARRIED.replace("` |", f"`, `{source}` |"), text
+        )
+    copy = tmp_path / "probe.md"
+    copy.write_text(text)
+    return fc.check(copy)
+
+
+@pytest.mark.parametrize(
+    ("source", "quote", "needle"),
+    [
+        ("scripts/corpus/test_film_claims.py", "kept up to 2 years", "'2'"),
+        ("scripts/corpus/film_claims.py", "Exit 0 when clean", "'0'"),
+    ],
+    ids=["test-file", "checker"],
+)
+def test_r5_reads_no_file_under_scripts_corpus_in_this_repository(
+    tmp_path: Path, source: str, quote: str, needle: str
+) -> None:
+    assert real_with(tmp_path, "", source) == []
+    problems = real_with(tmp_path, f'It says "{quote}".', source)
+    assert failing(problems, "R5", quote), problems
+    assert failing(problems, "R4", "number", needle), problems
 
 
 def test_the_real_proposal_marks_the_four_lines_the_films_note_changed() -> None:
