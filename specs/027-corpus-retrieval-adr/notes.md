@@ -73,3 +73,71 @@ $ git diff --stat 3c0e4cd0 HEAD -- corpus/ config/twin/ config/budgets.yaml
 Nothing, not even under `corpus/proposals/`. Neither pending corpus patch is on the line's tip: no `docs/merge-requests/2026-11-14-corpus-film-scripts.patch` (spec 022's) and no `docs/merge-requests/*-corpus-dog-intro.patch` (spec 026's); impl-022 and impl-026 build them beside this task. So T008, T005's patch figures, and T007's patch figures wait (Q171).
 
 `node_modules` was missing; `make setup` installed it (`npm ci --ignore-scripts`; the git hooks step reports the sandbox can't write `.git/hooks`, the Author's).
+
+### T002 to T004, test-first
+
+- **T002** (57dc60ff): `apps/web/test/corpus-size.test.ts`, every case of plan §5 (fresh; deterministic, with the record's key order; room parity with a two-file topic; T1 at the room and one past it, and the band's start; a file past the room no topic holds; the lead, and its template held equal to `render.ts`'s; T2 at 5% and under, and its band; T3's bytes and sections at their edges and halves; the highest crossed sets the stage; the defaults; reads only; words). RED:
+
+  ```
+  $ cd apps/web && npx vitest run test/corpus-size.test.ts
+  Error: Cannot find module '../build/corpus-size' imported from …/apps/web/test/corpus-size.test.ts
+   Test Files  1 failed (1)
+        Tests  no tests
+  ```
+
+  `make lint` failed on tsc, as a RED test must (`TS2307: Cannot find module '../build/corpus-size'`).
+
+- **T003** (c4464ffc): `apps/web/build/corpus-size.ts`; `twin-pack.ts` unchanged. Departures D1 to D5 in plan §9 (`computeRecord`; the budgets' source read with the workspace's `yaml`; the import path; small exports; the stage's edges). GREEN but "fresh", as the task says:
+
+  ```
+  $ npx vitest run test/corpus-size.test.ts test/twin-pack.test.ts
+       × is fresh: the committed record is what the repository computes
+  AssertionError: docs/corpus-size.json is missing or stale: run npm run twin:pack -w apps/web and commit it: expected null to be '{\n  "schema": 1, …
+   Test Files  1 failed | 1 passed (2)
+        Tests  1 failed | 43 passed (44)
+  ```
+
+  `make lint`: exit 0.
+
+- **T004** (0d257fe6): `twin:pack` is now `node --import tsx build/twin-pack.ts && node --import tsx build/corpus-size.ts`. Run, from the worktree's root:
+
+  ```
+  $ npm run twin:pack -w apps/web
+  twin:pack: wrote config/twin/corpus.json: 131 sections, 3 topics; 186 cases
+  corpus:size: T1 band: the topic hobbies-and-travel is within 266 characters of T1 (20,916 of the room's 21,182; ADR 0054)
+  corpus:size: T1 band: the topic mission is within 137 characters of T1 (21,045 of the room's 21,182; ADR 0054)
+  corpus:size: wrote docs/corpus-size.json: stage 0; mission 21,045 of 21,182
+  $ git diff --exit-code --stat -- config/twin/ evals/product/cases/
+  (no output; exit 0)
+  ```
+
+  The pack and the cases didn't move (SC-004, FR-013). As expected: stage 0, T1 in band for mission and for hobbies and travel; no fit note (no topic past the room). Every figure of the record equals the replica's in ADR 0054 at 3c0e4cd0: the files (9 topic files, 96,567 bytes, 15,089 words, 96,128 characters; 11 facts files, 17,556, 2,312, 17,544; together 114,123, 17,401, 113,672); the room (6,290, 400, 4,128, 21,182); the base (5,833 + 6,189 = 12,022); each topic and each file row (mission 21,045, margin 137; hobbies and travel 20,916, 266, its lead 41, 225 after it; work projects 19,643, 1,539; `01` 42,081, −20,899; `02` 19,478; `03` 14,071; `07` 20,819; `08` 16,325); free talk (9,160 of 78,202, 0.1171); the pack (131 sections, 153,697 bytes, 84,391 rendered, the longest 3,140). So T005 has no replica-versus-check difference to record (R-1).
+
+  ```
+  $ npx vitest run test/corpus-size.test.ts test/twin-pack.test.ts
+   Test Files  2 passed (2)
+        Tests  44 passed (44)
+     Duration  43.26s (tests 44%, import 39%, transform 16%, worker 1%)
+  ```
+
+  `make lint`, exit 0:
+
+  ```
+  node_modules/.bin/eslint --max-warnings 0 .
+  for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+  node_modules/.bin/prettier --check .
+  Checking formatting...
+  All matched files use Prettier code style!
+  ruff check .
+  All checks passed!
+  ruff format --check --no-cache --extend-exclude corpus .
+  779 files already formatted
+  (shellcheck over the repository's shell files: no finding)
+  ```
+
+### What waits (Q171)
+
+- **T008** (the record in both pending corpus patches) needs spec 022's `docs/merge-requests/2026-11-14-corpus-film-scripts.patch` and spec 026's dog-intro patch on the line; impl-022 and impl-026 build them beside this task, and neither is on the line's tip (T001). A later task runs T008 once they are.
+- **T005**: the ADR's file and pack figures need no change (the check equals the replica), but its measurement commit moves to T004's (0d257fe6, or its hash on the line), and its pending patches' figures come from T008's records. rework2-spec-027 read 026's patch at b12ac0ba; 026's final tip (9bba8f36) changed `04`'s framing line, not FR-021's bullet, so T005's final figures still come from T008's records. T005 waits with T008.
+- **T007**: the patches' stages and figures (T008's records) wait; item 10's section of the stack note carries the rest now.
+- **T006**: the review, by another worker (the reviewer follows this task).
