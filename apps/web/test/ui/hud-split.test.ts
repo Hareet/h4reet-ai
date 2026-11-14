@@ -152,3 +152,83 @@ describe("the panel (T008; FR-005, FR-006, FR-009)", () => {
     expect(v.doc.querySelector(".split-frame, .split-stats, .split-hint")).toBeNull();
   });
 });
+
+// ---- T010 (Q4; FR-003): the portrait ----
+
+import { createHash } from "node:crypto";
+import { createSplit } from "../../src/room/hud/split";
+import { fetchStill } from "../../src/room/flat";
+import type { Still } from "../../src/room/flat";
+
+const split = (portrait?: () => Promise<string | null>) => {
+  const dom = new JSDOM(
+    '<body><div class="room-list"><h2 class="room-list-heading"></h2><ul><li><button data-object-id="a">A</button></li></ul></div>' +
+      '<section class="talk"><div class="talk-sheet"><div class="talk-head"><button class="talk-log-toggle"><span>Conversation</span></button></div><div class="talk-log"></div></div></section></body>',
+  );
+  const doc = dom.window.document;
+  const s = createSplit(doc, {
+    talk: doc.querySelector(".talk") as HTMLElement,
+    list: doc.querySelector(".room-list") as HTMLElement,
+    words: { select: "Select a piece", back: "Back", close: "Close", esc: "Esc", enter: "Enter" },
+    stats: () => [],
+    turnOut: () => false,
+    walking: () => false,
+    ...(portrait ? { portrait } : {}),
+  });
+  s.setActive(true);
+  return { doc, s };
+};
+const settle = async (): Promise<void> => {
+  for (let i = 0; i < 3; i += 1) await new Promise((r) => setImmediate(r));
+};
+
+describe("the portrait (T010)", () => {
+  it("shows the still where the fetch gives one, the silhouette until then and where it fails", async () => {
+    const ok = split(() => Promise.resolve("data:image/png;base64,AAAA"));
+    ok.s.openPanel();
+    expect(ok.doc.querySelector(".split-silhouette")).not.toBeNull();
+    await settle();
+    expect(ok.doc.querySelector(".split-still")?.getAttribute("src")).toBe("data:image/png;base64,AAAA");
+    for (const give of [() => Promise.resolve(null), () => Promise.reject(new Error("no"))]) {
+      const bad = split(give);
+      bad.s.openPanel();
+      await settle();
+      expect(bad.doc.querySelector(".split-silhouette")).not.toBeNull();
+      expect(bad.doc.querySelector(".split-still")).toBeNull();
+    }
+  });
+  it("fetches once, at the first opening, never while a bar", async () => {
+    let calls = 0;
+    const t = split(() => {
+      calls += 1;
+      return Promise.resolve(null);
+    });
+    await settle();
+    expect(calls).toBe(0);
+    t.s.openPanel();
+    t.s.closePanel();
+    t.s.openPanel();
+    expect(calls).toBe(1);
+  });
+  it("is spec 016's verified fetch: same-origin, with integrity, refusing bytes that aren't the index's", async () => {
+    const bytes = new Uint8Array([1, 2, 3, 4]);
+    const sha = createHash("sha256").update(bytes).digest("hex");
+    const still = {
+      url: "/twin/still.png",
+      sha256: sha,
+      bytes: 4,
+      rect: [0, 0, 1, 1],
+      view: [0, 0, 1, 1],
+      placement: "p",
+    } as Still;
+    const seen: RequestInit[] = [];
+    const serve = (body: Uint8Array) => (_url: string, init: RequestInit) => {
+      seen.push(init);
+      return Promise.resolve(new Response(body as unknown as BodyInit, { status: 200 }));
+    };
+    expect(await fetchStill(still, serve(bytes))).toMatch(/^data:image\/png;base64,/);
+    expect(seen[0]).toMatchObject({ mode: "same-origin", credentials: "same-origin", redirect: "error" });
+    expect(await fetchStill(still, serve(new Uint8Array([9, 9])))).toBeNull();
+    expect(await fetchStill(still, () => Promise.reject(new Error("down")))).toBeNull();
+  });
+});

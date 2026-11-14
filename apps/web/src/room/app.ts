@@ -79,7 +79,7 @@ import { h } from "./dom";
 import { noEvents } from "./events";
 import type { EventSink } from "./events";
 import { bufferRatio } from "./fit";
-import { renderFlat } from "./flat";
+import { fetchStill, renderFlat } from "./flat";
 import { browserOwnsEscape, createFullscreen } from "./fullscreen";
 import { loadTypefaces } from "./faces/fonts";
 import type { TypefaceLoader } from "./faces/fonts";
@@ -799,6 +799,13 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       stats: () =>
         statsFrom(live.tier.tier, cost.state, { ui: deps.room.ui, drafts: deps.room.build.kind === "drafts" }),
       onClose: () => talk?.closeLarger(),
+      // Spec 018 (Q4; FR-003): the twin's still, through spec 016's verified fetch, once, at the first opening in 3D.
+      portrait: () => {
+        const still = deps.room.twin?.still ?? null;
+        return still && visit.mode !== "2d"
+          ? fetchStill(still, (url, init) => win.fetch(url, init))
+          : Promise.resolve(null);
+      },
       turnOut: () => talk?.turnOut() ?? false,
       walking: () => walker(stage)?.walk.walking === true,
     });
