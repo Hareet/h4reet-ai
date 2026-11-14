@@ -963,7 +963,7 @@ His words, 2026-11-14, about 17:25Z, verbatim:
 
 **What waits before the intake, in order** (in full, with the commands, in `studio-round-2.md`):
 1. **His mesh review in the record (Q210).** Add `{"name": "the Author's review of the mesh", "by": "hand"}` after the Pixal3D step in all four entries of the handoff's `records.json`. This is his hand or a studio task's, never a judge's. On a `/tmp` copy, the edit takes the file from `341edde9…f14f9` to `6bbe5be5d1ff092a8584598c5b9421ed5664d03e99a51ce66b72703dd39f1771`.
-2. **Q207's date**, on the eleven model steps' `models_checked`. Any date up to 2026-11-14 keeps the pass.
+2. **Q207's date**, on the eleven model steps' `models_checked`. Any date up to 2026-11-14 keeps the pass. *(His answer, about 17:35Z: `2026-11-11`. With steps 1 and 2 together, the file is `39b89e14bf309fdfdc367d8b0a45f1943363014eb9cdcf4e405367fde7cad4df`. See "Round 2's record (record-dino-r2)" below.)*
 3. **The dry re-judge.** I previewed it on a `/tmp` copy with step 1's record. The result was `arrival-check: 0 findings in 6 files, 4 warnings`, `line: pass; round 2`, and exit 0, with no `2.result.json` written.
 4. **`--record`**, once: `python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dinosaur/2 --brief /srv/studio/briefs/dinosaur/2.json --record`.
 
@@ -979,7 +979,7 @@ His hand (FR-015). Do it after step 4 above, on a branch from `main` once this s
 | `dinosaur-idle.glb` | `dc2f84a64f03ee2e58f53845c33edf38ede46ca303a2e11c8198acdd59e7ce31` | `assets/visitors/dinosaur/dinosaur-idle.glb` |
 | `dinosaur-walk.glb` | `d895b608773e0ad39a05dda325f409afea4441e26187abd8400432bb57a213b8` | `assets/visitors/dinosaur/dinosaur-walk.glb` |
 | `dinosaur-take.glb` | `3bca518b1706f58e41108fa00689bdd2343dbc3651e78480356d0fd5f658a046` | `assets/visitors/dinosaur/dinosaur-take.glb` |
-| `records.json` | after steps 1 and 2: yours. Tonight's, with step 1 only: `6bbe5be5d1ff092a8584598c5b9421ed5664d03e99a51ce66b72703dd39f1771` | `assets/visitors/dinosaur/records.json` |
+| `records.json` | after steps 1 and 2, with your date `2026-11-11`: `39b89e14bf309fdfdc367d8b0a45f1943363014eb9cdcf4e405367fde7cad4df` (record-dino-r2, on a scratch copy). Step 1 only: `6bbe5be5d1ff092a8584598c5b9421ed5664d03e99a51ce66b72703dd39f1771` | `assets/visitors/dinosaur/records.json` |
 | `LICENSE.md` | `f7118869586e0928e06f39b689cdbdd0817fb0fc5540d37e0ca7d1cc2cfa9159` (byte for byte `assets/visitors/man/LICENSE.md`) | `assets/visitors/dinosaur/LICENSE.md` |
 
 Not copied: `candidate.json`, `note.md`, `front.png`, and `side.png`. An asset directory admits only images, GLBs, `records.json`, and `LICENSE.md`, and the two renders are review-only. Your commands:
@@ -1113,7 +1113,40 @@ The bash gate refused three commands. All three are on the page.
 
 Nothing was respelled. I didn't open, view, copy, or list the inbox, the dog's photos folder, or the handoff's `front.png` and `side.png`.
 
-intake-021: his look approval recorded; the intake, the record's two steps, and `--record` wait for him (Q207's date)
+intake-021: his look approval recorded; the intake, the record's two steps, and `--record` wait for him (Q207's date). *(Overtaken: Q207's date is his answer, `2026-11-11`. What waits now is in the next section.)*
+
+### Round 2's record (record-dino-r2)
+
+Branch `night/record-dino-r2/record-dino-r2`, run by the implementer record-dino-r2 (Opus 5.5) on 2026-11-14 around 18:30Z, from intake-021's tip, `fc89bcd1`. The full account, with every run whole, is in `specs/021-dinosaur-modeled-and-brought-in/studio-round-2.md`, under "Round 2's record, not made (`record-dino-r2`)".
+
+His answer to Q199 and Q207, about 17:35Z, verbatim:
+
+> we checked 3 days ago 11-11-2026
+
+**Not recorded.** The checks held: the four GLBs have judge-dino-r2's SHA-256s, and there's no `2.result.json`. I copied `records.json` to `/tmp` first: `341edde9ff71781c2d5da31f31c6ce52a49a58a9b643dc139f9e8905311f14f9`. The edit, `2026-11-11` on the eleven model steps plus his mesh review after Pixal3D in all four entries, failed before writing a byte: `OSError: [Errno 30] Read-only file system`. An implementer's container mounts `/srv/studio/handoff` `ro` and `/srv/studio/briefs` `rw`. The handoff's `records.json` is still `341edde9…f14f9`, so nothing had to be put back. `--record` didn't run, and `/srv/studio/briefs/dinosaur/` still holds only `1.json`, `1.result.json`, and `2.json`.
+
+**What the record would be.** The same edit on a scratch copy makes `records.json` `39b89e14bf309fdfdc367d8b0a45f1943363014eb9cdcf4e405367fde7cad4df`. `line.py candidate` on that copy, against round 2's brief, gives `arrival-check: 0 findings in 6 files, 4 warnings` (the four C1 WARNs), then `line: pass; round 2`, exit 0. So his date and his mesh review keep the pass. Only the write to the handoff is missing.
+
+**So his intake doesn't yet follow a recorded pass.** Steps 1 and 2 above (now one script, in `studio-round-2.md`), then 3 and 4, still come before it. They need someone who can write the handoff: him, or a task whose container mounts it read-write. The question:
+
+> **Q: The handoff folder is read-only to implementers, so the dinosaur's record wasn't edited or recorded. Who makes the edit to `/srv/studio/handoff/dinosaur/2/records.json` (his date and his mesh review) and runs `--record`?**
+> Recommended: you, in the morning. Run the one script under "Steps 1 and 2 as one script" in `studio-round-2.md` (it should print `model steps dated: 11` and make `39b89e14…d4df`), then steps 3 and 4 as written. This widens no mount. Others: re-queue record-dino-r2 with `/srv/studio/handoff/dinosaur/` mounted read-write for that one task; a studio task makes the edit (the studio writes the handoff), then an implementer runs steps 3 and 4.
+
+**The dog's records:** none changed tonight. Round 2 is already recorded (fail, on `files`). Round 3 handed nothing back (studio-dog-r7 stopped, Q220).
+
+**Follow-up (rule 9), not tonight:** `line.py` should count a round as answered only when it has a `candidate.json`.
+
+#### On the branch (small runs only, rule 4)
+
+This branch changes two documents and no code or test: `specs/021-…/studio-round-2.md` and this note. `scripts/studio` has no tests of its own here. Its `line.py` is unchanged, and its tests sit with the evals (see the runs below).
+
+RUNS_PLACEHOLDER
+
+#### Interruptions (rule 5)
+
+One refusal, from the filesystem rather than the bash gate: the write to the handoff's `records.json` (`EROFS`). I didn't try it again or another way. Nothing was respelled. I didn't open, view, copy, or list the inbox, the dog's photos folder, or the handoff's renders.
+
+record-dino-r2: not recorded (handoff read-only to implementers); his date checked to keep the pass on a scratch copy; the edit and `--record` wait for him or a task that can write the handoff
 
 ---
 

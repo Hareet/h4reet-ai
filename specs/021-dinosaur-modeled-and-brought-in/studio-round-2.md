@@ -309,7 +309,7 @@ His words, about 17:25Z, verbatim:
 
 *Reading, beside his words:* "dinosaur is approved" is his look approval of round 2's candidate, `/srv/studio/handoff/dinosaur/2/`, which is the four GLBs by the SHA-256s above. The rest is about the dog (item 3, spec 020) and isn't this item's. Q210 is answered (recommended): with this approval, his review of the mesh is given.
 
-**Not recorded.** No `--record` ran, and nothing under `/srv/studio/` changed. The record waits only for Q207's date (`models_checked`).
+**Not recorded.** No `--record` ran, and nothing under `/srv/studio/` changed. The record waits only for Q207's date (`models_checked`). *(Overtaken: his answer at about 17:35Z gives the date as `2026-11-11`. The record now waits on the edit to the handoff's `records.json`, which no implementer can make. See "Round 2's record, not made (`record-dino-r2`)" below.)*
 
 ### For his morning, in order
 
@@ -332,7 +332,7 @@ Each step is his, or a studio task's for the first two. A judge doesn't write un
    sha256sum /srv/studio/handoff/dinosaur/2/records.json   # 6bbe5be5…71771 if step 2 hasn't run yet
    ```
 
-2. **Q207's date.** `models_checked` is `2026-11-14` on each of the **eleven** model steps: two in `dinosaur.glb`'s entry, and three in each clip's. (The judged section above says "twelve", but the file holds eleven.) Your date replaces it on each one. Any date up to 2026-11-14 keeps the pass. If the date you give is 2026-11-14, nothing changes.
+2. **Q207's date.** `models_checked` is `2026-11-14` on each of the **eleven** model steps: two in `dinosaur.glb`'s entry, and three in each clip's. (The judged section above says "twelve", but the file holds eleven.) Your date replaces it on each one. Any date up to 2026-11-14 keeps the pass. If the date you give is 2026-11-14, nothing changes. *(His answer: `2026-11-11`. Steps 1 and 2 as one script, with the file they make, are under "Round 2's record, not made" below.)*
 3. **The dry re-judge**, from the line's checkout, which writes nothing:
 
    ```
@@ -349,6 +349,117 @@ Each step is his, or a studio task's for the first two. A judge doesn't write un
    It writes `/srv/studio/briefs/dinosaur/2.result.json`: `pass`, round 2, no findings.
 
 Then comes his intake into `assets/visitors/dinosaur/` (FR-015). The steps, the files' SHA-256s, and the scratch runs that show the room takes the model over the cut-out are in item 4's section of `docs/merge-requests/2026-11-14-night-stack.md`, under "The intake (intake-021)".
+
+## Round 2's record, not made (`record-dino-r2`)
+
+Task `record-dino-r2` (night of 2026-11-13, implementer, Opus 5.5) ran on 2026-11-14 around 18:30Z, from intake-021's tip, `fc89bcd1`. Its job was to make steps 1 and 2 above with his date, then run steps 3 and 4. **It recorded nothing.** The handoff folder is mounted read-only in an implementer's container, so the edit to `records.json` failed before it wrote a byte. The supervisor's rule for anything other than a clean pass is "record nothing, and stop with a question", so I followed it. The question is on the page, and in item 4's section of `docs/merge-requests/2026-11-14-night-stack.md`.
+
+### His words
+
+His look approval, about 17:25Z, is quoted verbatim under "His look approval (User Story 4, FR-015), 2026-11-14" above. His answer to Q199 and Q207, about 17:35Z, verbatim:
+
+> we checked 3 days ago 11-11-2026
+
+*Reading, beside his words:* `models_checked` is `2026-11-11` on every model step of the dinosaur's record (and of the dog's rounds 2 and 3, which aren't this item's).
+
+### Checks first
+
+Both held.
+
+```
+$ sha256sum dinosaur.glb dinosaur-idle.glb dinosaur-walk.glb dinosaur-take.glb records.json candidate.json LICENSE.md   # in /srv/studio/handoff/dinosaur/2
+1aa8075bf5cc9ebfd226cd8e5492295cee23b790a3bb61a7caf68e46cf62fae8  dinosaur.glb
+dc2f84a64f03ee2e58f53845c33edf38ede46ca303a2e11c8198acdd59e7ce31  dinosaur-idle.glb
+d895b608773e0ad39a05dda325f409afea4441e26187abd8400432bb57a213b8  dinosaur-walk.glb
+3bca518b1706f58e41108fa00689bdd2343dbc3651e78480356d0fd5f658a046  dinosaur-take.glb
+341edde9ff71781c2d5da31f31c6ce52a49a58a9b643dc139f9e8905311f14f9  records.json
+9b1a09b2b5075270aeeb0d15ee478dbde42f5bdb58568a9173fbb773156b68a9  candidate.json
+f7118869586e0928e06f39b689cdbdd0817fb0fc5540d37e0ca7d1cc2cfa9159  LICENSE.md
+$ ls /srv/studio/briefs/dinosaur/
+1.json  1.result.json  2.json
+$ sha256sum /srv/studio/briefs/dinosaur/2.json
+eddfc1ff881722a4e6c3ece13514e20a70e350b34194690bc61abe7930431b61  /srv/studio/briefs/dinosaur/2.json
+```
+
+The four GLBs match "What it judged" above. There's no `2.result.json`.
+
+### `records.json`: the copy, the refused edit, and both SHA-256s
+
+- **Before:** I copied it to `/tmp/record-dino-r2.kR4x/records.json` (`cp -p`) before any edit. Both files are `341edde9ff71781c2d5da31f31c6ce52a49a58a9b643dc139f9e8905311f14f9`.
+- **The edit:** step 1's script from above, with one change: it also sets `models_checked` to `2026-11-11` on every step `by` `model`. It passed its canonical-form check, then the write failed:
+
+  ```
+  OSError: [Errno 30] Read-only file system: '/srv/studio/handoff/dinosaur/2/records.json'
+  $ findmnt -T /srv/studio/handoff/dinosaur/2 -o TARGET,SOURCE,FSTYPE,OPTIONS
+  TARGET              SOURCE                        FSTYPE OPTIONS
+  /srv/studio/handoff /dev/sdd[/srv/studio/handoff] ext4   ro,relatime,discard,errors=remount-ro,data=ordered
+  $ findmnt -T /srv/studio/briefs/dinosaur -o TARGET,SOURCE,FSTYPE,OPTIONS
+  TARGET             SOURCE                       FSTYPE OPTIONS
+  /srv/studio/briefs /dev/sdd[/srv/studio/briefs] ext4   rw,relatime,discard,errors=remount-ro,data=ordered
+  ```
+
+- **After:** `341edde9ff71781c2d5da31f31c6ce52a49a58a9b643dc139f9e8905311f14f9`, unchanged (`diff` against the copy: no difference). Nothing had to be put back.
+- **What the edit makes**, on a scratch copy: `39b89e14bf309fdfdc367d8b0a45f1943363014eb9cdcf4e405367fde7cad4df`. Against the handoff's file, the diff is 11 `models_checked` lines (`2026-11-14` changed to `2026-11-11`) and 4 inserted steps (`{"name": "the Author's review of the mesh", "by": "hand"}`, one per entry, each right after the Pixal3D step). Nothing else changes.
+
+"Every model step" covers eleven steps, as step 2 above counts them. Each entry has the Pixal3D step and the build, and each clip's entry also has its own clip step. The clip steps are by model too: Claude Opus 5.5, through the studio's agent's script. The supervisor's parenthetical named only Pixal3D and the build, so I'm noting why the clip steps are included.
+
+### The dry re-judge, on the scratch copy
+
+The scratch copy is `/tmp/record-dino-r2.kR4x/scratch/dinosaur/2/`. It holds the four GLBs, `LICENSE.md`, and `candidate.json`, all copied from the handoff, plus the edited `records.json` (`39b89e14…d4df`). The run is from this branch's checkout. It's a preview of step 3, not the round's dry re-judge, which runs on the handoff folder itself:
+
+```
+$ python3 -I -B scripts/studio/line.py candidate /tmp/record-dino-r2.kR4x/scratch/dinosaur/2 --brief /srv/studio/briefs/dinosaur/2.json
+arrival-check: main's copy, at 3c0e4cd06861, on a scratch copy under assets/visitors/dinosaur/
+WARN assets/visitors/dinosaur/dinosaur-idle.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dinosaur/dinosaur-take.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dinosaur/dinosaur-walk.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dinosaur/dinosaur.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+file                                        bytes     gzip      vertices  triangles  texture
+assets/visitors/dinosaur/dinosaur-idle.glb  47908     22309     0         0          0
+assets/visitors/dinosaur/dinosaur-take.glb  35904     10963     0         0          0
+assets/visitors/dinosaur/dinosaur-walk.glb  37716     14707     0         0          0
+assets/visitors/dinosaur/dinosaur.glb       2248336   1236931   32645     27997      5592405
+arrival-check: 0 findings in 6 files, 4 warnings
+line: pass; round 2
+exit 0
+$ ls /srv/studio/briefs/dinosaur/
+1.json  1.result.json  2.json
+```
+
+The record with his date and his mesh review passes: 0 findings, round 2. `--record` didn't run, on the scratch copy or on the handoff. Afterwards there was still no `2.result.json`, and the handoff's `records.json` was still `341edde9…f14f9`.
+
+### Steps 1 and 2 as one script, for whoever can write the handoff
+
+This is the script I ran on the scratch copy. Run it on the handoff's file, then run steps 3 and 4 above unchanged.
+
+```
+python3 -I - /srv/studio/handoff/dinosaur/2/records.json <<'EOF'
+import json, sys
+p = sys.argv[1]; raw = open(p, encoding="utf-8").read(); d = json.loads(raw)
+assert json.dumps(d, indent=2, ensure_ascii=False) + "\n" == raw
+step = {"name": "the Author's review of the mesh", "by": "hand"}
+n = 0
+for e in d["entries"]:
+    for s in e["steps"]:
+        if s["by"] == "model":
+            assert "models_checked" in s
+            s["models_checked"] = "2026-11-11"; n += 1
+    i = [k for k, s in enumerate(e["steps"]) if "by Pixal3D" in s["name"]]
+    assert len(i) == 1 and step not in e["steps"], e["file"]
+    e["steps"].insert(i[0] + 1, step)
+open(p, "w", encoding="utf-8").write(json.dumps(d, indent=2, ensure_ascii=False) + "\n")
+print("model steps dated:", n)
+EOF
+sha256sum /srv/studio/handoff/dinosaur/2/records.json   # 39b89e14bf309fdfdc367d8b0a45f1943363014eb9cdcf4e405367fde7cad4df; it prints "model steps dated: 11"
+```
+
+### The dog's records
+
+No dog record changed tonight. Round 2 is already recorded (fail, on `files`). Round 3 handed nothing back (studio-dog-r7 stopped, Q220). The same read-only mount would have refused a change anyway.
+
+### Interruptions (rule 5)
+
+One refusal. The filesystem, not the bash gate, refused the write to `/srv/studio/handoff/dinosaur/2/records.json` (`EROFS`; the mount is `ro`). I didn't try it again or another way. I didn't use a scratch copy as the recorded candidate either: `--record` would then have recorded a pass for a record that isn't the one in the handoff. Nothing was respelled. I didn't open, view, copy, or list the inbox, the dog's photos folder, or the handoff's `front.png` and `side.png`.
 
 ## The brief, verbatim
 
