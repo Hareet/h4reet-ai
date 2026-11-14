@@ -5,7 +5,7 @@
 // `note`. chase-figures.ts is its shell: it places the pictures from the runners and drives their legs and clips.
 import type { WalkableFloor } from "../compose/floor";
 import type { ChaseConfig, Runner } from "./chase-steer";
-import { createRunner, steer, walkHome } from "./chase-steer";
+import { createRunner, steer, turnToward, walkHome } from "./chase-steer";
 
 export type ChaseFigureId = "twin" | "dog";
 export type ChaseWho = "both" | "twin" | "dog";
@@ -49,6 +49,21 @@ export interface Chase {
   moving(id: ChaseFigureId): boolean;
   /** A figure that can't run (FR-014, FR-023, a dog with neither clip): it holds at home. */
   hold(id: ChaseFigureId, held: boolean): void;
+  /** Spec 026 (FR-005; plan.md R-07; M3): turn the twin at its home toward `heading` (radians, spec 008's), or back to
+   *  its home heading on null. Asked while the run is on, or the twin isn't home, it does nothing. */
+  faceTwin(heading: number | null): void;
+}
+
+/** Spec 026 (FR-005; R-07): faceTwin's rate, 180° a second. */
+export const FACE_RATE_RAD_S = Math.PI;
+/** Spec 026 (R-07): how far faceTwin turns the twin from its home heading at most, 90°, the ceiling of
+ *  `figures.pet.turn_max_deg`; the pet director clamps its aim to the data's own `turn_max_deg` before it asks. */
+export const FACE_MAX_RAD = Math.PI / 2;
+
+/** faceTwin's request, in a class's fields so the frame writes no boxed number (spec 026, FR-027). */
+class Face {
+  on = false;
+  heading = 0;
 }
 
 /** FR-001's condition: the visitor chose the dinosaur, its figure shows the model, and the walking view is on. */
@@ -144,6 +159,17 @@ export function createChase(options: {
 
   /** The room was paused: the next frame that moves is a resume, clause (a)'s. */
   let resumed = false;
+  const face = new Face();
+
+  /** Spec 026 (R-07): the twin at home turns toward the request, or back to its home heading, at FACE_RATE_RAD_S. Its
+   *  place, step heading, speed, and phase stay its home's, so it turns, never walks. */
+  const turnTwin = (dt: number): void => {
+    if (!twin || twin.phase !== "home") return;
+    const to = face.on ? face.heading : twin.home.heading;
+    const r = twin.runner;
+    if (r.facing === to) return;
+    r.facing = turnToward(r.facing, to, FACE_RATE_RAD_S * dt);
+  };
 
   return {
     frame(dino, dt, motion) {
@@ -162,6 +188,9 @@ export function createChase(options: {
       // since no figure can move (FR-025).
       if (!motion.animate || motion.level >= 1) {
         for (const f of all) if (f.phase !== "home") putHome(f);
+        // Spec 026 (R-07): the twin's turn too, at once, and the request dropped.
+        face.on = false;
+        if (twin) twin.runner.facing = twin.home.heading;
         said = null;
         ranTwin = false;
         ranDog = false;
@@ -179,6 +208,8 @@ export function createChase(options: {
         if (!on) {
           on = true;
           for (const f of all) f.runner.last = Number.NaN;
+          // Spec 026 (R-07): the run outranks the turn; the twin comes home to its home heading after it.
+          face.on = false;
         }
       } else if (on) {
         since += dt;
@@ -203,6 +234,7 @@ export function createChase(options: {
       } else {
         back(twin, dt);
         back(dog, dt);
+        turnTwin(dt);
         if (said !== null && twin?.phase !== "returning" && dog?.phase !== "returning") {
           // The figures that moved in the run, which hold `said`'s at least.
           options.note?.({ state: "ended", who: whoOf(ranTwin, ranDog) ?? said });
@@ -228,6 +260,16 @@ export function createChase(options: {
     hold(id, held) {
       const f = of(id);
       if (f) f.held = held;
+    },
+    faceTwin(heading) {
+      if (!twin || on || twin.phase !== "home") return;
+      if (heading === null) {
+        face.on = false;
+        return;
+      }
+      const d = Math.atan2(Math.sin(heading - twin.home.heading), Math.cos(heading - twin.home.heading));
+      face.heading = twin.home.heading + Math.max(-FACE_MAX_RAD, Math.min(FACE_MAX_RAD, d));
+      face.on = true;
     },
   };
 }
