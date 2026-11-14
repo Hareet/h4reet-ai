@@ -124,6 +124,15 @@ export const HUD_PLACEMENTS = {
       { belowRem: Number.POSITIVE_INFINITY, n: 2 },
     ] as readonly Band[],
   },
+  /** Spec 018 (FR-001, FR-004; plan.md §2): the split layout, a refinement of the column layout: from a landscape window of
+   *  `minWidthRem`, the conversation panel in the clear area's left (at most `maxRem` wide and `shareMax` of the window,
+   *  and at least `minWidthRem`/`minHeightRem` or no split) and the list in the column's right `widthRem`, at most
+   *  `heightRem` tall. The panel keeps the notes' reserve above it and the walking control's corner beside it. */
+  split: {
+    minWidthRem: 48,
+    panel: { shareMax: 0.5, maxRem: 40, minWidthRem: 18, minHeightRem: 14, gapRem: 0.5 },
+    list: { widthRem: 24, heightRem: 22 },
+  },
   /** The dock, across the foot above the bar: its padding around the list's strip and the text box's row. */
   dock: { padRem: 0.25 },
   /** The list: its header button (an icon, then list.heading's words) floated before its buttons, each row a
@@ -459,4 +468,50 @@ export function alwaysOnCoverage(
   const c = compactBoxes(screen, OPENING, metrics);
   const clear = hudBoxes(screen, OPENING, metrics).clear;
   return unionArea([...c.all, notesBox(clear, metrics.rem)]) / (screen.w * screen.h);
+}
+
+// ---- Spec 018: the split layout (FR-001, FR-004; plan.md §2) ----
+
+/** The split layout's boxes in a window's pixels: the panel open, its resting bar (the text box's row at its foot), and
+ *  the list. */
+export interface SplitBoxes {
+  readonly panel: Box;
+  readonly bar: Box;
+  readonly list: Box;
+}
+
+/**
+ * The split layout's boxes, or null where the window takes none: it is landscape, at least `split.minWidthRem` wide,
+ * in the column layout, and its left half holds a panel (`panel.minWidthRem` by `panel.minHeightRem`) clear of the
+ * notes' reserve and the walking control's corner. A refinement of the column layout, so the bands, the clear area, and
+ * the compositor's checks are the column layout's, unchanged (plan.md §2).
+ */
+export function splitBoxes(
+  screen: { readonly w: number; readonly h: number },
+  state: HudState = OPENING,
+  metrics: HudMetrics = DEFAULT_METRICS,
+): SplitBoxes | null {
+  const t = HUD_PLACEMENTS;
+  const { rem, safe } = metrics;
+  if (!(screen.w > screen.h) || screen.w < t.split.minWidthRem * rem) return null;
+  const bands = hudBoxes(screen, state, metrics);
+  if (bands.layout !== "column" || !bands.column || !fitsHud(screen, state, metrics)) return null;
+  const { clear } = bands;
+  const reserve = notesReserve(clear, rem);
+  const p = t.split.panel;
+  const walkLeft = clear.w - WALK_CONTROL.insetRem * rem - WALK_CONTROL.widthRem * rem - p.gapRem * rem;
+  const width = Math.min(p.maxRem * rem, p.shareMax * screen.w - clear.x, walkLeft);
+  const height = clear.h - reserve;
+  if (width < p.minWidthRem * rem || height < p.minHeightRem * rem) return null;
+  const panel: Box = { x: clear.x, y: clear.y + reserve, w: width, h: height };
+  const talk = (t.talk.labelRem * t.talk.lineHeight + t.talk.gapRem + t.talk.rowRem) * rem + 2 * t.dock.padRem * rem;
+  const bar: Box = { x: panel.x, y: panel.y + panel.h - talk, w: panel.w, h: talk };
+  const listW = Math.min(t.split.list.widthRem * rem, bands.column.w - safe.right);
+  const list: Box = {
+    x: bands.column.x + bands.column.w - safe.right - listW,
+    y: bands.column.y,
+    w: listW,
+    h: Math.min(bands.column.h, t.split.list.heightRem * rem),
+  };
+  return { panel, bar, list };
 }

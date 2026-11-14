@@ -91,6 +91,10 @@ A dev-cpu stack (`make up ENV=dev-cpu`) shows the room; the implementer records 
 
 This is item 1: its tip is the base for the next item (avatar walking leg animations). The note, `docs/merge-requests/2026-11-14-night-stack.md`, gets this item's section; the last item names the stack once. No human-only patch comes from this item.
 
+## Departures from this plan (the implementation's, recorded with the commit that makes them)
+
+- **D-I1 (T007): the split layout is a refinement of the column layout, not a fourth `HudLayout`.** `layoutFor` and `HudLayout` are unchanged; `compose/hud.ts` gains `HUD_PLACEMENTS.split` and `splitBoxes(screen, state, metrics)`, which returns the panel's, its resting bar's, and the list's boxes, or null (a window under 48rem, a portrait one, a non-column one, or one whose left half can't hold an 18rem × 14rem panel clear of the notes' reserve and the walking control). Why: `data-hud="column"` at 1280 × 720 is pinned by spec 005's and 014's tests, which T007 requires to pass unchanged; the bands, the clear area, and the compositor's checks (`stages.ts`) then stay the column layout's and need no new sweep. The root carries `data-split="on"` beside `data-hud="column"`. The panel (open) is within the clear area's left, under the notes' reserve; the list within the column's right 24rem, at most 22rem tall.
+
 ## Complexity Tracking
 
 One new layout beside three: the cost, named, of P1, for the degraded mode and the tests' stability.
