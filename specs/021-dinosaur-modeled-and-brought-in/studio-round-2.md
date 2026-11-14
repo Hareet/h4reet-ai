@@ -432,6 +432,8 @@ The record with his date and his mesh review passes: 0 findings, round 2. `--rec
 
 This is the script I ran on the scratch copy. Run it on the handoff's file, then run steps 3 and 4 above unchanged.
 
+If step 1's older script (the mesh review alone, `6bbe5be5…71771`) already ran on the file, drop the three insert lines (`i = …`, its `assert`, and `e["steps"].insert(…)`) and run the rest: it still prints `model steps dated: 11` and makes `39b89e14…d4df` (verify3-021, checked in memory on the handoff's file, nothing written; run whole, the script stops on that `assert` before writing).
+
 ```
 python3 -I - /srv/studio/handoff/dinosaur/2/records.json <<'EOF'
 import json, sys
