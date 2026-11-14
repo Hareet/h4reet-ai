@@ -665,3 +665,257 @@ exit=0
   "notes": "ROUND 3 OF THE DOG, ITS LAST (spec 020-dog-modeled-and-brought-in, FR-010 to FR-014; plan section 5; three rounds per asset). Rewritten by the night-shift implementer task brief-dog-r8 on 2026-11-14 for the Author's answer to Q220 (about 18:45Z), from the text task brief-dog-r7 placed here (sha256 0c0ecf8e9a71fd9ba0688c65da5173bd2dc0f6ad6d6e8b5a59961c884d6ca308). Task studio-dog-r7 ran that text and stopped; its working folder, /srv/studio/outputs/dog/round3/, and its note stay as they are. Round 3 is still unspent: /srv/studio/handoff/dog/3/ doesn't exist. Round 2's candidate, /srv/studio/handoff/dog/2/, was recorded fail with one finding. This brief's 'findings' are that finding, verbatim. The studio has no repository: everything it needs is here.\n\nTHE AUTHOR'S ANSWER TO Q220 (2026-11-14, about 18:45Z), in his words: \"We have \"~/ComfyUI/input/duck-toller.jpg\" that's an actual photo of a nova scotia duck tolling retriever. Be sure to note the white markings. Can we increase any detail on the run that creates the concept or mesh?\" To two more questions he answered: the dog in it is \"Not my dog\", and the photo is \"I own it / it's free to use\". He copies it to /srv/studio/workflows/inbox/duck-toller.jpg, where the studio reads it. His review before it (about 17:25Z), in his words: \"Okay, dinosaur is approved, and dog seems to have changed the face compared to the concept? Look at the face markings on the concept with white and white on the under body and white feet, common markings of a Nova Scotia Duck Tolling Retriever. Do you want to incorporate those\". (The dinosaur is another asset. Nothing in this round touches it.) His order reads them this way for this round: (1) a NEW CONCEPT, from a prompt that names the Toller's white markings as the photo shows them; (2) MORE DETAIL in the concept and the mesh, inside this brief's limits; (3) THE CHECK stays: front and side renders compared with the photo and his words before anything goes into the handoff folder. Round 2's concept (seed 2 of P-0030) and round 2's mesh are not this round's source: round 3 makes a new concept and a new mesh.\n\nTHE PHOTO: A REFERENCE ONLY, NOT AN INPUT. His order lets the photo be the concept's image input, recorded as the source with his words for its licence and likeness false, unless line.py brief or the arrival check refuses that source. Main's arrival check refuses it for this round: an entry whose source type is photo must carry an approval (a dry run of main's check on such an entry: R4, \"entries[0] lacks approval\"), and this round's record leaves approval out, since the look approval is the Author's, after the round. The record also has no field for a photo's licence. So the photo is a reference only. The studio agent opens that one file, /srv/studio/workflows/inbox/duck-toller.jpg, to word the prompt (step 3) and to judge the renders (THE CHECK), and for nothing else. Check first that it is a regular file, not a link; if it is missing, stop (WHEN THIS ROUND RUNS). It is not uploaded to ComfyUI or given to any workflow: no image input, no reference latent, no conditioning from it. ComfyUI's input folder holds a copy under the same name: no node loads it. It is not copied, resized, or cropped, and nothing of it (its pixels, its EXIF, its name, or its path) goes into a frame, a mesh, a texture, a GLB, the record, or candidate.json. Open no other image in the inbox, and don't list the inbox. No session opens, views, copies, or lists the photos folder, /srv/studio/briefs/dog/photos/ (Q67, Q68, Q76 stand). The dog in the photo is not the Author's dog. The result is a generic dog of the breed, a likeness of no dog: its record says likeness false and a prompt source. The note (the handoff note, or the stop note) records the photo as the round's reference: its path, that it was a reference only and not an input, his words on it (\"Not my dog\"; \"I own it / it's free to use\"), and likeness false. 'references' stays empty: line.py takes only repository paths there, and the photo is outside the repository.\n\nTHE AUTHOR'S WORDS. His item: '3. d) \"dog modeled and brought in\"'. His words on the dog (2026-11-14, about 15:18Z): \"it's a 41lb medium size dog, make a generic standing concept based on the same breed\". His review and his answer to Q220 are quoted above. The corpus says of the dog, in his words: 'Arya is a Nova Scotia Duck Tolling Retriever, known as a Duck Toller.' Nothing else about the dog is stated: add no trait beyond the breed, his size words, and the white markings his words name and the photo shows, and put no name in a prompt, a file, a record, or a note.\n\nWHEN THIS ROUND RUNS. When task studio-dog-r8 runs it, queued under the Author's order. It waits for nothing else. It STOPS in any of these cases: the photo isn't there; a step needs a tool or model not in this brief's 'tools'; the runner refuses ComfyUI or a param; a GPU step errors; THE CHECK doesn't match; or any other check this brief asks for can't pass. A stop writes nothing in /srv/studio/handoff/dog/3/, and doesn't create that folder: a handoff folder that holds only notes counts as an answered round, and this is the dog's last. The stop's note is /srv/studio/outputs/dog/round3-r8/stop-note.md, saying what stopped the round and why, the step it reached, and where its frames and files are. Record, and queue nothing more. All of round 3's working files go under /srv/studio/outputs/dog/round3-r8/ (ComfyUI save prefixes dog/round3-r8/step1/ and dog/round3-r8/step3/). Change nothing in /srv/studio/outputs/dog/round3/ (studio-dog-r7's), in round 2's working files, or in round 1's or round 2's handoff folders.\n\nCOMFYUI. Steps 3 and 4 run in ComfyUI 0.42.5. Start it only by asking the runner with exactly these params: {\"kind\": \"comfyui\", \"action\": \"start\", \"params\": [\"--fp32-text-enc\", \"--use-pytorch-cross-attention\", \"--disable-pinned-memory\"]}. Ask for no other param, and never --birefnet (ComfyUI's main.py exits 2 on it: it is start_comfyui.sh's own switch). If the runner refuses a param or answers that ComfyUI isn't ready, record what it reports in the stop's note and stop: don't retry with other params. ComfyUI's outputs land under /srv/studio/outputs (the runner's --output-directory). Ask the runner to stop ComfyUI when step 4 is done. Install no node and download no weight.\n\nSTEPS. The record holds them in the man's shape, in this order.\n1. \"the Author's review of an earlier mesh, which asked for the breed's white markings on the face, the under body, and the feet\" (hand).\n2. \"the Author's choice of a reference photograph of the breed, for its white markings\" (hand).\n3. THE CONCEPT, from a new text prompt, by a model: FLUX.2 [klein] 4B base with its Qwen3-4B text encoder and the FLUX.2 VAE, in ComfyUI 0.42.5 (core nodes only), text to image, with no image input and no reference latent. Start from round 2's step-1 workflow (seed 2's as run, sha256 c654f2bdec42172e39a38a9070f49c53f2f63e91795e29065c39234f51659d06) and change only the prompt and its negative, the size, the sampling steps, the seed, and the save prefix. More detail (his ask): the size is the highest the workflow takes on this GPU, at least 1536 x 1536 (round 2's was 1024 x 1024): run one seed at 2048 x 2048 first; if it errors or its frame is black, run every seed at 1536 x 1536; never below 1536. About 28 sampling steps (round 2's: 20). 8 seeds, 1 to 8. The prompt: a generic Nova Scotia Duck Tolling Retriever, a medium-size dog of about 41 lb (18 to 19 kg), with the breed's red-orange coat and its white markings as the reference photo shows them: a white blaze on the face, a white chest running under the belly, white feet, and a white tip on the tail if the photo shows one (leave the tail tip out if it doesn't); alone, standing, in a front three-quarter view (say \"turned 30 degrees to its left\"), all four legs and the four white feet visible, head level, tail relaxed and not raised above the head, the whole body in frame, plain light background, stylized to match the room's other avatars (soft, slightly simplified forms, painterly textures, not photoreal, not a cartoon with big eyes). No person, hand, leash, collar, tag, text, logo, lettering, place, or screen. The markings' words follow the photo: where its markings differ from these words (a narrow blaze, white only on the toes), the prompt says what the photo shows, and the note says so. Nothing else from the photo (its background, pose, setting, light, or the dog's other features) goes into the prompt. Give the prompt the opaque ID P-0031 (or, if a record under /srv/studio/handoff/ already uses it, the next free one, 3 to 40 of A-Z a-z 0-9 and hyphen), and keep its negative beside it; both go in the note, never in a GLB or the record. Keep every frame, each beside its workflow-as-run.json, under /srv/studio/outputs/dog/round3-r8/step1/seed<N>/, with one sheet of all eight; delete none. Check that no frame is black. Pick the best: the markings closest to the photo and his words, standing on four visible legs, the turn, head level, tail low, no text or marks. Write its seed, size, prompt ID, and sha256 in the note. The Author doesn't review the new concept before the mesh: the round goes on from the pick, and his look approval comes after.\n4. THE MESH and its base-colour texture, from the picked frame, by a model: Pixal3D int8 with DINOv3 ViT-L patch 16 with NAF, MoGe-2 ViT-L with normals, BiRefNet, and the TRELLIS.2 shape VAE and texture VAE, in ComfyUI 0.42.5, the studio agent uploading only the picked frame to ComfyUI's input. Start from round 2's step-3 workflow (mesh_pixal3d_textured_hi, as run sha256 8c3c5eb2276a46d42f5f18040ab7c9709975996f75680dd0c415fdbe27e8e462), with the save prefix dog/round3-r8/step3/. More detail (his ask): bake the base colour at 2048 px. Round 2 kept 39,999 of about 1.5 million triangles: wherever that cut was made (a face target in this workflow, or the build's decimation), the target is now about 150,000 (step 5). Record this step's own workflow-as-run sha256. If this step errors, keep step 3's frames, record the error's lines, and stop: don't retry with other params.\n5. THE BUILD, by the studio agent's script in Blender 5.2.3, from step 4's mesh. It does what round 2's build did (/srv/studio/outputs/dog/scripts/build_dog.py, sha256 27421d793857b41637ccfb8d3c2236426531f03e10409fed7309e5db771e5959): clean, decimate, and scale the mesh; rig and skin; key the clips; export with the glTF exporter bundled with Blender (numpy bundled with Blender where a script needs it). Copy the script to /srv/studio/outputs/dog/round3-r8/ and change the copy, not round 2's file. What changes, for more detail inside the limits: (a) decimate to about 150,000 triangles in dog.glb, never more than 180,000, keeping the UV seams (the seams delimit the decimation, so no texel smears across a seam on the face or the chest); if dog.glb would pass 21,000,000 bytes, lower the count until it fits and say so in the note. (b) Keep the base-colour texture at 2048 px: don't resize it smaller. One 2048 px RGBA texture is about 22.4 million texture bytes with mipmaps, under the 46,000,000 cap; add no other map unless the total stays under it. (c) Give the face and the chest more of the 2048 px texture where the bake allows: if the build can re-bake the base colour in Blender from step 4's full mesh onto the decimated one, scale the head's and the chest's UV islands up before packing, then bake; if the bake can't, keep its layout and say so in the note. The clip files carry the skeleton and their clip only, no mesh and no texture, each at most 1,000,000 bytes. Record the script as run by its sha256 (workflow_sha256). Each clip's entry then adds its own clip step. Last, scrub (metadata stripped: no EXIF, no path, no prompt text, no machine or user name) and write the record.\nIf any step needs a tool or model not in this brief's 'tools' (all from main's assets/policy/studio-tools.json with outputs_ship true), STOP the round as WHEN THIS ROUND RUNS says, with a note saying which and why (FR-010): a new tool is the Author's to add. Never use Qwen-Image, FLUX.1 [dev], PuLID, TripoSR, GGUF, or ComfyUI-Manager (UNREVIEWED on the list; Qwen-Image and FLUX [dev] are refused by name whatever the list says). In candidate.json and in the record, name each tool by the ID here, or by a name that lowercases to it with each run of other characters a hyphen (\"ComfyUI\" is comfyui, \"Claude Opus 5.5\" is claude-opus-5.5, \"glTF exporter, bundled with Blender\" is gltf-exporter-bundled-with-blender), at the version on main's list.\n\nTHE CHECK (rule 9 of the Author's orders, in his order's words): \"Before writing anything into /srv/studio/handoff/dog/3/, render front and side, and compare the markings with the photo and his words. If they don't match, stop and write the note under /srv/studio/outputs/dog/, never creating the round-3 folder.\" So: build all three GLBs, the record, and the notice in /srv/studio/outputs/dog/round3-r8/ first. Render front.png and side.png of dog.glb at rest there, from the GLB as built (after the decimation and the bake, which must keep the markings). Compare them with the photo and his words, one marking at a time, and write in the note what each shows: the blaze on the face; the white chest running under the belly; the four white feet; the tail's white tip, only if the photo shows one; all on the red-orange coat. Check too that no texel smears across a UV seam on the face or the chest. If any doesn't match, stop: the note is /srv/studio/outputs/dog/round3-r8/stop-note.md, saying which marking doesn't match and how. Only when all match and every check in this brief passes, create /srv/studio/handoff/dog/3/ and write the candidate into it.\n\nTHE LOOK (FR-012, FR-013). A stylized, textured, rigged four-legged figure of a generic Duck Toller of medium size, as the picked concept shows it, with the Toller's white markings (THE CHECK), standing in its rest pose, head level and tail no higher than the top of the head (the room scales the model by its rest pose's bounds to 0.62 m tall, lowest point on the floor, facing +z; a raised head or tail makes it wrong). Facing +z, +y up, metres, origin on the floor between the feet. It carries no place, no person, no screen, no logo, and no text. No hand bone and nothing held: the dog never takes the paper (spec 020 Q4).\n\nRIG. One skeleton, its bone names exactly as limits.bones_required lists them (no prefix, or one 'prefix:' before each), plus any more bones you need below them (e.g. FrontLeftLeg's lower bones and paw, Tail's chain, Jaw, ears). Name NO bone LeftHand or RightHand, with or without a prefix: the room treats those names as hands. Hips is the root of the deform bones. Both clips target this skeleton's names only; a clip naming a bone the model lacks fails in the room.\n\nCLIPS (FR-005, FR-012). 'idle': a loop of a few seconds, breathing and small head and tail motion, root in place. 'walk': a four-legged walk-cycle loop, root in place (the room moves the figure; no forward travel in the clip), feet not sliding against the gait. No other clip ('idle-holding' and 'take' are not wanted). The first frame of each reads well alone (reduced motion shows the idle's first frame).\n\nFILES AND LIMITS. Three GLB files: dog.glb (kind avatar: the textured, rigged model at rest, no clips required in it), dog-idle.glb and dog-walk.glb (kind animation: each one clip on the same skeleton, the clip's name being idle or walk). Main's caps (assets/policy/caps.json): avatar at most 21000000 bytes, 180000 triangles, 46000000 texture bytes (width times height times 4, times 4/3 for mipmaps); animation at most 1000000 bytes each. Textures at most 2048 px a side. Check each GLB against these before THE CHECK. The check's front.png and side.png renders of dog.glb at rest go in the handoff folder for the Author's review, outside 'files', stripped to image chunks.\n\nTHE MARK (C1, Q204). Each GLB carries the IPTC digital source type mark in KHR_xmp_json_ld: compositeWithTrainedAlgorithmicMedia, the man's term. That term is right only because the record mixes model steps with the Author's two steps by hand (steps 1 and 2). So both hand steps must be in every entry. Round 2 marked composite on a record with no hand step, and the dry check below found it (M5).\n\nTHE NOTICE (Q203). Write LICENSE.md in /srv/studio/handoff/dog/3/, beside the GLBs, outside 'files'. Its text is byte for byte the notice of the man's directory (assets/visitors/man/LICENSE.md on main): 327 bytes of ASCII, sha256 f7118869586e0928e06f39b689cdbdd0817fb0fc5540d37e0ca7d1cc2cfa9159. Here it is as one JSON string; decode it and write the result, with no other byte: \"Copyright (c) 2026 Hareet. All rights reserved.\\n\\nThe files in this directory are not covered by this repository's MIT license. You are welcome to view them and to link to them. Any other use needs the copyright holder's written permission.\\n\\nEach file's provenance is in records.json, and in CREDITS.md at the root of its tree.\\n\". Check that the file's sha256 is that hash before handing off. Don't change a byte: its copyright line is one the Author already filled for his visitors.\n\nCANDIDATE (Q202; hand back to /srv/studio/handoff/dog/3/, only after THE CHECK matches). candidate.json: {\"schema\": 1, \"asset\": \"dog\", \"round\": 3, \"files\": [\"dog.glb\", \"dog-idle.glb\", \"dog-walk.glb\"], \"tools\": [{\"id\": \"<an ID from this brief>\", \"version\": \"<its version on main's list>\"}, ...], \"records\": \"records.json\"}. 'files' lists the three GLBs and nothing else. records.json is named by 'records' alone. line.py refuses records.json, LICENSE.md, and candidate.json in 'files', and round 2 failed on that alone. Every listed file is a regular file in that folder. The folder holds candidate.json, the three GLBs, records.json, LICENSE.md, this run's note.md, and the two renders. The files arrive in the repository at assets/visitors/dog/ (the record's 'directory'), by the Author's intake. Write nothing in round 1's or round 2's folder.\n\nRECORD FORMAT (records.json; spec 003's contracts/asset-record.md and the arrival check, as assets/visitors/man/records.json is). Top level, in this order: \"schema\": 1, \"directory\": \"assets/visitors/dog\", \"license\": \"all-rights-reserved-2026\", \"entries\" (sorted by file; two-space indent; trailing newline; no other key at any level). Each entry, keys in this order: \"file\"; \"sha256\" (64 hex); \"kind\" (\"avatar\" for dog.glb, \"animation\" for the clips); \"made\" (YYYY-MM-DD, the day this round makes the file); \"source\": {\"type\": \"prompt\", \"id\": \"<step 3's prompt ID, P-0031>\"}; \"likeness\": false; \"steps\"; \"media_license\": \"all-rights-reserved-2026\". Leave out \"approval\": the look approval is the Author's, after the round. Each entry's steps are STEPS' five, in that order; each clip's entry then adds its own clip step. A hand step holds \"name\" and \"by\": \"hand\" and nothing else: no models, no tools. Its name is the quoted text in STEPS. A model step: \"name\" (what was done, in words: no path, no file name, no extension), \"by\": \"model\", \"models\" (each: name, repository, revision, role primary or auxiliary, license, license_version, as main's list and the man's record give them), \"tools\" (each: name, version, license, license_version), \"models_checked\", \"workflow_sha256\". The concept step's name says the prompt was worded from a reference photograph of the breed, which was not an input (for example \"the concept, from a text prompt worded from a reference photograph of the breed, which was not an input\"). The concept and mesh steps name the same models and tools as round 2's concept and mesh steps did, with this round's workflow_sha256s. For a step by the studio agent's script, also \"service\": {\"name\": \"Claude Code\", \"license\": \"anthropic-consumer-terms\", \"license_version\": \"2025-10-08\", \"disclosure_row\": \"D4\"} and the model Claude Opus 5.5 (repository anthropic/claude-opus-5-5, revision claude-opus-5-5). \"models_checked\": the Author's answer to Q199 and Q207 (2026-11-14, about 17:35Z), in his words: \"we checked 3 days ago 11-11-2026\". So \"models_checked\" is \"2026-11-11\" on every model step: the concept, the mesh, the build, and each clip step. No placeholder, and no other date. Every model and tool a step names must be in this brief's 'tools'. No step, name, or credit calls the model a likeness of the Author's dog or of the dog in the photo. No photo file, no photo name, no EXIF, no path, and nothing else from the studio's inbox, anywhere in the files or the record.\n\nROUND 2'S HIDDEN LINES (a dry check, not recorded findings). Round 2's recorded finding stopped line.py before main's arrival check. Task judge-dog-r2 ran the same judge, dry, on a scratch copy with only that line removed. It showed ten more lines, which this brief fixes: six R6 lines, \"entries[i].steps[0 and 1] is a model step with no models_checked date\" in each of the three entries (fixed by the Author's date, 2026-11-11, on every model step); N1, \"the directory has no LICENSE.md, the media license's notice\" (fixed by THE NOTICE); and three M5 lines, one per GLB, \"the mark is compositeWithTrainedAlgorithmicMedia where its record's steps call for trainedAlgorithmicMedia\" (fixed by steps 1 and 2, THE MARK). The caps, bones, clips, tools, and texture raised none.\n\nJUDGING. An implementer runs python3 -I -B scripts/studio/line.py candidate on the handoff folder against this brief (it also runs main's arrival check) and records the round. The files are recorded likeness false with a prompt source, so arrival check P1 (an approval naming the file's hash) does not apply and every line counts; a warning that it's up to the contributor to check for likeness is expected. A pass goes to the Author's look judgement: the model shows in the room only after his look approval (approvals.json naming its SHA-256 with a non-empty disclosure_line), and no credit or disclosure line calls it a likeness of the Author's dog."
 }
 ```
+
+## Round 3 recorded (record-dog-r3)
+
+Task `record-dog-r3` (night of 2026-11-13, implementer, Opus 5.5, on 2026-11-14, about 21:25Z), from brief-dog-r8's tip (`39c1a1a6`).
+
+**Outcome:**
+
+- **Round 3 is recorded `pass`, with no findings.** The dry verdict and the recorded verdict are the same: `line: pass; round 3`, exit 0 both times.
+- **`/srv/studio/briefs/dog/3.result.json`:** SHA-256 `99cf089dfdb586f3aac1d30956d343a2526bfffd336d34b2934ca221e6d4ed7f`, 88 bytes. It's the only file written under `/srv/studio/`.
+- **Where round 3 stands:** it's the fallback candidate. It waits for his look approval (the page's Q260). It shows in the room only after an approvals.json entry names its SHA-256 with a non-empty disclosure line. Rule 13's next steps (round 4 from his Toller photo, with his approval of the file's SHA-256) are other tasks'.
+
+Nothing changed in the handoff folder, in `assets/**`, in `corpus/`, or in any human-only path. `line.py` is main's: `git diff main -- scripts/studio/line.py` is empty.
+
+### His words
+
+Rule 13 of the Author's orders (2026-11-14, about 21:00Z), the part that applies here:
+
+> 13. **The dog from his Toller photo, with his approval of the file (2026-11-14, about 21:00Z).** His words: "Let's go with the approval of the SHA and use the actual image /srv/studio/workflows/inbox/duck-toller.jpg". It isn't his dog, and the photo is his to use ("I own it / it's free to use", rule 9). Main's arrival check takes a photo source only with his approval of the file's SHA-256 (`assets/policy/approvals.json`, his hand), so the round is judged dry first and recorded only after he approves. This overrides rule 12's "no new studio round" for the dog alone. In this order:
+>
+> - **Record round 3 as it is** (`record-dog-r3`, with Q201's fixes and 2026-11-11): it stays the fallback candidate.
+
+### Step 1: the checks before judging
+
+```text
+$ ls -la /srv/studio/handoff/dog/3/
+-rw-r--r-- 1 dev dev      327 Nov 14 20:02 LICENSE.md
+-rw-r--r-- 1 dev dev     1222 Nov 14 20:50 candidate.json
+-rw-r--r-- 1 dev dev  1983367 Nov 14 20:50 concept.png
+-rw-r--r-- 1 dev dev    34160 Nov 14 20:45 dog-idle.glb
+-rw-r--r-- 1 dev dev    28304 Nov 14 20:45 dog-walk.glb
+-rw-r--r-- 1 dev dev 10283760 Nov 14 20:45 dog.glb
+-rw-r--r-- 1 dev dev  1444628 Nov 14 20:50 front.png
+-rw-r--r-- 1 dev dev    18795 Nov 14 20:52 note.md
+-rw-r--r-- 1 dev dev    23909 Nov 14 20:50 records.json
+-rw-r--r-- 1 dev dev  1478116 Nov 14 20:50 side.png
+$ ls -la /srv/studio/briefs/dog/
+-rw-r--r-- 1 dev dev 12139 Nov 14 15:48 1.json
+-rw-r--r-- 1 dev dev   158 Nov 14 15:59 1.result.json
+-rw-r--r-- 1 dev dev 12865 Nov 14 15:59 2.json
+-rw-r--r-- 1 dev dev   191 Nov 14 16:55 2.result.json
+-rw-r--r-- 1 dev dev 23288 Nov 14 18:59 3.json
+drwxr-xr-x 2 dev dev  4096 Nov 14 01:58 photos
+$ sha256sum /srv/studio/briefs/dog/3.json
+883e2cc5e633d4bec2a7e03bd64337b63886f2f5437580ad4b265362d5e6b47c  /srv/studio/briefs/dog/3.json
+$ cd /srv/studio/handoff/dog/3 && sha256sum dog.glb dog-idle.glb dog-walk.glb candidate.json records.json LICENSE.md
+4a9157ab94b860c95e8b9a9f7078ba5f4a0eb82ce2b68d3d997d668abbb0ccb5  dog.glb
+729dd2ce02a7060abe3e7040f1afb73f1ea8368628c668cd41791720cb4b538d  dog-idle.glb
+3ccae4c4acd257b394415d805ca3ccb99e6e78322ea4643390c14f5c004a5a97  dog-walk.glb
+b062a6612454dfb9d2051864ce1949e8bb3fc903a8f695837933a73e3636a030  candidate.json
+ae6297981df5d82117a8ea607ea09b5f80bd62023a5f1453dd769abaab4ce19b  records.json
+f7118869586e0928e06f39b689cdbdd0817fb0fc5540d37e0ca7d1cc2cfa9159  LICENSE.md
+```
+
+(The `total` lines and the `.`/`..` rows are left out.) Every check matched:
+
+- The folder holds the six files the task names, beside the note and the three renders.
+- `3.json` is brief-dog-r8's (`883e2cc5…b47c`).
+- There's no `3.result.json` and no `4.json`.
+- The GLBs' hashes are the ones `records.json` gives. `LICENSE.md`'s is the man's notice (`f7118869…9159`).
+
+I didn't open the photos folder.
+
+### Step 2: Q201's fixes, confirmed
+
+`candidate.json`, whole:
+
+```json
+{
+  "schema": 1,
+  "asset": "dog",
+  "round": 3,
+  "files": [
+    "dog.glb",
+    "dog-idle.glb",
+    "dog-walk.glb"
+  ],
+  "tools": [
+    {
+      "id": "comfyui",
+      "version": "0.42.5"
+    },
+    {
+      "id": "flux.2-klein-4b-base",
+      "version": "533c4cbc"
+    },
+    {
+      "id": "flux.2-vae",
+      "version": "533c4cbc"
+    },
+    {
+      "id": "qwen3-4b-its-text-encoder",
+      "version": "533c4cbc"
+    },
+    {
+      "id": "pixal3d-int8",
+      "version": "f37641be"
+    },
+    {
+      "id": "dinov3-vit-l-patch-16-with-naf",
+      "version": "f37641be"
+    },
+    {
+      "id": "moge-2-vit-l-with-normals",
+      "version": "14849852"
+    },
+    {
+      "id": "birefnet",
+      "version": "e2bf8e44"
+    },
+    {
+      "id": "trellis.2-shape-vae",
+      "version": "430a9d09"
+    },
+    {
+      "id": "trellis.2-texture-vae",
+      "version": "430a9d09"
+    },
+    {
+      "id": "blender",
+      "version": "5.2.3"
+    },
+    {
+      "id": "gltf-exporter-bundled-with-blender",
+      "version": "5.2.41"
+    },
+    {
+      "id": "numpy-bundled-with-blender",
+      "version": "2.3.4"
+    },
+    {
+      "id": "claude-opus-5.5",
+      "version": "claude-opus-5-5"
+    }
+  ],
+  "records": "records.json"
+}
+```
+
+`files` names only the three GLBs (Q202).
+
+`records.json`, every step by kind, read with `python3 -I -B` (names shortened here; they're whole in the file):
+
+```text
+entry 0 dog-idle.glb  sha256 729dd2ce…538d  kind animation  made 2026-11-14  likeness False
+  step 0 hand   (the Author's review of an earlier mesh, …)
+  step 1 hand   (the Author's choice of a reference photograph of the breed, …)
+  step 2 model  the concept      models_checked 2026-11-11
+  step 3 model  the mesh         models_checked 2026-11-11
+  step 4 model  the build        models_checked 2026-11-11
+  step 5 model  the idle         models_checked 2026-11-11
+entry 1 dog-walk.glb  sha256 3ccae4c4…5a97  kind animation  made 2026-11-14  likeness False
+  step 0 hand, step 1 hand
+  step 2 model  the concept      models_checked 2026-11-11
+  step 3 model  the mesh         models_checked 2026-11-11
+  step 4 model  the build        models_checked 2026-11-11
+  step 5 model  the walk         models_checked 2026-11-11
+entry 2 dog.glb       sha256 4a9157ab…ccb5  kind avatar     made 2026-11-14  likeness False
+  step 0 hand, step 1 hand
+  step 2 model  the concept      models_checked 2026-11-11
+  step 3 model  the mesh         models_checked 2026-11-11
+  step 4 model  the build        models_checked 2026-11-11
+```
+
+So all 11 model steps carry `models_checked` `2026-11-11`, and no other date. The six hand steps carry `name` and `by` only. The handoff folder is unchanged.
+
+### Step 3: judged dry, then recorded
+
+From this checkout. Its `line.py` is main's, and the arrival check it runs is main's copy, at `3c0e4cd06861`.
+
+```text
+$ python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dog/3 --brief /srv/studio/briefs/dog/3.json; echo "exit code: $?"
+arrival-check: main's copy, at 3c0e4cd06861, on a scratch copy under assets/visitors/dog/
+WARN assets/visitors/dog/dog-idle.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dog/dog-walk.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dog/dog.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+file                                bytes     gzip      vertices  triangles  texture
+assets/visitors/dog/dog-idle.glb    34160     14303     0         0          0
+assets/visitors/dog/dog-walk.glb    28304     11868     0         0          0
+assets/visitors/dog/dog.glb         10283760  6999579   98891     149999     22369621
+arrival-check: 0 findings in 5 files, 3 warnings
+line: pass; round 3
+exit code: 0
+```
+
+```text
+$ python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dog/3 --brief /srv/studio/briefs/dog/3.json --record; echo "exit code: $?"
+arrival-check: main's copy, at 3c0e4cd06861, on a scratch copy under assets/visitors/dog/
+WARN assets/visitors/dog/dog-idle.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dog/dog-walk.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dog/dog.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+file                                bytes     gzip      vertices  triangles  texture
+assets/visitors/dog/dog-idle.glb    34160     14303     0         0          0
+assets/visitors/dog/dog-walk.glb    28304     11868     0         0          0
+assets/visitors/dog/dog.glb         10283760  6999579   98891     149999     22369621
+arrival-check: 0 findings in 5 files, 3 warnings
+line: pass; round 3
+exit code: 0
+$ cat /srv/studio/briefs/dog/3.result.json
+{
+  "schema": 1,
+  "asset": "dog",
+  "round": 3,
+  "result": "pass",
+  "findings": []
+}
+$ sha256sum /srv/studio/briefs/dog/3.result.json
+99cf089dfdb586f3aac1d30956d343a2526bfffd336d34b2934ca221e6d4ed7f  /srv/studio/briefs/dog/3.result.json
+```
+
+The recorded verdict is the dry one. The three warnings are the ones the brief's JUDGING expects: the files are likeness false with a prompt source, so it's up to the contributor to check for likeness. They aren't findings.
+
+What the table shows against main's caps:
+
+| File | Size | Cap |
+| --- | --- | --- |
+| `dog.glb` | 10,283,760 bytes | 21,000,000 |
+| `dog.glb` | 149,999 triangles | 180,000 |
+| `dog.glb` | 22,369,621 texture bytes | 46,000,000 |
+| each clip | under 35,000 bytes | 1,000,000 |
+
+### Step 4: the round's state
+
+```text
+$ python3 -I -B scripts/studio/line.py round dog; echo "exit code: $?"
+passed 3
+exit code: 0
+$ ls /srv/studio/handoff/dog/
+1
+2
+3
+```
+
+### Where round 3 stands
+
+- It's the fallback candidate, recorded `pass`, as rule 13 says.
+- It waits for his look approval (the page's Q260): his approvals.json entry naming `dog.glb`'s SHA-256 (`4a9157ab94b860c95e8b9a9f7078ba5f4a0eb82ce2b68d3d997d668abbb0ccb5`), with a non-empty disclosure line. That entry is his hand, and the intake into `assets/visitors/dog/` comes after it.
+- Rule 13's round 4, from his Toller photo, is judged dry first and recorded only after he approves the photo's SHA-256. Nothing here queues it (rule 9: no further round on its own).
+- **Main's `line.py` won't take a round-4 brief now.** It refuses one on two counts:
+  - A brief's `round` must be 1 to `ROUNDS`, which is 3 (`scripts/studio/line.py:69`, `:427` to `:428`).
+  - Round N must follow round N−1's recorded failure. After a pass, it adds the finding "after round 3's failure; it passed" (`:528` to `:529`).
+
+  Round 3 is now recorded `pass`, as the order said ("pass or fail"), so round 4's brief can't pass `line.py brief` until spec 020, its plan, and `line.py` allow a fourth round after a pass. I didn't change `line.py`. That's a question on the page.
+
+### Lint
+
+LINT_PLACEHOLDER
+
+### Questions and interruptions
+
+Every check passed, so the task didn't stop. Q260 is already on the page. One new question is on it (`/night/io/out/questions.md`):
+
+1. How does rule 13's round 4 get past `line.py`'s three-round cap and its "after a failure" rule, now that round 3 is recorded `pass`? Recommended: an implementer task amends spec 020 and its plan, then changes `line.py`, tests first, so that a round after `ROUNDS` or after a pass is taken only with the Author's order cited in the brief. Others: round 3 is the dog and there's no round 4; the Author's intake takes round 4's files with main's arrival check alone, outside `line.py`.
+
+No hook, bash-gate, or permission refusal came up.
