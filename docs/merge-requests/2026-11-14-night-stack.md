@@ -1791,21 +1791,71 @@ Interruptions:
 
 rv-rework5-022 (Opus) reviewed rework5-022's tip c8d672c4: **not blocking** under rule 11 (the real proposal passes; each hole it found needs text nobody wrote). Its findings B-1 to B-6 and N-a to N-c are backlog: no checker change on this branch.
 
-**Their words aren't here yet.** The review, `/home/h4reet/h4reet-ai/night/.io/rv-rework5-022/out/review.md`, wasn't in verify-022's container (no `night/.io/` folder; `/home/h4reet/h4reet-ai/night/` holds only `2026-11-13/`). This section is meant to hold each finding's fix-later line and its probe in the review's own words. verify-022 didn't write them from memory or from the brief's summary, since that would paraphrase a source. On the page: whether a documents-only follow-up pastes them here (recommended: yes, and item 5 isn't held for it).
+**Their words, below,** are copied whole from the supervisor's page (`git show refs/heads/night/supervisor/2026-11-14:docs/night-shift/2026-11-14.md`, at 04e1d2bb, under Stacks, "rv-rework5-022's findings, its words"), which copied them from `night/.io/rv-rework5-022/out/review.md`, its "## Findings" and "## Nits (3)" sections, whole.
 
-| Finding | Fix-later line (the review's words) | Probe (the review's words) |
-| --- | --- | --- |
-| B-1 | not yet copied: see the review | not yet copied: see the review |
-| B-2 | not yet copied: see the review | not yet copied: see the review |
-| B-3 | not yet copied: see the review | not yet copied: see the review |
-| B-4 | not yet copied: see the review | not yet copied: see the review |
-| B-5 | not yet copied: see the review | not yet copied: see the review |
-| B-6 | not yet copied: see the review | not yet copied: see the review |
-| N-a | not yet copied: see the review | not yet copied: see the review |
-| N-b | not yet copied: see the review | not yet copied: see the review |
-| N-c | not yet copied: see the review | not yet copied: see the review |
+> ### B-1 · Bugs (FR-004) · Important · backlog, not blocking: an amount the three patterns can't read still hides inside an exempt URL
+> FR-004 grants no exempt span. The currency read now sees the URL, but no pattern reads a hyphen-joined plural amount or a word amount. CURRENCY's hyphen form wants `dollar` followed by a word boundary, EXTRA wants whitespace or nothing between the number and the unit, and AMOUNT_WORDS wants whitespace after the number word. Another host's URL is exempt from the number read as a whole (Q234). Outside an exempt span, the number read catches the same text.
+>
+> Probe (`/tmp/rv5/probes`, text added to the first gap line, line 118, of a copy of the real proposal, against the tip's export). Each line passes every rule:
+> - `See https://example.com/5-dollars-a-day.`
+> - `See https://example.com/five-dollars-a-day.`
+> - `See https://example.com/?usd=5.`
+> - `See https://example.com/5<!-- -->dollars.` (the HTML comment hides from the reader, and its `<` ends the URL)
+>
+> Fix later in `scripts/corpus/film_claims.py`: the currency read could also read the text with `-`, `=`, and `/` between a number and a unit made a space, or the number read could stop exempting an other-host URL's digits next to a currency word.
+>
+> ### B-2 · Bugs (FR-004, F-2's class) · Important · backlog, not blocking: a quote cut from a cited file's amount, its `$` left behind, stands and hides the amount
+> `found_in`'s edges forbid a word character and the `_GLUE` marks (`. , : / ' ’ -`) beside the quote. A currency sign isn't among them, so `20 a month` is found in `$20 a month`. The quote has words, so R5 accepts it and R4 exempts its number. With the `$` gone, none of the three patterns reads it.
+>
+> Probe, on the real proposal's own cited files, no source added. Each passes every rule:
+> - `The cap is "20 a month ceilings".` (`docs/runbooks/model-server-down.md:15`)
+> - `The ceiling is "5 a day and" more.` (same line)
+> - `The fallback has "2 a day sub-budget".` (`config/routing.yaml:81`)
+> - `At "100 per million" tokens.` (`config/routing.yaml:71`)
+> - `Dev pays "0.10 a call".` (`config/prices.yaml:20`)
+>
+> Control: `"$20 a month"` fails R4 (`$2`).
+>
+> Fix later: `found_in` should treat a currency sign (`$ € £ ₹ ₨ ¥ ＄`) before the quote as glue. The same goes for an en or em dash (B-3) and `%` or `+` after it.
+>
+> ### B-3 · Bugs (F-2's class) · Important · backlog, not blocking: other cuts at a quote's edge, and number-only quotes that `has_word` passes
+> - An en dash isn't glue, so `"30 hours"` is found in `20–30 hours` and the range is cut. Probe: `He works "30 hours" a week.` with `config/twin/corpus.json` added to §1 line 1's carried row passes every rule.
+> - `has_word` counts a connector as a word that isn't a number, so a quote of numbers joined by "and", "or", or "to" stands. Probe: `It asks "ten or more" times.` (`evals/run.py:88`, which the real proposal cites) passes every rule and R4 reads no "ten".
+>
+> Fix later: add `–`, `—`, `−`, `$`, `%`, and `+` to the edge rule. Count "and", "or", "to", "of", "per", and "a" as filler in `has_word`, as `QUANTITY_WORDS` does for the quantity words.
+>
+> ### B-4 · Bugs (F-3's class, Q234) · Important · backlog, not blocking: this repository's URL is read as another host's when its host is spelled differently, and `blob/main` is read against the branch
+> - `_GITHUB` wants `github.com` right after the scheme, followed by `/`, `?`, `#`, `:`, or the end. With userinfo before it, or the FQDN's trailing dot after it, the URL is another host's and is exempt whole. Probes: `https://x@github.com/hareet/h4reet-ai/blob/main/docs/adr/0100-per-day.md` and `https://github.com./hareet/h4reet-ai/blob/main/docs/adr/0100-per-day.md` both pass every rule. The plain spelling reads 0100.
+> - `_url` reads a `blob/main/` path against `--root`, which is the branch, not main. Probe: `https://github.com/hareet/h4reet-ai/blob/main/specs/022-corpus-from-film-scripts/spec.md#L111` passes, though `refs/heads/main` has no spec 022. (The real proposal's 39 paths are all on main; I checked them by hand.)
+>
+> Fix later: match the host after an optional userinfo and trailing dot. Read a `blob/main` path against `refs/heads/main` (for example `git cat-file -e`), or name that limit in plan §3 R4. raw.githubusercontent.com is Q239's follow-up.
+>
+> ### B-5 · Security (R5, R7, Principle VII) · Important · backlog, not blocking: R5 reads `corpus/intake/private/` and other agents' test fixtures as a cited file's text
+> These are older holes; this diff didn't touch them, and the real proposal cites neither tree.
+>
+> - `UNREAD` doesn't hold `corpus/intake/private`. R1 accepts a source there (the tree is gitignored by `corpus/.gitignore:1`, but present on the Author's machine). A carried row citing it makes its text quotable, numbers exempt.
+>   - Probe: on a hard-linked copy of the export (`/tmp/rv5/root_priv`) with a made-up `corpus/intake/private/probe.md`, `He "earned 250000 a year at his last job."` citing that file passes every rule.
+>   - The summary line still says "this checker never reads corpus/intake/private/". With such a row it does, and the private words could pass into a proposal.
+> - F-4's sibling: other test files hold made-up claims about the Author with numbers, such as `services/gateway/test/unit/twin-guards.test.ts:77`, "He has snowboarded for 15 years.".
+>   - Probe: `Hareet "has snowboarded for 15 years."` with that test file added to §1 line 1's carried row passes every rule.
+>   - Control: cited elsewhere, it fails R5 and R4.
+>
+> Fix later: add `corpus/intake/private` to `UNREAD`, and fail R1 on any source under it. Read no file under a `test/` or `tests/` tree, and no `test_*.py` or `*.test.ts`. One question is on the page.
+>
+> ### B-6 · Bugs (R4, FR-004, older) · Important · backlog, not blocking: the facts block's words are never read by R4's word patterns
+> R4 reads the `corpus-08` and `corpus-08-golden-5` blocks. The `facts` block, which also enters the corpus (`corpus/facts/hareet-ai.yaml`), is read only by the whole-file CURRENCY scan, which reads digit amounts only.
+>
+> Probe: the slot's label starting "Five dollars a day; the laptop…" passes every rule. The real proposal's label and phrasing are clean.
+>
+> Fix later: run the currency read, and the number read with the slot's own value and source aside, over the facts block's `label` and `phrasing`.
+>
+> ## Nits (3)
+>
+> - **N-a · Bugs (N-2's class):** a malformed `**` in a Source cell crashes the checker. `docs/***` and `docs/a**` raise `ValueError: Invalid pattern: '**' can only be an entire path component` from `Path.glob` in `glob_inside` (`scripts/corpus/film_claims.py:377`), on Python 3.12. The traceback exits 1, which fails closed but prints no R1 line. Catch `ValueError` there and report "a glob pathlib can't read".
+> - **N-b · Compliance:** N-2's RED commit (ff7826e2) carried a `**` fixture that failed for the wrong reason (`paths_in` doesn't extract a bare `**`). The GREEN commit (d4e93a57) changed that fixture to `./**`. The change is disclosed in the commit message and the note, and I confirmed `./**` fails on the pre-fix checker. Still, a GREEN commit edited a RED fixture. The F-3 GREEN commit (a3350554) also changed an existing test's URL from a made-up ADR to a real one, as B-8 did before and as Q234 makes necessary.
+> - **N-c · Compliance:** pattern vocabulary is FR-004's choice, not this diff's bug, but it's worth a line in the backlog. "a grand" and "¥5 a day" read no amount, and only the number read catches the 5. If FR-004's three patterns are ever widened, this is where.
 
-**A proposed CLAUDE.md line, for his hand** (never written into CLAUDE.md; a human-only path). The review proposes a line for "Things Claude gets wrong" that begins "Bounding a match on word characters only: …". Only those opening words reached verify-022, through the supervisor's brief. The whole line is in the review, to be copied here word for word with the table above.
+**A proposed CLAUDE.md line, for his hand** (never written into CLAUDE.md; a human-only path). The review proposes a line for "Things Claude gets wrong" that begins "Bounding a match on word characters only: …". Only those opening words reached verify-022, through the supervisor's brief. The whole line is in the review, to be copied here word for word. The page's copy above holds only the review's Findings and Nits, so the line's other words still wait for the review itself (merge-1's question on the page).
 
 **Q248, answered as recommended (the Author, 2026-11-13):** "backlog under rule 11, verify-022 goes ahead; the next change to `scripts/corpus/film_claims.py` adds `corpus/intake/private` to `UNREAD` and fails R1 on any source under it, and until then item g's merge-request note names the hole beside the summary line".
 
