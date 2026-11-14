@@ -233,6 +233,8 @@ describe("spec 023: the locator and the writer", () => {
 
 type State = "before" | "published" | "neither";
 const POLICY_DIR = join(REPO, "assets/policy");
+const HUMAN_PATCH = "docs/merge-requests/human-patches/023.md";
+const STACK_NOTE = "docs/merge-requests/2026-11-14-night-stack.md";
 
 /** The four things the state is read from, and the state they name. The candidate file's existence is read, never
  * the candidates/ folder's. */
@@ -365,6 +367,28 @@ describe("spec 023: the candidate, before and after the Author publishes it", ()
         for (const key of ["AP", "C", "JS", "Launch"]) expect(body, key).not.toMatch(new RegExp(`/${key}\\b`));
       }
       expect(links.map((o) => /\/URI \(([^)]*)\)/.exec(o[3] ?? "")?.[1])).toEqual(urls);
+    },
+  );
+
+  it.skipIf(skipped("before") !== "")(
+    titled(
+      "9. the human patch and the stack note quote the table's pdf_sha256, and the edit text holds its URLs",
+      "before",
+    ),
+    () => {
+      const t = readTable(REPO);
+      const quoted = (text: string): string | undefined => /Candidate SHA-256: `([^`]*)`/.exec(text)?.[1];
+      const patch = readFileSync(join(REPO, HUMAN_PATCH), "utf8");
+      expect(quoted(patch), HUMAN_PATCH).toBe(t.pdf_sha256);
+      const note = readFileSync(join(REPO, STACK_NOTE), "utf8");
+      const start = note.search(/^## Item \d+: spec 023\b/m);
+      expect(start, `${STACK_NOTE} has an item for spec 023`).toBeGreaterThanOrEqual(0);
+      const after = note.slice(start + 1).search(/^## /m);
+      const item = after < 0 ? note.slice(start) : note.slice(start, start + 1 + after);
+      expect(quoted(item), `${STACK_NOTE}, item for 023`).toBe(t.pdf_sha256);
+      const edit = [...item.matchAll(/```html\n([\s\S]*?)```/g)].map((m) => m[1]).join("\n");
+      expect(edit, "the edit text for his source, an html block in the item").not.toBe("");
+      for (const l of t.links) expect(edit, l.film).toContain(`href="${urlOf(t, l.film)}"`);
     },
   );
 
