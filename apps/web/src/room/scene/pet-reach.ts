@@ -224,6 +224,44 @@ export function strokeShare(t_s: number, cfg: { readonly pet_s: number }): numbe
   return Math.min(1, Math.max(0, (t_s - EASE_IN_OUT_S) / span));
 }
 
+/** Where `reachAt` reads the petting's time: `t` seconds into a petting of `pet_s`, the stroke along `dogHeading`. */
+export interface ReachClock {
+  readonly t: number;
+  readonly pet_s: number;
+  readonly dogHeading: number;
+}
+
+/** The director's per-frame call (FR-027; rework3-026, the page's Q284): `weightAt`'s weight, and `strokeTarget`'s
+ *  target at `strokeShare`'s share, written into `out`, the same numbers to the bit. It takes objects only and calls
+ *  none of the three: a fraction passed to or returned from a call V8 doesn't inline is boxed at the call, and with the
+ *  real adapters in the director's frame V8's inlining budget runs out before it reaches them (measured). */
+export function reachAt(
+  clock: ReachClock,
+  head: Vec3,
+  cfg: StrokeConfig,
+  out: { weight: number; readonly target: Vec3 },
+): void {
+  const t = clock.t;
+  const pet_s = clock.pet_s;
+  // weightAt, its two smoothsteps written out.
+  let weight = 0;
+  if (t > 0 && t < pet_s) {
+    const a = Math.min(1, Math.max(0, t / EASE_IN_OUT_S));
+    const b = Math.min(1, Math.max(0, (pet_s - t) / EASE_IN_OUT_S));
+    weight = Math.min(a * a * (3 - 2 * a), b * b * (3 - 2 * b));
+  }
+  out.weight = weight;
+  // strokeShare, then strokeTarget.
+  const span = pet_s - 2 * EASE_IN_OUT_S;
+  const share = span <= 0 ? 0 : Math.min(1, Math.max(0, (t - EASE_IN_OUT_S) / span));
+  const by = cfg.stroke_m * Math.sin(2 * Math.PI * cfg.stroke_n * Math.min(1, Math.max(0, share)));
+  const heading = clock.dogHeading;
+  const target = out.target;
+  target.x = head.x - Math.sin(heading) * by;
+  target.y = head.y;
+  target.z = head.z - Math.cos(heading) * by;
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 // The posture (plan.md R-03, amended: Q212, taken provisionally)
 // --------------------------------------------------------------------------------------------------------------------
