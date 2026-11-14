@@ -319,10 +319,49 @@ export function walkControlBox(clear: { readonly w: number; readonly h: number }
   return [clear.w - inset - w, clear.h - inset - h, w, h];
 }
 
-/** The HUD controls over the clear area, in its pixels, which RG6 reserves (FR-055): the walking control's box alone,
- *  every other control sitting in a docked panel outside the clear area. */
-export function reservedBoxes(clear: { readonly w: number; readonly h: number }, rem = DEFAULT_METRICS.rem): Rect[] {
-  return [walkControlBox(clear, rem)];
+/** Spec 024 (FR-012; plan.md §5.5, Q-R2a): the "Eat" tile's box, the walking control's size, a gap apart from it. */
+export const EAT_CONTROL = {
+  widthRem: WALK_CONTROL.widthRem,
+  heightRem: WALK_CONTROL.heightRem,
+  gapRem: 0.25,
+} as const;
+
+/** Spec 024's option on the HUD's boxes: `eat`, a 3D dinosaur visit's, where the "Eat" tile's box is reserved for the
+ *  whole visit (Q-R2a). Off by default, every box as before. */
+export interface EatOption {
+  readonly eat?: boolean | undefined;
+}
+
+/** A box beside `walk`: on its left, a gap apart, at its height, where `within` holds it; else directly above it, a gap
+ *  apart, where `within` holds that; else null. Every place the Eat box takes is this one rule (Q-R2a). */
+function besideWalk(walk: Box, within: Box, rem: number): Box | null {
+  const [w, h, gap] = [EAT_CONTROL.widthRem * rem, EAT_CONTROL.heightRem * rem, EAT_CONTROL.gapRem * rem];
+  const left: Box = { x: walk.x - gap - w, y: walk.y, w, h };
+  if (left.x >= within.x) return left;
+  const above: Box = { x: walk.x + walk.w - w, y: walk.y - gap - h, w, h };
+  return above.y >= within.y ? above : null;
+}
+
+/** The Eat box in a clear area, in its pixels: beside the walking control's box in the clear area's corner, as
+ *  `compactBoxes` places it there (the stage's corner). Null where it fits neither beside nor above it. */
+export function eatControlBox(
+  clear: { readonly w: number; readonly h: number },
+  rem = DEFAULT_METRICS.rem,
+): Rect | null {
+  const [x, y, w, h] = walkControlBox(clear, rem);
+  const eat = besideWalk({ x, y, w, h }, { x: 0, y: 0, w: clear.w, h: clear.h }, rem);
+  return eat ? [eat.x, eat.y, eat.w, eat.h] : null;
+}
+
+/** The HUD controls over the clear area, in its pixels, which RG6 reserves (FR-055): the walking control's box, every
+ *  other control sitting in a docked panel outside the clear area; and with spec 024's option, the Eat box beside it. */
+export function reservedBoxes(
+  clear: { readonly w: number; readonly h: number },
+  rem = DEFAULT_METRICS.rem,
+  option: EatOption = {},
+): Rect[] {
+  const eat = option.eat ? eatControlBox(clear, rem) : null;
+  return eat ? [walkControlBox(clear, rem), eat] : [walkControlBox(clear, rem)];
 }
 
 // ---- Spec 014: the compact boxes (FR-017 to FR-021; contracts/frame-area.md §1, §3) ----
@@ -374,6 +413,9 @@ export interface CompactBoxes {
    *  is its walking control and `all` holds its boxes at rest; `column` is still the column's compact box, computed for
    *  spec 014's content case and not shown. */
   readonly split: SplitBoxes | null;
+  /** Spec 024 (FR-012; plan.md §5.5): with the `eat` option, the "Eat" tile's box beside `walk` (besideWalk); else
+   *  null. */
+  readonly eat: Box | null;
   readonly all: readonly Box[];
 }
 
@@ -399,14 +441,21 @@ export function compactBoxes(
   screen: { readonly w: number; readonly h: number },
   state: HudState = OPENING,
   metrics: HudMetrics = DEFAULT_METRICS,
+  option: EatOption = {},
 ): CompactBoxes {
   const t = HUD_PLACEMENTS;
   const rem = metrics.rem;
   const bands = hudBoxes(screen, state, metrics);
   const [wx, wy, ww, wh] = walkControlBox(bands.clear, rem);
   const walk: Box = { x: bands.clear.x + wx, y: bands.clear.y + wy, w: ww, h: wh };
+  // Spec 024: in the stage's corner, the Eat box is eatControlBox's, in the window's pixels.
+  const cornerRect = option.eat ? eatControlBox(bands.clear, rem) : null;
+  const corner: Box | null = cornerRect
+    ? { x: bands.clear.x + cornerRect[0], y: bands.clear.y + cornerRect[1], w: cornerRect[2], h: cornerRect[3] }
+    : null;
+  const withEat = (boxes: readonly Box[], eat: Box | null): Box[] => (eat ? [...boxes, eat] : [...boxes]);
   if (bands.layout === "dock" || !bands.column) {
-    const all = [bands.strip, bands.bar, ...(bands.dock ? [bands.dock] : []), walk];
+    const all = withEat([bands.strip, bands.bar, ...(bands.dock ? [bands.dock] : []), walk], corner);
     return {
       layout: bands.layout,
       strip: bands.strip,
@@ -416,6 +465,7 @@ export function compactBoxes(
       walk,
       walkPlace: "stage",
       split: null,
+      eat: corner,
       all,
     };
   }
@@ -426,7 +476,7 @@ export function compactBoxes(
   const column: Box = { x: band.x, y: band.y + band.h - h, w: band.w, h };
   // Spec 018 (FR-004, R-3, R-4): where the window takes the split layout, the column's content is moved out: the
   // boxes at rest are the strip, the cluster, the rest row, the list, and the walking control at the band's foot.
-  const split = splitBoxes(screen, state, metrics);
+  const split = splitBoxes(screen, state, metrics, option);
   if (split)
     return {
       layout: "column",
@@ -437,25 +487,31 @@ export function compactBoxes(
       walk: split.walk,
       walkPlace: "column",
       split,
-      all: [strip, bar, split.rest, split.list, split.walk],
+      eat: split.eat,
+      all: withEat([strip, bar, split.rest, split.list, split.walk], split.eat),
     };
   // T053 (Amendment W19; the Author's answer of 2026-11-10, "Move the walk control (Recommended)"): where the column's
   // band has room above its content, the walking control sits at the column's head, at its right, a gap above it;
   // else in the clear area's corner, as spec 008 put it.
+  // Spec 024: with the option, the head takes the walking control only where the Eat box fits beside it there, inside
+  // the band above the column's content; else both sit in the stage's corner.
   const gap = t.column.walkGapRem * rem;
   if (h + gap + wh <= band.h) {
     const head: Box = { x: column.x + column.w - metrics.safe.right - gap - ww, y: column.y - gap - wh, w: ww, h: wh };
-    return {
-      layout: "column",
-      strip,
-      bar,
-      column,
-      dock: null,
-      walk: head,
-      walkPlace: "column",
-      split: null,
-      all: [strip, bar, column, head],
-    };
+    const headEat = option.eat ? besideWalk(head, { x: band.x, y: band.y, w: band.w, h: band.h }, rem) : null;
+    if (!option.eat || headEat)
+      return {
+        layout: "column",
+        strip,
+        bar,
+        column,
+        dock: null,
+        walk: head,
+        walkPlace: "column",
+        split: null,
+        eat: headEat,
+        all: withEat([strip, bar, column, head], headEat),
+      };
   }
   return {
     layout: "column",
@@ -466,7 +522,8 @@ export function compactBoxes(
     walk,
     walkPlace: "stage",
     split: null,
-    all: [strip, bar, column, walk],
+    eat: corner,
+    all: withEat([strip, bar, column, walk], corner),
   };
 }
 
@@ -523,6 +580,8 @@ export interface SplitBoxes {
   readonly frame: Box;
   readonly list: Box;
   readonly walk: Box;
+  /** Spec 024: with the `eat` option, the "Eat" tile's box beside `walk` at the band's foot; else null. */
+  readonly eat: Box | null;
 }
 
 /**
@@ -537,6 +596,7 @@ export function splitBoxes(
   screen: { readonly w: number; readonly h: number },
   state: HudState = OPENING,
   metrics: HudMetrics = DEFAULT_METRICS,
+  option: EatOption = {},
 ): SplitBoxes | null {
   const T = HUD_PLACEMENTS;
   const t = T.split;
@@ -578,10 +638,14 @@ export function splitBoxes(
     w: listW,
     h: Math.min(t.list.heightRem * rem, walk.y - gap - band.y),
   };
-  // (e) At rest, at most a quarter of the window (Q58).
+  // (e) At rest, at most a quarter of the window (Q58). Spec 024 (Q-R3b): judged as with the option off, the list at
+  // its full height and no Eat box, so the option never changes where the split layout is taken.
   const cover = unionArea([strip, cluster, rest, list, walk, notesBox(clear, rem)]) / (screen.w * screen.h);
   if (cover > t.coverMax) return null;
   const title: Box = { x: panel.x, y: panel.y, w: panel.w, h: t.panel.titleRem * rem };
   const frame: Box = { x: panel.x, y: panel.y, w: panel.w, h: rest.y + rest.h - panel.y };
-  return { panel, title, rest, frame, list, walk };
+  // Spec 024: the Eat box beside the walking control in the band; where it sits above it, the list ends above it.
+  const eat = option.eat ? besideWalk(walk, band, rem) : null;
+  const shown = eat && eat.y < walk.y ? { ...list, h: Math.min(list.h, eat.y - gap - band.y) } : list;
+  return { panel, title, rest, frame, list: shown, walk, eat };
 }

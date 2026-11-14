@@ -50,7 +50,7 @@ import type { Mat4, Turn, Vec3 } from "../../../src/room/compose/math";
 import { anchorWorld, modelOf, mountWorld, resolveMounts } from "../../../src/room/compose/mount";
 import type { MountAnchor, MountPlacement, Resolved } from "../../../src/room/compose/mount";
 import type { Protect } from "../../../src/room/compose/frame";
-import { reservedBoxes } from "../../../src/room/compose/hud";
+import { DEFAULT_METRICS, reservedBoxes } from "../../../src/room/compose/hud";
 import { flatCore, listOnly, memberRect, pickAreas, pickProblems } from "../../../src/room/compose/pick";
 import type { MemberRect, PickArea, PickProblem, Rect } from "../../../src/room/compose/pick";
 import { projector, toStage } from "../../../src/room/compose/project";
@@ -140,6 +140,12 @@ export interface Geometry {
   readonly flat: Camera;
   /** Spec 014: the frame area's protector over this scene (compose/protect.ts), which the supported stages take. */
   readonly protect: Protect;
+  /** Spec 024 (Q150; plan.md §5.5): a 3D dinosaur visit's protector over the same scene, the "Eat" tile's box among the
+   *  compact boxes and reserved at spec 005's frame: the variant sweep's stages, which RG6 and RG7 judge too. */
+  readonly protectEat: Protect;
+  /** Spec 024 (Q-R3a): the reference stages a dinosaur visit frames into, over `protectEat`; RG7 judges the floor at
+   *  them too. The bundle's numbers stay the plain visit's (`reference`): there is one bundle. */
+  readonly referenceEat: readonly ReferenceView[];
 }
 
 /** A box's eight corners. */
@@ -203,14 +209,19 @@ export function geometry(room: LoadedRoom, set: ReadonlyMap<string, Box | null>)
   const flat = framing(FLAT_VIEW.w / FLAT_VIEW.h, framed);
   // The side-wall flags read the scene and the catalog alone, not the stages, so they come before them.
   const base = { room, scene, pieces, index, resolved, set, boxes, framed, flat };
-  const flags = sideWallsOf({ ...base, reference: [], protect: { boxes: () => [] } });
-  const protect = protectorFor(protectSceneFrom(scene.value, boxes, framed, flags));
-  const reference = ([REFERENCE_DESKTOP, REFERENCE_PHONE] as const).map(({ screen, dpr }, k): ReferenceView => {
-    const framedStage = stageFor(screen, protect);
-    const stage = { w: framedStage.w, h: framedStage.h };
-    return { name: k === 0 ? "desktop" : "phone", stage, dpr, camera: framing(stage.w / stage.h, framed) };
-  });
-  return { ...base, reference, protect };
+  const none = { boxes: () => [] };
+  const flags = sideWallsOf({ ...base, reference: [], protect: none, protectEat: none, referenceEat: [] });
+  const protectScene = protectSceneFrom(scene.value, boxes, framed, flags);
+  const protect = protectorFor(protectScene);
+  // Spec 024 (Q150): the dinosaur visit's protector, at the compositor's root font size.
+  const protectEat = protectorFor(protectScene, DEFAULT_METRICS.rem, { eat: true });
+  const referenceOf = (over: Protect): ReferenceView[] =>
+    ([REFERENCE_DESKTOP, REFERENCE_PHONE] as const).map(({ screen, dpr }, k): ReferenceView => {
+      const framedStage = stageFor(screen, over);
+      const stage = { w: framedStage.w, h: framedStage.h };
+      return { name: k === 0 ? "desktop" : "phone", stage, dpr, camera: framing(stage.w / stage.h, framed) };
+    });
+  return { ...base, reference: referenceOf(protect), protect, protectEat, referenceEat: referenceOf(protectEat) };
 }
 
 /** The protector's input from a scene's resolved boxes (spec 014; FR-016; contracts/frame-area.md §5): the framed
@@ -542,6 +553,8 @@ export interface SideWallPick {
 interface SweptProblem {
   readonly problem: PickProblem;
   readonly mode: "3D" | "2D";
+  /** Spec 024 (Q150): found only in the dinosaur visit's sweep, whose stages hold the "Eat" tile's box. */
+  readonly dinosaur?: true;
   readonly first: Stage;
   more: number;
   readonly sizes: Set<string>;
@@ -569,7 +582,18 @@ export interface PickSweep {
   readonly sideWalls: readonly SideWallPick[];
   /** Spec 008: each side-wall selectable the walking control's box holds, in 3D, at stages where its core would
    *  otherwise keep its pick area, in scene order; the report names them. */
-  readonly boxHolds: readonly { readonly id: string; readonly index: number; readonly stages: readonly Stage[] }[];
+  readonly boxHolds: readonly BoxHold[];
+  /** Spec 024 (Q150): the dinosaur visit's own, over `protectEat`'s stages in 3D: the side-wall selectables left to the
+   *  list there, and those its reserved boxes (the walking control's and the "Eat" tile's) hold. Empty where a test
+   *  gives its own stages. */
+  readonly dinosaur: { readonly sideWalls: readonly SideWallPick[]; readonly boxHolds: readonly BoxHold[] };
+}
+
+/** A side-wall selectable a reserved box holds, and the stages where it does. */
+export interface BoxHold {
+  readonly id: string;
+  readonly index: number;
+  readonly stages: readonly Stage[];
 }
 
 const sweeps = new WeakMap<Geometry, PickSweep>();
@@ -596,43 +620,56 @@ export function pickSweep(g: Geometry, at?: readonly Stage[]): PickSweep {
   const flags = sideWallsOf(g);
   const sideWall = new Set(selectables.filter(({ id }) => flags[Number(id)]).map(({ id }) => id));
   const { byId, root } = byIdOf(g);
-  const picks = new Map(
-    [...sideWall].map((id) => {
-      const walls = new Set<SideWallAnchor>();
-      for (const m of s.selectables[Number(id)]?.members ?? []) {
-        const wall = sideWallOf(g, root, byId.get(m));
-        if (wall) walls.add(wall);
-      }
-      const index = Number(id);
-      return [
+  const picksMap = () =>
+    new Map(
+      [...sideWall].map((id) => {
+        const walls = new Set<SideWallAnchor>();
+        for (const m of s.selectables[Number(id)]?.members ?? []) {
+          const wall = sideWallOf(g, root, byId.get(m));
+          if (wall) walls.add(wall);
+        }
+        const index = Number(id);
+        return [
+          id,
+          { id: s.selectables[index]?.id ?? "", index, walls: [...walls], stages: [] as Stage[], flat: [] as Stage[] },
+        ];
+      }),
+    );
+  const holdsMap = () =>
+    new Map(
+      [...sideWall].map((id) => [
         id,
-        { id: s.selectables[index]?.id ?? "", index, walls: [...walls], stages: [] as Stage[], flat: [] as Stage[] },
-      ];
-    }),
-  );
-  const boxHolds = new Map(
-    [...sideWall].map((id) => [
-      id,
-      { id: s.selectables[Number(id)]?.id ?? "", index: Number(id), stages: [] as Stage[] },
-    ]),
-  );
+        { id: s.selectables[Number(id)]?.id ?? "", index: Number(id), stages: [] as Stage[] },
+      ]),
+    );
+  const picks = picksMap();
+  const boxHolds = holdsMap();
   const found = new Map<string, SweptProblem>();
-  const note = (mode: "3D" | "2D", problems: readonly PickProblem[], stage: Stage): void => {
-    for (const problem of problems) {
-      const key = `${mode}\n${problem.selectable}\n${problem.problem}\n${problem.other ?? ""}`;
-      const seen = found.get(key);
-      if (!seen) found.set(key, { problem, mode, first: stage, more: 0, sizes: new Set([sizeKey(stage)]) });
-      else if (!seen.sizes.has(sizeKey(stage))) {
-        seen.sizes.add(sizeKey(stage));
-        seen.more += 1;
+  const noteIn =
+    (into: Map<string, SweptProblem>) =>
+    (mode: "3D" | "2D", problems: readonly PickProblem[], stage: Stage): void => {
+      for (const problem of problems) {
+        const key = `${mode}\n${problem.selectable}\n${problem.problem}\n${problem.other ?? ""}`;
+        const seen = into.get(key);
+        if (!seen) into.set(key, { problem, mode, first: stage, more: 0, sizes: new Set([sizeKey(stage)]) });
+        else if (!seen.sizes.has(sizeKey(stage))) {
+          seen.sizes.add(sizeKey(stage));
+          seen.more += 1;
+        }
       }
-    }
-  };
+    };
+  const note = noteIn(found);
   const flat = flatMembers(g);
   const flatInputs = selectables.map(({ id }) => ({ id, members: flat[Number(id)] ?? [] }));
   const flatAreas = new Map<number, PickArea[]>();
   const flatView: Rect = [0, 0, FLAT_VIEW.w, FLAT_VIEW.h];
-  for (const stage of sweepStages) {
+  /** The 3D step at a stage: its problems noted, and the side-wall selectables held there and by its reserved boxes. */
+  const sweep3D = (
+    stage: Stage,
+    noted: ReturnType<typeof noteIn>,
+    into: ReturnType<typeof picksMap>,
+    holdsInto: ReturnType<typeof holdsMap>,
+  ): void => {
     const { camera } = cameraAt(g, stage.w / stage.h);
     const areas = pickAreas(
       selectables.map(({ id, boxes }) => ({
@@ -649,16 +686,19 @@ export function pickSweep(g: Geometry, at?: readonly Stage[]): PickSweep {
     // every HUD box over the stage's frame area, the stage's own `reserved` (FR-060).
     const reserved = stage.reserved ?? reservedBoxes(stage);
     const held = listOnly(areas, view, sideWall, reserved);
-    note("3D", pickProblems(areas, view, held, reserved), stage);
+    noted("3D", pickProblems(areas, view, held, reserved), stage);
     for (const id of held) {
-      const pick = picks.get(id);
+      const pick = into.get(id);
       if (pick) addSized(pick.stages, stage);
     }
     const plain = listOnly(areas, view, sideWall);
     for (const id of held) {
-      const hold = boxHolds.get(id);
+      const hold = holdsInto.get(id);
       if (hold && !plain.has(id)) addSized(hold.stages, stage);
     }
+  };
+  for (const stage of sweepStages) {
+    sweep3D(stage, note, picks, boxHolds);
     // In 2D the view box is fixed, and a core's 44 px are view-box units at the stage's scale.
     const scale = flatScale(stage);
     let drawn = flatAreas.get(scale);
@@ -670,10 +710,24 @@ export function pickSweep(g: Geometry, at?: readonly Stage[]): PickSweep {
       if (pick) addSized(pick.flat, stage);
     }
   }
+  // Spec 024 (Q150): the dinosaur visit's sweep, in 3D only (2D has no "Eat" tile), over its own stages; a problem it
+  // finds that the plain sweep doesn't is refused as the dinosaur visit's. Only for the supported stages' sweep.
+  const eatFound = new Map<string, SweptProblem>();
+  const eatPicks = picksMap();
+  const eatHolds = holdsMap();
+  if (at === undefined)
+    for (const stage of supportedStages(g.protectEat)) sweep3D(stage, noteIn(eatFound), eatPicks, eatHolds);
   const sweep: PickSweep = {
-    problems: [...found.values()],
+    problems: [
+      ...found.values(),
+      ...[...eatFound].filter(([key]) => !found.has(key)).map(([, p]): SweptProblem => ({ ...p, dinosaur: true })),
+    ],
     sideWalls: [...picks.values()],
     boxHolds: [...boxHolds.values()].filter((h) => h.stages.length > 0),
+    dinosaur: {
+      sideWalls: [...eatPicks.values()].filter((p) => p.stages.length > 0),
+      boxHolds: [...eatHolds.values()].filter((h) => h.stages.length > 0),
+    },
   };
   if (at === undefined) sweeps.set(g, sweep);
   return sweep;
@@ -687,7 +741,7 @@ export function pickSweep(g: Geometry, at?: readonly Stage[]): PickSweep {
 function spacing(ctx: Context, g: Geometry): void {
   const smallest = flatScale(smallestFlatStage());
   const meets = { core: "the core of", member: "a member of", union: "the union of the members of" } as const;
-  for (const { problem, mode, first, more } of pickSweep(g).problems) {
+  for (const { problem, mode, first, more, dinosaur } of pickSweep(g).problems) {
     const what =
       problem.problem === "outside"
         ? "its 44 × 44 core leaves the view"
@@ -696,7 +750,7 @@ function spacing(ctx: Context, g: Geometry): void {
           : `its exclusive core overlaps ${meets[problem.problem]} selectables[${problem.other ?? ""}]`;
     const where =
       mode === "3D"
-        ? `in 3D at ${stagesPhrase(first, more)}`
+        ? `in 3D at ${stagesPhrase(first, more)}${dinosaur ? ' for a 3D dinosaur visit, the "Eat" tile\'s box reserved' : ""}`
         : flatScale(first) === smallest
           ? "in 2D, at the drawing's smallest scale"
           : `in 2D, at the drawing's scale on ${stagesPhrase(first, more)}`;
@@ -787,7 +841,11 @@ function phoneExempt(live: LiveFace, binding: FaceBinding): boolean {
 }
 
 /** Each bound face of each placement whose piece has it, in scene order, measured where its placement resolves. */
-function measureFaces(g: Geometry, typefaces: readonly CapRatio[]): FaceCaps[] {
+function measureFaces(
+  g: Geometry,
+  typefaces: readonly CapRatio[],
+  reference: readonly ReferenceView[] = g.reference,
+): FaceCaps[] {
   const ratios = new Map(typefaces.map((t) => [t.use, t.cap_ratio]));
   const out: FaceCaps[] = [];
   g.scene.value.placements.forEach((p, i) => {
@@ -802,7 +860,7 @@ function measureFaces(g: Geometry, typefaces: readonly CapRatio[]): FaceCaps[] {
         const cap = capOf(g.room, face, r, ratios);
         return cap === null ? [] : [{ rect: r.rect, cap }];
       });
-      const [desktop, phone] = g.reference.map(({ stage, camera }) =>
+      const [desktop, phone] = reference.map(({ stage, camera }) =>
         model && regions.length > 0 ? smallestCapPx(model, face, regions, camera, stage) : null,
       );
       out.push({
@@ -881,6 +939,26 @@ function legibility(ctx: Context, g: Geometry): void {
           at(),
           `cap height ${tenth(px)} px on the ${name} stage, under the floor of ${floor}`,
         );
+  }
+  // Spec 024 (Q-R3a): the floor at a 3D dinosaur visit's reference stages too, where the plain visit's holds it.
+  const typefaces = lookTypefaces(ctx.room, ctx.tree);
+  const plainCaps = new Map(measureFaces(g, typefaces).map((f) => [f.face, f] as const));
+  for (const f of measureFaces(g, typefaces, g.referenceEat)) {
+    if (f.atmosphere) continue;
+    const plain = plainCaps.get(f.face);
+    for (const [name, px, before] of [
+      ["desktop", f.desktop, plain?.desktop ?? null],
+      ["phone", f.phone, plain?.phone ?? null],
+    ] as const) {
+      const under = (v: number | null): boolean => v !== null && v < floor && !(name === "phone" && f.phone_exempt);
+      if (under(px) && !under(before))
+        ctx.report(
+          "RG7",
+          g.scene.file,
+          ctx.path("placements", f.placement, "faces", f.role),
+          `cap height ${tenth(px as number)} px on the ${name} stage for a 3D dinosaur visit, under the floor of ${floor}`,
+        );
+    }
   }
 }
 

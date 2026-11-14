@@ -189,7 +189,8 @@ describe("a first bite splits the piece (FR-003, FR-006; plan.md §5.4)", () => 
       const source = s.body.find((b) => b.parent === c.parent && b.material === c.material);
       expect(source, "a chunk mesh beside its source, sharing its material").toBeDefined();
       sources.delete(source as Mesh);
-      for (const name of ["position", "normal", "uv"]) expect(c.geometry.getAttribute(name)).toBe(source?.geometry.getAttribute(name));
+      for (const name of ["position", "normal", "uv"])
+        expect(c.geometry.getAttribute(name)).toBe(source?.geometry.getAttribute(name));
       expect(c.position.equals((source as Mesh).position)).toBe(true);
       const cut = cuts.find((x) => x.geometry === c.geometry) as Mesh;
       expect(cut, "a cut mesh sharing the chunk's geometry").toBeDefined();
@@ -219,10 +220,16 @@ describe("a first bite splits the piece (FR-003, FR-006; plan.md §5.4)", () => 
     r.eat.bite("stub");
     for (const b of s.body) expect(b.visible).toBe(false);
     const aside = eatMeshes(s.root, "aside");
-    const fromLettering = aside.filter((m) => m.parent === s.lettering.parent && m.geometry.getAttribute("position") === s.lettering.geometry.getAttribute("position"));
+    const fromLettering = aside.filter(
+      (m) =>
+        m.parent === s.lettering.parent &&
+        m.geometry.getAttribute("position") === s.lettering.geometry.getAttribute("position"),
+    );
     expect(fromLettering).toHaveLength(1);
     expect(shown(fromLettering[0] as Mesh, s.root)).toBe(false);
-    const standing = eatMeshes(s.root, "chunk").filter((m) => (m.userData.eat as { chunk: number }).chunk !== r.meal.states("stub").indexOf("flying"));
+    const standing = eatMeshes(s.root, "chunk").filter(
+      (m) => (m.userData.eat as { chunk: number }).chunk !== r.meal.states("stub").indexOf("flying"),
+    );
     expect(standing.length).toBeGreaterThan(0);
     for (const m of standing) expect(shown(m, s.root)).toBe(true);
   });
@@ -417,23 +424,29 @@ describe("every chunk of the four pieces eaten (US2; SC-002)", () => {
   });
 
   it("leaves the placements and the selectables as they were: selectable, labelled, the same pick areas and frame boxes", () => {
-    expect(JSON.stringify({ placements: scene.placements, selectables: repositoryBundle().index.selectables })).toBe(before);
+    expect(JSON.stringify({ placements: scene.placements, selectables: repositoryBundle().index.selectables })).toBe(
+      before,
+    );
   });
 
   it.each([
     ["busy-sign", "lettering", "busy-sign-stand"],
     ["chalkboard", "slate", "frame"],
     ["laptop", "screen", "lid"],
-  ] as const)("%s: its face's mesh %s still hidden as the loader left it, and %s holding it standing", (id, role, holder) => {
-    const root = models[id] as Group;
-    root.traverse((n) => {
-      if (n.name === role) expect(n.visible).toBe(false);
-    });
-    for (const m of eatMeshes(root, "aside")) if (meshNameOf(m.parent as Object3D) === role || m.parent?.name === role) expect(shown(m, root)).toBe(false);
-    const face = facesOf(scene.pieces[id] as RoomScene["pieces"][string]).find((f) => f.role === role) as Face;
-    const hit = firstHit(standing(id), face.at, [-face.facing[0], -face.facing[1], -face.facing[2]]);
-    expect(hit, `nothing standing behind the ${role}`).not.toBeNull();
-  });
+  ] as const)(
+    "%s: its face's mesh %s still hidden as the loader left it, and %s holding it standing",
+    (id, role, holder) => {
+      const root = models[id] as Group;
+      root.traverse((n) => {
+        if (n.name === role) expect(n.visible).toBe(false);
+      });
+      for (const m of eatMeshes(root, "aside"))
+        if (meshNameOf(m.parent as Object3D) === role || m.parent?.name === role) expect(shown(m, root)).toBe(false);
+      const face = facesOf(scene.pieces[id] as RoomScene["pieces"][string]).find((f) => f.role === role) as Face;
+      const hit = firstHit(standing(id), face.at, [-face.facing[0], -face.facing[1], -face.facing[2]]);
+      expect(hit, `nothing standing behind the ${role}`).not.toBeNull();
+    },
+  );
 
   it("laptop: the screen glow's point in front of the standing lid, and the charge light's within its radius of a standing triangle", () => {
     const glows = glowsOf(scene.pieces.laptop as RoomScene["pieces"][string]);

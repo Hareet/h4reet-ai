@@ -108,12 +108,19 @@ export function createEat3d(options: Eat3dOptions): Eat3d {
   };
 
   /** A mesh over `source`'s attributes, indexed by its triangles `tris`, beside it. */
-  const build = (source: Mesh, tris: readonly number[], kind: EatKind, chunk: number, material: Material | Material[]): Mesh => {
+  const build = (
+    source: Mesh,
+    tris: readonly number[],
+    kind: EatKind,
+    chunk: number,
+    material: Material | Material[],
+  ): Mesh => {
     let geometry: BufferGeometry;
     if (kind === "cut") geometry = source.geometry;
     else {
       geometry = new BufferGeometry();
-      for (const [name, attribute] of Object.entries(source.geometry.attributes)) geometry.setAttribute(name, attribute);
+      for (const [name, attribute] of Object.entries(source.geometry.attributes))
+        geometry.setAttribute(name, attribute);
       const index = source.geometry.index;
       const out = new Uint32Array(tris.length * 3);
       tris.forEach((t, k) => {
@@ -187,7 +194,9 @@ export function createEat3d(options: Eat3dOptions): Eat3d {
       const tris = [...(mask[k] ?? [])].flatMap((v, t) => (v ? [t] : []));
       if (tris.length > 0) aside.push(partOf(build(source, tris, "aside", -1, source.material), source));
     });
-    const toWorld = new Matrix4().copy(root.matrixWorld).multiply(new Matrix4().makeScale(piece.scale, piece.scale, piece.scale));
+    const toWorld = new Matrix4()
+      .copy(root.matrixWorld)
+      .multiply(new Matrix4().makeScale(piece.scale, piece.scale, piece.scale));
     const centres: Vector3[] = [];
     const chunkParts = chunks.map((perPrimitive, c) => {
       const out: Part[] = [];
@@ -216,7 +225,14 @@ export function createEat3d(options: Eat3dOptions): Eat3d {
     });
     const asideEmpty = mask.every((m) => m.every((v) => v === 0));
     meal.addPiece(id, { centres: centres.map((c): Point => [c.x, c.y, c.z]), asideEmpty });
-    return { root, sources: sources.map((mesh) => ({ mesh, visible: mesh.visible })), chunks: chunkParts, centres, aside, attached: false };
+    return {
+      root,
+      sources: sources.map((mesh) => ({ mesh, visible: mesh.visible })),
+      chunks: chunkParts,
+      centres,
+      aside,
+      attached: false,
+    };
   };
 
   const attach = (s: Split): void => {
@@ -268,7 +284,10 @@ export function createEat3d(options: Eat3dOptions): Eat3d {
       const local = p.parent.worldToLocal(centre.clone());
       const moved = p.parent.worldToLocal(centre.clone().add(delta));
       // Scaled about the centre: rest + (1 − s)(centre − rest), then the move.
-      p.mesh.position.copy(p.position).addScaledVector(local.clone().sub(p.position), 1 - scale).add(moved.sub(local));
+      p.mesh.position
+        .copy(p.position)
+        .addScaledVector(local.clone().sub(p.position), 1 - scale)
+        .add(moved.sub(local));
       p.mesh.scale.copy(p.scale).multiplyScalar(scale);
     }
   };
@@ -325,7 +344,13 @@ export function createEat3d(options: Eat3dOptions): Eat3d {
           return false;
         }
         if (meal.firstBite(id)) options.said?.(id);
-        const motion: Motion = { placement: id, index, start: options.now(), kind: "flight", from: (s.centres[index] as Vector3).clone() };
+        const motion: Motion = {
+          placement: id,
+          index,
+          start: options.now(),
+          kind: "flight",
+          from: (s.centres[index] as Vector3).clone(),
+        };
         if (reduced()) land(motion);
         else motions.push(motion);
         return true;
@@ -357,7 +382,13 @@ export function createEat3d(options: Eat3dOptions): Eat3d {
         for (const r of meal.tick()) {
           const s = splits.get(r.piece);
           if (!s) continue;
-          const motion: Motion = { placement: r.piece, index: r.index, start: now, kind: "growth", from: new Vector3() };
+          const motion: Motion = {
+            placement: r.piece,
+            index: r.index,
+            start: now,
+            kind: "growth",
+            from: new Vector3(),
+          };
           showChunk(s, r.index, true);
           if (reduced()) grow(motion);
           else {

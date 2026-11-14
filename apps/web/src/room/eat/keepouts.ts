@@ -48,13 +48,21 @@ export function keepOutBoxes(part: Part, on: string): Box[] {
   const hostPiece = host && Object.hasOwn(part.pieces, host.piece) ? part.pieces[host.piece] : undefined;
   if (!host || !hostPiece) return [];
   const toPiece = scaling(1 / hostPiece.scale);
-  const mounted: { anchor: string; offset: Vec3; turn: Turn; piece: string; model: { readonly bounds: Box } | null }[] = [];
+  const mounted: { anchor: string; offset: Vec3; turn: Turn; piece: string; model: { readonly bounds: Box } | null }[] =
+    [];
   for (const p of part.placements)
-    if (p.mount?.on === on) mounted.push({ anchor: p.mount.anchor, offset: p.offset, turn: p.turn, piece: p.piece, model: p.model });
+    if (p.mount?.on === on)
+      mounted.push({ anchor: p.mount.anchor, offset: p.offset, turn: p.turn, piece: p.piece, model: p.model });
   for (const sw of part.switches)
     for (const pose of Object.values(sw.poses))
       if (pose.mount.on === on)
-        mounted.push({ anchor: pose.mount.anchor, offset: pose.mount.offset, turn: pose.mount.turn, piece: sw.piece, model: sw.model });
+        mounted.push({
+          anchor: pose.mount.anchor,
+          offset: pose.mount.offset,
+          turn: pose.mount.turn,
+          piece: sw.piece,
+          model: sw.model,
+        });
   return mounted.flatMap((m): Box[] => {
     const anchor = Object.hasOwn(hostPiece.anchors, m.anchor) ? hostPiece.anchors[m.anchor] : undefined;
     const own = ownBox(part, m.piece, m.model);

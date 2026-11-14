@@ -222,7 +222,12 @@ export function setAside(input: ChunkInput): { readonly mask: Uint8Array[] } {
       // (c): the triangle's box over a grown keep-out box.
       const carries = boxes.some(
         (b) =>
-          lo[0] <= b.max[0] && hi[0] >= b.min[0] && lo[1] <= b.max[1] && hi[1] >= b.min[1] && lo[2] <= b.max[2] && hi[2] >= b.min[2],
+          lo[0] <= b.max[0] &&
+          hi[0] >= b.min[0] &&
+          lo[1] <= b.max[1] &&
+          hi[1] >= b.min[1] &&
+          lo[2] <= b.max[2] &&
+          hi[2] >= b.min[2],
       );
       if (carries) {
         out[t] = 1;
@@ -331,7 +336,8 @@ export function split(input: ChunkInput, mask: readonly Uint8Array[]): { readonl
     const random = prng(hash(input.seed));
     const centre = new Float64Array(3 * n);
     for (let g = 0; g < n; g++)
-      for (let a = 0; a < 3; a++) centre[3 * g + a] = (lo[a] as number) + random() * ((hi[a] as number) - (lo[a] as number));
+      for (let a = 0; a < 3; a++)
+        centre[3 * g + a] = (lo[a] as number) + random() * ((hi[a] as number) - (lo[a] as number));
 
     const sizes = new Int32Array(n);
     const assign = (): void => {

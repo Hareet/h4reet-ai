@@ -65,7 +65,7 @@ export function stageFor(screen: Screen, protect?: Protect, state: HudState = OP
     return { w: clear.w, h: clear.h };
   }
   const f = frameArea(screen, state, DEFAULT_METRICS, protect);
-  return framedStage(f.area, f.ease, compactBoxes(screen, state, DEFAULT_METRICS).all);
+  return framedStage(f.area, f.ease, compactBoxes(screen, state, DEFAULT_METRICS, { eat: protect.eat }).all);
 }
 
 /** A frame area as a stage: its size, its reserved boxes, and its ease. */

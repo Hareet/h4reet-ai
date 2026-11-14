@@ -78,7 +78,11 @@ const asideOf = (mask: readonly Uint8Array[], p = 0): number[] =>
   [...(mask[p] ?? new Uint8Array())].flatMap((v, t) => (v ? [t] : []));
 
 /** SC-001: every triangle of every primitive in exactly one of the set-aside part and the chunks; each chunk holds one. */
-function expectPartition(i: ChunkInput, mask: readonly Uint8Array[], chunks: readonly (readonly (readonly number[])[])[]) {
+function expectPartition(
+  i: ChunkInput,
+  mask: readonly Uint8Array[],
+  chunks: readonly (readonly (readonly number[])[])[],
+) {
   expect(chunks).toHaveLength(i.n);
   i.primitives.forEach((p, k) => {
     const seen = new Uint8Array(triangles(p));
@@ -91,7 +95,10 @@ function expectPartition(i: ChunkInput, mask: readonly Uint8Array[], chunks: rea
         seen[t] = (seen[t] ?? 0) + 1;
       }
     }
-    expect([...seen].every((n) => n === 1), `primitive ${k} (${p.mesh}): a triangle lost or in two parts`).toBe(true);
+    expect(
+      [...seen].every((n) => n === 1),
+      `primitive ${k} (${p.mesh}): a triangle lost or in two parts`,
+    ).toBe(true);
   });
   for (const chunk of chunks) expect(chunk.reduce((n, ts) => n + ts.length, 0)).toBeGreaterThan(0);
 }
@@ -101,7 +108,11 @@ const FRONT: Face = { role: "lettering", at: [0, 0, 0], size: [0.2, 0.1], facing
 describe("the chunker on stub primitives (plan.md §5.2)", () => {
   it("puts every triangle in exactly one of the set-aside part and the N chunks, each chunk non-empty (SC-001)", () => {
     const i = input({
-      primitives: [prim("body", grid(8, 6)), prim("legs", grid(3, 3, 0.05, -0.4), "u16"), prim("trim", grid(2, 5, 0.04, 0.2), "none")],
+      primitives: [
+        prim("body", grid(8, 6)),
+        prim("legs", grid(3, 3, 0.05, -0.4), "u16"),
+        prim("trim", grid(2, 5, 0.04, 0.2), "none"),
+      ],
       faces: [{ ...FRONT, role: "trim", at: [0, 0.2, 0], facing: [0, 1, 0], up: [0, 0, -1] }],
       n: 5,
     });
@@ -164,10 +175,20 @@ describe("the chunker on stub primitives (plan.md §5.2)", () => {
 
   it("(b) projects on right = up × facing for a tilted face (the busy sign's slope)", () => {
     const [s, c] = [Math.sin((12.16 * Math.PI) / 180), Math.cos((12.16 * Math.PI) / 180)];
-    const face: Face = { role: "lettering", at: [0, 0.05, 0.017], size: [0.192, 0.0613], facing: [0, s, c], up: [0, c, -s] };
+    const face: Face = {
+      role: "lettering",
+      at: [0, 0.05, 0.017],
+      size: [0.192, 0.0613],
+      facing: [0, s, c],
+      up: [0, c, -s],
+    };
     // A point d behind the face's centre, moved along `up` by v and along x by u.
     const at = (u: number, v: number, d: number): V3 => [u, 0.05 + v * c - d * s, 0.017 + v * -s - d * c];
-    const tri = (u: number, v: number, d: number): Tri => [at(u - 0.003, v - 0.003, d), at(u + 0.003, v - 0.003, d), at(u, v + 0.003, d)];
+    const tri = (u: number, v: number, d: number): Tri => [
+      at(u - 0.003, v - 0.003, d),
+      at(u + 0.003, v - 0.003, d),
+      at(u, v + 0.003, d),
+    ];
     const i = input({
       primitives: [prim("stand", [tri(0, 0, 0.011), tri(0.08, 0.02, 0.063), tri(0, 0.04, 0.011), tri(0.11, 0, 0.02)])],
       faces: [face],
@@ -216,7 +237,10 @@ describe("the chunker on stub primitives (plan.md §5.2)", () => {
   it("(d) takes no ball for a glow on a face (2.4 mm in front, inside it), only the face's (a) and (b)", () => {
     const tris: Tri[] = [flat(0, 0, 0.05), flat(0, 0, -0.007), flat(0.15, 0, 0.01)];
     const on: GlowPoint = { id: "screen-glow", at: [0, 0, 0.0024], radius: 0.18 };
-    const base = { primitives: [prim("keyboard", tris), prim("screen", [flat(0, 0, 0)])], faces: [{ ...FRONT, role: "screen" }] };
+    const base = {
+      primitives: [prim("keyboard", tris), prim("screen", [flat(0, 0, 0)])],
+      faces: [{ ...FRONT, role: "screen" }],
+    };
     const onFace = setAside(input({ ...base, glows: [on] }));
     expect(asideOf(onFace.mask, 0)).toEqual([1]);
     expect(asideOf(onFace.mask, 1)).toEqual([0]);
@@ -309,7 +333,12 @@ describe("keep-out boxes from the mounts on a piece", () => {
       },
       placements: [
         placement("table", "table", null),
-        placement("block", "block", { on: "table", anchor: "top" }, { offset: [0.2, 0, 0], turn: { x: 0, y: 90, z: 0 } }),
+        placement(
+          "block",
+          "block",
+          { on: "table", anchor: "top" },
+          { offset: [0.2, 0, 0], turn: { x: 0, y: 90, z: 0 } },
+        ),
       ],
       switches: [],
     } as unknown as Part;
@@ -339,8 +368,14 @@ describe("keep-out boxes from the mounts on a piece", () => {
           id: "power",
           piece: "charger",
           poses: {
-            plugged: { mount: { on: "laptop", anchor: "port", offset: [0, 0, 0], turn: { x: 0, y: 0, z: 0 } }, glows: [] },
-            away: { mount: { on: "elsewhere", anchor: "top", offset: [0, 0, 0], turn: { x: 0, y: 0, z: 0 } }, glows: [] },
+            plugged: {
+              mount: { on: "laptop", anchor: "port", offset: [0, 0, 0], turn: { x: 0, y: 0, z: 0 } },
+              glows: [],
+            },
+            away: {
+              mount: { on: "elsewhere", anchor: "top", offset: [0, 0, 0], turn: { x: 0, y: 0, z: 0 } },
+              glows: [],
+            },
           },
           cable: null,
           model,
@@ -411,10 +446,14 @@ const of = (id: PieceId): Real => real.get(id) as Real;
 const meshIndices = (r: Real, mesh: string): number[] =>
   r.input.primitives.flatMap((p, k) => (p.mesh === mesh ? [k] : []));
 const asideCount = (r: Real, mesh?: string): number =>
-  r.mask.reduce((n, m, k) => n + (mesh === undefined || r.input.primitives[k]?.mesh === mesh ? m.reduce((a, v) => a + v, 0) : 0), 0);
+  r.mask.reduce(
+    (n, m, k) => n + (mesh === undefined || r.input.primitives[k]?.mesh === mesh ? m.reduce((a, v) => a + v, 0) : 0),
+    0,
+  );
 const totalOf = (r: Real, mesh: string): number =>
   meshIndices(r, mesh).reduce((n, k) => n + triangles(r.input.primitives[k] as Primitive), 0);
-const isAside = (r: Real, hit: { p: number; t: number } | null): boolean => hit !== null && r.mask[hit.p]?.[hit.t] === 1;
+const isAside = (r: Real, hit: { p: number; t: number } | null): boolean =>
+  hit !== null && r.mask[hit.p]?.[hit.t] === 1;
 
 describe("the chunker on the four real pieces (FR-003, FR-004, FR-015, SC-001)", () => {
   it("reads the laptop's mesh names as three's GLTFLoader gives them: base's 4 primitives and the one charge-light", async () => {

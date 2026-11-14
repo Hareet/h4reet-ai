@@ -91,7 +91,9 @@ export function loaderTree(glb: Glb, sceneName = "Scene"): LoaderNode[] {
       node = { name: own ?? "", isMesh: false, parent, draws: null };
       out.push(node);
       const meshIndex = def.mesh;
-      names.forEach((name, k) => out.push({ name, isMesh: true, parent: node, draws: { mesh: meshIndex, primitive: k } }));
+      names.forEach((name, k) =>
+        out.push({ name, isMesh: true, parent: node, draws: { mesh: meshIndex, primitive: k } }),
+      );
     }
     for (const child of def.children ?? []) visit(child, node);
   };
@@ -152,7 +154,13 @@ export function pieceModel(glb: Glb, scale: number): Group {
     if (node.isMesh && node.draws !== null) {
       const prim = prims[k++] as Primitive;
       const geometry = new BufferGeometry();
-      geometry.setAttribute("position", new BufferAttribute(prim.positions.map((v) => v * scale), 3));
+      geometry.setAttribute(
+        "position",
+        new BufferAttribute(
+          prim.positions.map((v) => v * scale),
+          3,
+        ),
+      );
       if (prim.index) geometry.setIndex(new BufferAttribute(prim.index, 1));
       const m = glb.json.meshes?.[node.draws.mesh]?.primitives[node.draws.primitive]?.material ?? -1;
       let material = materials.get(m);

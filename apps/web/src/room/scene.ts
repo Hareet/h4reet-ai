@@ -439,10 +439,15 @@ export function createScene(options: SceneOptions): Stage3D {
   const eatingRoom = options.eating;
   const eats = options.avatar === EATER && part.placements.some((p) => p.edible !== null);
   const edible = eats ? edibleTargets(part) : [];
-  const eatReach = { reach: part.walking.reach_m, cone: (part.walking.reach_cone_deg * Math.PI) / 180, radius: part.walking.radius_m };
+  const eatReach = {
+    reach: part.walking.reach_m,
+    cone: (part.walking.reach_cone_deg * Math.PI) / 180,
+    radius: part.walking.radius_m,
+  };
   /** A placement's model as the loader shows it: its node's child the loader names `model` (scene/loader.ts's
    *  MODEL_NODE, not imported, so the loader's chunk stays its own). */
-  const modelOf = (id: string): Object3D | null => room.placements.get(id)?.children.find((c) => c.name === "model") ?? null;
+  const modelOf = (id: string): Object3D | null =>
+    room.placements.get(id)?.children.find((c) => c.name === "model") ?? null;
   let meal: Meal | null = null;
   let eat3d: Eat3d | null = null;
   if (eats) {
@@ -727,7 +732,9 @@ export function createScene(options: SceneOptions): Stage3D {
     element: canvas,
     canvas,
     // Spec 014 (FR-010, FR-016): the frame area's protector over this part, which the room's re-fit takes.
-    protect: protectorFor(protectSceneOf(part, options.room)),
+    // Spec 024 (Q150, A2): a dinosaur visit's protector reserves the "Eat" tile's box from the visit's start, so the
+    // framing doesn't move when the tile shows or hides.
+    protect: protectorFor(protectSceneOf(part, options.room), undefined, { eat: eats }),
     showHandoff(progress) {
       // Its first call is the hand-off's start: no figure file or set model parses from then until it ends (R-10), if
       // the loader's giving way hasn't closed the gate already (spec 012).
