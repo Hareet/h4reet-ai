@@ -91,7 +91,7 @@ The implementer merges this branch first. Each file by its path; none is human-o
 **Docs**
 - `docs/data-flow-disclosure.md`: row V1 (R-12).
 - `deploy/grafana/dashboards/h4-runtime.json`: the "Visits whose avatar failed" panel's description (R-12).
-- `docs/merge-requests/2026-11-14-feat-025-twin-and-dog-run-from-dino.md`: the merge-request note (T014).
+- `docs/merge-requests/2026-11-14-feat-025-twin-and-dog-run-from-dino.md`: the merge-request note (T016).
 
 **Not touched**: `apps/web/src/room/scene/walking.ts` (its `on` and `pose` already exist), `apps/web/src/room/compose/floor.ts` (R-02 filters its output), `apps/web/src/room/scene/gait.ts` (spec 019's FR-014), `apps/web/src/room/likeness-line.ts` (spec 020's holder takes any figure), `config/room-events.yaml`, `apps/web/src/room/events.ts`.
 
@@ -113,7 +113,7 @@ The implementer merges this branch first. Each file by its path; none is human-o
 | `chase-bench.test.ts` | FR-029, SC-005 | likewise |
 | `deploy/scripts/test_dashboard.py`, `apps/web/test/disclosure.test.ts`, `evals/test_disclosure.py` | FR-026, FR-028 | `pytest deploy/scripts/test_dashboard.py evals/test_disclosure.py`; `vitest run apps/web/test/disclosure.test.ts` |
 
-Each task also runs the tests covering the files it changes (tasks.md names them). `make lint` after each task. The full `make check` runs once, at the end of the stack, by one task (the Author's rule 4), here T014.
+Each task also runs the tests covering the files it changes (tasks.md names them). `make lint` after each task. The full `make check` runs once, at the end of the stack, by one task (the Author's rule 4), here T016.
 
 ## 7. Human-only paths
 
