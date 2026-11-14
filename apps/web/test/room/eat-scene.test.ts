@@ -326,6 +326,35 @@ describe("the eating's wiring in the 3D stage (scene.ts; FR-001, FR-009, FR-010,
     p.stage.dispose();
   });
 
+  it("frees, at the stage's dispose, a split that left the scene when its piece was whole again (nit 3)", async () => {
+    const s = await staged();
+    s.stage.walk.enter(s.view);
+    run(s, 64);
+    s.stage.eat?.press();
+    run(s, 16);
+    const geometries = new Set<{ addEventListener(type: string, f: () => void): void }>();
+    s.drawn()
+      .getObjectByName(PIECE)
+      ?.traverse((n) => {
+        if (n.userData.eat !== undefined) geometries.add((n as Mesh).geometry);
+      });
+    expect(geometries.size).toBeGreaterThan(0);
+    let freed = 0;
+    for (const g of geometries) g.addEventListener("dispose", () => freed++);
+    // Landed, regrown (the room's regrow_s), whole: the split leaves the scene.
+    run(s, FLIGHT_MS + 32);
+    s.clock.advance(25_000, 100);
+    let left = true;
+    s.drawn()
+      .getObjectByName(PIECE)
+      ?.traverse((n) => {
+        if (n.userData.eat !== undefined) left = false;
+      });
+    expect(left, "the split left the scene").toBe(true);
+    s.stage.dispose();
+    expect(freed, "every geometry the eating built").toBe(geometries.size);
+  });
+
   it("reserves the Eat box beside the walking control in the stacked layout (I-1, page Q215)", async () => {
     // The stacked layout: the room gives no frame and no clear area, and the canvas is its own stage.
     swapped.picked = [];

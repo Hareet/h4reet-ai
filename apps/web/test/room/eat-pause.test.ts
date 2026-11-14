@@ -62,6 +62,7 @@ function stub(): { root: Group; part: Part } {
 
 function rig() {
   const s = stub();
+  const shown = { root: s.root };
   const clock = { t: 1000 };
   const meal = createMeal({ regrow_s: 5, now: () => clock.t });
   const landed = vi.spyOn(meal, "landed");
@@ -72,7 +73,8 @@ function rig() {
   mouth.updateMatrixWorld(true);
   const eat = createEat3d({
     part: s.part,
-    model: (id) => (id === "stub" ? s.root : null),
+    // The model the placement shows now: `shown.root`, which a test may swap (a reload).
+    model: (id) => (id === "stub" ? shown.root : null),
     figure: () => ({ root: mouth, height: 1.2 }),
     meal,
     highlight: { refresh },
@@ -80,7 +82,7 @@ function rig() {
     reduced: () => false,
     warn: vi.fn(),
   });
-  return { ...s, clock, meal, landed, grown, refresh, eat };
+  return { ...s, shown, clock, meal, landed, grown, refresh, eat };
 }
 
 /** A chunk's meshes, by index. */
@@ -192,5 +194,66 @@ describe("the eating while the room is paused (FR-009, US3 AS5)", () => {
     r.meal.resume();
     expect(r.eat.bite("stub")).toBe(true);
     expect(chunkMeshes(r.root, r.meal.states("stub").indexOf("flying")).length).toBeGreaterThan(0);
+  });
+});
+
+// rework-024 (rv-impl-024's nit 3): the eating's own geometries and cut materials are freed, never left behind. A split
+// that leaves the scene (the piece whole again) is memoized for the next bite, so the stage's dispose can't reach it by
+// the scene's graph: the eating frees what it built at the stage's dispose (Eat3d.dispose), and a split dropped for a
+// reloaded model at once.
+describe("what the eating builds is freed (nit 3)", () => {
+  /** Every geometry and material the eating built under `root`, each with a dispose spy. */
+  function built(root: Object3D): { geometries: Set<BufferGeometry>; cuts: Set<{ dispose(): void }> } {
+    const geometries = new Set<BufferGeometry>();
+    const cuts = new Set<{ dispose(): void }>();
+    root.traverse((n) => {
+      const tag = n.userData.eat as { kind?: string } | undefined;
+      if (!tag) return;
+      const mesh = n as Mesh;
+      geometries.add(mesh.geometry);
+      if (tag.kind === "cut") for (const m of ([] as { dispose(): void }[]).concat(mesh.material as never)) cuts.add(m);
+    });
+    return { geometries, cuts };
+  }
+  const disposed = (things: Iterable<{ addEventListener?: unknown }>): (() => number) => {
+    let n = 0;
+    for (const t of things)
+      (t as unknown as { addEventListener(type: string, f: () => void): void }).addEventListener("dispose", () => n++);
+    return () => n;
+  };
+
+  it("frees a split that left the scene, at the eating's dispose", () => {
+    const r = rig();
+    r.eat.bite("stub");
+    const { geometries, cuts } = built(r.root);
+    expect(geometries.size).toBeGreaterThan(0);
+    expect(cuts.size).toBeGreaterThan(0);
+    const geometriesFreed = disposed(geometries);
+    const cutsFreed = disposed(cuts as Iterable<never>);
+    // Landed, regrown, the piece whole: its split leaves the scene.
+    r.clock.t += FLIGHT_MS;
+    r.eat.frame();
+    r.clock.t += 5000;
+    r.eat.frame();
+    r.clock.t += GROW_MS;
+    r.eat.frame();
+    expect(built(r.root).geometries.size, "the split left the scene").toBe(0);
+    expect(geometriesFreed(), "kept for the next bite, not freed yet").toBe(0);
+    r.eat.dispose();
+    expect(geometriesFreed()).toBe(geometries.size);
+    expect(cutsFreed()).toBe(cuts.size);
+  });
+
+  it("frees a split dropped for a reloaded model at once", () => {
+    const r = rig();
+    r.eat.bite("stub");
+    const { geometries } = built(r.root);
+    const freed = disposed(geometries);
+    r.clock.t += FLIGHT_MS;
+    r.eat.frame();
+    // A lost context's reload: the placement shows a new model; the old split goes with the old model.
+    r.shown.root = stub().root;
+    expect(r.eat.bite("stub")).toBe(true);
+    expect(freed()).toBe(geometries.size);
   });
 });
