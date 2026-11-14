@@ -402,10 +402,12 @@ export function createAvatarFigures(
     }
     return s;
   };
-  const both = (): Figure[] => [figures.twin, figures.visitor];
+  /** The hand-off's two figures. */
+  const both: readonly Figure[] = [figures.twin, figures.visitor];
   /** Spec 025 (plan.md R-10): the hand-off's two, and the room's dog where it wants a model: the paths that take an
-   *  avatar's files (place, clip, missed) and those that show or drop them (handoffEnded's retry, update, reset). */
-  const wanting = (): Figure[] => (figures.dog.wants === null ? both() : [...both(), figures.dog]);
+   *  avatar's files (place, clip, missed) and those that show or drop them (handoffEnded's retry, update, reset). A
+   *  list made once (rv-impl-025's N-4; FR-029): only the twin's `wants` ever changes, never which figures there are. */
+  const wanting: readonly Figure[] = figures.dog.wants === null ? both : [...both, figures.dog];
   let animate = false;
   /** Where the hand-off stands: before its start, during it, or after its end (Phase 1 has only after). */
   let phase: "before" | "during" | "after" = "before";
@@ -427,7 +429,7 @@ export function createAvatarFigures(
   const settled = new Promise<void>((resolve) => (settle = resolve));
   /** Resolves `settled` once each figure shows its avatar or keeps its fallback for good. */
   const checkSettled = (): void => {
-    if (both().every((f) => f.wants === null || f.shown || f.gone)) settle();
+    if (both.every((f) => f.wants === null || f.shown || f.gone)) settle();
   };
 
   const picture = (f: Figure, shows: "avatar" | "fallback", why: FigureWhy | null): void => {
@@ -441,7 +443,7 @@ export function createAvatarFigures(
       ...(line ? { line } : {}),
     });
   };
-  for (const f of both()) if (f.wants === null) picture(f, "fallback", "no-file");
+  for (const f of both) if (f.wants === null) picture(f, "fallback", "no-file");
   checkSettled();
 
   /** The roles an avatar's part bundles; the twin's own, its clips'. */
@@ -865,7 +867,7 @@ export function createAvatarFigures(
 
   /** Places a source's model in the figures that want it and have none yet; false where one can't be placed. */
   function place(avatar: FigureSource, model: Object3D): boolean {
-    const takers = wanting().filter((f) => f.wants === avatar && !f.instance);
+    const takers = wanting.filter((f) => f.wants === avatar && !f.instance);
     if (takers.length === 0) return false;
     const placed = takers.map((f) => ({ f, instance: instanceFor(f, model) }));
     if (placed.some((p) => p.instance === null)) {
@@ -935,12 +937,12 @@ export function createAvatarFigures(
       if (disposed) return;
       const source = sourceOf(avatar);
       const clip = clips[0];
-      const instances = wanting().filter((f) => f.wants === avatar && f.instance);
+      const instances = wanting.filter((f) => f.wants === avatar && f.instance);
       // A clip that names a bone its model lacks is a failed clip (FR-003): the idle's leaves the rest pose.
       const usable = clip !== undefined && instances.every((f) => binds(f.instance as Object3D, clip));
       if (usable) source.clips.set(role, clip);
       source.ended.add(role);
-      for (const f of wanting().filter((g) => g.wants === avatar)) {
+      for (const f of wanting.filter((g) => g.wants === avatar)) {
         if (usable && f.instance) addAction(f, role, clip);
         if (!f.shown) tryShow(f);
         else {
@@ -957,7 +959,7 @@ export function createAvatarFigures(
       const source = sourceOf(avatar);
       if (role === null) {
         source.failed = true;
-        for (const f of wanting().filter((g) => g.wants === avatar)) fallBack(f, why);
+        for (const f of wanting.filter((g) => g.wants === avatar)) fallBack(f, why);
         // The twin's own model gone: its figure turns to the stand-in, unless the room has left for 2D, where the
         // still is the twin's picture and no more 3D file is fetched (FR-005).
         if (avatar === "twin" && why !== "2d") toStandIn();
@@ -965,7 +967,7 @@ export function createAvatarFigures(
       }
       source.ended.add(role);
       if (avatar === "twin" && twinArrivalDue) arriveTwin();
-      for (const f of wanting().filter((g) => g.wants === avatar)) {
+      for (const f of wanting.filter((g) => g.wants === avatar)) {
         if (!f.shown) tryShow(f);
         else if (role === "idle-holding" && f.id !== "dog") {
           findHand(f);
@@ -1004,7 +1006,7 @@ export function createAvatarFigures(
       // The twin's own states move on the clock whether or not the motion store animates (FR-024).
       if (figures.twin.shown && figures.twin.wants === "twin") play(figures.twin);
       if (moving)
-        for (const f of wanting()) {
+        for (const f of wanting) {
           if (!f.shown || !f.mixer) continue;
           if (level >= 1 && f.id !== "twin") continue;
           f.mixer.update(dtMs / 1000);
@@ -1039,7 +1041,7 @@ export function createAvatarFigures(
         // With the paper appearing, the visitor holds it from the start (FR-031 (c)).
         if (handoffMode === "appear") play(figures.visitor);
         // A figure whose avatar isn't ready yet keeps its fallback through it (FR-022), and the frame log says why.
-        for (const f of both()) if (f.wants !== null && !f.shown && !f.gone) picture(f, "fallback", "late");
+        for (const f of both) if (f.wants !== null && !f.shown && !f.gone) picture(f, "fallback", "late");
       }
       const visitor = figures.visitor;
       const take = visitor.actions.get("take");
@@ -1074,14 +1076,14 @@ export function createAvatarFigures(
       taking = false;
       room.anchors.twinHand.copy(anchors.twin);
       room.anchors.visitorHand.copy(anchors.visitor);
-      for (const f of wanting()) tryShow(f);
+      for (const f of wanting) tryShow(f);
       play(figures.visitor);
       play(figures.twin);
       keepPaper();
     },
     settled,
     reset() {
-      for (const f of wanting()) fallBack(f, null);
+      for (const f of wanting) fallBack(f, null);
       for (const source of sources.values()) if (source.model) disposeModel(source.model);
       sources.clear();
       // The twin's figure wants what it wanted at the start (FR-006): its own model again, from the HTTP cache.
