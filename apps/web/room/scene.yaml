@@ -204,19 +204,23 @@ switches:
 selectables:
   - id: snowboard
     name: Snowboard
+    emblem: board
     members: [snowboard]
     # Answer 1: the snowboard opens the bicycle's topic, but "has a bias to talking more about winter hobbies first".
     action: { talk: { topic: hobbies-and-travel, lead: Winter hobbies first. } }
   - id: bicycle
     name: Bicycle
+    emblem: wheels
     members: [bicycle]
     action: { talk: { topic: hobbies-and-travel } }
   - id: laptop
     name: Laptop and screen
+    emblem: screen
     members: [laptop, laptop-stand, desk-screen]
     action: { talk: { topic: work-projects } }
   - id: chalkboard
     name: Chalkboard
+    emblem: slate
     members: [chalkboard]
     action: { talk: { topic: mission } }
 handoff: { from: { placement: twin-figure, anchor: hand }, to: { placement: visitor-figure, anchor: hand } }

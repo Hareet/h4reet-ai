@@ -108,14 +108,17 @@ describe("every HUD control a tile (spec 014, T024; FR-022)", () => {
       expect(v.doc.documentElement.getAttribute("data-hud")).toBe(layout);
       const all = controls(v);
       expect(all.length).toBeGreaterThan(8);
+      // Spec 018 (FR-007, FR-008; plan.md D-I3): in the split layout the list's entries and the conversation's title are text on the glass, not tiles.
+      const split = v.doc.documentElement.getAttribute("data-split") === "on";
       for (const el of all) {
+        if (split && (el.closest(".room-list li") || el.classList.contains("talk-log-toggle"))) continue;
         const name = `${el.tagName.toLowerCase()}.${el.className}: ${el.textContent?.trim().slice(0, 30) ?? ""}`;
         const face = winning(el, "background");
         expect(TILE_FACES.has(face ?? ""), `${name}: ${face ?? "none"}`).toBe(true);
         expect(winning(el, "color"), name).toBe("var(--hud-text)");
       }
       // The list's buttons and the conversation's take the tile's border and radius too.
-      for (const el of v.doc.querySelectorAll(".room-list li button, .talk-row button")) {
+      for (const el of v.doc.querySelectorAll(split ? ".talk-row button" : ".room-list li button, .talk-row button")) {
         expect(winning(el, "border"), el.className).toBe("1px solid var(--tile-border)");
         expect(winning(el, "border-radius"), el.className).toBe("0.5rem");
       }

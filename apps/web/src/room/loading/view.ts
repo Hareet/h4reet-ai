@@ -17,7 +17,8 @@
 //   `transitionend` or 250 ms on the room's clock, whichever comes first; at once under reduced motion (FR-022). The
 //   hints go with it, and nothing of them stays in the room.
 import type { Clock } from "../clock";
-import { h } from "../dom";
+import { h, svg } from "../dom";
+import { roughFramePath } from "../hud/frame";
 import { uiWord } from "../ui-keys";
 import type { Slot } from "../ui-keys";
 import { createRotation } from "./hints";
@@ -38,6 +39,9 @@ export interface LoadingViewOptions {
   readonly hidden: () => boolean;
   /** Each hint shown, by its place from 1, for a drafts build's frame log. */
   readonly onHint?: (n: number) => void;
+  /** Spec 018 (FR-015): draws the card's frame as a path for a box of this size and seed; the room's own by default. A
+   *  frame that can't be drawn leaves the card's plain 1 px border. */
+  readonly frame?: (w: number, h: number, seed: number) => string;
 }
 
 export interface LoadingView {
@@ -71,6 +75,11 @@ const DEFAULTS: Readonly<Record<string, string>> = {
   "hints.next": "Next hint",
 };
 
+/** The frame's box and seed (spec 018): a ring in a fixed viewBox, stretched to the card. */
+const FRAME_W = 480;
+const FRAME_H = 240;
+const FRAME_SEED = 23;
+
 /** The loader's card. */
 export function createLoadingView(options: LoadingViewOptions): LoadingView {
   const { doc, clock } = options;
@@ -81,7 +90,7 @@ export function createLoadingView(options: LoadingViewOptions): LoadingView {
   const heading = h(
     doc,
     "h2",
-    { id: "loader-heading", class: "room-loader-heading", tabindex: -1 },
+    { id: "loader-heading", class: "room-loader-heading room-loader-title", tabindex: -1 },
     word("loading.heading"),
   );
   const fill = h(doc, "div", { class: "room-loader-fill" });
@@ -109,6 +118,27 @@ export function createLoadingView(options: LoadingViewOptions): LoadingView {
     percent,
     line,
   );
+  // Spec 018 (FR-015): the panel's frame, a ring drawn in code from a seed, behind the card's words, hidden from
+  // assistive technology; the card's own border steps aside for it. Where it can't be drawn the border stays.
+  try {
+    const d = (options.frame ?? roughFramePath)(FRAME_W, FRAME_H, FRAME_SEED);
+    const ring = svg(
+      doc,
+      "svg",
+      {
+        class: "room-loader-frame",
+        viewBox: `0 0 ${FRAME_W} ${FRAME_H}`,
+        preserveAspectRatio: "none",
+        "aria-hidden": "true",
+        focusable: "false",
+      },
+      svg(doc, "path", { d }),
+    );
+    element.prepend(ring);
+    element.classList.add("room-loader--framed");
+  } catch {
+    // The plain card: its 1 px border.
+  }
   let gone = false;
 
   // The hint area, where the index holds hints (FR-032).
