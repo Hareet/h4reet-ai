@@ -119,3 +119,59 @@ None: $0; no request, no byte leaves the device, no disclosure entry; no model c
 - Look approval of the gait on the real models (SC-005); the amplitudes are one-line edits in `gait.ts` (README).
 - No human-only patch (`docs/merge-requests/human-patches/019.md` says so).
 - Open for others: T011 (a review by a worker who didn't write this), T012 (the stack's one `make check`).
+
+---
+
+## Item 3: spec 020, the dog modeled and brought in (`night/impl-020/impl-020`)
+
+Spec: specs/020-dog-modeled-and-brought-in/ · Written by: implementer (night shift); the review is for a worker who didn't write the code · Date: 2026-11-14
+Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl-020 · Repo hooks active: the commit hooks ran (gitleaks, arrival check) on every commit
+Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at the top of plan.md and tasks.md), the spec, and the plan. Base: `night/impl-019/impl-019`, with `night/spec-020/spec-020` merged.
+
+### What changed and why
+
+His item d): "dog modeled and brought in", and his consent: "it's okay that we use the likeness of my dog". The code path for the dog's model is built and gated. **The model itself isn't here.** The studio's round 1 stopped before step 3 with no candidate (`/srv/studio/handoff/dog/1/note.md`: "stopped before step 3. No candidate."), because his reviewed concept isn't in the inbox yet. So nothing was brought in. The stand-in is the flat cut-out every visitor who picks the dog sees today. Swapping in the model takes his intake of `assets/visitors/dog/**` and his approval entry (patch 020, items 1 and 2), and no code change.
+
+- **RA9** (`build/room/avatars.ts`, `checks/family.ts`, T001 and T002): a visitor model recorded `likeness: true` or `source.type: "photo"` is bundled only where main's likeness approvals name its SHA-256 with a non-empty line. Its clips are bundled only with it. The rule is lenient, so a lenient build leaves the dog on the cut-out. The twin's stand-in stays RA3's. The rule table's pin moved with it, and so did avatars-compose's woman-as-likeness case.
+- **The line** (T003, T006 to T008): the approval's `disclosure_line` goes into the bundle as `avatars.dog.line`. The 3D stage's picture signal carries it while the dog's model shows. The room shows it as a note of its own (`.room-visitor-line`) and in "Around the room" right after the twin's line (the copy's new `{visitor_line: true}` slot). Both appear only while there are words, so the cut-out's layout is unchanged, 320 × 568 included. Two copy pins moved with it, the pin only: `bundle.test.ts`'s order and `text-copy.test.ts`'s kinds.
+- **The report** (T003): one `Likeness` line per likeness avatar. It says either that the approval holds, with its line, or that RA9 keeps the avatar on the cut-out. The avatars table already gave the files, bytes, and texture memory.
+- **The scene** (T004 and T005): seven cases on a four-legged fixture with no hand bone: the height (0.62 m), the floor, facing +z, walk, idle with the slide, reduced motion, the paper at the anchor, and the cut-out on a failure. All seven already passed on spec 009's and 019's code, so they're pins, and `scene/avatars.ts` changed only for the line.
+- **Docs**: `docs/studio/avatar-dog.md` (T011, the round's brief). One sentence in the disclosure's D1 (T012): the dog's likeness reaches Anthropic when a session reads it, as the Author's does.
+- **Dropped: T009 and T010, lookdev's Avatars view** (plan R-05 and §11). The view can draw only a bundled model, and RA9 keeps the dog out of every bundle until his approval. So it would show the dog only after the approval it was meant to inform. He judges the model in a glTF viewer or Blender instead. The question is on the morning page.
+
+### Acceptance criteria
+
+FR-001 and FR-004 to FR-006 and FR-008: `dog-avatar.test.ts` (pins). FR-002, FR-003, and SC-001: `likeness-visitor.test.ts`. FR-007: `dog-line.test.ts`. SC-003: `dog-avatar.test.ts` and `avatar-loader.test.ts`. FR-009 is unchanged (no choice-screen change). FR-010 to FR-014 are the studio round's and his intake's (`docs/studio/avatar-dog.md`).
+
+### Verification (small tests, the order's rule 4)
+
+```
+cd apps/web && npx vitest run test/room/likeness-visitor.test.ts test/room/dog-report.test.ts test/room/dog-avatar.test.ts test/room/dog-line.test.ts test/room/avatars-compose.test.ts test/room/twin-compose.test.ts test/room/compose.test.ts test/room/avatars.test.ts test/room/report.test.ts test/room/bundle.test.ts test/ui/text-copy.test.ts test/room/text.test.ts test/room/avatar-scene.test.ts test/room/avatar-loader.test.ts test/room/avatar-handoff.test.ts test/room/mount.test.ts test/room/stages.test.ts test/ui/avatars.test.ts test/room/twin-figure.test.ts test/room/data-only.test.ts
+ ❯ test/room/data-only.test.ts (31 tests | 1 failed) 171534ms
+     × says the twin can't talk about its topic yet, in its phrase, and calls no model 26ms
+ Test Files  1 failed | 19 passed (20)
+      Tests  1 failed | 597 passed (598)
+   Duration  551.87s (tests 87%, import 13%)
+```
+
+The one failure isn't this item's. It also fails alone, and it fails with impl-019's `apps/web/src` and `apps/web/build` checked out in place of this item's (`git checkout 4bd25ce3 -- apps/web/src apps/web/build`, then restored):
+
+```
+     × says the twin can't talk about its topic yet, in its phrase, and calls no model 9921ms
+      Tests  1 failed | 30 skipped (31)
+```
+
+It expects `v.spies.network` to be `[]` and gets one request. This item doesn't touch the test or the talk path. The stack's full run should show whether it fails on the base too. `test/smoke.test.ts` passed alone (17 of 17).
+
+`make lint`: exit 0 after the last code commit and after the docs (eslint with zero warnings, tsc for the three workspaces, prettier, ruff, shellcheck). No full suite here: the stack's last task runs it once (T013's `make check`).
+
+### Cost and data-flow impact
+
+$0, and no model call. No new byte leaves a visitor's device: the dog's files, once approved, are served from the site's origin as the other avatars' are. One sentence was added to D1 (above).
+
+### For the Author
+
+- Questions on the morning page, each with its recommended answer: the spec's Q1 to Q5 and D1 to D5, plus one from the build: should a drafts build make an exception to RA9 so lookdev can show the dog before you approve it? Recommended: no.
+- Patch 020 (`docs/merge-requests/human-patches/020.md`): item 1, his intake of the studio's outputs; item 2, his approval entries with the model's `disclosure_line`; item 3, a new tool only if the round needs one. None of them is needed for this item's gate.
+- The studio: round 1 waits on his step 1 (the concept from the photos, his command in the studio's outputs) and his review. It then reruns from step 3.
+- Open for others: the review by a worker who didn't write this; T013, the stack's one `make check`.
