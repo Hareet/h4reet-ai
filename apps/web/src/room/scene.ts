@@ -658,13 +658,16 @@ export function createScene(options: SceneOptions): Stage3D {
       given.area.h > 0;
     const next: Box = fits ? given.area : { x: 0, y: 0, w, h };
     const nextHud: readonly Box[] = fits && framed ? framed.hud : [];
-    // Spec 024 (rework-024, I-1; page Q215): in the stacked layout (the canvas its own stage), a dinosaur visit reserves
-    // the "Eat" tile's box beside the walking control's, where room.css puts the tile; every other visit leaves it to
-    // the picker's fallback, the walking control's box alone, as before.
+    // Spec 024 (rework-024, I-1; page Q215): in the stacked layout, where the room gives neither a frame nor a clear area
+    // and the canvas is its own stage, a dinosaur visit reserves the "Eat" tile's box beside the walking control's, where
+    // room.css puts the tile. A HUD layout mid-resize (its frame given for another window) also frames the whole canvas
+    // until the re-fit, but its tile sits at the HUD's Eat box, so it reserves as every other visit does: the picker's
+    // fallback, the walking control's box alone, as before (rework2-024, N-3).
+    const stacked = given === null;
     const nextReserved =
       fits && framed
         ? reservedIn(next, nextHud)
-        : !fits && eats
+        : stacked && eats
           ? reservedBoxes(next, undefined, { eat: true })
           : undefined;
     if (
