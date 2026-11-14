@@ -116,9 +116,10 @@ describe("the room's dog at its home (FR-018, FR-019)", () => {
       expect(at.z).toBeCloseTo(HOME.at[1], 6);
       const instance = dogInstance(room);
       if (!instance) throw new Error("no instance");
-      const box = new Box3().setFromObject(instance, true);
-      expect(box.max.y - box.min.y).toBeCloseTo(AVATAR_SHAPES.dog.height, 3);
-      expect(box.min.y).toBeCloseTo(at.y, 3);
+      // Its rest pose's height scaled to the dog's (the idle moves its hips, so the posed box isn't the measure).
+      const rest = new Box3().setFromObject((await parsed(dogBytes)).scene, true);
+      expect((rest.max.y - rest.min.y) * instance.scale.y).toBeCloseTo(AVATAR_SHAPES.dog.height, 6);
+      expect(instance.position.y).toBeCloseTo(-rest.min.y * instance.scale.y, 6);
     });
 
   it("shows two dogs where the visitor chose the dog, one model parsed, two instances", async () => {
@@ -131,11 +132,9 @@ describe("the room's dog at its home (FR-018, FR-019)", () => {
 
   it("isn't in the hand-off's wait: the room settles with the dog still loading", async () => {
     const { figures } = setup("woman");
-    figures.missed("man", null, "failed");
-    figures.missed("woman", null, "failed");
-    await expect(Promise.race([figures.settled.then(() => "settled"), Promise.resolve("waiting")])).resolves.toBe(
-      "settled",
-    );
+    for (const avatar of [figures.wants.twin, "man", "woman"] as const)
+      if (avatar !== null) figures.missed(avatar, null, "failed");
+    await expect(figures.settled).resolves.toBeUndefined();
     expect(figures.shows("dog")).toBe(false);
   });
 
@@ -235,12 +234,13 @@ describe("the paths beside place, clip, and missed (rv-rework2-spec-025, I-1)", 
     await loadDog(figures);
     const instance = dogInstance(room);
     if (!instance) throw new Error("no instance");
-    const bone = instance.getObjectByProperty("type", "Bone");
-    if (!bone) throw new Error("no bone");
-    const before = bone.quaternion.clone();
+    // The idle moves the hips (IDLE_TRACKS): its mixer's time shows in the hips' place.
+    const hips = instance.getObjectByName("mixamorigHips");
+    if (!hips) throw new Error("no hips");
+    const before = hips.position.clone();
     figures.update(1000, true, 1);
-    expect(bone.quaternion.equals(before)).toBe(true);
+    expect(hips.position.equals(before)).toBe(true);
     figures.update(1000, true, 0);
-    expect(bone.quaternion.equals(before)).toBe(false);
+    expect(hips.position.equals(before)).toBe(false);
   });
 });

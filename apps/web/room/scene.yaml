@@ -266,3 +266,10 @@ figures:
       left: { at: [0, 0.049, 0], turn: { x: 0, y: -88, z: 180 } } # estimated
     woman:
       left: { at: [0, 0.044, 0], turn: { x: 180, y: -89, z: 0 } } # estimated
+  # Spec 025's room dog (its FR-018; plan.md R-09, §3; Q12, Q158): a figure, not a placement, at its home in the twin's
+  # corner beside the twin, facing the room's front (spec 008's heading 180°, +z). An estimate, the Author's look to
+  # place: [0.30, 0.45] after rv-rework2-spec-025's Nit-3 (`separation_m` is centre to centre, so at the plan's first
+  # [0.36, 0.55] the two bodies touched). Nothing shows here until the bundle holds the dog's approved model.
+  dog:
+    home: { at: [0.3, 0.45], heading_deg: 180 } # estimated
+    footprint_m: 0.3 # estimated

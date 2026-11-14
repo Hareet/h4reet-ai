@@ -45,3 +45,7 @@ RED: `vitest run test/room/chase-notes.test.ts`: 6 failed | 4 passed (10). GREEN
 ## T010 (RED)
 
 `vitest run test/room/dog-figure.test.ts test/room/likeness-line-anywhere.test.ts`: Tests 15 failed | 12 passed (27); the fixture scene's `figures.dog` isn't in the schema yet ("buildRoom: a figure of the 3D part doesn't resolve"), and the controller has no dog. The likeness-line file passes: its cases take the "dog" FigureId at run time already; T011 makes it a FigureId in the type.
+
+## T011 (GREEN)
+
+`vitest run` T010's two files, tasks.md's T011 list (28 files), and chase-steer (the dog's home moved to [0.30, 0.45]): Test Files 31 passed (31), Tests 869 passed (869); `room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations`. `make lint`: exit 0 (after prettier on `src/lookdev/stage.ts`).

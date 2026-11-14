@@ -1455,6 +1455,18 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
       twin_height: m6((twin && c.pieces.get(twin.piece)?.value.size.h) ?? 0),
       // Spec 014 (FR-039): the grips, each avatar of the table's and each hand's, as the scene gives them.
       ...(c.avatars.figures.grips === undefined ? {} : { grips: gripsOf(c.avatars.figures.grips) }),
+      // Spec 025 (FR-018; plan.md R-09): the room's dog's block, as the scene gives it.
+      ...(scene?.figures.dog === undefined
+        ? {}
+        : {
+            dog: {
+              home: {
+                at: [m6(scene.figures.dog.home.at[0]), m6(scene.figures.dog.home.at[1])] as [number, number],
+                heading_deg: m6(scene.figures.dog.home.heading_deg),
+              },
+              footprint_m: m6(scene.figures.dog.footprint_m),
+            },
+          }),
     },
     handoff: {
       from: { placement: scene?.handoff.from.placement ?? "", anchor: scene?.handoff.from.anchor ?? "" },

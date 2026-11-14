@@ -570,6 +570,16 @@ const twinBlock = z.strictObject({
     .optional(),
 });
 
+/** `figures.dog` (spec 025, FR-018; plan.md R-09): the room's dog's home, `at` two finite numbers [x, z] in metres
+ *  and `heading_deg` within ±360, and `footprint_m` above 0. */
+const dogBlock = z.strictObject({
+  home: z.strictObject({
+    at: z.tuple([z.number(), z.number()]),
+    heading_deg: z.number().min(-360).max(360).default(0),
+  }),
+  footprint_m: z.number().positive(),
+});
+
 /** `figures` (spec 009, FR-037; plan.md §3.1): `twin_stand_in` an avatar of the room's table, which RI8 holds to it,
  *  absent for none; `texture_px` "a power of two from 256 to 4,096", 1,024 by default; `wait_ms` "an integer from 0 to
  *  3,000", 1,500 by default. */
@@ -587,6 +597,8 @@ const figures = z
     grips: grips.optional(),
     // Spec 016 (FR-054): the twin's own block, optional, its defaults resolved by the compositor.
     twin: twinBlock.optional(),
+    // Spec 025 (FR-018): the room's dog, optional; absent, no room dog.
+    dog: dogBlock.optional(),
   })
   .default(() => ({ ...FIGURES_DEFAULTS }));
 

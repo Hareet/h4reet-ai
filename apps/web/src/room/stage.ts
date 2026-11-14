@@ -172,7 +172,8 @@ export interface ClearArea {
 }
 
 /** One of the room's two figures (spec 009). */
-export type FigureId = "twin" | "visitor";
+/** The room's figures: the twin's, the visitor's, and spec 025's room dog (its FR-019). */
+export type FigureId = "twin" | "visitor" | "dog";
 
 /** Why a figure shows its fallback (spec 009, plan.md §3.4): its avatar has no file in the bundle; a file failed after
  *  its retry, or was skipped (the ledger, a stop); the device is below the floor; the room went to 2D; the avatar

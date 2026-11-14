@@ -310,6 +310,9 @@ export interface RoomScene {
     /** Spec 014 (FR-039; W16): each avatar's grip per hand, from the scene's figures block, in the hand bone's frame
      *  (metres at the room's scale, degrees); an absent avatar or hand takes the computed default (scene/grip.ts). */
     grips?: Partial<Record<AvatarId, Partial<Record<"right" | "left", { at: Vec3; turn: Turn }>>>>;
+    /** Spec 025 (FR-018; plan.md R-09, R-10): the room's dog's home on the floor, `at` [x, z] in metres and its turn
+     *  `heading_deg` (spec 008's heading: 0 faces into the room, −z), and its footprint; absent, no room dog. */
+    dog?: { home: { at: [number, number]; heading_deg: number }; footprint_m: number } | undefined;
   };
   handoff: { from: { placement: string; anchor: string }; to: { placement: string; anchor: string } };
   /** Placement IDs with a set model, a switch's pose named `<switch>.<pose>` (plan.md §10). */
