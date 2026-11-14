@@ -1,5 +1,42 @@
 # Notes: spec-026 and its reworks (2026-11-14)
 
+## The third rework (rework3-spec-026, on `night/rework3-spec-026/rework3-spec-026`, from rework2-spec-026's tip 8e676f55)
+
+Fixes for the Opus review rv-rework2-spec-026 (**not blocking**), done while a worker was free so impl-026 starts from a spec that matches the line's code. No code. Files: `intent/026-twin-pets-dog.md` (its rework line only) and `specs/026-twin-pets-dog/` (spec, plan, tasks, analysis, these notes). Read with `git --no-replace-objects`: `night/fix-020/fix-020` (3953b4c1: `compose/pick.ts`, its `memberRect` and `listOnly`; `compose/framing.ts`'s `Box`; `scene/bundle3d.ts`; `build/room/checks/rg.ts`'s `pickSweep`, lines 639 to 700; `room/scene.yaml`'s `selectables` and `twin-figure`; `src/choice/avatars.ts`'s `dog` shape; the tests that import them), spec 025's final tip bb1240be (plan §3, §3.1: the shell's z ±0.610), and the page's Q160 and its note.
+
+- **I-1** (the twin has no pick area; checked: `selectables` hold the snowboard, the bicycle, the laptop, the chalkboard; `twin-figure` is a placement with `frame: true`; `pickSweep` builds areas only from selectables' members): spec FR-014, User Story 3 scenario 5, M4, the Q160 note (the page's note quoted), Assumptions' RG6 paragraph; plan R-09 ("beside the twin's figure" is where the box stands; `pickSweep`'s inputs gain only the `front`; no twin pick area); tasks T013a (the grid's selectables are the scene's real ones plus `dog`, no twin piece).
+- **I-2** (rule 4): T013a and plan §6's `dog-pick` row gain `scene-fit`, `flat`, `flat-frame`, `protect`, `report`, and, found here, `bundle` and `objects` (each imports `compose/pick.ts`); T013b and the `dog-selectable` row gain `test/room/highlight.test.ts` (the one test calling `memberDraws`).
+- **Nit-1**: `dogBoxAt` returns the turned box's axis-aligned bounds (`Box`'s `min`, `max`): FR-014, R-09, §4, T013a. **Nit-2**: T013a asserts the dog's projected rectangle non-null at every swept stage and on the shipped scene, and stops RED with a page question if it is null at the shipped home: FR-014, Assumptions, R-09, T013a, the dependencies. **Nit-3**: Expected Cost Impact says 22 small tasks, T013 being T013a and T013b.
+- **Analysis re-run** (`/speckit-analyze`, with `SPECIFY_FEATURE_DIRECTORY`): no CRITICAL; A9 updated, A14 resolved, A15 (the bounds at an off-axis heading, LOW) and A16 (covering tests, INFO) added.
+- **Questions**: none new (`/night/io/out/questions.md` says so and names the two the implementer may raise at T003 and T013a).
+
+### Small runs (rule 4)
+
+```
+$ python3 -m pytest -q evals/test_docs_links.py evals/test_repository_docs.py
+.............................................................            [100%]
+61 passed in 0.89s
+
+$ python3 -I evals/docs_links.py
+PASS  the ADR index links every ADR file: 50 of 50
+PASS  User Story 6's five decisions have their ADRs: 0001 (local-first routing), 0002 (one compose topology), 0003 (local-compose-first delivery), 0004 (Langfuse and Grafana), 0005 (Telegram alerting)
+docs links: 0 failed, 2409 relative links in 384 files
+
+$ make lint
+node_modules is missing: run make setup
+make: *** [Makefile:227: lint] Error 1
+```
+
+The lint can't run in this container (no `node_modules`); this task changed only Markdown.
+
+### Interruptions
+
+None: no hook or bash-gate refusal was hit.
+
+### What's left
+
+Nothing of this rework. impl-026 on the line after spec 025's code (this branch merged first): T001 to T021, with T003's lean and T013a's non-null check and RG6 run on the shipped scene as the two places it may stop for the page; impl-026's reviewer checks this rework on the line (T022); the Author's T023 as the second rework lists it below.
+
 ## The second rework (rework2-spec-026, on `night/rework2-spec-026/rework2-spec-026`, from rework-spec-026's tip 3417bff2)
 
 Rule 6's rework after the Opus review rv-rework-spec-026 (blocking: RB-1, RB-2; also I-2, I-3, N-1, N-2, N-4). No code. Files: `intent/026-twin-pets-dog.md` (its rework line only), `specs/026-twin-pets-dog/` (spec, plan, tasks, analysis, these notes), `docs/merge-requests/human-patches/026.md`. Read with `git --no-replace-objects`: spec 025's final tip bb1240be (plan §3, §3.1, R-09; spec FR-008, FR-018, Q10, Q13), `fix-020`'s `compose/pick.ts`, `bundle3d.ts`'s picker, `rg.ts`'s `pickSweep`, `src/choice/avatars.ts`, `scene.yaml`; `main`'s `compose/floor.ts`, lines 121 to 147; the page (Q149, Q152 to Q154, Q158 to Q162).
