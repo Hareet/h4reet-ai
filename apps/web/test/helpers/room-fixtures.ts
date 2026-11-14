@@ -205,10 +205,11 @@ const AVATAR_GENERATORS: Readonly<Record<string, () => Uint8Array>> = {
   "glb:twin-handless": () => twinModel({ hands: false }),
   "glb:twin-heavy": () => twinModel({ images: [pngHeader(4096, 4096), pngHeader(4096, 4096)] }),
   "png:twin-still": () => twinDefaults().still,
-  // Spec 021's dinosaur (its T003 to T005): the model with the contract's rig, one without its Jaw (RA10), and its
+  // Spec 021's dinosaur (its T003 to T005): the model with the contract's rig, one without its Jaw (RA10), one too long (RA11), and its
   // clips by role.
   "glb:dinosaur": () => dinosaurGlb().bytes,
   "glb:dinosaur-no-jaw": () => dinosaurGlb({ omit: ["Jaw"] }).bytes,
+  "glb:dinosaur-long": () => dinosaurGlb({ length: 1.3 }).bytes,
   "glb:dinosaur-idle": () => dinosaurClip("idle").bytes,
   "glb:dinosaur-walk": () => dinosaurClip("walk").bytes,
   "glb:dinosaur-take": () => dinosaurClip("take").bytes,

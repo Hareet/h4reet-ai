@@ -4,6 +4,8 @@
 //   dog's null, so none of the three rules reads them.
 // - RA10, a model whose raw node names lack a bone of its row, exactly or after a `:` (as scripts/studio/line.py's
 //   has_bone reads it).
+// - RA11, a model whose rest-pose box, scaled to AVATAR_SHAPES[id].height, is over AVATAR_SHAPES[id].width × 1.05
+//   along x or z.
 // The dinosaur's folder is made in the test (test/helpers/glb.ts's dinosaurGlb and dinosaurClip, laid out by
 // room-avatars.ts's avatarFolder), never the asset (spec 009's FR-043).
 import { readFileSync } from "node:fs";
@@ -18,10 +20,11 @@ import type { ComposeOptions, Finding } from "../../build/room/compose";
 import { loadRoom } from "../../build/room/load";
 import type { RoomPolicy } from "../../build/room/policy";
 import type { Tree } from "../../build/room/source";
-import { AVATARS } from "../../src/choice/avatars";
+import { AVATAR_SHAPES, AVATARS } from "../../src/choice/avatars";
+import { dinosaurClip } from "../helpers/glb";
 import { REPO } from "../helpers/room";
 import { overlay } from "../helpers/room-fixtures";
-import { avatarPolicy, nightFiles } from "../helpers/room-avatars";
+import { avatarModel, avatarPolicy, nightFiles } from "../helpers/room-avatars";
 import { dinosaurFolder } from "../helpers/room-dinosaur";
 import type { DinosaurFolderOptions } from "../helpers/room-dinosaur";
 
@@ -128,6 +131,75 @@ describe("RA10: the rig's bones (FR-005)", () => {
 
   it("reports nothing where main's caps have no avatar block, as RA1 to RA4", () => {
     const set = avatarsIn(tree({ model: { omit: ["Jaw"] } }), avatarPolicy({ avatar: null }));
+    expect(set.problems).toEqual([]);
+  });
+});
+
+// T004 (FR-004; plan.md R-03): RA11, the model's rest-pose box, scaled uniformly to the avatar table's height, at most
+// the table's width (the cut-out's) along x and along z, with 5% slack. The limits are read from AVATAR_SHAPES.
+describe("RA11: the body's box (FR-004)", () => {
+  const shape = AVATAR_SHAPES.dinosaur;
+  const limit = shape.width * 1.05;
+  const box = (axis: "x" | "z", extent: number): string =>
+    `${axis} extent ${extent.toFixed(2)} m at ${shape.height} m high, over ${shape.width} m (+5%)`;
+
+  it("passes the default fixture, 1.0 m long and 0.6 m wide at the table's height", () => {
+    expect(ruleFindings(avatarsIn(tree({ model: { height: shape.height, length: 1.0 } })), "RA11")).toEqual([]);
+  });
+
+  it("refuses a body too long (z) or too wide (x) for its height, naming the axis and the extent", () => {
+    const long = avatarsIn(tree({ model: { height: shape.height, length: 1.3 } }));
+    expect(ruleFindings(long, "RA11")).toEqual([`RA11 ${MODEL}:-`]);
+    expect(reasonsOf(long, "RA11")).toEqual([box("z", 1.3)]);
+    const wide = avatarsIn(tree({ model: { height: shape.height, width: 1.3 } }));
+    expect(reasonsOf(wide, "RA11")).toEqual([box("x", 1.3)]);
+    const both = avatarsIn(tree({ model: { height: shape.height, width: 1.3, length: 1.4 } }));
+    expect(reasonsOf(both, "RA11")).toEqual([`${box("x", 1.3)}; ${box("z", 1.4)}`]);
+  });
+
+  it("holds the limit at the table's width with 5% slack, either side of it", () => {
+    const at = (length: number): string[] =>
+      ruleFindings(avatarsIn(tree({ model: { height: shape.height, length } })), "RA11");
+    expect(at(limit - 0.005)).toEqual([]);
+    expect(at(limit + 0.005)).toEqual([`RA11 ${MODEL}:-`]);
+  });
+
+  it("measures after scaling to the table's height: a model in centimetres, or of another height, by its own", () => {
+    const cm = (length: number): AvatarSet =>
+      avatarsIn(
+        tree({
+          model: { unit: 100, height: shape.height, length },
+          clips: {
+            idle: dinosaurClip("idle", { unit: 100 }).bytes,
+            walk: dinosaurClip("walk", { unit: 100 }).bytes,
+            take: dinosaurClip("take", { unit: 100 }).bytes,
+          },
+        }),
+      );
+    expect(ruleFindings(cm(1.0), "RA11")).toEqual([]);
+    expect(reasonsOf(cm(1.3), "RA11")).toEqual([box("z", 1.3)]);
+    // Half the height and half the length: the same body, scaled up to the table's height, passes; half the height
+    // and the same length is twice as long once scaled, and fails.
+    expect(ruleFindings(avatarsIn(tree({ model: { height: shape.height / 2, length: 0.5 } })), "RA11")).toEqual([]);
+    expect(reasonsOf(avatarsIn(tree({ model: { height: shape.height / 2, length: 1.0 } })), "RA11")).toEqual([
+      box("z", 2.0),
+    ]);
+  });
+
+  it("leaves the model and its clips out of a lenient build, and the dinosaur off the 3D part", () => {
+    const t = tree({ model: { length: 1.3 } });
+    const result = compose(t, avatarPolicy(), LENIENT);
+    expect(where(result.findings)).toEqual([`RA11 ${MODEL}:-`]);
+    expect(result.scene.avatars.dinosaur).toBeUndefined();
+    expect(bundled(avatarsIn(t), "dinosaur")).toEqual([]);
+  });
+
+  it("measures no woman or man, with no walk clip and any extent", () => {
+    // A 0.2 m model is scaled ×7.9 to the woman's height and ×8.7 to the man's: 3.9 m and 4.4 m wide, far over
+    // their cut-outs' widths, and no RA11, since their rows are null.
+    const small = { model: avatarModel({ height: 0.2 }).bytes };
+    const set = avatarsIn(tree(null, { woman: small, man: small }));
+    expect(ruleFindings(set, "RA11")).toEqual([]);
     expect(set.problems).toEqual([]);
   });
 });
