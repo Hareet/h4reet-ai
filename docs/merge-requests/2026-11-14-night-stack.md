@@ -948,3 +948,228 @@ Commit hooks: each of this session's commits printed gitleaks' "no leaks found" 
 Interruptions: one harness refusal, not a hook or the bash gate: a Monitor watch on the run's log needed an approval it didn't have, so I waited with a plain shell loop instead. Nothing was respelled.
 
 verify-021: green, carrying D-V2's six (Q165)
+
+---
+
+## Item 7: spec 024, the dinosaur eats chunks of the room's assets (`night/impl-024/impl-024`)
+
+Spec: specs/024-dino-eats-room-assets/ · Intent: intent/024-dino-eats-room-assets.md · Written by: implementer (night shift), impl-024 on Opus 5.5, over two sessions (the second resumed at T011a from the branch's save point); the review is for a worker who didn't write the code · Date: 2026-11-14
+Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl-024 · Repo hooks active: the commit hooks ran (gitleaks, arrival check) on every commit
+Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at the top of plan.md and tasks.md), the spec, and the plan, as reworked three times after rv-spec-024, rv-rework-spec-024, and rv-rework2-spec-024 (the page's Q39 to Q44, Q107 to Q109, Q113, Q114, Q117, Q119, Q147 to Q150, Q155, Q156, each answered: recommended). Base: rework3-spec-024 (1b714096), with `night/impl2-021/impl2-021` (77b1a244, item 4's reviewed tip) merged first (T000, merge commit 282279d5, no conflict), and `night/verify-021/verify-021` (b3d043a2, "verify-021: green, carrying D-V2's six (Q165)") merged before this section was written (b799a352, no conflict: it changes only this note and spec 021's text).
+
+### What changed and why
+
+His item i): "dino being able to eat chunks of assets like desk, busy sign, laptop, chalkboard". A visitor who chose the dinosaur can eat four pieces in the 3D room: the desk, the busy sign, the laptop, and the chalkboard. Near one, they press B or the "Eat" tile. The nearest standing chunk of that piece flies to the dinosaur's mouth and is gone. Chunks grow back one at a time, 20 s apart, until the piece is whole again. Each piece is split from its own model at its first bite. Whatever holds up a live face, a glow, or a mounted piece is set aside and never eaten. There is no asset, request, or event. The eaten state lives in memory only.
+
+**The dinosaur is the stand-in until his look approval** (rule 2). Item 4's model waits on the studio and his intake. While the flat cut-out shows, FR-001 turns the eating off: there is no tile, and key B does nothing. Everything below is built and tested on stub figures and on the four pieces' real files. It starts working when his dinosaur model lands, with no code change.
+
+By task, each test-first (RED committed before GREEN):
+
+- **T000**: item 4's tip merged, and the plan's names confirmed on it (plan §1's departure).
+- **T001 to T003, the data and the words**:
+  - `scene.yaml`: `edible: { chunks }` on the four placements (6, 4, 4, 4) and `eating.regrow_s: 20`;
+  - the schema's refusals (RD3) and the bundle's types;
+  - the words `eat.button` ("Eat") and `eat.first_bite` ("The dinosaur ate part of the {name}.").
+- **T004, the chunker** (`src/room/eat/chunker.ts`, `keepouts.ts`), pure: set-aside rules (a) to (d), then a seeded k-means split. Times on the real files (median of 5) are under FR-015's 50 ms:
+
+  | | desk | sign | laptop | board |
+  |---|---|---|---|---|
+  | set-aside | 3.1 ms | 0.5 ms | 12.1 ms | 1.6 ms |
+  | split | 12.6 ms | 0.2 ms | 8.0 ms | 1.1 ms |
+
+- **T005 to T007**:
+  - the meal ledger (`meal.ts`);
+  - the one predicate (`available.ts`);
+  - the mouth (`mouth.ts`): the `Jaw` bone by its raw or sanitized name, else the estimate. Spec 021's rig contract, line 7, now names `eat/mouth.ts`'s lookup (NB-4).
+- **T008, T009, the 3D side** (`eat3d.ts`, wired into `scene.ts`):
+  - chunk and cut meshes beside their sources, sharing attributes and materials;
+  - the back-face cut colour (× 0.7);
+  - the flight (600 ms) and the regrowth (400 ms);
+  - each mesh's visibility kept (RB-1);
+  - on any exception, one `console.warn` and the piece as loaded.
+
+  Draw calls, split: sign 10, board 37, laptop 62, desk 75. All four split draw 142 more than whole (42). FR-015's ceilings are 100 a piece and 240 for all four.
+- **T010, key B** (`walk/input.ts`, `eat/press.ts`): never in a text field and never with a modifier; only at an edible piece in reach; one bite at a time.
+- **T011a, the Eat box and the compositor's judgement** (`compose/hud.ts`, `frame.ts`, `protect.ts`, `stages.ts`, `build/room/checks/rg.ts`, `report.ts`). For a 3D dinosaur visit only, an 8 × 2.75 rem box sits beside the walking control and is reserved for the whole visit. The compositor sweeps the supported screens a second time with it (Q150):
+  - RG5's aspects cover the variant's stages;
+  - RG6 refuses a problem found only there ("… for a 3D dinosaur visit");
+  - RG7 holds the floor at its reference stages;
+  - the report gains the dinosaur visit's lines.
+
+  The bundle stays the plain visit's. Every other visit's boxes, stages, layout choice, and report lines are unchanged: a snapshot written against T010's code holds them.
+- **T011b, the tile** (`layout.ts`, `hud/icons.ts`, `room.css`, `app.ts`; `hud/split.ts` exports `attempt`). It is a real button, named "Eat, B". Its key cap may fail to draw and the tile keeps its name (NB-1). It sits at the box, and it shows only while the 3D side says the eating is available and the room isn't paused.
+- **T012, T013**:
+  - reduced motion: no flight and no growth;
+  - the polite line, once per piece per visit, through the live region;
+  - the degraded modes: paused, loading, 2D, another visitor, and nothing stored or sent.
+- **T014**: the budgets (below).
+
+Departures, each in plan.md in the same commit:
+- §1: the branch and the merge;
+- §5.1: RD3 in the schema;
+- §5.2: `keepouts.ts`, `shapeBox` moved, and the node-name match;
+- §5.4: meshes beside their sources, and the hooks;
+- §5.5: the press's gate in `press.ts`, T011a's eight points, and T011b to T013's;
+- §6: T014's sizes.
+
+The two that need his eye are on the page (below).
+
+### Acceptance criteria
+
+| Requirement | Tests |
+|---|---|
+| FR-001, FR-009 | `eat-available`, `eat-degraded`, `eat-button` |
+| FR-002, FR-011 | `eat-data` |
+| FR-003 to FR-008, SC-001 to SC-003 | `eat-chunker`, `eat-meal`, `eat-3d` (the four real pieces) |
+| FR-010 | `eat-reduced` |
+| FR-012 | `eat-input`, `eat-box`, `eat-checks`, `eat-button` |
+| FR-013 | none: no clip role added |
+| FR-014, FR-016, SC-006 | `eat-meal`, `eat-degraded` (no request, beacon, or storage touch; no event kind or config line) |
+| FR-015 | `eat-chunker`, `eat-3d`, T014 |
+| SC-004 | `eat-box`'s option-off snapshot, and the existing HUD, stage, and report tests |
+| FR-006's look, A4's set-aside part | his look approval |
+
+### Verification (small tests, the order's rule 4)
+
+From `apps/web`, each task's own files and the files importing what it changed (tasks.md's lists). Earlier tasks, all passing:
+
+| Task | Files | Passed |
+|---|---|---|
+| T001 to T003 | 12 files | 850 |
+| T004 | `eat-chunker`, `standins`, `stages-checks` | 63 |
+| T005 to T007 | 3 files; `evals/test_docs_links.py` | 38; 44 |
+| T008 | `eat-3d`, `scene`, `highlight`, `gltf-images` | 124 |
+| T009 | `eat-3d`, `pick` | all |
+| T010 | 6 files | 59 |
+
+T009's RED was shown by a mutation (rule (c) off): 2 failed.
+
+**T011a.** RED against T010's code: `eat-box` and `eat-checks`, 21 failed, 5 passed. GREEN, those two files: 26 passed. Its list (57 files, with `compose.test.ts`, nit 2):
+
+```
+ FAIL  test/room/data-only.test.ts > the proof set, each change a data edit (FR-006, SC-001) > an addition: … a labelled, selectable stand-in
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > (three cases)
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ Test Files  3 failed | 54 passed (57)
+      Tests  5 failed | 1356 passed | 1 skipped (1362)
+   Duration  1659.06s
+```
+
+Of those five failures:
+- **Four are D-V2's** (Q165): legibility's three and report's one.
+- **One is this item's**, `data-only`'s addition case. That test picks a free spot clear of the walking control's box only. The dinosaur visit's sweep then finds the added selectable's core under the Eat box at 335 stages ("RG6 … its exclusive core lies under a panel's box, the walking control's box, or the "Eat" tile's box in 3D at 320 × 250 and 334 others for a 3D dinosaur visit").
+  - The test is another spec's, so it isn't edited here.
+  - `docs/merge-requests/proposed/024-data-only-eat-box.patch` (one line) makes its search reserve the Eat box too. With it on a copy, the test passes 31 of 31.
+  - It is on the page, recommended "apply".
+  - The repository's own data composes with no finding in the variant.
+
+**The node-name nit.** RED: 1 failed. GREEN: `eat-3d`, `eat-chunker`, `scene`, 124 passed.
+
+**T011b to T013.**
+- RED: `eat-button`, 11 failed and 2 passed. `eat-reduced` and `eat-degraded`, run against the code before T011b: 6 failed and 5 passed. The 5 are the 3D side's cases, pins on T008's code.
+- Their lists (32 files): 5 failed, 486 passed.
+  - Two of the failures were mine, both fixed. The tile's hover rules are dropped, since `hud-look`'s T053 case scopes hover rules to the HUD's buttons by class. The polite line's label is now passed by the 3D side.
+  - The other three: `disclosure.test.ts`'s two are D-V2's (Q165), and `data-only`'s is T011a's, above.
+- Then, the files those fixes touched:
+
+```
+npx vitest run test/ui/eat-reduced.test.ts test/ui/eat-degraded.test.ts test/ui/eat-button.test.ts test/ui/hud-look.test.ts
+  test/room/scene.test.ts test/room/eat-3d.test.ts
+ Test Files  6 passed (6)
+      Tests  129 passed (129)
+```
+
+**T014:**
+
+```
+npx vitest run test/room/chunk.test.ts test/room/budgets.test.ts test/room/eat-3d.test.ts
+ Test Files  3 passed (3)
+      Tests  62 passed (62)
+```
+
+Sizes, measured gzip on a scratch copy of `chunk.test.ts`:
+
+| | 282279d5 (before) | here | change | budget |
+|---|---|---|---|---|
+| choice screen's JavaScript and CSS, release | 56,242 bytes | 57,108 bytes | +866 (the tile and the box) | 153,600 |
+| the 3D chunk | 111,928 bytes | 118,126 bytes | +6,198 | measured, not raised |
+
+The base's sizes came from a `git archive` copy, where two of that file's cases failed (no `.git` there). Only its sizes were read.
+
+**The compose's time**, one cold `compose` of the repository's room: 16.2 s before T011a, 16.3 s after.
+
+**The lint target**, after T014's code. It first failed on three things, fixed in ac890a80: an unused import left by T004's move, an unused test argument, and prettier on two files. Then:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+785 files already formatted
+… shellcheck …
+exit 0
+```
+
+After this section was written: `pytest -q -p no:cacheprovider --import-mode=importlib evals/test_docs_links.py evals/test_repository_docs.py`, 61 passed in 0.92s, and the lint target again (below the commit that adds this section).
+
+D-V2's six, as these runs met them: `legibility.test.ts`'s three, `report.test.ts`'s one, and `disclosure.test.ts`'s two. None was fixed here, and `docs/merge-requests/proposed/018-verify-test-amendments.patch` was never applied. No full suite was run here: the stack's last task runs the one full check.
+
+SC-006 (human-only paths): `git diff --stat 282279d5 HEAD -- .claude tools/gates corpus assets CLAUDE.md REVIEW.md .specify/memory/constitution.md evals/agent-config redteam/forbidden-actions.sh` is empty.
+
+### Review
+
+The spec's reviews, and how the plan, the tasks, and the code settle their non-blocking findings (analysis.md's table):
+- **rv-spec-024**:
+  - I-4 to I-6 and N-1 to N-5 are in the spec and plan as the first rework left them.
+  - B-1 and B-2 are fixed.
+  - B-3 is overturned by Q117 (no event).
+- **rv-rework-spec-024**:
+  - NB-1 (`attempt`) is in the tile.
+  - NB-2 (the 10 mm margin) is in `keepouts.ts`.
+  - NB-3 (`node_modules`) was present here.
+  - NB-4 (spec 021's contract, line 7) was amended at T007.
+  - NB-5 (the mesh counts) is asserted at T008.
+- **rv-rework2-spec-024**:
+  - RV-2 (the cover rule without the Eat box) is in `splitBoxes`, and tested.
+  - N-1 (one ADR for specs 024 and 025) waits for the docs role.
+  - N-2 (the mesh name) is `meshNameOf`.
+  - N-3 (T011 split) is T011a and T011b.
+- **rv-rework3-spec-024's nits**, each fixed:
+  1. RG5's test asserts the cover only (`eat-checks`, and tasks.md).
+  2. `compose.test.ts` is in T011a's list.
+  3. The stage corner's box is `eatControlBox`'s, and `eat-box` tests that the two agree at every supported clear area.
+  4. The picker's fallback (`bundle3d.ts:385`) isn't changed. It runs only for a stage without `reserved`: spec 005's clear area, before the 3D stage gives its protector, where no visit has an Eat box. Plan §5.5 says so.
+  5. `compose/hud.ts` cites spec 018's FR-001 (e) and Q58.
+  6. The node-name match is done too: `matchedNameOf` matches as `prepareModel` hides, by any node's name.
+
+This item's code review is for the next worker (rule 6).
+
+### Cost and data-flow impact
+
+$0, and no model call. No byte leaves a visitor's device for the eating: no request, no event, no storage (FR-014, FR-016; `eat-degraded`). No disclosure row, panel, or event config changes (Q117). The deviations, named in spec A5: Principle II's telemetry and Development Workflow 7's graph. The second sweep adds about 0.1 s to the compose.
+
+### For the Author
+
+What waits for you:
+
+1. **Human patch 024** (`docs/merge-requests/human-patches/024.md`): no human-only path changes. The note lists what this item touches.
+2. **The one ADR** for the "no usage event" deviation (Q117, Q-R2c), shared by specs 024 and 025 (Q149). If you confirm Q117, the docs role writes it, on main before this item merges. It isn't written here.
+3. **Q149 and Q161**, on the page as the supervisor names them, with their recommended answers.
+4. **This session's two questions** (`/night/io/out/questions.md`), each with its recommended answer:
+   - for a dinosaur visit, where the Eat box fits neither beside nor above the walking control at the column's head, both controls sit in the stage's corner (36 of 14,482 sweep cases at 16 px);
+   - apply `docs/merge-requests/proposed/024-data-only-eat-box.patch`. Until that is settled, `data-only.test.ts`'s addition case fails on this branch.
+5. **Your look approval** on dev-cpu, once the dinosaur's model is in (item 4's intake):
+   - the cut colour, the flight, the regrowth, and the set-aside part (spec A4);
+   - the tile, which has no hover change of its own (plan §5.5).
+6. **Your answers to the spec's questions**, all taken as recommended: Q1 to Q6, Q107 to Q109, Q117, Q119, Q-R2a to Q-R2c, Q149, Q150, Q-R3a, Q-R3b.
+
+Interruptions:
+- **Two bash-gate refusals.**
+  - A `rm -rf` of a scratch folder under `/tmp` was refused as "recursive delete outside workspace". It was a real refusal. I took another route: a fresh `mktemp -d`, and nothing deleted outside the repository.
+  - The shell command that would have appended this section was refused as "an Author-only make target". That was a false match on this section's words. The section was written with the Edit tool instead.
+
+  Nothing was respelled.
+- **One harness block**, not a hook: a Monitor watch needed an approval it didn't have, so I waited with a background shell loop instead.
