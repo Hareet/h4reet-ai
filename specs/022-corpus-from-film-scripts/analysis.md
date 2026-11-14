@@ -1,21 +1,34 @@
 # Analysis: spec 022, across spec.md, plan.md, tasks.md
 
-Read-only check, re-run 2026-11-14 by the rework's spec-writer (rework-spec-022), after the Opus review rv-spec-022 (blocking: B-1 to B-3) and its rework. `/speckit-analyze`'s prerequisite script needs `SPECIFY_FEATURE_DIRECTORY=specs/022-corpus-from-film-scripts` in this worktree (no `.specify/feature.json`); with it, it resolves the feature folder. Its optional `before_analyze` and `after_analyze` hooks (the git commit) are taken by hand: the save points are the night's.
+Read-only check, re-run 2026-11-14 by the second rework's spec-writer (rework2-spec-022), after the Opus review rv-rework-spec-022 (blocking: R-1) and this rework. `/speckit-analyze`'s prerequisite script needs `SPECIFY_FEATURE_DIRECTORY=specs/022-corpus-from-film-scripts` in this worktree (no `.specify/feature.json`); with it, it resolves the feature folder. Its `before_analyze` and `after_analyze` hooks (the git commit, both optional) are taken by hand: the save points are the night's.
 
-Constitution check: VII (no ownership beyond `01`'s and `08`'s rulings: FR-002, plan §2 rules; the kill-switch film's "And only Hareet runs the final gate." carried only as `08`'s existing "only I merge"), VIII (corpus-only twin; unbuilt, stale, and moving claims kept out: FR-007, Q4), III (a human merges: FR-001, Assumptions), VI (the proposal and the left-out table are public). No deviation to name.
+Constitution check: VII (no ownership beyond `01`'s and `08`'s rulings: FR-002, plan §2 rules; the kill-switch film's "And only Hareet runs the final gate." carried only as `08`'s existing "only I merge"), VIII (corpus-only twin; unbuilt, stale, moving, and contradicted claims kept out: FR-006, FR-007, Q4, Q104), III (a human merges: FR-001, Assumptions), VI (the proposal and the left-out table are public). No deviation to name.
 
-## The review's blocking findings, rechecked
+## The second review's findings, rechecked
 
 | Review | Where it's fixed | Check |
 |---|---|---|
-| B-1, `kill-switch-b2` in scope but read by nothing (Q95) | spec Q1, Q2, FR-006, SC-003; plan §2 (first row), §3 R1, R2; tasks T001, T003, T004, T007 | Consistent: seven sections everywhere; sentences numbered by plan §3 R1's split; sources from `films/kill-switch-b2/materials.md`; the "five dollars" and "three fifty" amounts out, the daily figure `site.kill_switch_daily`, "only Hareet runs the final gate" only as "only I merge". |
-| B-2, the number rule | spec Q3, FR-003, FR-004, US3; plan §3 R4, R5; tasks T001, T002; human patch's slot row | Consistent: stated as the spec's own rule, with `corpus/README.md`'s actual words; exempt spans named the same in FR-003 and R4; number words and word-currency forms from `guards.ts` as well as `check_corpus.py`'s `CURRENCY`, with parity tests; "Qwen3" dropped (plan §2 leaves the local model's name out); "ten cents" and "fifteen containers" fixtures in T001. |
-| B-3, moving counts (Q96) | spec Q4, FR-003, FR-007; plan §2 (slots, evals row); tasks T005; human patch | Consistent: one slot, `site.prod_containers` (fifteen, prod's services in `deploy/compose.yaml` under `COMPOSE_PROFILES=gpu`, which I counted: edge, gateway, web, gateway-state, model-server-gpu, otel-collector, prometheus, loki, grafana, langfuse-web, langfuse-worker, langfuse-db, clickhouse, valkey, seaweedfs); case and red-team counts are gap lines. |
-| C-1 to C-6 | SC-002, US1-2, tasks header and T008 (`patch -p1`); FR-009, plan §6, T009 (C9, `content:check`, `narration.test.ts`); US2, FR-013, cost estimate, plan §7 (free talk `ready: false`); intent, spec, plan, human patch (his words are g) "hareet-ai corpus from film scripts" only); spec Q2 and Source (the note's line 4, lines 41 to 48); spec Q6, plan §2, T006 (Golden Q&A 5's suggested sentence) | Consistent across the files. |
+| R-1 (blocking), list numbering read as numbers | spec FR-003, US3 scenario 3; plan §2 (Golden Q&A numbered on from `08`'s last), §3 R4 (exempt spans), §8; tasks T001 (passing fixture `9. *How does the kill switch stop spending?* — … [P]`), T005 | Consistent: the exemption is `^\s*\d+\.\s`, the same as `guards.ts`'s `numbersSource` (its third `replace`) and the prefix `twin-pack.ts`'s `GOLDEN_ITEM` (`/^(\d+)\.\s+(.*)$/`) reads. |
+| R-2 (Q104), "production" is the laptop's stack | spec Input, Q4, FR-003, FR-006; plan §2 (kill-switch, local-first, stack rows; the slot's `source` and `label`), §8; tasks T004, T005, T007; human patch | Consistent: every place names `ENV=prod`, `COMPOSE_PROFILES=gpu`. Rechecked here: under that profile `deploy/compose.yaml` runs fifteen services, and only `gateway` lists `egress`; `tunnel` (profile `tunnel`), `tunnel-end-collector` (`tunnel-end`), and `ec2-snapshot-publisher` (`ec2`) also list it. The road-out line's source is `deploy/compose.yaml`'s `networks`. |
+| R-3, `AMOUNT_WORDS_PY_SOURCE` isn't one literal | spec FR-004; plan §3 R4 (three numbered patterns); tasks T002 | Consistent: the word-currency copy and its parity test read `redteam/run.py`'s `_NUMBER_WORDS` and `AMOUNT_WORDS` blocks, as `twin-guards.test.ts:590-609` does; `EXTRA_PATTERN` is kept, its fixed words named. "At three fifty" matches none of the three currency patterns; R4's number words catch it (plan §3 R4, T001), checked here with Python against `AMOUNT_WORDS`. |
+| R-4, attribution | spec header, Clarifications preamble, Open Questions; tasks T000, T006 | The page's "answered" record is named as the page's; the orders file's rule 1 is quoted as the brief gives it, as the orders file's; T000 lists Q1 to Q6, Q95 to Q97, Q102, Q104, and the new question. |
+| R-5, carried in part, "contradicted by the repository", "shown as built" | spec Q2, FR-006; plan §2 (kill-switch and stack rows), §3 R1 (the split joins file lines 9 and 11), R2, R3; tasks T001, T003, T004, T007 | Consistent: the closed list is the same eight reasons in FR-006 and R2; the examples (`kill-switch-b2` file lines 5, 7, 9 and 11; `SCRIPTS.md` §1 line 2; §5 line 1) are the same in spec, plan, and T004. |
+| N-a | plan §3 R1: "the quoted message on the file's line 15" | Fixed. |
+| N-b | spec FR-003, plan §3 R4: "the plurals G1 reads", its `SCALES`' only | Fixed; the old A8 is closed. |
+| N-c | tasks T007, T010, T011 name `make lint`; T010, T011 name `pytest evals/test_docs_links.py evals/test_repository_docs.py`; plan §5 | Fixed. |
+| N-d | plan §2's cost-meter row leaves out "to the millionth of a dollar" (§1 line 2, carried in part) | Fixed. |
+| N-e | spec Q1 quotes the note's line 10 with its markup (`**Seven explainer films**`) and says so | Fixed. |
+| rv-spec-022's N-1, analysis A1's CLAUDE.md citation | A1 below | The first analysis's A1 cited "CLAUDE.md: agents' pytest and node_modules are the Author's host's", which CLAUDE.md doesn't say; the first rework dropped it, and A1 now cites the evidence instead (this worktree has no `node_modules`; notes). |
+| N-2 | tasks T000 (its small tests), T006, T007 (`make lint`) | Fixed. |
+| N-3 | tasks T007, plan §4: a reviewer task the supervisor queues | Fixed. |
+| N-4 | spec Input and the quoting table: `intent/015-explainer-films.md` ("made with the huashu-motion skill as editable code (HTML and GSAP)") and `LICENSE`, not ADR 0050 | Fixed. |
+| N-5 | spec Q3, tasks T005: the `[P]` lines' URLs resolve at publication, the proposal says so (Q102) | Fixed. |
+
+The first review's B-1 to B-3 and C-1 to C-6, cleared by rv-rework-spec-022, are unchanged here.
 
 ## Coverage
 
-Every FR (001 to 013) and SC (001 to 004) maps to a task and a small test (tasks.md, Coverage). Each task names its test files and `make lint`; the full `make check` is T012 only (rule 4). The approval line and the Author's words are at the top of `plan.md` and `tasks.md`.
+Every FR (001 to 013) and SC (001 to 004) maps to a task and a small test (tasks.md, Coverage). Each task names its tests; the full `make check` is T012 only (rule 4). The approval line and the Author's words are at the top of `plan.md` and `tasks.md`.
 
 | Requirement | Tasks |
 |---|---|
@@ -23,7 +36,7 @@ Every FR (001 to 013) and SC (001 to 004) maps to a task and a small test (tasks
 | FR-002 | T005, T007 |
 | FR-003, FR-004 | T001, T002, T005 |
 | FR-005, FR-010 | T006 |
-| FR-006, FR-007 | T003, T004 |
+| FR-006, FR-007 | T001, T003, T004 |
 | FR-008 | T005, T009 |
 | FR-009 | T009 |
 | FR-011, FR-012 | T002 |
@@ -36,20 +49,20 @@ No unmapped task: T000 is the Author's, T010 to T012 are the notes and the stack
 
 | ID | Severity | Finding | Resolution |
 |---|---|---|---|
-| A1 | Medium | T009 needs node and `node_modules` in the export to regenerate the pack, the lock, and the cases, and to run `content:check`; agents' sandboxes may not run them. | T009 allows the fallback: patch the corpus files only, and the note lists the regeneration and `content:check` as the Author's first step. The reviewer must say which path was taken. |
-| A2 | Low | Q2: his approval of the scripts is now cited (`docs/merge-requests/2026-11-11-feat-015-explainer-films.md:4`; line 10 for each `script.txt`); lines changed after it (lines 41 to 48) are marked per row. Which script lines those rows changed is the implementer's to establish against the note's diff, not this spec's. | T004 marks them; T007 checks each mark. |
-| A3 | Low | Q6's Haiku quote is "this session, 2026-11-10": not in any filed intake. The tag `[A 2026-11-10]` needs it to be his. | Marked "to confirm" (FR-010, T006); on the page as Q24. |
+| A1 | Medium | T009 needs node and `node_modules` in the export to regenerate the pack, the lock, and the cases, and to run `content:check`. This worktree has none (`make lint` stops at "node_modules is missing", notes), so an agent's export may not either. | T009 allows the fallback: patch the corpus files only, and the note lists the regeneration and `content:check` as the Author's first step. The reviewer must say which path was taken. |
+| A2 | Low | Which script lines the films' note's rows (lines 41 to 48) changed after his approval is the implementer's to establish against the note's diff. | T004 marks them; T007 checks each mark. |
+| A3 | Low | Q6's Haiku quote is "this session, 2026-11-10": not in any filed intake. | Marked "to confirm" (FR-010, T006); on the page as Q24. |
 | A4 | Low | `apps/web/content/resume.lock.json` and C9's forbidden list are also touched by the resume item's stack. | Plan §6, T010, and the human patch name the overlap; the later merge regenerates the lock and re-runs `content:check`. |
-| A5 | Low | Q1's other reading (third-party screenplays) would change the whole deliverable; FR-012 and the quoting table cover only the rule, not the work. | If he picks it, the spec is reworked before merge (the order's rule 1). |
-| A6 | Medium | Plan §2 named a new `08` section "How it's built" (from `SCRIPTS.md` §6), and FR-002 "how it's built (the lifecycle)"; `08` already has `## How it's built` tagged `[A 2026-11-06]`, his. Two headings of one name, or `[P]` lines under his tagged heading, would blur whose words they are. | Rename the new section "How a change is made" in FR-002, plan §2, and the human patch; `08`'s own section stays his. Applied after this analysis, in the same commit. |
-| A7 | Low | `[P]` is "Public artifact, with URL" (`corpus/README.md`); the repository isn't public yet (`08`, Public artifacts). The new `[P]` lines point to URLs that resolve only after publication. | A new question on the page (recommended: keep `[P]` with the repository URL, as `08` already cites the repository; the proposal says so). T000 lists it. |
-| A8 | Low | FR-003 and plan §3 R4 say G1's number words "with plurals"; `guards.ts` reads a plural only for its `SCALES` ("hundreds", "dozens"). | The parity test reads `guards.ts`'s pattern, so the checker follows the code; the wording is read as "the plurals G1 reads". No change. |
-| A9 | Info | The review's own file (`/home/h4reet/h4reet-ai/night/.io/rv-spec-022/out/review.md`) wasn't readable in this container, and its branch has no commit of its own; N-1 to N-5 and the three summarized nits weren't in the brief's lines. | Not addressed by name; left for rv-rework-spec-022 to recheck (notes, page's Interruptions). Nits found here and fixed: `corpus/README.md`'s currency rule is rule 2, not 3; the comparison cuts' quote is `films/README.md:17`'s actual words; Q1's "seven films" is cited to the films' note, line 10 (the old A7); T012's "whichever is later" is "the supervisor names it" (the old A5). |
+| A5 | Low | Q1's other reading (third-party screenplays) would change the whole deliverable. | If he picks it, the spec is reworked before merge (the orders file's rule 1). |
+| A6 | Low | R1's split joins "At five dollars..." and "it stops itself." into one sentence, so SC-003's count for `kill-switch-b2` is one less than a split at every `...`. | Stated once, in plan §3 R1; T003's real-script test holds the count to that split; spec FR-006 and T004 cite it. |
+| A7 | Low | The tunnel clause in "From outside, there's no door: …" is left out as unbuilt on `materials.md`'s "shown as built" note, which reads the Author's words beside it. That reading is this rework's. | On the page as a new question with its recommended answer (leave it out as unbuilt), which the build takes; T000 lists it. |
+| A8 | Info | Outside this spec: `deploy/compose.yaml`'s header comment (line 9: "only `gateway` joins `egress`") and `films/kill-switch-b2/materials.md`'s networks row ("egress (gateway only)") are true only without the `tunnel`, `tunnel-end`, and `ec2` profiles. | Not this spec's to change (no code, no film edit). Named in the notes for the Author and ops; the proposal says the road-out line only of the laptop's stack (Q104). |
+| A9 | Info | rv-spec-022's three summarized nits were in neither rework's brief. | Left for rv-rework2-spec-022 to recheck (spec Assumptions, notes). |
 
-**Metrics**: 13 functional requirements, 4 success criteria; 13 tasks (T000 to T012); coverage 100%; ambiguity 1 (A8, no change); duplication 1 (A6, fixed); critical 0.
+**Metrics**: 13 functional requirements, 4 success criteria; 13 tasks (T000 to T012); coverage 100%; ambiguity 0 (the old A8 fixed by N-b); duplication 0; critical 0.
 
-No needs-clarification marker is left in the requirements. No finding blocks the build; A6 is fixed in the same commit, and A7 waits on the page with its recommended answer, which the build takes.
+No needs-clarification marker is left in the requirements. No finding blocks the build; A7 waits on the page with its recommended answer, which the build takes.
 
 ## Next actions
 
-Implementation (impl-022) waits for rv-rework-spec-022, an Opus reviewer that didn't write this rework, then starts from this branch's tip.
+Implementation (impl-022) waits for rv-rework2-spec-022, an Opus reviewer that didn't write this rework, then starts from this branch's tip.
