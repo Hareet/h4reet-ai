@@ -5,7 +5,7 @@
 // `note`. chase-figures.ts is its shell: it places the pictures from the runners and drives their legs and clips.
 import type { WalkableFloor } from "../compose/floor";
 import type { ChaseConfig, Runner } from "./chase-steer";
-import { createRunner, steer, turnToward, walkHome } from "./chase-steer";
+import { createRunner, steer, walkHome } from "./chase-steer";
 
 export type ChaseFigureId = "twin" | "dog";
 export type ChaseWho = "both" | "twin" | "dog";
@@ -64,6 +64,8 @@ export const FACE_MAX_RAD = Math.PI / 2;
 class Face {
   on = false;
   heading = 0;
+  /** This frame's turn at most, `FACE_RATE_RAD_S · dt`: a field, so `turnTwin` takes no fraction (rework3-026). */
+  step = 0;
 }
 
 /** FR-001's condition: the visitor chose the dinosaur, its figure shows the model, and the walking view is on. */
@@ -161,14 +163,20 @@ export function createChase(options: {
   let resumed = false;
   const face = new Face();
 
-  /** Spec 026 (R-07): the twin at home turns toward the request, or back to its home heading, at FACE_RATE_RAD_S. Its
-   *  place, step heading, speed, and phase stay its home's, so it turns, never walks. */
-  const turnTwin = (dt: number): void => {
+  /** Spec 026 (R-07): the twin at home turns toward the request, or back to its home heading, by `face.step` (this
+   *  frame's share of FACE_RATE_RAD_S). Its place, step heading, speed, and phase stay its home's, so it turns, never
+   *  walks. `turnToward`'s arithmetic written out, and no argument (FR-027; rework3-026, the page's Q284): a fraction
+   *  passed to or returned from a call V8 doesn't inline is boxed at the call, and with spec 026's director in the
+   *  room's frame V8's inlining budget can run out before it reaches this one or `turnToward` (measured). */
+  const turnTwin = (): void => {
     if (!twin || twin.phase !== "home") return;
     const to = face.on ? face.heading : twin.home.heading;
     const r = twin.runner;
-    if (r.facing === to) return;
-    r.facing = turnToward(r.facing, to, FACE_RATE_RAD_S * dt);
+    const from = r.facing;
+    if (from === to) return;
+    const d = Math.atan2(Math.sin(to - from), Math.cos(to - from));
+    const max = face.step;
+    r.facing = Math.abs(d) <= max ? to : from + Math.sign(d) * max;
   };
 
   return {
@@ -234,7 +242,8 @@ export function createChase(options: {
       } else {
         back(twin, dt);
         back(dog, dt);
-        turnTwin(dt);
+        face.step = FACE_RATE_RAD_S * dt;
+        turnTwin();
         if (said !== null && twin?.phase !== "returning" && dog?.phase !== "returning") {
           // The figures that moved in the run, which hold `said`'s at least.
           options.note?.({ state: "ended", who: whoOf(ranTwin, ranDog) ?? said });

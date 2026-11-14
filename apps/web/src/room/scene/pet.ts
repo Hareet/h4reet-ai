@@ -6,8 +6,8 @@
 // director reads its view and never writes it. A run from the dinosaur outranks the petting (FR-011).
 import { PET_DEFAULTS } from "./pet-config";
 import type { PetConfig } from "./pet-config";
-import { Point, strokeShare, strokeTarget, weightAt } from "./pet-reach";
-import type { Vec3 } from "./pet-reach";
+import { Point, reachAt } from "./pet-reach";
+import type { ReachClock, Vec3 } from "./pet-reach";
 
 /** The pet block's tunables and their defaults (plan §3), in pet-config.ts so the build reads them without three.js. */
 export { PET_DEFAULTS } from "./pet-config";
@@ -115,7 +115,7 @@ class ReachState implements PetReach {
 
 /** The director's numbers, fields written in place (I-1; rv-rework-026's B-3): a closure variable holding a fraction
  *  is boxed anew at each write, and a fraction passed to a call V8 doesn't inline is boxed at the call, so none is. */
-class Numbers {
+class Numbers implements ReachClock {
   /** Seconds in the present phase, on the room's frames (a pause holds it). */
   t = 0;
   /** The twin's heading for the petting, and its home heading it turns back to, read at the start. */
@@ -128,8 +128,8 @@ class Numbers {
   lastEnd = -Infinity;
   /** The run's cut: the weight it eased from. */
   fadeFrom = 0;
-  /** The petting's length, the clip's or `pet_s`, as the reach's weight and stroke read it (`weightAt`, `strokeShare`
-   *  take this object). */
+  /** The petting's length, the clip's or `pet_s`, as the reach's weight and stroke read it (`reachAt` takes this
+   *  object, with `t` and `dogHeading`). */
   pet_s = 0;
 }
 
@@ -371,8 +371,8 @@ export function createPet(options: {
       }
       if (reachOn) {
         if (phase === "petting") {
-          reach.weight = weightAt(n.t, n);
-          strokeTarget(base, n.dogHeading, strokeShare(n.t, n), config, reach.target);
+          // Objects only, no fraction passed or returned (FR-027; rework3-026).
+          reachAt(n, base, config, reach);
         } else if (fading) {
           const u = Math.min(1, n.t / CUT_EASE_S);
           reach.weight = n.fadeFrom * (1 - u * u * (3 - 2 * u));
