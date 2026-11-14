@@ -27,8 +27,9 @@ R4  the new text states no number outside a slot (digits, or G1's number words; 
     CURRENCY, redteam/run.py's AMOUNT_WORDS, guards.ts's EXTRA_PATTERN); every slot exists; and the whole file holds no
     CURRENCY match, since corpus-check reads `corpus/proposals/` too.
 R5  every quotation in the new text is the Author's words as `SCRIPTS.md` quotes them (the checker's fixed list), his
-    words in the disclosure's row F3, or a cited file's own text; no file under `films/`, and no file outside the
-    repository, is ever a cited file here, its path normalised and resolved.
+    words in the disclosure's row F3, or a cited file's own text: a carried or in-part row's source only, never the
+    proposal being checked, a file under `films/`, `corpus/proposals/`, `docs/merge-requests/`, `specs/`, or
+    `intent/`, or a file outside the repository, its path normalised and resolved.
 R6  with --third-party, no quoted span longer than a title, anywhere in the proposal, that the repository doesn't hold.
 R7  the summary says the denylist was not applied: this checker never reads `corpus/intake/private/`.
 
@@ -322,14 +323,24 @@ def in_root(root: Path, path: str) -> bool:
     return (root / path).resolve().is_relative_to(root.resolve())
 
 
-def under_films(root: Path, path: str) -> bool:
-    """A file under `films/`: the films' own text (scripts, captions, notes, materials), written by the agents
-    (rv-rework-022's F-1). Read by its normalised spelling and, through a link, by where it resolves."""
+# The trees R5 never reads as a cited file's text: the films' own text (scripts, captions, notes, materials;
+# rv-rework-022's F-1), and the agents' proposals, merge-request notes, specs, and intents (rv-rework3-022's B-4,
+# page Q217). Each is the agents' writing about a source, not the source.
+UNREAD = ("films", "corpus/proposals", "docs/merge-requests", "specs", "intent")
+GLOB = "*?["
+
+
+def unread(root: Path, path: str) -> bool:
+    """A file under one of the trees R5 never reads (`UNREAD`), by its normalised spelling or, through a link, by
+    where it resolves."""
     path = normalised(path)
-    if path == "films" or path.startswith("films/"):
-        return True
-    films = (root / "films").resolve()
-    return (root / path).resolve().is_relative_to(films)
+    resolved = (root / path).resolve()
+    return any(
+        path == tree
+        or path.startswith(tree + "/")
+        or resolved.is_relative_to((root / tree).resolve())
+        for tree in UNREAD
+    )
 
 
 def exists(root: Path, path: str) -> bool:
@@ -338,7 +349,7 @@ def exists(root: Path, path: str) -> bool:
     if not in_root(root, path):
         return False
     path = normalised(path)
-    if any(ch in path for ch in "*?["):
+    if any(ch in path for ch in GLOB):
         inside = root.resolve()
         return any(m.resolve().is_relative_to(inside) for m in root.glob(path))
     return (root / path).exists()
@@ -710,7 +721,8 @@ def check(
 
     # ---- R1 and R2, row by row; R3 beside them ----
     seen: dict[tuple[str, int], int] = {}
-    cited: set[str] = set()
+    # The carried and in-part rows' sources: the only cited files R5 reads (B-4).
+    read: set[str] = set()
     for row in rows:
         status = row.status
         if row.script == KS:
@@ -755,8 +767,9 @@ def check(
                 f"R1: {row.label}: the script line isn't verbatim in {where}: {script_text!r}"
             )
         sources = paths_in(row.source)
-        cited.update(sources)
         carrying = status in ("carried", "in part")
+        if carrying:
+            read.update(sources)
         if not sources:
             out["R1"].append(f"R1: {row.label}: no repository source")
         # A path outside the repository is no repository source, whatever the row's status (rv2-rework2-022's B-2).
@@ -872,17 +885,20 @@ def check(
                 out["R2"].append(f"R2: {label}: not in the table")
 
     # ---- R5: quotes in the new text ----
-    # The films' files are the agents' text, not a source's: a row may cite `films/SCRIPTS.md` (§1 line 5 does, for
-    # his words), but a quote from it stands only as his words (author_quotes), and no file under `films/`, however
-    # its path is spelled, is a cited file's text (rv-impl-022's I-2, rv-rework-022's F-1). Nor is a file outside the
-    # repository, by its spelling or through a link, for any row (rv2-rework2-022's B-2).
+    # R5 reads only the carried and in-part rows' sources (a left-out row's source backs nothing the new text says),
+    # and of those, no glob, no path outside the repository (rv2-rework2-022's B-2), not the proposal being checked
+    # (it holds every quote it makes), and no file under `UNREAD`'s trees, however its path is spelled and wherever a
+    # link leads (rv-rework3-022's B-4, Q217). The films' files are the agents' text: a row may cite
+    # `films/SCRIPTS.md` (§1 line 5 does, for his words), but a quote from it stands only as his words (HIS_WORDS).
+    here = proposal.resolve()
     cited_texts = [
         norm((root / p).read_text())
-        for p in sorted({normalised(c) for c in cited})
-        if "*" not in p
+        for p in sorted({normalised(c) for c in read})
+        if not any(ch in p for ch in GLOB)
         and in_root(root, p)
         and (root / p).is_file()
-        and not under_films(root, p)
+        and (root / p).resolve() != here
+        and not unread(root, p)
     ]
     accepted: list[str] = []
     for block in prose:
