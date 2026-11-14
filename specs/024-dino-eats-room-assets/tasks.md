@@ -34,7 +34,7 @@
 
 ## Phase 4: Input, the HUD tile, and its box (US1, US3)
 
-- [ ] T010 [US1] Test first: `eat-input.test.ts` — key B gives an `eat` intent; ignored in a text field and with the twin's chat focused (FR-012); ignored for the woman, the man, the dog; ignored at a non-edible piece (US1 AS2, AS3); ignored while a chunk is in flight; the walking keys (W A S D Q E R F, the arrows, Enter, Escape) unchanged. Then `walk/input.ts` and `scene/walking.ts`. — `npx vitest run test/ui/eat-input.test.ts test/room/input.test.ts test/room/walking.test.ts test/room/reach.test.ts test/ui/walking.test.ts test/ui/fullscreen.test.ts`.
+- [x] T010 [US1] Test first: `eat-input.test.ts` — key B gives an `eat` intent; ignored in a text field and with the twin's chat focused (FR-012); ignored for the woman, the man, the dog; ignored at a non-edible piece (US1 AS2, AS3); ignored while a chunk is in flight; the walking keys (W A S D Q E R F, the arrows, Enter, Escape) unchanged. Then `walk/input.ts` and `scene/walking.ts`. — `npx vitest run test/ui/eat-input.test.ts test/room/input.test.ts test/room/walking.test.ts test/room/reach.test.ts test/ui/walking.test.ts test/ui/fullscreen.test.ts`.
 - [ ] T011a [US1] The box, its framing, and its judgement (plan §5.5; FR-012, SC-004; Q-R2a, Q150, Q-R3a, Q-R3b; `compose/*`, `protect.ts`, the RG tests).
 
   Test first: `eat-box.test.ts`, the kernel.
