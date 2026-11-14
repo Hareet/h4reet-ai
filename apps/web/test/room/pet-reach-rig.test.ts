@@ -265,6 +265,16 @@ describe("clearReach: every bone the clip's own (FR-008)", () => {
     }
   });
 
+  /** The same figure with the idle clip alone, `seconds` in: the clip's own pose, the reference. A bone the clip has no
+   *  track for holds the rest pose there, which the reach's snapshot after a mixer frame wouldn't show. */
+  function clipOnly(f: Figure, seconds: readonly number[]): Snap {
+    const { root } = placed(f, HOMES[1]![1]);
+    const mixer = new AnimationMixer(root);
+    mixer.clipAction(f.clip as AnimationClip).play();
+    for (const dt of seconds) mixer.update(dt);
+    return snap(root);
+  }
+
   it("over the idle clip: after a frame the mixer wrote, the reach takes it as the base and clears back to it", () => {
     for (const f of FIGURES) {
       const { root } = placed(f, HOMES[1]![1]);
@@ -275,26 +285,26 @@ describe("clearReach: every bone the clip's own (FR-008)", () => {
       applyReach(rig, target(HOMES[1]![1]), 1, CFG);
       // The mixer writes the next frame over the reach; the reach lays itself over that one.
       mixer.update(0.4);
-      const clip = snap(root);
+      const own = clipOnly(f, [0.2, 0.4]);
       applyReach(rig, target(HOMES[1]![1], 0.6), 1, CFG);
-      expect(changed(root, clip).rotated.length, f.name).toBeGreaterThan(0);
+      expect(changed(root, own).rotated.length, f.name).toBeGreaterThan(0);
       clearReach(rig);
-      expect(changed(root, clip), f.name).toEqual({ rotated: [], moved: [] });
+      expect(changed(root, own), f.name).toEqual({ rotated: [], moved: [] });
     }
   });
 
-  it("leaves a frame the mixer wrote after the reach as the mixer wrote it", () => {
-    const f = FIGURES[0]!;
-    const { root } = placed(f, HOMES[1]![1]);
-    const rig = findReachRig(root, "right") as ReachRig;
-    const mixer = new AnimationMixer(root);
-    mixer.clipAction(f.clip as AnimationClip).play();
-    mixer.update(0.2);
-    applyReach(rig, target(HOMES[1]![1]), 1, CFG);
-    mixer.update(0.4);
-    const clip = snap(root);
-    clearReach(rig);
-    expect(changed(root, clip)).toEqual({ rotated: [], moved: [] });
+  it("clears a frame the mixer wrote after the reach to the clip's own", () => {
+    for (const f of FIGURES) {
+      const { root } = placed(f, HOMES[1]![1]);
+      const rig = findReachRig(root, "right") as ReachRig;
+      const mixer = new AnimationMixer(root);
+      mixer.clipAction(f.clip as AnimationClip).play();
+      mixer.update(0.2);
+      applyReach(rig, target(HOMES[1]![1]), 1, CFG);
+      mixer.update(0.4);
+      clearReach(rig);
+      expect(changed(root, clipOnly(f, [0.2, 0.4])), f.name).toEqual({ rotated: [], moved: [] });
+    }
   });
 
   it("a weight of 0 clears the reach", () => {
