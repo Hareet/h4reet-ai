@@ -1,0 +1,302 @@
+{
+  "schema": 1,
+  "generated_by": "apps/web/build/corpus-size.ts (npm run twin:pack -w apps/web)",
+  "adr": "docs/adr/0054-when-file-context-stops-being-enough.md",
+  "unit": "characters: a JavaScript string's length, which the gateway counts as one token each before a call",
+  "files": {
+    "topic": {
+      "files": 9,
+      "bytes": 96567,
+      "words": 15089,
+      "chars": 96128
+    },
+    "facts": {
+      "files": 11,
+      "bytes": 17556,
+      "words": 2312,
+      "chars": 17544
+    },
+    "total": {
+      "files": 20,
+      "bytes": 114123,
+      "words": 17401,
+      "chars": 113672
+    },
+    "by_file": [
+      {
+        "path": "corpus/00-profile.md",
+        "bytes": 7427,
+        "words": 1160,
+        "chars": 7367
+      },
+      {
+        "path": "corpus/01-ai-strategy-and-cht.md",
+        "bytes": 33175,
+        "words": 4963,
+        "chars": 32946
+      },
+      {
+        "path": "corpus/02-production-infrastructure-national-scale.md",
+        "bytes": 8768,
+        "words": 1174,
+        "chars": 8724
+      },
+      {
+        "path": "corpus/03-grants-and-credits.md",
+        "bytes": 2890,
+        "words": 423,
+        "chars": 2872
+      },
+      {
+        "path": "corpus/04-hobbies-and-travel.md",
+        "bytes": 9822,
+        "words": 1727,
+        "chars": 9804
+      },
+      {
+        "path": "corpus/05-mission.md",
+        "bytes": 10158,
+        "words": 1663,
+        "chars": 10142
+      },
+      {
+        "path": "corpus/06-work-projects.md",
+        "bytes": 8679,
+        "words": 1298,
+        "chars": 8663
+      },
+      {
+        "path": "corpus/07-denver-local-ai.md",
+        "bytes": 10349,
+        "words": 1754,
+        "chars": 10331
+      },
+      {
+        "path": "corpus/08-hareet-ai.md",
+        "bytes": 5299,
+        "words": 927,
+        "chars": 5279
+      },
+      {
+        "path": "corpus/facts/awards.yaml",
+        "bytes": 1094,
+        "words": 146,
+        "chars": 1094
+      },
+      {
+        "path": "corpus/facts/career.yaml",
+        "bytes": 1897,
+        "words": 260,
+        "chars": 1889
+      },
+      {
+        "path": "corpus/facts/credits.yaml",
+        "bytes": 1080,
+        "words": 160,
+        "chars": 1080
+      },
+      {
+        "path": "corpus/facts/denver-local-ai.yaml",
+        "bytes": 558,
+        "words": 79,
+        "chars": 558
+      },
+      {
+        "path": "corpus/facts/hareet-ai.yaml",
+        "bytes": 467,
+        "words": 55,
+        "chars": 467
+      },
+      {
+        "path": "corpus/facts/hobbies-and-travel.yaml",
+        "bytes": 1632,
+        "words": 224,
+        "chars": 1632
+      },
+      {
+        "path": "corpus/facts/medic-context.yaml",
+        "bytes": 1600,
+        "words": 167,
+        "chars": 1600
+      },
+      {
+        "path": "corpus/facts/mission.yaml",
+        "bytes": 1811,
+        "words": 253,
+        "chars": 1811
+      },
+      {
+        "path": "corpus/facts/national-projects.yaml",
+        "bytes": 4368,
+        "words": 544,
+        "chars": 4364
+      },
+      {
+        "path": "corpus/facts/voice-for-cht.yaml",
+        "bytes": 1949,
+        "words": 265,
+        "chars": 1949
+      },
+      {
+        "path": "corpus/facts/work-projects.yaml",
+        "bytes": 1100,
+        "words": 159,
+        "chars": 1100
+      }
+    ]
+  },
+  "limits": {
+    "source": "config/budgets.yaml",
+    "max_input_chars": 32000,
+    "history_max_chars": 4000,
+    "history_max_turns": 8
+  },
+  "model": "the fit check's model (spec 007's plan, D5, D20): leaves out the selectable's lead (counted beside each topic as lead), JSON escaping of each quoted turn beyond PER_TURN_CHARS, and estimates the framing at FRAMING_CHARS against CONVERSATION_HEAD, CONVERSATION_TAIL, and the line breaks",
+  "room": {
+    "instructions": 6290,
+    "framing": 400,
+    "conversation": 4128,
+    "room": 21182
+  },
+  "base": {
+    "rules": 5833,
+    "profile": 6189,
+    "base": 12022
+  },
+  "topics": [
+    {
+      "id": "hobbies-and-travel",
+      "files": [
+        "corpus/04-hobbies-and-travel.md"
+      ],
+      "rendered": 8894,
+      "grounding": 20916,
+      "share": 0.9874,
+      "margin": 266,
+      "lead": 41,
+      "margin_after_lead": 225
+    },
+    {
+      "id": "mission",
+      "files": [
+        "corpus/05-mission.md"
+      ],
+      "rendered": 9023,
+      "grounding": 21045,
+      "share": 0.9935,
+      "margin": 137,
+      "lead": 0,
+      "margin_after_lead": 137
+    },
+    {
+      "id": "work-projects",
+      "files": [
+        "corpus/06-work-projects.md"
+      ],
+      "rendered": 7621,
+      "grounding": 19643,
+      "share": 0.9273,
+      "margin": 1539,
+      "lead": 0,
+      "margin_after_lead": 1539
+    }
+  ],
+  "by_file": [
+    {
+      "file": "corpus/01-ai-strategy-and-cht.md",
+      "rendered": 30059,
+      "grounding": 42081,
+      "share": 1.9866,
+      "margin": -20899,
+      "in_topics": []
+    },
+    {
+      "file": "corpus/02-production-infrastructure-national-scale.md",
+      "rendered": 7456,
+      "grounding": 19478,
+      "share": 0.9196,
+      "margin": 1704,
+      "in_topics": []
+    },
+    {
+      "file": "corpus/03-grants-and-credits.md",
+      "rendered": 2049,
+      "grounding": 14071,
+      "share": 0.6643,
+      "margin": 7111,
+      "in_topics": []
+    },
+    {
+      "file": "corpus/04-hobbies-and-travel.md",
+      "rendered": 8894,
+      "grounding": 20916,
+      "share": 0.9874,
+      "margin": 266,
+      "in_topics": [
+        "hobbies-and-travel"
+      ]
+    },
+    {
+      "file": "corpus/05-mission.md",
+      "rendered": 9023,
+      "grounding": 21045,
+      "share": 0.9935,
+      "margin": 137,
+      "in_topics": [
+        "mission"
+      ]
+    },
+    {
+      "file": "corpus/06-work-projects.md",
+      "rendered": 7621,
+      "grounding": 19643,
+      "share": 0.9273,
+      "margin": 1539,
+      "in_topics": [
+        "work-projects"
+      ]
+    },
+    {
+      "file": "corpus/07-denver-local-ai.md",
+      "rendered": 8797,
+      "grounding": 20819,
+      "share": 0.9829,
+      "margin": 363,
+      "in_topics": []
+    },
+    {
+      "file": "corpus/08-hareet-ai.md",
+      "rendered": 4303,
+      "grounding": 16325,
+      "share": 0.7707,
+      "margin": 4857,
+      "in_topics": []
+    }
+  ],
+  "free_talk": {
+    "room": 9160,
+    "rankable": 78202,
+    "share": 0.1171
+  },
+  "pack": {
+    "sections": 131,
+    "bytes": 153697,
+    "rendered": 84391,
+    "longest_section": 3140
+  },
+  "thresholds": {
+    "t1_band": 0.95,
+    "t2_share": 0.05,
+    "t2_band": 0.075,
+    "t3_pack_bytes": 10485760,
+    "t3_sections": 10000,
+    "t3_band": 0.5
+  },
+  "stage": {
+    "stage": 0,
+    "crossed": [],
+    "band": [
+      "T1"
+    ]
+  }
+}
