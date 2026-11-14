@@ -43,6 +43,7 @@ words:
   walk.left: Walking stopped.
   walk.target: "{name}: press Enter to open."
   twin.stand_in: The twin's figure is a stand-in, not the Author's likeness.
+  figures.pet_note: The twin pets the dog.
   hud.log_toggle: Conversation
   talk.larger: Larger conversation
   talk.smaller: Smaller conversation

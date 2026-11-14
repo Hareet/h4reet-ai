@@ -65,6 +65,8 @@ export const UI_KEYS = {
   // figure shows anything but the twin's own avatar. It states nothing about the Author but that the figure isn't the
   // Author's likeness.
   "twin.stand_in": [],
+  // Spec 026 (FR-024; plan.md R-10): the petting's line in the polite live region, said once as it starts.
+  "figures.pet_note": [],
   // Spec 005's HUD (its FR-023, FR-028, FR-065): the conversation log's header button, and the larger view's two words.
   "hud.log_toggle": [],
   "talk.larger": [],

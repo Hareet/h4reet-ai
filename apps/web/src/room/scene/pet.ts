@@ -91,6 +91,14 @@ export interface PetReach {
   readonly target: Readonly<Vec3>;
 }
 
+/** The frame log's `twin-pet` record (FR-026): one per petting, done, cut, or skipped; no payload. */
+export interface PetRecord {
+  readonly start_ms: number;
+  readonly end_ms: number;
+  readonly path: PetPath;
+  readonly outcome: "done" | "skipped" | "cut";
+}
+
 export interface Pet {
   /** A selection in the room; true where it started a petting. */
   select(id: string): boolean;
@@ -142,13 +150,17 @@ export function petAim(
 }
 
 export function createPet(options: {
-  readonly config?: Partial<PetConfig> | null;
+  readonly config?: Partial<PetConfig> | null | undefined;
   readonly clock: { now(): number };
   readonly motion: () => PetMotion;
   readonly twin: () => PetTwin | null;
   readonly dog: () => PetDog | null;
   readonly chase: PetChase;
   readonly signal?: (activity: PetActivity) => void;
+  /** Says the line in the room's polite live region, once as a petting starts (FR-024). */
+  readonly note?: () => void;
+  /** The draft build's frame log (FR-026). */
+  readonly log?: (record: PetRecord) => void;
 }): Pet {
   const config: PetConfig = { ...PET_DEFAULTS, ...options.config };
   const { clock, chase } = options;
@@ -162,6 +174,8 @@ export function createPet(options: {
   let t = 0;
   /** The petting's length: the clip's or `pet_s`. */
   let length = config.pet_s;
+  /** The present petting's start, on the clock. */
+  let startMs = 0;
   /** The last petting's end, on the clock; none yet. */
   let lastEnd = -Infinity;
   /** The run's cut: the weight it eased from, and while it eases. */
@@ -217,10 +231,11 @@ export function createPet(options: {
   };
 
   /** The petting ends, done or cut: the twin's state off, the twin turned back. */
-  const endPetting = (): void => {
+  const endPetting = (outcome: "done" | "cut"): void => {
     if (phase === "petting") say(false);
     chase.faceTwin(null);
     lastEnd = clock.now();
+    options.log?.({ start_ms: startMs, end_ms: lastEnd, path: path ?? "reach", outcome });
     phase = "return";
     t = 0;
   };
@@ -229,7 +244,7 @@ export function createPet(options: {
   const cutByRun = (): void => {
     fadeFrom = reachOn ? reach.weight : 0;
     fading = fadeFrom > 0;
-    endPetting();
+    endPetting("cut");
   };
 
   /** A cut at once (FR-011): the reach cleared, the twin's heading back to its home's (spec 025's director puts it there
@@ -237,7 +252,7 @@ export function createPet(options: {
   const cutAtOnce = (): void => {
     reachOn = false;
     fading = false;
-    if (phase !== "return") endPetting();
+    if (phase !== "return") endPetting("cut");
     toIdle();
   };
 
@@ -251,11 +266,16 @@ export function createPet(options: {
 
   return {
     select(id) {
-      if (id !== DOG_SELECTABLE || phase !== "idle") return false;
-      if (clock.now() - lastEnd < config.cooldown_s * 1000) return false;
+      if (id !== DOG_SELECTABLE) return false;
       const twin = options.twin();
       const dog = options.dog();
-      if (!allowed(twin, dog) || !twin || !dog) return false;
+      const now = clock.now();
+      if (phase !== "idle" || now - lastEnd < config.cooldown_s * 1000 || !allowed(twin, dog) || !twin || !dog) {
+        const would: PetPath = twin?.petting_s ? "clip" : "reach";
+        options.log?.({ start_ms: now, end_ms: now, path: would, outcome: "skipped" });
+        return false;
+      }
+      startMs = now;
       const a = petAim(twin.home, dog.home, config);
       aim = a.heading;
       side = a.side;
@@ -267,6 +287,7 @@ export function createPet(options: {
       phase = "turn";
       t = 0;
       chase.faceTwin(aim);
+      options.note?.();
       return true;
     },
     frame(dt) {
@@ -290,7 +311,7 @@ export function createPet(options: {
           }
           break;
         case "petting":
-          if (t >= length) endPetting();
+          if (t >= length) endPetting("done");
           break;
         case "return":
           if (fading) {
@@ -315,7 +336,7 @@ export function createPet(options: {
       }
     },
     finished() {
-      if (phase === "petting" && path === "clip") endPetting();
+      if (phase === "petting" && path === "clip") endPetting("done");
     },
     get phase() {
       return phase;
