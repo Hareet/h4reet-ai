@@ -536,6 +536,40 @@ def test_claim_tags_and_paths_read_no_number_but_brackets_and_ratios_do() -> Non
     ]
 
 
+@pytest.mark.parametrize(
+    ("old", "new", "needle"),
+    [
+        # rv-rework-022's F-2: a segment that is a number makes the token no path, and a token with whitespace is
+        # never one.
+        ("runs with one command", "runs with one command. It caps at 100/day.", "100"),
+        ("runs with one command", "runs with one command. It passed 52/run.", "52"),
+        (
+            "runs with one command",
+            "runs with one command, `fifty-two of fifty-two passed/run`",
+            "fifty-two",
+        ),
+        # Siblings the review didn't name: a number word as the segment, the same in backticks, and a number as an
+        # assignment's value.
+        ("runs with one command", "runs with one command, twelve/hour", "twelve"),
+        ("runs with one command", "runs with one command, `100/day`", "100"),
+        ("runs with one command", "runs with one command, `DAILY_CAP=100`", "100"),
+    ],
+)
+def test_a_number_as_a_path_segment_fails(
+    repo: Path, old: str, new: str, needle: str
+) -> None:
+    problems = run(repo, changed(old, new))
+    assert failing(problems, "R4", "number", needle), problems
+
+
+def test_real_paths_with_numbers_in_them_read_no_number() -> None:
+    paths = (
+        "`docs/adr/0020-gateway.md`, `evals/product/history/2026-11-09/run.json`, `redteam/run.py:267-299`, "
+        "`ENV=prod`, `COMPOSE_PROFILES=gpu`, films/kill-switch-b2/, specs/001-cloud-elevation/spec.md, 2026-11-13/14\n"
+    )
+    assert fc.numbers_in(fc.without_exempt(paths, quotes=())) == []
+
+
 def test_number_words_are_g1s() -> None:
     assert fc.numbers_in("one command and a first run") == []
     assert fc.numbers_in("twenty-one of twenty-four, a dozen, thousands") == [
