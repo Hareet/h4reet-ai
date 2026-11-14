@@ -125,6 +125,15 @@ export const RULES = {
   RA7: rule("RA", model), // the twin's lean off its spot: the desk not behind_m behind, turned, or short of right_m
   // RA8 (plan.md R-19): lenient, so a lenient build warns and keeps the twin; nothing in the bundle stands on it.
   RA8: rule("RA", model), // the twin's own model, at rest or in a clip it plays, reaching past a wall of the shell
+  // Spec 020's RA9 (its FR-002; plan.md R-01): lenient, so a lenient build leaves a visitor's likeness out, its figure on
+  // the cut-out, until main's approval names its model.
+  RA9: rule("RA", model), // a visitor's likeness without main's approval naming its model's SHA-256 with a line
+  // Spec 021's RA10 to RA12 (its FR-005, FR-004, FR-003; plan.md R-01, R-08; contracts/dinosaur-rig.md): lenient as
+  // RA1 to RA4, so a lenient build leaves the model and its clips out, its figure on the cut-out. Only for an avatar
+  // with a rig-table row.
+  RA10: rule("RA", model), // a model whose raw node names lack a bone of its rig-table row
+  RA11: rule("RA", model), // a rigged model whose rest-pose box, at the table's height, is over its width (+5%)
+  RA12: rule("RA", model), // a rigged model without a usable idle or walk clip
   RK1: rule("RK"), // a budget above the caps
   RK2: rule("RK", model), // a model over its budget
   RK3: rule("RK"), // the scene's texture memory over its cap

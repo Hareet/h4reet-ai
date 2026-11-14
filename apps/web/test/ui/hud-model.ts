@@ -201,6 +201,43 @@ export function joinedNote(index: Pick<RoomIndex, "ui">): string {
   return `${/[.!?]$/.test(note) ? note : `${note}.`} ${index.ui["standin.avatar"] ?? ""}`;
 }
 
+/** What the model measures of spec 018's split layout (plan.md §2's model; FR-001 (d), FR-004): the rest row's
+ *  contents' least width on one row, and the list's height with every entry. */
+export interface SplitModel {
+  readonly restW: number;
+  readonly listH: number;
+}
+
+/**
+ * The split layout's measures at hud/split.css's sizes. The rest row, one row in the bar's band: its padding (0.25rem
+ * each side); the title toggle, its words at 1rem with 0.5rem padding and its border, the chevron hidden; "Larger
+ * conversation" at its longer words, at the bar's tile type, 0.8125rem, with 0.5rem padding and its border, the chevron
+ * hidden; the label's words inline at 0.875rem; the text box's least width; Send and the talk button at 1rem with their
+ * 0.75rem padding and border, each at least a 2.75rem target; and the 0.25rem gaps between the six. The list, a column:
+ * its 0.5rem padding above and below; "Back" and the heading's toggle, each a 2.75rem target; the "Select a piece" label,
+ * one line at 0.8125rem × 1.5; every entry at its 3.25rem row; and the 0.25rem gaps between the four.
+ */
+export function splitModel(words: HudWords, metrics: HudMetrics = DEFAULT_METRICS): SplitModel {
+  const t = HUD_PLACEMENTS;
+  const rem = metrics.rem;
+  const border = 2 * t.borderPx;
+  const [toggle, larger] = words.logHeader;
+  const items = [
+    textWidth(toggle ?? "", rem) + 2 * 0.5 * rem + border,
+    textWidth(larger ?? "", t.bar.fontRem * rem) + 2 * t.bar.tilePadXRem * rem + border,
+    textWidth(words.talkLabel, t.talk.labelRem * rem),
+    t.talk.inputMinRem * rem,
+    ...words.talkButtons.map((w) =>
+      Math.max(t.talk.rowRem * rem, textWidth(w, rem) + 2 * t.talk.buttonPadXRem * rem + border),
+    ),
+  ];
+  const restW = 2 * t.bar.padRem * rem + items.reduce((a, b) => a + b, 0) + (items.length - 1) * t.talk.rowGapRem * rem;
+  const target = t.talk.rowRem * rem;
+  const listH =
+    2 * 0.5 * rem + target + target + 0.8125 * 1.5 * rem + words.names.length * 3.25 * rem + 3 * t.list.gapRem * rem;
+  return { restW, listH };
+}
+
 export function compactModel(
   screen: { readonly w: number; readonly h: number },
   words: HudWords,

@@ -33,10 +33,14 @@ Why the landing page and not the MP4 itself: a GitHub file view may offer the MP
 3. **Check the links survive in the PDF**: `pdfinfo -url out/twin.pdf` (poppler-utils) should list the four (or five) URLs; or open it and click each.
 4. **The copy you send**: export it as you did for `Hareet-Sandhu-Resume-hareet-ai.pdf`.
 5. **The copy the room serves** (spec 002): an agent session puts the new PDF at `apps/web/content/resume-author.pdf` on a branch (with its `make test` and the room's resume checks), and you approve its new SHA-256 in `assets/policy/content-approvals.json` on `main` (a new entry, C-0004, kind `resume`), then gate and merge that branch. The room keeps serving the approved C-0002 file until then (ADR 0034). A link in the PDF opens only when a reader clicks it, so it adds no data flow from the room; the PDF already links `github.com/Hareet`.
+   > **Note, 2026-11-14 (the night's spec 023: its Q6, the page's Q29; this note by the page's Q98):** with an unapproved file at `apps/web/content/resume-author.pdf`, the room serves the render, not C-0002's file (ADR 0034; spec 002's amendment: "unapproved … the PDF is the render"). So the night's candidate waits at `apps/web/content/candidates/resume-author-links.pdf`, which the build doesn't read, and publishing is your `git mv` onto the served path in the same commit as the entry, on `main` after the merge. C-0004 is taken (the twin's shirt lettering); the entry takes the next free ID on `main` when you add it (C-0005 today). The steps: `docs/merge-requests/human-patches/023.md`.
 6. **After publication, test every link** on desktop and on a phone, from the PDF itself: each lands on its film's page, and the film plays.
 
 ## Open decisions
 
 - The repository's public URL (OWNER/REPO).
+  - *Note, 2026-11-14 (spec 023's Q3, not asked: the corpus has it):* `https://github.com/hareet/h4reet-ai`, in your words in `corpus/08-hareet-ai.md`; it is `repo` in `films/resume-links.json`.
 - A fifth claim for the evals film, or keep four.
+  - *Note, 2026-11-14 (spec 023's Q4, the page's Q27; recommended, taken provisionally under your order of 2026-11-13):* four kept; the evals film is linked from nowhere on the PDF.
 - Landing pages or direct MP4 links (decide after step 6's test).
+  - *Note, 2026-11-14 (spec 023's Q2, the page's Q26; recommended, taken provisionally):* landing pages, until your step 6 test says the MP4 plays inline.

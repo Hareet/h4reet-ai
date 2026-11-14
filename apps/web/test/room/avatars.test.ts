@@ -98,7 +98,7 @@ async function feed(
     const bytes =
       tracks !== undefined
         ? clipGlb(role, { tracks, unit: o.model?.unit ?? 1 }).bytes
-        : (role === "walk" ? clips.idle : clips[role]).bytes;
+        : (role === "walk" || role === "run" ? clips.idle : clips[role]).bytes;
     s.figures.clip(avatar, role, await clipsOf(bytes));
   }
 }

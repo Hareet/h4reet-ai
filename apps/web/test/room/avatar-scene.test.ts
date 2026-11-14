@@ -24,6 +24,7 @@ import { FakeClock, flush } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
 import { overlay } from "../helpers/room-fixtures";
 import { avatarPolicy, nightFiles } from "../helpers/room-avatars";
+import { dinosaurFrame, dinosaurStage } from "../helpers/room-dinosaur";
 
 const swapped = vi.hoisted(() => ({
   part: null as RoomScene | null,
@@ -320,5 +321,46 @@ describe("spec 012: the figures' files in the stage's expected list, and the gat
     await answer(s, () => avatarIn(s, "fx-visitor") && avatarIn(s, "fx-twin"));
     expect(avatarIn(s, "fx-visitor") && avatarIn(s, "fx-twin")).toBe(true);
     s.stage.dispose();
+  });
+});
+
+// Spec 021 (T002; FR-008, SC-003; plan.md R-07): the dinosaur's three clips on its handless, non-Mixamo rig, as the
+// figures' controllers play them: the idle loops, the walk plays while it walks (spec 009's FR-028), "take" plays once
+// in the hand-off, and a missing "take" leaves the idle in its place (spec 009's FR-003). Pins: expected to pass on the
+// line's code.
+describe("spec 021: the dinosaur's clips (FR-008)", () => {
+  it("loops its idle, playing it still after three of its lengths", async () => {
+    const s = await dinosaurStage();
+    expect(s.figures.playing("visitor")).toBe("idle");
+    for (let i = 0; i < 200; i += 1) s.figures.update(16, true, 0);
+    expect(s.figures.playing("visitor")).toBe("idle");
+  });
+
+  it("plays its walk while it walks, and its idle when it stops", async () => {
+    const s = await dinosaurStage();
+    s.figures.driver.frame(dinosaurFrame(true));
+    s.figures.update(16, true, 0);
+    expect(s.figures.playing("visitor")).toBe("walk");
+    s.figures.driver.frame(dinosaurFrame(false));
+    s.figures.update(16, true, 0);
+    expect(s.figures.playing("visitor")).toBe("idle");
+  });
+
+  it("plays take once in the hand-off, then its idle", async () => {
+    const s = await dinosaurStage({ ended: false });
+    s.figures.update(16, true, 0);
+    s.figures.showHandoff(1, false);
+    expect(s.figures.playing("visitor")).toBe("take");
+    s.figures.handoffEnded();
+    expect(s.figures.playing("visitor")).toBe("idle");
+  });
+
+  it("plays its idle in a missing take's place (spec 009's FR-003)", async () => {
+    const s = await dinosaurStage({ roles: ["idle", "walk"], ended: false });
+    s.figures.update(16, true, 0);
+    s.figures.showHandoff(1, false);
+    expect(s.figures.playing("visitor")).toBe("idle");
+    s.figures.handoffEnded();
+    expect(s.figures.playing("visitor")).toBe("idle");
   });
 });

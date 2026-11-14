@@ -31,6 +31,7 @@ import { textureMemory } from "../../src/room/glb/fit";
 import { clipGlb, pngHeader } from "../helpers/glb";
 import { REPO } from "../helpers/room";
 import { goodTree, overlay } from "../helpers/room-fixtures";
+import { twinPolicy } from "../helpers/room-twin";
 import { avatarFolder, avatarModel, avatarPolicy, nightFiles, SCENE, sceneWith } from "../helpers/room-avatars";
 
 const STRICT: ComposeOptions = { mode: "strict", drafts: true };
@@ -293,11 +294,17 @@ describe("the RA family (FR-038; plan.md §3.5)", () => {
       expect(where(strict)).toEqual(["RA3 assets/visitors/man/man.glb:-"]);
       expect(lenient.scene.figures.stand_in).toBeNull();
     }
-    // A likeness the visitor may choose, which spec 003's arrival check holds to the Author's approval, isn't RA3's.
+    // A likeness the visitor may choose, which spec 003's arrival check holds to the Author's approval, isn't RA3's;
+    // spec 020's RA9 holds it to main's approval too, so it composes clean only with one (changed with T002).
     const woman = (e: { file: string; likeness: boolean }[]): void => {
       (e.find((x) => x.file === "woman.glb") as { likeness: boolean }).likeness = true;
     };
-    expect(where(composed(night({ woman: { records: woman as never } })).findings)).toEqual([]);
+    const likeness = night({ woman: { records: woman as never } });
+    expect(where(composed(likeness).findings)).toEqual(["RA9 assets/visitors/woman/woman.glb:-"]);
+    const approved = twinPolicy({
+      likeness: [{ id: "A-fx-woman", sha256: sha256(avatarModel().bytes), line: "A made-up likeness." }],
+    });
+    expect(where(composed(likeness, approved).findings)).toEqual([]);
   });
 
   it("RA4: a model over main's per_asset.avatar, or a clip over per_asset.animation, as spec 003's F2 measures", () => {
