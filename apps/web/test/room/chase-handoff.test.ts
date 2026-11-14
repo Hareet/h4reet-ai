@@ -80,8 +80,11 @@ describe("the hand-off's turn beside the run's shell, a real controller, the din
     }
     s.figures.showHandoff(1, false);
     s.figures.handoffEnded();
+    // The hand-off's end, 0 turned to the twin's side (−0 on one side): the shell leaves it as it is.
+    const end = s.room.twin.rotation.y;
     shell.frame(DT, MOVE);
-    expect(s.room.twin.rotation.y).toBe(0);
+    expect(s.room.twin.rotation.y).toBe(end);
+    expect(end).toBeCloseTo(0, 12);
   });
 });
 

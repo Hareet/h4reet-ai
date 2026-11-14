@@ -62,7 +62,7 @@ import type { Box as WorldBox } from "./compose/framing";
 import { nearsEdge } from "./walk/hold";
 import { startPose } from "./walk/movement";
 import type { Camera as ViewCamera } from "./compose/project";
-import { createChaseFigures } from "./scene/chase-figures";
+import { chaseDue, createChaseFigures } from "./scene/chase-figures";
 import type { ChaseFigures } from "./scene/chase-figures";
 import { cutoutDriver, figureDriverFor } from "./scene/figure";
 import { createWalking } from "./scene/walking";
@@ -292,6 +292,11 @@ export function createScene(options: SceneOptions): Stage3D {
   };
   void options.gaveWay?.then(close, close);
   const handoffEnded = options.handoff ?? Promise.resolve();
+  // Spec 025 (B-1): the hand-off has ended, so the run's shell may take the figures' homes (chaseDue).
+  let handedOff = false;
+  void handoffEnded.then(() => {
+    handedOff = true;
+  });
   const gate = (): Promise<unknown> => (closed ? handoffEnded : Promise.resolve());
   // What the stage will load (spec 012): resolved once the loader's chunk has built the entries; never rejected.
   let sayExpected: (files: readonly ExpectedFile[]) => void = () => undefined;
@@ -598,8 +603,9 @@ export function createScene(options: SceneOptions): Stage3D {
   let frame = 0;
   let level = 0;
   let last: number | null = null;
-  /** Spec 025 (plan.md R-06): the run's shell, made once the avatars' controller and the walking view exist, and only
-   *  where the visitor chose the dinosaur, the one pursuer (FR-001): no other visitor's frame does anything for it. */
+  /** Spec 025 (plan.md R-06): the run's shell, made once the avatars' controller and the walking view exist and the
+   *  hand-off has ended, so no home it takes holds the hand-off's mid-turn rotation (B-1), and only where the visitor
+   *  chose the dinosaur, the one pursuer (FR-001): no other visitor's frame does anything for it. */
   let chaseFigures: ChaseFigures | null = null;
   const loop = (time: number): void => {
     if (disposed) return;
@@ -637,7 +643,7 @@ export function createScene(options: SceneOptions): Stage3D {
     }
     // Spec 025 (FR-001 to FR-024; plan.md R-06): the run, after the walking view's pose and before the figures' clips
     // and the stand-in's sway; paused (or a hidden page) apart from reduced motion, which cuts the figures home.
-    if (!chaseFigures && figures && walkable && walking && options.avatar === "dinosaur")
+    if (!chaseFigures && figures && walkable && walking && chaseDue(options.avatar, handedOff))
       chaseFigures = createChaseFigures({
         floor: walkable,
         part,

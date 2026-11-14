@@ -6,7 +6,9 @@
 //   FR-010: the room's dog without its model, or with neither `walk` nor `run`), so the director keeps it home;
 // - runs the director, and places the pictures from its runners: the twin's picture group inside its placement's node,
 //   which stays, as its pick area and reach target do (FR-017), and the room's dog's group; each comes back exactly as
-//   it was once home;
+//   it was once home. It writes a picture only while its runner is away from home, and once on the frame it gets home:
+//   a figure at home is the room's as `main` has it, so the hand-off's turn (spec 002's FR-008) and spec 016's
+//   `appear` show (rv-impl-025's B-1);
 // - sets the twin's `fleeing` on and off as it starts and stops moving (FR-012), gives the twin's gait its picture's
 //   place (`stride`, FR-013), and the dog its clip by speed (FR-010);
 // - says the run's start and end as the stage's `chase` signal (FR-025).
@@ -46,6 +48,8 @@ interface Picture {
   readonly home: ChaseHome;
   /** The world height of its feet, which the run keeps. */
   readonly y: number;
+  /** The shell has written it away from home since it last put it back (B-1). */
+  away: boolean;
 }
 
 const scratch = new Vector3();
@@ -64,20 +68,25 @@ function pictureOf(node: Object3D): Picture {
     rotation: node.rotation.clone(),
     home: { x: at.x, z: at.z, heading: yaw - Math.PI },
     y: at.y,
+    away: false,
   };
 }
 
 const atHome = (r: Runner, h: ChaseHome): boolean => r.x === h.x && r.z === h.z && r.facing === h.heading;
 
 /** The picture at its runner: its world place on the floor, its turn by the facing's change from home; exactly as it
- *  was where the runner is home. Writes in place (FR-029). */
+ *  was on the frame the runner gets home, and untouched while it stays there, so another writer's (the hand-off's
+ *  turn) shows (B-1). Writes in place (FR-029). */
 function place(p: Picture, r: Runner): void {
   const { node } = p;
   if (atHome(r, p.home)) {
+    if (!p.away) return;
+    p.away = false;
     node.position.copy(p.position);
     node.rotation.copy(p.rotation);
     return;
   }
+  p.away = true;
   scratch.set(r.x, p.y, r.z);
   if (node.parent) {
     node.parent.updateWorldMatrix(true, false);
@@ -86,6 +95,10 @@ function place(p: Picture, r: Runner): void {
   node.position.copy(scratch);
   node.rotation.set(p.rotation.x, p.rotation.y + (r.facing - p.home.heading), p.rotation.z);
 }
+
+/** Whether the stage makes the run's shell now (B-1): the visitor chose the dinosaur, the one pursuer (FR-001), and the
+ *  hand-off has ended, so the homes the shell takes never hold the hand-off's mid-turn rotation. */
+export const chaseDue = (chosen: AvatarId, handedOff: boolean): boolean => chosen === "dinosaur" && handedOff;
 
 export function createChaseFigures(options: {
   /** The visitor's walkable floor (spec 008), the dinosaur's; the chase floor leaves the twin's obstacle out. */
