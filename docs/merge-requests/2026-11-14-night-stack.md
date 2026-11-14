@@ -1006,6 +1006,17 @@ The reviewer follows this branch (rv-impl-023, rule 6; T011 is theirs). The spec
 
 Found by this session, not blocking: the new links carry no `/StructParent`. The file is tagged, and adding the links to its structure tree would rewrite more objects than US1-AC3 allows, so a screen reader reads the claims' text as before but doesn't announce the links. And the locator matches whole text runs only: a claim inside a longer run would read "isn't on the PDF". That is enough for his file (each claim is its own run) and fails loudly otherwise.
 
+### Review (rv-impl-023)
+
+On impl-023's code (6b62a838), by a worker who didn't write it: nothing blocking. Its findings, none fixed here (rule 6: they go in this note):
+
+- **N1**: cases 1 and 2 pin the repository's URL and the films' names, which the table should own (US3-AC1).
+- **N2**: the four new links carry no `/StructParent` (page Q185).
+- **N3**: `treeState()`'s one `"absent"` sentinel, used for both hashes, misnames case 0's cause.
+- **N4**: FR-011's changed words aren't in spec.md's history.
+- **N5**: case 10 was rehearsed for route (a) only.
+- Wording nit: "answered: recommended" would read better as "taken provisionally". Listed, and the words stay: they are the orders' words for the page.
+
 ### Verification (small runs only, the order's rule 4)
 
 The test files this item adds or changes, those covering the files it changes (`resume-pdf.ts`'s, which the new code imports; the disclosure's), the disclosure gate run read-only, and the docs' links. At the branch's tip, from the root and `apps/web`:
@@ -1085,3 +1096,51 @@ What waits for you, item 6 (none of it is needed for this item's gate):
 Open for others: rv-impl-023's review (T011); T012, the stack's one `make check`, isn't this task's (the supervisor's instruction). verify-021 isn't merged here: the stack note on `refs/heads/night/verify-021/verify-021` (68f1eced) doesn't end item 4 with "verify-021: green" (its last line is item 4's "Interruptions"), so the line's tip for this branch stays verify2-020 (3767859f).
 
 Interruptions: none. No hook or bash-gate refusal in this session.
+
+### Verification (rule 7, verify-023)
+
+Branch `night/verify-023/verify-023`, from the line's tip, verify-021 (b3d043a2: items 1 to 4 verified), by a different worker (Opus 5.5) from item 6's implementer. Item 5 (spec 022) is still in rework, so item 6 goes on the line first: its review cleared first. Read under Q165, as verify-020 and verify-021 read it.
+
+#### The merge
+
+`git merge refs/heads/night/impl-023/impl-023` (6b62a838): merge commit 0ddfefe9. One conflict, this note: items 4 and 6 were both appended after item 3. Resolved with item 4's section whole as the line has it, then `---`, then item 6's whole as impl-023 wrote it (no line of either side removed). No code conflict. The merge brought no Python change.
+
+The setup target was run first (no `node_modules`); its git-hooks step said the hooks folder "isn't writable here (the agent sandbox)".
+
+#### Runs at the merge (0ddfefe9)
+
+Item 6's files (`git diff --stat b3d043a2...HEAD`: one test file, `test/content/film-links.test.ts`, and the code it tests, `build/film-links.ts`), with `author-pdf.test.ts` (the served PDF's checks, which `film-links.ts` imports from `build/resume-pdf.ts`), and the disclosure's and the site's tests (row V1 changed):
+
+```
+cd apps/web && npx vitest run test/content/film-links.test.ts test/content/author-pdf.test.ts test/disclosure.test.ts test/site.test.ts
+     × gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+     × names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ Test Files  1 failed | 3 passed (4)
+      Tests  2 failed | 64 passed | 2 skipped (68)
+   Duration  52.02s (tests 89%, import 10%, transform 1%)
+```
+
+`film-links.test.ts` verbose: cases 0 to 9 and 11 pass; case 10 skips ("before: not published yet"), and the writer case skips ("WRITE_CANDIDATE=1 only"). `Tests 11 passed | 2 skipped (13)`. The tree is in the "before" state: the candidate is still a candidate.
+
+```
+pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+FAILED evals/test_disclosure.py::test_the_rooms_rows_are_in_its_own_section_with_the_specs_words
+1 failed, 79 passed in 1.11s
+```
+
+`test/disclosure.test.ts` fails only in D-V2's two cases, and `evals/test_disclosure.py` only in D-V2's one (Q164).
+
+**Carried (Q165), confirmed on a copy.** `git archive HEAD` (0ddfefe9) into a fresh `/tmp` folder (`mktemp -d`), `git apply docs/merge-requests/proposed/018-verify-test-amendments.patch` there (`--check` clean; 4 files changed, 43 insertions, 11 deletions), the worktree's `node_modules` linked in. Never applied on the line; no test file edited.
+
+```
+cd <copy> && pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+80 passed in 1.43s
+cd <copy>/apps/web && npx vitest run test/disclosure.test.ts test/site.test.ts test/room/legibility.test.ts test/room/report.test.ts test/content/film-links.test.ts
+ Test Files  5 passed (5)
+      Tests  83 passed | 2 skipped (85)
+   Duration  61.06s (tests 80%, import 17%, transform 3%)
+```
+
+With item 6's row V1 and the patch, the disclosure's tests pass, and `film-links.test.ts`'s case 11 still holds V1's Trigger.
