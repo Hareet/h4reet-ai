@@ -166,7 +166,7 @@ As any visitor in the 3D room, I see the Author's dog at its place, told in his 
 - **FR-014**: WHERE the model the twin's figure shows lacks the six leg bones or the hips bone (`findLegRig` gives none), or shows its capsule, THE TWIN SHALL hold at its home in its usual states for the whole run (degraded, Q7), and the dog SHALL run alone.
 - **FR-015**: The conversation, the text box, the panel, the guards, and the twin's answers SHALL NOT change. The run reads no conversation text and sends nothing.
 - **FR-016**: The visitor's figure, its movement, camera, controls, reach, and the walkable floor SHALL NOT change (Q4): the run reads the visitor's pose and chosen avatar and writes nothing to them.
-- **FR-017**: The twin's placement SHALL stay at its home: only its picture moves (the group spec 009's controller puts its avatar in); its pick area, label, frame box, obstacle, reach target, and hand anchors stay where the scene puts them.
+- **FR-017**: The twin's placement SHALL stay at its home: only its picture moves (the group spec 009's controller puts its avatar in); its pick area, label, frame box, obstacle, reach target, and hand anchors stay where the scene puts them. (rv-rework2-spec-026: no selectable has the twin's figure among its members, on `main` or on the line, so the twin has no pick area today; the run keeps whatever a later spec gives it, and adds none.)
 
 **The room's dog figure** (B2; spec 020's Q1 leaves it here)
 

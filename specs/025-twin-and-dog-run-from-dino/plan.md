@@ -65,7 +65,7 @@ The spec-writer computed these by hand on `fix-020`, from the catalog's `bounds`
 | Bounds (less the radius; the front less the visitor's half-depth, 0.025) | x [−0.947, 0.947], z [−0.490, 0.585] |
 | Work desk (1.5 × 0.8 m, back wall + 0.4) | obstacle x [−0.870, 0.870], z [−0.730, 0.310] |
 | Twin's figure (box x [−0.37, 0.36], z [−0.324, 0.2] at its mount) | obstacle x [0.170, 1.140], z [0.025, 0.789] |
-| Chalkboard (left wall, y 1.33 to 1.97) | obstacle x ≤ −0.907, z about [−0.07, 0.65] |
+| Chalkboard (left wall, y 1.33 to 1.97) | obstacle x [−1.187, −0.887], z [−0.190, 0.765] (as composed, T001's print; rv-rework2-spec-025's Nit-1; first read by hand as x ≤ −0.907, z about [−0.07, 0.65]) |
 | Bicycle (right wall, its turn read by hand) | obstacle x ≥ about 0.77, over most of the strip |
 
 **Positions and distances**
@@ -74,7 +74,7 @@ The spec-writer computed these by hand on `fix-020`, from the catalog's `bounds`
 |---|---|
 | `floor.start` (`visitor-figure`'s mount, `[-0.7, 0, 0.58]`) | (−0.700, 0.580) |
 | The twin's home (`twin-figure`'s mount, `[0.66, 0, 0.469]`) | (0.660, 0.469), 1.364 m from `floor.start` |
-| The dog's home (the estimate above) | (0.36, 0.55), 1.060 m from `floor.start`, 0.311 m from the twin's home |
+| The dog's home (as built, T011; Q158) | (0.30, 0.45), 1.008 m from `floor.start`, 0.361 m from the twin's home (the first estimate, (0.36, 0.55), was 0.311 m from it: the bodies touched, Nit-3) |
 | The dinosaur's floor in front of the desk | x [−0.907, 0.170], z [0.310, 0.585]: about 1.08 × 0.275 m |
 | The chase floor adds the twin's corner | x (0.170, about 0.77], the same z: about 0.6 m long |
 
