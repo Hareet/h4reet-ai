@@ -829,6 +829,9 @@ export function createScene(options: SceneOptions): Stage3D {
       faces.dispose();
       glows.dispose();
       highlight.dispose();
+      // Spec 024 (rework-024, nit 3): what the eating built, a split out of the scene included, which disposeRoom's
+      // walk of the scene can't reach.
+      eat3d?.dispose();
       disposeRoom(room);
       renderer.dispose();
       canvas.remove();

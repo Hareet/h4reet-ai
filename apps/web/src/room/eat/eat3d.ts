@@ -9,7 +9,9 @@
 // Each takes its source's own `visible`; the sources are recorded and hidden. A bite flies a chunk's meshes to the mouth
 // (mouth.ts) over FLIGHT_MS and hides them; a regrowth scales them back about the chunk's centre over GROW_MS; reduced
 // motion does both at once. When the last eaten chunk is back, the sources take their recorded flags and the eating's
-// meshes leave the scene, memoized, never disposed: the stage's dispose frees them. highlight.refresh() follows each end.
+// meshes leave the scene, memoized for the next bite; the stage's dispose calls dispose(), which frees every geometry and
+// cut material the eating built, in the scene or not (the room's disposeRoom reaches only the scene's graph), and a split
+// dropped for a reloaded model is freed at once (rework-024, nit 3). highlight.refresh() follows each end.
 // An exception anywhere disables the eating for the visit: one warning without payload, every piece as loaded.
 import { BackSide, BufferAttribute, BufferGeometry, Color, Matrix4, Mesh, MeshBasicMaterial, Vector3 } from "three";
 import type { Material, Object3D } from "three";
@@ -53,6 +55,8 @@ export interface Eat3d {
   /** The visitor left walking (Escape, the walking control, a failed step): every flight lands at once, as the spec's
    *  edge case says; while the meal is paused, at the resume's first frame, since nothing lands while paused (FR-009). */
   settle(): void;
+  /** The stage's dispose: frees every geometry and cut material the eating built, attached or not. */
+  dispose(): void;
   disabled(): boolean;
 }
 
@@ -262,6 +266,11 @@ export function createEat3d(options: Eat3dOptions): Eat3d {
     s.attached = false;
   };
 
+  /** Frees a split's own geometries (a cut mesh shares its chunk mesh's; the attributes are its source's and stay). */
+  const free = (s: Split): void => {
+    for (const g of new Set([...s.aside, ...s.chunks.flat()].map((p) => p.mesh.geometry))) g.dispose();
+  };
+
   const disable = (): void => {
     if (off) return;
     off = true;
@@ -337,8 +346,9 @@ export function createEat3d(options: Eat3dOptions): Eat3d {
         if (!root) return false;
         let s = splits.get(id);
         if (s && s.root !== root) {
-          // The model was loaded again (a lost context's reload): its split goes with the old one.
+          // The model was loaded again (a lost context's reload): its split goes with the old one, freed.
           detach(s);
+          free(s);
           splits.delete(id);
           s = undefined;
         }
@@ -422,6 +432,18 @@ export function createEat3d(options: Eat3dOptions): Eat3d {
           }
         }
       });
+    },
+    dispose() {
+      motions.length = 0;
+      for (const s of splits.values())
+        try {
+          free(s);
+        } catch {
+          // Keep freeing the others.
+        }
+      splits.clear();
+      for (const cut of cutMaterials.values()) cut.dispose();
+      cutMaterials.clear();
     },
     disabled: () => off,
   };
