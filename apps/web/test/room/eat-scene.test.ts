@@ -281,6 +281,51 @@ describe("the eating's wiring in the 3D stage (scene.ts; FR-001, FR-009, FR-010,
     s.stage.dispose();
   });
 
+  it("lands a flight at once when the visitor leaves walking by Escape (the spec's edge case; nit 1)", async () => {
+    const s = await staged();
+    s.stage.walk.enter(s.view);
+    run(s, 64);
+    s.stage.eat?.press();
+    run(s, 16);
+    const before = shownChunks(s).size;
+    run(s, 100);
+    s.view.dispatchEvent(
+      new s.view.ownerDocument.defaultView!.KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    run(s, 32);
+    expect(s.stage.walk.walking, "Escape left the walk").toBe(false);
+    expect(shownChunks(s).size, "landed at once, not after the rest of its flight").toBe(before - 1);
+    s.stage.dispose();
+  });
+
+  it("lands a flight at once when the visitor leaves by the walking control, and not while paused (nit 1's siblings)", async () => {
+    const s = await staged();
+    s.stage.walk.enter(s.view);
+    run(s, 64);
+    s.stage.eat?.press();
+    run(s, 16);
+    const before = shownChunks(s).size;
+    s.stage.walk.leave();
+    expect(shownChunks(s).size, "landed at once").toBe(before - 1);
+    s.stage.dispose();
+
+    const p = await staged();
+    p.stage.walk.enter(p.view);
+    run(p, 64);
+    p.stage.eat?.press();
+    run(p, 16);
+    const then = shownChunks(p).size;
+    p.state.paused = true;
+    run(p, 32);
+    p.stage.walk.leave();
+    run(p, 2000);
+    expect(shownChunks(p).size, "nothing lands while paused, leaving or not").toBe(then);
+    p.state.paused = false;
+    run(p, 32);
+    expect(shownChunks(p).size, "it lands at the resume, its flight cut short by the leave").toBe(then - 1);
+    p.stage.dispose();
+  });
+
   it("reserves the Eat box beside the walking control in the stacked layout (I-1, page Q215)", async () => {
     // The stacked layout: the room gives no frame and no clear area, and the canvas is its own stage.
     swapped.picked = [];
