@@ -116,3 +116,23 @@ describe("motion, zoom, and spacing (FR-017, FR-018)", () => {
     expect(open).not.toMatch(/(?<![-\w])height:/);
   });
 });
+
+// T027 (B2; FR-014): the title's box sits inside a glass box: the title toggle and the hint are in the title row, which
+// has the panel's glass behind it and spans the panel's width at its top.
+describe("the title row's glass (T027)", () => {
+  it("puts the title and the hint inside the glassed title row", async () => {
+    const v = await room();
+    await openIt(v);
+    const head = v.doc.querySelector('.talk[data-panel="open"] .talk-head') as Element;
+    expect(head).not.toBeNull();
+    for (const part of [".talk-log-toggle", ".split-hint"]) expect(head.querySelector(part), part).not.toBeNull();
+    const css = readFileSync(fileURLToPath(new URL("../../src/room/hud/split.css", import.meta.url)), "utf8");
+    const body =
+      /html\[data-split="on"\]\[data-hud="column"\] \.talk\[data-panel="open"\] \.talk-head \{([^}]*)\}/.exec(
+        css,
+      )?.[1] ?? "";
+    expect(body).toMatch(/background:\s*rgb\(var\(--glass\) \/ var\(--split-glass-alpha\)\)/);
+    expect(body).toMatch(/grid-row:\s*1\b/);
+    expect(body).toMatch(/grid-column:\s*1 \/ -1/);
+  });
+});
