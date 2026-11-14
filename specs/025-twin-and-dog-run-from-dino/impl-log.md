@@ -73,3 +73,7 @@ GREEN: `vitest run test/room/dog-disclosure.test.ts test/disclosure.test.ts`: Te
 
 RED: `vitest run test/room/chase-bench.test.ts`: Tests 1 failed | 2 passed (3). The time holds already (`chase bench: 600 frames, mean ms a frame per run 0.0107, 0.0099, 0.0105; best 0.0099`); the scan finds nine allocations a frame: the shell's `pursuerPresent({ … })` argument, six `[twin, dog]` arrays in the director's `frame`, and `steer`'s two closures (`stand`, `sepOf`).
 GREEN: the director's figures listed once (`all`), `steer`'s `stand` and `sepOf` at module level, the shell's FR-001 input written in place. `vitest run` the eight chase files (bench, steer, director, degraded, notes, figures, states, schema): Test Files 8 passed (8), Tests 115 passed (115); `chase bench: 600 frames, mean ms a frame per run 0.0128, 0.0672, 0.0105; best 0.0105`; `room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations`. `make lint`: exit 0.
+
+## After the merge of verify-021 (81590888)
+
+The item's thirteen test files: Test Files 13 passed (13), Tests 166 passed (166). The lint target: exit 0. `python3 -I evals/docs_links.py`: "docs links: 0 failed, 2454 relative links in 409 files". The stack note's item 8 section quotes this log.
