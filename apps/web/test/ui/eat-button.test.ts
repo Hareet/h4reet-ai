@@ -140,10 +140,10 @@ describe("the option and the place (Q150, Q-R3b)", () => {
     // Showing and hiding the tile moves nothing.
     const eating = v.scene.created.at(-1)?.eating;
     expect(eating).toBeDefined();
-    eating?.available(true);
+    eating?.available?.(true);
     await flush();
     expect(px(v, "--eat-x")).toBeCloseTo(want.x, 3);
-    eating?.available(false);
+    eating?.available?.(false);
     await flush();
     expect(px(v, "--eat-y")).toBeCloseTo(want.y, 3);
   });
@@ -183,7 +183,7 @@ describe("when the tile shows (FR-001; US1 AS4)", () => {
     const b = eatButton(v);
     expect(b.hidden).toBe(true);
     const eating = v.scene.created.at(-1)?.eating;
-    eating?.available(true);
+    eating?.available?.(true);
     await flush();
     expect(b.hidden).toBe(false);
     expect(b.tabIndex).toBe(0);
@@ -192,7 +192,7 @@ describe("when the tile shows (FR-001; US1 AS4)", () => {
     b.click();
     expect((v as unknown as { press: ReturnType<typeof vi.fn> }).press).toHaveBeenCalledTimes(1);
     // No chunk standing: the 3D side says so, and the tile goes.
-    eating?.available(false);
+    eating?.available?.(false);
     await flush();
     expect(b.hidden).toBe(true);
   });
