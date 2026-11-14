@@ -146,4 +146,10 @@ Implementation runs on the night's line after item f (spec 026), which follows i
 
 ## 9. Departures
 
-None yet. The implementer records here any difference from §4, and the replica-versus-check difference from T005.
+The implementer records here any difference from §4, and the replica-versus-check difference from T005.
+
+- **D1 (T003, impl-027): `computeRecord(reader)`**, a function §4 doesn't list: the record from a tree through a `PackReader` (the committed pack, the prompt, the budgets, `measureFiles`), returning `{ record, stage, measure }`; it throws on a missing or unparseable pack, and `main` turns that into one stderr line and exit 1. The "fresh", "deterministic", and "reads only" cases call it, so the tests and the CLI compute the record one way.
+- **D2 (T003): the budgets' source** is read with the workspace's `yaml` parser (already a dependency of `twin-pack.ts`; no new one), since `fitLimits` returns values, not where they came from: `"config/budgets.yaml"` when `limits.twin` holds all three keys as integers, else `"defaults"`, as §4 says.
+- **D3 (T003): the import path** is `./twin-pack` without the extension, as every other `apps/web/build` import is written; the imports are §4's list (`PackSection` is a type; `TwinPack`'s `topics` and `selectables` are read, not imported functions).
+- **D4 (T003): small exports beside §4's**: `renderLead` (the lead's template, which the "lead" case holds equal to `render.ts`'s), `MODEL`, `ADR_PATH`, `GENERATED_BY`, `UNIT`, and the record's types (`PackMeasure` and the rest).
+- **D5 (T003): the stage's edges, where §4 leaves room**: T2 compares free talk's room with the rankable characters × the threshold, unrounded (the record's `share` is rounded to 4 places for reading only); with no rankable section, `share` is 1 and T2 isn't measured. A threshold is in `band` only when it isn't crossed. T1's band notes are one per topic in the band (today mission and hobbies and travel), e.g. `corpus:size: T1 band: the topic mission is within 137 characters of T1 (21,045 of the room's 21,182; ADR 0054)`; T2's and T3's band notes give the share or the pack's size. The stdout summary names the topic with the smallest margin.
