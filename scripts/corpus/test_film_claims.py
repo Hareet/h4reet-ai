@@ -686,3 +686,103 @@ def test_the_checker_imports_nothing_from_the_sources_it_copies() -> None:
         text,
         re.MULTILINE,
     )
+
+
+# ---- T003: the real scripts, read-only ----
+
+
+def test_real_scripts_md_numbered_lines() -> None:
+    sections = fc.read_scripts_md((ROOT / "films" / "SCRIPTS.md").read_text())
+    assert {k: len(v) for k, v in sections.items()} == {
+        "§1": 12,
+        "§2": 10,
+        "§3": 10,
+        "§4": 10,
+        "§5": 13,
+        "§6": 14,
+    }
+    for key, lines in sections.items():
+        assert [x.n for x in lines] == list(range(1, len(lines) + 1)), key
+
+
+def test_real_markers_and_about_you_lines() -> None:
+    sections = fc.read_scripts_md((ROOT / "films" / "SCRIPTS.md").read_text())
+    marked = {
+        (k, x.n): x.markers for k, lines in sections.items() for x in lines if x.markers
+    }
+    assert marked == {
+        ("§5", 9): {"unbuilt"},
+        ("§6", 12): {"retracted"},
+        ("§6", 13): {"unbuilt"},
+    }
+    about = {(k, x.n) for k, lines in sections.items() for x in lines if x.about_you}
+    assert about == {("§1", 5), ("§4", 7), ("§4", 8), ("§4", 9)}
+
+
+def test_real_kill_switch_sentences() -> None:
+    text = (ROOT / "films" / "kill-switch-b2" / "script.txt").read_text()
+    sentences = fc.split_sentences(text)
+    assert len(sentences) == 21
+    joined = next(s for s in sentences if s.text.startswith("At five dollars"))
+    assert joined.text == "At five dollars... it stops itself."
+    assert fc.file_lines(text, joined) == "file lines 9 and 11"
+    quote = next(s for s in sentences if s.text.startswith('"'))
+    assert (
+        quote.text
+        == "\"The twin can't talk right now. Today's budget for its answers is used.\""
+    )
+    assert fc.file_lines(text, quote) == "file line 15"
+    assert sentences[-1].text == "Built in the open, at hareet dot A I."
+    assert [s.first for s in sentences].count(23) == 4
+
+
+def test_real_materials_sources_and_the_shown_as_built_row() -> None:
+    listed, shown = fc.read_materials(
+        (ROOT / "films" / "kill-switch-b2" / "materials.md").read_text()
+    )
+    assert shown == {
+        "specs/001-cloud-elevation/spec.md",
+        "docs/adr/0044-ec2-as-prods-default-host.md",
+    }
+    assert {
+        "apps/web/content/messages.yaml",
+        "deploy/compose.yaml",
+        "config/budgets.yaml",
+        "services/gateway/src/core/gateway.ts",
+        "docs/adr/0020-gateway-state-store-and-meter.md",
+        ".claude/agents/*.md",
+    } <= listed
+    # Every source materials.md lists is in the repository, but the Author's untracked resume sources and the film's
+    # own font folder (films/kill-switch-b2/assets/fonts/), none of them a claim's source; R1 requires that a carried
+    # row's source exists, so none of these can stand under a carried line.
+    missing = {p for p in listed if not fc.exists(ROOT, p)}
+    assert missing == {
+        "resume/source/twin.html",
+        "resume/source/fonts.css",
+        "assets/fonts/",
+    }
+
+
+def test_real_scope_is_ninety_lines() -> None:
+    ctx = fc.read_context(ROOT)
+    assert ctx.scope() == {
+        "§1": 12,
+        "§2": 10,
+        "§3": 10,
+        "§4": 10,
+        "§5": 13,
+        "§6": 14,
+        "kill-switch-b2": 21,
+    }
+    assert ctx.dirs == {
+        "§1": "films/cost-meter",
+        "§2": "films/data-flows",
+        "§3": "films/evals",
+        "§4": "films/local-first",
+        "§5": "films/stack",
+        "§6": "films/lifecycle",
+    }
+    assert any(
+        "we chose haiku since our context base is small" in q for q in ctx.author_quotes
+    )
+    assert "up to 30 days, never for training" in ctx.f3
