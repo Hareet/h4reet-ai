@@ -73,3 +73,49 @@ None: $0; no request, no storage, no new disclosure entry (the still is a same-o
 - Look approval of the HUD and the loader, by sight (SC-005).
 - No human-only patch from this item (`docs/merge-requests/human-patches/018-better-hud-and-load-screen.md` says so).
 - Left: the loader frame's scrolling (finding 7); no teardown for `Split.dispose()`.
+
+---
+
+## Item 2: spec 019, the visitor's walking legs (`night/impl-019/impl-019`)
+
+Spec: specs/019-avatar-walking-legs/ · Intent: intent/019-avatar-walking-legs.md · Written by: implementer (night shift); the review (T011) is for a worker who didn't write the code · Date: 2026-11-14
+Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl-019 · Repo hooks active: not checked from this session
+Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at the top of plan.md and tasks.md), the spec, and the plan. Base: `night/impl-018/impl-018`, with `night/spec-019/spec-019` merged.
+
+### What changed and why
+
+His item c): "avatar walking leg animations". The man and the woman have no `walk` clip, so they slid. A code gait now lays six leg-bone rotations over the playing idle clip, after the mixer, driven by the distance walked (feet don't skate), eased in and out, and given back to the clip with no residue. Legs only; the holding hand, arms, spine, and head are the clip's.
+
+- `scene/gait.ts`: the pure part (`cycleLength`, `advance`, `legOffsets`, named constants) and the bones' part (`findLegRig`, `applyGait`, `clearGait`, base/applied tracking so a frame the mixer didn't write leaves nothing behind).
+- `scene/avatars.ts`: the leg rig found on the visitor's instance, the distance from the pose, the gait after the mixer in `update` (gates: motion on, level 0, an idle clip, no loaded `walk` clip), cleared on fallback, swap, `rest()`; a loaded `walk` clip plays at `clamp(speed / speed_mps, 0.5, 1.5)`; `clipScale` accessor.
+- `stage.ts`, `signals/frame-log.ts`, `app.ts`: the `gait` signal (`unavailable`) for a model without the six bones, one frame-log entry.
+- R-07 measured, not assumed: `gait-rig.test.ts` builds the real man's and woman's leg chains from their GLB node data; a positive hip offset moves the ankle toward +z, a positive knee offset bends the shin back.
+- Plan departures are listed in plan.md §2.5. T009 (lookdev) is dropped with a note there.
+
+### Acceptance criteria
+
+FR-001 to FR-010 by `gait.test.ts`, `gait-rig.test.ts`, `avatar-gait.test.ts`, and `avatar-driver.test.ts`. SC-001 (two identical seeded runs, finite) and SC-002 (no residue after stop, rest, fallback, to 1e-9) are tests; SC-003 (N cycles of distance, N turns of phase) is a test. SC-004 (chunk size) is read from the stack's `make build` at T012. SC-005 is his look approval, by sight.
+
+### Verification (small tests, the order's rule 4)
+
+```
+vitest run test/room/gait.test.ts test/room/gait-rig.test.ts test/room/avatar-gait.test.ts test/room/avatar-driver.test.ts test/room/avatar-hands.test.ts test/room/avatar-loader.test.ts test/room/avatars.test.ts test/room/stage-walk.test.ts test/smoke.test.ts
+ Test Files  9 passed (9)
+      Tests  96 passed (96)
+vitest run test/room/avatar-handoff.test.ts test/room/avatar-scene.test.ts test/room/twin-handoff.test.ts test/room/twin-reach.test.ts
+ Test Files  4 passed (4)
+      Tests  33 passed (33)
+```
+
+`make lint`: see the last line of this section. `tsc --noEmit -p apps/web`: clean. No full suite here: the stack's last task runs it once.
+
+### Cost and data-flow impact
+
+None: $0; no request, no byte leaves the device, no disclosure entry; no model call.
+
+### For the Author
+
+- Questions: the spec's Q1 to Q5 on the morning page, each with its recommended answer; none new from the build.
+- Look approval of the gait on the real models (SC-005); the amplitudes are one-line edits in `gait.ts` (README).
+- No human-only patch (`docs/merge-requests/human-patches/019.md` says so).
+- Open for others: T011 (a review by a worker who didn't write this), T012 (the stack's one `make check`).

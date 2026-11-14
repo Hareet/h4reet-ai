@@ -47,6 +47,17 @@ No scene-data, schema, compose, asset, policy, or human-only change. No new byte
 
 `apps/web/src/lookdev/` loads the same avatar controller for the Author's look pass. If its pose list can drive `driver.frame` with a synthetic walking pose in a few lines, a "walk" pose lets him judge the gait there (T010); if not, the task is dropped with a note and he judges in the room, which is where a gait is judged anyway. The look approval is his either way (SC-005).
 
+### 2.5 Departures found in implementation (T001 to T010)
+
+- `advance(state, distanceM, speedShare, dt, on, cycleM)` takes the cycle's length as its sixth argument, so the pure part never needs a height; the controller passes `cycleLength(figure.target)`.
+- The controller reads `part.walking.speed_mps`, so `createAvatarFigures`' `part` is `Pick<RoomScene, "figures" | "avatars" | "walking">` (the scene already carries it).
+- `AvatarFigures` gains `clipScale(figure)`, the walk clip's time scale or `null`, so FR-007 is testable without reaching into the mixer.
+- The `gait` signal reaches the frame log: `signals/frame-log.ts` gains the event kind `gait` and `app.ts` records it (`figure`, `state`). Both additive.
+- The sign convention measured on the real models (R-07): the chain turns about local X; a positive rotation about X swings a hanging foot toward −z, so the applier turns the hip and the ankle by the negative of their offsets and the knee by its offset (`HIP_SIGN`, `KNEE_SIGN`, `ANKLE_SIGN` in `gait.ts`).
+- The real files' rotations aren't exactly unit, so tests compare quaternion components, not `angleTo`.
+- The fixture's `legs` option appends the four lower-leg bones after every other bone (the two thighs already exist), resolving parents by name, so no existing index moves.
+- T009 (lookdev) is dropped: lookdev's hands page drives its own mixer, not the room's controller, so a synthetic walking pose doesn't fit in a few lines. The gait is judged in the room (README says so).
+
 ## 3. Decisions
 
 - **R-01 Distance, not time, drives the phase** (FR-002): feet don't skate at any speed; walk-to's slow arrival and diagonals come out right with no special case.
