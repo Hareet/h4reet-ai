@@ -37,3 +37,7 @@ room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
 ## T008 (GREEN)
 
 `vitest run test/room/chase-degraded.test.ts test/room/chase-director.test.ts`: Test Files 2 passed (2), Tests 27 passed (27). `make lint`: exit 0.
+
+## T009 (RED+GREEN)
+
+RED: `vitest run test/room/chase-notes.test.ts`: 6 failed | 4 passed (10). GREEN: `vitest run test/room/chase-notes.test.ts test/ui/text-copy.test.ts test/room/scene.test.ts test/room/vocabulary.test.ts test/ui/notes-causes.test.ts test/ui/a11y.test.ts`: Test Files 6 passed (6), Tests 144 passed (144); with chase-director and chase-degraded: 8 files passed. `make lint`: exit 0.

@@ -96,7 +96,7 @@ Per figure: `{ home: {x, z, heading}, pose: Pose, phase: "home" | "fleeing" | "r
 - `FigureId = "twin" | "visitor" | "dog"`; `FigureSignal` gains `{ kind: "chase"; state: "started" | "ended"; who: "both" | "twin" | "dog" }` (stage.ts).
 - `AvatarFigures` gains `pictureOf(figure: FigureId): Object3D | null` and `legsOf(figure: FigureId): LegRig | null` (avatars.ts).
 - `TwinActivity` gains `{ kind: "flee"; on: boolean }`; `TWIN_STATES` gains `"fleeing"` first; `TWIN_CLIPS_DEFAULT.fleeing = "idle"`; `TWIN_CLIP_ROLES` unchanged. This amends spec 016's twin-states contract §1 and §2 (the contract file stays spec 016's; the amendment is recorded here and in T004).
-- UI words: `chase.started_both`, `chase.started_twin`, `chase.started_dog`, `chase.ended_both`, `chase.ended_twin`, `chase.ended_dog`, no slots.
+- UI words: `chase.started_both`, `chase.started_twin`, `chase.started_dog`, `chase.ended_both`, `chase.ended_twin`, `chase.ended_dog`, no slots. **As built (T009):** their words end with a full stop, as the room's other lines do; the one-figure ended forms are "The twin is back in its place." and "The dog is back in its place." `test/room/vocabulary.test.ts`, which pins the closed list whole (77 keys), gains the six (83): a changed test §5 didn't list. The frame log's `FrameEvent` gains `chase` (`state`, `who`; R-08), without the least distance. The started line waits for a figure that moves (`moving`), not one that turns to watch.
 
 ## 5. Files expected to touch
 
@@ -134,6 +134,7 @@ The implementer merges this branch first. Each file by its path; none is human-o
 - `apps/web/test/room/twin-states.test.ts`: the new state; the existing cases stay.
 - `apps/web/test/room/bundle.test.ts`: the emitted twin block's `toEqual` (`:1403` on `fix-020`) gains `fleeing: "idle"`. The `toMatchObject` at `:1441` needs no change.
 - `apps/web/test/room/schema.test.ts`: an RI8 case beside `:1242`'s, `{ clips: { fleeing: "idle" } }` refused at `figures.twin.clips.fleeing`.
+- `apps/web/test/room/vocabulary.test.ts`: the closed list's six new keys and its count (T009; added on departure).
 - `apps/web/test/room/likeness-line-anywhere.test.ts` (spec 020's): its `ROOM_DOG` stand-in key becomes the real `"dog"` `FigureId`, and a case drives the line from the stage's dog picture signal.
 - `deploy/scripts/test_dashboard.py`: the avatar-failure panel's description names the room's dog.
 

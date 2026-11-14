@@ -109,6 +109,7 @@ export function createChase(options: {
   const off = (f: Figure): boolean => Math.hypot(f.runner.x - f.home.x, f.runner.z - f.home.z) > HOME_M;
   const away = (f: Figure): boolean => off(f) || f.runner.facing !== f.home.heading;
 
+  const moving = (f: Figure): boolean => f.phase !== "home" && (f.runner.speed > 0 || off(f));
   const whoOf = (a: boolean, b: boolean): ChaseWho | null => (a && b ? "both" : a ? "twin" : b ? "dog" : null);
 
   const flee = (f: Figure | null, dino: ChaseInput, dt: number, other: Runner | null): void => {
@@ -180,7 +181,8 @@ export function createChase(options: {
         flee(twin, dino, dt, null);
         flee(dog, dino, dt, twin ? twin.runner : null);
         if (said === null) {
-          const who = whoOf(twin?.phase === "fleeing", dog?.phase === "fleeing");
+          // FR-025: said once a figure moves; a figure that only turns to watch isn't running.
+          const who = whoOf(twin !== null && moving(twin), dog !== null && moving(dog));
           if (who) {
             said = who;
             options.note?.({ state: "started", who });
@@ -206,7 +208,7 @@ export function createChase(options: {
     },
     moving(id) {
       const f = of(id);
-      return f !== null && f.phase !== "home" && (f.runner.speed > 0 || off(f));
+      return f !== null && moving(f);
     },
     hold(id, held) {
       const f = of(id);

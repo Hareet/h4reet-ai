@@ -195,6 +195,8 @@ export type FigureSignal =
   | { readonly kind: "clip"; readonly figure: FigureId; readonly role: ClipRole | TwinClipRole }
   | { readonly kind: "gait"; readonly figure: FigureId; readonly state: "unavailable" }
   | { readonly kind: "twin-state"; readonly state: TwinState; readonly role: TwinClipRole }
+  /** Spec 025 (FR-025; plan.md R-07): the run's start and end, once each, by the figures that move. */
+  | { readonly kind: "chase"; readonly state: "started" | "ended"; readonly who: "both" | "twin" | "dog" }
   | { readonly kind: "failed" };
 
 /** The 3D chunk's interface, which the room imports only after the WebGL 2 check. */
