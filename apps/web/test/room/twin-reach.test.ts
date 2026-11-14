@@ -55,6 +55,10 @@ const decode: Decode = (_source, options) =>
     close: () => undefined,
   } as unknown as ImageBitmap);
 
+/** The roles whose clips are delivered under assets/twin/: all but spec 026's `petting`, the studio's clip to come
+ *  (its plan R-14), which RA8 samples once his intake bundles it. */
+const DELIVERED = TWIN_CLIP_ROLES.filter((role) => role !== "petting");
+
 const twinBytes = (name: string): Uint8Array => new Uint8Array(readFileSync(join(REPO, TWIN_DIR, name)));
 
 /** The directions each frame is measured along: the side walls', the back's and the front's, and down, the floor's. */
@@ -98,7 +102,7 @@ describe("the twin's reach is three's skinning, sampled (plan.md R-19)", () => {
     const rest = threeReach(root);
     at(0, null).forEach((r, k) => expect(r).toBeCloseTo(rest[k] ?? Number.NaN, 4));
     const loader = new GLTFLoader();
-    for (const role of TWIN_CLIP_ROLES) {
+    for (const role of DELIVERED) {
       const bytes = twinBytes(`${role}.glb`);
       const clip = (await loader.parseAsync(bytes.slice().buffer, "")).animations[0];
       if (!clip) throw new Error(`${role}.glb holds no animation`);
@@ -163,7 +167,7 @@ describe("RA8 on this branch's room (plan.md R-19)", () => {
     const scene = room.scene?.value ?? null;
     const g = geometryOf(createContext(room, policy, { mode: "strict", drafts: false }, tree).ctx);
     const reach = twinReachOf(tree, scene, twinOf(tree, policy, scene), g);
-    expect(reach?.sources.map((s) => s.source)).toEqual(["rest", ...TWIN_CLIP_ROLES]);
+    expect(reach?.sources.map((s) => s.source)).toEqual(["rest", ...DELIVERED]);
     for (const s of reach?.sources ?? [])
       for (const w of s.walls)
         expect(w.reach, `${s.source} toward the ${w.wall}`).toBeLessThan(
@@ -176,7 +180,7 @@ describe("RA8 on this branch's room (plan.md R-19)", () => {
     if (!reach) throw new Error("no reach measured");
     const model = tree.read(`${TWIN_DIR}/twin.glb`);
     if (!model) throw new Error("no model");
-    const clips = TWIN_CLIP_ROLES.map((role) => {
+    const clips = DELIVERED.map((role) => {
       const bytes = tree.read(`${TWIN_DIR}/${role}.glb`);
       if (!bytes) throw new Error(`no ${role}`);
       return { role, bytes };

@@ -138,7 +138,7 @@ describe("fleeing, the run's state (spec 025, FR-011)", () => {
   it("is first in the order and the map's default plays the idle", () => {
     expect(TWIN_STATES[0]).toBe("fleeing");
     expect(TWIN_CLIPS_DEFAULT.fleeing).toBe("idle");
-    expect([...TWIN_CLIP_ROLES]).toEqual(["idle", "talking", "listening", "greeting", "desk-lean"]);
+    expect([...TWIN_CLIP_ROLES]).toEqual(["idle", "talking", "listening", "greeting", "desk-lean", "petting"]);
   });
 
   it("outranks arriving, answering, listening, and resting while it's on, and ends with its signal", () => {

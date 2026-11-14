@@ -1404,6 +1404,8 @@ describe("the twin in the bundle (spec 016, T010)", () => {
       clips: {
         fleeing: "idle",
         arriving: "greeting",
+        // Spec 026 (FR-009): the emitted map gains petting's default.
+        petting: "petting",
         answering: "talking",
         listening: "listening",
         resting: "desk-lean",

@@ -4,17 +4,28 @@
 // and a test drives it on numbers alone.
 
 /** The twin's clip roles, by their files' names under assets/twin/, in the closed list's order (FR-009). */
-export const TWIN_CLIP_ROLES = ["idle", "talking", "listening", "greeting", "desk-lean"] as const;
+/** `petting` is spec 026's (FR-009): the studio's clip, which plays where it is bundled; else the idle with the reach. */
+export const TWIN_CLIP_ROLES = ["idle", "talking", "listening", "greeting", "desk-lean", "petting"] as const;
 export type TwinClipRole = (typeof TWIN_CLIP_ROLES)[number];
 
-/** The twin's states, in FR-021's order of precedence; `fleeing` first, the run's (spec 025, FR-011). */
-export const TWIN_STATES = ["fleeing", "arriving", "answering", "listening", "resting", "present"] as const;
+/** The twin's states, in FR-021's order of precedence; `fleeing` first, the run's (spec 025, FR-011); `petting` after
+ *  `arriving`, before `answering` (spec 026, FR-009). */
+export const TWIN_STATES = [
+  "fleeing",
+  "arriving",
+  "petting",
+  "answering",
+  "listening",
+  "resting",
+  "present",
+] as const;
 export type TwinState = (typeof TWIN_STATES)[number];
 
 /** The state-to-clip map's defaults (FR-020; Clarifications, Q1): the greeting, talking, listening, the lean, the idle. */
 export const TWIN_CLIPS_DEFAULT: Readonly<Record<TwinState, TwinClipRole>> = Object.freeze({
   fleeing: "idle",
   arriving: "greeting",
+  petting: "petting",
   answering: "talking",
   listening: "listening",
   resting: "desk-lean",
@@ -34,7 +45,10 @@ export type TwinActivity =
   | { readonly kind: "selected" }
   /** The run (spec 025, FR-011, FR-012): on while the twin's figure moves for it; set by the room, never read from
    *  the conversation. */
-  | { readonly kind: "flee"; readonly on: boolean };
+  | { readonly kind: "flee"; readonly on: boolean }
+  /** The petting (spec 026, FR-009): on while the twin pets the dog; set by the pet director, never read from the
+   *  conversation. */
+  | { readonly kind: "pet"; readonly on: boolean };
 
 /** The block's timings the states take (contracts/twin-data.md §1). */
 export interface TwinTimings {
@@ -71,6 +85,7 @@ export function createTwinStates(block: TwinTimings): TwinStates {
   let drafting = false;
   let turnOut = false;
   let fleeing = false;
+  let petting = false;
   /** The last moment arriving, answering, or listening held, or a selection came: the quiet counts from it. */
   let busy = 0;
   let state: TwinState = "present";
@@ -90,6 +105,7 @@ export function createTwinStates(block: TwinTimings): TwinStates {
     settle(now);
     if (fleeing) return "fleeing";
     if (arriving(now)) return "arriving";
+    if (petting) return "petting";
     if (answering(now)) return "answering";
     if (listening()) return "listening";
     if (now - busy >= block.rest_after_s * 1000) return "resting";
@@ -130,6 +146,10 @@ export function createTwinStates(block: TwinTimings): TwinStates {
         case "flee":
           // The timers keep running under it (spec 025, User Story 4): it moves no busy moment.
           fleeing = activity.on;
+          break;
+        case "pet":
+          // As the run's (spec 026, FR-009): the timers keep running under it, and it moves no busy moment.
+          petting = activity.on;
           break;
       }
       state = compute(now);
