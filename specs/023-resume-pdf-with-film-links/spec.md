@@ -96,7 +96,7 @@ As the Author and the agents, we want the claim-to-film table in one file, so th
 - **SC-001**: All four links are in the candidate and each lands on a page that exists in the published repository (checked by the Author after publication; by file existence before).
 - **SC-002**: The candidate passes PDF1 to PDF9 and one page.
 - **SC-003**: Until the Author acts, the served PDF is byte-identical to C-0002's.
-- **SC-004**: Rendering the candidate's page 1 to an image differs from the approved file's only inside the claims' rectangles by nothing visible: it's identical.
+- **SC-004**: The candidate's page content stream is byte-identical to the approved file's; only annotations are added.
 - **SC-005**: The approval request needs one command and one entry from him.
 
 ## Assumptions
