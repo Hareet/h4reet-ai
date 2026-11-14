@@ -2601,6 +2601,270 @@ Interruptions: no hook or bash-gate refusal. One notice that is not a refusal: e
 
 verify-024: not green: `eat-checks.test.ts`'s report case waits on `docs/merge-requests/proposed/024-eat-checks-report-with-model.patch` (page), and spec 004's FR-007 scan finds 94 IDs in seven of item 7's own test files, a fix task (page); otherwise green, carrying D-V2's six (Q165)
 
+### Fix (fix-024)
+
+`night/fix-024/fix-024`, from verify-024's tip b25e2783, 2026-11-14, Opus 5.5. It merges nothing; verify2-024 merges and verifies. Two fixes, RED before GREEN, one commit each. The runs are at the branch's code, 00f4b6e7.
+
+#### Fix 1: Q254, the report case composes with the dinosaur's folder (81372c14)
+
+The page's Q254, answered as recommended: `git apply docs/merge-requests/proposed/024-eat-checks-report-with-model.patch`. It changes only `apps/web/test/room/eat-checks.test.ts`, which is item 7's own file. The applied patch file is `git rm`'d in the same commit. `024-data-only-eat-box.patch` stays for the day the folder lands.
+
+RED, before the patch: `cd apps/web && npx vitest run test/room/eat-checks.test.ts`. These are the last 30 lines, as printed through `tail -30`, which held the whole output:
+
+```
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/fix-024/apps/web
+
+ ❯ test/room/eat-checks.test.ts (13 tests | 1 failed) 36751ms
+   ❯ the report's dinosaur visit lines (1)
+     × adds them after the frame lines, the existing lines as they were 1913ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/room/eat-checks.test.ts > the report's dinosaur visit lines > adds them after the frame lines, the existing lines as they were
+AssertionError: expected -1 to be greater than 0
+ ❯ test/room/eat-checks.test.ts:239:18
+    237|     const lines = result.report.markdown.split("\n");
+    238|     const head = lines.findIndex((l) => l.startsWith("A 3D dinosaur vi…
+    239|     expect(head).toBeGreaterThan(0);
+       |                  ^
+    240|     expect(lines[head - 1]).toBe("");
+    241|     expect(lines[head]).toContain("stages over the same screens, check…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 12 passed (13)
+   Start at  21:27:36
+   Duration  90.39s (tests 97%, import 1%, transform 1%)
+```
+
+GREEN, after the patch: the same command, whole output:
+
+```
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/fix-024/apps/web
+
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  21:29:13
+   Duration  81.23s (tests 97%, transform 2%, import 2%)
+```
+
+#### Fix 2: Q255, spec 004's FR-007 scan finds no ID in item 7's tests (00f4b6e7)
+
+The page's Q255, answered as recommended. Only the seven files changed. `scan.test.ts`, every other test, and every source file are as they were (`git diff --stat b25e2783 HEAD -- apps/web/src apps/web/build apps/web/test/room/scan.test.ts` is empty).
+
+What each file now does:
+- **A real piece is found in the repository's bundle by its placement's label words.** Each file has a small local `labelled(words)`. It returns the one placement whose `label` key maps to those words in `index.ui`, and it throws if there is not exactly one. The words are "Desk", "Desk sign, busy", "Laptop", "Chalkboard", and "Bicycle". The scan matches case-sensitively, so a capitalised word is not a hit. Every identity the cases pinned stays pinned, including the desk's 6 chunks against the others' 4. Renaming or moving a piece is a data edit again. Changing one of those five words in `room/ui-words.yaml` fails these tests with "0 placements labelled …".
+- **The charger is found from the data, never written.** In `eat-3d` and `eat-chunker` it is the piece of the switch whose pose mounts on the laptop. In `eat-3d`, that switch's own ID fills the title's "spec 004's …".
+- **The sign's stand mesh is written as `${SIGN}-stand`.** The model names that mesh after its piece.
+- **Stubs use `fx-` IDs.** `eat-chunker`'s keep-out case and its `meshNameOf` node tree are synthetic, so they now use `fx-laptop` and `fx-charger`.
+- **Titles that held an ID are templates filled from the same lookups.** Every case's name at run time is the same as before.
+- **`eat-scene`'s hoisted `edibleReach` mock** returns `swapped.reach`. That is set to the looked-up busy sign once the bundle is read.
+
+Cases before (b25e2783) and after (00f4b6e7), from vitest's JSON reporter over the seven files. The sorted lists of full case names are identical: `diff` printed nothing, then "case names identical". `expect(` occurrences per file are counted with `grep -o 'expect(' | wc -l`:
+
+| File | Cases before | Cases after | `expect(` before | `expect(` after | Scan hits before |
+|---|---|---|---|---|---|
+| `test/room/eat-chunker.test.ts` | 34 passed | 34 passed | 69 | 69 | 26 |
+| `test/room/eat-3d.test.ts` | 19 passed | 19 passed | 75 | 75 | 23 |
+| `test/ui/eat-reduced.test.ts` | 4 passed | 4 passed | 15 | 15 | 18 |
+| `test/ui/eat-input.test.ts` | 14 passed | 14 passed | 26 | 26 | 14 |
+| `test/room/eat-data.test.ts` | 16 passed | 16 passed | 21 | 21 | 6 |
+| `test/ui/eat-degraded.test.ts` | 7 passed | 7 passed | 19 | 19 | 5 |
+| `test/room/eat-scene.test.ts` | 10 passed | 10 passed | 34 | 34 | 2 |
+| Total | 104, 0 failed, 0 skipped | 104, 0 failed, 0 skipped | 259 | 259 | 94 |
+
+None is dropped, skipped, or weakened. An `it.each` table holds the same rows, now filled from the bundle.
+
+RED, at 81372c14: `cd apps/web && npx vitest run test/room/scan.test.ts`, whole output:
+
+```
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/fix-024/apps/web
+
+ ❯ test/room/scan.test.ts (17 tests | 1 failed) 2690ms
+   ❯ the committed tree (T107; FR-007, SC-001, User Story 1 scenario 4) (2)
+     × finds 0 IDs only the room's data defines in the room's code 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/room/scan.test.ts > the committed tree (T107; FR-007, SC-001, User Story 1 scenario 4) > finds 0 IDs only the room's data defines in the room's code
+AssertionError: expected { lines: [ …(94) ], code: 1 } to deeply equal { lines: [], code: +0 }
+
+- Expected
++ Received
+
+  {
+-   "code": 0,
+-   "lines": [],
++   "code": 1,
++   "lines": [
++     "FR-007 apps/web/test/room/eat-3d.test.ts:341: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:342: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:343: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:344: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:376: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:376: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:376: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:376: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:433: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:434: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:435: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:451: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:455: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:456: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:458: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:466: holds \"charger\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:466: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:468: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:471: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:472: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:475: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:476: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:478: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:273: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:362: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:363: holds \"charger\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:365: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:369: holds \"charger\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:372: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:385: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:398: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:398: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:398: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:398: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:459: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:461: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:461: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:471: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:478: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:479: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:480: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:493: holds \"charger\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:493: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:494: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:504: holds \"charger\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:504: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:505: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:513: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:514: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-data.test.ts:103: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-data.test.ts:103: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-data.test.ts:107: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-data.test.ts:107: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-data.test.ts:107: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-data.test.ts:107: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-scene.test.ts:70: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-scene.test.ts:78: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-degraded.test.ts:90: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-degraded.test.ts:90: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-degraded.test.ts:90: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-degraded.test.ts:90: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-degraded.test.ts:132: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:185: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:185: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:185: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:185: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:190: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:191: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:192: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:198: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:203: holds \"bicycle\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:210: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:211: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:212: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:213: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:218: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:38: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:38: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:62: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:63: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:67: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:70: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:73: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:82: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:83: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:90: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:91: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:94: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:95: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:96: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:97: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:97: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:115: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:118: holds \"laptop\", which only the room's data defines",
++   ],
+  }
+
+ ❯ test/room/scan.test.ts:426:25
+    424|
+    425|   it("finds 0 IDs only the room's data defines in the room's code", ()…
+    426|     expect(committed()).toEqual({ lines: [], code: 0 });
+       |                         ^
+    427|   });
+    428| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 passed (17)
+   Start at  21:30:42
+   Duration  52.14s (tests 81%, import 10%, transform 9%)
+```
+
+GREEN, at 00f4b6e7: the same command, whole output:
+
+```
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/fix-024/apps/web
+
+
+ Test Files  1 passed (1)
+      Tests  17 passed (17)
+   Start at  21:38:11
+   Duration  51.89s (tests 82%, transform 9%, import 9%)
+```
+
+#### Runs (00f4b6e7)
+
+`scan.test.ts` and the eight `eat-*` files this task changed. The 134 cases are scan 17, eat-checks 13, and the seven files' 104. Whole output:
+
+```
+cd apps/web && npx vitest run test/room/scan.test.ts test/room/eat-checks.test.ts test/room/eat-chunker.test.ts test/room/eat-3d.test.ts test/room/eat-data.test.ts test/room/eat-scene.test.ts test/ui/eat-reduced.test.ts test/ui/eat-input.test.ts test/ui/eat-degraded.test.ts
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/fix-024/apps/web
+
+
+ Test Files  9 passed (9)
+      Tests  134 passed (134)
+   Start at  21:42:15
+   Duration  103.88s (import 63%, tests 36%, transform 1%)
+exit 0
+```
+
+The lint target, whole output:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+804 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit 0
+```
+
+No path under `corpus/`, `assets/**`, `/srv/studio/`, or any human-only path changed. Each of this task's commits printed gitleaks' "no leaks found" and an `arrival-check: 0 findings` line. The setup target was run first, because the worktree had no `node_modules`.
+
+Interruptions: no hook or bash-gate refusal. Nothing was respelled.
+
+fix-024: green on the brief's runs: eat-checks 13 of 13, the FR-007 scan 17 of 17 with 0 hits, the seven files 104 of 104 with the same names, and lint exit 0. D-V2's six (Q165) are carried as they were. verify2-024 merges the line's tip and verifies.
+
 ---
 
 ## Item 10: spec 027, when the twin's file context stops being enough (`night/impl-027/impl-027`)
