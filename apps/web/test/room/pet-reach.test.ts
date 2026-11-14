@@ -6,12 +6,13 @@ import { describe, expect, it } from "vitest";
 import {
   PET_REACH_DEFAULTS,
   solveLean,
+  solvePosture,
   solveTwoBone,
   strokeShare,
   strokeTarget,
   weightAt,
 } from "../../src/room/scene/pet-reach";
-import type { TwoBoneOut, Vec3 } from "../../src/room/scene/pet-reach";
+import type { PostureChain, PostureOut, TwoBoneOut, Vec3 } from "../../src/room/scene/pet-reach";
 
 const v = (x: number, y: number, z: number): Vec3 => ({ x, y, z });
 const sub = (a: Vec3, b: Vec3): Vec3 => v(a.x - b.x, a.y - b.y, a.z - b.z);
@@ -224,5 +225,104 @@ describe("the reach's defaults (spec FR-007, FR-008; plan §3)", () => {
     expect(PET_REACH_DEFAULTS.elbow_deg).toBe(150);
     expect(PET_REACH_DEFAULTS.lean_max_deg).toBeGreaterThan(0);
     expect(PET_REACH_DEFAULTS.lean_max_deg).toBeLessThanOrEqual(75);
+  });
+});
+
+// T003 (impl2-026; Q212, taken provisionally; plan R-03 amended): the posture, the crouch and the spine's lean bent
+// together by one share of their limits, on numbers alone.
+describe("solvePosture (R-03, amended: Q212)", () => {
+  /** A figure 1.8 m tall facing +z at the origin: hips, the three spine joints, and the right shoulder. */
+  const CHAIN: PostureChain = {
+    hips: v(0, 0.95, 0),
+    spine: [v(0, 1.05, 0), v(0, 1.17, 0), v(0, 1.3, 0)],
+    shoulder: v(-0.17, 1.42, 0),
+  };
+  const REACH = 0.6;
+  const LIMITS = { crouch_max_m: 0.35, lean_max_rad: 66 * DEG };
+  const out = (): PostureOut => ({ share: 0, crouch: 0, lean: 0, axis: v(0, 0, 0) });
+  /** The shoulder after a crouch `c` and a lean `t` over the spine about the unit `k`: each spine bone turned by a
+   *  third, the measure's chain (pet-reach-measure.test.ts). */
+  function shoulderAt(c: number, t: number, k: Vec3): Vec3 {
+    const turn = (r: Vec3, a: number): Vec3 => {
+      const [co, si] = [Math.cos(a), Math.sin(a)];
+      const kxr = v(k.y * r.z - k.z * r.y, k.z * r.x - k.x * r.z, k.x * r.y - k.y * r.x);
+      const kr = dot(k, r);
+      return v(
+        r.x * co + kxr.x * si + k.x * kr * (1 - co),
+        r.y * co + kxr.y * si + k.y * kr * (1 - co),
+        r.z * co + kxr.z * si + k.z * kr * (1 - co),
+      );
+    };
+    const [p0, p1, p2] = CHAIN.spine;
+    const a = turn(sub(p1, p0), t / 3);
+    const b = turn(sub(p2, p1), (2 * t) / 3);
+    const s = turn(sub(CHAIN.shoulder, p2), t);
+    return v(p0.x + a.x + b.x + s.x, p0.y + a.y + b.y + s.y - c, p0.z + a.z + b.z + s.z);
+  }
+
+  it("bends nothing when the target is already in reach", () => {
+    const o = solvePosture(CHAIN, v(-0.3, 1.1, 0.3), REACH, LIMITS, out());
+    expect(o.share).toBe(0);
+    expect(o.crouch).toBe(0);
+    expect(o.lean).toBe(0);
+  });
+
+  it("gives the least share of both limits that brings a low target within reach", () => {
+    const target = v(-0.3, 0.5, 0.45);
+    const o = solvePosture(CHAIN, target, REACH, LIMITS, out());
+    expect(o.share).toBeGreaterThan(0);
+    expect(o.share).toBeLessThan(1);
+    expect(o.crouch).toBeCloseTo(o.share * LIMITS.crouch_max_m, 12);
+    expect(o.lean).toBeCloseTo(o.share * LIMITS.lean_max_rad, 12);
+    // In reach at the share; out of it a little below.
+    expect(dist(target, shoulderAt(o.crouch, o.lean, o.axis))).toBeLessThanOrEqual(REACH + 1e-4);
+    const less = o.share - 0.01;
+    expect(dist(target, shoulderAt(less * LIMITS.crouch_max_m, less * LIMITS.lean_max_rad, o.axis))).toBeGreaterThan(
+      REACH,
+    );
+  });
+
+  it("leans toward the target: the axis is up × its direction on the floor from the hips, a unit vector", () => {
+    const target = v(-0.3, 0.5, 0.45);
+    const o = solvePosture(CHAIN, target, REACH, LIMITS, out());
+    const n = Math.hypot(target.x - CHAIN.hips.x, target.z - CHAIN.hips.z);
+    expect(o.axis.x).toBeCloseTo((target.z - CHAIN.hips.z) / n, 12);
+    expect(o.axis.y).toBe(0);
+    expect(o.axis.z).toBeCloseTo(-(target.x - CHAIN.hips.x) / n, 12);
+  });
+
+  it("stays within both limits for a target out of every reach, at the share that comes nearest", () => {
+    const target = v(-0.2, 0.0, 1.6);
+    const o = solvePosture(CHAIN, target, REACH, LIMITS, out());
+    expect(o.share).toBeGreaterThan(0);
+    expect(o.share).toBeLessThanOrEqual(1);
+    expect(o.crouch).toBeLessThanOrEqual(LIMITS.crouch_max_m);
+    expect(o.lean).toBeLessThanOrEqual(LIMITS.lean_max_rad);
+    const at = dist(target, shoulderAt(o.crouch, o.lean, o.axis));
+    for (let s = 0; s <= 1; s += 0.05)
+      expect(at).toBeLessThanOrEqual(
+        dist(target, shoulderAt(s * LIMITS.crouch_max_m, s * LIMITS.lean_max_rad, o.axis)) + 1e-3,
+      );
+  });
+
+  it("bends nothing with both limits at 0, and nothing for a target straight above or below the hips", () => {
+    const zero = solvePosture(CHAIN, v(-0.3, 0.5, 0.45), REACH, { crouch_max_m: 0, lean_max_rad: 0 }, out());
+    expect([zero.share, zero.crouch, zero.lean]).toEqual([0, 0, 0]);
+    const below = solvePosture(CHAIN, v(0, -1, 0), REACH, { crouch_max_m: 0, lean_max_rad: LIMITS.lean_max_rad }, out());
+    expect(below.lean).toBe(0);
+  });
+
+  it("writes into the `out` it is given, returns it, and is deterministic", () => {
+    const o = out();
+    expect(solvePosture(CHAIN, v(-0.3, 0.5, 0.45), REACH, LIMITS, o)).toBe(o);
+    const again = solvePosture(CHAIN, v(-0.3, 0.5, 0.45), REACH, LIMITS, out());
+    expect(again).toEqual(o);
+  });
+});
+
+describe("the reach's crouch default (Q212; plan §3)", () => {
+  it("is T003's measure: 0.35 m, with the lean at 66°", () => {
+    expect(PET_REACH_DEFAULTS.crouch_max_m).toBe(0.35);
+    expect(PET_REACH_DEFAULTS.lean_max_deg).toBe(66);
   });
 });
