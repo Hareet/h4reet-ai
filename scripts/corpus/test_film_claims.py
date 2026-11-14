@@ -798,6 +798,125 @@ def test_no_file_under_films_is_a_cited_files_text(
     assert failing(problems, "R4", "currency"), problems
 
 
+OUTSIDE_TEXT = "It caps at five dollars a day, the other checkout says.\n"
+OUTSIDE_QUOTE = "It caps at five dollars a day"
+KS_QUOTE = "So it has a ceiling: five dollars a day."
+
+
+@pytest.fixture
+def checkout(tmp_path: Path) -> Path:
+    """The fixture repository at `<tmp>/checkout`, with another checkout beside it (`<tmp>/other`, its own films), a
+    plain file above it (`<tmp>/plain.txt`), and three links inside it: to a file outside, to a directory outside, and
+    into its own `films/`."""
+    root = tmp_path / "checkout"
+    for rel, text in FILES.items():
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+    other = tmp_path / "other"
+    (other / "films/kill-switch-b2").mkdir(parents=True)
+    (other / "films/kill-switch-b2/script.txt").write_text(SCRIPT_TXT)
+    (other / "plain.txt").write_text(OUTSIDE_TEXT)
+    (tmp_path / "plain.txt").write_text(OUTSIDE_TEXT)
+    (root / "docs/outside.txt").symlink_to(other / "plain.txt")
+    (root / "docs/ext").symlink_to(other, target_is_directory=True)
+    (root / "docs/script-link.txt").symlink_to("../films/kill-switch-b2/script.txt")
+    return root
+
+
+CARRIED_ROW = (
+    "| The tests #1 | `evals/run.md` |",
+    "| The tests #1 | `evals/run.md`, `{source}` |",
+)
+LEFT_OUT_ROW = (
+    "a recorded run's result | — | `evals/run.md` |",
+    "a recorded run's result | — | `evals/run.md`, `{source}` |",
+)
+
+
+@pytest.mark.parametrize(
+    ("row_old", "row_new"), [CARRIED_ROW, LEFT_OUT_ROW], ids=["carried", "left-out"]
+)
+@pytest.mark.parametrize(
+    ("source", "quote"),
+    [
+        # rv2-rework2-022's B-2: another checkout's films, an absolute path, and a plain file above the root.
+        ("../other/films/kill-switch-b2/script.txt", KS_QUOTE),
+        ("{other}/plain.txt", OUTSIDE_QUOTE),
+        ("../plain.txt", OUTSIDE_QUOTE),
+        # Siblings of other shapes: a path that climbs out after a real directory, a link inside the root to a file
+        # outside it, and a link inside the root to a directory outside it.
+        ("docs/../../plain.txt", OUTSIDE_QUOTE),
+        ("docs/outside.txt", OUTSIDE_QUOTE),
+        ("docs/ext/plain.txt", OUTSIDE_QUOTE),
+    ],
+    ids=[
+        "other-checkouts-films",
+        "absolute",
+        "above-the-root",
+        "climbs-out",
+        "link-out",
+        "linked-directory-out",
+    ],
+)
+def test_a_path_outside_the_repository_is_no_source_and_no_quote(
+    checkout: Path, row_old: str, row_new: str, source: str, quote: str
+) -> None:
+    source = source.format(other=checkout.parent / "other")
+    cites = changed(row_old, row_new.format(source=source))
+    problems = run(checkout, cites)
+    assert failing(problems, "R1", source, "isn't in the repository"), problems
+    bad = changed(
+        "- `[?]` The daily summary of the CPU metrics.",
+        f'- `[?]` The daily summary of the CPU metrics. The file says "{quote}"',
+        cites,
+    )
+    problems = run(checkout, bad)
+    assert failing(problems, "R5", quote[:20]), problems
+    assert failing(problems, "R4", "currency"), problems
+
+
+def test_a_link_inside_the_root_into_films_is_a_source_but_no_quote(
+    checkout: Path,
+) -> None:
+    # rv2-rework2-022's N-1: the link is in the repository, so R1 takes it; it resolves under films/, so R5 doesn't.
+    cites = changed(*(s.format(source="docs/script-link.txt") for s in CARRIED_ROW))
+    assert run(checkout, cites) == []
+    bad = changed(
+        "- `[?]` The daily summary of the CPU metrics.",
+        f'- `[?]` The daily summary of the CPU metrics. The file says "{KS_QUOTE}"',
+        cites,
+    )
+    problems = run(checkout, bad)
+    assert failing(problems, "R5", KS_QUOTE[:20]), problems
+    assert failing(problems, "R4", "currency"), problems
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "rule", "needle"),
+    [
+        # Siblings: a glob outside the root, and a contradicting file outside it.
+        (
+            *(s.format(source="../other/*.txt") for s in CARRIED_ROW),
+            "R1",
+            "../other/*.txt",
+        ),
+        (
+            "contradicted by the repository: `deploy/compose.yaml`",
+            "contradicted by the repository: `../plain.txt`",
+            "R2",
+            "contradicted by the repository",
+        ),
+    ],
+    ids=["glob-out", "contradicted-by-a-file-outside"],
+)
+def test_a_glob_or_a_contradicting_file_outside_the_repository_fails(
+    checkout: Path, old: str, new: str, rule: str, needle: str
+) -> None:
+    problems = run(checkout, changed(old, new))
+    assert failing(problems, rule, needle), problems
+
+
 # ---- R6: third-party text ----
 
 
