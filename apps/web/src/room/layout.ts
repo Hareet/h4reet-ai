@@ -282,6 +282,16 @@ export function renderRoom(
   const loadingLine = view.querySelector(".room-loading");
   const root = doc.documentElement;
   const controls = [toolbar, view, walkButton, eatButton, parts.list, parts.talk, resumePanel];
+  /** Whether the 3D side offers the tile (setEatOffered). */
+  let eatWanted = false;
+  /** rework-024 (B-2): the tile shows where it is offered and a room.css rule places it, read from the attributes those
+   *  rules read: the stacked layout (or none applied yet), beside the walking control; a HUD layout only with its Eat
+   *  box (data-eat-place="on"), never where --eat-x/-y are unset. */
+  const showEat = (): void => {
+    const hud = root.getAttribute("data-hud");
+    const placed = (hud !== "column" && hud !== "dock") || root.getAttribute("data-eat-place") === "on";
+    eatButton.hidden = !eatWanted || eatWords === "" || !placed;
+  };
 
   return {
     element,
@@ -347,7 +357,8 @@ export function renderRoom(
     },
     eatButton,
     setEatOffered(on) {
-      eatButton.hidden = !on || eatWords === "";
+      eatWanted = on;
+      showEat();
     },
     setWalking(on) {
       walkLabel.textContent = on ? walkWords.leave : walkWords.enter;
@@ -368,7 +379,9 @@ export function renderRoom(
       // Spec 014, T053 (W19): where the walking control sits, which room.css's column layout reads with --walk-x/-y.
       root.setAttribute("data-walk-place", applied.compact.walkPlace);
       // Spec 024 (plan.md §5.5): the "Eat" tile's box, for a 3D dinosaur visit only, which room.css reads.
-      const eat = applied.compact.eat ?? null;
+      // rework-024 (B-2): "on" only in a HUD layout, the only ones whose rule reads --eat-x/-y (room.css); the stacked
+      // layout places the tile beside the walking control by its own rule.
+      const eat = applied.layout === "stacked" ? null : (applied.compact.eat ?? null);
       root.setAttribute("data-eat-place", eat ? "on" : "off");
       if (eat) {
         root.style.setProperty("--eat-x", `${eat.x}px`);
@@ -377,6 +390,7 @@ export function renderRoom(
         root.style.removeProperty("--eat-x");
         root.style.removeProperty("--eat-y");
       }
+      showEat();
       const px = (n: number): string => `${n}px`;
       const { safe } = applied.metrics;
       const sizes: [string, number][] = [

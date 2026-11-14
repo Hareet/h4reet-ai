@@ -9,15 +9,20 @@ import { join } from "node:path";
 import { Group } from "three";
 import { describe, expect, it, vi } from "vitest";
 
+import { protectorFor } from "../../src/room/compose/protect";
+import type { ProtectScene } from "../../src/room/compose/protect";
 import { createEat3d } from "../../src/room/eat/eat3d";
 import { createMeal } from "../../src/room/eat/meal";
 import { EVENT_KINDS } from "../../src/room/events";
 import { pieceModel, roomGlb } from "../helpers/eat-pieces";
 import { button, enter, flush, REPO, repositoryBundle, start, throughLoader } from "../helpers/room";
 import type { Visit } from "../helpers/room";
+import { PROTECT_SCENE } from "../fixtures/room/protect-scene";
 
 async function arrive(avatar: string, o: { webgl?: boolean; through?: boolean } = {}): Promise<Visit> {
   const v = start({ webgl: o.webgl ?? true });
+  // The 3D stage's protector, the dinosaur's with the Eat box, as scene.ts gives it (and eat-button.test.ts's visit).
+  v.scene.protect = protectorFor(PROTECT_SCENE as unknown as ProtectScene, 16, { eat: avatar === "dinosaur" });
   const press = vi.fn(() => true);
   v.scene.onCreate = () => {
     (v.scene.stage as unknown as { eat: { press: () => boolean } }).eat = { press };

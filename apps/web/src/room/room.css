@@ -341,7 +341,10 @@ html[data-hud="dock"] .room-clear {
 /* Spec 024's "Eat" tile (FR-012; plan.md §5.5): the walking control's size and look, beside it. In the HUD's layouts it
    sits at compose/hud.ts's compactBoxes place for a 3D dinosaur visit, its `eat`, which the room sets as --eat-x and
    --eat-y in the window's pixels and the frame area keeps clear; in the stacked layout, on the walking control's left,
-   a 0.25rem gap apart. Its DOM place is after the walking control's, so it comes after it in the Tab order. */
+   a 0.25rem gap apart. Its DOM place is after the walking control's, so it comes after it in the Tab order.
+   rework-024 (B-2): a rule that reads a property the room sets for one layout is scoped to that layout and to the
+   attribute that says the property is set, so no other layout reads it unset (layout.ts offers the tile only where a
+   rule places it: the stacked layout, or a HUD layout with data-eat-place="on"; test/ui/eat-place.test.ts). */
 .room-eat {
   position: absolute;
   right: 8.75rem;
@@ -359,7 +362,8 @@ html[data-hud="dock"] .room-clear {
   border-radius: 4px;
 }
 
-html[data-hud] .room-eat {
+html[data-hud="column"][data-eat-place="on"] .room-eat,
+html[data-hud="dock"][data-eat-place="on"] .room-eat {
   left: calc(var(--eat-x) - var(--clear-x));
   top: calc(var(--eat-y) - var(--clear-y));
   right: auto;

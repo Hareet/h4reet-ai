@@ -213,7 +213,7 @@ describe("what the tile never covers", () => {
   })();
 
   it("is placed by room.css at --eat-x and --eat-y in each HUD layout, the walking control's size", () => {
-    const rule = RULES.find((r) => r.selector === "html[data-hud] .room-eat");
+    const rule = RULES.find((r) => r.selector === 'html[data-hud="column"][data-eat-place="on"] .room-eat');
     expect(rule?.declarations.get("left")).toBe("calc(var(--eat-x) - var(--clear-x))");
     expect(rule?.declarations.get("top")).toBe("calc(var(--eat-y) - var(--clear-y))");
     const base = RULES.find((r) => r.selector === ".room-eat" && r.declarations.has("width"));

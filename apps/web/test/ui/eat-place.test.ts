@@ -50,12 +50,13 @@ function placed(el: Element): { values: Placing; by: Set<string> } {
   const by = new Set<string>();
   const best = new Map<string, { spec: [number, number, number]; order: number; selector: string }>();
   RULES.forEach((r, order) => {
-    let matches = false;
-    try {
-      matches = el.matches(r.selector);
-    } catch {
-      matches = false;
-    }
+    const matches = ((): boolean => {
+      try {
+        return el.matches(r.selector);
+      } catch {
+        return false;
+      }
+    })();
     if (!matches) return;
     const spec = specificity(r.selector);
     for (const p of PLACING) {
