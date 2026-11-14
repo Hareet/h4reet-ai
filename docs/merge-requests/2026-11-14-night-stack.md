@@ -1193,6 +1193,119 @@ Also, for task step 2: every status line in this section and in `studio-round-2.
   - If he answers that the concept came from a prompt, the record's source becomes `prompt` with that prompt's ID, and both documents stay as they are.
 - **Already owed (rule 9), not tonight:** `line.py` should count a round as answered only when it has a `candidate.json` (record-dino-r2 and judge-dino-r2 above; `studio-round-2.md`'s "Follow-ups for the stack's note" asks for both halves). This is a code change, for a later task with its own tests.
 
+### Verification (rule 7, verify3-021)
+
+Branch `night/verify3-021/verify3-021`, run by the implementer verify3-021 (Opus 5.5) on 2026-11-14 around 18:40Z. It is a different worker from item 4's implementers, and it wrote none of item 4's code or documents. It starts at record-dino-r2's tip, `ed48aa5e`, which holds intake-021's `fc89bcd1`.
+
+#### The merge
+
+`git merge 0fd75fbe`, the line's tip (verify-027: items 1 to 4, 6, and 10's T001 to T004), made merge `a58ffeea` with no conflict. In this note each side changed different sections: item 4's came from `ed48aa5e`, and items 6 and 10 came from `0fd75fbe`. Items 1 to 3 were the same on both sides. Every item's section is whole, in his order: 1, 2, 3, 4, 6, 10.
+
+#### The diff stat against the line's tip, documents only
+
+```
+$ git diff --stat 0fd75fbe HEAD          # at the review section's commit, before this section
+ docs/merge-requests/2026-11-14-night-stack.md      | 246 +++++++++-
+ docs/merge-requests/human-patches/021.md           |   6 +-
+ .../studio-round-1.md                              |  85 ++++
+ .../studio-round-2.md                              | 506 +++++++++++++++++++++
+ 4 files changed, 839 insertions(+), 4 deletions(-)
+$ git diff --stat 0fd75fbe HEAD -- . ':!docs' ':!specs'
+$ git diff --stat fc89bcd1 HEAD -- scripts/studio
+```
+
+The last two print nothing. No file outside `docs/` and `specs/` differs from the line's tip, so no workspace's whole suite is owed. `scripts/studio/` is intake-021's.
+
+SC-006: `git diff --stat <0fd75fbe | ed48aa5e> HEAD -- .claude tools/gates corpus assets CLAUDE.md REVIEW.md .specify/memory/constitution.md evals/agent-config redteam/forbidden-actions.sh` is empty from both bases. No human-only path changed, and no `assets/**` was written.
+
+`/srv/studio/` was only read. The handoff's `records.json` is still `341edde9…f14f9`, and `/srv/studio/briefs/dinosaur/` still holds only `1.json`, `1.result.json`, and `2.json`. Nothing was recorded, copied in, or written there.
+
+#### Runs, at `70475632` (the merge and the fixes above)
+
+The setup target ran first, since there was no `node_modules`: exit 0. Its git-hooks step said the hooks folder "isn't writable here (the agent sandbox)".
+
+`cat /sys/fs/cgroup/cpu.max` gives `400000 100000`, so the container has 4 CPUs today, not the 2 the brief expected. I ran with `--maxWorkers=4`, which is rule 7's quota ÷ period.
+
+Item 4's six vitest files, as rv-intake-021 ran them:
+
+```
+$ cd apps/web && npx vitest run --maxWorkers=4 test/room/avatar-gait.test.ts test/room/avatar-hands.test.ts
+    test/room/avatar-scene.test.ts test/room/compose.test.ts test/room/dinosaur-compose.test.ts test/ui/notes-causes.test.ts
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-13/verify3-021/apps/web
+
+ Test Files  6 passed (6)
+      Tests  318 passed (318)
+   Start at  18:44:15
+   Duration  154.78s (tests 60%, import 38%, transform 1%)
+exit 0
+```
+
+`test/room/twin-2d.test.ts` alone. It's the file named as flaky under load, and it isn't among item 4's six. It was run once anyway:
+
+```
+$ cd apps/web && npx vitest run --maxWorkers=4 test/room/twin-2d.test.ts
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Duration  66.70s (import 95%, transform 4%, tests 1%)
+exit 0
+```
+
+The documents' tests and `line.py`'s tests, from the repository's root:
+
+```
+$ python3 -m pytest evals/test_docs_links.py evals/test_repository_docs.py scripts/studio/test_line.py
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0
+rootdir: /home/h4reet/h4reet-ai/night/2026-11-13/verify3-021
+collected 188 items
+
+evals/test_docs_links.py ............................................    [ 23%]
+evals/test_repository_docs.py .................                          [ 32%]
+scripts/studio/test_line.py ............................................ [ 55%]
+........................................................................ [ 94%]
+...........                                                              [100%]
+
+============================= 188 passed in 15.78s =============================
+exit 0
+```
+
+The lint target, from the repository's root. It exited 0. Shellcheck's file list is left out:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+796 files already formatted
+```
+
+No full suite: only documents differ from the line's tip, and the stack's last task runs it once.
+
+#### Fixed
+
+Documents only, one commit each, as listed under "Review (rv-intake-021, rv-record-dino-r2)" above:
+- `b3bf5e2b`: finding 1
+- `9aeeeb0b`: nit 3
+- `cb33ff99`: nit 4
+- `cfe78261`: rv-intake-021's nit 3
+- `86e48d02`: rv-intake-021's nit 4
+- `3bf6495b`: the status lines
+- `70475632`: the review section
+
+No code, test, plan, `spec.md`, or contract changed. Q222 and Q223 are written as follow-ups for his answer. No run failed, so there was nothing to fix test-first.
+
+Commit hooks: each of this session's commits printed gitleaks' "no leaks found" and `arrival-check: 0 findings in <n> file(s)` (0 to 2 files).
+
+#### Interruptions (rule 5)
+
+None from a hook, the bash gate, or the filesystem. One slip of my own: a first lint run started in `apps/web`, where the shell had been left, and stopped with `make: *** No rule to make target 'lint'.` I ran it again from the repository's root. Nothing was respelled. I didn't open, view, copy, or list the inbox, the dog's photos folder, or the handoff's renders.
+
+verify3-021: green
+
 ---
 
 ## Item 6: spec 023, the resume PDF redone with links from the films (`night/impl-023/impl-023`)
