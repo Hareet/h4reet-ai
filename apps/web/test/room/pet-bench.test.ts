@@ -27,19 +27,28 @@ import { FakeClock, REPO } from "../helpers/room";
 
 v8.setFlagsFromString("--expose-gc");
 const gc = vm.runInNewContext("gc") as () => void;
+// The measure is of the code the page runs once it is hot: V8's optimized code, which keeps fractions unboxed. Code not
+// yet optimized boxes them, and under load the optimizing compiler, on a thread of its own, can finish late, so the
+// warm-up runs until the functions measured are optimized, read through V8's own status (a test-only flag).
+v8.setFlagsFromString("--allow-natives-syntax");
+const status = new Function("f", "return %GetOptimizationStatus(f);") as (f: unknown) => number;
+/** V8's status bit for a function its optimizing compiler, TurboFan, has compiled. */
+const TURBOFANNED = 1 << 6;
 
 const FRAMES = 20_000;
 /** Below one object a frame (12 bytes or more), above the measure's noise. */
 const MAX_BYTES_PER_FRAME = 8;
 
-/** The heap's growth per frame over `FRAMES` calls of `step`, after two warm-ups of the same loop and a collection;
- *  the median of five, since a collection inside the loop can only lower one and the compiler's work can only raise
- *  one. */
-function bytesPerFrame(step: () => void): number {
+/** The heap's growth per frame over `FRAMES` calls of `step`, once `hot` is optimized (warmed up to 100 times
+ *  `FRAMES`) and after a collection; the median of five, since a collection inside the loop can only lower one and the
+ *  compiler's work can only raise one. */
+function bytesPerFrame(step: () => void, hot: (...args: never[]) => unknown): number {
   const loop = (n: number): void => {
     for (let i = 0; i < n; i += 1) step();
   };
   loop(FRAMES);
+  for (let r = 0; r < 100 && !(status(hot) & TURBOFANNED); r += 1) loop(FRAMES);
+  expect(status(hot) & TURBOFANNED, "the measured function is optimized before the measure").toBe(TURBOFANNED);
   loop(FRAMES);
   const runs: number[] = [];
   for (let r = 0; r < 5; r += 1) {
@@ -95,7 +104,7 @@ describe("no allocation per frame (FR-027, SC-007; I-1)", () => {
     heading = Number.NaN;
     pet.frame(1);
     expect(pet.phase).toBe("petting");
-    const bytes = bytesPerFrame(() => pet.frame(1 / 60));
+    const bytes = bytesPerFrame(() => pet.frame(1 / 60), pet.frame);
     expect(pet.phase).toBe("petting");
     expect(pet.reach?.weight).toBe(1);
     process.stderr.write(`\npet.frame: ${bytes.toFixed(2)} bytes a frame\n`);
@@ -145,8 +154,8 @@ describe("no allocation per frame (FR-027, SC-007; I-1)", () => {
       };
       for (const w of [1, 0.37]) {
         layer.weight = w;
-        const crouched = bytesPerFrame(step(true));
-        const cut = bytesPerFrame(step(false));
+        const crouched = bytesPerFrame(step(true), applyReachLayer);
+        const cut = bytesPerFrame(step(false), applyReachLayer);
         process.stderr.write(
           `\napplyReachLayer at weight ${w}: ${crouched.toFixed(2)} bytes a frame; legs off ${cut.toFixed(2)}\n`,
         );
