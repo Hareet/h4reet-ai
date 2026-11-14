@@ -78,6 +78,9 @@ export interface Stage3D extends Stage {
   /** Spec 016 (FR-022; contracts/twin-states.md §1): the conversation's activity, for the twin's own states; absent, as
    *  on a stand-in stage, nothing reads it. */
   twinActivity?(activity: TwinActivity): void;
+  /** Spec 024 (FR-012): the dinosaur's eating, for a 3D dinosaur visit over a part with an edible placement: the "Eat"
+   *  tile's press, which takes the same gate as key B. Absent, the visit can't eat. */
+  readonly eat?: { press(): void };
 }
 
 /** A file the 3D stage will load (spec 012): its asset events' `asset`, and its bytes as served (C11). */
@@ -122,6 +125,15 @@ export interface SceneOptions {
   /** Spec 014 (FR-064): the walking view's hold at entry, `hold`, and its hand-over, `follow` with its cause (a turn,
    *  a tilt, a zoom, or the edge), for a drafts build's frame log. Absent, nothing is reported. */
   walkHeld?(state: "hold" | "follow", cause: "turn" | "tilt" | "zoom" | "edge" | null): void;
+  /** Spec 024 (FR-001, FR-009, FR-010, FR-012): the dinosaur's eating's link to the room. `state`, read each frame: the
+   *  room paused (or its page hidden) and the loader showing. `available`, told on each change: whether the "Eat" tile
+   *  shows. `said`, a piece's first bite of the visit, for the polite line. Absent, nothing pauses or holds the eating
+   *  but the stage's own state, and nothing is told. */
+  eating?: {
+    state(): { readonly paused: boolean; readonly loading: boolean };
+    available?(on: boolean): void;
+    said?(placement: string): void;
+  };
   // What the room's loader takes from the room (spec 004, T134; R-28): absent, models load at once, unheld, at full
   // size, and their events go nowhere.
   /** Whether studio models may load here: ADR 0010's floor, which the room reads once, behind the choice, with spec
