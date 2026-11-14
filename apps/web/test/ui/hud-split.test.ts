@@ -601,3 +601,93 @@ describe("the list's parts (T024; FR-007, FR-008)", () => {
     expect(decl(`${ON} .split-confirm`, "pointer-events")).toBe("none");
   });
 });
+
+// ---- T026 (rv2-impl-018's B3; FR-005, Q60, R6): the emblem is the open piece's icon; and the portrait's speaker ----
+
+import { PIECE_ICONS, SPEECH_ICON } from "../../src/room/hud/icons";
+
+describe("the emblem (T026; FR-005, Q60)", () => {
+  const emblem = (u: ReturnType<typeof unit>) => u.doc.querySelector(".split-emblem");
+  const path = (u: ReturnType<typeof unit>) => emblem(u)?.querySelector("path")?.getAttribute("d");
+
+  it("draws one icon per piece of the repository's scene, on the 24-unit grid, none the speech glyph", () => {
+    expect(Object.keys(PIECE_ICONS).sort()).toEqual(["bicycle", "chalkboard", "laptop", "snowboard"]);
+    const all = [...Object.values(PIECE_ICONS), SPEECH_ICON];
+    expect(new Set(all).size).toBe(all.length);
+    for (const d of all) {
+      expect(d).toMatch(/^[MmLlHhVvCcSsQqAaZz0-9.,\-\s]+$/);
+      for (const n of d.match(/-?\d*\.?\d+/g) ?? []) expect(Math.abs(Number(n))).toBeLessThanOrEqual(24);
+    }
+  });
+
+  for (const id of ["snowboard", "bicycle", "laptop", "chalkboard"])
+    it(`is the ${id}'s icon while its conversation is open`, () => {
+      const u = unit();
+      u.s.setConversation(id);
+      expect(u.s.open).toBe(true);
+      expect(emblem(u)?.getAttribute("data-emblem")).toBe(id);
+      expect(path(u)).toBe(PIECE_ICONS[id]);
+      expect(emblem(u)?.getAttribute("aria-hidden")).toBe("true");
+    });
+
+  it("gives two pieces two emblems, and follows the conversation while the panel is open", () => {
+    const u = unit();
+    u.s.setConversation("snowboard");
+    const first = path(u);
+    u.s.setConversation("chalkboard");
+    expect(u.doc.querySelectorAll(".split-emblem")).toHaveLength(1);
+    expect(path(u)).not.toBe(first);
+    expect(path(u)).toBe(PIECE_ICONS.chalkboard);
+  });
+
+  it("is the speech glyph in free talk, and for a piece with no icon", () => {
+    const free = unit();
+    free.s.openPanel();
+    expect(emblem(free)?.getAttribute("data-emblem")).toBe("speech");
+    expect(path(free)).toBe(SPEECH_ICON);
+    const other = unit();
+    other.s.setConversation("a");
+    expect(emblem(other)?.getAttribute("data-emblem")).toBe("speech");
+    expect(path(other)).toBe(SPEECH_ICON);
+  });
+});
+
+describe("the portrait's speaker (T026; the brief's item d)", () => {
+  it("draws and fetches the speaker's portrait, the twin's by default", async () => {
+    const seen: string[] = [];
+    const drawn: string[] = [];
+    const make = (speaker?: () => string) => {
+      const dom = new JSDOM('<body><div class="room-list"><ul></ul></div><section class="talk"></section></body>');
+      const doc = dom.window.document;
+      const s = createSplit(doc, {
+        talk: doc.querySelector(".talk") as HTMLElement,
+        list: doc.querySelector(".room-list") as HTMLElement,
+        words: { select: "Select a piece", back: "Back", close: "Close", esc: "Esc", enter: "Enter" },
+        stats: () => [],
+        turnOut: () => false,
+        walking: () => false,
+        portrait: (who) => {
+          seen.push(who);
+          return Promise.resolve(null);
+        },
+        draw: {
+          portrait: (d, who) => {
+            drawn.push(who);
+            return d.createElement("span");
+          },
+        },
+        ...(speaker ? { speaker } : {}),
+      });
+      s.setActive(true);
+      s.openPanel();
+      return doc;
+    };
+    const twin = make();
+    expect(twin.querySelector(".split-portrait")?.getAttribute("data-speaker")).toBe("twin");
+    const dog = make(() => "dog");
+    expect(dog.querySelector(".split-portrait")?.getAttribute("data-speaker")).toBe("dog");
+    await settle();
+    expect(drawn).toEqual(["twin", "dog"]);
+    expect(seen).toEqual(["twin", "dog"]);
+  });
+});
