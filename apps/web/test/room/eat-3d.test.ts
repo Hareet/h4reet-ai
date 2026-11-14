@@ -482,3 +482,33 @@ describe("every chunk of the four pieces eaten (US2; SC-002)", () => {
     }
   });
 });
+
+// rv-rework3-spec-024's last nit: a primitive is a face's when its node or an ancestor up to the model's root is named
+// for the face's role, as scene/loader.ts's prepareModel hides it (`roles.has(node.name)`, on every node), not only by
+// the glTF mesh's own name.
+describe("a face's mesh matched by the node's name, as prepareModel hides it", () => {
+  it("sets aside, wholly and hidden, a mesh under a node named for the face's role, however deep", () => {
+    const s = stub();
+    const holder = new Group();
+    holder.name = "lettering";
+    holder.visible = false;
+    const inner = new Group();
+    inner.name = "inner";
+    const plate = new Mesh(sheet(3, 2, 0.05, 0.05, 0.3), s.materials[1] as Material);
+    plate.name = "plate";
+    inner.add(plate);
+    holder.add(inner);
+    s.root.remove(s.lettering);
+    s.root.add(holder);
+    s.root.updateMatrixWorld(true);
+    const r = rig(s.part, { stub: s.root });
+    expect(r.eat.bite("stub")).toBe(true);
+    const position = plate.geometry.getAttribute("position");
+    const fromPlate = (kind: EatKind) =>
+      eatMeshes(s.root, kind).filter((m) => m.geometry.getAttribute("position") === position);
+    expect(fromPlate("chunk")).toEqual([]);
+    expect(fromPlate("aside")).toHaveLength(1);
+    expect(fromPlate("aside")[0]?.geometry.index?.count).toBe(plate.geometry.index?.count);
+    expect(shown(fromPlate("aside")[0] as Mesh, s.root)).toBe(false);
+  });
+});
