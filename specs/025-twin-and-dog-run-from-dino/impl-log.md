@@ -77,3 +77,11 @@ GREEN: the director's figures listed once (`all`), `steer`'s `stand` and `sepOf`
 ## After the merge of verify-021 (81590888)
 
 The item's thirteen test files: Test Files 13 passed (13), Tests 166 passed (166). The lint target: exit 0. `python3 -I evals/docs_links.py`: "docs links: 0 failed, 2454 relative links in 409 files". The stack note's item 8 section quotes this log.
+
+## rework-025 (rv-impl-025's findings; RED+GREEN where code)
+
+B-1 RED: `vitest run test/room/chase-handoff.test.ts` (new), with `chaseDue` stubbed out for the run: Tests 10 failed (10). The turn at p 0.3 was overwritten (−0.45 to −0.225 for the shell made mid-turn), and a picture's home was written every frame. The committed RED fails at its import (`chaseDue`). GREEN: `vitest run test/room/chase-handoff.test.ts test/room/chase-figures.test.ts test/room/chase-bench.test.ts`: Test Files 3 passed (3), Tests 41 passed (41); `tsc --noEmit -p apps/web` clean. The RED's last case compared the hand-off's end with `toBe(0)`. The end is −0 on the twin's side, so it now compares with the value the hand-off left (said in the GREEN commit).
+N-4 RED: `vitest run test/room/avatars-frame-lists.test.ts` (new): Tests 3 failed (3). GREEN: that file and the 28 covering `scene/avatars.ts`: Test Files 29 passed (29), Tests 407 passed (407).
+N-5 RED: `vitest run test/room/chase-end-line.test.ts` (new): Tests 2 failed | 2 passed (4). The end repeated the start's "twin" or "dog". GREEN: the chase files with dog-figure, the two hand-off files, and avatars-frame-lists: Test Files 14 passed (14), Tests 162 passed (162).
+At the tip (42d50306): the chase, dog, and hand-off files with the three new ones: Test Files 20 passed (20), Tests 195 passed (195). The 23 covering `scene.ts` and `scene/avatars.ts`: Test Files 23 passed (23), Tests 452 passed (452). The lint target: exit 0. The stack note's item 8 section quotes the commands.
+
