@@ -245,7 +245,13 @@ describe("RA12: the required clips (FR-003)", () => {
   it("counts an idle clip RA1 refuses (not recorded) or RA4 refuses (over main's animation cap) as missing", () => {
     const unrecorded = avatarsIn(
       tree({
-        folder: { records: (e) => void e.splice(e.findIndex((x) => x.file === "dinosaur-idle.glb"), 1) },
+        folder: {
+          records: (e) =>
+            void e.splice(
+              e.findIndex((x) => x.file === "dinosaur-idle.glb"),
+              1,
+            ),
+        },
       }),
     );
     expect(ruleFindings(unrecorded, "RA1")).toEqual(["RA1 assets/visitors/dinosaur/dinosaur-idle.glb:-"]);

@@ -2,8 +2,9 @@
 // for hands, the scene's clips, and the gait; and its folder for the compositor's tests (T003 to T006). The fixture room
 // is composed once with the night's woman and man (the twin's stand-in) and the dinosaur's folder, since a figure
 // wants only an avatar the bundle holds (src/room/scene/avatars.ts), and the dinosaur's model and clips are given to
-// the figures' controllers as the room's loader gives them, parsed by three's GLTFLoader. The model is test/helpers/glb.ts's dinosaurGlb (the contract's eighteen raw bone
-// names, no `mixamorig:` node, no hand bone), never the asset (spec 009's FR-043).
+// the figures' controllers as the room's loader gives them, parsed by three's GLTFLoader. The model is
+// test/helpers/glb.ts's dinosaurGlb (the contract's eighteen raw bone names, no `mixamorig:` node, no hand bone), never
+// the asset (spec 009's FR-043).
 import { Object3D } from "three";
 import type { AnimationClip } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";

@@ -41,9 +41,9 @@ import type { Tree } from "./source";
 
 export const VISITORS_DIR = "assets/visitors";
 
-/** Spec 021 (FR-005; plan.md §4; contracts/dinosaur-rig.md): the rig table, an avatar's required bones by their raw
- *  glTF names, or null where its rig isn't checked. A row that isn't null runs RA10 (the bones), RA11 (the box), and
- *  RA12 (the clips) on its model; the woman's, the man's, and the dog's are null (Q7). */
+/** Spec 021 (FR-003 to FR-005; plan.md §4; contracts/dinosaur-rig.md): the rig table, an avatar's required bones by
+ *  their raw glTF names, or null where its rig isn't checked. A row that isn't null runs RA10 (the bones), RA11 (the
+ *  box), and RA12 (the clips) on its model; the woman's, the man's, and the dog's are null (Q7). */
 export const RIG_BONES: Readonly<Record<AvatarId, readonly string[] | null>> = {
   woman: null,
   man: null,
@@ -411,6 +411,18 @@ export function readAvatars(tree: Tree, policy: RoomPolicy, scene: Scene | null)
         const over = boxOver(id, r.file.measures);
         if (over.length > 0) refuse(r, "RA11", "-", over.join("; "));
       }
+    }
+    // RA12 (spec 021; FR-003; plan.md R-04): a model with a rig-table row needs a usable idle and walk, a clip RA1,
+    // RA2, or RA4 stands on counting as missing; on the model, so it and its clips are left out. `take` is optional.
+    if (model !== null && model.unread === null && RIG_BONES[id] !== null) {
+      const usable = (role: ClipRole): boolean =>
+        reads.some(
+          (r) =>
+            r.file.role === role &&
+            !(rules.get(r.file.path) ?? []).some((rule) => rule === "RA1" || rule === "RA2" || rule === "RA4"),
+        );
+      const missing = (["idle", "walk"] as const).filter((role) => !usable(role));
+      if (missing.length > 0) refuse(model, "RA12", "-", missing.map((role) => `no usable ${role} clip`).join("; "));
     }
     // The bundled set: RA3 aside, a finding on a file leaves it out.
     const standing = (r: Read): string[] => (rules.get(r.file.path) ?? []).filter((rule) => rule !== "RA3");
