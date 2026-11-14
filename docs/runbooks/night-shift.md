@@ -242,7 +242,7 @@ The page has five sections, in this order.
 - **Questions.** Each question appears once, with the task it blocks, a recommended answer, and the alternatives. The recommended answers are the session's. You confirm or overturn them.
 - **Stacks.** Each finished stack, with its branch, its tip, its note, and its gate. The gate column holds the gate's log and its merge line, when the gate ran.
 - **Interruptions.** Each time the night needed you, with its cause. Count them. A cause that repeats is a fix for the next night.
-- **Requests.** New weights or custom nodes, with the reason, and any studio task past its third round. Those are yours to decide (FR-030).
+- **Requests.** New weights or custom nodes, with the reason, and any studio task past its fourth round (its third until the Author's words, 2026-11-14, about 21:00Z: "Let's go with the approval of the SHA and use the actual image /srv/studio/workflows/inbox/duck-toller.jpg"). Those are yours to decide (FR-030).
 - **The runner.** The runner's own lines: limits, resets, idle stops, and refusals.
 
 To answer a question, tell the session in its next prompt. The contracts don't define a separate answer file yet. To merge a stack, read its note, then merge as `docs/merge-requests/README.md` says, with the gate's merge line. The night never merges. A gate runs only while your checkout is on main and clean, so keep it that way on any night with a gate queued. Otherwise the gate request is answered with that reason, and it goes on the page.

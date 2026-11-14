@@ -18,7 +18,8 @@ read the tools list, so this is FR-029's one machine check of the list (review G
   whatever the list says. The file sits at <briefs>/<asset>/<round>.json, its round the folder's highest brief plus
   one, with no later brief, handoff, or result, and no handoff or result yet for its own round. Round 1 holds no
   findings; a later round follows round n-1's handoff and either its recorded failure, whose findings it holds
-  verbatim, or its recorded pass, which must re-check clean as `round` re-checks it, and then holds none.
+  verbatim, or its recorded pass, which must re-check clean as `round` re-checks it, and then holds none. A failure
+  that follows a pass is the Author's to decide: no brief after it.
 - candidate: the brief, re-checked in full; candidate.json's shape, for the brief's asset and round; its files in the
   folder (regular files, never links); its tools in the brief's and on the list, at the list's version; the record's
   directory under assets/ (but assets/policy/); every model and tool a record step names in the brief's tools and on
@@ -37,10 +38,13 @@ read the tools list, so this is FR-029's one machine check of the list (review G
   handoff or result follows.
 - round: the asset's next step. Rounds are counted from the handoff folders, <handoff>/<asset>/<n>/, which only the
   studio writes, and the results, whichever is higher, so deleting a result or a brief resets nothing (review G3,
-  blocker 2). A recorded pass counts only once its round's handoff is there and the candidate re-checks clean; a
-  later round after it doesn't undo it. Prints `1` (nothing yet), `open N` (round N's brief or handoff, waiting for
-  the studio or for judging), `N+1` (round N failed), `passed N` (the latest round that passed), or `decide` (four
-  rounds used without a pass: no brief is written, and the asset goes on the decision page).
+  blocker 2). A recorded pass counts only once its round's handoff is there and the candidate re-checks clean. The
+  re-check takes later rounds only in the shape that follows a pass, round n+1's brief holding no findings; any
+  other later round still refuses it (rv-rounds4-020, I-2). Prints `1` (nothing yet), `open N` (round N's brief or
+  handoff, waiting for the studio or for judging, after a pass too), `N+1` (round N failed), `passed N` (the latest
+  round, and it passed), `decide (round P passed)` (a round after P's pass failed: the Author chooses, and the line
+  never takes P by itself; Q267), or `decide` (four rounds used without a pass: no brief is written, and the asset
+  goes on the decision page).
 
 Output: one line per finding, `<check>: <value> (limit: <limit>)`, then a summary. Exit 0: pass. 1: findings. 2:
 can't run (main without its policy or the arrival check, a policy or the brief invalid, the candidate folder missing,
@@ -501,7 +505,9 @@ def order_findings(
     answered = handoff_rounds(handoff, asset)
     judged = result_rounds(path.parent)
     later = sorted(x for x in briefs | answered | judged if x > n)
-    if later and not rechecking:
+    # A re-checked pass may have later rounds only in the one shape that follows a pass: round n+1's brief, holding
+    # no findings. Any other later round keeps the refusal, so a rewritten early brief and result pass nothing.
+    if later and not (rechecking and follows_a_pass(path.parent, n)):
         out.append(
             finding(
                 "round",
@@ -550,15 +556,44 @@ def order_findings(
                     "round", n, f"after round {n - 1}'s pass; it doesn't re-check clean"
                 )
             )
-    elif findings != before["findings"]:
-        out.append(
-            finding(
-                "findings",
-                f"not round {n - 1}'s",
-                f"round {n - 1}'s findings, verbatim",
+    else:
+        if findings != before["findings"]:
+            out.append(
+                finding(
+                    "findings",
+                    f"not round {n - 1}'s",
+                    f"round {n - 1}'s findings, verbatim",
+                )
             )
-        )
+        passed = [
+            m
+            for m in sorted(judged)
+            if m < n - 1
+            and (r := read_result(path.parent, m))
+            and r["result"] == "pass"
+        ]
+        if passed:
+            out.append(
+                finding(
+                    "round",
+                    n,
+                    f"no brief after round {n - 1}'s failure, which follows round {passed[-1]}'s pass: "
+                    "the Author decides",
+                )
+            )
     return out
+
+
+def follows_a_pass(folder: Path, n: int) -> bool:
+    """Round n+1's brief exists and holds no findings: the only round that may follow round n's pass."""
+    path = folder / f"{n + 1}.json"
+    if not path.is_file():
+        return False
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, ValueError, RecursionError):
+        return False
+    return isinstance(doc, dict) and doc.get("findings") == []
 
 
 def brief_findings(
@@ -1307,17 +1342,24 @@ def cmd_round(args: argparse.Namespace) -> int:
     answered = handoff_rounds(handoff, asset)
     judged = {n: read_result(folder, n) for n in sorted(result_rounds(folder))}
     # A recorded pass counts once its handoff is there and the candidate re-checks clean: the file alone is no pass.
-    # The latest pass wins, and a later round after it doesn't undo it.
-    main = None
+    # The latest pass is the one that counts. A round after it is `open N` while it's open; if it fails, the Author
+    # decides, with the pass named as one option, so the line never takes the earlier candidate by itself (Q267).
+    main, passed = None, 0
     for n, result in sorted(judged.items(), reverse=True):
         if result and result["result"] == "pass" and n in answered:
             main = main or Main(Path(args.repo))
             if passes_again(folder, n, main, handoff):
-                print(f"passed {n}")
-                return 0
+                passed = n
+                break
     used = max(answered | set(judged), default=0)
     latest = max(brief_rounds(folder), default=0)
-    if used >= ROUNDS:
+    if passed and used > passed and used in judged:
+        print(f"decide (round {passed} passed)")
+    elif passed and max(used, latest) > passed:
+        print(f"open {max(used, latest)}")
+    elif passed:
+        print(f"passed {passed}")
+    elif used >= ROUNDS:
         print("decide")
     elif used == 0:
         print(f"open {latest}" if latest else "1")

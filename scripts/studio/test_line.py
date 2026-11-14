@@ -1410,8 +1410,8 @@ def test_a_round_after_a_recorded_pass_holds_no_findings(
     assert starting(done, "findings"), done.stdout
     done = brief(write_brief(tmp_path, brief_doc(round=2)), repo)
     assert done.returncode == 0, done.stdout + done.stderr
-    # Round 2's brief, waiting for the studio, leaves round 1's pass standing.
-    assert state(tmp_path, repo) == "passed 1"
+    # Round 2's brief, waiting for the studio, is the open round (Q267): round 1's pass isn't taken by itself.
+    assert state(tmp_path, repo) == "open 2"
 
 
 def test_the_latest_pass_is_the_one_round_prints(tmp_path: Path, repo: Path) -> None:
@@ -1425,11 +1425,83 @@ def test_a_fourth_round_after_a_pass_in_round_three(tmp_path: Path, repo: Path) 
     findings = fail_round(tmp_path, repo, 2, findings)
     pass_round(tmp_path, repo, 3, findings)
     assert state(tmp_path, repo) == "passed 3"
+    # Round 4's brief, as /srv/studio/briefs/dog/4.json will be: no findings, and `line.py brief` takes it.
+    path = write_brief(tmp_path, brief_doc(round=4))
+    checked = brief(path, repo)
+    assert checked.returncode == 0, checked.stdout + checked.stderr
+    assert state(tmp_path, repo) == "open 4"
+    folder = write_candidate(tmp_path, round_=4)
+    assert state(tmp_path, repo) == "open 4"
+    for child in folder.iterdir():
+        child.unlink()
+    folder.rmdir()
+    (path.parent / "4.json").unlink()
     fail_round(tmp_path, repo, 4, [])
-    assert state(tmp_path, repo) == "passed 3"
+    # Round 4 failed: the Author decides, with round 3's pass named as one option; the line never picks it itself.
+    assert state(tmp_path, repo) == "decide (round 3 passed)"
     done = brief(write_brief(tmp_path, brief_doc(round=5)), repo)
     assert done.returncode == 1
     assert starting(done, "round"), done.stdout
+
+
+def test_a_round_after_a_pass_that_passes_is_the_one_round_prints(
+    tmp_path: Path, repo: Path
+) -> None:
+    findings = fail_round(tmp_path, repo, 1, [])
+    findings = fail_round(tmp_path, repo, 2, findings)
+    pass_round(tmp_path, repo, 3, findings)
+    pass_round(tmp_path, repo, 4, [])
+    assert state(tmp_path, repo) == "passed 4"
+
+
+def test_a_failure_after_a_pass_goes_to_the_author_before_round_four(
+    tmp_path: Path, repo: Path
+) -> None:
+    pass_round(tmp_path, repo, 1, [])
+    findings = fail_round(tmp_path, repo, 2, [])
+    # Within ROUNDS too: after a pass, a failure goes to the decision page, and no brief follows it.
+    assert state(tmp_path, repo) == "decide (round 1 passed)"
+    done = brief(write_brief(tmp_path, brief_doc(round=3, findings=findings)), repo)
+    assert done.returncode == 1
+    assert starting(done, "round"), done.stdout
+
+
+def fail_below_cap(
+    tmp_path: Path, repo: Path, n: int, findings: list[str]
+) -> list[str]:
+    """Round n's brief with a triangle limit below main's cap (150000 of 180000), a candidate of 160000 (over the
+    brief's, under the cap), and its recorded failure."""
+    limits = dict(brief_doc()["limits"], triangles=150000)
+    path = write_brief(tmp_path, brief_doc(round=n, findings=findings, limits=limits))
+    checked = brief(path, repo)
+    assert checked.returncode == 0, checked.stdout
+    folder = write_candidate(
+        tmp_path, model=glb(triangles=160000), round_=n, doc=cand_doc(round=n)
+    )
+    done = candidate(folder, path, repo, "--record")
+    assert done.returncode == 1, done.stdout + done.stderr
+    return json.loads((path.parent / f"{n}.result.json").read_text())["findings"]
+
+
+def test_a_rewritten_early_pass_behind_later_failures_is_no_pass(
+    tmp_path: Path, repo: Path
+) -> None:
+    """rv-rounds4-020's I-2: rounds 1 to 3 fail on the brief's limit, below main's cap. Round 1's brief is rewritten
+    to the cap and its result to a pass, so its candidate re-checks clean against the rewritten brief. Round 2's
+    brief holds round 1's findings, so round 1 was never followed as a pass: the re-check keeps main's refusal."""
+    findings: list[str] = []
+    for n in (1, 2, 3):
+        findings = fail_below_cap(tmp_path, repo, n, findings)
+    folder = tmp_path / "briefs" / "dog"
+    first = json.loads((folder / "1.json").read_text())
+    first["limits"]["triangles"] = 180000
+    (folder / "1.json").write_text(json.dumps(first))
+    result = json.loads((folder / "1.result.json").read_text())
+    result.update({"result": "pass", "findings": []})
+    (folder / "1.result.json").write_text(json.dumps(result))
+    done = rounds(tmp_path, repo)
+    assert "passed 1" not in done.stdout, done.stdout
+    assert "round 1 passed" not in done.stdout, done.stdout
 
 
 def test_a_forged_pass_opens_no_round(tmp_path: Path, repo: Path) -> None:
