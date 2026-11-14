@@ -673,3 +673,53 @@ Nothing: no failure outside D-V2's six, so no code, test, or plan changed. The d
 Interruptions: none. No hook or bash-gate refusal in this session.
 
 verify-020: green, carrying D-V2's six (Q165)
+
+## Item 6: spec 023, the resume PDF redone with links from the films (`night/impl-023/impl-023`)
+
+Spec: specs/023-resume-pdf-with-film-links/ · Intent: intent/023-resume-pdf-with-film-links.md · Written by: implementer (night shift, impl-023, Opus 5.5); the review is for a worker who didn't write the code · Date: 2026-11-14
+Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl-023 · Repo hooks active: the commit hooks ran (gitleaks, arrival check) on every commit
+Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at the top of plan.md and tasks.md), the spec, and the plan, as reworked twice (rv-spec-023, rv-rework-spec-023). Every question about spec 023 on the page (Q25 to Q31, Q98) is answered: recommended, under the orders file's rule ("any new one: the recommended answer stands").
+
+Branch: `night/impl-023/impl-023`, from `night/rework2-spec-023/rework2-spec-023` (885befce), with `night/verify2-020/verify2-020` (3767859f, items 1 to 3) merged first, no conflict. One commit per task, `wip(impl-023): T0nn …`, each test seen RED before its code.
+
+### What changed and why
+
+His item, word for word: "6. b) "re-do PDF resume with links from films"".
+
+Four claims in his approved PDF's twin section become links to their films' landing pages in the repository. **The room keeps serving C-0002's file**: the night built a candidate beside it, `apps/web/content/candidates/resume-author-links.pdf`, which no build step reads. Publishing it is his: a `git mv` and one approval entry on `main`, after the repository is public and he has clicked each link (below).
+
+Candidate SHA-256: `5de0e7eeaed34587d4d79e29f0cbfb7c577a224ce31616f1d75fcbe4e0ff21fb`
+
+| Claim, as the PDF shows it | Link (the film's landing page) |
+|---|---|
+| LOCAL MODELS FIRST | https://github.com/hareet/h4reet-ai/tree/main/films/local-first |
+| A REAL-TIME COST METER | https://github.com/hareet/h4reet-ai/tree/main/films/cost-meter |
+| A $5-A-DAY KILL SWITCH | https://github.com/hareet/h4reet-ai/tree/main/films/kill-switch-b2 |
+| EVERY DATA FLOW DISCLOSED | https://github.com/hareet/h4reet-ai/tree/main/films/data-flows |
+
+The table's one home is `films/resume-links.json` (with `pdf_sha256`, the hash above); the code and the checks read it, and these notes quote it.
+
+### For the Author
+
+**Before publishing**, both must be true (FR-010; RESUME-LINKS-PLAN step 6): the repository is public (the links 404 until then), and you have clicked each of the four links from the PDF itself, on desktop and on a phone, and each lands on its film's page and the film plays.
+
+**Route (a), the night's candidate.** Check it with your own tools: `sha256sum apps/web/content/candidates/resume-author-links.pdf` (the hash above) and `pdfinfo -url apps/web/content/candidates/resume-author-links.pdf` (the four links above, plus the file's own four: your contact, github.com/Hareet, and hareet.ai twice). Then, on `main`, after this stack is merged, in one commit: `git mv apps/web/content/candidates/resume-author-links.pdf apps/web/content/resume-author.pdf`, and one new entry in `assets/policy/content-approvals.json` (human patch 023, `docs/merge-requests/human-patches/023.md`):
+
+```json
+{"id": "<the next free ID on main when you add it: C-0005 today>", "path_when_approved": "apps/web/content/resume-author.pdf", "kind": "resume",
+ "sha256": "5de0e7eeaed34587d4d79e29f0cbfb7c577a224ce31616f1d75fcbe4e0ff21fb",
+ "date": "<yours>", "reason": "<your words>"}
+```
+
+That puts the link checks in their "published" state (the candidate file absent, the served file's hash the table's) with no test edited.
+
+**Route (b), your own render** (RESUME-LINKS-PLAN steps 1 to 4). In `resume/source/twin.html`, wrap each claim's text in its link, keeping the words as your source has them (only the `href` comes from the table):
+
+```html
+<li><a href="https://github.com/hareet/h4reet-ai/tree/main/films/local-first">Local models first</a></li>
+<li><a href="https://github.com/hareet/h4reet-ai/tree/main/films/cost-meter">A real-time cost meter</a></li>
+<li><a href="https://github.com/hareet/h4reet-ai/tree/main/films/kill-switch-b2">A $5-a-day kill switch</a></li>
+<li><a href="https://github.com/hareet/h4reet-ai/tree/main/films/data-flows">Every data flow disclosed</a></li>
+```
+
+and add `.twin__proof a { color: inherit; text-decoration: none; }` to its style. Step 2: render with `resume/source/render.sh twin` and check it's still one page. Step 3: `pdfinfo -url out/twin.pdf` lists the four URLs. Step 4: export the copy you send as before. Then, on `main` after the merge, in one commit: your render at `apps/web/content/resume-author.pdf`, `pdf_sha256` in `films/resume-links.json` set to its SHA-256, `apps/web/content/candidates/resume-author-links.pdf` removed, and the entry above with that hash. Without the table's hash the checks fail, naming the three hashes (FR-013).

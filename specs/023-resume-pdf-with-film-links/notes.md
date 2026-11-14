@@ -147,3 +147,16 @@ arrival-check: 0 findings in 1 file
 ```
 
 The build doesn't read `apps/web/content/candidates/`: `contentFiles` (`build/approvals.ts`) lists `resume.yaml`, `narration/`, `room/`, and `room/outlines/` only, and `resumePart` reads `AUTHOR_PDF_PATH` only.
+
+## T008: case 9, then the notes
+
+RED (case 9 alone failing): `AssertionError: docs/merge-requests/human-patches/023.md: expected '<filled by impl-023's T008 from film…' to be '5de0e7eeaed34587d4d79e29f0cbfb7c577a2…'` (1 failed, 9 passed, 2 skipped).
+
+GREEN: the hash filled in `human-patches/023.md` (with the candidate's path and size, and his `sha256sum` / `pdfinfo -url` check), and the stack note's item 6 written: the table, "For the Author" (the two preconditions, route (a)'s `git mv` and entry, route (b)'s edit with the table's URLs, steps 2 to 4, and his commit's `pdf_sha256` and the candidate's removal). Route (b)'s `<a>` text is sentence case, as RESUME-LINKS-PLAN step 1's example; the note tells him to keep his source's words and take only the `href`.
+
+```
+$ (apps/web) npx vitest run test/content/film-links.test.ts
+      Tests  10 passed | 2 skipped (12)
+$ python3 -I evals/docs_links.py
+docs links: 0 failed, 2434 relative links in 401 files
+```
