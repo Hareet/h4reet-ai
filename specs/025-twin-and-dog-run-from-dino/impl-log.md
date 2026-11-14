@@ -21,3 +21,7 @@ room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
 ## T004 (GREEN)
 
 `vitest run` T003's four files and those covering `twin-states.ts`, `ri.ts`, `emit.ts`, `reach.ts` (tasks.md's list, 14 files): `Test Files  14 passed (14)`, `Tests  476 passed (476)`. `make lint`: exit 0.
+
+## T005 (RED)
+
+`vitest run test/room/chase-director.test.ts`: "Cannot find module '../../src/room/scene/chase'", Test Files 1 failed (1).
