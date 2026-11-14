@@ -44,6 +44,7 @@ import { LABEL_HEIGHT, framing } from "../compose/framing";
 import { IDENTITY, add, invert, origin, transformDirection, transformPoint } from "../compose/math";
 import type { Mat4, Turn, Vec3 } from "../compose/math";
 import { anchorWorld, mountWorld, resolveMounts } from "../compose/mount";
+import { dogBoxAt } from "../compose/dog-box";
 import { listOnly, memberRect, pick, pickAreas } from "../compose/pick";
 import type { PickArea } from "../compose/pick";
 import { toStage } from "../compose/project";
@@ -341,17 +342,24 @@ export function pickAreasOn(
 ): PickArea[] {
   const boxes = new Map<string, Box>();
   for (const p of part.placements) if (!boxes.has(p.id)) boxes.set(p.id, p.frame_box);
+  // Spec 026 (R-09): the room's dog's box at its home, the `dog` figure's front-only rectangle, as RG6 measures it.
+  const dog = part.figures.dog ? dogBoxAt(part.figures.dog, AVATAR_SHAPES.dog) : null;
   return pickAreas(
-    index.selectables.map((s) => ({
-      id: s.id,
-      members: s.members.flatMap((m) => {
+    index.selectables.map((s) => {
+      const members = s.members.flatMap((m) => {
         const box = boxes.get(m);
         const rect = box && memberRect(box, camera, stage);
         return rect ? [rect] : [];
-      }),
-    })),
+      });
+      const rect = s.figure === "dog" && dog ? memberRect(dog, camera, stage) : null;
+      return rect ? { id: s.id, members, front: [rect] } : { id: s.id, members };
+    }),
   );
 }
+
+/** The areas without their front rectangles: what the picker picks from while no figure is pickable. */
+const withoutFront = (areas: readonly PickArea[]): PickArea[] =>
+  areas.map((a) => (a.front ? { id: a.id, members: a.members, union: a.union, core: a.core } : a));
 
 /** The pointer's picker on the 3D stage (R-20). */
 export interface SelectablePicker {
@@ -365,12 +373,20 @@ export interface SelectablePicker {
 }
 
 /** Picks the index's selectables from the part's frame boxes, framed as frameCamera frames them (compose/pick.ts). At
- *  each stage size it holds the side-wall selectables FR-064's carve-out leaves to the list there (see listOnly). */
-export function selectablePicker(part: RoomScene, index: Pick<RoomIndex, "selectables">): SelectablePicker {
+ *  each stage size it holds the side-wall selectables FR-064's carve-out leaves to the list there (see listOnly).
+ *  Spec 026 (R-09): a selectable's figure rectangle (its `front`) is picked only while `pickable(figure)` says so, the
+ *  stage's: the figure shows its model at home; with no callback, never. */
+export function selectablePicker(
+  part: RoomScene,
+  index: Pick<RoomIndex, "selectables">,
+  pickable?: (figure: "dog") => boolean,
+): SelectablePicker {
   const boxes = framedBoxes(part);
   const sideWall = new Set(index.selectables.filter((s) => s.side_wall).map((s) => s.id));
   let stage: Stage | null = null;
   let areas: readonly PickArea[] = [];
+  /** The same areas with no front rectangle, made once a measure. */
+  let bare: readonly PickArea[] = [];
   let held: ReadonlySet<string> = new Set();
   /** The follow camera the walking view set, or none: the production framing's. */
   let following: Camera | null = null;
@@ -378,6 +394,7 @@ export function selectablePicker(part: RoomScene, index: Pick<RoomIndex, "select
     stage = { w: next.w, h: next.h };
     const camera = following ?? framing(next.w / next.h, boxes);
     areas = next.w > 0 && next.h > 0 ? pickAreasOn(part, index, camera, stage) : [];
+    bare = withoutFront(areas);
     // The walking control's box reserved, as RG6 reserves it: a side-wall selectable whose core lies under it is held
     // here exactly where the compositor's report lists it (spec 008, FR-021; plan.md §2); and at the follow camera,
     // where the control still stands, the carve-out applied there (FR-035).
@@ -396,7 +413,8 @@ export function selectablePicker(part: RoomScene, index: Pick<RoomIndex, "select
       following = camera;
       measure(next);
     },
-    pick: (ndc) => (stage === null ? null : pick(areas, toStage([ndc.x, ndc.y, 0], stage), held)),
+    pick: (ndc) =>
+      stage === null ? null : pick(pickable?.("dog") ? areas : bare, toStage([ndc.x, ndc.y, 0], stage), held),
   };
 }
 

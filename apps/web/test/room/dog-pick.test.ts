@@ -29,7 +29,7 @@ import { dogBoxAt } from "../../src/room/compose/dog-box";
 import { framing } from "../../src/room/compose/framing";
 import { origin } from "../../src/room/compose/math";
 import { resolveMounts } from "../../src/room/compose/mount";
-import { listOnly, pick, pickAreas, pickProblems } from "../../src/room/compose/pick";
+import { listOnly, memberRect, pick, pickAreas, pickProblems } from "../../src/room/compose/pick";
 import type { MemberRect, PickArea, Rect } from "../../src/room/compose/pick";
 import { toStage } from "../../src/room/compose/project";
 import type { Stage } from "../../src/room/compose/stages";
@@ -49,12 +49,13 @@ const DOG_SELECTABLE = {
 
 const corners = (dog: { home: { at: [number, number]; heading_deg: number }; footprint_m: number }) => {
   const h = (dog.home.heading_deg * Math.PI) / 180;
-  const f = [-Math.sin(h), -Math.cos(h)];
-  const r = [Math.cos(h), -Math.sin(h)];
+  const f: [number, number] = [-Math.sin(h), -Math.cos(h)];
+  const r: [number, number] = [Math.cos(h), -Math.sin(h)];
   const L = AVATAR_SHAPES.dog.width / 2;
   const W = dog.footprint_m / 2;
   const out: [number, number][] = [];
-  for (const a of [-L, L]) for (const b of [-W, W]) out.push([dog.home.at[0] + a * f[0] + b * r[0], dog.home.at[1] + a * f[1] + b * r[1]]);
+  for (const a of [-L, L])
+    for (const b of [-W, W]) out.push([dog.home.at[0] + a * f[0] + b * r[0], dog.home.at[1] + a * f[1] + b * r[1]]);
   return out;
 };
 
@@ -299,19 +300,72 @@ describe("RG6 measures the dog's box at its home (R-09; Q160)", () => {
     expect(figureFronts(geometryWith(tree), { w: 1280, h: 800 }).size).toBe(0);
   });
 
-  it("refuses a core over the dog's rectangle, and the shipped scene's sweep is recorded", () => {
+  it("adds no RG6 problem of its own on the shipped scene: the sweep with the figure equals the sweep without it", () => {
     const { tree } = withDog();
     const g = geometryWith(tree);
-    const sweep = pickSweep(g);
-    const dogProblems = sweep.problems.filter((p) => p.problem.other === "4" || p.problem.selectable === "4");
+    const key = (p: ReturnType<typeof pickSweep>["problems"][number]): string =>
+      `${p.mode} ${p.problem.selectable} ${p.problem.problem} ${p.problem.other ?? "-"}`;
+    const withFigure = pickSweep(g).problems.map(key).sort();
+    // The same selectable without its figure: the sign alone.
+    const base = fileTree(REPO);
+    const text = new TextDecoder().decode(base.read(SCENE_PATH) ?? new Uint8Array());
+    const doc = parse(text) as { selectables: unknown[] };
+    const { figure: dropped, ...signOnly } = DOG_SELECTABLE;
+    void dropped;
+    doc.selectables = [...doc.selectables, signOnly];
+    const bare = geometryWith(overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]])));
+    const withoutFigure = pickSweep(bare).problems.map(key).sort();
     console.log(
       `dog-pick: RG6 on the shipped scene with the dog selectable in memory, over ${sweptStages(g).length} stages: ` +
-        (dogProblems.length === 0
-          ? "no problem names the dog piece"
-          : dogProblems.map((p) => `${p.mode} ${p.problem.selectable} ${p.problem.problem} ${p.problem.other}`).join("; ")),
+        (withFigure.length === 0
+          ? "no problem"
+          : pickSweep(g)
+              .problems.map((p) => `${key(p)} (${p.first.w} × ${p.first.h} and ${p.more} more)`)
+              .join("; ")),
     );
-    expect(dogProblems.every((p) => p.problem.problem === "member" && p.problem.other === "4")).toBe(true);
-    // A core over the dog's rectangle: move the dog's home under the bicycle's core at the widest stage, and RG6 says
-    // so. Rather than move scene data, the sweep's own pure part is checked above (pickProblems' member rule).
+    expect(withFigure).toEqual(withoutFigure);
+  });
+
+  it("refuses another's core over the dog's rectangle in the sweep: a fixture piece on the desk, the dog before it", () => {
+    // A fixture selectable whose member is the work desk (no shipped selectable is), its core centred on the desk, and
+    // the dog's home moved, on a grid, to where its rectangle holds that core's centre.
+    const stage: Stage = { w: 1280, h: 800 };
+    const FIXTURE = { id: "fixture-desk", name: "Fixture", members: ["work-desk"], action: { resume: {} } };
+    const treeOf = (figure: boolean, home: [number, number] | null): Tree => {
+      const base = fileTree(REPO);
+      const text = new TextDecoder().decode(base.read(SCENE_PATH) ?? new Uint8Array());
+      const d = parse(text) as { selectables: unknown[]; figures: { dog: { home: { at: number[] } } } };
+      const { figure: dropped, ...signOnly } = DOG_SELECTABLE;
+      void dropped;
+      // The dog piece's member the bicycle, on the side wall, away from the desk.
+      d.selectables = [...d.selectables, { ...(figure ? DOG_SELECTABLE : signOnly), members: ["bicycle"] }, FIXTURE];
+      if (home) d.figures.dog.home.at = home;
+      return overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(d))]]));
+    };
+    const policy = readRoomPolicy({ env: {}, root: REPO });
+    const composed = compose(treeOf(true, null), policy, STRICT);
+    const camera = framing(stage.w / stage.h, framedBoxes(composed.scene));
+    const core = pickAreasOn(composed.scene, composed.index, camera, { ...stage, reserved: reservedBoxes(stage) }).find(
+      (x) => x.id === FIXTURE.id,
+    )?.core;
+    if (!core) throw new Error("no fixture core");
+    const centre: [number, number] = [core[0] + core[2] / 2, core[1] + core[3] / 2];
+    let home: [number, number] | null = null;
+    for (let z = 0.6; z >= -1.5 && !home; z -= 0.05)
+      for (let x = -1.5; x <= 1.5 && !home; x += 0.05) {
+        const dog = { home: { at: [x, z] as [number, number], heading_deg: 180 }, footprint_m: 0.3 };
+        const r = memberRect(dogBoxAt(dog, AVATAR_SHAPES.dog), camera, stage);
+        if (r && contains(r.rect, centre)) home = [x, z];
+      }
+    if (!home) throw new Error(`no home whose rectangle holds the fixture's core ${JSON.stringify(core)}`);
+    const problems = (figure: boolean): string[] =>
+      pickSweep(geometryWith(treeOf(figure, home)), [stage]).problems.map(
+        (p) => `${p.mode} ${p.problem.selectable} ${p.problem.problem} ${p.problem.other}`,
+      );
+    // The fixture's core (selectable 5) over the dog's rectangle: RG6's member rule, in 3D only (2D draws no figure).
+    const withFigure = problems(true);
+    expect(withFigure, JSON.stringify(withFigure)).toContain("3D 5 member 4");
+    expect(withFigure).not.toContain("2D 5 member 4");
+    expect(problems(false)).not.toContain("3D 5 member 4");
   });
 });
