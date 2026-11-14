@@ -92,6 +92,9 @@ export interface RoomLayout {
   /** Spec 016 (FR-014; contracts/twin-states.md §4): the line slot's words, in place: the twin's line while its own
    *  picture shows, the stand-in line otherwise. The paragraph isn't a live region, so nothing is announced. */
   setLine(words: string): void;
+  /** Spec 020 (FR-003; plan.md R-02): the visitor's avatar's likeness line, a note of its own after the line slot's,
+   *  only while it has words: "" takes the paragraph away, so the layout holds no empty line. Not a live region. */
+  setVisitorLine(words: string): void;
   /** Shows whether the room is paused, in "Pause the room"'s aria-pressed. */
   setPaused(on: boolean): void;
   /** Spec 008's walking control (FR-020, FR-021; R-09): in the stage's bottom-right corner, inert with the rest. */
@@ -228,6 +231,8 @@ export function renderRoom(
   const walkHelp = h(doc, "p", { id: "room-walk-help", class: "visually-hidden", hidden: true }, walkWords.help);
   const standIn = h(doc, "p", { class: "room-note room-stand-in", hidden: !parts.standIn }, parts.standIn ?? "");
   const notes = h(doc, "div", { class: "room-notes" }, note, standIn);
+  /** Spec 020's visitor line, in the notes after the line slot's while it has words. */
+  let visitorLine: HTMLElement | null = null;
   const clear = h(doc, "div", { class: "room-clear" }, notes, walkButton, walkHelp);
   const stage = h(doc, "div", { class: "room-stage" }, view, clear);
   const panels = h(doc, "div", { class: "hud-panels hud-glass" }, parts.list, parts.talk);
@@ -282,6 +287,17 @@ export function renderRoom(
     setLine(words) {
       if (standIn.textContent !== words) standIn.textContent = words;
       standIn.hidden = words === "";
+    },
+    setVisitorLine(words) {
+      if (words === "") {
+        visitorLine?.remove();
+        visitorLine = null;
+      } else if (visitorLine) {
+        if (visitorLine.textContent !== words) visitorLine.textContent = words;
+      } else {
+        visitorLine = h(doc, "p", { class: "room-note room-visitor-line" }, words);
+        standIn.after(visitorLine);
+      }
     },
     setPlaceholders(on) {
       const words = [on.pieces ? parts.note : "", on.figure ? (parts.noteAvatar ?? "") : ""].filter((w) => w !== "");

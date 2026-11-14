@@ -346,8 +346,17 @@ export function createAvatarFigures(
     if (both().every((f) => f.wants === null || f.shown || f.gone)) settle();
   };
 
-  const picture = (f: Figure, shows: "avatar" | "fallback", why: FigureWhy | null): void =>
-    signal({ kind: "picture", figure: f.id, shows: shows === "avatar" && f.wants === "twin" ? "own" : shows, why });
+  const picture = (f: Figure, shows: "avatar" | "fallback", why: FigureWhy | null): void => {
+    // Spec 020 (FR-003): an avatar's likeness line rides with its picture, where its bundle entry has one.
+    const line = shows === "avatar" && f.wants !== null && f.wants !== "twin" ? part.avatars[f.wants]?.line : undefined;
+    signal({
+      kind: "picture",
+      figure: f.id,
+      shows: shows === "avatar" && f.wants === "twin" ? "own" : shows,
+      why,
+      ...(line ? { line } : {}),
+    });
+  };
   for (const f of both()) if (f.wants === null) picture(f, "fallback", "no-file");
   checkSettled();
 

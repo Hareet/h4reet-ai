@@ -440,6 +440,13 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     copy?.setTwinOwn(twinOwn);
   }
 
+  /** Spec 020 (FR-003, FR-007; plan.md R-02): the visitor's avatar's likeness line, in the stage's notes and the text
+   *  copy's slot, while the visitor's figure shows a model whose bundle entry has one; away otherwise. */
+  function showVisitorLine(line: string | null): void {
+    room?.setVisitorLine(line ?? "");
+    copy?.setVisitorLine(line);
+  }
+
   /** Spec 009's figures as the 3D stage reports them: avatar_failed once a visit (FR-032), and the frame log (FR-035). */
   let avatarFailed = false;
   function figureSignal(signal: FigureSignal): void {
@@ -451,6 +458,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     if (signal.kind === "picture" && signal.figure === "visitor") {
       placeholders.figure = signal.shows === "fallback" && signal.why !== "2d";
       showPlaceholders();
+      showVisitorLine(signal.shows === "avatar" ? (signal.line ?? null) : null);
     }
     if (signal.kind === "failed") {
       if (avatarFailed) return;
@@ -1067,6 +1075,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     // Spec 016 (FR-014): the twin's 3D model is gone with the 3D stage; the 2D room says when its still shows.
     twinOwn = false;
     showLine();
+    // Spec 020 (FR-003): the visitor's model is gone with the 3D stage, and its line with it.
+    showVisitorLine(null);
     // Spec 008: the target clears with the 3D stage, and the 2D room starts with none (plan.md R-06).
     retarget({ kind: "reset" });
     controller?.toFlat(reason);
