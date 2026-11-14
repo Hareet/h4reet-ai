@@ -225,7 +225,7 @@ Task `judge-dog-r4` (night of 2026-11-14, implementer, Opus 5.5, on 2026-11-14),
 - **The dry judge finds what the brief expected:** P1 on each GLB, "no approval names this file's hash", and nothing else. Exit 1, and nothing recorded.
 - **His approval is written as a patch for his hand:** `docs/merge-requests/human-patches/020-approval-round-4.md`, three `approvals.json` entries.
 - **With those entries applied to a scratch copy of main, the same judge passes:** `line: pass; round 4`, exit 0.
-- **Round 4 isn't recorded.** It is recorded only after he says the entries are on main.
+- **Round 4 isn't recorded.** It is recorded only after he says the entries are on main. *(Since then: he applied the entries on main as `b6985ad2`, and record-dog-r4 recorded round 4 as a pass. See "Round 4 recorded (record-dog-r4)" below.)*
 - **Nothing changed** under `assets/**`, `corpus/`, `/srv/studio/`, or any human-only path.
 
 ### The handoff
@@ -368,6 +368,111 @@ Two permission refusals, and no hook or bash-gate refusal:
 One post-edit hook finding on a scratch script (`/tmp/judge-dog-r4.xBd7/tool/build.py`, SIM115, `open` without a context manager). I fixed it in the script.
 
 The scratch folders stay: `/tmp/judge-dog-r4.xBd7/` (main's policy files, the builder, the diff, the rehearsal repository) and `/tmp/judge-dog-r4-main.o6tQ/` (main's export with the patch applied). Neither holds a photo or a secret.
+
+## Round 4 recorded (record-dog-r4)
+
+Task `record-dog-r4` (night of 2026-11-14, implementer, Opus 5.5, on 2026-11-14), under rule 15 of the Author's orders. It started from the line's tip, `night/merge-2/merge-2` (`ce3f6305`).
+
+His words (2026-11-14, about 23:06Z): "Let's approve the round4 dog". He applied judge-dog-r4's patch, `docs/merge-requests/human-patches/020-approval-round-4.md`, on main as written. The commit is `b6985ad2` ("policy(020): approve the dog, round 4"). It adds the entries A-20261114-dog, A-20261114-dog-idle, and A-20261114-dog-walk, with `likeness_accepted: true` and the drafted disclosure line (Q278 and Q280 answered).
+
+**Outcome:**
+
+- **Round 4 is recorded as a pass.** `/srv/studio/briefs/dog/4.result.json` says `"result": "pass"`, `"round": 4`, and `"findings": []`. Its SHA-256 is `61b91249c3d7d3a67051604ed570fac4ae7ae1bf53703353e32a9a817ea150dc`.
+- **Round 3 stays recorded, unused.** `3.result.json` and `/srv/studio/handoff/dog/3/` are unchanged.
+- **Nothing in the handoff folder or the brief changed.** `--record` wrote only `4.result.json`.
+- **Nothing changed under `assets/**`:** the intake (intake-020) takes this tip next.
+- **Main's `b6985ad2` isn't merged on this branch.** Its only change is `assets/policy/approvals.json`. In this container, `assets/policy/` is a read-only mount holding the line's copy, so `git merge refs/heads/main` stopped before writing anything: `error: unable to unlink old 'assets/policy/approvals.json': Read-only file system`, then `Merge with strategy ort failed.` No merge state was left, and the worktree stayed clean. I didn't work around it, so it's on the page, under Interruptions. The judge doesn't depend on the merge: `line.py` reads the policy from `refs/heads/main`'s commit ("arrival-check: main's copy, at b6985ad23fb4" below).
+
+### The merges
+
+```text
+$ git merge refs/heads/main                                         # b6985ad2
+error: unable to unlink old 'assets/policy/approvals.json': Read-only file system
+Merge with strategy ort failed.
+$ git merge refs/heads/night/judge-dog-r4/judge-dog-r4              # e3aa51b6
+Merge made by the 'ort' strategy.
+ docs/merge-requests/2026-11-14-judge-dog-r4.md     |  50 +++++++
+ .../human-patches/020-approval-round-4.md          | 156 +++++++++++++++++++++
+ .../studio-round-4.md                              | 154 ++++++++++++++++++++
+ 3 files changed, 360 insertions(+)
+```
+
+judge-dog-r4 merged without conflict, in merge commit `e53b85ec`. It changes nothing under `assets/`: its `approvals.json` blob is the line's, `8b587ff3`.
+
+### The checks before judging
+
+```text
+$ test -e /srv/studio/briefs/dog/4.result.json || echo "no 4.result.json"
+no 4.result.json
+$ (cd /srv/studio/handoff/dog/4 && sha256sum dog.glb dog-idle.glb dog-walk.glb)
+d31c085cfa6dc92449f3ada3873417c829acd8e4989a3ae54c2bacc524842078  dog.glb
+1bd5ee9454ed654700dbbec6279ec54861419d8ae47ffc61d243aa8107e9ff25  dog-idle.glb
+f35b742a6b8070faddf9f184fc1ac94d4560e1d4c501e2bee9a2c1ad3e53e306  dog-walk.glb
+$ git show refs/heads/main:assets/policy/approvals.json | <the A-20261114-dog entries' sha256>
+A-20261114-dog {'sha256': 'd31c085cfa6dc92449f3ada3873417c829acd8e4989a3ae54c2bacc524842078'}
+A-20261114-dog-idle {'sha256': '1bd5ee9454ed654700dbbec6279ec54861419d8ae47ffc61d243aa8107e9ff25'}
+A-20261114-dog-walk {'sha256': 'f35b742a6b8070faddf9f184fc1ac94d4560e1d4c501e2bee9a2c1ad3e53e306'}
+$ grep -n "A-20261114-dog" docs/merge-requests/human-patches/020-approval-round-4.md   # the patch's table
+34:| `A-20261114-dog` | `assets/visitors/dog/dog.glb` | avatar | `d31c085cfa6dc92449f3ada3873417c829acd8e4989a3ae54c2bacc524842078` |
+35:| `A-20261114-dog-idle` | `assets/visitors/dog/dog-idle.glb` | animation | `1bd5ee9454ed654700dbbec6279ec54861419d8ae47ffc61d243aa8107e9ff25` |
+36:| `A-20261114-dog-walk` | `assets/visitors/dog/dog-walk.glb` | animation | `f35b742a6b8070faddf9f184fc1ac94d4560e1d4c501e2bee9a2c1ad3e53e306` |
+```
+
+The three sources agree for every file. I also compared `b6985ad2`'s added and removed lines with the patch's diff block. Both have 48 lines and `diff` finds no difference, so he applied the patch as written. `b6985ad2` changes only `assets/policy/approvals.json` (48 insertions), and its author is the Author.
+
+### The dry judge
+
+`line.py` at this tip has `ROUNDS = 4`.
+
+```text
+$ python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dog/4 --brief /srv/studio/briefs/dog/4.json; echo "exit=$?"
+arrival-check: main's copy, at b6985ad23fb4, on a scratch copy under assets/visitors/dog/
+file                                bytes     gzip      vertices  triangles  texture
+assets/visitors/dog/dog-idle.glb    34948     14414     0         0          0
+assets/visitors/dog/dog-walk.glb    28552     11958     0         0          0
+assets/visitors/dog/dog.glb         9765184   6448373   100172    150000     22369621
+arrival-check: 0 findings in 5 files
+line: pass; round 4
+exit=0
+```
+
+judge-dog-r4's three P1 findings are gone now that main carries the approvals. This is the result its rehearsal predicted.
+
+### The recorded run
+
+```text
+$ python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dog/4 --brief /srv/studio/briefs/dog/4.json --record; echo "exit=$?"
+arrival-check: main's copy, at b6985ad23fb4, on a scratch copy under assets/visitors/dog/
+file                                bytes     gzip      vertices  triangles  texture
+assets/visitors/dog/dog-idle.glb    34948     14414     0         0          0
+assets/visitors/dog/dog-walk.glb    28552     11958     0         0          0
+assets/visitors/dog/dog.glb         9765184   6448373   100172    150000     22369621
+arrival-check: 0 findings in 5 files
+line: pass; round 4
+exit=0
+$ cat /srv/studio/briefs/dog/4.result.json
+{
+  "schema": 1,
+  "asset": "dog",
+  "round": 4,
+  "result": "pass",
+  "findings": []
+}
+$ sha256sum /srv/studio/briefs/dog/4.result.json
+61b91249c3d7d3a67051604ed570fac4ae7ae1bf53703353e32a9a817ea150dc  /srv/studio/briefs/dog/4.result.json
+$ python3 -I -B scripts/studio/line.py round dog; echo "exit=$?"
+passed 4
+exit=0
+```
+
+### Small runs (rule 4)
+
+This task changes only docs: this file, `studio-round-3.md`'s round-4 line, the approval patch's status, judge-dog-r4's note, and item 3 of the night stack's note. So the runs are `scripts/studio/`'s tests (the `line.py` that recorded), the docs tests, and the lint target. There was no `node_modules`, so I ran `make setup` first, and it exited 0. Its git-hooks step said, as before, that the Author runs `make git-hooks`. The outputs are pasted in the night stack's note, item 3, "Round 4 recorded (record-dog-r4)".
+
+### Interruptions (record-dog-r4)
+
+- **`git merge refs/heads/main` was refused by the filesystem,** not by a hook or the bash gate: `assets/policy/` is mounted read-only (see Outcome). I didn't retry it another way, for example with plumbing that writes the merge commit without its working-tree file. Main's merge into the line is on the page, with a recommended answer.
+- There were no hook or bash-gate refusals.
 
 ## The text placed as `/srv/studio/briefs/dog/4.json` (brief-dog-r9)
 
