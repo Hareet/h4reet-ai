@@ -1389,6 +1389,36 @@ def test_a_glob_or_a_contradicting_file_outside_the_repository_fails(
 # rv-rework3-022's B-7: a glob (`*`, `?`, `[`) is a repository source only if something matches and every match
 # resolves inside the root, on every row, carried, in part, or left out. The checkout's `docs/outside.txt` links to a
 # file outside, and `docs/ext` to a directory outside.
+# rv-rework4-022's N-2: a `**` reads the same on every Python. On 3.12 a pattern ending in `**` matches directories
+# only and `**` never descends into a link to a directory; on 3.13 it matches files too. So a pattern ending in `**`
+# is read with its `/*` as well, and `docs/**`, whose entries hold a link out, fails on both; a `**` that reaches a file
+# only through a directory link matches nothing and fails; one whose every entry is inside stands.
+@pytest.mark.parametrize(
+    ("row_old", "row_new"),
+    [CARRIED_ROW, IN_PART_ROW, LEFT_OUT_ROW],
+    ids=["carried", "in-part", "left-out"],
+)
+@pytest.mark.parametrize(
+    ("glob", "inside"),
+    [
+        ("docs/**", False),
+        ("**", False),
+        ("docs/**/plain.txt", False),
+        ("**/plain.txt", False),
+        ("docs/adr/**", True),
+        ("docs/**/*.md", True),
+        ("src/**", True),
+    ],
+)
+def test_a_double_star_glob_reads_the_same_on_every_python(
+    checkout: Path, row_old: str, row_new: str, glob: str, inside: bool
+) -> None:
+    problems = run(checkout, changed(row_old, row_new.format(source=glob)))
+    assert (
+        failing(problems, "R1", f"`{glob}`", "isn't in the repository") is not inside
+    ), problems
+
+
 @pytest.mark.parametrize(
     ("row_old", "row_new"),
     [CARRIED_ROW, IN_PART_ROW, LEFT_OUT_ROW],
