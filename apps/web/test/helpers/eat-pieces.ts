@@ -147,6 +147,32 @@ const sub = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const dot = (a: V3, b: V3): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
+const segmentDistance = (p: V3, a: V3, b: V3): number => {
+  const ab = sub(b, a);
+  const len = dot(ab, ab);
+  const k = len === 0 ? 0 : Math.min(1, Math.max(0, dot(sub(p, a), ab) / len));
+  return Math.hypot(p[0] - a[0] - k * ab[0], p[1] - a[1] - k * ab[1], p[2] - a[2] - k * ab[2]);
+};
+
+/** A point's distance to a triangle: to its plane where the point projects inside it, else to its nearest edge. Written
+ *  apart from the chunker's closest-point routine, so the test doesn't check the code against itself. */
+export function triangleDistance(p: V3, [a, b, c]: readonly [V3, V3, V3]): number {
+  const n = cross(sub(b, a), sub(c, a));
+  const area = Math.hypot(n[0], n[1], n[2]);
+  if (area > 0) {
+    const unit: V3 = [n[0] / area, n[1] / area, n[2] / area];
+    const h = dot(sub(p, a), unit);
+    const q: V3 = [p[0] - h * unit[0], p[1] - h * unit[1], p[2] - h * unit[2]];
+    const inside = [
+      [a, b],
+      [b, c],
+      [c, a],
+    ].every(([u, v]) => dot(cross(sub(v as V3, u as V3), sub(q, u as V3)), n) >= 0);
+    if (inside) return Math.abs(h);
+  }
+  return Math.min(segmentDistance(p, a, b), segmentDistance(p, b, c), segmentDistance(p, c, a));
+}
+
 /** The first triangle a ray from `from` along `dir` meets (Möller–Trumbore, both sides), among the primitives `take`
  *  allows, or null. */
 export function firstHit(

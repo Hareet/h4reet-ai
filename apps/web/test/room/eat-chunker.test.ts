@@ -24,7 +24,7 @@ import {
 } from "../../src/room/eat/chunker";
 import type { ChunkInput, Face, GlowPoint, Primitive } from "../../src/room/eat/chunker";
 import { keepOutBoxes } from "../../src/room/eat/keepouts";
-import { corners, firstHit, piecePrimitives, roomGlb, triangles } from "../helpers/eat-pieces";
+import { corners, firstHit, piecePrimitives, roomGlb, triangleDistance, triangles } from "../helpers/eat-pieces";
 import type { V3 } from "../helpers/eat-pieces";
 import { REPO, repositoryBundle } from "../helpers/room";
 
@@ -480,10 +480,10 @@ describe("the chunker on the four real pieces (FR-003, FR-004, FR-015, SC-001)",
     for (const k of meshIndices(r, "base")) {
       const p = r.input.primitives[k] as Primitive;
       for (let t = 0; t < triangles(p); t++) {
-        const close = corners(p, t).some((v) => Math.hypot(v[0] - glow.at[0], v[1] - glow.at[1], v[2] - glow.at[2]) <= glow.radius);
-        if (!close) continue;
+        // Within its radius: the triangle's nearest point, not a corner (the base's nearest corner is 13.6 mm off).
+        if (triangleDistance(glow.at, corners(p, t)) > glow.radius) continue;
         near++;
-        expect(r.mask[k]?.[t], `base triangle ${t} of primitive ${k}, a corner within 6 mm`).toBe(1);
+        expect(r.mask[k]?.[t], `base triangle ${t} of primitive ${k}, within 6 mm`).toBe(1);
       }
     }
     expect(near).toBeGreaterThan(0);
