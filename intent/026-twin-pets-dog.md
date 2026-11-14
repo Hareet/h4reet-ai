@@ -1,5 +1,5 @@
 # Intent: the twin pets the dog, and the dog-intro conversation
-Author: Hareet (the Author), through his night order of 2026-11-13, item f; drafted by the night-shift spec-writer for spec 026, and reworked on 2026-11-14 after the review rv-spec-026. Status: draft. Created: 2026-11-14 (the night of 2026-11-13).
+Author: Hareet (the Author), through his night order of 2026-11-13, item f; drafted by the night-shift spec-writer for spec 026, and reworked on 2026-11-14 after the reviews rv-spec-026 and rv-rework-spec-026 (the latter changed no line of this intent; the spec's answers changed). Status: draft. Created: 2026-11-14 (the night of 2026-11-13).
 
 ## Problem
 
