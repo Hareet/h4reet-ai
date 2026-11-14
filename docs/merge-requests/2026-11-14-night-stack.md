@@ -2434,7 +2434,22 @@ cd <copy>/apps/web && npx vitest run --maxWorkers=4 test/disclosure.test.ts test
 
 With row V1 as merged (the dog's clause and item b's parenthesis) and both patches, the disclosure's tests pass.
 
-LINT_RUN_HERE
+The lint target at 09fad8e8 (this section written, its lint run not yet pasted), exit 0. Shellcheck's echoed file list is left out:
+
+```
+make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+812 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+exit 0
+```
 
 #### The hooks
 
@@ -2444,6 +2459,7 @@ Every commit on this branch printed gitleaks' "no leaks found" and the arrival c
 
 - The bash gate, once: "Blocked by .claude/hooks/bash-gate.sh — redirecting git hooks or config". This was a false match on text. A `python3 -I` heredoc editing `human-patches/025.md` carried rv-impl-025's proposed line, which names git's hook settings, and the command ran no git. I didn't respell it (rule 5): the same edits went in with the Edit tool (a2f7cd27). It is on the page, under Interruptions.
 - The harness, once, not a hook or the gate: a Monitor watch on the full run's log needed an approval. I waited on the log with a bounded `tail` instead.
+- The harness, once more: removing the D-V2 copy by a path read from a file (a command substitution) needed an approval, which also held back the commit in the same command. I committed alone, then removed the copy by its literal `/tmp` path.
 
 verify-025: green, carrying D-V2's six (Q165)
 
