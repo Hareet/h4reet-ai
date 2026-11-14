@@ -55,6 +55,16 @@ The spec's table holds before and after design, with one named deviation (spec A
 ## 3. Data model
 
 - `figures.pet` (scene data, optional; defaults compiled into `pet.ts`): `{ reach_m: 0.55, cooldown_s: 20, turn_max_deg: 60, lean_max_deg: <T003's>, stroke_m: 0.05, stroke_n: 3, pet_s: 3.5, elbow_deg: 150 }`. Placeholders; the Author's look sets them. `walk_mps` and `approach_max_s` are gone with the walk (Q159). `lean_max_deg` is 35 until T003 measures it (Q162; R-03) and records here: the twin's and the man's shoulder heights, a, b, the lean each needs for the dog at its default home, and the default chosen (at most 75°).
+- **T003's measure (impl-026, 2026-11-14; `test/room/pet-reach-measure.test.ts`, which prints this table): T003 stopped RED.** Read in Node from `assets/twin/twin.glb` (its own size) and `assets/visitors/man/man.glb` (1.76 m, scaled to `figures.twin_height`, 1.82 m), the right arm (the dog is on the twin's right): the twin's shoulder (`RightArm`) 1.395 m, a 0.309 m, b 0.307 m to the middle finger's base, hips 0.905 m, 0.98 (a + b) 0.603 m; the man's 1.438 m, 0.269 m, 0.407 m, 0.946 m, 0.662 m. The twin turned by the aim, 60° (the dog is 75° to 93° off its forward, clamped to `turn_max_deg`); R-03's target (the head point at 0.9 and 0.35 of 0.62 m, lowered 0.03 m, moved 0.05 m toward the twin). The dog's picture faces glTF's +z at `heading_deg` 0 (spec 025's R-10; spec 020's fixture), so its head is +z of its home. Leans needed, about the hips (`solveLean`) / over `Spine`, `Spine1`, `Spine2` in equal parts (FR-007's applier), and how far short the spine's 75° leaves the hand:
+
+  | Figure, home | head +z (`heading_deg` 0, the default) | head −z (`heading_deg` 180) | head toward the twin |
+  |---|---|---|---|
+  | twin, [0.36, 0.55] | 72.3° / > 120°, short 0.200 m | 52.8° / 74.3°, reached | 85.6° / > 120°, short 0.152 m |
+  | twin, [0.30, 0.45] (Q158) | 67.0° / 115.0°, short 0.154 m | 47.7° / 70.0°, reached | 73.8° / 101.4°, short 0.092 m |
+  | man, [0.36, 0.55] | 74.8° / > 120°, short 0.298 m | 49.7° / 82.7°, short 0.025 m | 84.1° / > 120°, short 0.224 m |
+  | man, [0.30, 0.45] (Q158) | 68.4° / > 120°, short 0.246 m | 44.2° / 73.6°, reached | 70.8° / > 120°, short 0.141 m |
+
+  At the default home and heading, FR-007's spine lean leaves both figures 0.15 m to 0.30 m short at 75°, beyond SC-002's 0.08 m; even about the hips, the man needs 74.8°, which the 5° margin takes past the cap. So, by T003's rule, no default is set (35 stands), SC-002 isn't relaxed, and the question is on the page (Q162's other answers). T004 and T003's tests wait for his answer; the rest of the reach (T001, T002) stands.
 - The room's numbers this plan writes against (spec 025's plan §3.1 at bb1240be, its hand computation; impl-025's T001 prints the composed floors): the twin's home (0.660, 0.469), no turn; the dog's home estimate [0.36, 0.55], 0.311 m from it, moved by the page's Q158 in impl-025's T011 to about [0.30, 0.45], 0.36 m from it; `separation_m` 0.3 (centre to centre); `footprint_m` 0.3; the chase floor's corner about 0.6 m long and 0.275 m deep. Both homes are within the default `reach_m`, 0.55 m (R-08).
 - `figures.twin.clips.petting: petting`; `TWIN_CLIP_ROLES` += `petting`.
 - `selectables[].figure?: "dog"` (the one value allowed now; schema refuses another). Its pick box: `dogBoxAt` (R-09).

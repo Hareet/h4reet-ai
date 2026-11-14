@@ -1,5 +1,45 @@
 # Notes: spec-026 and its reworks (2026-11-14)
 
+## impl-026 (on `night/impl-026/impl-026`, from rework3-spec-026's tip 9bba8f36)
+
+Step 1: `night/verify2-020/verify2-020` (3767859f) merged first (92ce0066), with no conflict.
+
+### T001, T002: the reach's pure math
+
+T001 RED (5ad2fa5d): `pet-reach.test.ts` failed at import, because there was no module. T002 GREEN: `pet-reach.ts`'s pure part (`solveLean`, `solveTwoBone`, `strokeTarget`, `weightAt`, `strokeShare`, `PET_REACH_DEFAULTS`), with no three.js import.
+
+```
+$ npx vitest run test/room/pet-reach.test.ts
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+```
+
+### T003: stopped RED at the measure (Q162)
+
+`test/room/pet-reach-measure.test.ts` reads both real rigs and prints plan §3's table. At the dog's default home and heading, FR-007's spine lean leaves the twin's hand 0.15 m to 0.20 m short at 75°, and the man's 0.25 m to 0.30 m, where SC-002 allows 0.08 m. About the hips alone, the man needs 74.8° at [0.36, 0.55], over the cap once the margin is added. So no default is set (`lean_max_deg` stays 35), SC-002 isn't relaxed, and the question is on the page (`/night/io/out/questions.md`, recommended: a crouch through the hips and knees). T003's own tests (`pet-reach-rig.test.ts`) and T004 wait for his answer.
+
+```
+$ npx vitest run test/room/pet-reach-measure.test.ts
+twin: shoulder 1.395 m, a 0.309 m, b 0.307 m (to the middle finger's base), hips 0.905 m, 0.98 (a + b) 0.603 m
+  spec 025's estimate [0.36, 0.55], head +z (heading_deg 0): turn -60.0°, shoulder to target 0.991 m; lean about the hips 72.3°; over the spine > 120°, short at 75° by 0.200 m
+  spec 025's estimate [0.36, 0.55], head -z (heading_deg 180): turn -60.0°, shoulder to target 0.889 m; lean about the hips 52.8°; over the spine 74.3°, short at 75° by 0.000 m
+  spec 025's estimate [0.36, 0.55], head toward the twin: turn -60.0°, shoulder to target 0.887 m; lean about the hips 85.6°; over the spine > 120°, short at 75° by 0.152 m
+  Q158's estimate [0.30, 0.45], head +z (heading_deg 0): turn -60.0°, shoulder to target 0.967 m; lean about the hips 67.0°; over the spine 115.0°, short at 75° by 0.154 m
+  Q158's estimate [0.30, 0.45], head -z (heading_deg 180): turn -60.0°, shoulder to target 0.903 m; lean about the hips 47.7°; over the spine 70.0°, short at 75° by 0.000 m
+  Q158's estimate [0.30, 0.45], head toward the twin: turn -60.0°, shoulder to target 0.884 m; lean about the hips 73.8°; over the spine 101.4°, short at 75° by 0.092 m
+man: shoulder 1.438 m, a 0.269 m, b 0.407 m (to the middle finger's base), hips 0.946 m, 0.98 (a + b) 0.662 m
+  spec 025's estimate [0.36, 0.55], head +z (heading_deg 0): turn -60.0°, shoulder to target 1.034 m; lean about the hips 74.8°; over the spine > 120°, short at 75° by 0.298 m
+  spec 025's estimate [0.36, 0.55], head -z (heading_deg 180): turn -60.0°, shoulder to target 0.928 m; lean about the hips 49.7°; over the spine 82.7°, short at 75° by 0.025 m
+  spec 025's estimate [0.36, 0.55], head toward the twin: turn -60.0°, shoulder to target 0.934 m; lean about the hips 84.1°; over the spine > 120°, short at 75° by 0.224 m
+  Q158's estimate [0.30, 0.45], head +z (heading_deg 0): turn -60.0°, shoulder to target 1.008 m; lean about the hips 68.4°; over the spine > 120°, short at 75° by 0.246 m
+  Q158's estimate [0.30, 0.45], head -z (heading_deg 180): turn -60.0°, shoulder to target 0.939 m; lean about the hips 44.2°; over the spine 73.6°, short at 75° by 0.000 m
+  Q158's estimate [0.30, 0.45], head toward the twin: turn -60.0°, shoulder to target 0.930 m; lean about the hips 70.8°; over the spine > 120°, short at 75° by 0.141 m
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+```
+
+What the measure assumes: the man is scaled to `figures.twin_height` (1.82 m, the `twin-figure` piece's `h`) from its 1.76 m, as `avatars.ts` scales a stand-in, and the twin keeps its own size. The dog's head is on the side its picture faces, which is glTF's +z at `heading_deg` 0 (spec 025's R-10, spec 020's fixture). There's no dog model on the line to check that against (spec 020's round 1 stopped). The two other facings are there for the question.
+
 ## The third rework (rework3-spec-026, on `night/rework3-spec-026/rework3-spec-026`, from rework2-spec-026's tip 8e676f55)
 
 Fixes for the Opus review rv-rework2-spec-026 (**not blocking**), done while a worker was free so impl-026 starts from a spec that matches the line's code. No code. Files: `intent/026-twin-pets-dog.md` (its rework line only) and `specs/026-twin-pets-dog/` (spec, plan, tasks, analysis, these notes). Read with `git --no-replace-objects`: `night/fix-020/fix-020` (3953b4c1: `compose/pick.ts`, its `memberRect` and `listOnly`; `compose/framing.ts`'s `Box`; `scene/bundle3d.ts`; `build/room/checks/rg.ts`'s `pickSweep`, lines 639 to 700; `room/scene.yaml`'s `selectables` and `twin-figure`; `src/choice/avatars.ts`'s `dog` shape; the tests that import them), spec 025's final tip bb1240be (plan §3, §3.1: the shell's z ±0.610), and the page's Q160 and its note.
