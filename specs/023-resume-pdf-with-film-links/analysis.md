@@ -8,7 +8,7 @@ Read-only cross-check by the spec-writer who reworked them (rework-spec-023); th
 |---|---|
 | B1 `kill-switch-b2`'s MP4 is `media/kill-switch.mp4` | the table's `media` field (spec FR-003, FR-012, Key Entities, US1-AC2, Assumptions; plan §1, §3 case 2, Departures; T001, T002). No film file renamed. |
 | B2 the checks after publication | spec FR-006 (guard binds the writer only), FR-013 (three states); plan §3's state table and cases 0 and 10; `pdf_sha256` in the table, the hash's one home; T006, T007; human patch (both routes reach "published" with no test edited). |
-| B3 the disclosure sentence | spec FR-011 gives the exact text and its place inside V1's Trigger, before spec 016's closing words, which `evals/test_disclosure.py:410` holds with `endswith`; plan §7; T010 runs `test/disclosure.test.ts` and `evals/test_disclosure.py` too. |
+| B3 the disclosure sentence | spec FR-011 gives the exact text and its place inside V1's Trigger, before spec 016's closing words, which `evals/test_disclosure.py:408` holds with `endswith`; plan §7; T010 runs `test/disclosure.test.ts` and `evals/test_disclosure.py` too. |
 | I1 the appended section's structure | spec US1-AC3, SC-004; plan §2, §3 case 8; T006. |
 | I2 "Q-A to Q-F", "Q-D" | spec Clarifications names its Q1 to Q8 as the page's Q25 to Q31; plan R-1 and T003 name the page's Q31 and a new question if a dependency is needed. |
 | N1 (Q98) dated notes, his text kept | spec Clarifications (rework session); plan §6; T009. |
