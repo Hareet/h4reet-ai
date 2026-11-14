@@ -183,3 +183,69 @@ Q53 to Q60 ("Answered: recommended, the Author 2026-11-13"), and R1 to R7, the s
 - `rest.minRem` equals the panel's 40rem cap (D-R1): longer words for the rest row's controls would take the split layout away from every window, and `hud-split-model.test.ts` would say so first.
 - Still from impl-018: the loader frame's scrolling (finding 7), and no teardown for `Split.dispose()`.
 - The look, by the Author's eye (SC-005), now at 1920 × 1080 (split) and 1280 × 720 (column). No screenshot was possible from this session.
+
+### Verification (rule 7, verify-018)
+
+Branch `night/verify-018/verify-018`, from rework-018's tip 0be0cc91, by a different worker (Opus 5.5) from the item's implementers. Main's tip for the comparisons: 3c0e4cd0, read with `git archive main` into a fresh `/tmp` folder (the bash gate refuses a worktree of main; on the page under Interruptions).
+
+#### The fixes
+
+- **I-1 (Q94, taken as recommended; the Author's to confirm)**: `git apply docs/merge-requests/proposed/018-spec-014-test-amendments.patch` (no hook refused it), with plan.md §13's rows for spec 014's `test/room/hud.test.ts` and `protect.test.ts`'s snapshot, §13's "only `frame.test.ts`" dropped, the file map, SC-002's list, and H-8's "By" (19d06aff).
+- **I-2, test-first**: the rest row's text box (`#talk-text`, talk.css's `flex: 1 1 6rem`, no `min-width`) couldn't shrink below the input's own width, so the one-line rest row could overflow its 640 px glass. RED `test/ui/hud-split-rest-row.test.ts` (6bd1e1e9; `Tests 1 failed | 2 passed (3)`: "expected undefined to be '0'"), GREEN `min-width: 0` on the rest row's input in `hud/split.css` (73a08975; `Tests 3 passed (3)`). plan.md D-V1.
+- **FR-007 (spec 002), found by the full run, test-first**: `test/room/scan.test.ts`'s "finds 0 IDs only the room's data defines in the room's code" failed with 16 hits: T026's `PIECE_ICONS` in `hud/icons.ts` and item 1's tests keyed the emblem by the selectables' IDs (snowboard, bicycle, laptop, chalkboard), as FR-005 and R-7 said. It passes on main's tip. The emblem is now named by the room's data: a selectable's optional `emblem` (`board`, `wheels`, `screen`, `slate` in `room/scene.yaml`), through the schema, the index, and `createSplit`'s `emblem` option, and `icons.ts`'s `EMBLEM_ICONS` keyed by those names; the speech glyph for none. RED 5013686a (`hud-split` failed at load, `emblem-data` 2 failed, `scan` 4 hits: `Test Files 3 failed | 1 passed (4)`), GREEN 73e065ff (`hud-split`, `hud-split-fallback`, `emblem-data`, `scan`, `schema`, `data-only`, `bundle`: `Test Files 7 passed (7) · Tests 411 passed (411)`). plan.md D-V3, FR-005's parenthetical, R-7, `room/README.md`. **A scene edit**: the Author gives the selectables, so the four emblem names are his to rename.
+
+#### Stopped: six expectations of other specs' tests (D-V2; tasks.md's stop rule)
+
+Each passes on main's tip (`Test Files 5 passed (5) · Tests 104 passed (104)` for report, legibility, scan, disclosure, data-only; `80 passed` for the two eval files) and fails on the line. Each follows from spec 018 as written, so they are **not edited**:
+- Row V1's **Carries** with T029's H-11 clause (FR-003): `evals/test_disclosure.py`'s `test_the_rooms_rows_are_in_its_own_section_with_the_specs_words`, and `apps/web/test/disclosure.test.ts`'s "gives the room's rows what the spec's entries carry …" and "names the avatar files in V1 …", pin V1 to spec 002's words and spec 016's M17 exactly.
+- The reference desktop's frame area, which eases against the split layout's boxes at rest (H-6, the reason T022 amended `frame.test.ts`): `test/room/legibility.test.ts`'s three RG7 per-face cases (desktop caps 52 → 52.7 and 23.1 → 23.4 px) and `test/room/report.test.ts`'s "marks the counter face exempt on the phone …" (52.1 → 52.7, 23.1 → 23.4 px). The phone's caps are unchanged.
+
+The amendment, all four files: `docs/merge-requests/proposed/018-verify-test-amendments.patch` (`git apply --check` clean at the tip). With it applied to a copy of the line's tree: `test/disclosure.test.ts`, `legibility`, `report`: `Test Files 3 passed (3) · Tests 56 passed (56)`; `evals/test_disclosure.py evals/test_docs_links.py`: `80 passed`. On the page, recommended "apply it".
+
+#### Runs at the tip (cccf5708)
+
+Item 1's test files (every test file the line changed from main, with `protect.test.ts`, the new `emblem-data.test.ts`, and `scan.test.ts`):
+
+```
+cd apps/web && npx vitest run test/room/frame.test.ts test/room/hud-frame.test.ts test/room/hud-split-geometry.test.ts
+  test/room/hud-stats.test.ts test/room/hud.test.ts test/room/vocabulary.test.ts test/ui/hud-look.test.ts
+  test/ui/hud-split-a11y.test.ts test/ui/hud-split-contrast.test.ts test/ui/hud-split-fallback.test.ts
+  test/ui/hud-split-model.test.ts test/ui/hud-split-rest-row.test.ts test/ui/hud-split.test.ts
+  test/ui/loading-style.test.ts test/room/protect.test.ts test/room/emblem-data.test.ts test/room/scan.test.ts
+ Test Files  17 passed (17)
+      Tests  189 passed (189)
+```
+
+All of `apps/web` (before the FR-007 fix it was `Test Files 4 failed | 171 passed (175) · Tests 7 failed | 3611 passed | 1 skipped (3619)`, the six below and scan's):
+
+```
+cd apps/web && npx vitest run
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ Test Files  3 failed | 173 passed (176)
+      Tests  6 failed | 3615 passed | 1 skipped (3622)
+```
+
+`test/room/data-only.test.ts` passed, in the full run and alone; `twin-2d.test.ts` passed in the full run.
+
+```
+pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+FAILED evals/test_disclosure.py::test_the_rooms_rows_are_in_its_own_section_with_the_specs_words
+1 failed, 79 passed in 1.10s
+```
+
+`make lint`: exit 0. eslint `--max-warnings 0`, `tsc --noEmit` per workspace, `prettier --check .` ("All matched files use Prettier code style!"), `ruff check` ("All checks passed!"), `ruff format --check` ("757 files already formatted"), shellcheck.
+
+#### Recorded, not fixed (rv-rework-018)
+
+- **I-3**: lookdev's `src/lookdev/stage.ts:446` draws the column's compact box as the HUD's third box (`c.column ?? c.dock`), so at split windows the look-development page shows the hidden column, not the rest row and the list. Judge the look in the dev-cpu stack (`make up ENV=dev-cpu`), not on the lookdev page.
+- **N-1**: Escape with a turn out and focus off the form stops nothing.
+- **N-2**: the panel opens before `topicSelected`, so a topic that isn't ready shows the previous emblem.
+- **N-4**: `splitModel` (`test/ui/hud-model.ts`) was written in T023's GREEN, not with T021's RED.
+- **N-5**: `frame.test.ts`'s title, R5 and R6's order, and T020's tick.
+
+verify-018: not green: six expectations of other specs' tests wait on the Author's patch (D-V2, `docs/merge-requests/proposed/018-verify-test-amendments.patch`, on the page); with it applied, every run above passes.
