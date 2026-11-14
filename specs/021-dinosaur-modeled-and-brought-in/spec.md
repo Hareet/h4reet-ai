@@ -181,4 +181,4 @@ None new: same-origin static files, row V1 (FR-017). No byte leaves the device t
 
 ## Open Questions
 
-One, on the page with its recommended answer (`questions.md` of rework-spec-021): whether a later spec fills the dog's `null` row. It blocks nothing here.
+One, on the page as Q88: whether a later spec fills the dog's `null` row. Recommended: yes, a spec that names the dog's bones fills it. Answered: recommended, under the orders file's rule ("any new one: the recommended answer stands"). It blocks nothing here.
