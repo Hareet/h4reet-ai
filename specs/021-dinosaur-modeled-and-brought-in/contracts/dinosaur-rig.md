@@ -41,3 +41,13 @@ A clip's channels move only the bones above or their children (RA2). No `idle-ho
 ## The rig table
 
 `apps/web/build/room/checks/ra.ts` (RA10) reads `RIG_BONES: Record<AvatarId, readonly string[] | null>`: `dinosaur` the sanitized or exact names above; `woman` and `man` `null` (RA10 doesn't apply); `dog` is the dog's spec's row.
+
+## Rules
+
+Lenient, as RA1 to RA4: a lenient build warns and leaves the dinosaur out, so the cut-out stays; a strict build refuses with `<rule> <file>:<path>: <reason>`. They sit in the compositor's catalogue (`checks/family.ts`) and apply to `assets/visitors/dinosaur/` only, by the rig table.
+
+| Rule | Refuses |
+|---|---|
+| RA9 | the model's rest-pose box, scaled to 1.2 m high, over 1.1 m (+5%) along x or z |
+| RA10 | a model whose nodes lack a bone of the table's list for its avatar |
+| RA11 | a model with a missing, or otherwise refused, `idle` or `walk` clip |

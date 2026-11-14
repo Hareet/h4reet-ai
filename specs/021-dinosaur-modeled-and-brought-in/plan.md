@@ -50,7 +50,8 @@ No deviation, so no ADR.
 - **R-03. RA9's box is measured after spec 009's scaling.** The reader's `measures.height` and `bounds` (avatars.ts:207) give the rest pose's box in file units; the scale is `1.2 / height` (spec 009's FR-016, the table's `AVATAR_SHAPES.dinosaur.height`). RA9 refuses where `(max.x−min.x) × scale` or `(max.z−min.z) × scale` exceeds 1.1 × 1.05. Reads the table's height, never lists it (FR-043).
 - **R-04. RA11 reads the clips already read.** The folder's reads give each clip's role; `idle` and `walk` must both be present and not refused by RA1/RA2/RA4 (a refused clip is a missing clip). `take` is optional.
 - **R-05. No new stand-in.** The 3D fallback is today's cut-out (Q6). A test-only generated fixture (`dinosaurGlb`) stands in for the asset in tests; it never lands under `assets/`.
-- **R-06. The brief is tested through `line.py` from the contract's own JSON.** `test_line.py` extracts the first fenced `json` block from `contracts/dinosaur-brief.md`, so the contract and the test can't drift, and runs `line.py brief` on it against a scratch repo holding a copy of `main`'s `studio-tools.json` (the file's text is read in the test from `main`'s ref, as `line.py` does; the fixture the file already uses is reused).
+- **R-06. The brief is tested through `line.py` from the contract's own JSON.** `test_line.py` extracts the first fenced `json` block from `contracts/dinosaur-brief.md`, so the contract and the test can't drift, and runs `line.py brief` on it. Its fixture repository (`make_repo`) holds its own stand-in tools list (`TOOLS`: `comfyui-core`, `sdxl-base-1.0`, `blender`, …), not `main`'s, so the new test builds the list from the repository's real `assets/policy/studio-tools.json` (read as a file from the worktree, in the test only) and passes it to `make_repo`, or to the stand-in's `TOOLS` through the helper's existing parameter if it has one; the second test flips one entry's `outputs_ship`. If `make_repo` can't take a list, T008 adds the parameter (a test helper in the same file).
+- **R-08. The rule catalogue has its own tests.** `checks/family.ts`'s `RULES` is the catalogue; `compose.test.ts` demands a `bad/<RULE>-*/expect.yaml` for every refusing rule and pins the lenient list. So RA9 to RA11 each need a catalogue entry (lenient, as RA1 to RA4, with `model`), a bad case built from the fixture generators (`room-fixtures.ts`'s `glb:` table), and the pinned list updated, which is the one existing test this stack changes (a test that pins today's state, changed with the state). The rules are documented in `contracts/dinosaur-rig.md` (its "Rules" section), not in spec 004's `room-data-files.md`, as spec 016 did for RA6 to RA8.
 - **R-07. A "handless" proof first.** T002 writes the dinosaur-shaped fixture (no hand bones, no Mixamo, rig bones from the table) and drives it through the loader and the stage tests that already exist for hands (avatar-hands, avatar-scene). If it passes unchanged, the runtime needs no change (the expected result). If it finds a defect, T002 stops and its failure goes into the stack's note; the fix is then a runtime task added by `/speckit-converge`.
 
 ## 3. Files expected to touch
@@ -60,7 +61,11 @@ For the implementer, who merges this branch first and runs on one line:
 ```text
 specs/021-dinosaur-modeled-and-brought-in/        # this folder (the implementer's ticks in tasks.md; plan.md if it departs)
 apps/web/build/room/avatars.ts                    # RIG_BONES; RA9, RA10, RA11 in readAvatars; the rule union
-apps/web/build/room/report.ts                     # one report line per dinosaur finding, as RA1 to RA4's (only if findings aren't already listed generically)
+apps/web/build/room/checks/family.ts              # RULES gains RA9, RA10, RA11, lenient as RA1 to RA4 (the catalogue's test demands a bad/ case per refusing rule)
+apps/web/build/room/report.ts                     # only if findings aren't already listed generically (T006 decides)
+apps/web/test/helpers/room-fixtures.ts            # generators glb:dinosaur, glb:dinosaur-long, glb:dinosaur-no-jaw, glb:dinosaur-idle, glb:dinosaur-walk (add)
+apps/web/test/fixtures/room/bad/RA9-long/expect.yaml, RA10-no-jaw/expect.yaml, RA11-no-walk/expect.yaml   # one bad case each (add)
+apps/web/test/room/compose.test.ts                # the lenient-rules list gains RA9 to RA11 (the one existing test changed)
 apps/web/test/helpers/glb.ts                      # dinosaurGlb(): a handless, rig-named fixture; dinosaurClip()
 apps/web/test/room/avatars.test.ts                # RA9, RA10, RA11 (add)
 apps/web/test/room/avatars-compose.test.ts        # the folder bundled; no folder, no change (add)
@@ -89,6 +94,7 @@ Shared with the dog's spec, which runs in parallel: `apps/web/build/room/avatars
 
 | Test file | Covers |
 |---|---|
+| `apps/web/test/room/compose.test.ts` | the catalogue covers RA9 to RA11 with a bad case each; the lenient list pinned |
 | `apps/web/test/room/avatars.test.ts` | RA9, RA10, RA11 each fail only their fixture; the good fixture passes; `woman`/`man` unaffected |
 | `apps/web/test/room/avatars-compose.test.ts` | a dinosaur folder in a temp tree is bundled and reported; none, no change (SC-001) |
 | `apps/web/test/room/avatar-hands.test.ts`, `avatar-scene.test.ts` | handless, non-Mixamo model: idle, walk, take play, paper at the anchor, no console error (SC-003) |
