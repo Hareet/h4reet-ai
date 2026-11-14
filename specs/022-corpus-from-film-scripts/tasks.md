@@ -13,7 +13,7 @@ Protected paths (`corpus/` except `proposals/`, `apps/web/content/resume.lock.js
 
 ## Phase 0: The Author (waits; the build goes on with the recommended answers)
 
-- [ ] T000 The Author confirms or overturns, on the morning page, each answer this spec took: Q1 to Q6 (the page's Q19 to Q24); Q95 (the kill-switch film's script), Q96 (one slot), Q97 (Golden Q&A 5's suggested sentence), Q102 (`[P]` before publication), Q104 (the laptop's stack), which the page marks answered with the recommended answer; and the second rework's question (the tunnel line "shown as built"); Q141 and Q145, asked on specs 026 and 027's pages, which apply here too (the patch closes the three ready topics and travels with spec 026's; it carries `docs/corpus-size.json`); and Q144, asked on spec 027's page, which applies here too (applied alone, this patch takes mission past ADR 0054's T1, measured at T009). Overturned: T004 to T010 are reworked before he merges. Not a blocker for T001 to T012. Tests: none of its own (his answers); a rework it triggers runs `pytest scripts/corpus/test_film_claims.py evals/test_docs_links.py evals/test_repository_docs.py` and `make lint`.
+- [ ] T000 The Author confirms or overturns, on the morning page, each answer this spec took: Q1 to Q6 (the page's Q19 to Q24); Q95 (the kill-switch film's script), Q96 (one slot), Q97 (Golden Q&A 5's suggested sentence), Q102 (`[P]` before publication), Q104 (the laptop's stack), which the page marks answered with the recommended answer; and the second rework's question (the tunnel line "shown as built"); Q141 and Q145, asked on specs 026 and 027's pages, which apply here too (the patch closes the three ready topics and travels with spec 026's; it carries `docs/corpus-size.json`); and Q144, asked on spec 027's page, which applies here too (applied alone, this patch takes mission past ADR 0054's T1, measured at T009); and impl-022's three, Q176 (a ninth reason, "a number outside a slot"), Q177 (the five "Do not claim" lines kept, mission 92 characters past T1 alone), and Q178 (digits in the `[P]` lines' URLs). Overturned: T004 to T010 are reworked before he merges. Not a blocker for T001 to T012. Tests: none of its own (his answers); a rework it triggers runs `pytest scripts/corpus/test_film_claims.py evals/test_docs_links.py evals/test_repository_docs.py` and `make lint`.
 
 ## Phase 1: The checker (test first)
 
@@ -36,7 +36,7 @@ Protected paths (`corpus/` except `proposals/`, `apps/web/content/resume.lock.js
 
 ## Phase 4: Close
 
-- [ ] T011 Write the branch's merge-request note (`docs/merge-requests/2026-11-14-night-spec-022-spec-022.md`, the template's sections), with the per-task test output, and rv-spec-022's and rv-rework-spec-022's non-blocking findings and how each was handled. Tests: `pytest evals/test_docs_links.py evals/test_repository_docs.py`; `make lint`.
+- [x] T011 Write the branch's merge-request note (`docs/merge-requests/2026-11-14-night-spec-022-spec-022.md`, the template's sections), with the per-task test output, and rv-spec-022's and rv-rework-spec-022's non-blocking findings and how each was handled. Tests: `pytest evals/test_docs_links.py evals/test_repository_docs.py`; `make lint`.
 - [ ] T012 The stack's one full `make check`, by one task, at the end of the stack (the supervisor names it): paste its output into the stack's merge-request note; a failure in a test this stack doesn't touch is reported with the evidence, not chased.
 
 ## Dependencies
