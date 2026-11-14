@@ -96,6 +96,9 @@ export interface Avatar {
   readonly clips: readonly AvatarFile[];
   /** Files with no role (RA5), in the folder's order. */
   readonly others: readonly AvatarFile[];
+  /** Spec 020 (FR-003): the likeness approval's line, for a model recorded as a likeness or from a photo that main
+   *  approves; null for every other avatar. */
+  readonly line: string | null;
 }
 
 export interface AvatarSet {
@@ -265,6 +268,7 @@ export function readAvatars(tree: Tree, policy: RoomPolicy, scene: Scene | null)
     });
     const model = reads.find((r) => r.file.role === "model") ?? null;
     const rules = new Map<string, string[]>();
+    let likenessLine: TwinLine | null = null;
     // The checks run where main's caps would bundle the avatar: without per_asset.avatar nothing is bundled, so
     // nothing is left out, and a file is only reported, unbundled, for want of the caps.
     const checked = caps?.avatar !== undefined && caps.avatar !== null;
@@ -310,6 +314,21 @@ export function readAvatars(tree: Tree, policy: RoomPolicy, scene: Scene | null)
           standIn = null;
         }
       }
+      // RA9 (spec 020; FR-002): a visitor's likeness, recorded so or from a photo, bundled only with main's approval of
+      // the model's SHA-256 and a non-empty line. A clip rides with its model. The stand-in is RA3's.
+      if (role === "model" && entry && id !== block.stand_in) {
+        const source = isObject(entry.source as never) ? (entry.source as { type?: unknown }).type : undefined;
+        if (entry.likeness === true || source === "photo") {
+          likenessLine = lineFor(policy, r.file);
+          if (likenessLine === null)
+            refuse(
+              r,
+              "RA9",
+              "-",
+              "a likeness without main's approval naming its SHA-256 with a disclosure line (assets/policy/approvals.json)",
+            );
+        }
+      }
       // RA4: main's per-asset caps for its kind, as spec 003's F2 measures it.
       const cap = role === "model" ? caps?.avatar : caps?.animation;
       if (cap) {
@@ -342,6 +361,7 @@ export function readAvatars(tree: Tree, policy: RoomPolicy, scene: Scene | null)
       model: files.find((f) => f.role === "model") ?? null,
       clips: CLIP_ROLES.flatMap((role) => files.filter((f) => f.role === role)),
       others: files.filter((f) => f.role === null),
+      line: likenessLine?.line ?? null,
     });
   }
   return { figures: { ...block, stand_in: standIn }, avatars, problems };
@@ -562,7 +582,7 @@ function readTwinFile(tree: Tree, name: string, texturePx: number): TwinRead | n
 }
 
 /** The twin's line: the likeness approval naming the model's current SHA-256 with a non-empty line (FR-015). */
-function lineFor(policy: RoomPolicy, model: Omit<TwinFile, "bundled" | "why"> | null): TwinLine | null {
+function lineFor(policy: RoomPolicy, model: { readonly sha256: string } | null): TwinLine | null {
   const likeness = policy.likeness;
   if (!model || !likeness) return null;
   const entry = likeness.approvals.find((a) => a.sha256 === model.sha256);
