@@ -102,5 +102,6 @@ The laptop's measurements (its meshes, the `charge-light` quad's place, the 15 t
 
 - `make lint` refused to run: "node_modules is missing: run make setup" (NB-3). No hook or bash-gate refusal was hit in this task.
 - The project's post-edit hook flagged lint style (import order, `open` without a context manager) in the throwaway measuring script under `/tmp`, outside the repository; it is not part of any commit.
+- The bash gate refused the cleanup of that scratch folder: "Blocked by .claude/hooks/bash-gate.sh — recursive delete outside workspace. Route: delete only inside the repo". It was a real refusal, not a false match; the folder (`/tmp/rw2-024`, the script and copies of the four GLBs from the line) is left in place, outside the repository, and nothing was respelled to get round the refusal.
 
 **What's left**: the Author's answers to Q1 to Q6, Q107 to Q109, Q117, Q119, and Q-R2a to Q-R2c (all taken provisionally; Q-R2a to Q-R2c are in `/night/io/out/questions.md`); a reviewer's re-read of this second rework (rule 6: a worker that didn't write it); if Q117 stands, the docs role's ADR for its deviation (Q-R2c); then T000 rebases this branch onto the line's tip once spec 021's code is on it, and impl-024 starts.
