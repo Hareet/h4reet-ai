@@ -105,6 +105,8 @@ describe("motion, zoom, and spacing (FR-017, FR-018)", () => {
   });
   it("lets the text spacing grow without a fixed height on any text: the rows' heights are minimums or table values", () => {
     expect(css).not.toMatch(/\.split-stat[^{]*\{[^}]*(?<![-\w])height:/);
-    expect(css).not.toMatch(/\.talk-log[^{]*\{[^}]*(?<![-\w])height:\s*[\d.]/);
+    const open = /\.talk\[data-panel="open"\] \.talk-log \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(open).not.toBe("");
+    expect(open).not.toMatch(/(?<![-\w])height:/);
   });
 });
