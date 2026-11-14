@@ -281,6 +281,65 @@ describe("the eating's wiring in the 3D stage (scene.ts; FR-001, FR-009, FR-010,
     s.stage.dispose();
   });
 
+  // rework2-024 (rv-rework-024's I-A; page Q232): the browser draws no frames while the page is hidden, and its clock
+  // runs on; so the room tells the stage of each change at once (eat.sync()), and the frame's poll is only a backstop.
+  // `stopped` moves the clock with no frame drawn, as a hidden page does.
+  const stopped = (s: Staged, ms: number): void => {
+    expect(s.clock.pendingFrames, "the loop waits on a frame").toBeGreaterThan(0);
+    s.clock.advance(ms, ms + 1);
+  };
+  it("doesn't count a hidden page's time: no landing and no regrowth at the first frame back (I-A, page Q232)", async () => {
+    const s = await staged();
+    s.stage.walk.enter(s.view);
+    run(s, 64);
+    s.stage.eat?.press();
+    run(s, 16);
+    const before = shownChunks(s).size;
+    run(s, 200);
+    // Hidden: the room's state() counts it as paused, and the motion listener tells the stage at once.
+    s.state.paused = true;
+    s.stage.eat?.sync();
+    stopped(s, 60_000);
+    s.state.paused = false;
+    s.stage.eat?.sync();
+    run(s, 16);
+    expect(shownChunks(s).size, "the flight hasn't landed at the first frame back").toBe(before);
+    run(s, FLIGHT_MS - 200 - 64);
+    expect(shownChunks(s).size, "the rest of its flight, not at once").toBe(before);
+    run(s, 128);
+    expect(shownChunks(s).size, "landed").toBe(before - 1);
+    // Hidden longer than the room's regrow_s (20 s): no regrowth is due at the first frame back.
+    s.state.paused = true;
+    s.stage.eat?.sync();
+    stopped(s, 30_000);
+    s.state.paused = false;
+    s.stage.eat?.sync();
+    run(s, 16);
+    expect(shownChunks(s).size, "no regrowth came due while hidden").toBe(before - 1);
+    s.stage.dispose();
+  });
+
+  it("holds the meal at once for every state the room counts, with frames stopped: the toggle, hidden, the loader", async () => {
+    for (const held of ["paused", "loading"] as const) {
+      const s = await staged();
+      s.stage.walk.enter(s.view);
+      run(s, 64);
+      s.stage.eat?.press();
+      run(s, 16);
+      const before = shownChunks(s).size;
+      s.state[held] = true;
+      s.stage.eat?.sync();
+      stopped(s, FLIGHT_MS * 4);
+      s.state[held] = false;
+      s.stage.eat?.sync();
+      run(s, 16);
+      expect(shownChunks(s).size, `${held}: no landing at the first frame back`).toBe(before);
+      run(s, FLIGHT_MS);
+      expect(shownChunks(s).size, `${held}: landed after the rest of its flight`).toBe(before - 1);
+      s.stage.dispose();
+    }
+  });
+
   it("lands a flight at once when the visitor leaves walking by Escape (the spec's edge case; nit 1)", async () => {
     const s = await staged();
     s.stage.walk.enter(s.view);
