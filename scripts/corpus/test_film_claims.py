@@ -1023,6 +1023,10 @@ LEFT_OUT_ROW = (
     "a recorded run's result | — | `evals/run.md` |",
     "a recorded run's result | — | `evals/run.md`, `{source}` |",
 )
+IN_PART_ROW = (
+    "| The meter #1 | `src/sign.md` |",
+    "| The meter #1 | `src/sign.md`, `{source}` |",
+)
 
 
 @pytest.mark.parametrize(
@@ -1108,6 +1112,57 @@ def test_a_glob_or_a_contradicting_file_outside_the_repository_fails(
     assert failing(problems, rule, needle), problems
 
 
+# rv-rework3-022's B-7: a glob (`*`, `?`, `[`) is a repository source only if something matches and every match
+# resolves inside the root, on every row, carried, in part, or left out. The checkout's `docs/outside.txt` links to a
+# file outside, and `docs/ext` to a directory outside.
+@pytest.mark.parametrize(
+    ("row_old", "row_new"),
+    [CARRIED_ROW, IN_PART_ROW, LEFT_OUT_ROW],
+    ids=["carried", "in-part", "left-out"],
+)
+@pytest.mark.parametrize(
+    "glob",
+    [
+        # The review's three, each matching only the link out.
+        "docs/out?ide.txt",
+        "docs/outsid[e].txt",
+        "docs/outside*",
+        # Siblings: a glob through the directory link out, one matching files inside and the link out, one matching
+        # nothing, and a `?` in a directory segment.
+        "docs/ext/*.txt",
+        "docs/*",
+        "docs/nothing-*.md",
+        "doc?/outside.txt",
+    ],
+)
+def test_a_glob_with_a_match_outside_or_none_inside_fails_r1_on_every_row(
+    checkout: Path, row_old: str, row_new: str, glob: str
+) -> None:
+    problems = run(checkout, changed(row_old, row_new.format(source=glob)))
+    assert failing(problems, "R1", f"`{glob}`", "isn't in the repository"), problems
+
+
+@pytest.mark.parametrize(
+    ("row_old", "row_new"),
+    [CARRIED_ROW, IN_PART_ROW, LEFT_OUT_ROW],
+    ids=["carried", "in-part", "left-out"],
+)
+def test_a_glob_every_match_of_which_is_inside_is_a_source(
+    checkout: Path, row_old: str, row_new: str
+) -> None:
+    assert run(checkout, changed(row_old, row_new.format(source="docs/adr/*.md"))) == []
+
+
+def test_a_glob_is_read_against_the_root_through_a_link_to_it(checkout: Path) -> None:
+    # The scratch root given through a link: a match inside is inside, the link out is still out.
+    linked = checkout.parent / "linked-root"
+    linked.symlink_to(checkout, target_is_directory=True)
+    inside = changed(*(s.format(source="docs/adr/*.md") for s in LEFT_OUT_ROW))
+    assert run(linked, inside) == []
+    out = changed(*(s.format(source="docs/outside*") for s in LEFT_OUT_ROW))
+    assert failing(run(linked, out), "R1", "`docs/outside*`", "isn't in the repository")
+
+
 # rv-rework3-022's B-4 (page Q217, the recommended answer): R5 reads only carried and in-part rows' sources, never the
 # proposal being checked (by where its path resolves), and no file under films/, corpus/proposals/,
 # docs/merge-requests/, specs/, or intent/: the agents' own notes, drafts, and plans, not a source's text.
@@ -1118,10 +1173,6 @@ EXCLUDED_FILES = (
     "specs/022-x/spec.md",
     "intent/022-x.md",
     "films/meter/notes.md",
-)
-IN_PART_ROW = (
-    "| The meter #1 | `src/sign.md` |",
-    "| The meter #1 | `src/sign.md`, `{source}` |",
 )
 
 
