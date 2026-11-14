@@ -142,6 +142,157 @@ exit 0
 
 **Nothing else changed.** In the repository, only this file changed. Under `/srv/studio/`, only `briefs/dinosaur/1.result.json` (by `line.py --record`) and `briefs/dinosaur/2.json` were written. No studio work was done. Small tests (rule 4): the `line.py` runs above. The task changes no code and no test.
 
+## Round 2's candidate, judged dry
+
+Task `judge-dino-r2` (night of 2026-11-13, implementer, Opus 5.5, run on 2026-11-14 around 17:00Z). It judged studio-dino-r5's handoff, `/srv/studio/handoff/dinosaur/2/`, against `/srv/studio/briefs/dinosaur/2.json`, **without `--record`**. `line.py` is this branch's copy, unchanged (base `night/brief-dino-r3/brief-dino-r3`, `343af15f`). Main's arrival check ran at `3c0e4cd06861`.
+
+**Result: `line: pass; round 2`, exit 0. There are 0 findings and 4 WARN lines, and the WARNs fail nothing.** The round **isn't recorded**: no `2.result.json` was written, and nothing under `/srv/studio/` changed. A round is judged once, and the dinosaur has two rounds left. The stand-in stays the room's dinosaur until he approves the look (rule 2). Nothing went into `assets/**` or the room's code.
+
+### Checks first
+
+All of them held:
+- `/srv/studio/briefs/dinosaur/` holds `1.json`, `1.result.json`, and `2.json`, and no `2.result.json`. `2.json` is `eddfc1ff…31b61`, the brief verbatim below.
+- The four GLBs' SHA-256s start and end as the supervisor gave them:
+
+```
+$ sha256sum dinosaur.glb dinosaur-idle.glb dinosaur-walk.glb dinosaur-take.glb   # in /srv/studio/handoff/dinosaur/2
+1aa8075bf5cc9ebfd226cd8e5492295cee23b790a3bb61a7caf68e46cf62fae8  dinosaur.glb
+dc2f84a64f03ee2e58f53845c33edf38ede46ca303a2e11c8198acdd59e7ce31  dinosaur-idle.glb
+d895b608773e0ad39a05dda325f409afea4441e26187abd8400432bb57a213b8  dinosaur-walk.glb
+3bca518b1706f58e41108fa00689bdd2343dbc3651e78480356d0fd5f658a046  dinosaur-take.glb
+```
+
+### The judge's whole output
+
+```
+$ python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dinosaur/2 --brief /srv/studio/briefs/dinosaur/2.json; echo "exit $?"
+arrival-check: main's copy, at 3c0e4cd06861, on a scratch copy under assets/visitors/dinosaur/
+WARN assets/visitors/dinosaur/dinosaur-idle.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dinosaur/dinosaur-take.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dinosaur/dinosaur-walk.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dinosaur/dinosaur.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+file                                        bytes     gzip      vertices  triangles  texture
+assets/visitors/dinosaur/dinosaur-idle.glb  47908     22309     0         0          0
+assets/visitors/dinosaur/dinosaur-take.glb  35904     10963     0         0          0
+assets/visitors/dinosaur/dinosaur-walk.glb  37716     14707     0         0          0
+assets/visitors/dinosaur/dinosaur.glb       2248336   1236931   32645     27997      5592405
+arrival-check: 0 findings in 6 files, 4 warnings
+line: pass; round 2
+exit 0
+```
+
+Afterwards `/srv/studio/briefs/dinosaur/` still held only `1.json`, `1.result.json`, and `2.json`.
+
+The four WARNs are C1's expected line for a composite, no-likeness, non-photo file. The likeness check they leave to "the contributor" is his look approval.
+
+### The sort
+
+**(a) The `models_checked` date only.** All twelve model steps read `2026-11-14`: in each of the four entries, the Pixal3D step, the build step, and each clip's own step. That is the day the models ran, and the studio wrote it. Only he can say when he checked those models against newer releases (Q199 asks the same for the dog). I didn't change it.
+
+**Does the verdict depend on it? Only on its form, not its value.** Main's arrival check (`tools/gates/arrival_check.py:2352` to `:2360` at `3c0e4cd0`) needs a date on each model step, no later than the entry's `made` (`2026-11-14`). The pass stands for any date he gives on or before 2026-11-14. The round would fail R6 only on a placeholder, a non-date, or a date after 2026-11-14.
+
+**(b) Faults in the candidate that a round 3 must fix: none.** `line.py` found none, and I found none against the points the dog's judge raised (Q202 to Q204):
+- **`files`** lists only the four GLBs. `records.json`, `LICENSE.md`, `candidate.json`, `note.md`, and the two renders are outside it. The dog's round-2 fault (`records.json` in `files`) isn't here.
+- **`LICENSE.md`** is byte for byte main's `assets/visitors/man/LICENSE.md`: `cmp` returns 0, and both are SHA-256 `f7118869586e0928e06f39b689cdbdd0817fb0fc5540d37e0ca7d1cc2cfa9159`. That makes it the brief's five lines with a trailing newline. The arrival check's N rules raised nothing. The dog's N1 isn't here.
+- **The hand steps against the composite mark.** Every entry begins with the brief's two hand steps: "the concept, the Author's own design" and "the Author's review of the concept". Model steps follow them. So C1 calls for `compositeWithTrainedAlgorithmicMedia`, and all four GLBs carry that mark in `KHR_xmp_json_ld` packet 0, referenced from `asset`. The arrival check's M5 raised nothing. The record claims his review of the concept, whose words the brief quotes as that review. **It doesn't claim a review of the mesh**, which he hasn't made (the note's step 4). The mark doesn't depend on the mesh review. It also holds if Q198 goes the other way (a concept made from a prompt is a model step, and his review of it is still a hand step).
+- **Read from the GLBs' JSON chunks, beside `line.py`'s own checks:**
+  - 25 joints, with every required bone under the brief's parent. Hips' parent is the armature node `dinosaur`.
+  - No bone named `LeftHand` or `RightHand`, with or without a prefix.
+  - No morph targets.
+  - Each clip file has one animation, named `idle`, `walk`, or `take`. `dinosaur.glb` has none.
+  - `asset` is `{"version": "2.0"}` plus the mark's packet reference, with no generator.
+
+**(c) Faults in the brief or in `line.py`.** There are two. Neither changes tonight's verdict.
+1. **The record has no place for his review of the mesh.**
+   - **The file:** `/srv/studio/briefs/dinosaur/2.json`, RECORD FORMAT and STEPS.
+   - **The limit:** STEPS lists step 4 ("The Author's review of the mesh, by hand") before step 5, the build. RECORD FORMAT names only the two concept hand steps. The studio built on before step 4 (note, "The steps, as run", 4), and truthfully recorded no mesh review. Main's man's record (`assets/visitors/man/records.json`) holds "the Author's review of the mesh" as a hand step after the mesh step. So the dinosaur's shipped record would show less of his part than the man's does, unless the step is added once he has made the review.
+   - **The fix:** once he approves the step-3 mesh, `{"name": "the Author's review of the mesh", "by": "hand"}` goes after the Pixal3D step in all four entries, before `--record`. The writer is a studio task, or his own hand: a judge doesn't write under `/srv/studio/`. `records.json` isn't hashed by `candidate.json`. A hand step adds no R6 and keeps the composite mark, so the dry judge should still pass, and it's re-run before recording. Later briefs say this in RECORD FORMAT, or tell the studio to stop after step 3. Question 2 below.
+2. **The build's helpers aren't pinned in the record.**
+   - **The file:** the brief's RECORD FORMAT ("`workflow_sha256` (64 hex of the workflow or script that ran)"), and spec 003's record format, which allows one hash per step.
+   - **The limit:** the build and clip steps carry `9af35d7f…7a2e` (`build_r2.py`). That script imports `jpeg_clean.py` (`874d01ec…aa01`) and `glb_finish.py` (`2fa36f5f…cb47`) from beside it. Their hashes are only in the note, and the note doesn't go into the repository.
+   - **The fix:** later briefs ask that the hashed build script be self-contained, so its one hash pins all the code that ran. Round 2 stands as it is: the note and `/srv/studio/outputs/dinosaur/scripts/` keep the helpers. Question 3 below.
+
+`line.py`'s known follow-up (a round counts as answered only with a `candidate.json`) is unchanged and stays in the stack's note. This round found nothing new in `line.py`.
+
+### From `records.json` alone (the handoff's, read, not changed)
+
+- `schema` 1, `directory` `assets/visitors/dinosaur`, `license` `all-rights-reserved-2026`. Four entries, sorted by file: `dinosaur-idle.glb`, `dinosaur-take.glb`, `dinosaur-walk.glb`, `dinosaur.glb`. Each entry's `sha256` matches its GLB above. Each has `made` `2026-11-14`, `media_license` `all-rights-reserved-2026`, and no `approval`.
+- **`likeness: false`** in every entry.
+- **`source` is `{"type": "design", "id": "D-0003"}`** in every entry.
+- **P-0024 is absent.** A text search of the file finds none of `P-0024`, `klein`, `Qwen`, or `FLUX`.
+- **No path.** It finds none of `/srv`, `/home`, `inbox`, `visitor-raptor`, or `concept.png`.
+
+I didn't open, view, copy, or list the inbox or `/srv/studio/briefs/dog/photos/`. I didn't open `front.png` or `side.png` either: they're his.
+
+### What it judged
+
+Hashes taken at this task's end. A judge without `--record` only reads. If Question 2's step is added, only `records.json` should differ.
+
+```
+1aa8075bf5cc9ebfd226cd8e5492295cee23b790a3bb61a7caf68e46cf62fae8  dinosaur.glb
+dc2f84a64f03ee2e58f53845c33edf38ede46ca303a2e11c8198acdd59e7ce31  dinosaur-idle.glb
+d895b608773e0ad39a05dda325f409afea4441e26187abd8400432bb57a213b8  dinosaur-walk.glb
+3bca518b1706f58e41108fa00689bdd2343dbc3651e78480356d0fd5f658a046  dinosaur-take.glb
+9b1a09b2b5075270aeeb0d15ee478dbde42f5bdb58568a9173fbb773156b68a9  candidate.json
+341edde9ff71781c2d5da31f31c6ce52a49a58a9b643dc139f9e8905311f14f9  records.json
+f7118869586e0928e06f39b689cdbdd0817fb0fc5540d37e0ca7d1cc2cfa9159  LICENSE.md
+9332ab731ed7e19cf00efaaca1181f21df7e0e19a101d27318056913d63dc26a  note.md
+18b17bead2a5c4345d8cff2653aed24aaac60bf70397af38a2e2043c5ee27aa1  front.png
+a05c2deca3904d5e402aad62a61b9d6c8744ef94f0cbfd645dbe5cc866fe56e4  side.png
+```
+
+### The `--record` command, for his morning
+
+Run it once, after the `models_checked` date is settled (Question 1) and the mesh-review step is settled (Question 2). Run it from the line's checkout: this stack's branch, or main once it's merged. Re-run the dry command above first and check that it still passes:
+
+```
+python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dinosaur/2 --brief /srv/studio/briefs/dinosaur/2.json --record
+```
+
+**What it will record,** with the files as they are tonight: `pass`, round 2, no findings, in `/srv/studio/briefs/dinosaur/2.result.json`. A pass sends the candidate to his look judgement. It doesn't bring the dinosaur into the room: only his word does, and then his intake to `assets/visitors/dinosaur/`.
+
+### What waits for him
+
+- **The `models_checked` date** (Question 1; Q199 is the dog's twin). It's `2026-11-14` on every model step now. Any date up to 2026-11-14 keeps the pass.
+- **His look approval of the step-3 mesh** (step 4, which the studio built past). It's the raw mesh, in `/srv/studio/outputs/dinosaur/r2-step3/`.
+- **His look approval of the candidate.** Use `front.png` and `side.png` in the handoff folder (review only, not in `files` or the record). The note's three look points, in its words ("For his look review"):
+  - "the side view shows a small spike on the back above the hip, from the mesh;"
+  - "the tail's curl to his left is my choice for fitting the box (curling to the right, or more down, are the alternatives);"
+  - "the weights come from bone distances, not a heat solve, so watch the belly near the arms and the neck in the take."
+
+  The note's "Built to the concept" also names where the concept overrode round 1's direction: teal-green rather than #4f8a3c; an orange crest, big yellow eyes, and brown back markings; upright; a closed smile. The brief says "The concept sets the look", so I don't count these as faults. My reading: round 1's "not a cartoon with big eyes" no longer applies where the concept shows otherwise.
+- **Q198 (open, recommended `design`, D-0003):** whether the concept is his own design or made from a prompt.
+- **Lessons for the workflows folder:** the note's "New lessons for the workflows folder (his to add; the page lists them)", in `/srv/studio/handoff/dinosaur/2/note.md`. It has six lessons: ComfyUI's ~290 s run time with the attention flag; the importer's hidden bone-shape mesh; `scene.render.fps` before keying; `use_fake_user` for clips; Pixal3D's base colour as a PNG against a q90 JPEG, with the APP0/APP1 cut; and the tail's side curl for the 1.1 m box.
+
+### Questions (on the page, `/night/io/out/questions.md`)
+
+1. **The `models_checked` date.** Recommended: he gives the date he last checked these models. Any date up to 2026-11-14 keeps the pass, and `records.json` changes only there.
+2. **His mesh review in the record.** Recommended: yes. After his approval, a studio task adds the hand step after the Pixal3D step in all four entries, before `--record` (fault c1).
+3. **The build's helpers.** Recommended: accept round 2 as it is, and later briefs ask for a self-contained build script (fault c2).
+
+### Small tests (rule 4)
+
+This task changes no code and no test. It adds only this section and a line at the top of this file, under `specs/`. The `line.py` run above is its test. This worktree had no `node_modules`, so the first lint run stopped at "node_modules is missing: run make setup". I ran the setup target. It installed from the lockfile, exit 0, and left the git hooks to the Author ("isn't writable here"). Then I ran lint again:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+760 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit 0
+```
+
+### Interruptions (rule 5)
+
+None.
+
 ## The brief, verbatim
 
 ```json
