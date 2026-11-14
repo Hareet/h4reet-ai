@@ -323,9 +323,13 @@ html[data-split="on"][data-hud="column"] .talk[data-panel="open"] .talk-sheet {
   display: contents;
 }
 
+/* The title row, above the frame (FR-005), has the panel's glass of its own, so the title and the hint meet 4.5:1 over
+   any scene (FR-014; rv2-impl-018's B2); opaque where the visitor asks, as the frame's glass is. */
 html[data-split="on"][data-hud="column"] .talk[data-panel="open"] .talk-head {
   grid-column: 1 / -1;
   grid-row: 1;
+  background: rgb(var(--glass) / var(--split-glass-alpha));
+  border-radius: 0.75rem 0.75rem 0 0;
 }
 
 /* The larger view's toggle is the way from the bar to the panel; while the panel is open the hint closes it. */
@@ -519,5 +523,9 @@ html[data-split="on"][data-hud="column"] .split-still {
   html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] {
     background: Canvas;
     border: 1px solid CanvasText;
+  }
+
+  html[data-split="on"][data-hud="column"] .talk[data-panel="open"] .talk-head {
+    background: Canvas;
   }
 }
