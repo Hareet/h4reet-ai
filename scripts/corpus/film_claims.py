@@ -21,8 +21,8 @@ R3  no line `SCRIPTS.md` marks unbuilt or retracted is carried whole, and no car
     `materials.md` row noted "shown as built".
 R4  the new text states no number outside a slot (digits, or G1's number words; its exempt spans aside: slots, URLs,
     the claim tags [P], [?], [A], [A <date>] and [slot `id`], paths (no whitespace, no segment that is a number but a
-    date, inside --root, found under it or rooted at its top-level entry, and, holding a number, found or a file name
-    in a directory it holds; a backticked `:<line>` suffix only on a file that holds every line it names), a setting
+    date, inside --root, found under it or rooted at its top-level entry, and, holding a number, naming an entry the
+    root holds and no glob; a backticked `:<line>` suffix only on a file that holds every line it names), a setting
     such as ENV=prod whose value holds no digit and no number word, dates, a list item's number, and the quotes R5
     accepts) and no currency amount (check_corpus.py's CURRENCY, redteam/run.py's AMOUNT_WORDS, guards.ts's
     EXTRA_PATTERN); every slot exists; and the whole file holds no CURRENCY match, since corpus-check reads
@@ -582,7 +582,6 @@ def _holds_number(text: str) -> bool:
 _LINE_SUFFIX = re.compile(
     r":\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$"
 )  # `redteam/run.py:267-299`
-_EXTENSION = re.compile(r"\.[a-z]{1,5}$")
 
 
 def _top_level(root: Path) -> set[str]:
@@ -608,9 +607,11 @@ def is_path(token: str, root: Path | None = None) -> bool:
     """A path has no whitespace and no segment that is a number, but a date `_DATE` takes: `52/52`, `100/day`,
     `52/run`, `twelve/hour`, and `fifty-two of fifty-two passed/run` aren't paths (rv-impl-022's I-2, rv-rework-022's
     F-2). And it is read against the root (rv2-rework2-022's B-1): it is found under the root, or its first segment
-    is a top-level entry of the root; and if it holds a number (a digit or one of G1's words, outside a date), it is
-    found, or it is a file name with an extension in a directory the root holds. So `5k/day`, `day/100-requests`,
-    `docs/100-per-day`, and `100-per-day.md` aren't paths; `docs/adr/0020-x.md`, `history/2026-11-09/run.json`, and
+    is a top-level entry of the root; and if it holds a number (a digit or one of G1's words, outside a date), it
+    names an entry the root holds, a file or a directory, itself or under a top-level directory, and it is no glob
+    (rv-rework3-022's B-8, page Q216). So `5k/day`, `day/100-requests`, `docs/100-per-day`, `100-per-day.md`,
+    `docs/adr/0100-per-day.md`, `docs/*100-per-day*.md`, and `films/100.txt` aren't paths;
+    `docs/adr/0020-gateway-state-store-and-meter.md`, `history/2026-11-09/run.json`, `05-mission.md`, and
     `films/kill-switch-b2/` are. A `:<line>` suffix is `_code`'s to read, not this function's (B-5)."""
     root = REPO if root is None else root
     if re.search(r"\s", token):
@@ -623,16 +624,10 @@ def is_path(token: str, root: Path | None = None) -> bool:
         return False
     if not in_root(root, bare):
         return False
-    if found_under(root, bare):
-        return True
-    if segments[0] not in _top_level(root):
-        return False
-    if not _holds_number(bare):
-        return True
-    parent = "/".join(segments[:-1])
-    return bool(
-        parent and _EXTENSION.search(segments[-1]) and (root / parent).is_dir()
-    ) and in_root(root, parent)
+    if _holds_number(bare):
+        # A number rides on a path only if the path is real: found, and no glob (B-8).
+        return not is_glob(bare) and found_under(root, bare)
+    return found_under(root, bare) or segments[0] in _top_level(root)
 
 
 def file_of(root: Path, path: str) -> Path | None:
