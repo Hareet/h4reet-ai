@@ -25,13 +25,14 @@ R4  the new text states no number outside a slot (digits, or G1's number words; 
     root holds and no glob; a backticked `:<line>` suffix only on a file that holds every line it names), a setting
     such as ENV=prod whose value holds no digit and no number word, dates, a list item's number, and the quotes R5
     accepts) and no currency amount (check_corpus.py's CURRENCY, redteam/run.py's AMOUNT_WORDS, guards.ts's
-    EXTRA_PATTERN), read with no exempt span: only slots removed, and the marks that split an amount dropped; every slot exists; and the whole file holds no CURRENCY match, since corpus-check reads
-    `corpus/proposals/` too.
-R5  every quotation in the new text is the Author's words as `SCRIPTS.md` quotes them or his one sentence in the
-    disclosure's row F3 (the checker's fixed lists, HIS_WORDS and F3_WORDS), or a cited file's own text: a carried or
-    in-part row's source only, never the proposal being checked, a file under `films/`, `corpus/proposals/`,
-    `docs/merge-requests/`, `specs/`, `intent/`, or `scripts/corpus/`, or a file outside the repository, its path normalised and
-    resolved; and the disclosure, when cited, is read without row F3.
+    EXTRA_PATTERN), read with no exempt span: only slots removed, and the marks that can split an amount dropped;
+    every slot exists; and the whole file holds no CURRENCY match, since corpus-check reads `corpus/proposals/` too.
+R5  every quotation in the new text holds a word that isn't a number and is found, on word boundaries, in the
+    Author's words as `SCRIPTS.md` quotes them or his one sentence in the disclosure's row F3 (the checker's fixed
+    lists, HIS_WORDS and F3_WORDS), or in a cited file's own text: a carried or in-part row's source only, never the
+    proposal being checked, a file under `films/`, `corpus/proposals/`, `docs/merge-requests/`, `specs/`, `intent/`,
+    or `scripts/corpus/`, or a file outside the repository, its path normalised and resolved; and the disclosure,
+    when cited, is read without row F3.
 R6  with --third-party, no quoted span longer than a title, anywhere in the proposal, that the repository doesn't hold.
 R7  the summary says the denylist was not applied: this checker never reads `corpus/intake/private/`.
 
@@ -780,6 +781,37 @@ def _left_items(cell: str) -> list[tuple[str | None, str]]:
     return out
 
 
+# A quote's edges where it is found (rv-rework4-022's F-2, page Q233): no word character beside it, and no word glued
+# on by `.`, `,`, `:`, `/`, `-`, or an apostrophe, so `10` isn't found in `100`, `Haiku 5` in `Haiku 5.5`, or
+# `step 2` in `step 2,000`.
+_GLUE = "[.,:/'’-]"
+# Words a quote may hold that are numbers to R5's acceptance, beside G1's: an article or quantity word that
+# redteam/run.py's number words read as a number ("a hundred", "a few", "half a").
+QUANTITY_WORDS = {"a", "an", "one", "few", "several", "half", "couple"}
+
+
+def found_in(quote: str, text: str) -> bool:
+    """The quote is in the text on word boundaries (`_GLUE`), not as a piece of a longer word or number."""
+    pattern = rf"(?<!\w)(?<!\w{_GLUE}){re.escape(quote)}(?!\w)(?!{_GLUE}\w)"
+    return re.search(pattern, text) is not None
+
+
+def has_word(quote: str) -> bool:
+    """The quote holds at least one word that isn't a number: letters, no digit, none of G1's number words, and not
+    one of `QUANTITY_WORDS` (rv-rework4-022's F-2). `"5"`, `"thousand"`, `"a hundred"`, `"5k"`, and `"five-hundred"`
+    hold none."""
+    for token in quote.split():
+        token = token.strip(".,;:!?()[]{}<>\"'“”‘’*_`~")
+        if (
+            re.search(r"[^\W\d_]", token)
+            and not re.search(r"\d", token)
+            and not WORD.search(token)
+            and token.lower() not in QUANTITY_WORDS
+        ):
+            return True
+    return False
+
+
 def cited_text(root: Path, path: str) -> str:
     """A cited file's text as R5 reads it; for the disclosure, by whatever spelling or link reaches it, without row
     F3, whose one sentence of his words R5 reads from `F3_WORDS` (rv-rework3-022's B-6)."""
@@ -1001,10 +1033,16 @@ def check(
         for m in _QUOTE.finditer(block):
             q = m.group(1) or m.group(2)
             nq = norm(q)
-            if (
-                any(nq in a for a in ctx.author_quotes)
-                or (ctx.f3 and nq in ctx.f3)
-                or any(nq in t for t in cited_texts)
+            # Found on word boundaries, and holding a word that isn't a number (rv-rework4-022's F-2, Q233).
+            if not has_word(nq):
+                out["R5"].append(
+                    f"R5: new text: the quote “{q}” holds no word that isn't a number, so it stands on no source "
+                    "and its numbers count"
+                )
+            elif (
+                any(found_in(nq, a) for a in ctx.author_quotes)
+                or (ctx.f3 and found_in(nq, ctx.f3))
+                or any(found_in(nq, t) for t in cited_texts)
             ):
                 accepted.append(q)
             else:
