@@ -107,7 +107,7 @@ vitest run test/room/avatar-handoff.test.ts test/room/avatar-scene.test.ts test/
       Tests  33 passed (33)
 ```
 
-`make lint`: see the last line of this section. `tsc --noEmit -p apps/web`: clean. No full suite here: the stack's last task runs it once.
+`make lint`: exit 0 (eslint with zero warnings, tsc for the three workspaces, prettier, ruff, shellcheck). `tsc --noEmit -p apps/web`: clean. No full suite here: the stack's last task runs it once.
 
 ### Cost and data-flow impact
 
