@@ -1,67 +1,89 @@
-# Analysis: spec 025 (non-destructive; re-run 2026-11-14 after the rework)
+# Analysis: spec 025 (non-destructive; re-run 2026-11-14 after the second rework)
 
-Cross-artifact check of `spec.md`, `plan.md`, `tasks.md`, the draft intent, and the constitution, after the rework for rv-spec-025 (B1 to B3, I1 to I4, N1 to N5). `/speckit-analyze` is read-only: this report was written first, at the rework's tasks commit, and the fixes it lists under "Applied after the report" were made in the next commit, under the Author's order's rule 1, as on specs 020 and 021.
+Cross-artifact check of `spec.md`, `plan.md`, `tasks.md`, the draft intent, and the constitution, after the second rework for rv-rework-spec-025 (BLOCKING-1, the page's Q139; IMPORTANT-1; N-1 to N-5). `/speckit-analyze` is read-only. This report was written first, at the rework's intent commit (0c806c36). The fixes listed under "Applied after the report" went into the next commit, under the Author's order's rule 1, as in the first rework.
+
+`.specify/extensions.yml` registers an optional `speckit.git.commit` hook before and after the analysis. Each is optional, so neither ran. The tree was clean at the save point before this report, and the report is committed on its own.
 
 ## Specification Analysis Report
 
 | ID | Category | Severity | Location(s) | Summary | Recommendation |
 |----|----------|----------|-------------|---------|----------------|
-| D1 | Constitution | CRITICAL (named deviation; the Author's) | spec Assumptions, Q10; plan Constitution Check, R-08 | Principle II's "telemetry that makes it observable in production" and Workflow 7's "A feature without a graph is not done" are not met for the run: no usage event, no panel. Named as a deviation because an event sent only when the run happens tells the stack the visitor chose the dinosaur, which row V4 says the usage events never carry ("avatar"). | Keep the deviation named; the Author decides on the page (Q10). It doesn't block implementation under his order's rule 1; it blocks the merge until he answers. On option B, the event, V4's amendment in his words, and a use panel come with it. |
-| I1 | Inconsistency (cross-spec) | HIGH | spec Q10; spec 024 (the page's Q108) | Spec 024's Q108 takes a usage event for the eating, which, like this one, is sent only when the visitor is the dinosaur; the same V4 conflict applies there, and the two specs answer it differently. | A question on the page (questions.md) so one answer covers both; not this spec's to edit. |
-| U1 | Coverage | MEDIUM | spec FR-027; tasks | FR-027's "no network request, no model call, no usage event" had no test. | Applied: T014 asserts, with a fetch and event-sink spy, that a whole run sends nothing. |
-| U2 | Underspecification | MEDIUM | spec FR-021; plan R-10 | How the loading screen (spec 012) counts the room's dog's files wasn't said; a slow dog file could hold the loader. | Applied: FR-021 and R-10: the dog's entries are figure entries the loading screen counts as the other figures' (spec 012, its ceiling included); T011 runs `test/ui/loading-notes.test.ts` and `test/room/loading-progress.test.ts`. |
-| U3 | Underspecification | MEDIUM | spec FR-024, Edge Cases | Reduced motion switched on, or the room paused, mid-run: FR-024's "holds at home" can't hold for a figure already away. | Applied: an edge case and FR-024: under reduced motion a figure away from home is put back at once (a cut, as reduced motion cuts clips); while paused, figures stay where they are and walk back after the resume; T007 tests both. |
-| A1 | Ambiguity | LOW | plan R-02 | The wall penalty's constant k isn't data. | A named constant in `chase-steer.ts`, tuned in T002 with the defaults; recorded in plan §3 if it changes. No edit now. |
-| A2 | Ambiguity | LOW | spec FR-018, plan §3 | The dog's home is an estimate chosen at T011. | Stated as such, marked `# estimated` in `scene.yaml`, his at lookdev (SC-008). No edit. |
-| F1 | Inconsistency | LOW | spec Interfaces on the Line | Spec 021's code isn't on the line (no `impl-021` branch). | Stated in the spec; the tests use a fixture dinosaur model; the Author's look waits for the model. No edit. |
+| D1 | Constitution | CRITICAL (named deviation; the Author's) | spec Assumptions, Q10, Q13; plan Constitution Check, R-08 | Principle II's "telemetry that makes it observable in production" and Workflow 7's "A feature without a graph is not done" are not met for the run: no usage event, no panel. It is named as a deviation because an event would carry the avatar, which row V4 says it never does. | Unchanged from the first analysis. The Author decides on the page (Q10). Q13 now adds the governance's ADR "if permanent", matching spec 024's Q-R2c. It doesn't block implementation under rule 1; it blocks the merge until he answers. |
+| I2 | Inconsistency | MEDIUM | spec FR-004 ("so a corner is escaped and not entered"); spec Q12, Edge Cases; plan §3.1 | After Q12, the figures' refuge is the twin's corner, a dead end the dinosaur can't enter (FR-017 keeps the twin's obstacle on its floor). FR-004 reads as if every corner is to be avoided. | FR-004: a corner the dinosaur can enter is escaped, not entered; one it can't enter, such as the twin's corner, is a refuge. |
+| I3 | Inconsistency | MEDIUM | spec FR-007 (a), FR-008; plan R-02 | The dog yields to the twin "along the perpendicular" (FR-008). That step can bring it closer to the dinosaur, which clause (a) forbids and clause (b) may. The precedence isn't stated. | FR-008 and R-02: the separation yields only among the headings FR-007 allows; FR-007's clauses outrank the separation. |
+| A3 | Ambiguity | MEDIUM | plan R-02 (wall penalty "below 2 × `safe_m` of clearance") | At `safe_m` 0.4 the threshold is 0.8 m of clearance. That is more than anywhere on a strip 0.275 m deep, so the penalty is everywhere and stops being a wall term. | R-02: the penalty applies below a named constant, `WALL_M` in `chase-steer.ts`, which T002 tunes (start 0.1 m) and records in plan §3. |
+| C1 | Coverage | MEDIUM | spec FR-018, US5 AS1 ("at the dog's height"); tasks T010 | N-3 put the dog's scaling in `instanceFor` by its `target`, but T010's test doesn't check the height. | T010: the dog's instance stands `AVATAR_SHAPES.dog.height` tall, through `instanceFor`, as the visitor's dog does. |
+| A4 | Ambiguity | LOW | plan §3.1 | The room's numbers are the spec-writer's hand computation (the bicycle's turn especially). | Stated so. T001 prints the composed floors and T002 records them. No edit. |
+| A5 | Ambiguity | LOW | plan R-02 ("with none, it takes the one that loses least") | The fallback the plan keeps is a case FR-007's clause (a) forbids. | The property test fails if it happens from any start it runs, which is the point. No edit. |
+| A6 | Ambiguity | LOW | plan §3 (the dog's home `[0.36, 0.55]`) | The home is inside the twin's frame box, at the twin's side, so the two pictures may overlap. | His look (SC-008, Q12). No edit. |
+| A1, A2, F1 | (carried) | LOW | as in the first analysis | The wall constant (now A3), the dog's home an estimate, and spec 021's code not on the line. | As before. |
+
+Resolved since the first analysis:
+- **I1 (cross-spec HIGH)**: spec 024's second rework took no usage event (its page Q117, over Q108). The two specs now answer row V4's conflict alike, and Q13 matches its Q-R2c.
+- **U1 to U3**: applied in the first rework, unchanged.
 
 ## Coverage Summary
 
 | Requirement | Plan | Task | Small test |
 |---|---|---|---|
 | FR-001 to FR-003 | R-01, R-06 | T005, T006 | chase-director |
-| FR-004 to FR-009 | R-02, R-03 | T001, T002 | chase-steer |
+| FR-004 to FR-009 (FR-007's two clauses, FR-009's facing) | R-02, R-03, §3.1 | T001, T002 | chase-steer |
 | FR-010 | R-06 | T005, T006, T014 | chase-director, chase-figures |
-| FR-011 | R-04, R-09 | T003, T004, T013 | twin-states, chase-states, chase-schema |
+| FR-011 (RI8 refuses `fleeing`; the emitted map) | R-04, §5 | T003, T004 | twin-states, chase-states, bundle, schema |
 | FR-012 | R-04 | T005 | chase-director |
-| FR-013 | R-05 | T014 | chase-figures (gait, gait-rig unchanged) |
+| FR-013 (the twin's height in metres) | R-05 | T014 | chase-figures (gait, gait-rig unchanged) |
 | FR-014 | R-05 | T007, T008 | chase-degraded |
 | FR-015 | R-04 | T003, T004 | chase-states |
 | FR-016, FR-017 | R-06 | T014 | chase-figures |
-| FR-018 to FR-021 | R-10 | T010, T011 | dog-figure, likeness-line-anywhere |
+| FR-018 to FR-021 (`instanceFor`, `wanting()`, lookdev) | R-10 | T010, T011 | dog-figure, likeness-line-anywhere, lookdev page |
 | FR-022 | R-11 | T012 | dog-first-visit |
 | FR-023, FR-024 | R-05, R-06 | T007, T008 | chase-degraded |
 | FR-025 | R-07 | T009 | chase-notes |
 | FR-026 | R-12 | T015 | test_dashboard.py |
-| FR-027 | R-08 | T014 (U1) | chase-figures |
+| FR-027 | R-08 | T014 | chase-figures |
 | FR-028 | R-12 | T015 | disclosure tests |
 | FR-029 | R-01 | T016 | chase-bench |
-| SC-001 to SC-007 | as their FRs | T001 to T016 | as above |
-| SC-008 | — | T018 | the Author's look |
+| SC-001 (both clauses; the homes) | R-02, R-09 | T001, T002, T013 | chase-steer, chase-schema |
+| SC-002 to SC-007 | as their FRs | T001 to T016 | as above |
+| SC-008 | — | T018 | the Author's look (Q12) |
 
 Unmapped tasks: none (T017 and T018 are the review and the Author's).
 
-## Checks against the review
+## Checks against rv-rework-spec-025
 
-- **B1**: no `DinoPresence`, no A021; FR-001 starts the run from the visitor's figure as the dinosaur in the walking view; FR-005 and FR-007 use `walking.speed_mps` and a property test with no footprint assumption; Q1 and Q4 rewritten; R-06 reads the visitor's pose; §Interplay with Spec 024.
-- **B2**: FR-018 to FR-022; `FigureId` and `wants` (FR-019); the line through `likeness-line.ts` via `app.ts` (FR-020) with `likeness-line-anywhere.test.ts` (T010); `run` from `CLIP_ROLES` (FR-010); row VIII; RK5 and phase 3's 25,000,000 (FR-022); every file in plan §5 and the tasks.
-- **B3**: FR-013, FR-014; `TWIN_CLIP_ROLES` unchanged (FR-011, R-04, T004); `scene/gait.ts` named; FR-009's sentence blocking the twin gone.
-- **I1** quotes; **I2** Q10 (the deviation, with the event as option B); **I3** Q8, FR-010; **I4** plan §5 by file, §7 without the patch case; **N1** item i is spec 024 (Q2); **N2** the intent's author line; **N3** T004's and T009's covering tests; **N4** FR-024, FR-025, US2 scenario 4, US3 scenario 2; **N5** Key Entities.
+- **BLOCKING-1 (Q139, taken as recommended, provisional)**:
+  - FR-007, SC-001, Q2's reading, and US1 scenario 1 are in two clauses, as are Q11 and the edge cases. Clause (a) also covers the dinosaur's jump to `floor.start` when the walking view is left or entered (`walking.ts:187`, `:270`).
+  - FR-009 bounds the facing, not the step, so clause (a) can hold from a figure's first frame.
+  - T001 starts the pursuer at `floor.start` and at seeded starts, with seeded jumps, and checks both clauses each frame.
+  - R-09 and T013 check each home against `floor.start` and `safe_m`, and say why it is a test, not a build rule.
+  - Plan §3.1 records the numbers, and the dog's home follows.
+  - In recording them, the room's floor turned out too small for any `safe_m` near 1.5 m, so the defaults are fitted to it, and Q12 goes to the page.
+- **IMPORTANT-1**:
+  - RI8 in `ri.ts` refuses `fleeing` (FR-011, R-04, §5, T004). `schema.ts` doesn't change the clips map.
+  - `emit.ts` and `reach.ts` are named as read, not changed.
+  - T003 adds `bundle.test.ts`'s `fleeing: "idle"` at `:1403` and an RI8 case in `schema.test.ts`.
+- **N-1**: `test/room/schema.test.ts` and `test/room/avatars-compose.test.ts` are in T011's and T013's lists, and in T004's.
+- **N-2**: FR-013, R-05, and T014 give the twin's height in metres: the measured height for its own model (never `OWN`, -1), `figures.twin_height` for the stand-in.
+- **N-3**: R-10 has `place`, `clip`, and `missed` over `wanting()`, with `both()` kept for the hand-off. FR-018 scales by `instanceFor` through `target`.
+- **N-4**: `src/lookdev/stage.ts:587` is in §5 and T011.
+- **N-5**: the spec's Input reads the gait's code at `fix-019`.
 
 ## Metrics
 
 - Functional requirements: 29; success criteria: 8 (7 buildable).
 - Tasks: 18 (16 for workers).
 - Coverage: 100% of FRs and buildable SCs have a task and a small test.
-- Ambiguities: 2 (low); duplications: 0; critical: 1, a named deviation for the Author (D1).
+- Ambiguities: 4 open, all low (A1, A2, A4 to A6, with A1 folded into A3), and A3 at medium, applied below. Duplications: 0. Critical: 1, the named deviation for the Author (D1).
 
 ## Next actions
 
-- D1 and I1 go to the morning page (questions.md). Implementation may proceed under the order; the merge waits for his answer to Q10.
-- U1 to U3 applied in the commit after this report (below).
+- D1 stays on the page (Q10, Q13). Implementation may proceed under the order; the merge waits for his answers.
+- Q12 (the room's floor) and Q11 (Q139 as taken) go to the page.
+- I2, I3, A3, and C1 are applied in the commit after this report (below).
 
 ## Applied after the report
 
-- U1: tasks.md T014 adds the fetch and event-sink spy.
-- U2: spec FR-021 and plan R-10 name the loading screen's count; T011's small tests add `test/ui/loading-notes.test.ts` and `test/room/loading-progress.test.ts` (the latter already listed).
-- U3: spec FR-024 and an edge case; T007 adds both cases.
+- I2: spec FR-004: a corner the dinosaur can enter is escaped, and one it can't, the twin's, is a refuge.
+- I3: spec FR-008 and plan R-02: the separation yields only among the headings FR-007 allows.
+- A3: plan R-02: the wall penalty below `WALL_M`, a named constant tuned at T002 (start 0.1 m).
+- C1: tasks T010: the dog's height through `instanceFor`.
