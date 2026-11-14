@@ -426,3 +426,170 @@ def test_is_deterministic(tmp_path: Path) -> None:
     one = patch(tmp_path, patch_text(slot_value='"x"'))
     two = patch(tmp_path, patch_text(slot_value='"x"'))
     assert one.stdout == two.stdout
+
+
+# rv-impl-026's B-1 (FR-023, Q143), and its class -----------------------------------------------------------------------
+#
+# A quoted span exempts its digits only where it is the dog's approval's `disclosure_line` itself, or lies inside his
+# consent's own sentence in main's spec 017 (line 48): not another approval's line, not elsewhere in spec 017, and not a
+# bare fragment of the dog's line. An "Answered:" line holding "recommended" in any case or spelling never fills Golden
+# Q&A 9. An empty Golden Q&A 9 answer, or one with no word in it, matches nothing. A Golden item the checker can't read
+# in Golden Q&A 9's one form is refused, not skipped.
+
+TWIN_LINE = "The room's twin is an AI-made likeness of the Author, made from 12 photos he chose."
+SPEC_017_MORE = (
+    "- Rule 3 of his orders: few stacks, one gate; 12 tasks a night at most.\n"
+    "- The night's work, **the Author's words**: see line 48.\n"
+)
+
+
+def twin_approval() -> dict:
+    return {
+        "id": "A-20261020-twin",
+        "path_when_approved": "assets/twin/twin.glb",
+        "kind": "twin",
+        "disclosure_line": TWIN_LINE,
+    }
+
+
+def more_017(tmp: Path) -> None:
+    spec = tmp / "main" / "specs" / "017-the-night-shift" / "spec.md"
+    spec.write_text(spec.read_text() + SPEC_017_MORE)
+
+
+def with_quote(quote: str) -> str:
+    """The new "## Arya" line with one more quoted span, sourced as his words."""
+    return ARYA_ADD.replace(
+        "{{slot:", f' In his words, the count: "{quote}".{{{{slot:', 1
+    )
+
+
+def test_b1_a_quote_from_another_approvals_line_exempts_no_digit(
+    tmp_path: Path,
+) -> None:
+    make_root(tmp_path, approvals=[approval(), twin_approval()])
+    r = patch(tmp_path, patch_text(arya=with_quote("12 photos")))
+    assert r.returncode == 1, r.stdout
+    assert "digit" in r.stdout
+
+
+def test_b1_a_quote_from_spec_017_outside_his_consent_exempts_no_digit(
+    tmp_path: Path,
+) -> None:
+    make_root(tmp_path)
+    more_017(tmp_path)
+    for quote in ("3", "12", "12 tasks a night at most", "line 48"):
+        r = patch(tmp_path, patch_text(arya=with_quote(quote)))
+        assert r.returncode == 1, (quote, r.stdout)
+        assert "digit" in r.stdout
+
+
+def test_b1_a_bare_fragment_of_the_dogs_line_exempts_no_digit(tmp_path: Path) -> None:
+    make_root(tmp_path)
+    for quote in ("4", "4 photos", "made from 4 photos"):
+        r = patch(tmp_path, patch_text(arya=with_quote(quote)))
+        assert r.returncode == 1, (quote, r.stdout)
+        assert "digit" in r.stdout
+
+
+def test_b1_the_dogs_whole_line_and_his_consent_still_exempt(tmp_path: Path) -> None:
+    make_root(tmp_path, approvals=[approval(), twin_approval()])
+    more_017(tmp_path)
+    r = patch(tmp_path, patch_text())
+    assert r.returncode == 0, r.stdout
+
+
+RECOMMENDED_SPELLINGS = (
+    "Answered: Recommended, the Author 2026-11-14:",
+    "Answered: RECOMMENDED:",
+    "Answered: as recommended, in the Author's words:",
+    "Answered: the Author 2026-11-14, as Recommended:",
+    "Answered: recomended:",
+    "Answered: reccommended:",
+    "Answered: the recommendation stands:",
+    "answered: recommended:",
+    "**Answered:** Recommended:",
+)
+
+
+def page_with(tmp: Path, answered: str) -> None:
+    (tmp / "page.md").write_text(
+        PAGE
+        + '\n### Q173: What does the twin say when asked "Who\'s the dog in the room?"?\n'
+        + 'Blocks: patch 026 · Recommended: "That\'s a likeness of my dog." · Others: leave it out\n'
+        + f'{answered} "That\'s a likeness of my dog."\n'
+    )
+
+
+def test_b1_an_answered_line_holding_recommended_in_any_spelling_fills_nothing(
+    tmp_path: Path,
+) -> None:
+    make_root(tmp_path)
+    golden = "9. *Who's the dog in the room?* — That's a likeness of my dog. [A]"
+    for answered in RECOMMENDED_SPELLINGS:
+        page_with(tmp_path, answered)
+        r = patch(tmp_path, patch_text(golden=golden), "--entry", "Q173")
+        assert r.returncode == 1, (answered, r.stdout)
+        assert "Golden" in r.stdout, answered
+
+
+def test_b1_his_own_answered_line_still_fills_it(tmp_path: Path) -> None:
+    make_root(tmp_path)
+    page_with(tmp_path, "Answered: the Author 2026-11-15, in his words:")
+    golden = "9. *Who's the dog in the room?* — That's a likeness of my dog. [A]"
+    r = patch(tmp_path, patch_text(golden=golden), "--entry", "Q173")
+    assert r.returncode == 0, r.stdout
+
+
+def test_b1_an_empty_golden_answer_is_refused(tmp_path: Path) -> None:
+    make_root(tmp_path)
+    for golden in (
+        "9. *Who's the dog in the room?* — [A]",
+        "9. *Who's the dog in the room?* —  [A]",
+        "9. *Who's the dog in the room?* — . [A]",
+        "9. *Who's the dog in the room?* — ",
+    ):
+        r = patch(tmp_path, patch_text(golden=golden), "--entry", "Q172")
+        assert r.returncode == 1, (golden, r.stdout)
+        assert "Golden" in r.stdout, golden
+
+
+def test_b1_a_golden_item_in_another_form_is_refused_not_skipped(
+    tmp_path: Path,
+) -> None:
+    make_root(tmp_path)
+    for golden in (
+        "9. Who's the dog in the room? — That's a likeness of my dog. [A]",
+        "9. *Who's the dog in the room?* - That's a likeness of my dog. [A]",
+        "9) *Who's the dog in the room?* — That's a likeness of my dog. [A]",
+        "  9. *Who's the dog in the room?* -- That's a likeness of my dog.",
+        "10. *Who's the dog in the room?* — That's a likeness of my dog. [A]",
+    ):
+        r = patch(tmp_path, patch_text(golden=golden), "--entry", "Q171")
+        assert r.returncode == 1, (golden, r.stdout)
+        assert "Golden" in r.stdout, golden
+
+
+def test_b1_the_proposal_takes_approvals_spans_from_the_dogs_line_only(
+    tmp_path: Path,
+) -> None:
+    make_root(tmp_path, approvals=[approval(), twin_approval()])
+    r = run(tmp_path, "proposal", str(proposal(tmp_path, line=TWIN_LINE)))
+    assert r.returncode == 1, r.stdout
+    assert "assets/policy/approvals.json" in r.stdout
+
+
+def test_b1_the_proposal_takes_spec_017_spans_from_his_consent_only(
+    tmp_path: Path,
+) -> None:
+    make_root(tmp_path)
+    more_017(tmp_path)
+    r = run(
+        tmp_path,
+        "proposal",
+        str(
+            proposal(tmp_path, consent="few stacks, one gate; 12 tasks a night at most")
+        ),
+    )
+    assert r.returncode == 1, r.stdout
+    assert "main:specs/017-the-night-shift/spec.md" in r.stdout
