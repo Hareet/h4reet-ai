@@ -117,23 +117,50 @@ export function createChase(options: {
     if (f.runner.speed > 0 || away(f)) f.phase = "fleeing";
   };
 
+  /** At home, facing as its home turns it: the walk's end, or a cut (FR-024, a figure held mid-run). */
+  const putHome = (f: Figure): void => {
+    f.runner.x = f.home.x;
+    f.runner.z = f.home.z;
+    f.runner.facing = f.home.heading;
+    f.runner.heading = f.home.heading;
+    f.runner.speed = 0;
+    f.runner.last = Number.NaN;
+    f.phase = "home";
+  };
+
   const back = (f: Figure | null, dt: number): void => {
     if (!f) return;
     if (f.phase === "home") return;
     f.phase = "returning";
-    if (walkHome(floor, f.runner, f.home, walkMps, config, dt) || !away(f)) {
-      f.runner.x = f.home.x;
-      f.runner.z = f.home.z;
-      f.runner.facing = f.home.heading;
-      f.runner.heading = f.home.heading;
-      f.runner.speed = 0;
-      f.runner.last = Number.NaN;
-      f.phase = "home";
-    }
+    if (walkHome(floor, f.runner, f.home, walkMps, config, dt) || !away(f)) putHome(f);
   };
 
+  /** The room was paused: the next frame that moves is a resume, clause (a)'s. */
+  let resumed = false;
+
   return {
-    frame(dino, dt) {
+    frame(dino, dt, motion) {
+      // A paused room (FR-024): its clock stops, and so does the run, the delay with it; figures stay where they are.
+      if (motion.paused) {
+        resumed = true;
+        return;
+      }
+      if (resumed) {
+        resumed = false;
+        for (const f of [twin, dog]) if (f) f.runner.last = Number.NaN;
+      }
+      // A figure that can't run is home: a cut where it was away (FR-014, FR-023).
+      for (const f of [twin, dog]) if (f && f.held && f.phase !== "home") putHome(f);
+      // Reduced motion or quality level 1 or more (FR-024): no figure moves; one away is cut home, and nothing is said,
+      // since no figure can move (FR-025).
+      if (!motion.animate || motion.level >= 1) {
+        for (const f of [twin, dog]) if (f && f.phase !== "home") putHome(f);
+        said = null;
+        present = dino.present;
+        on = false;
+        since = 0;
+        return;
+      }
       const was = present;
       present = dino.present;
       if (present) {
