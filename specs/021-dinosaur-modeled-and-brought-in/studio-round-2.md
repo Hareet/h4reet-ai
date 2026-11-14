@@ -189,7 +189,7 @@ The four WARNs are C1's expected line for a composite, no-likeness, non-photo fi
 
 ### The sort
 
-**(a) The `models_checked` date only.** All twelve model steps read `2026-11-14`: in each of the four entries, the Pixal3D step, the build step, and each clip's own step. That is the day the models ran, and the studio wrote it. Only he can say when he checked those models against newer releases (Q199 asks the same for the dog). I didn't change it.
+**(a) The `models_checked` date only.** All twelve model steps read `2026-11-14`: in each of the four entries, the Pixal3D step, the build step, and each clip's own step. *(Eleven, not twelve: verify3-021, for rv-intake-021's nit 4. The sentence's own list gives four entries × two steps, plus three clip steps, which is 11. The record agrees: read, not changed, the handoff's `records.json` (`341edde9…f14f9`) has 2 steps `by` `model` in `dinosaur.glb`'s entry and 3 in each clip's, 11 in all. record-dino-r2's scratch edit dated 11, and its diff has 11 `models_checked` lines.)* That is the day the models ran, and the studio wrote it. Only he can say when he checked those models against newer releases (Q199 asks the same for the dog). I didn't change it.
 
 **Does the verdict depend on it? Only on its form, not its value.** Main's arrival check (`tools/gates/arrival_check.py:2352` to `:2360` at `3c0e4cd0`) needs a date on each model step, no later than the entry's `made` (`2026-11-14`). The pass stands for any date he gives on or before 2026-11-14. The round would fail R6 only on a placeholder, a non-date, or a date after 2026-11-14.
 
@@ -332,7 +332,7 @@ Each step is his, or a studio task's for the first two. A judge doesn't write un
    sha256sum /srv/studio/handoff/dinosaur/2/records.json   # 6bbe5be5…71771 if step 2 hasn't run yet
    ```
 
-2. **Q207's date.** `models_checked` is `2026-11-14` on each of the **eleven** model steps: two in `dinosaur.glb`'s entry, and three in each clip's. (The judged section above says "twelve", but the file holds eleven.) Your date replaces it on each one. Any date up to 2026-11-14 keeps the pass. If the date you give is 2026-11-14, nothing changes. *(His answer: `2026-11-11`. Steps 1 and 2 as one script, with the file they make, are under "Round 2's record, not made" below.)*
+2. **Q207's date.** `models_checked` is `2026-11-14` on each of the **eleven** model steps: two in `dinosaur.glb`'s entry, and three in each clip's. (The judged section above says "twelve", but the file holds eleven. Eleven is right; see the note under "The sort", (a).) Your date replaces it on each one. Any date up to 2026-11-14 keeps the pass. If the date you give is 2026-11-14, nothing changes. *(His answer: `2026-11-11`. Steps 1 and 2 as one script, with the file they make, are under "Round 2's record, not made" below.)*
 3. **The dry re-judge**, from the line's checkout, which writes nothing:
 
    ```
