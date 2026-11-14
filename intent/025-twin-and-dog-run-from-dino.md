@@ -37,4 +37,4 @@ None expected: no new byte leaves the visitor's device. The room's dog figure's 
 
 ## Open questions
 
-What starts and ends the run, whether the dinosaur ever catches them, where they run to, what the visitor's walking becomes during the run, what the twin does while it talks, and whether the room's dog shows beside a visitor who chose the dog: carried to the spec's clarifications, each with a recommended answer.
+What starts and ends the run, whether the dinosaur ever catches them, where they run to, what the visitor's walking becomes during the run, what the twin does while it talks, whether the room's dog shows beside a visitor who chose the dog, and how far they can run on the room's floor, a strip in front of the desk (added on the second rework, 2026-11-14): carried to the spec's clarifications, each with a recommended answer.
