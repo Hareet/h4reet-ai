@@ -444,7 +444,7 @@ describe("every chunk of the four pieces eaten (US2; SC-002)", () => {
         if (meshNameOf(m.parent as Object3D) === role || m.parent?.name === role) expect(shown(m, root)).toBe(false);
       const face = facesOf(scene.pieces[id] as RoomScene["pieces"][string]).find((f) => f.role === role) as Face;
       const hit = firstHit(standing(id), face.at, [-face.facing[0], -face.facing[1], -face.facing[2]]);
-      expect(hit, `nothing standing behind the ${role}`).not.toBeNull();
+      expect(hit, `nothing standing behind the ${role}, where the ${holder} holds it`).not.toBeNull();
     },
   );
 

@@ -109,7 +109,10 @@ const NONE: WalkIntents = {
 };
 
 function walking() {
-  const { scene: part, index } = repositoryBundle() as { scene: RoomScene; index: ReturnType<typeof repositoryBundle>["index"] };
+  const { scene: part, index } = repositoryBundle() as {
+    scene: RoomScene;
+    index: ReturnType<typeof repositoryBundle>["index"];
+  };
   const floor = floorOfPart(part, part.walking.radius_m) as WalkableFloor;
   const eats: Pose[] = [];
   const box: { view: ReturnType<typeof createWalking> | null } = { view: null };

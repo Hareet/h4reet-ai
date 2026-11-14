@@ -83,7 +83,6 @@ import type {
   Placement,
   Region,
   Scene,
-  StandinEntry,
   Switch,
 } from "../schema";
 import { readTypefaces } from "../typefaces";

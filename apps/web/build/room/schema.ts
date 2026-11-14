@@ -374,7 +374,11 @@ const placement = z
   .superRefine((p, ctx) => {
     if (p.edible === undefined) return;
     if (p.mount === undefined)
-      ctx.addIssue({ code: "custom", message: "RD3: edible on the root placement, the room's shell", path: ["edible"] });
+      ctx.addIssue({
+        code: "custom",
+        message: "RD3: edible on the root placement, the room's shell",
+        path: ["edible"],
+      });
     else if (p.role !== undefined)
       ctx.addIssue({ code: "custom", message: "RD3: edible on a figure, which has no piece to eat", path: ["edible"] });
   });
@@ -623,9 +627,7 @@ export const sceneSchema = z.strictObject({
   retired: z.array(retired).default(() => []),
   figures,
   // Spec 024 (FR-011): the seconds a chunk takes to grow back, an integer from 5 to 120, 20 by default.
-  eating: z
-    .strictObject({ regrow_s: z.number().int().min(5).max(120) })
-    .default(() => ({ ...EATING_DEFAULTS })),
+  eating: z.strictObject({ regrow_s: z.number().int().min(5).max(120) }).default(() => ({ ...EATING_DEFAULTS })),
 });
 
 // ---- Topics, room text, outlines, UI words, looks, fixtures, and lookdev.yaml (§6 to §12; T077) ----
