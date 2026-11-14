@@ -124,7 +124,7 @@ As an agent or the Author changing the corpus, I want the record to say which st
 
 - **SC-001**: The Author can rerun every figure in ADR 0054 by a command the ADR names, at the commit it names, and get the same figure.
 - **SC-002**: A one-character move across any threshold changes the record's stage, in a fixture test.
-- **SC-003**: The check's test file runs alone in under 10 seconds on the agents' machine (rule 4's small test).
+- **SC-003**: The check's test file runs alone, as one file (rule 4's small test, plan §5); its own cases take under 2 seconds, beside the two site builds every `apps/web` vitest run makes first (`test/global-build.ts`).
 - **SC-004**: No file the twin reads at run time changes: the readiness hashes (the pack's and the prompt's) are the same before and after the merge.
 
 ## Cost, degraded mode, telemetry, disclosure (CLAUDE.md's "new endpoint or feature")
