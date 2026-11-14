@@ -83,3 +83,18 @@ Read with a scratch script outside the repository (`/tmp/spike023`, pdf.js from 
 - The four claims: one text run each, on one line (y 580.33), none wraps (T002's table).
 
 R-1's answer: an incremental update over a classic xref is workable; no stream xref, no `pdf-lib`, no question. The new links get no `/StructParent` (the structure tree is the original's, unchanged: adding to it would rewrite more objects than US1-AC3 allows); a screen reader still reads the claims' text, as before.
+
+## T004 (RED) and T005 (GREEN): the locator and the writer
+
+T004: cases 3, 4, 6 over a PDFKit fixture (the four claims, the second wrapping onto two lines, one existing link, PDFKit's `/ID` in the trailer). RED: `Error: Cannot find module '../../build/film-links'` (the file failed to load).
+
+T005: `apps/web/build/film-links.ts` (`locateClaims`, `addLinks`, `c0002Sha`, `filmUrl`, `readTable`). The locator compares the claim with whitespace removed and case-blind against whole text runs (whitespace-only runs skipped), so a letter-spaced or wrapped claim is found; it fails naming the claim when it's absent or there twice. The writer reads only a classic xref (R-1) and refuses an encrypted file, a hybrid (`/XRefStm`), or bytes that aren't C-0002's. Each link: `/Type /Annot /Subtype /Link /F 4 /Border [0 0 0] /Rect /QuadPoints /A <</Type /Action /S /URI /URI (…)>>`, the same keys as the approved file's own four links, plus `/QuadPoints`.
+
+```
+$ (apps/web) npx vitest run test/content/film-links.test.ts test/content/author-pdf.test.ts
+ Test Files  2 passed (2)
+      Tests  33 passed (33)
+$ make lint
+… All matched files use Prettier code style! · ruff: All checks passed! · 778 files already formatted · shellcheck clean
+lint exit 0
+```
