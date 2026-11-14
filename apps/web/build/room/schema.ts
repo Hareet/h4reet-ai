@@ -19,6 +19,7 @@ import {
   TURN_COST_PARTS,
   TYPEFACE_USES,
 } from "../../src/room/compose/vocabulary";
+import { CHASE_DEFAULTS } from "../../src/room/scene/chase-steer";
 import { isUiKey } from "../../src/room/ui-keys";
 import { AVATARS } from "../../src/choice/avatars";
 
@@ -570,6 +571,37 @@ const twinBlock = z.strictObject({
     .optional(),
 });
 
+/** `figures.dog` (spec 025, FR-018; plan.md R-09): the room's dog's home, `at` two finite numbers [x, z] in metres
+ *  and `heading_deg` within ±360, and `footprint_m` above 0. */
+const dogBlock = z.strictObject({
+  home: z.strictObject({
+    at: z.tuple([z.number(), z.number()]),
+    heading_deg: z.number().min(-360).max(360).default(0),
+  }),
+  footprint_m: z.number().positive(),
+});
+
+const C = CHASE_DEFAULTS;
+/** `figures.chase` (spec 025, FR-005, FR-007, FR-008; plan.md R-09, §3): the run's figures, every key optional with
+ *  plan §3's default (chase-steer.ts's CHASE_DEFAULTS). The run speeds against the walking speed are FR-005's refine on
+ *  the whole scene, below, since the walking block is the scene's. */
+const chaseBlock = z.strictObject({
+  flee_end_delay_s: z.number().min(0).max(30).default(C.flee_end_delay_s),
+  flee_m: z.number().positive().max(10).default(C.flee_m),
+  safe_m: z.number().positive().max(10).default(C.safe_m),
+  separation_m: z.number().min(0).max(5).default(C.separation_m),
+  twin_run_mps: z.number().positive().max(10).default(C.twin_run_mps),
+  dog_run_mps: z.number().positive().max(10).default(C.dog_run_mps),
+  speed_margin_mps: z.number().min(0).max(5).default(C.speed_margin_mps),
+  turn_rate_rad_s: z.number().positive().max(100).default(C.turn_rate_rad_s),
+  lookahead_s: z.number().positive().max(5).default(C.lookahead_s),
+  headings: z.number().int().min(4).max(64).default(C.headings),
+  clip_thresholds: z
+    .strictObject({ walk_mps: z.number().min(0), run_mps: z.number().positive() })
+    .refine((t) => t.walk_mps < t.run_mps, own("RD3", "a walk threshold not below the run threshold"))
+    .default(() => ({ ...C.clip_thresholds })),
+});
+
 /** `figures` (spec 009, FR-037; plan.md §3.1): `twin_stand_in` an avatar of the room's table, which RI8 holds to it,
  *  absent for none; `texture_px` "a power of two from 256 to 4,096", 1,024 by default; `wait_ms` "an integer from 0 to
  *  3,000", 1,500 by default. */
@@ -587,24 +619,43 @@ const figures = z
     grips: grips.optional(),
     // Spec 016 (FR-054): the twin's own block, optional, its defaults resolved by the compositor.
     twin: twinBlock.optional(),
+    // Spec 025 (FR-018): the room's dog, optional; absent, no room dog.
+    dog: dogBlock.optional(),
+    // Spec 025 (FR-005; R-09): the run's block, optional; absent, the run takes CHASE_DEFAULTS.
+    chase: chaseBlock.optional(),
   })
   .default(() => ({ ...FIGURES_DEFAULTS }));
 
 /** `apps/web/room/scene.yaml` (§5), with spec 008's optional `walking` block (Amendment M12) and spec 009's optional
- *  `figures` block. */
-export const sceneSchema = z.strictObject({
-  version: version(),
-  look: z.string(),
-  live,
-  walking,
-  placements: z.array(placement),
-  switches: z.array(switchSchema).default(() => []),
-  selectables: z.array(selectable).default(() => []),
-  handoff: z.strictObject({ from: anchorRef, to: anchorRef }),
-  survey: z.strictObject({ desk_corner: anchorRef }),
-  retired: z.array(retired).default(() => []),
-  figures,
-});
+ *  `figures` block. Spec 025's FR-005: a `figures.chase` whose `twin_run_mps` or `dog_run_mps` isn't above
+ *  `walking.speed_mps` + `speed_margin_mps` is refused (RD3, at the run speed's path), the dinosaur's speed being the
+ *  visitor's walking speed. */
+export const sceneSchema = z
+  .strictObject({
+    version: version(),
+    look: z.string(),
+    live,
+    walking,
+    placements: z.array(placement),
+    switches: z.array(switchSchema).default(() => []),
+    selectables: z.array(selectable).default(() => []),
+    handoff: z.strictObject({ from: anchorRef, to: anchorRef }),
+    survey: z.strictObject({ desk_corner: anchorRef }),
+    retired: z.array(retired).default(() => []),
+    figures,
+  })
+  .superRefine((s, ctx) => {
+    const chase = s.figures.chase;
+    if (chase === undefined) return;
+    const least = s.walking.speed_mps + chase.speed_margin_mps;
+    for (const key of ["twin_run_mps", "dog_run_mps"] as const)
+      if (!(chase[key] > least))
+        ctx.addIssue({
+          code: "custom",
+          message: `RD3: not above walking.speed_mps + speed_margin_mps, ${least} m/s (FR-005)`,
+          path: ["figures", "chase", key],
+        });
+  });
 
 // ---- Topics, room text, outlines, UI words, looks, fixtures, and lookdev.yaml (§6 to §12; T077) ----
 

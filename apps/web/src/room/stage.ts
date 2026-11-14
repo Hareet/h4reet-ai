@@ -172,7 +172,8 @@ export interface ClearArea {
 }
 
 /** One of the room's two figures (spec 009). */
-export type FigureId = "twin" | "visitor";
+/** The room's figures: the twin's, the visitor's, and spec 025's room dog (its FR-019). */
+export type FigureId = "twin" | "visitor" | "dog";
 
 /** Why a figure shows its fallback (spec 009, plan.md §3.4): its avatar has no file in the bundle; a file failed after
  *  its retry, or was skipped (the ledger, a stop); the device is below the floor; the room went to 2D; the avatar
@@ -195,6 +196,8 @@ export type FigureSignal =
   | { readonly kind: "clip"; readonly figure: FigureId; readonly role: ClipRole | TwinClipRole }
   | { readonly kind: "gait"; readonly figure: FigureId; readonly state: "unavailable" }
   | { readonly kind: "twin-state"; readonly state: TwinState; readonly role: TwinClipRole }
+  /** Spec 025 (FR-025; plan.md R-07): the run's start and end, once each, by the figures that move. */
+  | { readonly kind: "chase"; readonly state: "started" | "ended"; readonly who: "both" | "twin" | "dog" }
   | { readonly kind: "failed" };
 
 /** The 3D chunk's interface, which the room imports only after the WebGL 2 check. */

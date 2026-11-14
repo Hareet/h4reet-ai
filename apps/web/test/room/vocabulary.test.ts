@@ -184,8 +184,15 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "stat.tier.budget": [],
       "stat.tier.unavailable": [],
       "stat.tier.unknown": [],
+      // Spec 025 (FR-025): the run's start and end.
+      "chase.started_both": [],
+      "chase.started_twin": [],
+      "chase.started_dog": [],
+      "chase.ended_both": [],
+      "chase.ended_twin": [],
+      "chase.ended_dog": [],
     });
-    expect(Object.keys(UI_KEYS)).toHaveLength(78);
+    expect(Object.keys(UI_KEYS)).toHaveLength(84);
   });
 
   // T013 (spec 012; FR-051; D8): the loader's twelve words join the closed list, two with their live counts' slots, and

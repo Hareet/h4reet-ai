@@ -43,6 +43,8 @@ export type FrameEvent =
   | "twin-pet"
   // Spec 019's walking legs (its FR-008): the visitor's model has no leg bones, so it slides (`figure`, `state`).
   | "gait"
+  // Spec 025's run (its FR-027; plan.md R-08): its start and end (`state`, `who`), a development aid with no payload.
+  | "chase"
   // Spec 005's re-fits (its FR-063; plan.md §12.4): the window, the layout, the clear area, the buffer's size, and its
   // ratio (null, and the size "none", in 2D). Spec 014 (its FR-064): the frame area, `frame_area`, and its `ease`.
   | "refit"
