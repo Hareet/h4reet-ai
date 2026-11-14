@@ -9,6 +9,7 @@
 // - RA12, a model without a usable `idle` or `walk` clip, a clip RA1, RA2, or RA4 refuses counting as missing.
 // The dinosaur's folder is made in the test (test/helpers/glb.ts's dinosaurGlb and dinosaurClip, laid out by
 // room-avatars.ts's avatarFolder), never the asset (spec 009's FR-043).
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -269,5 +270,57 @@ describe("RA12: the required clips (FR-003)", () => {
     const set = avatarsIn(tree(null));
     expect(ruleFindings(set, "RA12")).toEqual([]);
     expect(set.avatars.find((a) => a.id === "woman")?.clips.some((c) => c.role === "walk")).toBe(false);
+  });
+});
+
+// T006 (FR-001, FR-012; SC-001; US1 scenario 1, US2 scenario 1): the dinosaur's folder, made in the test, bundled into
+// the 3D part's avatars and dist/a/, and listed in the report with its bytes, triangles, and texture memory; without
+// the folder, no dinosaur anywhere and no new measure in the output. Spec 009's code already bundles and reports any
+// avatar of the table, so these are expected to pass unchanged (pins).
+describe("the dinosaur's folder in the bundle and the report (FR-001, FR-012, SC-001)", () => {
+  const files = dinosaurFolder();
+  const sha = (path: string): string =>
+    createHash("sha256")
+      .update(files[path] as Uint8Array)
+      .digest("hex");
+  const dir = "assets/visitors/dinosaur";
+  const NAMES = ["dinosaur.glb", "dinosaur-idle.glb", "dinosaur-walk.glb", "dinosaur-take.glb"] as const;
+
+  it("bundles its model and three clips into the 3D part and dist/a/, with no finding", () => {
+    const result = compose(tree(), avatarPolicy(), STRICT);
+    expect(result.findings).toEqual([]);
+    const dino = result.scene.avatars.dinosaur;
+    expect(dino?.model.url).toBe(`a/dinosaur.${sha(`${dir}/dinosaur.glb`).slice(0, 16)}.glb`);
+    for (const role of ["idle", "walk", "take"] as const)
+      expect(dino?.clips[role]?.url).toBe(`a/dinosaur-${role}.${sha(`${dir}/dinosaur-${role}.glb`).slice(0, 16)}.glb`);
+    const urls = result.avatars.map((a) => a.url);
+    for (const name of NAMES)
+      expect(urls).toContain(`a/${name.slice(0, -4)}.${sha(`${dir}/${name}`).slice(0, 16)}.glb`);
+  });
+
+  it("lists each of its files in the report with its bytes, triangles, and texture memory, bundled, and its scale", () => {
+    const report = compose(tree(), avatarPolicy(), STRICT).report.markdown.split("\n");
+    for (const name of NAMES) {
+      const row = report.find((l) => l.startsWith(`| \`${dir}/${name}\``));
+      expect(row, name).toBeDefined();
+      const cells = (row ?? "").split("|").map((c) => c.trim());
+      // File, role, bytes, gzip-9 bytes, triangles, texture memory, at the texture side, bundled.
+      expect(cells[3]?.replace(/\D/g, "")).toBe(String((files[`${dir}/${name}`] as Uint8Array).length));
+      expect(cells[5]).toBe(name === "dinosaur.glb" ? "12" : "0");
+      expect(cells[6]).toBe("0");
+      expect(cells[8]).toBe("yes");
+    }
+    expect(report).toContain(
+      `Scale its reader's bounds imply for \`dinosaur\`: 1.000× for the visitor's ${AVATAR_SHAPES.dinosaur.height} m.`,
+    );
+  });
+
+  it("without the folder, names no dinosaur and carries no new measure in the 3D part, dist/a/, or the report", () => {
+    const result = compose(tree(null), avatarPolicy(), STRICT);
+    expect(result.findings).toEqual([]);
+    expect(result.scene.avatars.dinosaur).toBeUndefined();
+    expect(result.avatars.some((a) => a.url.includes("dinosaur"))).toBe(false);
+    expect(result.report.markdown).not.toMatch(/dinosaur|extent/);
+    expect(JSON.stringify(result.scene)).not.toMatch(/extent_[xz]/);
   });
 });
