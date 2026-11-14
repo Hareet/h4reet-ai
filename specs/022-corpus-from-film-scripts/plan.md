@@ -108,3 +108,7 @@ No endpoint, no feature, no new model call: none of CLAUDE.md's "new endpoint or
 | The lock, the pack, the cases, or C9 drift from the corpus | regenerated and checked in one patch (FR-009), on an export |
 | `corpus/proposals/` refuses an agent's write | fall back to `docs/merge-requests/` (spec Assumptions) |
 | The resume stack's lock or C9 collides | the note says which regenerates and re-checks |
+
+## 9. Departures (impl-022, 2026-11-14)
+
+- **T001, the fixtures**: no `scripts/corpus/fixtures/` directory. The test writes a small repository into a temporary directory per test (a `SCRIPTS.md`-shaped file, a `script.txt`-shaped file, a `materials.md`-shaped file, a disclosure with an F3 row, the cited files, a facts file), and each bad proposal is the good one with one change. Why: Prettier checks Markdown under `scripts/` and would realign the fixtures' tables and lists, which the tests compare verbatim; and a `corpus/` directory in a fixture would sit under a protected-path pattern.
