@@ -949,6 +949,138 @@ Interruptions: one harness refusal, not a hook or the bash gate: a Monitor watch
 
 verify-021: green, carrying D-V2's six (Q165)
 
+### His look approval (intake-021)
+
+Branch `night/intake-021/intake-021`, run by the implementer intake-021 (Opus 5.5) on 2026-11-14 around 18:15Z. It starts at judge-dino-r2's tip, `f4d93409`, whose dry verdict is `line: pass; round 2` (`specs/021-dinosaur-modeled-and-brought-in/studio-round-2.md`). The line's tip, `night/verify-023/verify-023`, was merged in first (merge `4acf13c7`, no conflict).
+
+**Checks first.** Both held. The four GLBs in `/srv/studio/handoff/dinosaur/2/` have the SHA-256s judge-dino-r2 recorded (table below), and `/srv/studio/briefs/dinosaur/` has no `2.result.json`.
+
+His words, 2026-11-14, about 17:25Z, verbatim:
+
+> Okay, dinosaur is approved, and dog seems to have changed the face compared to the concept? Look at the face markings on the concept with white and white on the under body and white feet, common markings of a Nova Scotia Duck Tolling Retriever. Do you want to incorporate those
+
+*Reading, beside his words:* "dinosaur is approved" is his look approval (User Story 4, FR-015) of round 2's candidate, `/srv/studio/handoff/dinosaur/2/`. The rest is about the dog (item 3) and isn't this item's. Q210 is answered (recommended): his review of the mesh is now given. The same words are recorded in `studio-round-2.md`, "His look approval, and what follows it".
+
+**What waits before the intake, in order** (in full, with the commands, in `studio-round-2.md`):
+1. **His mesh review in the record (Q210).** Add `{"name": "the Author's review of the mesh", "by": "hand"}` after the Pixal3D step in all four entries of the handoff's `records.json`. This is his hand or a studio task's, never a judge's. On a `/tmp` copy, the edit takes the file from `341edde9…f14f9` to `6bbe5be5d1ff092a8584598c5b9421ed5664d03e99a51ce66b72703dd39f1771`.
+2. **Q207's date**, on the eleven model steps' `models_checked`. Any date up to 2026-11-14 keeps the pass.
+3. **The dry re-judge.** I previewed it on a `/tmp` copy with step 1's record. The result was `arrival-check: 0 findings in 6 files, 4 warnings`, `line: pass; round 2`, and exit 0, with no `2.result.json` written.
+4. **`--record`**, once: `python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dinosaur/2 --brief /srv/studio/briefs/dinosaur/2.json --record`.
+
+Nothing under `/srv/studio/` was changed and nothing was recorded. No agent wrote `assets/**`.
+
+### The intake (intake-021)
+
+His hand (FR-015). Do it after step 4 above, on a branch from `main` once this stack is merged. The stack holds RA10 to RA12 and item 3's `credits.py`, and the judge's note says to run `line.py` from "the line's checkout: this stack's branch, or main once it's merged".
+
+| Handoff file (`/srv/studio/handoff/dinosaur/2/`) | SHA-256 | Destination |
+|---|---|---|
+| `dinosaur.glb` | `1aa8075bf5cc9ebfd226cd8e5492295cee23b790a3bb61a7caf68e46cf62fae8` | `assets/visitors/dinosaur/dinosaur.glb` |
+| `dinosaur-idle.glb` | `dc2f84a64f03ee2e58f53845c33edf38ede46ca303a2e11c8198acdd59e7ce31` | `assets/visitors/dinosaur/dinosaur-idle.glb` |
+| `dinosaur-walk.glb` | `d895b608773e0ad39a05dda325f409afea4441e26187abd8400432bb57a213b8` | `assets/visitors/dinosaur/dinosaur-walk.glb` |
+| `dinosaur-take.glb` | `3bca518b1706f58e41108fa00689bdd2343dbc3651e78480356d0fd5f658a046` | `assets/visitors/dinosaur/dinosaur-take.glb` |
+| `records.json` | after steps 1 and 2: yours. Tonight's, with step 1 only: `6bbe5be5d1ff092a8584598c5b9421ed5664d03e99a51ce66b72703dd39f1771` | `assets/visitors/dinosaur/records.json` |
+| `LICENSE.md` | `f7118869586e0928e06f39b689cdbdd0817fb0fc5540d37e0ca7d1cc2cfa9159` (byte for byte `assets/visitors/man/LICENSE.md`) | `assets/visitors/dinosaur/LICENSE.md` |
+
+Not copied: `candidate.json`, `note.md`, `front.png`, and `side.png`. An asset directory admits only images, GLBs, `records.json`, and `LICENSE.md`, and the two renders are review-only. Your commands:
+
+```
+git switch -c intake/dinosaur main
+mkdir -p assets/visitors/dinosaur
+H=/srv/studio/handoff/dinosaur/2
+cp -- "$H/dinosaur.glb" "$H/dinosaur-idle.glb" "$H/dinosaur-walk.glb" "$H/dinosaur-take.glb" "$H/records.json" "$H/LICENSE.md" assets/visitors/dinosaur/
+(cd assets/visitors/dinosaur && sha256sum -- *)      # the table above
+make assets-credits                                  # renders assets/CREDITS.md: + "## `assets/visitors/dinosaur`", four files
+make credits-check
+git add assets/visitors/dinosaur assets/CREDITS.md
+git commit -m "assets: the dinosaur, round 2, approved 2026-11-14"   # the pre-commit hook runs the arrival check
+```
+
+Then run your gate on the branch as usual: `tools/gates/gate <branch>`, from main's checkout.
+
+**No `assets/policy/approvals.json` entry.** The gate wants none, so the stack's patch set gains no file from this item. Main's arrival check (C1, on P1) says "a hand-made or composite file that isn't a room file, the twin's, a likeness, or from a photo needs no approval, and gets a WARN line, which fails nothing". The record is `likeness: false`, from a `design` (`D-0003`), outside `assets/room/` and `assets/twin/`. Run on the six files, main's copy gives 0 findings and four C1 WARNs (step 3 above). `human-patches/021.md` rows 1 and 2 now say so. A correction to this item's earlier "For the Author" (4): the record's source is `{"type": "design", "id": "D-0003"}`, his concept (Q198, recommended), not "from a prompt".
+
+**Outside `assets/**`, nothing.** No code, test, plan, or generated file has to change for the model to take the cut-out's place. This matches the spec's Summary and plan §6, so `plan.md` is unchanged. The runs below show it on a scratch export, so there's nothing to build on the branch and nothing to add to his patch set.
+
+#### The stand-in replaced, on a scratch export
+
+`git archive` of this branch's tip into `mktemp -d` (`/tmp/intake-021-scratch.V8FB/tree`), with his intake applied there and only there: the six files above, with step 1's `records.json` and tonight's date. Main's `assets/policy/*` came from `git show refs/heads/main:…` as plain copies, for `ROOM_POLICY_DIR`. The worktree's `node_modules` were linked in. A second export of the same tip without the intake (`…/base`) is the comparison.
+
+The credits, from the repository's root (the line's `credits.py`):
+
+```
+$ python3 -I -B -X pycache_prefix=/dev/null scripts/assets/credits.py --root <scratch>/tree --check     # before rendering
+credits: assets/CREDITS.md differs from its records (make assets-credits renders it)
+credits: FAIL: the renderings and the records' form
+$ python3 -I -B -X pycache_prefix=/dev/null scripts/assets/credits.py --root <scratch>/tree
+credits: rendered assets/CREDITS.md
+$ python3 -I -B -X pycache_prefix=/dev/null scripts/assets/credits.py --root <scratch>/tree --check
+credits: OK: the renderings and the records' form
+```
+
+The rendered `assets/CREDITS.md` gains only `## \`assets/visitors/dinosaur\`` and its four files' sections (57 lines, each reading "Source: an original design, `D-0003`", "A likeness of the Author: no", with step 4 "`the Author's review of the mesh`, by hand"). On this tip it is `1a7d66f830f648cbf35b9e46dcde7fe2ad460001662ea96ac13a4c424b7023ca`.
+
+The arrival check on the files: main's copy at `3c0e4cd06861`, via `line.py`'s dry re-judge on the `/tmp` copy (step 3 above): `0 findings in 6 files, 4 warnings`. A `--range` run over an intake commit in a scratch repository wasn't possible from here (Interruptions, below). Your pre-commit hook and gate run it on your commit.
+
+The room's strict build. `node --import tsx build/room/cli.ts check` from `apps/web`, `ROOM_POLICY_DIR` set to the plain copies:
+
+```
+base (no intake):  room: 0 findings in 0 files    exit 0
+with the intake:   room: 0 findings in 0 files    exit 0
+```
+
+The room's report (FR-073's release build in strict mode, `cli.ts report`), `diff base intake`:
+
+```
+3c3
+< Bundle 4d0b9e2ceb129c75 · release build · caps: policy-dir, assets/policy/caps.json 8b5b41fda6bbef19
+---
+> Bundle 2f74b67d65f5eead · release build · caps: policy-dir, assets/policy/caps.json 8b5b41fda6bbef19
+46a47,50
+> | `assets/visitors/dinosaur/dinosaur.glb` | model | 2,248,336 | 1,236,931 | 27,997 | 5,592,405 | 5,592,405 | yes |
+> | `assets/visitors/dinosaur/dinosaur-idle.glb` | idle | 47,908 | 22,309 | 0 | 0 | 0 | yes |
+> | `assets/visitors/dinosaur/dinosaur-take.glb` | take | 35,904 | 10,963 | 0 | 0 | 0 | yes |
+> | `assets/visitors/dinosaur/dinosaur-walk.glb` | walk | 37,716 | 14,707 | 0 | 0 | 0 | yes |
+49a54
+> Scale its reader's bounds imply for `dinosaur`: 1.000× for the visitor's 1.2 m.
+```
+
+Both end with `Findings: none.`, so RA10 to RA12 pass the real model in a strict build. The base report is `64734d17…c4483`, the same hash impl2-021 recorded for the line, so the tree without the intake is unchanged. SC-005 / FR-012: the dinosaur's four files total 1,284,910 gzip-9 bytes, under the woman's 3,247,287 that RK5 counts as the largest visitor avatar. So the first visit stays 18,575,582 of the 25,000,000 budget.
+
+**The dinosaur's 3D load, on the real files.** Item 4's tests use the generated fixture and never the asset (FR-001, FR-043), so I added one probe file to the scratch tree only, never to the branch: `test/room/zz-intake-021-probe.test.ts`. It does two things:
+- It composes the night's fixture room with the real dinosaur folder in strict mode.
+- It loads the real files into the visitor's figure the way `test/helpers/room-dinosaur.ts` loads the fixture. The model goes through the room's own `parseModel` with `avatar-hands.test.ts`'s stand-in image decoder, since Node has no `createImageBitmap`, and the clips go through three's GLTFLoader.
+
+A first version parsed the model with GLTFLoader alone and stopped at the texture (`ReferenceError: self is not defined`, in GLTFLoader's `loadImageSource`). That is Node lacking a browser global, not the model. The room's loader is `parseModel`, for that reason.
+
+```
+$ cd <scratch>/tree/apps/web && npx vitest run test/room/zz-intake-021-probe.test.ts
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+bundled: {"model":{"url":"a/dinosaur.1aa8075bf5cc9ebf.glb","sha256":"1aa8075b…cae8","bytes":1236931,"texture_bytes":5592405},
+          "clips":{"idle":{…"dc2f84a6…"},"take":{…"3bca518b…"},"walk":{…"d895b608…"}}}
+box: {"h":1.199999986593801,"minY":4.07e-8,"x":0.9967,"z":0.9461}
+signals: [{"kind":"gait","figure":"visitor","state":"unavailable"},
+          {"kind":"picture","figure":"visitor","shows":"avatar","why":null},
+          {"kind":"clip","figure":"visitor","role":"idle"}]
+```
+
+Strict compose: no finding. The visitor's figure shows the model (`shows: "avatar"`), so spec 014's `figure` cause and `standin.avatar` go (FR-010). The figure is 1.200 m high, its feet on the floor, and 0.997 m × 0.946 m, inside RA11's 1.1 m box. Its idle plays. The gait says `unavailable` once, as spec 019's FR-008 has it for a rig with no Mixamo leg bones. No `console.error`.
+
+Item 4's own test files, on the same scratch tree with the intake applied. Among them are RA10 to RA12 (`dinosaur-compose`, `compose`) and the dinosaur's figure, clips, and gait (`avatar-hands`, `avatar-scene`, `avatar-gait`). `avatar-hands` also composes the tree's own bundle (`repositoryBundle()`), which now holds the real dinosaur:
+
+```
+$ cd <scratch>/tree/apps/web && npx vitest run test/room/avatar-gait.test.ts test/room/avatar-hands.test.ts test/room/avatar-scene.test.ts
+    test/room/compose.test.ts test/room/dinosaur-compose.test.ts test/ui/notes-causes.test.ts
+ Test Files  6 passed (6)
+      Tests  318 passed (318)
+   Duration  169.58s (tests 64%, import 35%, transform 1%)
+```
+
+This is the same count as verify-021's run of these files without the intake (318 passed).
+
+ITEM4_BRANCH_RUNS
+
 ---
 
 ## Item 6: spec 023, the resume PDF redone with links from the films (`night/impl-023/impl-023`)
