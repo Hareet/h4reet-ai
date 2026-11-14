@@ -8,7 +8,7 @@ description: "Task list for spec 018, a better HUD and a load screen"
 
 > "I'd like them to keep going beyond the plan and approval and finish implementation and keep merging down to as few patches and gates as we've seen the difficulty there. Ensure there are small tests that can be run instead of the whole suite over and over"
 
-Item a) of his order: "better HUD with examples provided, and load screen". Q1 to Q5 and D1 to D8 stand as taken. Q53 to Q60 are recorded on the night's page as "Answered: recommended, the Author 2026-11-13", and the rework's R1 to R6 are taken at their recommended answers. All are on the morning page.
+Item a) of his order: "better HUD with examples provided, and load screen". Q1 to Q5 and D1 to D8 stand as taken. Q53 to Q60 are recorded on the night's page as "Answered: recommended, the Author 2026-11-13", and the rework's R1 to R7 are taken at their recommended answers. All are on the morning page.
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md). **Prerequisites**: branch `night/hud-spec/spec-018` (docs), then the implementation on this stack's branch for item 1, from `main` at 086fea12 or later. **Rework (rule 6)**: T021 to T030 are appended by `night/rework-spec-018/rework-spec-018`, from impl-018's tip (b9378980), and run on `night/rework-018/rework-018` from this branch's tip.
 
@@ -88,7 +88,7 @@ The spec's FR-001, FR-003, FR-004, FR-006, FR-009, FR-014, and FR-005's emblem a
 - [ ] T026 [US1] RED+GREEN (rv2-impl-018's B3; Q60, R6): the emblem is the open piece's icon from `hud/icons.ts`, and the speech glyph in free talk and for a piece without an icon. `icons.ts` has neither at impl-018's tip: it gains one stroked path per selectable id of the repository's scene (snowboard, bicycle, laptop, chalkboard) and a `speech` glyph, on its 24-unit grid. Its failure leaves no emblem (FR-002). Cases in `test/ui/hud-split.test.ts` (each of the four pieces, free talk, and an unknown id) and `test/ui/hud-split-fallback.test.ts` (the icon throws). Then `icons.ts` and `split.ts`. Run both files and any test importing `icons.ts` (`grep -l hud/icons test -r`), `make lint`.
 - [ ] T027 [US5] RED+GREEN (B2; FR-014): the open panel's title row has the panel's glass behind it. Cases: `test/ui/hud-split-contrast.test.ts` computes the title's 4.5:1 over that glass at its darkest and lightest; `test/ui/hud-split-a11y.test.ts` asserts the title's box sits inside a glass box. Then `split.css`. Run both files and `test/room/hud-contrast.test.ts`; `make lint`.
 - [ ] T028 [US4] RED+GREEN (B1; FR-006): with the soft keyboard's inset (the metrics' `keyboard`, as the column's tests stub it), the rest row and the open panel's foot stay above it. The case goes in `test/ui/hud-split.test.ts`, at a landscape tablet that takes the split layout (e.g. 1400 × 1000, checked against `splitBoxes` in the test). Then `split.css`, `layout.ts`, `app.ts` as needed. Run that file and the existing keyboard tests for the column layout (`grep -l keyboard test/ui/*.test.ts`); `make lint`.
-- [ ] T029 Docs (FR-003, H-11; plan.md §7): `docs/data-flow-disclosure.md` row V1's **Carries**, the spec's words: "the twin's still in a visit that shows the 2D room, or, in a 3D visit, once, when the conversation panel first opens in the split layout (spec 018)". The stack note's item 1 section in `docs/merge-requests/2026-11-14-night-stack.md` gets: the rework's commits; the changed tests (plan.md §13) with what each holds; the small runs' output; the deviations named (Principle II, Workflow step 7); the questions (Q53 to Q60, R1 to R6). Run `make lint`.
+- [ ] T029 Docs (FR-003, H-11; plan.md §7): `docs/data-flow-disclosure.md` row V1's **Carries**, the spec's words: "the twin's still in a visit that shows the 2D room, or, in a 3D visit, once, when the conversation panel first opens in the split layout (spec 018)". The stack note's item 1 section in `docs/merge-requests/2026-11-14-night-stack.md` gets: the rework's commits; the changed tests (plan.md §13) with what each holds; the small runs' output; the deviations named (Principle II, Workflow step 7); the questions (Q53 to Q60, R1 to R7). Run `make lint`.
 - [ ] T030 Review of T021 to T029 by a worker that wrote none of them (the supervisor's rv-rework-018), against `REVIEW.md`, spec.md, and plan.md. Findings are fixed by an implementer in new commits; the reviewer edits nothing.
 
 ## Dependencies
@@ -100,3 +100,7 @@ Rework: T021, T022 → T023; T024 → T025 after T023; T026, T027, T028 after T0
 ## Implementation strategy
 
 MVP is T001 to T010 (the left panel in the split layout); T011 to T012 add the right; T013 to T015 the look's guards; T016 to T017 the loader. Stop and report at any task whose assumption a code reading shows false (T010 names one).
+
+## Notes (rework-spec-018, 2026-11-14)
+
+Spec, plan, and tasks reworked for rule 6's blocking findings; analysis re-run (analysis.md: one CRITICAL by rule, C1, a named deviation on the page as R7). No code written. **What's left**: T021 to T029 on `night/rework-018/rework-018` from this branch's tip, then T030's review (rv-rework-018); the Author's answers to R1 to R7 on the morning page.

@@ -4,7 +4,7 @@
 
 > "I'd like them to keep going beyond the plan and approval and finish implementation and keep merging down to as few patches and gates as we've seen the difficulty there. Ensure there are small tests that can be run instead of the whole suite over and over"
 
-and: "Okay, we want the night-shift, in order of importance, from the"improvements, in your words" section: a) "better HUD with examples provided, and load screen", …". The order's rule 1, the supervisor's statement of his order and not his words: the spec-writer takes the recommended answer at clarify and at the plan. Q1 to Q5 and D1 to D8 stand as taken. Q53 to Q60 are recorded on the night's page as "Answered: recommended, the Author 2026-11-13", and R1 to R6 are taken at their recommended answers. Each is on the morning page, and an overturned answer is reworked before he merges.
+and: "Okay, we want the night-shift, in order of importance, from the"improvements, in your words" section: a) "better HUD with examples provided, and load screen", …". The order's rule 1, the supervisor's statement of his order and not his words: the spec-writer takes the recommended answer at clarify and at the plan. Q1 to Q5 and D1 to D8 stand as taken. Q53 to Q60 are recorded on the night's page as "Answered: recommended, the Author 2026-11-13", and R1 to R7 are taken at their recommended answers. Each is on the morning page, and an overturned answer is reworked before he merges.
 
 **Reworked 2026-11-14 by rule 6** (the Opus re-reviews rv-spec-018 and rv2-impl-018, both blocking), on `night/rework-spec-018/rework-spec-018` from impl-018's tip (b9378980). What changed is in §2, §3, §7, §13, and the rework's decisions, R-1 to R-7. The code it needs is tasks.md's T021 to T030, on `night/rework-018/rework-018`.
 
@@ -70,7 +70,7 @@ Documentation: `spec.md`, `plan.md`, `tasks.md`, `analysis.md`, this folder; the
 | # | Decision | Why |
 |---|---|---|
 | P1 | A refinement of the column layout, not a fourth layout or a rewrite (as D-I1 settled, Q53) | Spec 005/014's layouts are pinned by many tests and are the degraded mode (FR-001). |
-| P2 | Panel states `rest` and `open`, one DOM | One text box, one log, one Tab stop. The rest row is a CSS state, so the log and text survive a resize (edge case). |
+| P2 | Panel states `data-panel="bar"` (the rest row; impl-018's attribute value, kept) and `"open"`, one DOM | One text box, one log, one Tab stop. The rest row is a CSS state, so the log and text survive a resize (edge case). |
 | P3 | Frame and strokes are SVG built by script from a seeded path | CSP-safe, no file, no filter, testable by string (D3, D6). |
 | P4 | Key caps are small spans in code, `aria-hidden`, their names in the buttons' accessible names | FR-013, FR-016. |
 | P5 | The stats read the signals the neon sign reads (`signals/turn-cost.ts`, the tier signal) | FR-010, no new source. |
