@@ -477,6 +477,17 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       log?.record("chase", { state: signal.state, who: signal.who });
       return;
     }
+    // Spec 026 (FR-024, FR-026; R-10, R-11): the petting's line, once as it starts, and its frame-log record.
+    if (signal.kind === "pet-note") {
+      const said = uiWord(deps.room.ui, "figures.pet_note");
+      if (said) announcer.say(said);
+      return;
+    }
+    if (signal.kind === "twin-pet") {
+      const r = signal.record;
+      log?.record("twin-pet", { start_ms: r.start_ms, end_ms: r.end_ms, path: r.path, outcome: r.outcome });
+      return;
+    }
     if (signal.kind === "failed") {
       if (avatarFailed) return;
       avatarFailed = true;

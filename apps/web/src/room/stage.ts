@@ -3,6 +3,7 @@
 // quality controller, a lost context, or the visitor asks; never back.
 import type { AssetEvent } from "../asset-events";
 import type { AvatarId, ClipRole } from "../choice/avatars";
+import type { PetRecord } from "./scene/pet";
 import type { TwinActivity, TwinClipRole, TwinState } from "./scene/twin-states";
 import type { Mode } from "../choice/visit";
 import type { Clock } from "./clock";
@@ -201,6 +202,10 @@ export type FigureSignal =
   | { readonly kind: "twin-state"; readonly state: TwinState; readonly role: TwinClipRole }
   /** Spec 025 (FR-025; plan.md R-07): the run's start and end, once each, by the figures that move. */
   | { readonly kind: "chase"; readonly state: "started" | "ended"; readonly who: "both" | "twin" | "dog" }
+  /** Spec 026 (FR-024): a petting has started: its line, said once in the polite live region. */
+  | { readonly kind: "pet-note" }
+  /** Spec 026 (FR-026; R-11): one frame-log record a petting, done, cut, or skipped; no payload. */
+  | { readonly kind: "twin-pet"; readonly record: PetRecord }
   | { readonly kind: "failed" };
 
 /** The 3D chunk's interface, which the room imports only after the WebGL 2 check. */
