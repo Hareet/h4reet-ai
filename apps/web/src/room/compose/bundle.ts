@@ -166,8 +166,18 @@ export interface RoomIndex {
     highlight: Highlight;
   };
   /** The text copy's order. Spec 016 (FR-014; contracts/twin-data.md §4): `{twin_line: true}`, first, is the line slot,
-   *  which the room resolves to `twin.line` while the twin's own picture shows and to the stand-in line otherwise. */
-  copy: ({ face: string } | { switch: string } | { figures: true } | { line: string } | { twin_line: true })[];
+   *  which the room resolves to `twin.line` while the twin's own picture shows and to the stand-in line otherwise.
+   *  Spec 020 (FR-003; plan.md R-02): `{visitor_line: true}`, after it, the visitor's avatar's likeness line, which the
+   *  room fills from the 3D part's `avatars.<id>.line` while the visitor's figure shows that model, and leaves out
+   *  otherwise. */
+  copy: (
+    | { face: string }
+    | { switch: string }
+    | { figures: true }
+    | { line: string }
+    | { twin_line: true }
+    | { visitor_line: true }
+  )[];
   typefaces: { use: TypefaceUse; family: string; weight: number; cap_ratio: number; fallback: string }[];
   /** Each set model the room's loader loads (a GLB), by its asset events' `asset`, in load_order, once a piece: what a
    *  room in 2D records as skipped, since the entry has no 3D part (FR-071; an addition to §3.1, plan.md §10). */

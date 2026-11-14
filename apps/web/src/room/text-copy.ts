@@ -13,7 +13,9 @@
 // - a fixed line: its UI word (spec 009's `twin.stand_in` first, always while the twin's figure shows a stand-in;
 //   `sign.not_affiliated` with the neon sign, `around.illustration` once the monitor's face is bound), but
 //   `pause.paused_at` only while the room is paused, "Paused at HH:MM", its {time} the live value
-//   setPausedAt gives (motion.ts; FR-060), in its place in copy[]'s order, and gone on resume; a hidden page shows none.
+//   setPausedAt gives (motion.ts; FR-060), in its place in copy[]'s order, and gone on resume; a hidden page shows none;
+// - spec 020's visitor line slot (FR-003): the visitor's avatar's likeness line, in its place, only while setVisitorLine
+//   gives one (the visitor's figure shows a model whose bundle entry has a line), and no entry otherwise.
 // Updates replace text in place, in no live region, so a poll announces nothing (FR-063). The section is a Tab stop,
 // the last of the room's before the resume (FR-065; Amendment B8), and every tier value has its own sentence, so no state
 // rests on the charger's pose or a colour alone (R-40). Badges ("Draft", "Sample", "test") are UI words, said in
@@ -46,6 +48,9 @@ export interface TextCopy {
   /** Spec 016 (FR-014): whether the twin's own picture shows: the line slot says the index's twin.line while it does,
    *  the stand-in line otherwise, in place. */
   setTwinOwn(own: boolean): void;
+  /** Spec 020 (FR-003; plan.md R-02): the visitor's avatar's likeness line while its model shows, in the slot's place
+   *  after the twin's line; null takes the entry away. */
+  setVisitorLine(line: string | null): void;
 }
 
 /** The tier the room shows until its signal applies another: not-live's case is the one the 3D and 2D rooms draw. */
@@ -72,6 +77,9 @@ export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
   const faces: { face: RoomIndex["faces"][number]; marker: Comment; item: HTMLElement | null }[] = [];
   /** Spec 016's line slot's entry, where copy[] holds the slot. */
   let lineSlot: HTMLElement | null = null;
+  /** Spec 020's visitor line slot: a marker where its entry goes, and the entry while a line shows. */
+  let visitorMarker: Comment | null = null;
+  let visitorItem: HTMLElement | null = null;
   for (const entry of room.copy) {
     if ("face" in entry) {
       const face = room.faces.find((f) => f.id === entry.face);
@@ -99,6 +107,10 @@ export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
       // Spec 016's line slot (FR-014): spec 009's stand-in line until the twin's own picture shows (setTwinOwn).
       lineSlot = h(doc, "li", {}, uiWord(room.ui, STAND_IN) ?? "");
       list.append(lineSlot);
+    } else if ("visitor_line" in entry) {
+      // Spec 020's slot (FR-003): nothing until the visitor's figure shows a model with a line (setVisitorLine).
+      visitorMarker = doc.createComment("");
+      list.append(visitorMarker);
     }
     // `figures`: the counters' readings are their faces' entries, above, so the copy holds them once.
   }
@@ -165,6 +177,18 @@ export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
       if (!lineSlot) return;
       const words = own && room.twin ? room.twin.line : (uiWord(room.ui, STAND_IN) ?? "");
       if (lineSlot.textContent !== words) lineSlot.textContent = words;
+    },
+    setVisitorLine(line) {
+      if (!visitorMarker) return;
+      if (line === null || line === "") {
+        visitorItem?.remove();
+        visitorItem = null;
+      } else if (visitorItem) {
+        if (visitorItem.textContent !== line) visitorItem.textContent = line;
+      } else {
+        visitorItem = h(doc, "li", {}, line);
+        visitorMarker.after(visitorItem);
+      }
     },
     setPausedAt(time) {
       const words = time === null || pausedAfter === null ? null : pausedAtWords(room.ui, time);
