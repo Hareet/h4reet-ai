@@ -5,10 +5,10 @@
 // - marks a figure that can't run held (FR-014: the twin's capsule, or a model without the leg bones or the hips bone;
 //   FR-010: the room's dog without its model, or with neither `walk` nor `run`), so the director keeps it home;
 // - runs the director, and places the pictures from its runners: the twin's picture group inside its placement's node,
-//   which stays, as its pick area and reach target do (FR-017), and the room's dog's group; each comes back exactly as
-//   it was once home. It writes a picture only while its runner is away from home, and once on the frame it gets home:
-//   a figure at home is the room's as `main` has it, so the hand-off's turn (spec 002's FR-008) and spec 016's
-//   `appear` show (rv-impl-025's B-1);
+//   which stays, as its obstacle and reach target do (FR-017; the twin has no pick area today, and the run adds
+//   none), and the room's dog's group; each comes back exactly as it was once home. It writes a picture only while
+//   its runner is away from home, and once on the frame it gets home: a figure at home is the room's as `main` has
+//   it, so the hand-off's turn (spec 002's FR-008) and spec 016's `appear` show (rv-impl-025's B-1);
 // - sets the twin's `fleeing` on and off as it starts and stops moving (FR-012), gives the twin's gait its picture's
 //   place (`stride`, FR-013), and the dog its clip by speed (FR-010);
 // - says the run's start and end as the stage's `chase` signal (FR-025).

@@ -100,7 +100,7 @@ As a visitor, I want to keep typing, reading the twin's answers, and walking whi
 
 1. **Given** a run is on, **When** an answer arrives, **Then** it shows in the panel as before, the twin's state machine records it, and the figure keeps running.
 2. **Given** the run ends, **When** the twin's last answer's time is not over, **Then** the talking clip plays for what is left of it.
-3. **Given** the run is on, **When** the visitor walks, turns, or reaches, **Then** the dinosaur moves as spec 008 has it, on the same floor, with the same reach targets; the twin's home stays its pick area and reach target while its picture is away.
+3. **Given** the run is on, **When** the visitor walks, turns, or reaches, **Then** the dinosaur moves as spec 008 has it, on the same floor, with the same reach targets; the twin's home stays its reach target while its picture is away. The twin has no pick area today, and the run adds none (FR-017).
 
 ### User Story 5 - The Room's Dog (Priority: P1)
 
@@ -126,7 +126,7 @@ As any visitor in the 3D room, I see the Author's dog at its place, told in his 
 - The tab is hidden or the room paused (spec 002's pause): the run's clock is the room's clock and pauses with it; no figure moves while paused, and after the resume they walk back if the run has ended.
 - Reduced motion or a quality drop mid-run: a figure away from home is put back at home at once (FR-024).
 - A frame of a very long time: steps are cut as spec 008's are, so nothing tunnels through an obstacle.
-- The twin's home while it's away: its placement keeps its obstacle on the visitor's floor, its pick area, label, frame box, and reach target; the visitor can select the twin from the list or its home and the conversation answers as ever.
+- The twin's home while it's away: its placement keeps its obstacle on the visitor's floor, its label, frame box, and reach target. It has no pick area today, and the run adds none (FR-017); the visitor selects the twin as `main` has it, and the conversation answers as ever.
 - The dinosaur eats a chunk of a piece during the run (spec 024): both go on; see Interplay with Spec 024.
 - A non-dinosaur visitor walks toward the dog at its home: the dog's default home is in the twin's corner, inside the twin's obstacle on the visitor's floor, so no visitor reaches it. If the Author moves the home onto the visitor's floor, the dog is still not an obstacle (Q4's floor stays spec 008's) and stays where it is; the overlap is his look to judge.
 - The kill switch is `degraded` or the tier is unknown: no effect; nothing here calls the gateway.
@@ -211,7 +211,7 @@ No longer assumptions: each is named from its spec at its latest branch and from
 
 ## Interplay with Spec 024 (item i, the dinosaur eats)
 
-Both items act on the visitor's figure as the dinosaur, in the walking view, with its model shown, so they start from one condition (spec 024's FR-001, this spec's FR-001) and run at the same time. Neither stops the other: a bite (key B) doesn't end the run, and the run doesn't take the key, the "Eat" button, the reach, or the target. The twin's home keeps its pick area and reach target (FR-017), so spec 024's reach on the edible pieces is unchanged; the room's dog is no piece and never edible. Eating changes no frame box, so the walkable floor, and the chase floor with it, are unchanged by a bite (spec 024's FR-005). The two live-region lines are separate and each said once (spec 024's FR-010, this spec's FR-025). Spec 024's A7 leaves this spec any eaten-state signal; it needs none. Each spec's own: spec 024 the eating and its flight, this spec the figures' run.
+Both items act on the visitor's figure as the dinosaur, in the walking view, with its model shown, so they start from one condition (spec 024's FR-001, this spec's FR-001) and run at the same time. Neither stops the other: a bite (key B) doesn't end the run, and the run doesn't take the key, the "Eat" button, the reach, or the target. The twin's home keeps its reach target (FR-017; the twin has no pick area today, and the run adds none), so spec 024's reach on the edible pieces is unchanged; the room's dog is no piece and never edible. Eating changes no frame box, so the walkable floor, and the chase floor with it, are unchanged by a bite (spec 024's FR-005). The two live-region lines are separate and each said once (spec 024's FR-010, this spec's FR-025). Spec 024's A7 leaves this spec any eaten-state signal; it needs none. Each spec's own: spec 024 the eating and its flight, this spec the figures' run.
 
 ## Success Criteria *(mandatory)*
 
