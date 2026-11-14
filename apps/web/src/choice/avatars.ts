@@ -17,8 +17,9 @@ export type AvatarId = (typeof AVATARS)[number]["id"];
 
 /** The clips an avatar's folder may hold beside its model, `<id>-<role>.glb`, a closed list (spec 009, FR-009; plan.md
  *  R-02): the idle, the idle while holding the resume's paper, taking it, and walking. A new role is code, through the
- *  lifecycle, as a new kind of piece is (spec 004, FR-005). */
-export const CLIP_ROLES = ["idle", "idle-holding", "take", "walk"] as const;
+ *  lifecycle, as a new kind of piece is (spec 004, FR-005). Spec 020 (FR-012, FR-017; its plan.md R-03): and running,
+ *  loaded with the avatar's other clips for spec 025's room figure; the visitor's figure never plays it. */
+export const CLIP_ROLES = ["idle", "idle-holding", "take", "walk", "run"] as const;
 
 export type ClipRole = (typeof CLIP_ROLES)[number];
 

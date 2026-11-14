@@ -1,0 +1,540 @@
+/* The split layout (spec 018; FR-004 to FR-012, FR-014, FR-016, FR-017; plan.md §2 to §5). On the windows FR-001's rule
+   selects, inside the column layout's bands (data-hud="column", data-split="on"): the conversation at rest as one row in
+   the bar's band at its left, open as a panel over the scene's left, framed down to that row; the list at the column
+   band's top right; each at the boxes compose/hud.ts's splitBoxes gives, which layout.ts sets as --split-* in pixels. The room's own art only: Patrick Hand for the title, the stats' labels, and the selected entry; IBM Plex
+   Sans for the body; IBM Plex Mono for the stats' values; the glass, --hud-text, the neon accent. Classes only: the
+   CSP's style-src 'self'. Every selector names the root's two attributes, so it outranks room.css's and talk.css's
+   whatever the order they load in. */
+
+:root {
+  /* The panel's and the list's glass: denser than the bar's, so a muted off-white reaches 4.5:1 over a white scene and
+     the accent 3:1 as large text (test/ui/hud-split-contrast.test.ts computes both). Opaque under the visitor's asks. */
+  --split-glass-alpha: 0.78;
+  --split-muted: #e8e4dc;
+  --split-accent: var(--accent-neon);
+  --split-panel-x: 0px;
+  --split-panel-y: 0px;
+  --split-panel-w: 0px;
+  --split-panel-h: 0px;
+  --split-title-h: 2.75rem;
+  --split-frame-y: 0px;
+  --split-frame-h: 0px;
+  --split-rest-x: 0px;
+  --split-rest-y: 0px;
+  --split-rest-w: 0px;
+  --split-rest-h: 0px;
+  --split-list-x: 0px;
+  --split-list-y: 0px;
+  --split-list-w: 0px;
+  --split-list-h: 0px;
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root {
+    --split-glass-alpha: 1;
+  }
+}
+
+/* The key cap: a small rounded box with the key's name, drawn in code (FR-013); never an image. */
+.hud-keycap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.375rem;
+  font: 0.75rem/1 var(--figure-font);
+  color: var(--hud-text);
+  background: rgb(255 255 255 / 0.12);
+  border: 1px solid var(--tile-border);
+  border-radius: 0.375rem;
+  box-shadow: 0 2px 0 rgb(255 255 255 / 0.3);
+}
+
+/* Outside the split layout none of its parts shows. */
+html:not([data-split="on"]) .split-back,
+html:not([data-split="on"]) .split-label {
+  display: none;
+}
+
+/* The two panels are the column's children no more: each takes its own box, and the glass moves to them. */
+html[data-split="on"][data-hud="column"] .hud-panels {
+  display: contents;
+}
+
+html[data-split="on"][data-hud="column"] .room-list,
+html[data-split="on"][data-hud="column"] .talk {
+  position: absolute;
+  z-index: 3;
+  box-sizing: border-box;
+  color: var(--hud-text);
+  pointer-events: auto;
+  overscroll-behavior: contain;
+}
+
+html[data-split="on"][data-hud="column"][data-blur="on"] .room-list,
+html[data-split="on"][data-hud="column"][data-blur="on"] .talk[data-panel="bar"] {
+  -webkit-backdrop-filter: var(--hud-blur);
+  backdrop-filter: var(--hud-blur);
+}
+
+/* ---- The list: right-aligned on one edge (FR-007, FR-008) ---- */
+
+html[data-split="on"][data-hud="column"] .room-list {
+  left: var(--split-list-x);
+  top: var(--split-list-y);
+  width: var(--split-list-w);
+  height: var(--split-list-h);
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  overflow-y: hidden;
+  text-align: right;
+  background: rgb(var(--glass) / var(--split-glass-alpha));
+  border-radius: 0.75rem;
+}
+
+html[data-split="on"][data-hud="column"] .room-list .room-list-heading {
+  margin: 0;
+  font: 0.8125rem/1.5 var(--heading-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+html[data-split="on"][data-hud="column"] .room-list .split-label {
+  margin: 0;
+  font: 0.8125rem/1.5 var(--heading-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--split-muted);
+}
+
+/* Only the entries scroll, so "Back" and the label stay in view (the list is at most its table height). */
+html[data-split="on"][data-hud="column"] .room-list ul {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0 2.5rem 0 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+/* Each row keeps one size, so no entry moves when the selection does: the selected rule changes type and colour only. */
+html[data-split="on"][data-hud="column"] .room-list li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  height: 3.25rem;
+  margin: 0;
+}
+
+html[data-split="on"][data-hud="column"] .room-list li button {
+  min-width: 0;
+  padding: 0 0.5rem;
+  font:
+    1.125rem/1.2 "IBM Plex Sans",
+    system-ui,
+    sans-serif;
+  color: var(--split-muted);
+  text-align: right;
+  background: none;
+  border: 0;
+}
+
+html[data-split="on"][data-hud="column"] .room-list li[data-selected] button,
+html[data-split="on"][data-hud="column"] .room-list li button[data-selected] {
+  font-family: var(--heading-font);
+  font-size: 1.5rem;
+  color: var(--split-accent);
+}
+
+html[data-split="on"][data-hud="column"] .split-confirm {
+  position: absolute;
+  pointer-events: none;
+  right: -2.25rem;
+  top: 50%;
+  margin-top: -0.75rem;
+}
+
+html[data-split="on"][data-hud="column"] .split-stroke {
+  position: absolute;
+  left: 15%;
+  right: 0;
+  width: 85%;
+  height: 0.5rem;
+  pointer-events: none;
+}
+
+html[data-split="on"][data-hud="column"] .split-stroke-above {
+  top: 0;
+}
+
+html[data-split="on"][data-hud="column"] .split-stroke-below {
+  bottom: 0;
+}
+
+html[data-split="on"][data-hud="column"] .split-stroke path {
+  fill: none;
+  stroke: var(--split-accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* "Back", at the list's top right, shown while the panel is open. */
+html[data-split="on"][data-hud="column"] .split-back,
+html[data-split="on"][data-hud="column"] .split-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  font: 1rem/1.2 var(--heading-font);
+}
+
+/* ---- The panel (FR-005, FR-006) ---- */
+
+html[data-split="on"][data-hud="column"] .talk {
+  left: var(--split-panel-x);
+  width: var(--split-panel-w);
+  display: grid;
+  gap: 0.25rem;
+  min-height: 0;
+  padding: 0;
+}
+
+html[data-split="on"][data-hud="column"] .talk-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--split-title-h);
+  padding: 0 0.25rem;
+}
+
+html[data-split="on"][data-hud="column"] .talk-log-toggle {
+  font: 1.25rem/1.2 var(--heading-font);
+  background: none;
+  border: 0;
+}
+
+html[data-split="on"][data-hud="column"] .talk-log-toggle svg {
+  display: none;
+}
+
+html[data-split="on"][data-hud="column"] .split-hint {
+  margin-left: auto;
+}
+
+/* The rest row (R-2): one row in the bar's band at its left, on the glass: the title toggle and "Larger conversation",
+   the label inline, the text box, Send, and the talk button, at the sizes test/ui/hud-model.ts's splitModel counts; the
+   log stays a live region, out of sight. */
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] {
+  left: var(--split-rest-x);
+  /* The soft keyboard's inset lifts the rest row over the scene, as it lifts the column's foot; nothing re-fits (FR-006,
+     rv2-impl-018's B1). */
+  top: calc(var(--split-rest-y) - var(--keyboard));
+  width: var(--split-rest-w);
+  height: var(--split-rest-h);
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 0.25rem;
+  background: rgb(var(--glass) / var(--split-glass-alpha));
+  border-radius: 0.75rem;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-sheet,
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-head {
+  display: contents;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-log-toggle {
+  flex: none;
+  padding: 0 0.5rem;
+  font-size: 1rem;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-larger {
+  flex: none;
+  padding: 0 0.5rem;
+  font-size: 0.8125rem;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-larger svg {
+  display: none;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-form label {
+  flex: none;
+  white-space: nowrap;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-row {
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+/* The text box keeps talk.css's 6rem basis but may shrink below the input's own width, so the row's contents stay inside
+   its glass (verify-018, rv-rework-018's I-2). */
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-row input {
+  min-width: 0;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-log,
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Open: the frame's box, the panel with the rest row below it (FR-004); the title above the frame, the hint at its right;
+   in the frame the emblem and the stats, then the body in the left two thirds, the text box row at the foot, where the
+   rest row was, and the portrait at the right edge, over the frame. */
+html[data-split="on"][data-hud="column"] .talk[data-panel="open"] {
+  top: var(--split-frame-y);
+  /* Its foot, the text box's row, stays above the soft keyboard's inset (FR-006, B1). */
+  height: max(0px, calc(var(--split-frame-h) - var(--keyboard)));
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: var(--split-title-h) auto minmax(0, 1fr) auto auto;
+  column-gap: 0;
+  row-gap: 0.25rem;
+  background: none;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="open"] > * {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="open"] .talk-sheet {
+  display: contents;
+}
+
+/* The title row, above the frame (FR-005), has the panel's glass of its own, so the title and the hint meet 4.5:1 over
+   any scene (FR-014; rv2-impl-018's B2); opaque where the visitor asks, as the frame's glass is. */
+html[data-split="on"][data-hud="column"] .talk[data-panel="open"] .talk-head {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  background: rgb(var(--glass) / var(--split-glass-alpha));
+  border-radius: 0.75rem 0.75rem 0 0;
+}
+
+/* The larger view's toggle is the way from the bar to the panel; while the panel is open the hint closes it. */
+html[data-split="on"][data-hud="column"] .talk[data-panel="open"] .talk-larger {
+  display: none;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="open"] .split-top {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem 0;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="open"] .talk-log {
+  grid-column: 1;
+  grid-row: 3;
+  max-height: none;
+  min-height: 0;
+  padding: 0.5rem 1rem;
+  overflow-y: auto;
+}
+
+/* An open panel always shows its log, whatever the log's own toggle (hidden here) last said. */
+html[data-split="on"][data-hud="column"] .talk[data-panel="open"] .talk-log.visually-hidden {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  clip-path: none;
+  white-space: normal;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="open"] .talk-status {
+  grid-column: 1;
+  grid-row: 4;
+  padding: 0 1rem;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="open"] .talk-form {
+  grid-column: 1 / -1;
+  grid-row: 5;
+  padding: 0 1rem 0.75rem;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="open"] .talk-form label,
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-form label {
+  font-size: 0.875rem;
+}
+
+html[data-split="on"][data-hud="column"] .talk .talk-form input {
+  color: #1a1a1a;
+  background: #ffffff;
+}
+
+/* The frame: soft and rough-edged, drawn in code from a seed, behind the content, below the title row. */
+html[data-split="on"][data-hud="column"] .split-frame {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: var(--split-title-h);
+  width: 100%;
+  height: calc(100% - var(--split-title-h));
+  z-index: 0;
+  pointer-events: none;
+}
+
+html[data-split="on"][data-hud="column"] .split-frame path {
+  fill: rgb(var(--glass) / var(--split-glass-alpha));
+  stroke: var(--tile-border);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Where the frame can't be drawn: a 1 px border (FR-002). */
+html[data-split="on"][data-hud="column"] .talk[data-panel="open"].split-plain {
+  background: rgb(var(--glass) / var(--split-glass-alpha));
+  border: 1px solid var(--tile-border);
+}
+
+/* The emblem, and the stats: a small label in capitals over a large value. */
+html[data-split="on"][data-hud="column"] .split-emblem {
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  fill: none;
+  stroke: var(--split-accent);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+html[data-split="on"][data-hud="column"] .split-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+}
+
+html[data-split="on"][data-hud="column"] .split-stat dt {
+  font: 0.8125rem/1.3 var(--heading-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--split-muted);
+}
+
+html[data-split="on"][data-hud="column"] .split-stat dd {
+  margin: 0;
+  font: 1.25rem/1.3 var(--figure-font);
+  color: var(--hud-text);
+}
+
+/* The portrait, at the frame's right edge, over it; never over the body or a control (the third column is its own). */
+html[data-split="on"][data-hud="column"] .split-portrait {
+  grid-column: 2;
+  grid-row: 2 / 5;
+  align-self: end;
+  justify-self: end;
+  width: 100%;
+  max-width: 10rem;
+  max-height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+html[data-split="on"][data-hud="column"] .split-silhouette,
+html[data-split="on"][data-hud="column"] .split-still {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  fill: rgb(255 255 255 / 0.18);
+}
+
+/* ---- Motion: a fade, never a movement; none under reduced motion (FR-017) ---- */
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes split-fade {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes split-draw {
+    from {
+      stroke-dasharray: 200;
+      stroke-dashoffset: 200;
+    }
+
+    to {
+      stroke-dasharray: 200;
+      stroke-dashoffset: 0;
+    }
+  }
+
+  html[data-split="on"][data-hud="column"] .talk[data-panel="open"] {
+    animation: split-fade 160ms ease-out;
+  }
+
+  html[data-split="on"][data-hud="column"] .split-stroke path {
+    animation: split-draw 240ms ease-out;
+  }
+}
+
+/* ---- Forced colours: the system's ---- */
+
+@media (forced-colors: active) {
+  html[data-split="on"][data-hud="column"] .split-frame path {
+    fill: Canvas;
+    stroke: CanvasText;
+  }
+
+  html[data-split="on"][data-hud="column"] .split-stroke path,
+  html[data-split="on"][data-hud="column"] .split-emblem {
+    stroke: Highlight;
+  }
+
+  html[data-split="on"][data-hud="column"] .room-list li[data-selected] button {
+    color: Highlight;
+  }
+
+  html[data-split="on"][data-hud="column"] .room-list,
+  html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] {
+    background: Canvas;
+    border: 1px solid CanvasText;
+  }
+
+  html[data-split="on"][data-hud="column"] .talk[data-panel="open"] .talk-head {
+    background: Canvas;
+  }
+}

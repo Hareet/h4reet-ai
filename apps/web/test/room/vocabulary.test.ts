@@ -167,8 +167,23 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "hints.play": [],
       "hints.previous": [],
       "hints.next": [],
+      "hud.select": [],
+      "hud.back": [],
+      "hud.close": [],
+      "key.esc": [],
+      "key.enter": [],
+      "stat.serving": [],
+      "stat.call": [],
+      "stat.visit": [],
+      "stat.unknown": [],
+      "stat.tier.local": [],
+      "stat.tier.cloud": [],
+      "stat.tier.resting": [],
+      "stat.tier.budget": [],
+      "stat.tier.unavailable": [],
+      "stat.tier.unknown": [],
     });
-    expect(Object.keys(UI_KEYS)).toHaveLength(62);
+    expect(Object.keys(UI_KEYS)).toHaveLength(77);
   });
 
   // T013 (spec 012; FR-051; D8): the loader's twelve words join the closed list, two with their live counts' slots, and

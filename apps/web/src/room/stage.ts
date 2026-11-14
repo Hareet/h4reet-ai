@@ -189,8 +189,11 @@ export type FigureSignal =
       readonly figure: FigureId;
       readonly shows: "avatar" | "fallback" | "own" | "still" | "drawing";
       readonly why: FigureWhy | null;
+      /** Spec 020 (FR-007; plan.md R-02): the bundle's `avatars.<id>.line`, only while an avatar with one shows. */
+      readonly line?: string;
     }
   | { readonly kind: "clip"; readonly figure: FigureId; readonly role: ClipRole | TwinClipRole }
+  | { readonly kind: "gait"; readonly figure: FigureId; readonly state: "unavailable" }
   | { readonly kind: "twin-state"; readonly state: TwinState; readonly role: TwinClipRole }
   | { readonly kind: "failed" };
 

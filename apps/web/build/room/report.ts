@@ -308,6 +308,16 @@ function avatars(c: Composed, memory: SceneTextureMemory, share: number, f3: num
   else if (named !== undefined && c.reader.printable(named))
     out.push(`The twin shows its capsule: RA3 or RI8 refuses its stand-in \`${named}\`.`);
   else out.push("The twin shows its capsule: the scene names no stand-in.");
+  // Spec 020 (FR-002, FR-003): a visitor's likeness, whether main's approval holds (its line) or RA9 leaves it out.
+  for (const a of set.avatars) {
+    if (a.line !== null)
+      out.push(`Likeness \`${a.id}\`: main's approval holds for its model, with the line "${a.line}"`);
+    else if (a.model && c.findings.some((f) => f.rule === "RA9" && f.file === a.model?.path))
+      out.push(
+        `Likeness \`${a.id}\`: no approval on main names its model's SHA-256 with a line (RA9), so none of its files ` +
+          "is bundled and its figure shows the cut-out.",
+      );
+  }
   for (const a of set.avatars)
     for (const f of a.others)
       out.push(`RA5: \`${f.path}\` has no role: reported, never refused, never bundled or fetched.`);

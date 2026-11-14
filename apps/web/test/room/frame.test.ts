@@ -31,9 +31,10 @@ const holds = (outer: Box, inner: Box): boolean =>
 
 const SCREEN = { w: 1920, h: 1200 };
 const CLEAR = hudBoxes(SCREEN).clear;
-/** A box the column's compact box covers at every step: its centre. */
+/** A box the HUD box at the column's place covers at every step: its centre. In the split layout (spec 018, R4), the
+ *  list's box. */
 const UNDER = ((): Box => {
-  const c = compactBoxes(SCREEN).column as Box;
+  const c = compactBoxes(SCREEN).split?.list as Box;
   return { x: c.x + c.w / 2 - 22, y: c.y + c.h / 2 - 22, w: 44, h: 44 };
 })();
 /** A box clear of every compact box by far: the window's centre. */
@@ -99,7 +100,7 @@ describe("the least ease (FR-009; D5, D6)", () => {
   });
 
   it("keeps a protected box 0.5rem clear: 7.9 pixels from the column is too near, 8 is clear", () => {
-    const column = compactBoxes(SCREEN).column as Box;
+    const column = compactBoxes(SCREEN).split?.list as Box;
     const at = (gap: number): Box => ({ x: column.x - gap - 44, y: column.y + 10, w: 44, h: 44 });
     expect(frameArea(SCREEN, OPENING, DEFAULT_METRICS, { boxes: () => [at(8)] }).ease).toBe(0);
     const near = frameArea(SCREEN, OPENING, DEFAULT_METRICS, {
@@ -108,7 +109,7 @@ describe("the least ease (FR-009; D5, D6)", () => {
     expect(near.ease).toBe(1 / 16);
     // At a 20-pixel root the margin is 10 pixels.
     const big = { ...DEFAULT_METRICS, rem: 20 };
-    const bigColumn = compactBoxes(SCREEN, OPENING, big).column as Box;
+    const bigColumn = compactBoxes(SCREEN, OPENING, big).split?.list as Box;
     const at20 = (gap: number): Box => ({ x: bigColumn.x - gap - 44, y: bigColumn.y + 10, w: 44, h: 44 });
     expect(frameArea(SCREEN, OPENING, big, { boxes: () => [at20(10)] }).ease).toBe(0);
     expect(frameArea(SCREEN, OPENING, big, { boxes: (a) => (a.w === SCREEN.w ? [at20(9)] : []) }).ease).toBe(1 / 16);
