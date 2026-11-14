@@ -201,7 +201,7 @@ Each is this spec's assumption from those specs as read on their branches; the a
 
 ## Expected Cost Impact
 
-Cloud: the petting, none. The dog-intro: one twin opening per selection, as any piece's, on the existing route (local first, then the host's paid fallback in its sub-budget and caps), metered by the gateway and shown on the sign; no new route, model, or cap. Dev-time: about one implementer session of some fourteen small tasks, a review, and a short studio round for the clip.
+Cloud: the petting, none. The dog-intro: one twin opening per selection, as any piece's, on the existing route (local first, then the host's paid fallback in its sub-budget and caps), metered by the gateway and shown on the sign; no new route, model, or cap. Dev-time: about one implementer session of some twenty small tasks (tasks.md T001 to T021), a review, and a short studio round for the clip.
 
 ## Degraded-Mode Behavior
 
