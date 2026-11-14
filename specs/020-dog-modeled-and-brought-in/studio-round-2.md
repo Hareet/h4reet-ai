@@ -114,6 +114,16 @@ cat /srv/studio/briefs/dog/2.result.json
 
 **What it will record:** the same verdict as tonight, `fail` with the single `files` line. The `files` line stops the judge before main's arrival check, which is where R6 is checked, and `candidate.json` stays as the studio wrote it. So the date changes nothing in round 2's verdict. Whether to wait for it is the first question below.
 
+**What it judged:** these hashes were taken at this task's last step. A judge without `--record` only reads. When Q199's date is in, only `records.json` should differ.
+
+```text
+d0e4f84921596bc970470c738156ef1da7a2e70f48c4609d10e842bf293134f2  /srv/studio/handoff/dog/2/candidate.json
+14742e1e8eb73dd94e3342c2401681bfa5896842e03505550cc81f74f16d4bab  /srv/studio/handoff/dog/2/records.json
+d15050f122b7e0c334b0f335c1f47305e9b5675689a29d7009df3f46632a2495  /srv/studio/briefs/dog/2.json
+```
+
+`2.json`'s hash is the one brief-dog-r6 placed.
+
 ### What waits for the Author
 - **Q199:** the date the concept's and the mesh's models were last checked against newer releases. It goes in `models_checked`, in all three entries, at steps 0 and 1.
 - **His look approval of the concept** (step 2): seed 2 of P-0030, `f9d18f2b3ef2ea92df0fb6d4dfb0984a53010e6e704b55a410bf57823cc0cf99`. All eight frames are in `/srv/studio/outputs/dog/step1/`, with the sheet `step1/concepts-P-0030-seeds-1-8.png`. Seed 4 is the runner-up, with white paws.
@@ -137,7 +147,23 @@ The `line.py` change (fault 4) is a follow-up for the stack's note, not a questi
 - 2026-11-14, judge-dog-r2: the bash gate refused deleting the scratch copy (`/tmp/judge-dog-r2-mEbg/`): "recursive delete outside workspace. Route: delete only inside the repo". I didn't try another spelling or route. The copy stays (see above).
 
 ### Lint
-(pasted below, after `make lint`)
+This task changes this file only, and no code or test, so `make lint` is its only test (rule 4). The first run stopped at `node_modules is missing: run make setup`. `make setup` then exited 0. Its git-hooks step said the hooks folder isn't writable from the sandbox and the Author runs `make git-hooks`. The second run:
+
+```text
+$ make lint; echo "exit=$?"
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+758 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit=0
+```
 
 ## Placed: brief-dog-r6 (night of 2026-11-13, implementer, Opus 5.5, on 2026-11-14)
 
