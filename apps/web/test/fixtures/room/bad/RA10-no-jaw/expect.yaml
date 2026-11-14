@@ -1,0 +1,21 @@
+rule: RA10
+file: assets/visitors/dinosaur/dinosaur.glb
+path: "-"
+why: a dinosaur whose rig lacks a bone of its row in the rig table, Jaw here (spec 021, FR-005)
+generate:
+  assets/visitors/dinosaur/dinosaur.glb: glb:dinosaur-no-jaw
+  assets/visitors/dinosaur/dinosaur-idle.glb: glb:dinosaur-idle
+  assets/visitors/dinosaur/dinosaur-walk.glb: glb:dinosaur-walk
+  assets/visitors/dinosaur/records.json: visitor-records
+caps:
+  schema: 1
+  per_asset:
+    room:
+      gzip_bytes: 2500000
+      triangles: 40000
+      small_props: []
+      small_prop_texture_px: 1024
+      scene_texture_bytes: 96000000
+      legibility_floor_css_px: 9
+    avatar: { bytes: 6000000, triangles: 90000, texture_bytes: 33554432 }
+    animation: { bytes: 1000000 }

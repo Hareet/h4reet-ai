@@ -6,7 +6,8 @@
 
 It renders assets/CREDITS.md from every records.json under assets/ (but assets/policy/), and
 docs/research/images/CREDITS.md from those under docs/research/images/, when that folder exists: one section per
-directory, and in it one per file, with its kind, its source's type (never its ID, whose meaning stays in the studio,
+directory, and in it one per file, with its kind, whether it's a likeness and whose (the Author's, or for
+assets/visitors/dog the Author's dog: spec 020, FR-014), its source's type (never its ID, whose meaning stays in the studio,
 but for an original design, shown with its opaque ID: spec 004, Amendment C2), each step by a model or by hand, each
 model with its repository, revision, and license, each step's tools, model steps' included, any hosted service (a
 step the studio's agent session scripted shows the tools it drove and the session, with its disclosure row: spec 004,
@@ -66,6 +67,10 @@ MODEL_ORDER = (
 TOOL_ORDER = ("name", "version", "license", "license_version")
 SERVICE_ORDER = ("name", "license", "license_version", "disclosure_row")
 SOURCES = {"photo": "a photo", "prompt": "a prompt", "asset": "another asset"}
+# Whose likeness an entry's `likeness` speaks of, by its record's directory (spec 020 FR-014, Q6; plan.md R-08): the
+# dog's folder holds a likeness of the Author's dog; every other directory's, as before, of the Author.
+LIKENESS_OF = {"assets/visitors/dog": "the Author's dog"}
+AUTHOR = "the Author"
 INTRO = (
     "Rendered from each directory's `records.json` by `scripts/assets/credits.py`: run `make assets-credits` after "
     "changing a record, and don't edit this file by hand. Every file here is under the media license, all rights "
@@ -179,7 +184,7 @@ def source_text(source: dict) -> str:
     return SOURCES.get(source.get("type"), "not recorded")
 
 
-def entry_lines(entry: dict) -> list[str]:
+def entry_lines(entry: dict, subject: str = AUTHOR) -> list[str]:
     source = entry.get("source") if isinstance(entry.get("source"), dict) else {}
     lines = [
         f"### {code(entry.get('file'))}",
@@ -187,7 +192,7 @@ def entry_lines(entry: dict) -> list[str]:
         f"- Kind: {entry.get('kind')}",
         f"- Source: {source_text(source)}",
         f"- Made: {entry.get('made')}",
-        f"- A likeness of the Author: {'yes' if entry.get('likeness') is True else 'no'}",
+        f"- A likeness of {subject}: {'yes' if entry.get('likeness') is True else 'no'}",
     ]
     if "arm" in entry:
         lines.append(f"- Arm: {entry['arm']}")
@@ -213,7 +218,7 @@ def render(root: Path, top: str, title: str, docs: dict[str, dict]) -> str:
         ):
             if i:
                 lines.append("")
-            lines += entry_lines(entry)
+            lines += entry_lines(entry, LIKENESS_OF.get(directory, AUTHOR))
     return "\n".join(lines) + "\n"
 
 

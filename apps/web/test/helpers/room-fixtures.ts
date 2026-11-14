@@ -16,7 +16,7 @@ import { noPolicy, policyFrom } from "../../build/room/policy";
 import type { RoomPolicy } from "../../build/room/policy";
 import { memoryTree, overlayTree } from "../../build/room/source";
 import type { Tree } from "../../build/room/source";
-import { avatarClips, avatarGlb, clipGlb, desk, pngHeader, rxVariants, sign } from "./glb";
+import { avatarClips, avatarGlb, clipGlb, desk, dinosaurClip, dinosaurGlb, pngHeader, rxVariants, sign } from "./glb";
 import { FX_LINE, likenessText, TWIN_DIR, TWIN_ROLES, twinDefaults, twinKindOf, twinModel } from "./room-twin";
 
 const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
@@ -205,6 +205,14 @@ const AVATAR_GENERATORS: Readonly<Record<string, () => Uint8Array>> = {
   "glb:twin-handless": () => twinModel({ hands: false }),
   "glb:twin-heavy": () => twinModel({ images: [pngHeader(4096, 4096), pngHeader(4096, 4096)] }),
   "png:twin-still": () => twinDefaults().still,
+  // Spec 021's dinosaur (its T003 to T005): the model with the contract's rig, one without its Jaw (RA10), one too long (RA11), and its
+  // clips by role.
+  "glb:dinosaur": () => dinosaurGlb().bytes,
+  "glb:dinosaur-no-jaw": () => dinosaurGlb({ omit: ["Jaw"] }).bytes,
+  "glb:dinosaur-long": () => dinosaurGlb({ length: 1.3 }).bytes,
+  "glb:dinosaur-idle": () => dinosaurClip("idle").bytes,
+  "glb:dinosaur-walk": () => dinosaurClip("walk").bytes,
+  "glb:dinosaur-take": () => dinosaurClip("take").bytes,
 };
 
 /** A visitor avatar's records.json (spec 009, FR-009): every file of its folder in the tree, sorted, the model, named
