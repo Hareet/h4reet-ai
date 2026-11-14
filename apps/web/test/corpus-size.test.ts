@@ -257,7 +257,7 @@ describe("T1 (ADR 0054's Decision 2; SC-002; FR-011)", () => {
 
 describe("a selectable's lead, counted beside T1, never in it (FR-010; Q157)", () => {
   it("counts the longest rendered lead on the topic and its margin after it, and the stage doesn't move", () => {
-    const short: Selectable = { id: "bicycle", topic: "fx", files: ["corpus/04-fx.md"], lead: null };
+    const short: Selectable = { id: "fx-bicycle", topic: "fx", files: ["corpus/04-fx.md"], lead: null };
     const long: Selectable = { id: "board", topic: "fx", files: ["corpus/04-fx.md"], lead: "Winter hobbies first." };
     const mid: Selectable = { id: "skis", topic: "fx", files: ["corpus/04-fx.md"], lead: "Snow." };
     const selectables = [short, long, mid];
