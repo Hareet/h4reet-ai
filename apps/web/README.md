@@ -61,7 +61,7 @@ Spec 019. The man and the woman have no `walk` clip, so the visitor's avatar get
 - **Tune it** at the look pass, one line each, in `gait.ts`: `HIP_MAX`, `KNEE_MAX`, `ANKLE_GAIN` (radians), `CYCLE_PER_HEIGHT` (stride length, 0.7 of the body's height), `EASE_S`. The bone axis and sign are fixed by `test/room/gait-rig.test.ts`, which reads the real GLBs.
 - **A studio `walk` clip wins.** Where one is loaded the gait stays off and the clip plays at its own speed, as spec 009 has it.
 - **Off** under reduced motion, paused or hidden, and at quality level 1 or more; a model without the six leg bones or the hips bone slides and logs one `gait` entry (`state: unavailable`).
-- **Small tests:** `vitest run test/room/gait.test.ts test/room/gait-rig.test.ts test/room/avatar-gait.test.ts`.
+- **Small tests:** `vitest run test/room/gait.test.ts test/room/gait-rig.test.ts test/room/avatar-gait.test.ts test/room/avatar-gait-lift.test.ts test/room/gait-alloc.test.ts test/room/gait-frame-path.test.ts`. The last two keep a frame's gait from making an object: by identity, and by reading every function on the frame path from the source.
 - **Lookdev** has no walking pose: its hands page drives its own mixer, not the room's controller, so the gait is judged in the room.
 
 ## Lookdev, drafts only

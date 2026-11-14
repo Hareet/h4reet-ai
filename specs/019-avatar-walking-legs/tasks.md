@@ -8,7 +8,7 @@
 
 > I'd like them to keep going beyond the plan and approval and finish implementation and keep merging down to as few patches and gates as we've seen the difficulty there. Ensure there are small tests that can be run instead of the whole suite over and over
 
-**Reworked on 2026-11-14** (rule 6's Opus reviews rv-spec-019 and review-019, neither blocking) by the Author's answers to Q61 to Q63 on the morning page, each "Answered: recommended, the Author 2026-11-13." (spec.md Q6 to Q8): T013 to T020 below, appended after T012 and done before it (Dependencies). T001 to T010 stay checked; where the rework changes what they built, a new task does it.
+**Reworked on 2026-11-14** (rule 6's Opus reviews rv-spec-019 and review-019, neither blocking) by the recommended answers to the page's Q61 to Q63 (spec.md Q6 to Q8), taken under the orders file's rule ("any new one: the recommended answer stands"), not said by him (the page's "Answered: recommended, the Author 2026-11-13." under each records that rule); each provisional and his to confirm or overturn on the morning page, like Q1 to Q5, Q62 (the hips) first: T013 to T020 below, appended after T012 and done before it (Dependencies). T001 to T010 stay checked; where the rework changes what they built, a new task does it.
 
 **Small sets** named once here, every path under `apps/web/`:
 - *the gait set*: `test/room/gait.test.ts test/room/gait-rig.test.ts test/room/avatar-gait.test.ts` (and `test/room/gait-alloc.test.ts` once T017 adds it);
@@ -49,7 +49,7 @@
 - [ ] T011 A reviewer who didn't write the code reviews the diff against REVIEW.md, spec.md, and plan.md, and the constitution check; a failure goes back to a fix task, with no test file edited in a fix. Its notes list SC-001 to SC-004 each as met or not.
 - [ ] T012 The one full `make check` of the night's stack, run by the stack's last task, not by this stack's tasks one by one; its output goes into the stack's merge-request note in `docs/merge-requests/` with SC-004's chunk size from `make build` (`BUILD OK`) and `make lint`. A failure in a test this stack doesn't touch is reported with the evidence (passes alone; the stack doesn't touch it), not chased; `test/room/twin-2d.test.ts` is known flaky under load.
 
-## Phase 7: The rework, by the Author's answers to Q61 to Q63 (2026-11-14)
+## Phase 7: The rework, by Q61 to Q63's recommended answers, taken under the orders file's rule (2026-11-14)
 
 Each task is RED then GREEN, one commit each, runs only its small runs plus `make lint`, and pastes both into its notes. The code goes on this spec's line (impl-019's branch); a departure from plan §2.6 to §2.8 is written into plan.md in the same commit.
 
@@ -66,6 +66,8 @@ Each task is RED then GREEN, one commit each, runs only its small runs plus `mak
 - [x] T019 SC-004 measured (plan §2.8): the web app's build at this line's tip and at impl-018's tip (b9378980), the same way; the 3D chunk's gzip bytes from Vite's report at each, and the difference, written into plan §2.8 and the stack note. Over 2 KB is a fix task, not a change to SC-004. No test run beyond `make lint`.
 - [ ] T020 A reviewer who didn't write T013 to T019 reviews their diff against REVIEW.md, spec.md (Q6 to Q8, FR-005, FR-007, FR-011, FR-015, SC-006, SC-007), and plan §2.6 to §2.8; a blocking finding goes back to a fix task on this branch, with no test file edited in a fix.
 
+- [x] T021 fix-019, rv-rework-019's findings (T020's review, not blocking): I-2, new `test/room/gait-frame-path.test.ts`, every function on the frame path read from the source, no array or object literal, `new`, or closure (plan §2.7); N-1, new `test/room/avatar-gait-lift.test.ts`, the hips' offset at the controller is exactly `−standingLift(…)` every frame (FR-015); both passed at once, the first with planted-source cases that fail. I-1, N-2 to N-5: the documents (Q61 to Q63, Q74, Q89, Q101 taken under the orders file's rule; SC-007, FR-015, Key Entities; plan §2.6's T015 test departure; the README's small tests; the stack note). No test file edited, no code under `src/` changed. Small tests: `vitest run test/room/gait-frame-path.test.ts test/room/avatar-gait-lift.test.ts test/room/gait-alloc.test.ts test/room/gait.test.ts test/room/gait-rig.test.ts test/room/avatar-gait.test.ts`, and the docs' links check (`evals/docs_links.py`).
+
 ## Dependencies
 
 T001 → T006. T002 → T003 → T005 → T007. T004 → T005. T006 → T007 → T008. T009 and T010 after T007. T011 after T010.
@@ -73,4 +75,4 @@ Rework: T013 → T014 → T015 → T016. T017 → T018, after T016 (both edit `a
 
 ## After this stack, for the Author
 
-His look approval of the gait on the real models, in the room (SC-005), now with the hips' lowering; his confirmation or overturn of Q1 to Q5 on the morning page (Q6 to Q8 are his answers already); a studio `walk` clip, if he wants one, by his intake and the studio's tools list (P-7).
+His look approval of the gait on the real models, in the room (SC-005), now with the hips' lowering; his confirmation or overturn on the morning page of Q1 to Q5, and of Q6 to Q8 (the page's Q61 to Q63, Q62 first), Q74, Q89, and Q101, each taken under the orders file's rule, none answered by him yet; a studio `walk` clip, if he wants one, by his intake and the studio's tools list (P-7).
