@@ -2,8 +2,9 @@
 // reach's bones on the twin's real model and the man's, read in Node as the measure reads them
 // (pet-reach-measure.test.ts), each placed at the twin's home, turned by the aim, at its size in the room. With the dog of
 // 0.62 m at its default home and the measured defaults (the crouch and the lean), the hand on the dog's side comes within
-// 0.08 m of the target at the stroke's middle; the feet stay where the clip has them; only the reach's bones change; and
-// after `clearReach`, and after a frame the mixer wrote, every bone is the clip's own.
+// 0.08 m of the target at the stroke's middle, with the right arm and, the dog's home mirrored across the twin's, the
+// left; the feet stay where the clip has them; the knees bend forward, the way the figure faces; only the reach's bones
+// change; and after `clearReach`, and after a frame the mixer wrote, every bone is the clip's own.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -35,6 +36,11 @@ const HOMES: ReadonlyArray<readonly [string, Vec3]> = [
   ["spec 025's estimate [0.36, 0.55]", v(0.36, 0, 0.55)],
   ["Q158's estimate [0.30, 0.45]", v(0.3, 0, 0.45)],
 ];
+/** The same homes mirrored across the twin's (x about the twin's 0.66): the dog on the figure's other side, so the
+ *  left arm reaches (rv-impl-026's N-4). */
+const MIRRORED: ReadonlyArray<readonly [string, Vec3]> = HOMES.map(
+  ([label, home]) => [`${label} mirrored`, v(2 * TWIN_HOME.x - home.x, 0, home.z)] as const,
+);
 const MAN_HEIGHT = 1.76;
 const TWIN_HEIGHT = 1.82;
 
@@ -161,23 +167,51 @@ describe("findReachRig (R-04)", () => {
     const fixture = (await new GLTFLoader().parseAsync(avatarGlb({ legs: true }).bytes.slice().buffer, "")).scene;
     expect(findReachRig(fixture, "right")).toBeNull();
   });
+
+  // Q212's bones (rv-impl-026's N-4): a real rig with one leg bone gone has no reach on either side, and one without a
+  // hand's end (`HandMiddle1`, the point the reach measures) has none on that side, the other side's still found.
+  const GONE: ReadonlyArray<readonly [string, readonly ("right" | "left")[]]> = [
+    ["LeftUpLeg", []],
+    ["LeftLeg", []],
+    ["LeftFoot", []],
+    ["RightUpLeg", []],
+    ["RightLeg", []],
+    ["RightFoot", []],
+    ["RightHandMiddle1", ["left"]],
+    ["LeftHandMiddle1", ["right"]],
+  ];
+  for (const [gone, found] of GONE) {
+    it(`without ${gone}, finds the reach on ${found.length ? `the ${found.join(" and ")} side only` : "neither side"}`, () => {
+      for (const f of FIGURES) {
+        const { root } = placed(f, HOMES[1]![1]);
+        (root.getObjectByName(`mixamorig${gone}`) as Object3D).name = "gone";
+        for (const side of ["right", "left"] as const) {
+          expect(findReachRig(root, side) !== null, `${f.name} ${side}`).toBe(found.includes(side));
+        }
+      }
+    });
+  }
 });
 
 describe("applyReach on the real rigs, at the measured defaults (SC-002; Q212)", () => {
+  const cases = [
+    ...HOMES.map(([label, home]) => [label, home, "right"] as const),
+    ...MIRRORED.map(([label, home]) => [label, home, "left"] as const),
+  ];
   for (const f of FIGURES) {
-    for (const [label, home] of HOMES) {
-      it(`${f.name}, the dog at ${label}: the hand within 0.08 m at the stroke's middle, the feet kept`, () => {
+    for (const [label, home, side] of cases) {
+      it(`${f.name}, the dog at ${label}: the ${side} hand within 0.08 m at the stroke's middle, the feet kept`, () => {
         const { picture, root } = placed(f, home);
-        const rig = findReachRig(root, "right") as ReachRig;
+        const rig = findReachRig(root, side) as ReachRig;
         const T = target(home);
         const feet = ["LeftFoot", "RightFoot"].map((b) => [world(root, b), worldQ(root, b)] as const);
         const hips = world(root, "Hips");
         applyReach(rig, T, 1, CFG);
         picture.updateMatrixWorld(true);
-        const hand = world(root, "RightHandMiddle1");
+        const hand = world(root, `${side === "right" ? "Right" : "Left"}HandMiddle1`);
         const miss = hand.distanceTo(new Vector3(T.x, T.y, T.z));
         console.log(
-          `${f.name} at ${label}: the hand ${miss.toFixed(4)} m from the target; hips down ${(hips.y - world(root, "Hips").y).toFixed(3)} m`,
+          `${f.name} at ${label}, the ${side} hand: ${miss.toFixed(4)} m from the target; hips down ${(hips.y - world(root, "Hips").y).toFixed(3)} m`,
         );
         expect(miss).toBeLessThan(0.08);
         // The crouch: the hips lowered, never past the limit; the feet where the clip had them.
@@ -192,6 +226,41 @@ describe("applyReach on the real rigs, at the measured defaults (SC-002; Q212)",
       });
     }
   }
+
+  // The knee's pole is forward of the clip's knee along the root's +z on the floor (pet-reach.ts's `_fwd`), which holds
+  // only where the root's +z is the model's forward: each foot's toes are ahead of its ankle along it, and the crouch
+  // takes each knee further forward of its hip-to-ankle line, never back (rv-impl-026's N-4).
+  it("bends both knees forward, the way the figure faces (the root's +z, its toes' side)", () => {
+    for (const f of FIGURES) {
+      for (const [label, home] of HOMES) {
+        const { picture, root } = placed(f, home);
+        const fwd = new Vector3().setFromMatrixColumn(root.matrixWorld, 2).setY(0).normalize();
+        const ahead = (s: string): number => {
+          const hip = world(root, `${s}UpLeg`);
+          const knee = world(root, `${s}Leg`);
+          const leg = world(root, `${s}Foot`).sub(hip).normalize();
+          const off = knee.sub(hip);
+          return off.sub(leg.multiplyScalar(off.dot(leg))).dot(fwd);
+        };
+        const before = ["Left", "Right"].map(ahead);
+        for (const s of ["Left", "Right"]) {
+          const toes = world(root, `${s}ToeBase`)
+            .sub(world(root, `${s}Foot`))
+            .dot(fwd);
+          expect(toes, `${f.name} ${s}: the toes ahead of the ankle`).toBeGreaterThan(0.05);
+        }
+        applyReach(findReachRig(root, "right") as ReachRig, target(home), 1, CFG);
+        picture.updateMatrixWorld(true);
+        const after = ["Left", "Right"].map(ahead);
+        console.log(
+          `${f.name} at ${label}: the knees ${after.map((a, i) => `${(before[i] as number).toFixed(3)} → ${a.toFixed(3)}`).join(" and ")} m ahead of the hip-to-ankle line`,
+        );
+        after.forEach((a, i) => {
+          expect(a, `${f.name} ${i ? "Right" : "Left"}`).toBeGreaterThan((before[i] as number) + 0.05);
+        });
+      }
+    }
+  });
 
   it("changes only the reach's bones: the spine, the arm's two, the hips' position, and the legs", () => {
     for (const f of FIGURES) {
