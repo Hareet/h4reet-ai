@@ -94,10 +94,10 @@ All Vitest runs from `apps/web` (`npx vitest run <files>`), never the whole suit
 | `test/room/pet-states.test.ts`, `test/room/twin-states.test.ts` | R-05, FR-009, SC-004 | both, plus `twin-handoff.test.ts`, `twin-figure.test.ts`, `twin-2d.test.ts` (import the lists; the last is flaky under load: rerun alone before reporting) |
 | `test/room/pet-director.test.ts` | R-01, R-02, R-07, FR-001 to FR-006, FR-010, FR-011, FR-026, SC-001 | that file |
 | `test/room/pet-degraded.test.ts` | FR-001, FR-004, FR-011, SC-003 | that file |
-| `test/room/pet-notes.test.ts` | R-10, FR-024, SC-006 | that file, plus `test/room/vocabulary.test.ts`, `test/room/words.test.ts` |
+| `test/room/pet-notes.test.ts` | R-10, R-11, FR-024, FR-026, SC-006 | that file, plus `test/room/vocabulary.test.ts`, `test/room/words.test.ts`, `test/room/live.test.ts`, `test/lookdev/builds.test.ts` |
 | `test/room/pet-adapters.test.ts` | §4 adapters, A016, A020, A025 | that file |
 | `test/room/pet-spot.test.ts` | R-08 | that file, plus `test/room/schema.test.ts`, `test/room/data-only.test.ts`, `test/room/scene.test.ts` |
-| `test/room/dog-selectable.test.ts` | R-09, FR-013, FR-014, User Story 3 on a fixture scene | that file, plus `test/room/pick.test.ts`, `test/room/objects.test.ts`, `test/ui/a11y.test.ts` |
+| `test/room/dog-selectable.test.ts` | R-02, R-09, FR-013, FR-014, User Story 3 on a fixture scene | that file, plus `test/room/pick.test.ts`, `test/room/objects.test.ts`, `test/ui/a11y.test.ts`, `test/ui/talk.test.ts`, `test/ui/talk-activity.test.ts` |
 | `test/room/pet-bench.test.ts` | FR-027, SC-007 | that file |
 | `test/lookdev/petting-view.test.ts` | R-12 | that file, plus `test/lookdev/page.test.ts` |
 | `chase-visiting.test.ts` (R-06 fallback only) | A025's `goTo` | that file, plus spec 025's `chase-director.test.ts`, `chase-steer.test.ts` |
