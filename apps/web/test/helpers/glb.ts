@@ -1327,6 +1327,8 @@ export interface ClipGlbOptions extends PackOptions {
   readonly unit?: number;
   /** The clip's length in seconds: 1 by default. */
   readonly duration?: number;
+  /** The skeleton the clip's nodes copy: AVATAR_BONES by default; DINOSAUR_BONES for spec 021's dinosaur. */
+  readonly bones?: readonly AvatarBone[];
 }
 
 /** A clip as the studio exports one: the skeleton's nodes alone, no mesh, and one animation named `name` moving
@@ -1335,7 +1337,7 @@ export function clipGlb(name: string, o: ClipGlbOptions = {}): Model {
   const unit = o.unit ?? 1;
   const duration = o.duration ?? 1;
   const tracks = o.tracks ?? [];
-  const bones = [...AVATAR_BONES];
+  const bones = [...(o.bones ?? AVATAR_BONES)];
   for (const t of tracks)
     if (!bones.some((bone) => bone.name === t.bone)) bones.push({ name: t.bone, parent: -1, at: [0, 0, 0] });
   const b = new ModelBuilder();
@@ -1424,4 +1426,150 @@ export function avatarClips(o: Omit<ClipGlbOptions, "tracks"> = {}): Record<"idl
     "idle-holding": clipGlb("idle-holding", { ...o, tracks: holdingTracks() }),
     take: clipGlb("take", { ...o, tracks: TAKE_TRACKS, duration: 1.5 }),
   };
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// Spec 021's dinosaur (T002; contracts/dinosaur-rig.md): a handless, non-Mixamo rig of eighteen raw bone names
+// --------------------------------------------------------------------------------------------------------------------
+/** The `dinosaur` rig of spec 021's contract, by its raw glTF names (no `mixamorig:` node, no hand bone): standing on
+ *  the floor, facing +z, the tail behind toward −z. */
+export const DINOSAUR_BONES: readonly AvatarBone[] = [
+  { name: "Hips", parent: -1, at: [0, 0.6, 0] },
+  { name: "Spine", parent: 0, at: [0, 0.1, 0.08] },
+  { name: "Chest", parent: 1, at: [0, 0.1, 0.08] },
+  { name: "Neck", parent: 2, at: [0, 0.12, 0.08] },
+  { name: "Head", parent: 3, at: [0, 0.15, 0.1] },
+  { name: "Jaw", parent: 4, at: [0, -0.04, 0.1] },
+  { name: "Tail1", parent: 0, at: [0, 0, -0.1] },
+  { name: "Tail2", parent: 6, at: [0, -0.03, -0.1] },
+  { name: "Tail3", parent: 7, at: [0, -0.03, -0.1] },
+  { name: "Tail4", parent: 8, at: [0, -0.03, -0.1] },
+  { name: "Arm.L", parent: 2, at: [0.1, -0.02, 0.06] },
+  { name: "Arm.R", parent: 2, at: [-0.1, -0.02, 0.06] },
+  { name: "Leg.L", parent: 0, at: [0.12, -0.05, 0] },
+  { name: "Leg.R", parent: 0, at: [-0.12, -0.05, 0] },
+  { name: "Shin.L", parent: 12, at: [0, -0.27, 0] },
+  { name: "Shin.R", parent: 13, at: [0, -0.27, 0] },
+  { name: "Foot.L", parent: 14, at: [0, -0.27, 0.04] },
+  { name: "Foot.R", parent: 15, at: [0, -0.27, 0.04] },
+];
+
+export interface DinosaurGlbOptions extends PackOptions {
+  /** From the floor to its highest point, in metres: 1.2 by default, the cut-out's. */
+  readonly height?: number;
+  /** Along z (nose to tail), in metres: 1.0 by default. */
+  readonly length?: number;
+  /** Along x, in metres: 0.6 by default. */
+  readonly width?: number;
+  /** File units a metre: 1, or 100 for a model exported in centimetres. */
+  readonly unit?: number;
+  /** Bones left out by name (RA10's cases); a dropped bone's children hang from its parent. */
+  readonly omit?: readonly string[];
+  /** Each kept bone's raw node name from its rig name: the name itself by default (`rig:${n}` for a prefixed rig). */
+  readonly rename?: (name: string) => string;
+}
+
+/** The dinosaur's bones as the options give them: the omitted left out, each child re-parented to its nearest kept
+ *  ancestor, carrying the dropped bone's offset. */
+function dinosaurBones(o: Pick<DinosaurGlbOptions, "omit" | "rename">): AvatarBone[] {
+  const omit = new Set(o.omit ?? []);
+  const rename = o.rename ?? ((n: string): string => n);
+  const kept = DINOSAUR_BONES.filter((b) => !omit.has(b.name));
+  return kept.map((b) => {
+    let parent = b.parent;
+    const at: [number, number, number] = [b.at[0], b.at[1], b.at[2]];
+    while (parent >= 0 && omit.has((DINOSAUR_BONES[parent] as AvatarBone).name)) {
+      const p = DINOSAUR_BONES[parent] as AvatarBone;
+      at[0] += p.at[0];
+      at[1] += p.at[1];
+      at[2] += p.at[2];
+      parent = p.parent;
+    }
+    return { name: rename(b.name), parent: parent < 0 ? -1 : kept.indexOf(DINOSAUR_BONES[parent] as AvatarBone), at };
+  });
+}
+
+/**
+ * A skinned dinosaur as spec 021's contract asks for one: the root node `fx-dinosaur`, holding the skeleton (its first
+ * bone the hips) and the body, a box from the floor to `height`, `width` along x and `length` along z, centred on the
+ * origin, every vertex bound to the hips with weight 1, so the box in its rest pose is exactly its bounds.
+ */
+export function dinosaurGlb(o: DinosaurGlbOptions = {}): Model {
+  const unit = o.unit ?? 1;
+  const [height, length, width] = [o.height ?? 1.2, o.length ?? 1.0, o.width ?? 0.6];
+  const bones = dinosaurBones(o);
+  const b = new ModelBuilder();
+  const scaled = (v: Vec3): Vec3 => [v[0] * unit, v[1] * unit, v[2] * unit];
+  const material = b.material({ pbrMetallicRoughness: { baseColorFactor: [0.31, 0.54, 0.24, 1], metallicFactor: 0 } });
+  const corners = Array.from({ length: 8 }, (_, i): Vec3 =>
+    scaled([(i & 1 ? 0.5 : -0.5) * width, i & 2 ? height : 0, (i & 4 ? 0.5 : -0.5) * length]),
+  );
+  const prim: Obj = {
+    attributes: {
+      POSITION: b.positions(corners),
+      TEXCOORD_0: b.texcoords(corners.map((_, i): Uv => [i & 1 ? 1 : 0, i & 2 ? 1 : 0])),
+      JOINTS_0: b.values(new Array<number>(8 * 4).fill(0), "VEC4", UNSIGNED_BYTE),
+      WEIGHTS_0: b.values(
+        Array.from({ length: 8 * 4 }, (_, i) => (i % 4 === 0 ? 1 : 0)),
+        "VEC4",
+        FLOAT,
+      ),
+    },
+    indices: b.indices(BOX_INDICES),
+    material,
+  };
+  const mesh = b.mesh([prim], "fx-dinosaur-body");
+  // Node 0 the root; 1 to n the bones; n + 1 the body.
+  b.root(b.node({ name: "fx-dinosaur", children: [1, bones.length + 1] }));
+  bones.forEach((bone, i) => {
+    const children = bones.flatMap((c, k) => (c.parent === i ? [k + 1] : []));
+    b.node({ name: bone.name, translation: scaled(bone.at), ...(children.length > 0 ? { children } : {}) });
+  });
+  const inverse = bones.flatMap((_, i) => {
+    const [x, y, z] = scaled(boneRest(bones, i));
+    return [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -x, -y, -z, 1];
+  });
+  list(b.gltf, "skins").push({
+    joints: bones.map((_, i) => i + 1),
+    skeleton: 1,
+    inverseBindMatrices: b.values(inverse, "MAT4", FLOAT),
+  });
+  b.node({ name: "fx-dinosaur-body", mesh, skin: 0 });
+  return b.pack(o);
+}
+
+/** A rig bone's rest translation, as a clip's keyframe. */
+const dinoRest = (bone: string): number[] => [...(DINOSAUR_BONES.find((b) => b.name === bone)?.at ?? [0, 0, 0])];
+/** A turn of `degrees` about x, as a keyframe. */
+const turnX = (degrees: number): number[] => {
+  const half = (degrees * Math.PI) / 360;
+  return [Math.sin(half), 0, 0, Math.cos(half)];
+};
+
+/** The dinosaur's clips' channels by role, each moving only its rig's bones (RA2): `idle` a breath and a tail sway,
+ *  `walk` the legs and the tail, `take` a head-dip toward the paper and back. */
+export const DINOSAUR_TRACKS: Readonly<Record<"idle" | "walk" | "take", readonly ClipTrack[]>> = {
+  idle: [
+    { bone: "Hips", path: "translation", values: [dinoRest("Hips"), [0, 0.61, 0]] },
+    { bone: "Tail1", path: "rotation", values: [turnX(0), turnX(5)] },
+  ],
+  walk: [
+    { bone: "Leg.L", path: "rotation", values: [turnX(-20), turnX(20)] },
+    { bone: "Leg.R", path: "rotation", values: [turnX(20), turnX(-20)] },
+    { bone: "Tail2", path: "rotation", values: [turnX(0), turnX(-5)] },
+  ],
+  take: [
+    { bone: "Neck", path: "rotation", values: [turnX(0), turnX(25)] },
+    { bone: "Head", path: "rotation", values: [turnX(0), turnX(15)] },
+  ],
+};
+
+/** One of the dinosaur's clips as the studio would export it: its rig's nodes alone, one animation named `role`. */
+export function dinosaurClip(role: "idle" | "walk" | "take", o: Omit<ClipGlbOptions, "tracks" | "bones"> = {}): Model {
+  return clipGlb(role, {
+    duration: role === "take" ? 1.5 : 1,
+    ...o,
+    bones: DINOSAUR_BONES,
+    tracks: DINOSAUR_TRACKS[role],
+  });
 }

@@ -676,6 +676,638 @@ verify-020: green, carrying D-V2's six (Q165)
 
 ---
 
+## Item 4: spec 021, the dinosaur modeled and brought in (`night/impl2-021/impl2-021`)
+
+Spec: specs/021-dinosaur-modeled-and-brought-in/ · Intent: intent/021-dinosaur-modeled-and-brought-in.md · Written by: implementer (night shift), impl2-021 on Opus 5.5 (it replaces impl-021, which stopped at its step 1 changing nothing; Q167); the review is for a worker who didn't write the code · Date: 2026-11-14
+Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl2-021 · Repo hooks active: the commit hooks ran (gitleaks, arrival check) on every commit
+Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at the top of plan.md and tasks.md), the spec, and the plan, as reworked after rv-spec-021 (the decision page's Q32 to Q38, Q73, Q75, and Q88, each answered: recommended). Base: verify2-020's tip 3767859f (items 1 to 3, item 3's verification "verify-020: green, carrying D-V2's six (Q165)"), with `night/rework-spec-021/rework-spec-021` (abb2043a, the reviewed spec) merged first: merge commit fb46c911, no conflict.
+
+### What changed and why
+
+His item e): "dinosaur modeled and brought in". The code that brings a modeled dinosaur into the room is built, checked, and tested. **The model itself isn't here.** It waits on the studio's round (studio-dino-r1, which waits for Q92, ComfyUI on the studio host), then his look approval, then his intake of `assets/visitors/dinosaur/**` (human patch 021). No studio round was started in this session. *(Overtaken: round 2's candidate passed dry and has his look approval. The record and his intake wait for his morning's steps 1 to 4, in order: "His look approval (intake-021)" and "Round 2's record (record-dino-r2)" below.)*
+
+**The stand-in until then:** the flat green cut-out (`AVATAR_SHAPES.dinosaur`, 1.2 m high, 1.1 m wide), which every visitor who picks the dinosaur sees today, in both modes, with spec 014's note `standin.avatar` ("Your figure is a flat placeholder until its model arrives.") while the 3D room shows it. Nothing changes for a visitor until his intake: on the repository's real tree the room's report is byte for byte the same as the base's (below). Swapping in the model takes his intake and no code change.
+
+By task, each test-first (RED seen, then GREEN) where there was code to write:
+
+- **T002, the proof first** (plan R-07; FR-008, FR-009): a dinosaur fixture (`test/helpers/glb.ts`'s `dinosaurGlb` and `dinosaurClip`: the contract's eighteen raw bone names, no `mixamorig:` node, no hand bone, the box's extents settable) through the stage tests that exist for hands, the clips, and the gait. On the line's code, unchanged: no hand holds, the paper stays at the hand anchor, `take` plays once in the hand-off and the idle stands in for a missing `take` (spec 009's FR-003), the idle loops, the walk plays while it walks at its own speed (`clipScale` 1; spec 019's FR-007 as rework-spec-019 left it), the gait applies none and signals `gait` `unavailable` once (spec 019's FR-008), the figure is 1.2 m high, standing on the floor at the visitor's placement and facing +z, and nothing is logged to the console. These are pins, so the runtime needs no change and no task goes to converge. A first run failed seven of them on the fixture alone: the night was composed without the dinosaur's folder, and a figure wants only an avatar the bundle holds. The shared helper `test/helpers/room-dinosaur.ts` composes it with the folder.
+- **T003, the rig table and RA10** (FR-005): `RIG_BONES` in `build/room/avatars.ts`, the dinosaur's row the contract's eighteen names, the woman's, the man's, and the dog's `null`. RA10 refuses a model whose raw node names lack a bone of its row, matching a name exactly or after a `:` as `line.py`'s `has_bone` does. One finding a model: `the dinosaur rig lacks Jaw` (the first three, then `, and <n> more`).
+- **T004, RA11** (FR-004): the reader's `measures` gain `extent_x` and `extent_z`. RA11 refuses a model whose rest-pose box, scaled to `AVATAR_SHAPES[id].height`, is over `AVATAR_SHAPES[id].width` × 1.05 along x or z: `z extent 1.30 m at 1.2 m high, over 1.1 m (+5%)`. A model exported in centimetres is measured after the same scaling.
+- **T005, RA12** (FR-003): a model with a row needs a usable `idle` and `walk`. A clip that RA1, RA2, or RA4 refuses counts as missing. `take` is optional.
+- RA10 to RA12 run only where the row isn't `null`, only where main's caps hold `per_asset.avatar` (as RA1 to RA4), and lenient: a strict build refuses, and a lenient one warns and leaves the model and its clips out, so the cut-out stays. Each is in `checks/family.ts`'s catalogue after RA9 with a `bad/` case (`RA10-no-jaw`, `RA11-long`, `RA12-no-walk`).
+- **T006, the bundle and the report** (FR-001, FR-012, SC-001): with a fixture folder, the model and three clips go into the 3D part's avatars and `dist/a/`, and the report lists each with its bytes, triangles, texture memory, and scale. Spec 009's code already does this, so these are pins and `report.ts` is untouched.
+- **T007, the note** (FR-010): with the dinosaur chosen in 3D, its picture's fallback says `standin.avatar`, its model drops it, and `standin.note` follows the pieces alone. Pins, as the spec expected.
+- **T008, the brief** (FR-013, SC-004): the contract's JSON passes `line.py brief` on a fixture repository holding the repository's own tools list and caps. It fails when one of its tools is made unshippable, and its `notes` say "no film or franchise creature". It passed on first run; `line.py` and the contract are unchanged.
+- **T009, the documents** (FR-017, FR-018): checked, neither edited (below).
+
+Two pins moved with the state (plan R-08), named in each commit: `compose.test.ts`'s `counts` (RA 9 → 10 → 11 → 12, one a task) and its lenient list (+ RA10, RA11, RA12), with the test's name and comment naming spec 021's rules.
+
+Departures, in plan §8 in the same commits: the shared helper, and `clipGlb`'s optional `bones` skeleton; the walk at its own speed (N-1); RA10's one finding a model; `smoke` is `test/smoke.test.ts`; T006 and T008 needed no code. In my own RED test for T004, one expectation was wrong before the code ran (a half-height case that kept the full width, so it was over on x). It was corrected in T004's GREEN commit, and the commit says so.
+
+### Acceptance criteria
+
+FR-001, FR-002, FR-012, SC-001: `dinosaur-compose.test.ts` ("the dinosaur's folder in the bundle and the report"), and by hand on the real tree (below). FR-003 (RA12), FR-004 (RA11), FR-005 (RA10, the table), SC-002: `dinosaur-compose.test.ts` and `compose.test.ts`'s bad cases. FR-006: the rules are in the compositor and the arrival check is untouched (SC-006 below). FR-007: the brief's notes (T008 checks 'no film or franchise creature'); `likeness: false` is prose in the notes, held by the record and his look approval (Q75), plus the existing rule P and RA9; no new rule (corrected by verify-021, rv-impl-021's N3). FR-008, SC-003: `avatar-hands`, `avatar-scene`, `avatar-gait`. FR-009: `avatar-hands`'s placement case. FR-010: `notes-causes.test.ts`. FR-011: no event, call, or fetch was added (no `src/` change). FR-013, FR-014, SC-004: `scripts/studio/test_line.py`. FR-015: his, in human patch 021. FR-016: this section. FR-017, FR-018: T009 below. SC-005 (F3 at the brief's targets) can only be measured at his intake, from the report's lines.
+
+### Verification (small tests, the order's rule 4)
+
+T001, the base, at fb46c911 before any change of this item. Run on a `git archive` copy of that commit with the worktree's `node_modules` linked in, since a first run in the worktree read two T002 cases written while it ran:
+
+```
+cd apps/web && npx vitest run test/room/compose.test.ts test/room/avatars-compose.test.ts test/room/likeness-visitor.test.ts
+  test/room/report.test.ts test/room/avatar-hands.test.ts test/room/avatar-scene.test.ts test/room/avatar-gait.test.ts
+  test/ui/notes-causes.test.ts
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ Test Files  1 failed | 7 passed (8)
+      Tests  1 failed | 351 passed (352)
+   Duration  257.90s (tests 75%, import 25%)
+
+pytest -q -p no:cacheprovider --import-mode=importlib scripts/studio/test_line.py
+124 passed in 13.34s
+```
+
+The one failure is one of D-V2's six (Q164), carried under Q165; this item doesn't touch the test or the report's legibility rows.
+
+Per task, from `apps/web` (vitest) or the repository's root (pytest, the lint target):
+
+T002 (pins, so no RED commit; the first run's seven failures were the fixture's, above):
+
+```
+npx vitest run test/room/avatar-hands.test.ts test/room/avatar-scene.test.ts test/room/avatar-gait.test.ts
+ Test Files  3 passed (3)
+      Tests  27 passed (27)
+```
+
+Run again after T005, since their night composes through RA10 to RA12: 3 files, 27 passed (138 s).
+
+T003. RED: `dinosaur-compose.test.ts` 6 of 9 failing (no `RIG_BONES`, no RA10; the full model, the woman and the man, and the no-caps case pass); `compose.test.ts` `bad/RA10-no-jaw` and both catalogue pins failing. GREEN, with the files covering `build/room/avatars.ts` (rv-rework-spec-021's I-1):
+
+```
+npx vitest run test/room/dinosaur-compose.test.ts test/room/compose.test.ts test/room/avatars-compose.test.ts
+  test/room/likeness-visitor.test.ts test/room/dog-avatar.test.ts test/room/dog-report.test.ts test/room/dog-line.test.ts
+  test/room/twin-compose.test.ts test/room/twin-reach.test.ts
+ Test Files  9 passed (9)
+      Tests  371 passed (371)
+   Duration  314.37s
+npx vitest run test/smoke.test.ts
+ Test Files  1 passed (1)
+      Tests  17 passed (17)
+```
+
+T004. RED: 4 of 15 failing (the default fixture's and the woman's and man's cases pass), and the bad case and both pins. GREEN, T003's files with `report.test.ts` and `test/smoke.test.ts`:
+
+```
+ FAIL  test/room/dinosaur-compose.test.ts > RA11: the body's box (FR-004) > measures after scaling to the table's height: a model in centimetres, or of another height, by its own
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ Test Files  2 failed | 9 passed (11)
+      Tests  2 failed | 418 passed (420)
+```
+
+The first is my test's own wrong expectation (above), corrected: `dinosaur-compose.test.ts` alone, 15 passed. The second is D-V2's (Q165).
+
+T005. RED: 4 of 21 failing (`take` optional and the woman and man pass), and the bad case and both pins. GREEN:
+
+```
+npx vitest run test/room/dinosaur-compose.test.ts test/room/compose.test.ts test/room/avatars-compose.test.ts
+  test/room/likeness-visitor.test.ts test/room/dog-avatar.test.ts test/room/dog-report.test.ts test/room/dog-line.test.ts
+  test/room/twin-compose.test.ts test/room/twin-reach.test.ts test/smoke.test.ts
+ Test Files  10 passed (10)
+      Tests  402 passed (402)
+   Duration  347.96s
+```
+
+T006 (pins):
+
+```
+npx vitest run test/room/dinosaur-compose.test.ts test/room/report.test.ts
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 48 passed (49)
+```
+
+D-V2's report case again (Q165); `dinosaur-compose.test.ts`, 24 passed.
+
+SC-001 on the repository's real tree, by hand: the room's report (`node --import tsx build/room/cli.ts report` from `apps/web`, `ROOM_POLICY_DIR` set to a plain copy of main's `assets/policy`), once on a `git archive` copy of the base fb46c911 and once on this branch:
+
+```
+  120 /tmp/impl2-021-report-base.md
+  120 /tmp/impl2-021-report-branch.md
+IDENTICAL
+64734d177e293e67fa27350565130f4482d7251ea900e7c42786438a0a8c4483  /tmp/impl2-021-report-base.md
+64734d177e293e67fa27350565130f4482d7251ea900e7c42786438a0a8c4483  /tmp/impl2-021-report-branch.md
+```
+
+T007 (pins): `npx vitest run test/ui/notes-causes.test.ts`: `Test Files 1 passed (1) · Tests 8 passed (8)`.
+
+T008: `pytest -q -p no:cacheprovider --import-mode=importlib scripts/studio/test_line.py`: `127 passed in 16.14s` (the three new cases passed on first run; plan §8).
+
+T009, the documents, read and not edited:
+- Row V1 of `docs/data-flow-disclosure.md` already carries "the chosen avatar's where it has files, whose paths show which avatar the visitor chose", from the site's own origin. The dinosaur's files are that case, so FR-017 holds with no new row.
+- The "Visits whose avatar failed" panel (`deploy/grafana/dashboards/h4-runtime.json`) reads `avatar_failed` events over visits, and its description covers "the visitors' avatars' files" with no avatar named. FR-018 holds with no change.
+- `npx vitest run test/disclosure.test.ts`: `Tests 2 failed | 9 passed (11)`. The two are D-V2's ("gives the room's rows what the spec's entries carry…" and "names the avatar files in V1…"), carried under Q165. This item changes neither the test nor the disclosure.
+
+D-V2's six, as these runs met them: `report.test.ts`'s case (T001, T004, T006) and `disclosure.test.ts`'s two (T009). `legibility.test.ts` and `evals/test_disclosure.py` weren't among this item's files. None was fixed here, and `docs/merge-requests/proposed/018-verify-test-amendments.patch` was never applied.
+
+The lint target, after each of T003 to T008. Two runs first failed on prettier alone (`room-fixtures.ts`'s import line in T003; `avatars.ts` and `dinosaur-compose.test.ts` in T005 and T006). Each was formatted with prettier and run again to exit 0. The last, after T008, in full:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+779 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit 0
+```
+
+T010, after this section was written: `pytest -q -p no:cacheprovider --import-mode=importlib evals/test_docs_links.py evals/test_repository_docs.py`, `61 passed in 1.69s`; the lint target again, exit 0 (prettier "All matched files use Prettier code style!", ruff "All checks passed!", "779 files already formatted").
+
+No full suite here: the stack's last task runs `make check` once. The setup target was run first (no `node_modules`; its git-hooks step said the hooks folder "isn't writable here (the agent sandbox)").
+
+SC-006, `git diff --stat fb46c911 HEAD -- .claude tools/gates corpus assets CLAUDE.md REVIEW.md .specify/memory/constitution.md evals/agent-config redteam/forbidden-actions.sh`: empty. No human-only path changed.
+
+### Review
+
+**rv-spec-021** (Opus, on the spec): blocking. Rework-spec-021 reworked it, and abb2043a is the version reviewed and built here. Its non-blocking findings, as the reworked `analysis.md` records them, all answered in the documents: N1 (R-07 before R-08), N2 (T004 and T005 not `[P]`), N3 (a missing `take` is spec 009's FR-003), N4 (spec 004's recorded answer quoted whole, the reading beside it), N5 (the extents in `measures`). Its three open, low items: U1, SC-005's first-visit number, which only his intake can measure; U2, this session can't read `/srv/studio/briefs/dinosaur/1.json` to compare it with the contract, and the round's judge compares them; U3, the dog's `null` row (Q88).
+
+**rv-rework-spec-021** (on the reworked spec): not blocking. Its findings:
+- **I-1, fixed**: T003 to T005's **Tests** lines and plan §5 add `dog-avatar`, `dog-report`, `dog-line`, `twin-compose`, `twin-reach`, and `smoke`, and the runs above include them.
+- **N-1, fixed**: plan R-07, §3, §4, and §5 cite spec 019's FR-007 and FR-008 as rework-spec-019 left them and name rework-019. T002 tests the walk at its own speed.
+- **N-2, not fixed**: "keep the page's answer words whole for Q75 and Q88". This session can't read the decision page (only `/night/io/`, empty, and the night's transcripts, which hold no page text for either). So I couldn't quote its words. The spec's Q9 [page Q75] keeps the rework's text. Q88 is now cited by number in the spec's Open Questions and plan §7, with "Answered: recommended", and the brief's words for that ("any new one: the recommended answer stands"). A worker who can read the page should put its words in whole (question below).
+- **N-3, fixed**: the spec's Open Questions and plan §7 point to Q88.
+- **N-4, fixed**: RA10's reason is `the <id> rig lacks <bone>`, in plan §4 and the code.
+- **N-5, fixed**: the tasks' dependencies say T007 needs no dinosaur file or rule.
+
+N-2 is closed by verify-021 (page Q168): the page's words for Q75 and Q88 are now whole in the spec, beside its reading (below).
+
+### Review (rv-impl-021)
+
+On impl2-021's code (77b1a244), by a worker who didn't write it: nothing blocking. Its five nits, none fixed here (rule 6: they go in this note):
+
+- **N1**: T007 injects the fallback signal by hand.
+- **N2**: RA10 matches any node name, `line.py` only skin joints (page Q169).
+- **N3**: this note's FR-007 line claimed more than T008 tests. Corrected above by verify-021 (a note line, not code): "FR-007: the brief's notes (T008 checks 'no film or franchise creature'); `likeness: false` is prose in the notes, held by the record and his look approval (Q75)".
+- **N4**: FR-009's placement and the report's scale use a fixture already 1.2 m high, so the runtime's scaling never runs for the dinosaur.
+- **N5**: FR-013's "exactly the fourteen IDs" isn't pinned.
+
+rv-impl-021 couldn't verify the header's "the commit hooks ran (gitleaks, arrival check) on every commit". verify-021's own commits show them: each printed gitleaks' "no leaks found" and an `arrival-check: 0 findings in <n> file(s)` line (under "Verification (rule 7, verify-021)" below). That speaks for this session's commits, not impl2-021's.
+
+### Cost and data-flow impact
+
+$0, and no model call. No byte leaves a visitor's device that didn't before: the dinosaur's files, once he takes them in, are served from the site's origin under row V1, as the other avatars' are. No disclosure row, panel, or event added. The cost of the studio round is his GPU time (spec, Expected Cost Impact).
+
+### For the Author
+
+What waits for you (none of it is needed for this item's gate):
+
+*(Overtaken: 1 to 3 are done (round 2 passed dry, and you approved its look). Before 4, your record waits for your morning's steps 1 to 4, in order, under "His look approval (intake-021)" below; then your intake, under "The intake (intake-021)".)*
+
+1. **Q92**, ComfyUI on the studio host. Studio-dino-r1 (round 1, from `/srv/studio/briefs/dinosaur/1.json`) waits for it. No studio round was started in this session.
+2. **The studio round**: at most three rounds; a passing candidate goes to your look judgement.
+3. **Your look approval** of the candidate, in a glTF viewer or Blender.
+4. **Human patch 021** (`docs/merge-requests/human-patches/021.md`): your intake commit of `assets/visitors/dinosaur/**` (the model, `idle`, `walk`, `take`, `records.json` with `likeness: false` from a prompt, `LICENSE.md` copied from the shipped avatars'). An `approvals.json` entry only if the gate wants one: none for `likeness: false` from a prompt. The optional ADR 0010 pointer line. Until your intake, the cut-out shows. Once it's in, RA10 to RA12 check the model in every build.
+
+Also: the questions on the morning page with their recommended answers (the spec's nine, page Q32 to Q38, Q73, Q75; Q88; and this session's, in `/night/io/out/questions.md`). Open for others: N-2's page words; rv-rework-020's N1 (the report's `Likeness` line), still open from item 3; verify-021's merge onto the line; T013, the stack's one `make check`.
+
+Interruptions: one bash-gate refusal. T008's commit command was refused as "an Author-only make target" (`Blocked by .claude/hooks/bash-gate.sh — an Author-only make target. Route: make publish-check, make tools, make matrix-canary, and make evals-agent-config: the Author runs it`). It was a false match on the words I was writing (the commit message and a plan line naming the tools list). Nothing ran. Under rule 5 I didn't respell anything: the plan line and T008's tick in tasks.md were written with the Edit tool, and the message with the Write tool, then `git commit -F`. One harness block, not a hook: a shell `sleep` before reading a log, waited for with a background `until` loop instead.
+
+### Verification (rule 7, verify-021)
+
+Branch `night/verify-021/verify-021`, from impl2-021's tip 77b1a244 (verify2-020's tip 3767859f with item 4 in it), by a different worker (Opus 5.5) from item 4's implementer. No merge: the line already holds items 1 to 3, verified ("verify-020: green, carrying D-V2's six (Q165)"). Read under Q165, as verify2-020 read it.
+
+#### Runs at the tip (68f1eced; the branch's code and tests are impl2-021's, only this note and the spec's text differ)
+
+`node_modules` was there (an earlier session of this task ran the setup target); not run again.
+
+Item 4's test files (every test file in `git diff --stat refs/heads/night/verify2-020/verify2-020...HEAD`; its changed `bad/RA10-no-jaw`, `bad/RA11-long`, and `bad/RA12-no-walk` fixtures are read by `compose.test.ts`, its helpers by these and by the full run below):
+
+```
+cd apps/web && npx vitest run test/room/avatar-gait.test.ts test/room/avatar-hands.test.ts test/room/avatar-scene.test.ts
+  test/room/compose.test.ts test/room/dinosaur-compose.test.ts test/ui/notes-causes.test.ts
+ Test Files  6 passed (6)
+      Tests  318 passed (318)
+   Duration  197.70s (tests 69%, import 30%, transform 1%)
+
+pytest -q -p no:cacheprovider --import-mode=importlib scripts/studio
+130 passed in 11.09s
+```
+
+(`scripts/studio` is the one Python folder item 4 changed: `test_line.py`.)
+
+**Carried (Q165), confirmed on a copy.** `git archive HEAD` (68f1eced) into a fresh `/tmp` folder, `git apply docs/merge-requests/proposed/018-verify-test-amendments.patch` there (`--check` clean; 4 files, 43 insertions, 11 deletions), the worktree's `node_modules` linked in. Never applied on the line; no test file edited.
+
+```
+cd <copy> && pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+80 passed in 1.05s
+cd <copy>/apps/web && npx vitest run test/disclosure.test.ts test/room/legibility.test.ts test/room/report.test.ts
+ Test Files  3 passed (3)
+      Tests  56 passed (56)
+```
+
+`make lint`: exit 0 (shellcheck's file list left out):
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+779 files already formatted
+```
+
+All of `apps/web`, at dfd854ec (68f1eced plus this section's first lines; 2576 s):
+
+```
+cd apps/web && npx vitest run
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ FAIL  test/room/twin-2d.test.ts > the twin's still in the 2D room (FR-034, FR-035; SC-010) > refuses bytes that fail their integrity: the drawing, never the image
+ Test Files  4 failed | 185 passed (189)
+      Tests  7 failed | 3754 passed | 1 skipped (3762)
+```
+
+Six are exactly D-V2's, the same as verify-018's, verify-019's, and verify-020's full runs, shown passing on the patched copy above.
+
+The seventh, `twin-2d.test.ts`'s integrity case (`expected undefined to deeply equal { kind: 'picture', … }`: its loop of 40 flushes ended before the signal came), is the file the brief names as flaky under load. Item 4 doesn't touch it or the code it tests (`git diff --stat refs/heads/night/verify2-020/verify2-020...HEAD -- apps/web/src apps/web/test/room/twin-2d.test.ts`: empty). Alone at the line's tip, three times: `Test Files 1 passed (1) · Tests 5 passed (5)` each time. On main's tip (3c0e4cd0, a `git archive` copy with the worktree's `node_modules` linked in): `Test Files 1 passed (1) · Tests 5 passed (5)`. Nothing to fix.
+
+#### Fixed
+
+Nothing: no failure outside D-V2's six and the flaky `twin-2d` case, so no code, test, or plan changed. This branch changes two documents: the spec, where page Q168's words for Q75 and Q88 now stand whole beside its reading (ab55771e, documents only; this closes rv-rework-spec-021's N-2, listed above as "Open for others"), and this note (rv-impl-021's five nits, N3's correction, and this section). The dinosaur stays the cut-out until his look approval and intake (rule 2): no `assets/**` change. Not fixed, under rule 6: rv-impl-021's N1, N2 (page Q169), N4, N5.
+
+Commit hooks: each of this session's commits printed gitleaks' "no leaks found" and `arrival-check: 0 findings in <n> file(s)`.
+
+Interruptions: one harness refusal, not a hook or the bash gate: a Monitor watch on the run's log needed an approval it didn't have, so I waited with a plain shell loop instead. Nothing was respelled.
+
+verify-021: green, carrying D-V2's six (Q165)
+
+### His look approval (intake-021)
+
+Branch `night/intake-021/intake-021`, run by the implementer intake-021 (Opus 5.5) on 2026-11-14 around 18:15Z. It starts at judge-dino-r2's tip, `f4d93409`, whose dry verdict is `line: pass; round 2` (`specs/021-dinosaur-modeled-and-brought-in/studio-round-2.md`). The line's tip, `night/verify-023/verify-023`, was merged in first (merge `4acf13c7`, no conflict).
+
+**Checks first.** Both held. The four GLBs in `/srv/studio/handoff/dinosaur/2/` have the SHA-256s judge-dino-r2 recorded (table below), and `/srv/studio/briefs/dinosaur/` has no `2.result.json`.
+
+His words, 2026-11-14, about 17:25Z, verbatim:
+
+> Okay, dinosaur is approved, and dog seems to have changed the face compared to the concept? Look at the face markings on the concept with white and white on the under body and white feet, common markings of a Nova Scotia Duck Tolling Retriever. Do you want to incorporate those
+
+*Reading, beside his words:* "dinosaur is approved" is his look approval (User Story 4, FR-015) of round 2's candidate, `/srv/studio/handoff/dinosaur/2/`. The rest is about the dog (item 3) and isn't this item's. Q210 is answered (recommended): his review of the mesh is now given. The same words are recorded in `studio-round-2.md`, "His look approval, and what follows it".
+
+**What waits before the intake, in order** (in full, with the commands, in `studio-round-2.md`):
+1. **His mesh review in the record (Q210).** Add `{"name": "the Author's review of the mesh", "by": "hand"}` after the Pixal3D step in all four entries of the handoff's `records.json`. This is his hand or a studio task's, never a judge's. On a `/tmp` copy, the edit takes the file from `341edde9…f14f9` to `6bbe5be5d1ff092a8584598c5b9421ed5664d03e99a51ce66b72703dd39f1771`.
+2. **Q207's date**, on the eleven model steps' `models_checked`. Any date up to 2026-11-14 keeps the pass. *(His answer, about 17:35Z: `2026-11-11`. With steps 1 and 2 together, the file is `39b89e14bf309fdfdc367d8b0a45f1943363014eb9cdcf4e405367fde7cad4df`. See "Round 2's record (record-dino-r2)" below.)*
+3. **The dry re-judge.** I previewed it on a `/tmp` copy with step 1's record. The result was `arrival-check: 0 findings in 6 files, 4 warnings`, `line: pass; round 2`, and exit 0, with no `2.result.json` written.
+4. **`--record`**, once: `python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dinosaur/2 --brief /srv/studio/briefs/dinosaur/2.json --record`.
+
+All four are his, in the morning, in this order (Q224, Q225, answered as recommended: the handoff is read-only to implementers). Steps 1 and 2 are one script now, in `studio-round-2.md`. His intake follows step 4.
+
+Nothing under `/srv/studio/` was changed and nothing was recorded. No agent wrote `assets/**`.
+
+### The intake (intake-021)
+
+His hand (FR-015). Do it after step 4 above, on a branch from `main` once this stack is merged. The stack holds RA10 to RA12 and item 3's `credits.py`, and the judge's note says to run `line.py` from "the line's checkout: this stack's branch, or main once it's merged".
+
+| Handoff file (`/srv/studio/handoff/dinosaur/2/`) | SHA-256 | Destination |
+|---|---|---|
+| `dinosaur.glb` | `1aa8075bf5cc9ebfd226cd8e5492295cee23b790a3bb61a7caf68e46cf62fae8` | `assets/visitors/dinosaur/dinosaur.glb` |
+| `dinosaur-idle.glb` | `dc2f84a64f03ee2e58f53845c33edf38ede46ca303a2e11c8198acdd59e7ce31` | `assets/visitors/dinosaur/dinosaur-idle.glb` |
+| `dinosaur-walk.glb` | `d895b608773e0ad39a05dda325f409afea4441e26187abd8400432bb57a213b8` | `assets/visitors/dinosaur/dinosaur-walk.glb` |
+| `dinosaur-take.glb` | `3bca518b1706f58e41108fa00689bdd2343dbc3651e78480356d0fd5f658a046` | `assets/visitors/dinosaur/dinosaur-take.glb` |
+| `records.json` | after steps 1 and 2, with your date `2026-11-11`: `39b89e14bf309fdfdc367d8b0a45f1943363014eb9cdcf4e405367fde7cad4df` (record-dino-r2, on a scratch copy). Step 1 only: `6bbe5be5d1ff092a8584598c5b9421ed5664d03e99a51ce66b72703dd39f1771` | `assets/visitors/dinosaur/records.json` |
+| `LICENSE.md` | `f7118869586e0928e06f39b689cdbdd0817fb0fc5540d37e0ca7d1cc2cfa9159` (byte for byte `assets/visitors/man/LICENSE.md`) | `assets/visitors/dinosaur/LICENSE.md` |
+
+Not copied: `candidate.json`, `note.md`, `front.png`, and `side.png`. An asset directory admits only images, GLBs, `records.json`, and `LICENSE.md`, and the two renders are review-only. Your commands:
+
+```
+git switch -c intake/dinosaur main
+mkdir -p assets/visitors/dinosaur
+H=/srv/studio/handoff/dinosaur/2
+cp -- "$H/dinosaur.glb" "$H/dinosaur-idle.glb" "$H/dinosaur-walk.glb" "$H/dinosaur-take.glb" "$H/records.json" "$H/LICENSE.md" assets/visitors/dinosaur/
+(cd assets/visitors/dinosaur && sha256sum -- *)      # the table above
+make assets-credits                                  # renders assets/CREDITS.md: + "## `assets/visitors/dinosaur`", four files
+make credits-check
+git add assets/visitors/dinosaur assets/CREDITS.md
+git commit -m "assets: the dinosaur, round 2, approved 2026-11-14"   # the pre-commit hook runs the arrival check
+```
+
+Then run your gate on the branch as usual: `tools/gates/gate <branch>`, from main's checkout.
+
+**No `assets/policy/approvals.json` entry.** The gate wants none, so the stack's patch set gains no file from this item. Main's arrival check (C1, on P1) says "a hand-made or composite file that isn't a room file, the twin's, a likeness, or from a photo needs no approval, and gets a WARN line, which fails nothing". The record is `likeness: false`, from a `design` (`D-0003`), outside `assets/room/` and `assets/twin/`. Run on the six files, main's copy gives 0 findings and four C1 WARNs (step 3 above). `human-patches/021.md` rows 1 and 2 now say so. A correction to this item's earlier "For the Author" (4): the record's source is `{"type": "design", "id": "D-0003"}`, his concept (Q198, recommended), not "from a prompt".
+
+**Outside `assets/**`, nothing.** No code, test, plan, or generated file has to change for the model to take the cut-out's place. This matches the spec's Summary and plan §6, so `plan.md` is unchanged. The runs below show it on a scratch export, so there's nothing to build on the branch and nothing to add to his patch set.
+
+#### The stand-in replaced, on a scratch export
+
+`git archive` of this branch's tip into `mktemp -d` (`/tmp/intake-021-scratch.V8FB/tree`), with his intake applied there and only there: the six files above, with step 1's `records.json` and tonight's date. Main's `assets/policy/*` came from `git show refs/heads/main:…` as plain copies, for `ROOM_POLICY_DIR`. The worktree's `node_modules` were linked in. A second export of the same tip without the intake (`…/base`) is the comparison.
+
+The credits, from the repository's root (the line's `credits.py`):
+
+```
+$ python3 -I -B -X pycache_prefix=/dev/null scripts/assets/credits.py --root <scratch>/tree --check     # before rendering
+credits: assets/CREDITS.md differs from its records (make assets-credits renders it)
+credits: FAIL: the renderings and the records' form
+$ python3 -I -B -X pycache_prefix=/dev/null scripts/assets/credits.py --root <scratch>/tree
+credits: rendered assets/CREDITS.md
+$ python3 -I -B -X pycache_prefix=/dev/null scripts/assets/credits.py --root <scratch>/tree --check
+credits: OK: the renderings and the records' form
+```
+
+The rendered `assets/CREDITS.md` gains only `## \`assets/visitors/dinosaur\`` and its four files' sections (57 lines, each reading "Source: an original design, `D-0003`", "A likeness of the Author: no", with step 4 "`the Author's review of the mesh`, by hand"). On this tip it is `1a7d66f830f648cbf35b9e46dcde7fe2ad460001662ea96ac13a4c424b7023ca`.
+
+The arrival check on the files: main's copy at `3c0e4cd06861`, via `line.py`'s dry re-judge on the `/tmp` copy (step 3 above): `0 findings in 6 files, 4 warnings`. A `--range` run over an intake commit in a scratch repository wasn't possible from here (Interruptions, below). Your pre-commit hook and gate run it on your commit.
+
+The room's strict build. `node --import tsx build/room/cli.ts check` from `apps/web`, `ROOM_POLICY_DIR` set to the plain copies:
+
+```
+base (no intake):  room: 0 findings in 0 files    exit 0
+with the intake:   room: 0 findings in 0 files    exit 0
+```
+
+The room's report (FR-073's release build in strict mode, `cli.ts report`), `diff base intake`:
+
+```
+3c3
+< Bundle 4d0b9e2ceb129c75 · release build · caps: policy-dir, assets/policy/caps.json 8b5b41fda6bbef19
+---
+> Bundle 2f74b67d65f5eead · release build · caps: policy-dir, assets/policy/caps.json 8b5b41fda6bbef19
+46a47,50
+> | `assets/visitors/dinosaur/dinosaur.glb` | model | 2,248,336 | 1,236,931 | 27,997 | 5,592,405 | 5,592,405 | yes |
+> | `assets/visitors/dinosaur/dinosaur-idle.glb` | idle | 47,908 | 22,309 | 0 | 0 | 0 | yes |
+> | `assets/visitors/dinosaur/dinosaur-take.glb` | take | 35,904 | 10,963 | 0 | 0 | 0 | yes |
+> | `assets/visitors/dinosaur/dinosaur-walk.glb` | walk | 37,716 | 14,707 | 0 | 0 | 0 | yes |
+49a54
+> Scale its reader's bounds imply for `dinosaur`: 1.000× for the visitor's 1.2 m.
+```
+
+Both end with `Findings: none.`, so RA10 to RA12 pass the real model in a strict build. The base report is `64734d17…c4483`, the same hash impl2-021 recorded for the line, so the tree without the intake is unchanged. SC-005 / FR-012: the dinosaur's four files total 1,284,910 gzip-9 bytes, under the woman's 3,247,287 that RK5 counts as the largest visitor avatar. So the first visit stays 18,575,582 of the 25,000,000 budget.
+
+**The dinosaur's 3D load, on the real files.** Item 4's tests use the generated fixture and never the asset (FR-001, FR-043), so I added one probe file to the scratch tree only, never to the branch: `test/room/zz-intake-021-probe.test.ts`. It does two things:
+- It composes the night's fixture room with the real dinosaur folder in strict mode.
+- It loads the real files into the visitor's figure the way `test/helpers/room-dinosaur.ts` loads the fixture. The model goes through the room's own `parseModel` with `avatar-hands.test.ts`'s stand-in image decoder, since Node has no `createImageBitmap`, and the clips go through three's GLTFLoader.
+
+A first version parsed the model with GLTFLoader alone and stopped at the texture (`ReferenceError: self is not defined`, in GLTFLoader's `loadImageSource`). That is Node lacking a browser global, not the model. The room's loader is `parseModel`, for that reason.
+
+```
+$ cd <scratch>/tree/apps/web && npx vitest run test/room/zz-intake-021-probe.test.ts
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+bundled: {"model":{"url":"a/dinosaur.1aa8075bf5cc9ebf.glb","sha256":"1aa8075b…cae8","bytes":1236931,"texture_bytes":5592405},
+          "clips":{"idle":{…"dc2f84a6…"},"take":{…"3bca518b…"},"walk":{…"d895b608…"}}}
+box: {"h":1.199999986593801,"minY":4.07e-8,"x":0.9967,"z":0.9461}
+signals: [{"kind":"gait","figure":"visitor","state":"unavailable"},
+          {"kind":"picture","figure":"visitor","shows":"avatar","why":null},
+          {"kind":"clip","figure":"visitor","role":"idle"}]
+```
+
+Strict compose: no finding. The visitor's figure shows the model (`shows: "avatar"`), so spec 014's `figure` cause and `standin.avatar` go (FR-010). The figure is 1.200 m high, its feet on the floor, and 0.997 m × 0.946 m, inside RA11's 1.1 m box. Its idle plays. The gait says `unavailable` once, as spec 019's FR-008 has it for a rig with no Mixamo leg bones. No `console.error`.
+
+Item 4's own test files, on the same scratch tree with the intake applied. Among them are RA10 to RA12 (`dinosaur-compose`, `compose`) and the dinosaur's figure, clips, and gait (`avatar-hands`, `avatar-scene`, `avatar-gait`). `avatar-hands` also composes the tree's own bundle (`repositoryBundle()`), which now holds the real dinosaur:
+
+```
+$ cd <scratch>/tree/apps/web && npx vitest run test/room/avatar-gait.test.ts test/room/avatar-hands.test.ts test/room/avatar-scene.test.ts
+    test/room/compose.test.ts test/room/dinosaur-compose.test.ts test/ui/notes-causes.test.ts
+ Test Files  6 passed (6)
+      Tests  318 passed (318)
+   Duration  169.58s (tests 64%, import 35%, transform 1%)
+```
+
+This is the same count as verify-021's run of these files without the intake (318 passed).
+
+#### On the branch (small runs only, rule 4)
+
+This branch changes three documents and no code or test: `specs/021-…/studio-round-2.md`, `docs/merge-requests/human-patches/021.md`, and this note. The tests covering them, and the lint target, from the repository's root. The setup target ran first, since there was no `node_modules`. Its git-hooks step said the hooks folder "isn't writable here (the agent sandbox)".
+
+```
+$ pytest -q -p no:cacheprovider --import-mode=importlib evals/test_docs_links.py evals/test_repository_docs.py
+61 passed in 1.32s
+$ make lint        (exit 0; shellcheck's file list left out)
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+788 files already formatted
+```
+
+No full suite: the stack's last task runs it once.
+
+SC-006: `git diff --stat 4acf13c7 HEAD -- .claude tools/gates corpus assets CLAUDE.md REVIEW.md .specify/memory/constitution.md evals/agent-config redteam/forbidden-actions.sh` is empty. No human-only path changed, and no `assets/**` was written.
+
+Commit hooks: each of this session's commits printed gitleaks' "no leaks found" and `arrival-check: 0 findings in <n> file(s)`.
+
+#### Interruptions (rule 5)
+
+The bash gate refused three commands. All three are on the page.
+1. Building a scratch repository in `/tmp` so the arrival check could run with `--range` over a scratch intake commit, using git's `-c` options for the hooks path and the committer identity: "redirecting git hooks or config".
+2. The same, rebuilt with plumbing (`write-tree`, `commit-tree`, and `update-ref` of the scratch repository's `refs/heads/main`): "moving main". I didn't try a third form. The arrival check on the files came from `line.py`'s dry re-judge instead, which builds its own scratch, and the rest from a plain `git archive` export with `ROOM_POLICY_DIR`.
+3. A shell `printf` writing my notes on 1 and 2, whose words named 1's options: "redirecting git hooks or config". This was a false match on text I was writing, so it was written with the Write tool instead.
+
+Nothing was respelled. I didn't open, view, copy, or list the inbox, the dog's photos folder, or the handoff's `front.png` and `side.png`.
+
+intake-021: his look approval recorded; the intake, the record's two steps, and `--record` wait for him (Q207's date). *(Overtaken: Q207's date is his answer, `2026-11-11`. What waits now is in the next section.)* *(Undercounted, rv-intake-021's nit 3: "Q207's date" was never all it waited for. The record waits on his morning's steps 1 to 4 above, in order, and his intake follows the record.)*
+
+### Round 2's record (record-dino-r2)
+
+Branch `night/record-dino-r2/record-dino-r2`, run by the implementer record-dino-r2 (Opus 5.5) on 2026-11-14 around 18:30Z, from intake-021's tip, `fc89bcd1`. The full account, with every run whole, is in `specs/021-dinosaur-modeled-and-brought-in/studio-round-2.md`, under "Round 2's record, not made (`record-dino-r2`)".
+
+His answer to Q199 and Q207, about 17:35Z, verbatim:
+
+> we checked 3 days ago 11-11-2026
+
+**Not recorded.** The checks held: the four GLBs have judge-dino-r2's SHA-256s, and there's no `2.result.json`. I copied `records.json` to `/tmp` first: `341edde9ff71781c2d5da31f31c6ce52a49a58a9b643dc139f9e8905311f14f9`. The edit, `2026-11-11` on the eleven model steps plus his mesh review after Pixal3D in all four entries, failed before writing a byte: `OSError: [Errno 30] Read-only file system`. An implementer's container mounts `/srv/studio/handoff` `ro` and `/srv/studio/briefs` `rw`. The handoff's `records.json` is still `341edde9…f14f9`, so nothing had to be put back. `--record` didn't run, and `/srv/studio/briefs/dinosaur/` still holds only `1.json`, `1.result.json`, and `2.json`.
+
+**What the record would be.** The same edit on a scratch copy makes `records.json` `39b89e14bf309fdfdc367d8b0a45f1943363014eb9cdcf4e405367fde7cad4df`. `line.py candidate` on that copy, against round 2's brief, gives `arrival-check: 0 findings in 6 files, 4 warnings` (the four C1 WARNs), then `line: pass; round 2`, exit 0. So his date and his mesh review keep the pass. Only the write to the handoff is missing.
+
+**So his intake doesn't yet follow a recorded pass.** Steps 1 and 2 above (now one script, in `studio-round-2.md`), then 3 and 4, still come before it. They need someone who can write the handoff: him, or a task whose container mounts it read-write. The question:
+
+> **Q: The handoff folder is read-only to implementers, so the dinosaur's record wasn't edited or recorded. Who makes the edit to `/srv/studio/handoff/dinosaur/2/records.json` (his date and his mesh review) and runs `--record`?**
+> Recommended: you, in the morning. Run the one script under "Steps 1 and 2 as one script" in `studio-round-2.md` (it should print `model steps dated: 11` and make `39b89e14…d4df`), then steps 3 and 4 as written. This widens no mount. Others: re-queue record-dino-r2 with `/srv/studio/handoff/dinosaur/` mounted read-write for that one task; a studio task makes the edit (the studio writes the handoff), then an implementer runs steps 3 and 4.
+
+*Answered (Q224, Q225), as recommended: his, in the morning. His record and his intake wait for his morning's steps 1 to 4, in order. (verify3-021)*
+
+**The dog's records:** none changed tonight. Round 2 is already recorded (fail, on `files`). Round 3 handed nothing back (studio-dog-r7 stopped, Q220).
+
+**Follow-up (rule 9), not tonight:** `line.py` should count a round as answered only when it has a `candidate.json`.
+
+#### On the branch (small runs only, rule 4)
+
+This branch changes two documents and no code or test: `specs/021-…/studio-round-2.md` and this note. The runs are the tests covering them, `scripts/studio`'s own tests (`line.py` ran tonight and is unchanged), and the lint target, all from the repository's root. The setup target ran first, since there was no `node_modules`. It exited 0, and its git-hooks step said the hooks folder "isn't writable here (the agent sandbox)".
+
+```
+$ pytest -q -p no:cacheprovider --import-mode=importlib evals/test_docs_links.py evals/test_repository_docs.py scripts/studio/test_line.py scripts/studio/test_comfyui_params.py
+191 passed in 14.78s
+$ make lint        (exit 0; shellcheck's file list left out)
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+788 files already formatted
+```
+
+No full suite: the stack's last task runs it once.
+
+SC-006: `git diff --stat fc89bcd1 HEAD -- .claude tools/gates corpus assets CLAUDE.md REVIEW.md .specify/memory/constitution.md evals/agent-config redteam/forbidden-actions.sh` is empty.
+
+#### Interruptions (rule 5)
+
+One refusal, from the filesystem rather than the bash gate: the write to the handoff's `records.json` (`EROFS`). I didn't try it again or another way. Nothing was respelled. I didn't open, view, copy, or list the inbox, the dog's photos folder, or the handoff's renders.
+
+record-dino-r2: not recorded (handoff read-only to implementers); his date checked to keep the pass on a scratch copy; the edit and `--record` wait for him or a task that can write the handoff *(Answered, Q224 and Q225: him. His record and his intake wait for his morning's steps 1 to 4, in order.)*
+
+### Review (rv-intake-021, rv-record-dino-r2)
+
+Neither review is blocking. verify3-021 (Opus 5.5) wrote none of what they reviewed. It fixed the findings below, documents only, one commit each:
+
+- **rv-record-dino-r2, finding 1** (`studio-round-2.md:3`): the status header still said "The record waits only for Q207's date". It now says the record waits on the handoff edit (steps 1 and 2, as one script), then the dry re-judge and `--record`, and it points to "Round 2's record, not made". (`b3bf5e2b`)
+- **rv-record-dino-r2, nit 3**: one sentence under "Steps 1 and 2 as one script". If step 1's older script already ran, drop the insert lines. Checked in memory on the handoff's file, with nothing written: run whole after step 1, the script stops on its `assert` before writing. With the insert lines dropped it dates 11 steps and makes `39b89e14…d4df`, the same file. (`9aeeeb0b`)
+- **rv-record-dino-r2, nit 4**: one line in `studio-round-2.md`. `scripts/studio/` is identical to intake-021's: `git diff --stat fc89bcd1 HEAD -- scripts/studio` prints nothing. (`cb33ff99`)
+- **rv-intake-021, nit 3**: "waits only for Q207's date" undercounted. Annotated where it stands (`studio-round-2.md`, "Not recorded", and intake-021's last line above): the record waited for steps 1 to 4, in order, not only the date. (`cfe78261`)
+- **rv-intake-021, nit 4**: judge-dino-r2's "twelve" against the intake's "eleven". **Eleven is right.** The handoff's `records.json` (`341edde9…f14f9`, read and not changed) has 2 steps `by` `model` in `dinosaur.glb`'s entry (Pixal3D, the build) and 3 in each clip's (those two plus the clip's own step): 2 + 3 × 3 = 11. The judge's own list ("in each of the four entries, the Pixal3D step, the build step, and each clip's own step") also adds up to 11. record-dino-r2's scratch edit dated 11 steps. Annotated beside "twelve". (`86e48d02`)
+
+Also, for task step 2: every status line in this section and in `studio-round-2.md` that named what the record waits for now says that his record and his intake wait for his morning's steps 1 to 4, in order (Q224, Q225). (`3bf6495b`)
+
+**Follow-ups for his answer.** These weren't made tonight. `spec.md` and `contracts/dinosaur-brief.md` are unchanged.
+
+- **Q222: his approval read as his mesh review.** intake-021 read "dinosaur is approved" as his look approval of the candidate. Under Q210 (recommended), it also read those words as his review of the step-3 mesh. Morning step 1 then writes `{"name": "the Author's review of the mesh", "by": "hand"}` into all four entries on that reading. The reading is his to confirm in morning step 1. Proposed rewording of step 1's title and first sentence, in `studio-round-2.md` ("For his morning, in order") and in this section ("What waits before the intake, in order"), once he answers:
+  > 1. **Your review of the mesh in the record (Q210, Q222).** First confirm that your approval of 2026-11-14 ("dinosaur is approved") covers the step-3 mesh (`/srv/studio/outputs/dinosaur/r2-step3/`) as well as the candidate. If it does, add `{"name": "the Author's review of the mesh", "by": "hand"}` after the Pixal3D step in all four entries. If it doesn't, look at the mesh first: the record claims no review you haven't made.
+- **Q223: the record's source is `design`, `D-0003` (Q198, recommended), but two documents still say a prompt.** Proposed rewording, if he keeps `design`:
+  - `spec.md`'s FR-007 (line 116), "ITS BRIEF AND ITS RECORD SHALL say `likeness: false`, its source a prompt (like the shipped avatars')", becomes: "ITS BRIEF AND ITS RECORD SHALL say `likeness: false`, its source his concept, an original design of his (`{"type": "design", "id": "D-0003"}`, spec 004's Amendment C2; Q198, Q223), not a photo."
+  - `contracts/dinosaur-brief.md:18`, the notes' opening "The visitor's dinosaur avatar (spec 021), from a new recorded prompt, no reference image.", becomes: "The visitor's dinosaur avatar (spec 021), from the Author's concept, an original design of his (source `design`, `D-0003`; round 2's brief, in `studio-round-2.md`), no photo."
+  - If he answers that the concept came from a prompt, the record's source becomes `prompt` with that prompt's ID, and both documents stay as they are.
+- **Already owed (rule 9), not tonight:** `line.py` should count a round as answered only when it has a `candidate.json` (record-dino-r2 and judge-dino-r2 above; `studio-round-2.md`'s "Follow-ups for the stack's note" asks for both halves). This is a code change, for a later task with its own tests.
+
+### Verification (rule 7, verify3-021)
+
+Branch `night/verify3-021/verify3-021`, run by the implementer verify3-021 (Opus 5.5) on 2026-11-14 around 18:40Z. It is a different worker from item 4's implementers, and it wrote none of item 4's code or documents. It starts at record-dino-r2's tip, `ed48aa5e`, which holds intake-021's `fc89bcd1`.
+
+#### The merge
+
+`git merge 0fd75fbe`, the line's tip (verify-027: items 1 to 4, 6, and 10's T001 to T004), made merge `a58ffeea` with no conflict. In this note each side changed different sections: item 4's came from `ed48aa5e`, and items 6 and 10 came from `0fd75fbe`. Items 1 to 3 were the same on both sides. Every item's section is whole, in his order: 1, 2, 3, 4, 6, 10.
+
+#### The diff stat against the line's tip, documents only
+
+```
+$ git diff --stat 0fd75fbe HEAD          # at the review section's commit, before this section
+ docs/merge-requests/2026-11-14-night-stack.md      | 246 +++++++++-
+ docs/merge-requests/human-patches/021.md           |   6 +-
+ .../studio-round-1.md                              |  85 ++++
+ .../studio-round-2.md                              | 506 +++++++++++++++++++++
+ 4 files changed, 839 insertions(+), 4 deletions(-)
+$ git diff --stat 0fd75fbe HEAD -- . ':!docs' ':!specs'
+$ git diff --stat fc89bcd1 HEAD -- scripts/studio
+```
+
+The last two print nothing. No file outside `docs/` and `specs/` differs from the line's tip, so no workspace's whole suite is owed. `scripts/studio/` is intake-021's.
+
+SC-006: `git diff --stat <0fd75fbe | ed48aa5e> HEAD -- .claude tools/gates corpus assets CLAUDE.md REVIEW.md .specify/memory/constitution.md evals/agent-config redteam/forbidden-actions.sh` is empty from both bases. No human-only path changed, and no `assets/**` was written.
+
+`/srv/studio/` was only read. The handoff's `records.json` is still `341edde9…f14f9`, and `/srv/studio/briefs/dinosaur/` still holds only `1.json`, `1.result.json`, and `2.json`. Nothing was recorded, copied in, or written there.
+
+#### Runs, at `70475632` (the merge and the fixes above)
+
+The setup target ran first, since there was no `node_modules`: exit 0. Its git-hooks step said the hooks folder "isn't writable here (the agent sandbox)".
+
+`cat /sys/fs/cgroup/cpu.max` gives `400000 100000`, so the container has 4 CPUs today, not the 2 the brief expected. I ran with `--maxWorkers=4`, which is rule 7's quota ÷ period.
+
+Item 4's six vitest files, as rv-intake-021 ran them:
+
+```
+$ cd apps/web && npx vitest run --maxWorkers=4 test/room/avatar-gait.test.ts test/room/avatar-hands.test.ts
+    test/room/avatar-scene.test.ts test/room/compose.test.ts test/room/dinosaur-compose.test.ts test/ui/notes-causes.test.ts
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-13/verify3-021/apps/web
+
+ Test Files  6 passed (6)
+      Tests  318 passed (318)
+   Start at  18:44:15
+   Duration  154.78s (tests 60%, import 38%, transform 1%)
+exit 0
+```
+
+`test/room/twin-2d.test.ts` alone. It's the file named as flaky under load, and it isn't among item 4's six. It was run once anyway:
+
+```
+$ cd apps/web && npx vitest run --maxWorkers=4 test/room/twin-2d.test.ts
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Duration  66.70s (import 95%, transform 4%, tests 1%)
+exit 0
+```
+
+The documents' tests and `line.py`'s tests, from the repository's root:
+
+```
+$ python3 -m pytest evals/test_docs_links.py evals/test_repository_docs.py scripts/studio/test_line.py
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0
+rootdir: /home/h4reet/h4reet-ai/night/2026-11-13/verify3-021
+collected 188 items
+
+evals/test_docs_links.py ............................................    [ 23%]
+evals/test_repository_docs.py .................                          [ 32%]
+scripts/studio/test_line.py ............................................ [ 55%]
+........................................................................ [ 94%]
+...........                                                              [100%]
+
+============================= 188 passed in 15.78s =============================
+exit 0
+```
+
+The lint target, from the repository's root. It exited 0. Shellcheck's file list is left out:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+796 files already formatted
+```
+
+No full suite: only documents differ from the line's tip, and the stack's last task runs it once.
+
+#### Fixed
+
+Documents only, one commit each, as listed under "Review (rv-intake-021, rv-record-dino-r2)" above:
+- `b3bf5e2b`: finding 1
+- `9aeeeb0b`: nit 3
+- `cb33ff99`: nit 4
+- `cfe78261`: rv-intake-021's nit 3
+- `86e48d02`: rv-intake-021's nit 4
+- `3bf6495b`: the status lines
+- `70475632`: the review section
+
+No code, test, plan, `spec.md`, or contract changed. Q222 and Q223 are written as follow-ups for his answer. No run failed, so there was nothing to fix test-first.
+
+Commit hooks: each of this session's commits printed gitleaks' "no leaks found" and `arrival-check: 0 findings in <n> file(s)` (0 to 2 files).
+
+#### Interruptions (rule 5)
+
+None from a hook, the bash gate, or the filesystem. One slip of my own: a first lint run started in `apps/web`, where the shell had been left, and stopped with `make: *** No rule to make target 'lint'.` I ran it again from the repository's root. Nothing was respelled. I didn't open, view, copy, or list the inbox, the dog's photos folder, or the handoff's renders.
+
+verify3-021: green
+
+---
+
 ## Item 5: spec 022, the corpus from the film scripts (`night/impl-022/impl-022`, finished on `night/impl2-022/impl2-022`, reworked on `night/rework-022/rework-022`, then on `night/rework2-022/rework2-022`, then on `night/rework3-022/rework3-022`, then on `night/rework4-022/rework4-022`, then on `night/rework5-022/rework5-022`)
 
 Spec: specs/022-corpus-from-film-scripts/ · Written by: implementer (night shift): impl-022 (T001 to T006, T008 to T010), then impl2-022 (T011), then rework-022 (rv-impl-022's blocking I-1 and I-2, and N-2, N-4), then rework2-022 (rv-rework-022's blocking F-1 to F-3), then rework3-022 (rv2-rework2-022's blocking B-1 to B-3), then rework4-022 (rv-rework3-022's blocking B-4 to B-8, and N-3), then rework5-022 (rv-rework4-022's blocking F-1 to F-3, F-4, N-1, N-2), all Claude Opus 5.5; reviewed by workers who didn't write it (rv-impl-022, T007; rv-rework-022, the rework; rv2-rework2-022, the second rework; rv-rework3-022, the third; rv-rework4-022, the fourth; rv-rework5-022, the fifth) · Date: 2026-11-14
@@ -1154,3 +1786,449 @@ Interruptions:
 7. rework4-022: the bash gate refused a `git diff --stat` it had prefixed with `-c core.hooksPath=/dev/null` ("redirecting git hooks or config"). The flag served no purpose; rework4-022 ran `git diff --stat` without it.
 8. rework5-022: the session's permissions refused a `sed -n` range read of the Makefile, run to see how the lint target enters its container. rework5-022 read the same lines with `grep -n` instead: a read-only lookup by another tool, not the refused words respelled.
 9. rework5-022: the bash gate refused a shell command that edited these notes from a heredoc ("redirecting git hooks or config"): a false match on the notes' text, which quotes interruption 7's flag. The script was written with the Write tool instead and run by its path, as rule 5 directs.
+
+---
+
+## Item 6: spec 023, the resume PDF redone with links from the films (`night/impl-023/impl-023`)
+
+Spec: specs/023-resume-pdf-with-film-links/ · Intent: intent/023-resume-pdf-with-film-links.md · Written by: implementer (night shift, impl-023, Opus 5.5); the review is for a worker who didn't write the code · Date: 2026-11-14
+Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl-023 · Repo hooks active: the commit hooks ran (gitleaks, arrival check) on every commit
+Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at the top of plan.md and tasks.md), the spec, and the plan, as reworked twice (rv-spec-023, rv-rework-spec-023). Every question about spec 023 on the page (Q25 to Q31, Q98) is answered: recommended, under the orders file's rule ("any new one: the recommended answer stands").
+
+Branch: `night/impl-023/impl-023`, from `night/rework2-spec-023/rework2-spec-023` (885befce), with `night/verify2-020/verify2-020` (3767859f, items 1 to 3) merged first, no conflict. One commit per task, `wip(impl-023): T0nn …`, each test seen RED before its code.
+
+### What changed and why
+
+His item, word for word: "6. b) "re-do PDF resume with links from films"".
+
+Four claims in his approved PDF's twin section become links to their films' landing pages in the repository. **The room keeps serving C-0002's file**: the night built a candidate beside it, `apps/web/content/candidates/resume-author-links.pdf`, which no build step reads. Publishing it is his: a `git mv` and one approval entry on `main`, after the repository is public and he has clicked each link (below).
+
+Candidate SHA-256: `5de0e7eeaed34587d4d79e29f0cbfb7c577a224ce31616f1d75fcbe4e0ff21fb`
+
+| Claim, as the PDF shows it | Link (the film's landing page) |
+|---|---|
+| LOCAL MODELS FIRST | https://github.com/hareet/h4reet-ai/tree/main/films/local-first |
+| A REAL-TIME COST METER | https://github.com/hareet/h4reet-ai/tree/main/films/cost-meter |
+| A $5-A-DAY KILL SWITCH | https://github.com/hareet/h4reet-ai/tree/main/films/kill-switch-b2 |
+| EVERY DATA FLOW DISCLOSED | https://github.com/hareet/h4reet-ai/tree/main/films/data-flows |
+
+The table's one home is `films/resume-links.json` (with `pdf_sha256`, the hash above); the code and the checks read it, and these notes quote it.
+
+What was built, each task test-first (T001 to T010; notes in `specs/023-resume-pdf-with-film-links/notes.md`):
+
+- **The table** (T001, T002): `films/resume-links.json`, the claims in the PDF's own capitals as pdf.js reads them, each film's folder and MP4 (`kill-switch-b2`'s is `media/kill-switch.mp4`; no film file renamed), and `pdf_sha256`.
+- **The locator and the writer** (T003 to T005): `apps/web/build/film-links.ts`. T003's read of the approved file: PDF 1.4, a classic xref table, page `2 0`, an inline `/Annots` of four links, no `/ID` in the trailer, each claim one letter-spaced run on one line. `locateClaims` matches whole text runs case-blind with whitespace removed (a wrapped claim gets one rectangle a line) and fails naming a claim that's absent or there twice. `addLinks` appends an incremental update (the page object under its own number with `/Annots` extended, four `/Annot /Link` objects with `/Border [0 0 0]`, `/QuadPoints`, a `/URI` action, and nothing drawn; an xref section; a trailer with `/Prev`), writes nothing time-based, and refuses any file whose SHA-256 isn't C-0002's. No command line: the candidate was written by one opt-in vitest case (`WRITE_CANDIDATE=1`).
+- **The candidate** (T006, T007): 245,437 bytes, C-0002's 243,644 as its prefix plus 1,793 appended. It passes PDF1 to PDF9 under the tree's header, is one page, and keeps the file's four links first; `tools/gates/arrival_check.py`, run read-only: 0 findings.
+- **The checks' three states** (T006; FR-013): `apps/web/test/content/film-links.test.ts`, cases 0 to 11. On this branch the state is "before": cases 0 to 9 and 11 run, 10 skips ("before: not published yet"). Rehearsed in an exported copy (never on the branch): with the candidate moved onto the served path, the state reads "published", cases 5, 7, 8, 9 skip ("published: the served file is the candidate"), and case 10 and `author-pdf.test.ts`'s "the Author's PDF in this tree" pass, with no test edited (`Test Files 2 passed (2) · Tests 36 passed | 5 skipped (41)`).
+- **The notes** (T008): human patch 023's hash, and this item's table and "For the Author" (case 9 holds both to the table).
+- **RESUME-LINKS-PLAN** (T009; Q98): four dated note lines beside step 5 and the three open decisions; his session's text unchanged (`git diff --word-diff`: no removed word).
+- **The disclosure** (T010; FR-011): one sentence in V1's Trigger, after "following the PDF link": " (a link in the downloaded PDF, such as a claim's link to its film's page in the repository on github.com, isn't this row's flow: only when the visitor clicks it does the visitor's own PDF viewer, or the browser it opens, send the request, from the visitor's device to that host; the site's origin isn't involved)". The host is plain text, so the disclosure gate doesn't count it as disclosed (rv-rework-spec-023's R1). Case 11, added, holds its three copies in spec, plan, and tasks alike and the row holding it.
+
+Departures, in plan.md's "Departures in the implementation": case 11 added; the nit's wording; the claims in capitals; no `/ID` to copy; `pdfinfo` not installed here; and case 2 reading the gate's export (no `.git`) as the commit's files. Untouched (FR-004, FR-005): `resume.yaml`, its lock, the narration, the served PDF, `assets/**`, `corpus/**`, `.claude/**`, and `build/resume-pdf.ts`'s allowlist (`git diff --name-only` over those paths from the merge commit: none).
+
+### Acceptance criteria
+
+FR-001, FR-002: cases 3, 4, 5 (the four URLs, in the table's order, after the file's own). FR-003: case 1; the hash only in the table (cases 0, 9). FR-004, FR-005: untouched (above); every link passes PDF5 as it is (case 6). FR-006: case 4 (the prefix, the guard), case 7. FR-007, FR-010, SC-005: "For the Author" below, case 9. FR-008: the candidate's path; no build step reads it (`contentFiles` lists `resume.yaml`, `narration/`, `room/`, `room/outlines/`; `resumePart` reads only the served path). FR-009, SC-002: case 5. FR-011: case 11 and the disclosure runs below. FR-012: case 2. FR-013: cases 0, 5, 7 to 10 and their skip titles; "neither" seen in T006's RED, "published" in the rehearsal above. SC-001: by file existence (case 2), and by his click after publication. SC-003: the served file is untouched (case 0 reads it as C-0002's). SC-004, US1-AC3: case 8.
+
+### Constitution check
+
+I (local-first): a static file, $0, no run-time dependency. IV: no agent wrote `assets/policy/**` or the served file; the writer runs only in an opt-in vitest case, never from anything the Author runs; the human-only gates were run read-only, never edited. VII and VIII: no new claim about him; the claims are C-0002's own text, and the links are pointers. The repository's URL is the corpus's, in his words (`corpus/08-hareet-ai.md`). Data flow: V1's Trigger has one sentence (FR-011). No control deferred or dropped.
+
+### Review
+
+The reviewer follows this branch (rv-impl-023, rule 6; T011 is theirs). The spec's reviews:
+
+- **rv-spec-023** (B1 to B3, I1, I2, N1 to N5, two nits) and **rv-rework-spec-023** (R1, I-1, N1 to N5, a nit): blocking, fixed by the two reworks (`specs/023-*/analysis.md` maps each to where it's fixed).
+- **rv-rework2-spec-023**: not blocking. Its two nits: (1) FR-011's sentence could say "the visitor's own PDF viewer, or the browser it opens, sends the request" (with Q31). **Fixed** in T010, the same words in its three copies, held alike by case 11. (2) The appended trailer's second `/ID` may change, deterministically. **Moot here**: the approved file's trailer has no `/ID` (T003), so the writer writes none. It copies an original's `/ID` unchanged when there is one (case 4, over PDFKit's), so the output stays deterministic.
+- The analysis's F2 (the spec names the kinds of skip; the plan the titles): kept, as the analysis left it.
+
+Found by this session, not blocking: the new links carry no `/StructParent`. The file is tagged, and adding the links to its structure tree would rewrite more objects than US1-AC3 allows, so a screen reader reads the claims' text as before but doesn't announce the links. And the locator matches whole text runs only: a claim inside a longer run would read "isn't on the PDF". That is enough for his file (each claim is its own run) and fails loudly otherwise.
+
+### Review (rv-impl-023)
+
+On impl-023's code (6b62a838), by a worker who didn't write it: nothing blocking. Its findings, none fixed here (rule 6: they go in this note):
+
+- **N1**: cases 1 and 2 pin the repository's URL and the films' names, which the table should own (US3-AC1).
+- **N2**: the four new links carry no `/StructParent` (page Q185).
+- **N3**: `treeState()`'s one `"absent"` sentinel, used for both hashes, misnames case 0's cause.
+- **N4**: FR-011's changed words aren't in spec.md's history.
+- **N5**: case 10 was rehearsed for route (a) only.
+- Wording nit: "answered: recommended" would read better as "taken provisionally". Listed, and the words stay: they are the orders' words for the page.
+
+### Verification (small runs only, the order's rule 4)
+
+The test files this item adds or changes, those covering the files it changes (`resume-pdf.ts`'s, which the new code imports; the disclosure's), the disclosure gate run read-only, and the docs' links. At the branch's tip, from the root and `apps/web`:
+
+```
+$ (apps/web) npx vitest run test/content/film-links.test.ts test/content/author-pdf.test.ts test/disclosure.test.ts test/site.test.ts
+     × gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+     × names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ Test Files  1 failed | 3 passed (4)
+      Tests  2 failed | 64 passed | 2 skipped (68)
+$ pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py deploy/scripts/test_preflight.py
+FAILED evals/test_disclosure.py::test_the_rooms_rows_are_in_its_own_section_with_the_specs_words
+1 failed, 204 passed in 2.15s
+$ python3 -I -B -X pycache_prefix=/dev/null -m pytest -q -p no:cacheprovider tools/gates/test/test_disclosure_check.py
+13 passed in 0.23s
+$ python3 -I -B -X pycache_prefix=/dev/null tools/gates/disclosure_check.py
+disclosure-check: PASS, every outward thing the tree holds has its row
+$ python3 -I evals/docs_links.py
+docs links: 0 failed, 2434 relative links in 401 files
+```
+
+The three failures are **D-V2's** (Q164, carried under Q165): V1's Carries cell as item 1 changed it, against tests that pin it to spec 002's and 016's words. They aren't this item's. They fail the same with the disclosure file as it was before T010 (`test/disclosure.test.ts`: `Tests 2 failed | 9 passed (11)`; `evals/test_disclosure.py`: `1 failed, 35 passed`, the same names). In an exported copy with `docs/merge-requests/proposed/018-verify-test-amendments.patch` applied to the copy only, never to this branch, with this item's disclosure: `test/disclosure.test.ts test/site.test.ts`: `Test Files 2 passed (2) · Tests 27 passed (27)`; `evals/test_disclosure.py`: `36 passed`.
+
+`film-links.test.ts` alone, verbose: cases 0 to 9 and 11 pass; 10 skips ("before: not published yet"); the writer case skips ("WRITE_CANDIDATE=1 only"). `Tests 11 passed | 2 skipped (13)`, in the worktree and in a `git archive HEAD` export with no `.git`, as the gate runs it.
+
+`make lint`, exit 0 (shellcheck's file list left out):
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+778 files already formatted
+```
+
+No full suite here: the stack's one `make check` is another task's (rule 4; the supervisor's instruction).
+
+### Cost and data-flow impact
+
+$0, no model call, no new service, endpoint, or telemetry. Link clicks happen in the reader's PDF viewer and aren't visible to the site, by design. One sentence in V1's Trigger: a click sends a request from the visitor's device to github.com, not through the site's origin.
+
+### For the Author
+
+**Before publishing**, both must be true (FR-010; RESUME-LINKS-PLAN step 6): the repository is public (the links 404 until then), and you have clicked each of the four links from the PDF itself, on desktop and on a phone, and each lands on its film's page and the film plays.
+
+**Route (a), the night's candidate.** Check it with your own tools: `sha256sum apps/web/content/candidates/resume-author-links.pdf` (the hash above) and `pdfinfo -url apps/web/content/candidates/resume-author-links.pdf` (the four links above, plus the file's own four: your contact, github.com/Hareet, and hareet.ai twice). Then, on `main`, after this stack is merged, in one commit: `git mv apps/web/content/candidates/resume-author-links.pdf apps/web/content/resume-author.pdf`, and one new entry in `assets/policy/content-approvals.json` (human patch 023, `docs/merge-requests/human-patches/023.md`):
+
+```json
+{"id": "<the next free ID on main when you add it: C-0005 today>", "path_when_approved": "apps/web/content/resume-author.pdf", "kind": "resume",
+ "sha256": "5de0e7eeaed34587d4d79e29f0cbfb7c577a224ce31616f1d75fcbe4e0ff21fb",
+ "date": "<yours>", "reason": "<your words>"}
+```
+
+That puts the link checks in their "published" state (the candidate file absent, the served file's hash the table's) with no test edited.
+
+**Route (b), your own render** (RESUME-LINKS-PLAN steps 1 to 4). In `resume/source/twin.html`, wrap each claim's text in its link, keeping the words as your source has them (only the `href` comes from the table):
+
+```html
+<li><a href="https://github.com/hareet/h4reet-ai/tree/main/films/local-first">Local models first</a></li>
+<li><a href="https://github.com/hareet/h4reet-ai/tree/main/films/cost-meter">A real-time cost meter</a></li>
+<li><a href="https://github.com/hareet/h4reet-ai/tree/main/films/kill-switch-b2">A $5-a-day kill switch</a></li>
+<li><a href="https://github.com/hareet/h4reet-ai/tree/main/films/data-flows">Every data flow disclosed</a></li>
+```
+
+and add `.twin__proof a { color: inherit; text-decoration: none; }` to its style. Step 2: render with `resume/source/render.sh twin` and check it's still one page. Step 3: `pdfinfo -url out/twin.pdf` lists the four URLs. Step 4: export the copy you send as before. Then, on `main` after the merge, in one commit: your render at `apps/web/content/resume-author.pdf`, `pdf_sha256` in `films/resume-links.json` set to its SHA-256, `apps/web/content/candidates/resume-author-links.pdf` removed, and the entry above with that hash. Without the table's hash the checks fail, naming the three hashes (FR-013).
+
+What waits for you, item 6 (none of it is needed for this item's gate):
+
+1. **Your approval entry** (human patch 023), on `main` after the merge, with the `git mv` or route (b)'s render, after the repository is public and you have clicked each link.
+2. The page's Q25 to Q31 and Q98, each answered with its recommended answer under your order; you confirm or overturn them there.
+3. Nothing else of yours: no human-only path is changed on this branch, and no corpus change is proposed.
+
+Open for others: rv-impl-023's review (T011); T012, the stack's one `make check`, isn't this task's (the supervisor's instruction). verify-021 isn't merged here: the stack note on `refs/heads/night/verify-021/verify-021` (68f1eced) doesn't end item 4 with "verify-021: green" (its last line is item 4's "Interruptions"), so the line's tip for this branch stays verify2-020 (3767859f).
+
+Interruptions: none. No hook or bash-gate refusal in this session.
+
+### Verification (rule 7, verify-023)
+
+Branch `night/verify-023/verify-023`, from the line's tip, verify-021 (b3d043a2: items 1 to 4 verified), by a different worker (Opus 5.5) from item 6's implementer. Item 5 (spec 022) is still in rework, so item 6 goes on the line first: its review cleared first. Read under Q165, as verify-020 and verify-021 read it.
+
+#### The merge
+
+`git merge refs/heads/night/impl-023/impl-023` (6b62a838): merge commit 0ddfefe9. One conflict, this note: items 4 and 6 were both appended after item 3. Resolved with item 4's section whole as the line has it, then `---`, then item 6's whole as impl-023 wrote it (no line of either side removed). No code conflict. The merge brought no Python change.
+
+The setup target was run first (no `node_modules`); its git-hooks step said the hooks folder "isn't writable here (the agent sandbox)".
+
+#### Runs at the merge (0ddfefe9)
+
+Item 6's files (`git diff --stat b3d043a2...HEAD`: one test file, `test/content/film-links.test.ts`, and the code it tests, `build/film-links.ts`), with `author-pdf.test.ts` (the served PDF's checks, which `film-links.ts` imports from `build/resume-pdf.ts`), and the disclosure's and the site's tests (row V1 changed):
+
+```
+cd apps/web && npx vitest run test/content/film-links.test.ts test/content/author-pdf.test.ts test/disclosure.test.ts test/site.test.ts
+     × gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+     × names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ Test Files  1 failed | 3 passed (4)
+      Tests  2 failed | 64 passed | 2 skipped (68)
+   Duration  52.02s (tests 89%, import 10%, transform 1%)
+```
+
+`film-links.test.ts` verbose: cases 0 to 9 and 11 pass; case 10 skips ("before: not published yet"), and the writer case skips ("WRITE_CANDIDATE=1 only"). `Tests 11 passed | 2 skipped (13)`. The tree is in the "before" state: the candidate is still a candidate.
+
+```
+pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+FAILED evals/test_disclosure.py::test_the_rooms_rows_are_in_its_own_section_with_the_specs_words
+1 failed, 79 passed in 1.11s
+```
+
+`test/disclosure.test.ts` fails only in D-V2's two cases, and `evals/test_disclosure.py` only in D-V2's one (Q164).
+
+**Carried (Q165), confirmed on a copy.** `git archive HEAD` (0ddfefe9) into a fresh `/tmp` folder (`mktemp -d`), `git apply docs/merge-requests/proposed/018-verify-test-amendments.patch` there (`--check` clean; 4 files changed, 43 insertions, 11 deletions), the worktree's `node_modules` linked in. Never applied on the line; no test file edited.
+
+```
+cd <copy> && pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+80 passed in 1.43s
+cd <copy>/apps/web && npx vitest run test/disclosure.test.ts test/site.test.ts test/room/legibility.test.ts test/room/report.test.ts test/content/film-links.test.ts
+ Test Files  5 passed (5)
+      Tests  83 passed | 2 skipped (85)
+   Duration  61.06s (tests 80%, import 17%, transform 3%)
+```
+
+With item 6's row V1 and the patch, the disclosure's tests pass, and `film-links.test.ts`'s case 11 still holds V1's Trigger.
+
+All of `apps/web`, at a60f66d9 (0ddfefe9 plus this section's first lines; 2325 s):
+
+```
+cd apps/web && npx vitest run
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ Test Files  3 failed | 187 passed (190)
+      Tests  6 failed | 3766 passed | 3 skipped (3775)
+   Duration  2324.98s (tests 73%, import 27%)
+```
+
+The six are exactly D-V2's, the same as verify-018's to verify-021's full runs, and they pass on the patched copy above. `test/room/twin-2d.test.ts` passed in this run, so it needed no rerun. Against verify-021's full run: one test file and thirteen tests more (`film-links.test.ts`'s 11 passing and 2 skipped).
+
+The lint target, exit 0 (shellcheck's file list left out), with this section's runs above already in the note:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+786 files already formatted
+```
+
+No Python changed, in item 6 or the merge, so no `pytest` folder run beyond the disclosure's and the docs' evals above.
+
+#### Fixed
+
+Nothing: no failure outside D-V2's six, so no code, test, or plan changed. This branch changes only this note: the merge's resolution, rv-impl-023's findings (above, not fixed, rule 6), and this section. The candidate stays a candidate (rule 2): `git diff --stat b3d043a2 HEAD -- apps/web/content/resume-author.pdf assets .claude tools/gates corpus CLAUDE.md REVIEW.md .specify/memory/constitution.md evals/agent-config redteam/forbidden-actions.sh` is empty, and `sha256sum apps/web/content/candidates/resume-author-links.pdf` gives `5de0e7eeaed34587d4d79e29f0cbfb7c577a224ce31616f1d75fcbe4e0ff21fb`, the table's `pdf_sha256`. Publishing it is still his: human patch 023, after the gate and the merge, then his approval entry.
+
+Item 6's "Open for others" line above is impl-023's, written before verify-021 was green. It now stands on the line after item 4 (verify-021: green, carrying D-V2's six).
+
+Commit hooks: each of this session's commits printed gitleaks' "no leaks found" and an `arrival-check: 0 findings in <n> file(s)` line (the merge: 14 files).
+
+Interruptions: none. No hook, bash-gate, or harness refusal in this session.
+
+verify-023: green, carrying D-V2's six (Q165)
+
+---
+
+## Item 10: spec 027, when the twin's file context stops being enough (`night/impl-027/impl-027`)
+
+Spec: specs/027-corpus-retrieval-adr/ · Intent: intent/027-corpus-retrieval-adr.md (draft) · ADR: docs/adr/0054-when-file-context-stops-being-enough.md (proposed) · Written by: implementer (night shift, impl-027, Opus 5.5); the review is for a worker who didn't write the code (T006; the reviewer follows this task) · Date: 2026-11-14
+Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl-027 · Repo hooks active: each commit printed gitleaks' "no leaks found" and an `arrival-check: 0 findings in <n> file(s)` line (verify-027's commits, below); the setup target's own git-hooks step can't install hooks from the sandbox ("isn't writable here (the agent sandbox); the Author runs make git-hooks")
+Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at the top of plan.md and tasks.md), the spec, and the plan as reworked twice (rv-spec-027, rv-rework-spec-027). Every question about spec 027 on the page (Q129 to Q138, Q144, Q145, Q157) is answered: recommended, under the orders file's rule ("any new one: the recommended answer stands"). Base: rework2-spec-027's tip (13e1da8c), with `night/verify2-020/verify2-020` (3767859f, items 1 to 3) merged as T001, then `night/verify-021/verify-021` (item 4) merged last (below).
+
+### What changed and why
+
+His item j): "future knowledge corpus gains answers or more questions as we go to RAG then we go to vector DB and answers to why we are okay using file context as of now and this size". Its first step is ADR 0054, on when file context stops being enough, with today's corpus measured; it is built only as far as that ADR decides (Q1): no retrieval, nothing the twin reads at run time changes.
+
+- **The size check** (`apps/web/build/corpus-size.ts`, T003): measures the topic and facts files (bytes, words, characters), and, by the fit check's own functions (`fitProblems`' room, `renderRules`, `renderSection`, `instructionsChars`, `fitLimits`), the room a turn's grounding has, each pack topic's grounding, share, and margin, each selectable's longest lead beside it, each topic file as if it were a topic, free talk's share, and the pack's size. It names the stage ADR 0054's three thresholds call for (T1: a topic past the room; T2: free talk under 5% of the rankable sections; T3: the pack past 10 MiB or 10,000 sections). A crossing or a band is a note on stderr, never a failure (Q4). `twin-pack.ts` is unchanged.
+- **The record** (`docs/corpus-size.json`, T004): written by `npm run twin:pack -w apps/web`, whose script now runs the check after the pack (`&&`, so a failed pack writes no record). No commit, no date: two runs give the same bytes. Nothing at run time reads it.
+- **Its test** (`apps/web/test/corpus-size.test.ts`, T002, written and seen failing first): fresh (a stale record fails, naming the command), deterministic, room parity with `fitProblems` on a two-file topic, one character across T1 flipping the stage with one note, a file no topic holds never crossing, the lead counted beside T1 and its template held to the gateway's `renderLead`, T2's and T3's edges, the defaults, reads only, words.
+- Departures in plan §9, D1 to D5 (`computeRecord`; the budgets' source read with the workspace's `yaml`; the import path; small exports; the stage's edges).
+
+### The record's stage
+
+**Stage 0; T1 in band** for mission (21,045 of the room's 21,182, 137 left) and hobbies and travel (20,916, 266 left, 225 after the snowboard's 41-character lead). Free talk 11.7% (9,160 of 78,202); the pack 131 sections, 153,697 bytes. Every figure equals the one ADR 0054 took by a replica at 3c0e4cd0, so T005 has no difference to record (R-1). The command's own lines:
+
+```
+$ npm run twin:pack -w apps/web
+twin:pack: wrote config/twin/corpus.json: 131 sections, 3 topics; 186 cases
+corpus:size: T1 band: the topic hobbies-and-travel is within 266 characters of T1 (20,916 of the room's 21,182; ADR 0054)
+corpus:size: T1 band: the topic mission is within 137 characters of T1 (21,045 of the room's 21,182; ADR 0054)
+corpus:size: wrote docs/corpus-size.json: stage 0; mission 21,045 of 21,182
+$ git diff --exit-code --stat -- config/twin/ evals/product/cases/
+(no output; exit 0: the pack, the cases, and the readiness hashes didn't move, SC-004)
+```
+
+### Acceptance criteria
+
+FR-008 (deterministic, reads only), FR-009 (the fields), FR-010 (room parity; the lead), FR-011 (one note at T1, exit 0), FR-012 (fresh, naming the command), SC-002 (one character flips the stage), SC-003 (one small file): `test/corpus-size.test.ts`. FR-013 and SC-004: T004's `git diff --exit-code` above. FR-001 to FR-007 and FR-014 are the ADR's, drafted on the spec's branch; T005 finalizes its figures (below), and T006 reviews them.
+
+### Verification (small tests, the order's rule 4)
+
+Per task (in `apps/web`): T002 RED (`Cannot find module '../build/corpus-size'`; `make lint` failing on tsc's TS2307, as a RED test must); T003 GREEN but "fresh" (`Tests 1 failed | 43 passed (44)`, the failure `docs/corpus-size.json is missing or stale: run npm run twin:pack -w apps/web and commit it`); T004 all GREEN:
+
+```
+$ npx vitest run test/corpus-size.test.ts test/twin-pack.test.ts
+ Test Files  2 passed (2)
+      Tests  44 passed (44)
+   Duration  43.26s (tests 44%, import 39%, transform 16%, worker 1%)
+```
+
+`make lint` after T003 and after T004: exit 0 (eslint with zero warnings, tsc for the three workspaces, prettier, ruff, ruff format "779 files already formatted", shellcheck). The full lint output and each task's run are in `specs/027-corpus-retrieval-adr/notes.md`. No full suite here: the stack's one `make check` is another task's.
+
+**verify-021's merge** (step 5 of the supervisor's task): verify-021's stack note ends item 4 with "verify-021: green, carrying D-V2's six (Q165)", so `git merge refs/heads/night/verify-021/verify-021` (b3d043a2) is the line's new tip here, merge commit 1da30321. One conflict, in this note, both sides having added a section after item 3: resolved as items 1 to 4 exactly as verify-021 has them, then item 10 whole. No code conflicted; verify-021 touches nothing the record measures (`git diff --stat HEAD...refs/heads/night/verify-021/verify-021 -- corpus/ config/ apps/web/package.json apps/web/build/twin-pack.ts docs/adr/ docs/corpus-size.json`: empty). Small tests rerun after the merge, from the worktree's root (the record still fresh at the new tip):
+
+```
+$ cd apps/web && npx vitest run --reporter=verbose test/corpus-size.test.ts test/twin-pack.test.ts
+ ✓ test/corpus-size.test.ts (15 tests: fresh 17ms, deterministic 10ms, every other case 0 to 1ms)
+ Test Files  2 passed (2)
+      Tests  44 passed (44)
+   Duration  45.43s (tests 40%, import 36%, transform 23%, worker 1%)
+$ python3 -I -m pytest -q -p no:cacheprovider evals/test_docs_links.py
+44 passed in 0.88s
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+787 files already formatted
+(shellcheck: no finding; exit 0)
+```
+
+The check's own 15 cases take about 35 ms together (SC-003: under 2 seconds); the rest of the run is the two site builds every `apps/web` vitest run makes first. None of D-V2's six (Q165) is in these files, so none was hit.
+
+### Review (rv-impl-027)
+
+rv-impl-027 (T006, a worker that didn't write T002 to T004): nothing blocking. Its nits, as the supervisor relayed them; N1, N3, and N4 are recorded here, not fixed (rule 6), and N2 is fixed in the documents:
+
+- **N1**: `limits.source` reads `"defaults"` when `limits.twin` holds only some of its keys (D2's rule: all three keys as integers, or `"defaults"`), though the keys it holds are used.
+- **N2**: plan §9 lacked T001's departure, the merge onto the line before item f. **Fixed** by verify-027 in its own commit, documents only (37ffc54f): plan §9's D6 (Q171).
+- **N3**: band notes print while `band` omits a crossed T1 (my reading: with T1 crossed by one topic, another topic within T1's band still gets its stderr note, but D5 keeps a crossed threshold out of `band`, so the record and the notes disagree).
+- **N4**: a room of zero or less writes `share: null` in the record.
+
+### What waits
+
+- **T008** (the record in both pending corpus patches, Q145), **T005's patch figures and its measurement commit** (the ADR moves "Measured on `main` at 3c0e4cd0" to T004's commit, 0d257fe6 or its hash on the line, and takes the patches' figures from T008's records), and **T007's patch figures**. They need spec 022's `docs/merge-requests/2026-11-14-corpus-film-scripts.patch` and spec 026's dog-intro patch on the line; impl-022 and impl-026 build them beside this task, and neither was on the line's tip at T001. A later task finishes them once both are (Q171).
+- For that task: rework2-spec-027 read 026's patch at b12ac0ba; 026's final tip (9bba8f36) changed `04`'s framing line, not FR-021's bullet, so T005's final figures still come from T008's records. Projected until then: 026's patch takes hobbies and travel past T1 (−7) and leaves mission 1 character; 022's then takes mission past T1.
+- **T006**: the review, by a worker that didn't write T002 to T004.
+- **A note for whoever merges an item after this one**: the record's freshness test fails on a change to `corpus/` topic or facts files, `config/twin/prompt.md`, `config/twin/corpus.json`, or `config/budgets.yaml`'s `limits.twin` made without `npm run twin:pack -w apps/web`; its message names the command, and the pack's own freshness test already needs the same command (R-2).
+
+### Cost and data-flow impact
+
+$0, and no model call: the check runs at build time, in process, reading committed files. No byte leaves a device; no span, panel, or disclosure row (spec, "Cost, degraded mode, telemetry, disclosure"; Q5). Nothing at run time changes, so the degraded modes are ADR 0040's.
+
+### For the Author
+
+- **Human patch 027** (`docs/merge-requests/human-patches/027.md`): none needed. Spec 027 changes no human-only path; nothing under `corpus/` is written (T008, later, writes only each pending proposal's recorded blob ID and SHA-256 under `corpus/proposals/`).
+- **ADR 0054, as proposed**: yours to accept, amend, or reject at the merge. Its thresholds live in one place (`THRESHOLDS` in `apps/web/build/corpus-size.ts`); a change to one is an ADR amendment in the same commit.
+- **FR-002**: ADR 0054's measurement commit is in `main`'s history only if you merge the line without squash or rebase.
+- **The pending corpus patches**: the one you apply second is rebuilt on the first. Once you apply either and the record reads "stage 1 due", stage 1's spec (retrieval within a topic) is the next item (Q144).
+- The questions on the morning page with their recommended answers (Q1 to Q8, Q144, Q145, Q157; spec 027's page numbers Q129 to Q138, Q144, Q145, Q157). This task adds none.
+
+Interruptions: none. No hook or bash-gate refusal in this session.
+
+### Verification (rule 7, verify-027)
+
+Branch `night/verify-027/verify-027`, from the line's tip, verify-023 (bb839ff1: items 1 to 4 and 6), by a different worker (Opus 5.5) from item 10's implementer. Items 5 and 7 are still in rework, so item 10's first part (T001 to T004) goes on the line now. Read under Q165, as verify-020 to verify-023 read it.
+
+#### The merge
+
+`git merge refs/heads/night/impl-027/impl-027` (469531f8): merge commit 7d4a87cf. The one conflict was this note: resolved with items 1 to 4 and 6 whole as the line has them, then item 10 whole as impl-027 wrote it, in his order. No code conflict. rv-impl-027's N2 fixed in its own commit, documents only (37ffc54f); N1, N3, N4 recorded above, not fixed.
+
+#### Runs at the merge (3a692923)
+
+Item 10's two files, from `apps/web` (the record's "fresh" case passes after the merge, so no input moved and `twin:pack` wasn't rerun):
+
+```
+$ npx vitest run test/corpus-size.test.ts test/twin-pack.test.ts
+ Test Files  2 passed (2)
+      Tests  44 passed (44)
+   Duration  42.75s (tests 38%, import 36%, transform 25%, worker 1%)
+$ python3 -m pytest evals/test_docs_links.py
+44 passed in 0.92s
+```
+
+All of `apps/web` (1168 s):
+
+```
+$ cd apps/web && npx vitest run
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ FAIL  test/room/scan.test.ts > the committed tree (T107; FR-007, SC-001, User Story 1 scenario 4) > finds 0 IDs only the room's data defines in the room's code
+ Test Files  4 failed | 187 passed (191)
+      Tests  7 failed | 3780 passed | 3 skipped (3790)
+   Duration  1167.66s (tests 72%, import 28%)
+```
+
+Six are D-V2's (Q165). The seventh is item 10's own: spec 004's FR-007 scan, which reads test files too, finds the room's selectable ID `bicycle` as a fixture ID in T002's test (57dc60ff), not from the merge. Alone, RED:
+
+```
+$ npx vitest run test/room/scan.test.ts
++     "FR-007 apps/web/test/corpus-size.test.ts:260: holds \"bicycle\", which only the room's data defines",
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 passed (17)
+```
+
+#### Fixed
+
+- **T002's lead fixture** (3c63e2d0, plan §9 D7): the selectable `bicycle` in `test/corpus-size.test.ts`'s lead case is now `fx-bicycle`, in the reserved fixture prefix the scan never hits. The ID is a name only; no assertion changed, and `test/room/scan.test.ts` itself is untouched. Test-first: the scan's RED above, then GREEN:
+
+```
+$ npx vitest run test/room/scan.test.ts test/corpus-size.test.ts
+ Test Files  2 passed (2)
+      Tests  32 passed (32)
+   Duration  50.59s (tests 76%, import 12%, transform 11%)
+$ node_modules/.bin/prettier --check apps/web/test/corpus-size.test.ts
+All matched files use Prettier code style!
+```
+
+`twin:pack` wasn't rerun: no input of the record or the pack moved (the "fresh" case passes).
+
+#### D-V2's six, carried (Q165)
+
+`git archive HEAD` (3c63e2d0) into a fresh `/tmp` folder (`mktemp -d`), `git apply docs/merge-requests/proposed/018-verify-test-amendments.patch` there (`--check` clean), the worktree's `node_modules` linked in. Never applied on the line; no test file of the six edited.
+
+```
+$ cd <copy> && python3 -I -m pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+80 passed in 1.27s
+$ cd <copy>/apps/web && npx vitest run test/disclosure.test.ts test/site.test.ts test/room/legibility.test.ts test/room/report.test.ts
+ Test Files  4 passed (4)
+      Tests  72 passed (72)
+   Duration  62.91s (tests 74%, import 19%, transform 7%)
+```
+
+`test/room/twin-2d.test.ts` passed in the full run, so it needed no rerun alone.
+
+#### Lint, at 3c63e2d0
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+794 files already formatted
+(shellcheck: no finding; exit 0)
+```
+
+No Python changed in item 10 or the merge (`git diff --name-only bb839ff1 HEAD -- '*.py'`: empty), so no `pytest` folder beyond the docs' and the disclosure's evals above. Only `apps/web` changed among the workspaces.
+
+#### What stays as it was
+
+`git diff --stat bb839ff1 HEAD -- corpus config .claude tools/gates CLAUDE.md REVIEW.md .specify/memory/constitution.md evals/agent-config redteam/forbidden-actions.sh assets/policy` is empty. ADR 0054 stays `Status: proposed`. **T005, T007, and T008 still wait** for spec 022's and spec 026's patches on the line (Q171); not this task's.
+
+Commit hooks: each of this session's commits printed gitleaks' "no leaks found" and an `arrival-check: 0 findings in <n> file(s)` line (the fix: 2 files).
+
+Interruptions (verify-027): one bash-gate refusal. Removing my own earlier `/tmp` export (`rm -rf /tmp/verify-027-dv2.<random>`) was refused: "recursive delete outside workspace. Route: delete only inside the repo". I didn't retry it in any form; the copy was made again in a new `mktemp -d` folder, and both `/tmp/verify-027-dv2.*` folders stay for whoever clears `/tmp`.
+
+verify-027: green, carrying D-V2's six (Q165)
