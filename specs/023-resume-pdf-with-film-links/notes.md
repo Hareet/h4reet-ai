@@ -160,3 +160,11 @@ $ (apps/web) npx vitest run test/content/film-links.test.ts
 $ python3 -I evals/docs_links.py
 docs links: 0 failed, 2434 relative links in 401 files
 ```
+
+## A lint failure in my own test, fixed
+
+`make lint` after T009's edit failed on tsc, in the test T006 added: `apps/web/test/content/film-links.test.ts(284,67): error TS2488: Type 'ArrayLike<number>' must have a '[Symbol.iterator]()' method`. Case 10's helper now uses `Array.from(…)`; its own commit, before T009's. Same tests: 10 passed, 2 skipped; `make lint` exit 0.
+
+## T009: dated notes in `films/RESUME-LINKS-PLAN.md` (Q98)
+
+Four added lines, his session's text unchanged: `git diff --word-diff films/RESUME-LINKS-PLAN.md` shows no removed word (`grep -c '\[-'` gives 0; `git diff --stat`: 4 insertions). Beside step 5: the render-not-C-0002 reading, the candidate's place, C-0004 taken and the next free ID his (spec Q6, the page's Q29; Q98). Beside each open decision: the URL (Q3, the corpus's), four claims kept (Q4, the page's Q27), landing pages (Q2, the page's Q26). `make lint`: exit 0 (eslint, tsc for three workspaces, prettier, ruff, 778 files formatted, shellcheck).
