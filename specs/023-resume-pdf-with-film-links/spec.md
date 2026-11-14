@@ -1,6 +1,6 @@
 # Feature Specification: The resume PDF, redone with links from the films
 
-**Feature Branch**: the night's branches: this spec on `night/spec-023/spec-023`, reworked on `night/rework-spec-023/rework-spec-023`; its code on the implementer's `night/impl-023/impl-023`, in the night's one stack (`feat/018-hud-to-dino-stack`, named by the supervisor) · **Created**: 2026-11-14 · **Status**: Draft, clarified provisionally (see Clarifications); reworked 2026-11-14 after rv-spec-023 (B1 to B3, I1, I2, N1 to N5, two nits) · **Intent**: [intent/023](../../intent/023-resume-pdf-with-film-links.md)
+**Feature Branch**: the night's branches: this spec on `night/spec-023/spec-023`, reworked on `night/rework-spec-023/rework-spec-023` and again on `night/rework2-spec-023/rework2-spec-023`; its code on the implementer's `night/impl-023/impl-023`, in the night's one stack (`feat/018-hud-to-dino-stack`, named by the supervisor) · **Created**: 2026-11-14 · **Status**: Draft, clarified provisionally (see Clarifications); reworked 2026-11-14 after rv-spec-023 (B1 to B3, I1, I2, N1 to N5, two nits), and again after rv-rework-spec-023 (R1, I-1, N1 to N5, a nit) · **Intent**: [intent/023](../../intent/023-resume-pdf-with-film-links.md)
 
 **Input**, the Author's item, word for word (night order of 2026-11-13, item 6): "6. b) "re-do PDF resume with links from films""
 
@@ -10,7 +10,7 @@
 
 ### Session 2026-11-14 (spec-writer, under the Author's order of 2026-11-13)
 
-His order: take each recommended answer at clarify and at the plan; each still goes to the morning page. The answers below are the recommended ones, taken provisionally. None is his words; his only words here are the item above and the corpus quotes in Assumptions. On the night's page these are Q25 to Q31 (Q3 was settled by the corpus and not asked), and Q98 below.
+His order: take each recommended answer at clarify and at the plan; each still goes to the morning page. The answers below are the recommended ones, taken provisionally. None is his words; his only words here are the item above and the corpus quotes in Assumptions. Each is taken provisionally under his order of 2026-11-13; he confirms or overturns it on the page. On the night's page, one to one: Q1 = Q25, Q2 = Q26, Q4 = Q27, Q5 = Q28, Q6 = Q29, Q7 = Q30, Q8 = Q31 (Q3 was settled by the corpus and not asked), and Q98 below is the page's Q98.
 
 - Q: What does "links from films" mean (Q1)? → A (recommended, taken): each film-backed claim on the PDF's twin section becomes a clickable link to that film's landing page in the repository. Others: link straight to the MP4; put a QR code or a written URL beside each claim; films embedded in the room's resume (not the PDF).
   Reading: FR-001 to FR-004. The room's on-screen resume stays as approved (C-0001): its contract has no links (resume-source.md §4), and "PDF resume" is his word.
@@ -30,8 +30,12 @@ His order: take each recommended answer at clarify and at the plan; each still g
 
 ### Session 2026-11-14, rework (rv-spec-023's findings and Q98)
 
-- Q98 (asked by rv-spec-023, on the page): rewrite `films/RESUME-LINKS-PLAN.md`'s step 5 and its open decisions in place, or add a dated note beside each? → A (recommended; answered "recommended", the Author 2026-11-13, by his order): add a dated note beside step 5 and beside each open decision, keeping his session's text as written. Reading: T009.
+- Q98 (asked by rv-spec-023, on the page): rewrite `films/RESUME-LINKS-PLAN.md`'s step 5 and its open decisions in place, or add a dated note beside each? → A (recommended, taken provisionally under his order of 2026-11-13; he confirms or overturns it on the page): add a dated note beside step 5 and beside each open decision, keeping his session's text as written. Reading: T009.
 - rv-spec-023's B1 (`kill-switch-b2`'s media is `media/kill-switch.mp4`), B2 (the checks' states before and after publication), and B3 (the disclosure sentence's cell) are findings, not questions: each is fixed in FR-003, FR-006, FR-011, FR-012, US1, and the plan, with no film file renamed.
+
+### Session 2026-11-14, second rework (rv-rework-spec-023's findings)
+
+- No question: R1 (no code span in FR-011's sentence), I-1 (small runs after the stack note's edits), N1 (`films/kill-switch-b2/media/kill-switch.gif` is tracked; the earlier analysis's F3 dropped), N2 (the page's numbers, above), N3 (no answer quoted as his), N4 ("neither", and the candidate file's absence), N5 (the writer is deterministic), and the nit (T007's arrival check) are findings, fixed in FR-011, FR-013, the plan (§2, §3, §5, §7, R-1), and the tasks (T007, T008, T009, T010, T012, T013).
 
 ## User Scenarios & Testing
 
@@ -89,18 +93,18 @@ As the Author and the agents, we want the claim-to-film table in one file, so th
 - **FR-008**: The candidate sits at `apps/web/content/candidates/resume-author-links.pdf`, which no build step reads. No agent writes `apps/web/content/resume-author.pdf` or `assets/policy/`.
 - **FR-009**: A test runs the existing PDF1 to PDF9 against the candidate under a header like `main`'s, a link test (FR-001, FR-002, FR-010) against the table, and a structure test of the appended section (US1-AC3).
 - **FR-010**: The approval request names the candidate's SHA-256, the entry's text (kind `resume`, the next free ID on `main` when he adds it, C-0005 today), and the two things that must be true first: the repository is public, and each link has been clicked from the PDF. It says the entry goes on `main` after the merge, as ADR 0034 orders it.
-- **FR-011**: `docs/data-flow-disclosure.md` row V1's Trigger cell gains this sentence, inserted right after `following the PDF link` and before `, and following "Credits"` (the cell must still end with spec 016's words, which `evals/test_disclosure.py` checks), word for word, between the fences (its backticks are part of it):
+- **FR-011**: `docs/data-flow-disclosure.md` row V1's Trigger cell gains this sentence, inserted right after `following the PDF link` and before `, and following "Credits"` (the cell must still end with spec 016's words, which `evals/test_disclosure.py` checks), word for word, between the fences:
 
   ```text
-   (a link in the downloaded PDF, such as a claim's link to its film's page in the repository on `github.com`, isn't this row's flow: only when the visitor clicks it does the visitor's own PDF viewer send the request, from the visitor's device to that host; the site's origin isn't involved)
+   (a link in the downloaded PDF, such as a claim's link to its film's page in the repository on github.com, isn't this row's flow: only when the visitor clicks it does the visitor's own PDF viewer send the request, from the visitor's device to that host; the site's origin isn't involved)
   ```
 
-  It starts with one space and holds no pipe. No other cell of V1 changes. The disclosure's checks still pass: `apps/web/test/disclosure.test.ts`, `apps/web/test/site.test.ts`, `evals/test_disclosure.py`, and the preflight's.
+  It starts with one space and holds no pipe and no code span: `tools/gates/disclosure_check.py`'s `Rows.read` takes every backticked token in a row as a name the row discloses, so a backticked host here would let a later egress line to that host pass the gate without a row of its own (rv-rework-spec-023 R1). No other cell of V1 changes. The disclosure's checks still pass: `apps/web/test/disclosure.test.ts`, `apps/web/test/site.test.ts`, `evals/test_disclosure.py`, the preflight's, and `tools/gates/disclosure_check.py` with its own tests (run, not edited).
 - **FR-012**: For each row of the table, the tree holds `films/<film>/README.md` and `films/<film>/<media>`, with `<media>` under `media/` and ending `.mp4`, both tracked in git, and the README's "Watch the film" link is `<media>`; a test fails when one isn't so. No film file is renamed.
-- **FR-013**: The checks know three states of the tree, read from the served file's SHA-256, C-0002's in the approvals file, the table's `pdf_sha256`, and whether the candidate exists:
-  - **before** (served file is C-0002's, candidate present, and its hash is `pdf_sha256`): every case but the published one runs, the candidate's and the notes' included (plan §3);
-  - **published** (served file's hash is `pdf_sha256`, `candidates/` gone): the candidate's and the notes' cases skip, each with the reason stated ("published: the served file is the candidate"), and a published case reads the served file's links and checks them against the table; the build's own PDF checks (spec 002; `author-pdf.test.ts` covers their mechanism) check the file at every build;
-  - **neither**: the checks fail, naming the three hashes.
+- **FR-013**: The checks know three states of the tree, read from the served file's SHA-256, C-0002's in the approvals file, the table's `pdf_sha256`, and whether the candidate file (`apps/web/content/candidates/resume-author-links.pdf`) exists; the folder's presence isn't read:
+  - **before** (served file is C-0002's, the candidate file present, and its hash is `pdf_sha256`): every case but the published one runs, the candidate's and the notes' included (plan §3);
+  - **published** (served file's hash is `pdf_sha256`, the candidate file absent): the candidate's and the notes' cases skip, each with the reason stated ("published: the served file is the candidate"), and a published case reads the served file's links and checks them against the table; the build's own PDF checks (spec 002; `author-pdf.test.ts` covers their mechanism) check the file at every build;
+  - **neither** (any other combination): the state case fails, naming the three hashes and whether the candidate file exists; the cases that need a state skip, each with the reason stated ("neither: see the state case"), and the cases that don't need one run (plan §3).
 
 ### Key Entities
 
