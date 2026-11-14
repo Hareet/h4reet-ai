@@ -1,39 +1,65 @@
-# Analysis: spec 021, the dinosaur modeled and brought in
+# Analysis: spec 021, the dinosaur modeled and brought in (re-run after rv-spec-021)
 
-Cross-artifact read of spec.md, plan.md, tasks.md, and the contracts, at `main` 3c0e4cd0, on 2026-11-14. Non-destructive: findings were fixed in the artifacts where they were mine to fix (marked **fixed**).
+Cross-artifact read of spec.md, plan.md, tasks.md, and the contracts, on 2026-11-14, after the rework that rule 6's Opus review (rv-spec-021, Verdict: blocking) asked for. Read against the line, `night/impl-020/impl-020` at 384a0db8, spec 020's rework at 7a002a6a, and `main` 3c0e4cd0 for the policy files. Findings were fixed in the artifacts where they were mine to fix (marked **fixed**). The first run's report is in git history (ee2ecdf2).
+
+## The review's findings, and where each is answered
+
+| Finding | Answered in |
+|---|---|
+| B1: RA9 is spec 020's on the line; the `counts` pin; `RIG_BONES.dog = null`; no "parallel", no "merges first"; spec 019's gait gives no gait to a non-Mixamo rig | Rules are RA10 to RA12 everywhere (spec FR-003 to FR-006, plan R-01, R-08, contracts, tasks), renumbered by impl-021 if the line holds a higher one; R-08 names both pins, `counts` and the lenient list, and R-07 now precedes R-08 (N1); `dog: null` in spec Q7, FR-005, plan R-05, §4, the contract, T003; plan §3 and §4 and the spec's US1 and Edge Cases say the gait applies none (spec 019's FR-008); T002 runs `test/room/avatar-gait.test.ts` |
+| B2: FR-010, Q6, Edge Cases, T007 on spec 014's terms | Q6, FR-010, US2, Edge Cases, Degraded mode: `standin.avatar` while the dinosaur shows its flat shape in 3D, gone when its model shows; `standin.note` untouched. T007 is a test with no code expected: `figure: true` without a bundled model, `figure: false` with one, in `test/ui/notes-causes.test.ts` |
+| B3: the night-stack note | Plan §3 and T001 name `docs/merge-requests/2026-11-14-night-stack.md`; T010 completes this item's section with small runs and the lint only; FR-016 says this item runs no full suite |
+| B4: rules only where `RIG_BONES[id] !== null`; the box from `AVATAR_SHAPES[id]`; woman and man cases; "an avatar with a rig-table row"; extents in `measures` | FR-003, FR-004, FR-005 (the phrase defined), plan R-03, R-05, §4 (`extent_x`, `extent_z`: N5), T004 and T005 each with "woman and man with no `walk` clip and any extent: no finding" |
+| B5: the brief's tools and notes | `contracts/dinosaur-brief.md`: the fourteen IDs the shipped records use, with the name-to-ID table; `notes` carries the prose constraints in full; the JSON passes `line.py brief` (run in this rework); T008 asserts `notes` holds "no film or franchise creature" |
+| I1: main's caps | Spec Q5 and the brief's reading quote `assets/policy/caps.json` on `main`: avatar `{"bytes": 21000000, "triangles": 180000, "texture_bytes": 46000000}`, animation `{"bytes": 1000000}`, first visit phase 3 25000000 |
+| I2 (the page's Q75): FR-007 | FR-007 reworded to the enforcement that exists: brief and record say `likeness: false`; a likeness needs his approval under the arrival check's rule P, and on the line spec 020's RA9 keeps it out of the bundle without it; no new rule |
+| I3: the rig contract | `avatars.ts`, raw names, `<prefix>:<name>` matched as `line.py`'s `has_bone` |
+| N2: T004, T005 not `[P]` | Removed; the dependencies say why |
+| N3: a missing `take` | Spec 009's FR-003, cited in Q3, FR-008, the contract, T002 |
+| N4: spec 004's recorded answer | The Edge Case quotes the question's dinosaur line and both answers in their words, the reading beside them |
 
 ## Coverage
 
 | Requirement | Task | Test |
 |---|---|---|
-| FR-001, FR-002 (files, caps, cut-out fallback) | T006 | `avatars-compose.test.ts` |
-| FR-003 (RA11) | T005 | `avatars.test.ts`, `compose.test.ts` |
-| FR-004 (RA9) | T004 | same |
+| FR-001, FR-002 (files, caps, cut-out fallback) | T006 | `dinosaur-compose.test.ts` |
+| FR-003 (RA12) | T005 | `dinosaur-compose.test.ts`, `compose.test.ts` |
+| FR-004 (RA11) | T004 | same |
 | FR-005 (RA10, rig table) | T003 | same |
-| FR-006 (no human-only file) | every task's rules; SC-006 in T010's `git diff --stat` | n/a |
-| FR-007 (original, `likeness: false`) | the brief; the intake is the Author's | none in code (the existing RA3 reads only the stand-in) |
-| FR-008, FR-009 (no hand; placement unchanged) | T002 | `avatar-hands.test.ts`, `avatar-scene.test.ts` |
-| FR-010 (note) | T007 | `ui/avatars.test.ts` |
+| FR-006 (no human-only file; numbering) | every task's rules; SC-006 in T010 | n/a |
+| FR-007 (original, `likeness: false`) | the brief (T008 asserts its notes); the existing rule P and RA9 | `test_line.py` |
+| FR-008 (no hand, no gait, `take`) | T002 | `avatar-hands`, `avatar-scene`, `avatar-gait` |
+| FR-009 (placement unchanged) | T002 | `avatar-hands.test.ts` (**fixed** in this run: T002 now asserts the height, origin, and facing) |
+| FR-010 (`standin.avatar`) | T007 | `notes-causes.test.ts` |
 | FR-011 (no new event) | none new; no code adds one | covered by the absence of change |
 | FR-012 (first visit, report) | T006 | report line; F3 at the asset's intake |
 | FR-013, FR-014 (brief, tools) | T008 | `test_line.py` |
-| FR-015 (look approval) | human-patches/021.md | n/a |
-| FR-016 (small tests) | each task's **Tests** line, T010's one full run | n/a |
+| FR-015 (look approval) | `human-patches/021.md` | n/a |
+| FR-016 (small tests) | every task's **Tests** line; T010 | n/a |
 | FR-017, FR-018 (docs checks) | T009 | `disclosure.test.ts` |
+
+Requirements 18, tasks 10, every requirement with a task or a stated reason (FR-011, FR-015), coverage 100%.
 
 ## Findings
 
-1. **Fixed: the rule catalogue has its own tests.** `compose.test.ts` demands a `bad/<RULE>-*/` case for every refusing rule and pins the lenient list; `checks/family.ts` is the catalogue. Plan §3 and R-08, and T003 to T005, now carry `family.ts`, three bad cases, the fixture generators, and the one existing test (the pinned list) this stack changes.
-2. **Fixed: rule numbers.** RA8 already exists (spec 016's twin reach). The new rules are RA9 to RA11 throughout.
-3. **Fixed: `test_line.py` has its own stand-in tools list.** Its `TOOLS` doesn't name the dinosaur's tools. T008 builds the fixture repository from the real `studio-tools.json` (plan R-06).
-4. **Fixed: scale, not height.** Spec 009's FR-016 already scales the model to 1.2 m high, so RA9 measures the body's length and width after that scaling rather than the height (FR-004, plan R-03).
-5. **Open, low: FR-012's first-visit number isn't computable now.** There is no asset. SC-005 holds only at the asset's intake (F3 on his branch); the code task reports the line, not the number. Not a gap in the stack.
-6. **Open, low: `idle-holding` is absent.** Spec 009's FR-028 says an avatar with no walk clip slides in `idle-holding` or idle; with no `idle-holding`, the idle. T002's tests cover it; if it fails, converge adds a task.
-7. **Open, medium: the dog's spec shares `avatars.ts` and `room-fixtures.ts`.** The implementer merges this branch first (plan §3); a conflict is a table row, not a rule. Say so in the stack's note.
-8. **Constitution**: no clause deferred or dropped; no deviation to name; no ADR.
-9. **Constraints**: the plan touches no human-only path; its `human-patches/021.md` lists what waits on the Author (the asset's intake, an approval entry if the gate wants one, an optional ADR pointer). The tools list is on `main` (P-7), so the studio round is unblocked.
-10. **Paraphrase check**: the Author's item and orders are quoted word for word in the intent, spec, plan, and tasks; the readings sit beside them. No fact about the Author is stated.
+| ID | Category | Severity | Location | Summary | Resolution |
+|---|---|---|---|---|---|
+| C1 | Underspecification | LOW | tasks.md T002 | FR-009 (placement) had no assertion of its own | **Fixed**: T002 asserts 1.2 m high, origin and facing at the placement |
+| F1 | Inconsistency | LOW | spec.md FR-003 to FR-005 | "an avatar with a rig-table row" read against a table where every avatar has a row (`null` for three) | **Fixed**: FR-005 defines it as a row that isn't `null` |
+| F2 | Inconsistency | MEDIUM | tasks.md (first version) | The RA tests were placed in `test/room/avatars.test.ts`, which is the runtime's test, not the compositor's | **Fixed** in the rework: a new `test/room/dinosaur-compose.test.ts` (plan R-09), with `avatars-compose`, `likeness-visitor`, and `report` run as the files covering `avatars.ts` |
+| F3 | Inconsistency | MEDIUM | plan R-08, tasks | The `counts` pin builds RA1 to RAn contiguously, so the three rules must land in number order | **Fixed**: the numbers follow the task order (RA10 bones in T003, RA11 box in T004, RA12 clips in T005), so each commit is contiguous; this differs from the first version's order (box, bones, clips), and every artifact uses the new one |
+| U1 | Underspecification | LOW, open | spec FR-012, SC-005 | The first visit's number isn't computable without the asset | SC-005 holds at the asset's intake (F3 on his branch); the code task reports the line, not the number. Not a gap in the item |
+| U2 | Underspecification | LOW, open | contracts/dinosaur-brief.md | This session can't read `/srv/studio/briefs/dinosaur/1.json` to compare it with the contract | brief-dino-r1 reports it names the shipped records' IDs and passes `line.py brief`; the round's judge compares the two, and a difference goes to the page |
+| U3 | Underspecification | LOW, open | spec Q7, plan R-05 | The dog's rig row stays `null`; no spec names the dog's bones | A question on the page with a recommended answer; it blocks nothing here |
+
+## Constitution
+
+No clause deferred or dropped; no deviation to name; no ADR. No human-only path is written: `human-patches/021.md` lists what waits on the Author (the asset's intake, an approval entry only if the gate wants one, an optional ADR pointer).
+
+## Paraphrase check
+
+The Author's item, orders, and the P-7 answer are quoted word for word in the intent, spec, plan, and tasks; spec 004's recorded answer and intent 000's "Inspired-by only" sentence are quoted in their words, the readings beside them. No fact about the Author is stated.
 
 ## Verdict
 
-Consistent. The two open items (5, 6) are low and have a defined resolution. Ready for the implementer, who merges this branch first and runs one line.
+Consistent; no CRITICAL or HIGH finding. The three open items are low and have a defined resolution. Ready for impl-021, which merges this branch into the line after impl-020.
