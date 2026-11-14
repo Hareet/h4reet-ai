@@ -1,5 +1,7 @@
 # Studio round 2: the dinosaur's brief (live since `brief-dino-r3`, 2026-11-14 about 16:30Z)
 
+**Judged dry (`judge-dino-r2`): round 2's candidate passes `line.py`, and the round isn't recorded.** See "Round 2's candidate, judged dry" below.
+
 **Live.** Task `brief-dino-r3` recorded round 1 as `fail` and put this brief at `/srv/studio/briefs/dinosaur/2.json`, byte for byte. `line.py brief` passes it. `studio-dino-r5` may run. See "Made live (`brief-dino-r3`)" below. The rest of this section, up to that one, is `brief-dino-r2`'s text, unchanged.
 
 Task `brief-dino-r2` (implementer, night of 2026-11-13, run on 2026-11-14 around 15:50Z) writes the brief half of the dinosaur's round 2, under the Author's rule 9 ("Round 2 for both", about 15:45Z). Under that rule, round 2 starts at step 3 from his concept, `/srv/studio/workflows/inbox/visitor-raptor-concept.png`.
