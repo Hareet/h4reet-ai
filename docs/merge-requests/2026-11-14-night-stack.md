@@ -1001,7 +1001,7 @@ By task, each test-first (RED committed before GREEN):
 - **T012, T013**:
   - reduced motion: no flight and no growth;
   - the polite line, once per piece per visit, through the live region;
-  - the degraded modes: paused, loading, 2D, another visitor, and nothing stored or sent.
+  - ~~the degraded modes: paused, loading, 2D, another visitor, and nothing stored or sent.~~ **Corrected by rework-024** to what T013's tests (`eat-degraded.test.ts`) reach. They reach the room's side only, on a stub 3D stage: the room tells the stage it is paused (and hides the tile, and a click then presses nothing); the room tells it the loader shows, asserted only where the page's `data-loading` is on at arrival, and then that it doesn't; a visit that starts in 2D, and a dog's or the woman's visit, have no tile, no eating option, and no Eat box; no event kind or config line. "Nothing stored or sent" is two tests: the room with a stub stage (storage, network, and beacon spies over five offers, clicks, and lines), and the 3D side alone over three rounds of bites and regrowths, which spies on `fetch` only. They don't reach the 3D side's pause (a flight paused mid-way landed, rv-impl-024's B-1, now `eat-pause.test.ts` and `eat-scene.test.ts`) nor the fall to 2D in mid-visit (now `eat-fall.test.ts`, a pin that passed at once).
 - **T014**: the budgets (below).
 
 Departures, each in plan.md in the same commit:
@@ -1141,7 +1141,7 @@ The spec's reviews, and how the plan, the tasks, and the code settle their non-b
   1. RG5's test asserts the cover only (`eat-checks`, and tasks.md).
   2. `compose.test.ts` is in T011a's list.
   3. The stage corner's box is `eatControlBox`'s, and `eat-box` tests that the two agree at every supported clear area.
-  4. The picker's fallback (`bundle3d.ts:385`) isn't changed. It runs only for a stage without `reserved`: spec 005's clear area, before the 3D stage gives its protector, where no visit has an Eat box. Plan §5.5 says so.
+  4. The picker's fallback (`bundle3d.ts:385`) isn't changed. It runs only for a stage without `reserved`: spec 005's clear area, before the 3D stage gives its protector, where no visit has an Eat box. Plan §5.5 says so. (**Corrected by rework-024**, I-1: it also ran in the stacked layout, where the room gives no frame, so a dinosaur visit's Eat box went unreserved there. `scene.ts` now gives that stage the walking control's box and the Eat box; plan §5.5's sentence is corrected.)
   5. `compose/hud.ts` cites spec 018's FR-001 (e) and Q58.
   6. The node-name match is done too: `matchedNameOf` matches as `prepareModel` hides, by any node's name.
 
@@ -1173,3 +1173,66 @@ Interruptions:
 
   Nothing was respelled.
 - **One harness block**, not a hook: a Monitor watch needed an approval it didn't have, so I waited with a background shell loop instead.
+
+### Rule 6's rework (`night/rework-024/rework-024`, 2026-11-14, Opus 5.5)
+
+rv-impl-024 (Opus) blocked item 7 on B-1 and B-2. This branch fixed them, the important finding I-1 (page Q215, answered recommended), and the four nits, from impl-024's tip (bbe55c0d), over two sessions (the second resumed at B-2's GREEN from the working tree). Each fix's test was RED before its GREEN, one commit per fix, its rule in plan.md's departures in the same commit. rv-rework-024 reviews it.
+
+| Fix | RED | GREEN | The rule (plan.md) |
+|---|---|---|---|
+| B-1 (FR-009, US3 AS5) | 3d91fbf9 | 2bb1b212 | §5.4: everything of the eating that takes time runs on one clock, the room's less the meal's paused time; nothing moves, lands, grows, comes due, splits, or starts while paused; the meal is paused in every state FR-009 names (the loader too) |
+| B-2 (FR-012) | 2ca9341d | 2c87c414 | §5.5: a `room.css` rule reading a property set for some layouts only is scoped to them and to the attribute that says it is set; the room offers a control only where a rule places it |
+| I-1 (Q215) | 983e4413 | 947b624f | §5.5 (T011a's sentence corrected): a dinosaur visit's stacked stage reserves the walking control's box and the Eat box |
+| nit 1, Escape | 48309fbe | effa88b2 | §5.4: every way the walk ends lands the flights at once, at the resume while paused |
+| nit 2, `e.repeat` | bc8f9662 | 907d9b5b | §5.4: a held key is one press (B, and Enter or Space on the tile) |
+| nit 3, disposal | ac4f4308 | e5590649 | §5.4: every GPU resource the eating builds is freed by the stage's dispose, wherever it is; a dropped one when dropped |
+| nit 4 | n/a | 76d01be0 | §5.5: 59eced2c's edit of `eat-checks.test.ts` (a first-run snapshot made `toBeGreaterThan(0)`) named |
+
+What each test reaches:
+- **B-1**: `eat-pause.test.ts` (a flight and a growth paused mid-way past their time, resumed, landing after the rest; the ledger's `landed` and `grown` not called while paused; a press while paused) and `eat-scene.test.ts`, at `createScene`'s level with the dinosaur's files (`helpers/room-dinosaur.ts`), so `scene.ts`'s `eatFrame`, `eatPress`, `modelOf`, the label to `said`, and `protectorFor(..., { eat })` run. RED: the unit cases failed, and the scene's paused and loader cases failed with a chunk landing during the hold; GREEN: 6 files, 52 passed.
+- **B-2**: `eat-place.test.ts` reads the tile's `left`/`top`/`right`/`bottom` through the cascade (every matching `room.css` rule, by specificity then order) under `data-hud="stacked"` with and without an Eat box, in each HUD layout with one, and with none. Two of impl-024's tests changed with the fix, by their own subject, and are named in plan §5.5: `eat-button.test.ts` looked the rule up by its old selector, and `eat-degraded.test.ts`'s visit gave its 3D stage no protector (so, under the new rule, no tile). With the code changed and those two not yet, they failed: 2 failed, 21 passed.
+- **I-1**: `eat-scene.test.ts` records the stage `scene.ts` gives the picker (`selectablePicker` wrapped): in the stacked layout it was `reserved: undefined` (RED), now `reservedBoxes(960 × 600, 16, { eat: true })`.
+- **nit 1**: `eat-scene.test.ts`, Escape on the view and the walking control: RED "expected 4 to be 3"; a leave while paused lands nothing until the resume. `failWalk` settles too (not staged in a test).
+- **nit 2**: `eat-key-repeat.test.ts`, the input's repeats and the tile's repeated Enter and Space (prevented, so no click). The walking control has the same shape and is spec 008's; on the page.
+- **nit 3**: `eat-pause.test.ts` (a whole piece's split freed at `dispose`, a reloaded model's at once) and `eat-scene.test.ts` (the stage's dispose after the room's `regrow_s`: RED "expected +0 to be 8").
+- **T013's claim**, corrected above to what `eat-degraded.test.ts` reaches; `eat-fall.test.ts` is a new pin for the fall to 2D in mid-visit (passed at once).
+
+Siblings probed (plan.md names each): no other code under `src/room/eat/` reads a clock or sets a timer; every other `var(--…)` in `room.css`, `hud/split.css`, and `loading/loading.css` is set in the layouts that read it; every route out of walking goes through `leaveWalk` or `failWalk`; `disposeRoom` is the only other disposer and reaches only the scene's graph.
+
+**Runs (the order's rule 4)**, from `apps/web`, at 76d01be0 plus this note (code unchanged since): every `eat-*` file in `test/room` and `test/ui` (the added `eat-place`, `eat-pause`, `eat-scene`, `eat-key-repeat`, and `eat-fall` among them), `vocabulary` and `bundle`, the tests covering `layout.ts` and `room.css` (`events`, `flat`, `hud-contrast`, `loading-contrast`, `objects`, `stages`, `a11y`, `flat-frame`, every `test/ui/hud-*` and `loading-*`, `pick`, `text-copy`), `scene.ts` (`lookdev/page`, `stage-walk`, `highlight`, `avatar-scene`, `faces`, `quality`, `twin-network`, `scene-fit`, `scene`, `chunk`), and `walk/input.ts` (`room/input`, `room/walking`, `ui/walking`, `ui/fullscreen`); `twin-2d` not among them:
+
+```
+npx vitest run test/room/eat-*.test.ts test/ui/eat-*.test.ts test/room/vocabulary.test.ts test/room/bundle.test.ts
+  test/room/events.test.ts test/room/flat.test.ts test/room/hud-contrast.test.ts test/room/loading-contrast.test.ts
+  test/room/objects.test.ts test/room/stages.test.ts test/ui/a11y.test.ts test/ui/flat-frame.test.ts test/ui/hud-*.test.ts
+  test/ui/loading-*.test.ts test/ui/pick.test.ts test/ui/text-copy.test.ts test/lookdev/page.test.ts
+  test/room/stage-walk.test.ts test/room/highlight.test.ts test/room/avatar-scene.test.ts test/room/faces.test.ts
+  test/room/quality.test.ts test/room/twin-network.test.ts test/room/scene-fit.test.ts test/room/scene.test.ts
+  test/room/chunk.test.ts test/room/input.test.ts test/room/walking.test.ts test/ui/walking.test.ts test/ui/fullscreen.test.ts
+ Test Files  61 passed (61)
+      Tests  952 passed (952)
+   Duration  444.66s (tests 61%, import 39%)
+```
+
+(The globs were expanded by the shell; the run named each file.) The lint target, at 76d01be0:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+785 files already formatted
+… shellcheck …
+exit 0
+```
+
+No full suite here: the stack's last task runs it once. SC-006: `git diff --stat bbe55c0d HEAD -- .claude tools/gates corpus assets CLAUDE.md REVIEW.md .specify/memory/constitution.md evals/agent-config redteam/forbidden-actions.sh` is empty.
+
+For the Author: three questions on the page, each recommended as built (the tile hidden in a HUD layout with no Eat box; the walking control's held Enter, spec 008's, left as it is; a leave while paused lands the flight at the resume).
+
+Interruptions:
+- **The review file was out of reach.** `/home/h4reet/h4reet-ai/night/.io/rv-impl-024/out/review.md`, the brief's path, doesn't exist in this container (both sessions looked). The fixes follow the brief's account of each finding, which names the files, the lines, and the tests it wants. rv-rework-024 should check them against the review itself.
+- No hook or bash-gate refusal in either session. The first ran the setup target (no `node_modules` in the worktree); its one notice was that the git hooks' folder isn't writable in the sandbox, which is the Author's step.
