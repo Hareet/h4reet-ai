@@ -706,7 +706,7 @@ Departures, in plan §8 in the same commits: the shared helper, and `clipGlb`'s 
 
 ### Acceptance criteria
 
-FR-001, FR-002, FR-012, SC-001: `dinosaur-compose.test.ts` ("the dinosaur's folder in the bundle and the report"), and by hand on the real tree (below). FR-003 (RA12), FR-004 (RA11), FR-005 (RA10, the table), SC-002: `dinosaur-compose.test.ts` and `compose.test.ts`'s bad cases. FR-006: the rules are in the compositor and the arrival check is untouched (SC-006 below). FR-007: the brief's notes and `likeness: false` (T008), plus the existing rule P and RA9; no new rule (Q75). FR-008, SC-003: `avatar-hands`, `avatar-scene`, `avatar-gait`. FR-009: `avatar-hands`'s placement case. FR-010: `notes-causes.test.ts`. FR-011: no event, call, or fetch was added (no `src/` change). FR-013, FR-014, SC-004: `scripts/studio/test_line.py`. FR-015: his, in human patch 021. FR-016: this section. FR-017, FR-018: T009 below. SC-005 (F3 at the brief's targets) can only be measured at his intake, from the report's lines.
+FR-001, FR-002, FR-012, SC-001: `dinosaur-compose.test.ts` ("the dinosaur's folder in the bundle and the report"), and by hand on the real tree (below). FR-003 (RA12), FR-004 (RA11), FR-005 (RA10, the table), SC-002: `dinosaur-compose.test.ts` and `compose.test.ts`'s bad cases. FR-006: the rules are in the compositor and the arrival check is untouched (SC-006 below). FR-007: the brief's notes (T008 checks 'no film or franchise creature'); `likeness: false` is prose in the notes, held by the record and his look approval (Q75), plus the existing rule P and RA9; no new rule (corrected by verify-021, rv-impl-021's N3). FR-008, SC-003: `avatar-hands`, `avatar-scene`, `avatar-gait`. FR-009: `avatar-hands`'s placement case. FR-010: `notes-causes.test.ts`. FR-011: no event, call, or fetch was added (no `src/` change). FR-013, FR-014, SC-004: `scripts/studio/test_line.py`. FR-015: his, in human patch 021. FR-016: this section. FR-017, FR-018: T009 below. SC-005 (F3 at the brief's targets) can only be measured at his intake, from the report's lines.
 
 ### Verification (small tests, the order's rule 4)
 
@@ -841,6 +841,20 @@ SC-006, `git diff --stat fb46c911 HEAD -- .claude tools/gates corpus assets CLAU
 - **N-3, fixed**: the spec's Open Questions and plan §7 point to Q88.
 - **N-4, fixed**: RA10's reason is `the <id> rig lacks <bone>`, in plan §4 and the code.
 - **N-5, fixed**: the tasks' dependencies say T007 needs no dinosaur file or rule.
+
+N-2 is closed by verify-021 (page Q168): the page's words for Q75 and Q88 are now whole in the spec, beside its reading (below).
+
+### Review (rv-impl-021)
+
+On impl2-021's code (77b1a244), by a worker who didn't write it: nothing blocking. Its five nits, none fixed here (rule 6: they go in this note):
+
+- **N1**: T007 injects the fallback signal by hand.
+- **N2**: RA10 matches any node name, `line.py` only skin joints (page Q169).
+- **N3**: this note's FR-007 line claimed more than T008 tests. Corrected above by verify-021 (a note line, not code): "FR-007: the brief's notes (T008 checks 'no film or franchise creature'); `likeness: false` is prose in the notes, held by the record and his look approval (Q75)".
+- **N4**: FR-009's placement and the report's scale use a fixture already 1.2 m high, so the runtime's scaling never runs for the dinosaur.
+- **N5**: FR-013's "exactly the fourteen IDs" isn't pinned.
+
+rv-impl-021 couldn't verify the header's "the commit hooks ran (gitleaks, arrival check) on every commit". verify-021's own commits show them: each printed gitleaks' "no leaks found" and an `arrival-check: 0 findings in <n> file(s)` line (under "Verification (rule 7, verify-021)" below). That speaks for this session's commits, not impl2-021's.
 
 ### Cost and data-flow impact
 
