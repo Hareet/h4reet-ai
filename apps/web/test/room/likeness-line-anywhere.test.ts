@@ -1,5 +1,5 @@
 // T014 (spec 020; FR-007; plan.md R-02, reworked for Q69): the likeness line shows wherever the dog's model shows, the
-// visitor's figure or another figure of the room (spec 025's dog figure, here a test key standing in for it).
+// visitor's figure or another figure of the room (spec 025's dog figure, the "dog" FigureId).
 // - src/room/likeness-line.ts holds each figure's latest picture line, or none, and gives the line while one figure or
 //   more holds it, once; a figure's next picture signal without a line drops its own.
 // - The room feeds it the picture signals of every figure but the twin's (the twin's likeness has its own slot, spec
@@ -13,8 +13,8 @@ import { button, flush, intoRoom, start, textOf } from "../helpers/room";
 import type { Visit } from "../helpers/room";
 
 const LINE = "The dog is an AI-made likeness of the Author's dog, shown with his consent.";
-/** Spec 025's room figure, not yet in FigureId: a key standing in for it. */
-const ROOM_DOG = "room-dog" as FigureId;
+/** Spec 025's room figure, the room's dog (its FR-019, FR-020): the `"dog"` FigureId. */
+const ROOM_DOG: FigureId = "dog";
 
 describe("the likeness line's holder", () => {
   it("holds no line at first", () => {
@@ -61,6 +61,19 @@ const dogAt = (figure: FigureId): FigureSignal => ({ kind: "picture", figure, sh
 const fallbackAt = (figure: FigureId): FigureSignal => ({ kind: "picture", figure, shows: "fallback", why: "failed" });
 
 describe("the room's likeness line, from any figure (FR-007)", () => {
+  it("shows from the stage's dog picture signal alone, and goes with its fallback (spec 025, FR-020, SC-007)", async () => {
+    const v = start({ webgl: true });
+    await intoRoom(v);
+    signal(v, { kind: "picture", figure: "dog", shows: "avatar", why: null, line: LINE });
+    await flush();
+    expect(notes(v).map((n) => textOf(n))).toEqual([LINE]);
+    expect(count(aroundLines(v))).toBe(1);
+    signal(v, { kind: "picture", figure: "dog", shows: "fallback", why: "failed" });
+    await flush();
+    expect(notes(v)).toHaveLength(0);
+    expect(count(aroundLines(v))).toBe(0);
+  });
+
   it("shows when a room figure shows the dog's model and the visitor is on another avatar", async () => {
     const v = start({ webgl: true });
     await intoRoom(v);

@@ -41,3 +41,7 @@ room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
 ## T009 (RED+GREEN)
 
 RED: `vitest run test/room/chase-notes.test.ts`: 6 failed | 4 passed (10). GREEN: `vitest run test/room/chase-notes.test.ts test/ui/text-copy.test.ts test/room/scene.test.ts test/room/vocabulary.test.ts test/ui/notes-causes.test.ts test/ui/a11y.test.ts`: Test Files 6 passed (6), Tests 144 passed (144); with chase-director and chase-degraded: 8 files passed. `make lint`: exit 0.
+
+## T010 (RED)
+
+`vitest run test/room/dog-figure.test.ts test/room/likeness-line-anywhere.test.ts`: Tests 15 failed | 12 passed (27); the fixture scene's `figures.dog` isn't in the schema yet ("buildRoom: a figure of the 3D part doesn't resolve"), and the controller has no dog. The likeness-line file passes: its cases take the "dog" FigureId at run time already; T011 makes it a FigureId in the type.
