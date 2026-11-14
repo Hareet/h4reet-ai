@@ -28,3 +28,5 @@ None expected: no new byte leaves the device. A later studio walk clip would com
 
 ## Open questions
 Carried to the spec's clarifications: code-driven legs or a studio clip (or both); which figures; reduced motion; the quality tiers.
+
+After the spec's Opus reviews, three more went to the morning page, Q61 to Q63 (the hips, the walk clip's time scale, allocation per frame); under each, the page has: "Answered: recommended, the Author 2026-11-13." The spec's Clarifications (Q6 to Q8) quote them.
