@@ -479,6 +479,69 @@ def test_a_currency_amount_fails(repo: Path, old: str, new: str) -> None:
     assert failing(problems, "R4", "currency"), problems
 
 
+# rv-rework4-022's F-1: FR-004 grants no exempt span. The three currency patterns read each new-prose line with only
+# `{{slot:…}}` removed and the marks that can split a number from its unit dropped (quote marks of every kind,
+# backticks, emphasis, brackets, entities, zero-width characters), and a block's lines read together, so an amount
+# inside an accepted quote, a URL, or a setting, or split by a mark or a line break, is still an amount. The fixture's
+# `evals/run.md` (a carried row's source) holds "5", and `docs/costs.md` is cited by a carried row.
+COSTS = "One fallback call costs a few thousand micro-dollars. It costs 5 dollars a day. It costs 5 usd a day.\n"
+GAP = "- `[?]` The daily summary of the CPU metrics."
+
+
+@pytest.mark.parametrize(
+    ("added", "needle"),
+    [
+        # The review's three: an amount in words inside an accepted quote, one in digits, one split by quote marks.
+        ('"a few thousand micro-dollars"', "micro-dollars"),
+        ('"It costs 5 dollars a day"', "5 dollars"),
+        ('"5" dollars a day', "5 dollars"),
+        # Siblings: digits the whole-file read misses, the other quote marks, backticks, emphasis, brackets, an
+        # entity, a zero-width space, a line break, and amounts in a URL and a setting.
+        ('"It costs 5 usd a day"', "5 usd"),
+        ("“5” dollars a day", "5 dollars"),
+        ("'5' dollars a day", "5 dollars"),
+        ("‘5’ dollars a day", "5 dollars"),
+        ("*5* dollars a day", "5 dollars"),
+        ("**5** dollars a day", "5 dollars"),
+        ("_5_ dollars a day", "5 dollars"),
+        ("(5) dollars a day", "5 dollars"),
+        ("[5] dollars a day", "5 dollars"),
+        ("5&nbsp;dollars a day", "5"),
+        ("5\u200bdollars a day", "5dollars"),
+        ("it caps at 5\n  dollars a day", "5\\n"),
+        ("https://example.com/ten-cents", "cents"),
+        ("`CAP=cents`", "cents"),
+    ],
+    ids=[
+        "accepted-quote-words",
+        "accepted-quote-digits",
+        "split-by-quote-marks",
+        "accepted-quote-usd",
+        "curly-quotes",
+        "single-quotes",
+        "curly-single-quotes",
+        "emphasis",
+        "strong",
+        "underscores",
+        "parentheses",
+        "brackets",
+        "an-entity",
+        "zero-width-space",
+        "a-line-break",
+        "a-url",
+        "a-setting",
+    ],
+)
+def test_a_currency_amount_is_read_through_every_exempt_span_and_mark(
+    repo: Path, added: str, needle: str
+) -> None:
+    (repo / "docs/costs.md").write_text(COSTS)
+    cites = changed(*(s.format(source="docs/costs.md") for s in CARRIED_ROW))
+    assert run(repo, cites) == []
+    problems = run(repo, changed(GAP, f"{GAP} {added}", cites))
+    assert failing(problems, "R4", "new text", "a currency amount", needle), problems
+
+
 def test_the_proposal_file_as_a_whole_holds_no_currency_in_digits(repo: Path) -> None:
     # corpus-check reads corpus/proposals/ too, so the reading guide and the table may not hold "$5" either.
     bad = changed('cite "five dollars a day"', 'cite "$5 a day"')
