@@ -756,6 +756,14 @@ def check(
             if h:
                 heading = h.group(1)
             for slot in re.findall(r"\{\{slot:\s*([a-z0-9_.-]+)", raw):
+                if slot in new_slots and slot not in ctx.slots:
+                    out["R4"].append(
+                        f"R4: new text, {heading!r}: {slot} is a new slot; write it [slot `{slot}`] until the patch "
+                        "adds it, since corpus-check reads proposals/ and fails a {{slot:…}} whose fact doesn't exist"
+                    )
+                elif slot not in ctx.slots:
+                    out["R4"].append(f"R4: new text, {heading!r}: unknown slot {slot}")
+            for slot in re.findall(r"\[slot `([a-z0-9_.-]+)`\]", raw):
                 if slot not in ctx.slots and slot not in new_slots:
                     out["R4"].append(f"R4: new text, {heading!r}: unknown slot {slot}")
             plain = without_exempt(raw, accepted)
