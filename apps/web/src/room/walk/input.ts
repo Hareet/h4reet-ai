@@ -10,6 +10,8 @@
 //   walking its listener isn't passive, so it can keep the page from scrolling.
 // - Every held key and drag is dropped when the walking view or the window loses focus, the page hides, or the input
 //   is unbound, so nothing moves until a new input begins (FR-029).
+// - Spec 024 (FR-012): B, by its physical key, is the dinosaur's bite, passed on once; never with a modifier, and never
+//   from a text field inside the view (the twin's chat is outside it, so its keys never arrive here).
 import { browserOwnsEscape } from "../fullscreen";
 import { TAP_SLOP_PX } from "../objects";
 import type { Ndc } from "../objects";
@@ -30,6 +32,9 @@ export interface WalkIntents {
   /** Enter, and Escape, pressed since the last frame. */
   readonly enter: boolean;
   readonly escape: boolean;
+  /** Spec 024 (FR-012): B, the dinosaur's bite, pressed since the last frame. Optional, so a frame without it is one
+   *  with no bite. */
+  readonly eat?: boolean;
 }
 
 export interface WalkInput {
@@ -64,6 +69,13 @@ const HELD: Readonly<Record<string, string>> = {
   KeyF: "tiltDown",
 };
 
+/** Whether a key's target takes text: an input, a text area, a select, or an editable element (spec 024, FR-012). */
+function typing(target: EventTarget | null): boolean {
+  const el = target as (HTMLElement & { isContentEditable?: boolean }) | null;
+  if (!el || typeof el.tagName !== "string") return false;
+  return /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable === true;
+}
+
 /** The walking view's input over the stage's surface, in the stage's window. */
 export function createWalkInput(surface: HTMLElement, win: Window): WalkInput {
   const held = new Set<string>();
@@ -71,6 +83,7 @@ export function createWalkInput(surface: HTMLElement, win: Window): WalkInput {
   let taps: Ndc[] = [];
   let enter = false;
   let escape = false;
+  let eat = false;
   let drag: { id: number; x: number; y: number; dragging: boolean } | null = null;
   let dragged = { x: 0, y: 0 };
   let focus: HTMLElement | null = null;
@@ -86,6 +99,11 @@ export function createWalkInput(surface: HTMLElement, win: Window): WalkInput {
   const onKeyDown = (e: KeyboardEvent): void => {
     // The browser's and the system's shortcuts stay theirs: Ctrl+F, Ctrl+D, Cmd+A (whose key-up macOS never sends).
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.code === "KeyB") {
+      // A held B is one press: the keyboard's auto-repeat bites nothing more (rework-024, nit 2).
+      if (!typing(e.target) && !e.repeat) eat = true;
+      return;
+    }
     const what = keyOf(e);
     if (what) {
       held.add(what);
@@ -152,6 +170,7 @@ export function createWalkInput(surface: HTMLElement, win: Window): WalkInput {
     taps = [];
     enter = false;
     escape = false;
+    eat = false;
   };
 
   return {
@@ -183,11 +202,13 @@ export function createWalkInput(surface: HTMLElement, win: Window): WalkInput {
         taps,
         enter,
         escape,
+        eat,
       };
       zoom = 0;
       taps = [];
       enter = false;
       escape = false;
+      eat = false;
       dragged = { x: 0, y: 0 };
       return intents;
     },

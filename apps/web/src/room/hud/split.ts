@@ -117,7 +117,7 @@ const DEFAULT_DRAW: SplitDraw = {
 };
 
 /** Runs a decoration, and gives its plain form (null) where it throws. */
-function attempt<T>(make: () => T): T | null {
+export function attempt<T>(make: () => T): T | null {
   try {
     return make();
   } catch {

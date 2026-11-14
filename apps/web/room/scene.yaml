@@ -42,6 +42,7 @@ placements:
     mount: { on: room-shell, anchor: back-wall, offset: [0, 0, 0.4], estimated: true }
     frame: true
     label: label.desk
+    edible: { chunks: 6 }
   - id: desk-screen
     piece: desk-screen
     mount: { on: work-desk, anchor: top, offset: [-0.154, 0, -0.22], estimated: true }
@@ -81,11 +82,13 @@ placements:
     mount: { on: laptop-stand, anchor: top, estimated: true }
     frame: true
     label: label.laptop
+    edible: { chunks: 4 }
   - id: busy-sign
     piece: busy-sign
     mount: { on: work-desk, anchor: top, offset: [-0.55, 0, -0.03], turn: { y: 12 }, estimated: true }
     frame: true
     label: label.busy-sign
+    edible: { chunks: 4 }
   - id: dog-sign
     piece: dog-sign
     mount: { on: work-desk, anchor: top, offset: [0.27, 0, -0.04], turn: { y: -10 }, estimated: true }
@@ -96,6 +99,7 @@ placements:
     mount: { on: room-shell, anchor: left-wall, offset: [-0.2876, 1.65, 0], estimated: true }
     frame: true
     label: label.chalkboard
+    edible: { chunks: 4 }
     faces:
       slate:
         label: label.chalkboard
@@ -223,6 +227,8 @@ selectables:
     emblem: slate
     members: [chalkboard]
     action: { talk: { topic: mission } }
+# Spec 024 (FR-011): the seconds an eaten chunk takes to grow back.
+eating: { regrow_s: 20 }
 handoff: { from: { placement: twin-figure, anchor: hand }, to: { placement: visitor-figure, anchor: hand } }
 survey: { desk_corner: { placement: work-desk, anchor: front-left } }
 retired:

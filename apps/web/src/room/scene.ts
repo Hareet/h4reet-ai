@@ -52,6 +52,7 @@ import {
   showHandoff as drawHandoff,
 } from "./scene/bundle3d";
 import { floorOfPart } from "./compose/floor";
+import { reservedBoxes } from "./compose/hud";
 import type { Box } from "./compose/hud";
 import { bufferRatio, clearNdc, fillsCanvas, viewOffsetFor } from "./fit";
 import { reservedIn } from "./compose/frame";
@@ -66,6 +67,14 @@ import { cutoutDriver, figureDriverFor } from "./scene/figure";
 import { createWalking } from "./scene/walking";
 import { createWalkInput } from "./walk/input";
 import { reachTargets } from "./walk/reach";
+import type { Pose } from "./walk/movement";
+import { AVATAR_SHAPES } from "../choice/avatars";
+import { EATER, eatingAvailable } from "./eat/available";
+import { createEat3d } from "./eat/eat3d";
+import type { Eat3d } from "./eat/eat3d";
+import { createMeal } from "./eat/meal";
+import type { Meal } from "./eat/meal";
+import { availabilityFor, eatTarget, edibleReach, edibleTargets } from "./eat/press";
 import type { LabelFactory } from "./scene/bundle3d";
 import type { AvatarFigures } from "./scene/avatars";
 import { buildFaceQuads, dressSurface } from "./scene/faces3d";
@@ -425,8 +434,86 @@ export function createScene(options: SceneOptions): Stage3D {
   const input = createWalkInput(canvas, win);
   const rates = { turn: (part.walking.turn_dps * Math.PI) / 180, tilt: (part.walking.tilt_dps * Math.PI) / 180 };
   let returning = false;
+  // Spec 024 (FR-001, FR-012; plan.md §5.4 to §5.6): the dinosaur's eating, only for a 3D dinosaur visit over a part
+  // with an edible placement. The meal ledger on the room's clock, the 3D side over each placement's model, and the
+  // press's gate (eat/press.ts) over the edible placements' frame boxes, which key B and the "Eat" tile both take.
+  const eatingRoom = options.eating;
+  // Only where the bundle carries the dinosaur's model (page Q247): without it the figure shows no dinosaur to eat.
+  const eats = options.avatar === EATER && bundled(EATER) && part.placements.some((p) => p.edible !== null);
+  const edible = eats ? edibleTargets(part) : [];
+  const eatReach = {
+    reach: part.walking.reach_m,
+    cone: (part.walking.reach_cone_deg * Math.PI) / 180,
+    radius: part.walking.radius_m,
+  };
+  /** A placement's model as the loader shows it: its node's child the loader names `model` (scene/loader.ts's
+   *  MODEL_NODE, not imported, so the loader's chunk stays its own). */
+  const modelOf = (id: string): Object3D | null =>
+    room.placements.get(id)?.children.find((c) => c.name === "model") ?? null;
+  let meal: Meal | null = null;
+  let eat3d: Eat3d | null = null;
+  if (eats) {
+    meal = createMeal({ regrow_s: part.eating.regrow_s, now: () => clock.now() });
+    eat3d = createEat3d({
+      part,
+      model: modelOf,
+      figure: () => ({ root: room.visitor, height: AVATAR_SHAPES[options.avatar].height }),
+      meal,
+      highlight,
+      now: () => clock.now(),
+      reduced: () => (options.motion ? options.motion.reducedMotion : options.reducedMotion),
+      ...(eatingRoom?.said
+        ? { said: (id: string) => eatingRoom.said?.(id, part.placements.find((p) => p.id === id)?.label ?? null) }
+        : {}),
+    });
+  }
+  /** The availability's parts the room and the stage know, apart from the reached piece. */
+  const eatBase = () => {
+    const state = eatingRoom?.state() ?? { paused: false, loading: false };
+    return {
+      view: "3d" as const,
+      avatar: options.avatar as string,
+      figureModel: figures?.shows("visitor") ?? false,
+      paused: state.paused,
+      loading: state.loading,
+      failed: eat3d?.disabled() ?? true,
+    };
+  };
+  /** The edible placement the walking figure reaches, or null. */
+  const eatReached = (pose: Pose | null): string | null => (pose && eats ? edibleReach(pose, edible, eatReach) : null);
+  /** A press, by key B or the tile: a bite where the gate takes it. */
+  const eatPress = (pose: Pose | null): void => {
+    if (!meal || !eat3d) return;
+    const piece = eatTarget(eatBase(), eatReached(pose), meal, (id) => modelOf(id) !== null);
+    if (piece !== null) eat3d.bite(piece);
+  };
+  let eatOffered = false;
+  /** FR-009: the eating's one pause, while the room is paused (the toggle, or the page hidden) or the loader shows; the
+   *  3D side reads it too. The room calls it on each change (eat.sync()), since a hidden page draws no frames while the
+   *  clock runs on (rv-rework-024's I-A); each frame reads it again, as a backstop. */
+  const eatSync = (): void => {
+    if (!meal) return;
+    const base = eatBase();
+    if (base.paused || base.loading) meal.pause();
+    else meal.resume();
+  };
+  /** Each frame: the meal's pause, the flights and regrowths, and the tile's availability, told on a change. */
+  const eatFrame = (): void => {
+    if (!meal || !eat3d) return;
+    eatSync();
+    const base = eatBase();
+    eat3d.frame();
+    const pose = walking?.on ? walking.pose : null;
+    const on = eatingAvailable(availabilityFor(base, eatReached(pose), meal, (id) => modelOf(id) !== null));
+    if (on !== eatOffered) {
+      eatOffered = on;
+      eatingRoom?.available?.(on);
+    }
+  };
   const leaveWalk = (): void => {
     if (!walking?.on) return;
+    // Spec 024's edge case: leaving walking during a flight lands the chunk at once (rework-024, nit 1).
+    eat3d?.settle();
     input.unbind();
     walking.leave(clock.now());
     returning = true;
@@ -458,6 +545,7 @@ export function createScene(options: SceneOptions): Stage3D {
             return nearsEdge(box, hud, size, rem);
           },
           held: (state, cause) => options.walkHeld?.(state, cause),
+          ...(eats ? { eat: (pose: Pose) => eatPress(pose) } : {}),
         })
       : null;
   /** The box the room is framed into, in the canvas's CSS pixels: since spec 014 the room's frame area (its FR-009 to
@@ -499,6 +587,7 @@ export function createScene(options: SceneOptions): Stage3D {
   /** A step that threw: the walk ends at the production framing, the figure at its place, and the room is told
    *  (FR-005), so the scene is never left blank or frozen. */
   const failWalk = (): void => {
+    eat3d?.settle();
     input.unbind();
     try {
       walking?.leave(clock.now());
@@ -570,7 +659,18 @@ export function createScene(options: SceneOptions): Stage3D {
       given.area.h > 0;
     const next: Box = fits ? given.area : { x: 0, y: 0, w, h };
     const nextHud: readonly Box[] = fits && framed ? framed.hud : [];
-    const nextReserved = fits && framed ? reservedIn(next, nextHud) : undefined;
+    // Spec 024 (rework-024, I-1; page Q215): in the stacked layout, where the room gives neither a frame nor a clear area
+    // and the canvas is its own stage, a dinosaur visit reserves the "Eat" tile's box beside the walking control's, where
+    // room.css puts the tile. A HUD layout mid-resize (its frame given for another window) also frames the whole canvas
+    // until the re-fit, but its tile sits at the HUD's Eat box, so it reserves as every other visit does: the picker's
+    // fallback, the walking control's box alone, as before (rework2-024, N-3).
+    const stacked = given === null;
+    const nextReserved =
+      fits && framed
+        ? reservedIn(next, nextHud)
+        : stacked && eats
+          ? reservedBoxes(next, undefined, { eat: true })
+          : undefined;
     if (
       w === size.w &&
       h === size.h &&
@@ -637,6 +737,7 @@ export function createScene(options: SceneOptions): Stage3D {
     last = time;
     faces.frame(time);
     glows.frame(time);
+    eatFrame();
     // The highlight after the look's frame, whatever the quality level does to its ink lines (spec 008, FR-017), and
     // the labels after the highlight (FR-019).
     drawFrame({
@@ -657,7 +758,9 @@ export function createScene(options: SceneOptions): Stage3D {
     element: canvas,
     canvas,
     // Spec 014 (FR-010, FR-016): the frame area's protector over this part, which the room's re-fit takes.
-    protect: protectorFor(protectSceneOf(part, options.room)),
+    // Spec 024 (Q150, A2): a dinosaur visit's protector reserves the "Eat" tile's box from the visit's start, so the
+    // framing doesn't move when the tile shows or hides.
+    protect: protectorFor(protectSceneOf(part, options.room), undefined, { eat: eats }),
     showHandoff(progress) {
       // Its first call is the hand-off's start: no figure file or set model parses from then until it ends (R-10), if
       // the loader's giving way hasn't closed the gate already (spec 012).
@@ -704,6 +807,8 @@ export function createScene(options: SceneOptions): Stage3D {
       },
       leave: leaveWalk,
     },
+    // Spec 024 (FR-012): the "Eat" tile's press, the key's gate; absent where the visit can't eat.
+    ...(eats ? { eat: { press: () => eatPress(walking?.on ? walking.pose : null), sync: eatSync } } : {}),
     setQuality(next) {
       const before = settings.shadows;
       level = next;
@@ -735,6 +840,9 @@ export function createScene(options: SceneOptions): Stage3D {
       faces.dispose();
       glows.dispose();
       highlight.dispose();
+      // Spec 024 (rework-024, nit 3): what the eating built, a split out of the scene included, which disposeRoom's
+      // walk of the scene can't reach.
+      eat3d?.dispose();
       disposeRoom(room);
       renderer.dispose();
       canvas.remove();

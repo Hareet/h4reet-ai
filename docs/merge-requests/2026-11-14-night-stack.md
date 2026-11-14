@@ -2197,6 +2197,1590 @@ verify-023: green, carrying D-V2's six (Q165)
 
 ---
 
+## Item 7: spec 024, the dinosaur eats chunks of the room's assets (`night/impl-024/impl-024`)
+
+Spec: specs/024-dino-eats-room-assets/ · Intent: intent/024-dino-eats-room-assets.md · Written by: implementer (night shift), impl-024 on Opus 5.5, over two sessions (the second resumed at T011a from the branch's save point); the review is for a worker who didn't write the code · Date: 2026-11-14
+Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl-024 · Repo hooks active: the commit hooks ran (gitleaks, arrival check) on every commit
+Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at the top of plan.md and tasks.md), the spec, and the plan, as reworked three times after rv-spec-024, rv-rework-spec-024, and rv-rework2-spec-024 (the page's Q39 to Q44, Q107 to Q109, Q113, Q114, Q117, Q119, Q147 to Q150, Q155, Q156, each answered: recommended). Base: rework3-spec-024 (1b714096), with `night/impl2-021/impl2-021` (77b1a244, item 4's reviewed tip) merged first (T000, merge commit 282279d5, no conflict), and `night/verify-021/verify-021` (b3d043a2, "verify-021: green, carrying D-V2's six (Q165)") merged before this section was written (b799a352, no conflict: it changes only this note and spec 021's text).
+
+### What changed and why
+
+His item i): "dino being able to eat chunks of assets like desk, busy sign, laptop, chalkboard". A visitor who chose the dinosaur can eat four pieces in the 3D room: the desk, the busy sign, the laptop, and the chalkboard. Near one, they press B or the "Eat" tile. The nearest standing chunk of that piece flies to the dinosaur's mouth and is gone. Chunks grow back one at a time, 20 s apart, until the piece is whole again. Each piece is split from its own model at its first bite. Whatever holds up a live face, a glow, or a mounted piece is set aside and never eaten. There is no asset, request, or event. The eaten state lives in memory only.
+
+**The dinosaur is the stand-in until his look approval** (rule 2). Item 4's model waits on the studio and his intake. While the flat cut-out shows, FR-001 turns the eating off: there is no tile, and key B does nothing. Everything below is built and tested on stub figures and on the four pieces' real files. It starts working when his dinosaur model lands, with no code change.
+
+By task, each test-first (RED committed before GREEN):
+
+- **T000**: item 4's tip merged, and the plan's names confirmed on it (plan §1's departure).
+- **T001 to T003, the data and the words**:
+  - `scene.yaml`: `edible: { chunks }` on the four placements (6, 4, 4, 4) and `eating.regrow_s: 20`;
+  - the schema's refusals (RD3) and the bundle's types;
+  - the words `eat.button` ("Eat") and `eat.first_bite` ("The dinosaur ate part of the {name}.").
+- **T004, the chunker** (`src/room/eat/chunker.ts`, `keepouts.ts`), pure: set-aside rules (a) to (d), then a seeded k-means split. Times on the real files (median of 5) are under FR-015's 50 ms:
+
+  | | desk | sign | laptop | board |
+  |---|---|---|---|---|
+  | set-aside | 3.1 ms | 0.5 ms | 12.1 ms | 1.6 ms |
+  | split | 12.6 ms | 0.2 ms | 8.0 ms | 1.1 ms |
+
+- **T005 to T007**:
+  - the meal ledger (`meal.ts`);
+  - the one predicate (`available.ts`);
+  - the mouth (`mouth.ts`): the `Jaw` bone by its raw or sanitized name, else the estimate. Spec 021's rig contract, line 7, now names `eat/mouth.ts`'s lookup (NB-4).
+- **T008, T009, the 3D side** (`eat3d.ts`, wired into `scene.ts`):
+  - chunk and cut meshes beside their sources, sharing attributes and materials;
+  - the back-face cut colour (× 0.7);
+  - the flight (600 ms) and the regrowth (400 ms);
+  - each mesh's visibility kept (RB-1);
+  - on any exception, one `console.warn` and the piece as loaded.
+
+  Draw calls, split: sign 10, board 37, laptop 62, desk 75. All four split draw 142 more than whole (42). FR-015's ceilings are 100 a piece and 240 for all four.
+- **T010, key B** (`walk/input.ts`, `eat/press.ts`): never in a text field and never with a modifier; only at an edible piece in reach; one bite at a time.
+- **T011a, the Eat box and the compositor's judgement** (`compose/hud.ts`, `frame.ts`, `protect.ts`, `stages.ts`, `build/room/checks/rg.ts`, `report.ts`). For a 3D dinosaur visit only, an 8 × 2.75 rem box sits beside the walking control and is reserved for the whole visit. The compositor sweeps the supported screens a second time with it (Q150):
+  - RG5's aspects cover the variant's stages;
+  - RG6 refuses a problem found only there ("… for a 3D dinosaur visit");
+  - RG7 holds the floor at its reference stages;
+  - the report gains the dinosaur visit's lines.
+
+  The bundle stays the plain visit's. Every other visit's boxes, stages, layout choice, and report lines are unchanged: a snapshot written against T010's code holds them.
+- **T011b, the tile** (`layout.ts`, `hud/icons.ts`, `room.css`, `app.ts`; `hud/split.ts` exports `attempt`). It is a real button, named "Eat, B". Its key cap may fail to draw and the tile keeps its name (NB-1). It sits at the box, and it shows only while the 3D side says the eating is available and the room isn't paused.
+- **T012, T013**:
+  - reduced motion: no flight and no growth;
+  - the polite line, once per piece per visit, through the live region;
+  - ~~the degraded modes: paused, loading, 2D, another visitor, and nothing stored or sent.~~ **Corrected by rework-024** to what T013's tests (`eat-degraded.test.ts`) reach. They reach the room's side only, on a stub 3D stage: the room tells the stage it is paused (and hides the tile, and a click then presses nothing); the room tells it the loader shows, asserted only where the page's `data-loading` is on at arrival, and then that it doesn't; a visit that starts in 2D, and a dog's or the woman's visit, have no tile, no eating option, and no Eat box; no event kind or config line. "Nothing stored or sent" is two tests: the room with a stub stage (storage, network, and beacon spies over five offers, clicks, and lines), and the 3D side alone over three rounds of bites and regrowths, which spies on `fetch` only. They don't reach the 3D side's pause (a flight paused mid-way landed, rv-impl-024's B-1, now `eat-pause.test.ts` and `eat-scene.test.ts`) nor the fall to 2D in mid-visit (now `eat-fall.test.ts`, a pin that passed at once).
+- **T014**: the budgets (below).
+
+Departures, each in plan.md in the same commit:
+- §1: the branch and the merge;
+- §5.1: RD3 in the schema;
+- §5.2: `keepouts.ts`, `shapeBox` moved, and the node-name match;
+- §5.4: meshes beside their sources, and the hooks;
+- §5.5: the press's gate in `press.ts`, T011a's eight points, and T011b to T013's;
+- §6: T014's sizes.
+
+The two that need his eye are on the page (below).
+
+### Acceptance criteria
+
+| Requirement | Tests |
+|---|---|
+| FR-001, FR-009 | `eat-available`, `eat-degraded`, `eat-button` |
+| FR-002, FR-011 | `eat-data` |
+| FR-003 to FR-008, SC-001 to SC-003 | `eat-chunker`, `eat-meal`, `eat-3d` (the four real pieces) |
+| FR-010 | `eat-reduced` |
+| FR-012 | `eat-input`, `eat-box`, `eat-checks`, `eat-button` |
+| FR-013 | none: no clip role added |
+| FR-014, FR-016, SC-006 | `eat-meal`, `eat-degraded` (no request, beacon, or storage touch; no event kind or config line) |
+| FR-015 | `eat-chunker`, `eat-3d`, T014 |
+| SC-004 | `eat-box`'s option-off snapshot, and the existing HUD, stage, and report tests |
+| FR-006's look, A4's set-aside part | his look approval |
+
+### Verification (small tests, the order's rule 4)
+
+From `apps/web`, each task's own files and the files importing what it changed (tasks.md's lists). Earlier tasks, all passing:
+
+| Task | Files | Passed |
+|---|---|---|
+| T001 to T003 | 12 files | 850 |
+| T004 | `eat-chunker`, `standins`, `stages-checks` | 63 |
+| T005 to T007 | 3 files; `evals/test_docs_links.py` | 38; 44 |
+| T008 | `eat-3d`, `scene`, `highlight`, `gltf-images` | 124 |
+| T009 | `eat-3d`, `pick` | all |
+| T010 | 6 files | 59 |
+
+T009's RED was shown by a mutation (rule (c) off): 2 failed.
+
+**T011a.** RED against T010's code: `eat-box` and `eat-checks`, 21 failed, 5 passed. GREEN, those two files: 26 passed. Its list (57 files, with `compose.test.ts`, nit 2):
+
+```
+ FAIL  test/room/data-only.test.ts > the proof set, each change a data edit (FR-006, SC-001) > an addition: … a labelled, selectable stand-in
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > (three cases)
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ Test Files  3 failed | 54 passed (57)
+      Tests  5 failed | 1356 passed | 1 skipped (1362)
+   Duration  1659.06s
+```
+
+Of those five failures:
+- **Four are D-V2's** (Q165): legibility's three and report's one.
+- **One is this item's**, `data-only`'s addition case. That test picks a free spot clear of the walking control's box only. The dinosaur visit's sweep then finds the added selectable's core under the Eat box at 335 stages ("RG6 … its exclusive core lies under a panel's box, the walking control's box, or the "Eat" tile's box in 3D at 320 × 250 and 334 others for a 3D dinosaur visit").
+  - The test is another spec's, so it isn't edited here.
+  - `docs/merge-requests/proposed/024-data-only-eat-box.patch` (one line) makes its search reserve the Eat box too. With it on a copy, the test passes 31 of 31.
+  - It is on the page, recommended "apply".
+  - The repository's own data composes with no finding in the variant.
+
+**The node-name nit.** RED: 1 failed. GREEN: `eat-3d`, `eat-chunker`, `scene`, 124 passed.
+
+**T011b to T013.**
+- RED: `eat-button`, 11 failed and 2 passed. `eat-reduced` and `eat-degraded`, run against the code before T011b: 6 failed and 5 passed. The 5 are the 3D side's cases, pins on T008's code.
+- Their lists (32 files): 5 failed, 486 passed.
+  - Two of the failures were mine, both fixed. The tile's hover rules are dropped, since `hud-look`'s T053 case scopes hover rules to the HUD's buttons by class. The polite line's label is now passed by the 3D side.
+  - The other three: `disclosure.test.ts`'s two are D-V2's (Q165), and `data-only`'s is T011a's, above.
+- Then, the files those fixes touched:
+
+```
+npx vitest run test/ui/eat-reduced.test.ts test/ui/eat-degraded.test.ts test/ui/eat-button.test.ts test/ui/hud-look.test.ts
+  test/room/scene.test.ts test/room/eat-3d.test.ts
+ Test Files  6 passed (6)
+      Tests  129 passed (129)
+```
+
+**T014:**
+
+```
+npx vitest run test/room/chunk.test.ts test/room/budgets.test.ts test/room/eat-3d.test.ts
+ Test Files  3 passed (3)
+      Tests  62 passed (62)
+```
+
+Sizes, measured gzip on a scratch copy of `chunk.test.ts`:
+
+| | 282279d5 (before) | here | change | budget |
+|---|---|---|---|---|
+| choice screen's JavaScript and CSS, release | 56,242 bytes | 57,108 bytes | +866 (the tile and the box) | 153,600 |
+| the 3D chunk | 111,928 bytes | 118,126 bytes | +6,198 | measured, not raised |
+
+The base's sizes came from a `git archive` copy, where two of that file's cases failed (no `.git` there). Only its sizes were read.
+
+**The compose's time**, one cold `compose` of the repository's room: 16.2 s before T011a, 16.3 s after.
+
+**The lint target**, after T014's code. It first failed on three things, fixed in ac890a80: an unused import left by T004's move, an unused test argument, and prettier on two files. Then:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+785 files already formatted
+… shellcheck …
+exit 0
+```
+
+(rework2-024, rv-rework-024's N-2: this paste was elided at shellcheck's line. The whole lint run, at rework2-024's tip, is pasted in its section below.)
+
+After this section was written: `pytest -q -p no:cacheprovider --import-mode=importlib evals/test_docs_links.py evals/test_repository_docs.py`, 61 passed in 0.92s, and the lint target again (below the commit that adds this section).
+
+D-V2's six, as these runs met them: `legibility.test.ts`'s three, `report.test.ts`'s one, and `disclosure.test.ts`'s two. None was fixed here, and `docs/merge-requests/proposed/018-verify-test-amendments.patch` was never applied. No full suite was run here: the stack's last task runs the one full check.
+
+SC-006 (human-only paths): `git diff --stat 282279d5 HEAD -- .claude tools/gates corpus assets CLAUDE.md REVIEW.md .specify/memory/constitution.md evals/agent-config redteam/forbidden-actions.sh` is empty.
+
+### Review
+
+The spec's reviews, and how the plan, the tasks, and the code settle their non-blocking findings (analysis.md's table):
+- **rv-spec-024**:
+  - I-4 to I-6 and N-1 to N-5 are in the spec and plan as the first rework left them.
+  - B-1 and B-2 are fixed.
+  - B-3 is overturned by Q117 (no event).
+- **rv-rework-spec-024**:
+  - NB-1 (`attempt`) is in the tile.
+  - NB-2 (the 10 mm margin) is in `keepouts.ts`.
+  - NB-3 (`node_modules`) was present here.
+  - NB-4 (spec 021's contract, line 7) was amended at T007.
+  - NB-5 (the mesh counts) is asserted at T008.
+- **rv-rework2-spec-024**:
+  - RV-2 (the cover rule without the Eat box) is in `splitBoxes`, and tested.
+  - N-1 (one ADR for specs 024 and 025) waits for the docs role.
+  - N-2 (the mesh name) is `meshNameOf`.
+  - N-3 (T011 split) is T011a and T011b.
+- **rv-rework3-spec-024's nits**, each fixed:
+  1. RG5's test asserts the cover only (`eat-checks`, and tasks.md).
+  2. `compose.test.ts` is in T011a's list.
+  3. The stage corner's box is `eatControlBox`'s, and `eat-box` tests that the two agree at every supported clear area.
+  4. The picker's fallback (`bundle3d.ts:385`) isn't changed. It runs only for a stage without `reserved`: spec 005's clear area, before the 3D stage gives its protector, where no visit has an Eat box. Plan §5.5 says so. (**Corrected by rework-024**, I-1: it also ran in the stacked layout, where the room gives no frame, so a dinosaur visit's Eat box went unreserved there. `scene.ts` now gives that stage the walking control's box and the Eat box; plan §5.5's sentence is corrected.)
+  5. `compose/hud.ts` cites spec 018's FR-001 (e) and Q58.
+  6. The node-name match is done too: `matchedNameOf` matches as `prepareModel` hides, by any node's name.
+
+This item's code review is for the next worker (rule 6).
+
+### Cost and data-flow impact
+
+$0, and no model call. No byte leaves a visitor's device for the eating: no request, no event, no storage (FR-014, FR-016; `eat-degraded`). No disclosure row, panel, or event config changes (Q117). The deviations, named in spec A5: Principle II's telemetry and Development Workflow 7's graph. The second sweep adds about 0.1 s to the compose.
+
+### For the Author
+
+What waits for you:
+
+1. **Human patch 024** (`docs/merge-requests/human-patches/024.md`): no human-only path changes. The note lists what this item touches.
+2. **The one ADR** for the "no usage event" deviation (Q117, Q-R2c), shared by specs 024 and 025 (Q149). If you confirm Q117, the docs role writes it, on main before this item merges. It isn't written here.
+3. **Q149 and Q161**, on the page as the supervisor names them, with their recommended answers.
+4. **This session's two questions** (`/night/io/out/questions.md`), each with its recommended answer:
+   - for a dinosaur visit, where the Eat box fits neither beside nor above the walking control at the column's head, both controls sit in the stage's corner (36 of 14,482 sweep cases at 16 px);
+   - apply `docs/merge-requests/proposed/024-data-only-eat-box.patch`. Until that is settled, `data-only.test.ts`'s addition case fails on this branch.
+5. **Your look approval** on dev-cpu, once the dinosaur's model is in (item 4's intake):
+   - the cut colour, the flight, the regrowth, and the set-aside part (spec A4);
+   - the tile, which has no hover change of its own (plan §5.5).
+6. **Your answers to the spec's questions**, all taken as recommended: Q1 to Q6, Q107 to Q109, Q117, Q119, Q-R2a to Q-R2c, Q149, Q150, Q-R3a, Q-R3b.
+
+Interruptions:
+- **Two bash-gate refusals.**
+  - A `rm -rf` of a scratch folder under `/tmp` was refused as "recursive delete outside workspace". It was a real refusal. I took another route: a fresh `mktemp -d`, and nothing deleted outside the repository.
+  - The shell command that would have appended this section was refused as "an Author-only make target". That was a false match on this section's words. The section was written with the Edit tool instead.
+
+  Nothing was respelled.
+- **One harness block**, not a hook: a Monitor watch needed an approval it didn't have, so I waited with a background shell loop instead.
+
+### Rule 6's rework (`night/rework-024/rework-024`, 2026-11-14, Opus 5.5)
+
+rv-impl-024 (Opus) blocked item 7 on B-1 and B-2. This branch fixed them, the important finding I-1 (page Q215, answered recommended), and the four nits, from impl-024's tip (bbe55c0d), over two sessions (the second resumed at B-2's GREEN from the working tree). Each fix's test was RED before its GREEN, one commit per fix, its rule in plan.md's departures in the same commit. rv-rework-024 reviews it.
+
+| Fix | RED | GREEN | The rule (plan.md) |
+|---|---|---|---|
+| B-1 (FR-009, US3 AS5) | 3d91fbf9 | 2bb1b212 | §5.4: everything of the eating that takes time runs on one clock, the room's less the meal's paused time; nothing moves, lands, grows, comes due, splits, or starts while paused; the meal is paused in every state FR-009 names (the loader too) |
+| B-2 (FR-012) | 2ca9341d | 2c87c414 | §5.5: a `room.css` rule reading a property set for some layouts only is scoped to them and to the attribute that says it is set; the room offers a control only where a rule places it |
+| I-1 (Q215) | 983e4413 | 947b624f | §5.5 (T011a's sentence corrected): a dinosaur visit's stacked stage reserves the walking control's box and the Eat box |
+| nit 1, Escape | 48309fbe | effa88b2 | §5.4: every way the walk ends lands the flights at once, at the resume while paused |
+| nit 2, `e.repeat` | bc8f9662 | 907d9b5b | §5.4: a held key is one press (B, and Enter or Space on the tile) |
+| nit 3, disposal | ac4f4308 | e5590649 | §5.4: every GPU resource the eating builds is freed by the stage's dispose, wherever it is; a dropped one when dropped |
+| nit 4 | n/a | 76d01be0 | §5.5: 59eced2c's edit of `eat-checks.test.ts` (a first-run snapshot made `toBeGreaterThan(0)`) named |
+
+What each test reaches. (rework2-024, rv-rework-024's N-2: the RED and GREEN figures in this list are as rework-024's sessions recorded them, not pasted; their outputs weren't kept. The table above names each RED commit, for a re-run.)
+- **B-1**: `eat-pause.test.ts` (a flight and a growth paused mid-way past their time, resumed, landing after the rest; the ledger's `landed` and `grown` not called while paused; a press while paused) and `eat-scene.test.ts`, at `createScene`'s level with the dinosaur's files (`helpers/room-dinosaur.ts`), so `scene.ts`'s `eatFrame`, `eatPress`, `modelOf`, the label to `said`, and `protectorFor(..., { eat })` run. RED: the unit cases failed, and the scene's paused and loader cases failed with a chunk landing during the hold; GREEN: 6 files, 52 passed (recorded, not pasted).
+- **B-2**: `eat-place.test.ts` reads the tile's `left`/`top`/`right`/`bottom` through the cascade (every matching `room.css` rule, by specificity then order) under `data-hud="stacked"` with and without an Eat box, in each HUD layout with one, and with none. Two of impl-024's tests changed with the fix, by their own subject, and are named in plan §5.5: `eat-button.test.ts` looked the rule up by its old selector, and `eat-degraded.test.ts`'s visit gave its 3D stage no protector (so, under the new rule, no tile). With the code changed and those two not yet, they failed: 2 failed, 21 passed (recorded, not pasted).
+- **I-1**: `eat-scene.test.ts` records the stage `scene.ts` gives the picker (`selectablePicker` wrapped): in the stacked layout it was `reserved: undefined` (RED, recorded, not pasted), now `reservedBoxes(960 × 600, 16, { eat: true })`.
+- **nit 1**: `eat-scene.test.ts`, Escape on the view and the walking control: RED "expected 4 to be 3" (recorded, not pasted); a leave while paused lands nothing until the resume. `failWalk` settles too (not staged in a test).
+- **nit 2**: `eat-key-repeat.test.ts`, the input's repeats and the tile's repeated Enter and Space (prevented, so no click). The walking control has the same shape and is spec 008's; on the page.
+- **nit 3**: `eat-pause.test.ts` (a whole piece's split freed at `dispose`, a reloaded model's at once) and `eat-scene.test.ts` (the stage's dispose after the room's `regrow_s`: RED "expected +0 to be 8", recorded, not pasted).
+- **T013's claim**, corrected above to what `eat-degraded.test.ts` reaches; `eat-fall.test.ts` is a new pin for the fall to 2D in mid-visit (passed at once).
+
+Siblings probed (plan.md names each): no other code under `src/room/eat/` reads a clock or sets a timer; every other `var(--…)` in `room.css`, `hud/split.css`, and `loading/loading.css` is set in the layouts that read it; every route out of walking goes through `leaveWalk` or `failWalk`; `disposeRoom` is the only other disposer and reaches only the scene's graph.
+
+**Runs (the order's rule 4)**, from `apps/web`, at 76d01be0 plus this note (code unchanged since): every `eat-*` file in `test/room` and `test/ui` (the added `eat-place`, `eat-pause`, `eat-scene`, `eat-key-repeat`, and `eat-fall` among them), `vocabulary` and `bundle`, the tests covering `layout.ts` and `room.css` (`events`, `flat`, `hud-contrast`, `loading-contrast`, `objects`, `stages`, `a11y`, `flat-frame`, every `test/ui/hud-*` and `loading-*`, `pick`, `text-copy`), `scene.ts` (`lookdev/page`, `stage-walk`, `highlight`, `avatar-scene`, `faces`, `quality`, `twin-network`, `scene-fit`, `scene`, `chunk`), and `walk/input.ts` (`room/input`, `room/walking`, `ui/walking`, `ui/fullscreen`); `twin-2d` not among them:
+
+```
+npx vitest run test/room/eat-*.test.ts test/ui/eat-*.test.ts test/room/vocabulary.test.ts test/room/bundle.test.ts
+  test/room/events.test.ts test/room/flat.test.ts test/room/hud-contrast.test.ts test/room/loading-contrast.test.ts
+  test/room/objects.test.ts test/room/stages.test.ts test/ui/a11y.test.ts test/ui/flat-frame.test.ts test/ui/hud-*.test.ts
+  test/ui/loading-*.test.ts test/ui/pick.test.ts test/ui/text-copy.test.ts test/lookdev/page.test.ts
+  test/room/stage-walk.test.ts test/room/highlight.test.ts test/room/avatar-scene.test.ts test/room/faces.test.ts
+  test/room/quality.test.ts test/room/twin-network.test.ts test/room/scene-fit.test.ts test/room/scene.test.ts
+  test/room/chunk.test.ts test/room/input.test.ts test/room/walking.test.ts test/ui/walking.test.ts test/ui/fullscreen.test.ts
+ Test Files  61 passed (61)
+      Tests  952 passed (952)
+   Duration  444.66s (tests 61%, import 39%)
+```
+
+(The globs were expanded by the shell; the run named each file.) The lint target, at 76d01be0:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+785 files already formatted
+… shellcheck …
+exit 0
+```
+
+(rework2-024, rv-rework-024's N-2: this paste was elided at shellcheck's line. The whole lint run, at rework2-024's tip, is pasted in its section below.)
+
+No full suite here: the stack's last task runs it once. SC-006: `git diff --stat bbe55c0d HEAD -- .claude tools/gates corpus assets CLAUDE.md REVIEW.md .specify/memory/constitution.md evals/agent-config redteam/forbidden-actions.sh` is empty.
+
+For the Author: three questions on the page, each recommended as built (the tile hidden in a HUD layout with no Eat box; the walking control's held Enter, spec 008's, left as it is; a leave while paused lands the flight at the resume).
+
+Interruptions:
+- **The review file was out of reach.** `/home/h4reet/h4reet-ai/night/.io/rv-impl-024/out/review.md`, the brief's path, doesn't exist in this container (both sessions looked). The fixes follow the brief's account of each finding, which names the files, the lines, and the tests it wants. rv-rework-024 should check them against the review itself.
+- No hook or bash-gate refusal in either session. The first ran the setup target (no `node_modules` in the worktree); its one notice was that the git hooks' folder isn't writable in the sandbox, which is the Author's step.
+
+### Rule 6's second rework (`night/rework2-024/rework2-024`, 2026-11-14, Opus 5.5)
+
+rv-rework-024 (Opus) found rework-024's B-1, B-2, I-1, and rv-impl-024's nits closed, not blocking, and raised one important finding, I-A, and four nits. This branch closes them from rework-024's tip (b472e391). Page Q232 (I-A) is answered recommended. Each code fix's test was RED before its GREEN, one commit per fix, with plan.md in the same commit. rv-rework2-024 reviews it. The review file (`/home/h4reet/h4reet-ai/night/.io/rv-rework-024/out/review.md`) isn't in this container, so the fixes follow the brief's account of each finding.
+
+| Finding | RED | GREEN | What changed (plan.md) |
+|---|---|---|---|
+| I-A (FR-009, Q232) | d2a98fa9 | ee366364 | §5.4: the meal pauses and resumes when the room's held state changes, not at the next frame. `Stage3D.eat.sync()`; `app.ts`'s `eatHeld()` calls it from the motion listener (the toggle; the page hidden and shown) and at the loader's `on` and `leaving`; `eatFrame`'s read stays as a backstop |
+| N-1 | n/a | 4fd45406 | §5.5's B-2 departure names 2c87c414's edit of `eat-place.test.ts` (a `let` made a `const` for `no-useless-assignment`; the RED file fails `eslint` at 53:9) |
+| N-2 | n/a | this note | item 7's recorded figures are marked "recorded, not pasted", and its two elided lint pastes are marked; the whole lint run is below |
+| N-3 | 3bd6613b | 18252336 | §5.5: the stacked Eat box's reserve reads the layout (the room gives no frame and no clear area), not a frame that doesn't fit; a HUD layout mid-resize reserves as a plain visit's |
+| N-4 | n/a | 9d3f0a85 | `free()`'s comment, and §5.4's nit 3 line: the attributes' arrays are the source's; their GPU buffers go with a split's dispose (three.js's `WebGLGeometries` removes every attribute of a disposed geometry) and are uploaded again at the source's next draw |
+
+**I-A's RED** (d2a98fa9), pasted:
+
+```
+npx vitest run test/room/eat-scene.test.ts test/ui/eat-hidden.test.ts
+ FAIL  test/room/eat-scene.test.ts > … > doesn't count a hidden page's time: no landing and no regrowth at the first frame back (I-A, page Q232)
+TypeError: s.stage.eat?.sync is not a function
+ FAIL  test/room/eat-scene.test.ts > … > holds the meal at once for every state the room counts, with frames stopped: the toggle, hidden, the loader
+TypeError: s.stage.eat?.sync is not a function
+ FAIL  test/ui/eat-hidden.test.ts > the room tells the eating of a held state at once (FR-009; I-A) > calls the stage's eat.sync on the loader's end, the toggle, and the page hidden and shown, reading each in state()
+AssertionError: the loader's end, told: expected undefined to deeply equal { paused: false, loading: false }
+ Test Files  2 failed (2)
+      Tests  3 failed | 7 passed (10)
+```
+
+That RED fails on the missing method. To show the bug itself, the GREEN code was run once with `sync` stubbed to a no-op (`sync: () => undefined`, then restored, not committed). The scene's two new cases then fail on the landing:
+
+```
+npx vitest run test/room/eat-scene.test.ts -t "hidden|every state"
+AssertionError: the flight hasn't landed at the first frame back: expected 3 to be 4 // Object.is equality
+AssertionError: paused: no landing at the first frame back: expected 3 to be 4 // Object.is equality
+      Tests  2 failed | 7 skipped (9)
+```
+
+GREEN (ee366364): `npx vitest run test/room/eat-scene.test.ts test/ui/eat-hidden.test.ts`, 2 files, 10 passed (recorded, not pasted; verify-024, rv-rework2-024's N-A).
+
+**N-3's RED** (3bd6613b), pasted:
+
+```
+npx vitest run test/room/eat-scene.test.ts -t "N-3|I-1"
+     × reserves no stacked Eat box in a HUD layout mid-resize, whose frame was given for another window (N-3) 21ms
+AssertionError: the picker's fallback, as a plain visit's: expected [ [ 824, 548, 128, 44 ], …(1) ] to be undefined
+      Tests  1 failed | 1 passed | 8 skipped (10)
+```
+
+GREEN (18252336): `eat-scene.test.ts`, 10 passed (recorded, not pasted; verify-024, rv-rework2-024's N-A).
+
+What the I-A tests reach:
+- `eat-scene.test.ts` runs at `createScene`'s level with frames stopped (`clock.advance(ms, ms + 1)`, so the clock moves and no frame is drawn). Hidden through a flight, then shown, then one frame: the flight hasn't landed, and it lands after the rest of its flight. Hidden past `regrow_s` after a landing: no regrowth is due at the first frame back. The toggle and the loader each pass the same check.
+- `eat-hidden.test.ts` (new) runs at the room's level, through the stand-in stage: the room calls `eat.sync()` at the loader's end, at each toggle, and when the page is hidden and shown, at once, and `state()` reads each change then.
+- The class: the toggle and the loader drew frames, so B-1's poll already caught them, and the call now makes them exact. Hidden was the bug. The fall to 2D disposes the stage and its loop, so no meal is left to hold, and `eat-fall.test.ts` pins the tile's side of it.
+
+**Runs (the order's rule 4)**, from `apps/web`, at 18252336 (code unchanged since). First, every `eat-*` file (elided: the summary lines only; verify-024, rv-rework2-024's N-A):
+
+```
+npx vitest run test/room/eat-*.test.ts test/ui/eat-*.test.ts
+ Test Files  18 passed (18)
+      Tests  194 passed (194)
+   Duration  122.63s (tests 66%, import 33%, transform 1%)
+```
+
+Then the tests covering the files this branch changes, 132 files. `app.ts` is imported by `test/helpers/room.ts`, so every file importing that helper counts. `scene.ts` and `stage.ts` add the files importing them, plus every `eat-*` file. `twin-2d` is left out, as the order allows. (verify-024, rv-rework2-024's N-A: the command is rewrapped here, one file list over several lines, and the run's per-file lines aren't shown.)
+
+```
+npx vitest run \
+  test/asset-events.test.ts test/lookdev/builds.test.ts test/lookdev/metrics.test.ts test/lookdev/page.test.ts
+  test/lookdev/results.test.ts test/lookdev/start.test.ts test/manifest.test.ts test/room/avatar-driver.test.ts
+  test/room/avatar-gait.test.ts test/room/avatar-hands.test.ts test/room/avatar-loader.test.ts
+  test/room/avatar-scene.test.ts test/room/avatars-compose.test.ts test/room/avatars.test.ts test/room/bundle.test.ts
+  test/room/camera.test.ts test/room/chunk.test.ts test/room/data-only.test.ts test/room/dinosaur-compose.test.ts
+  test/room/dist.test.ts test/room/dog-avatar.test.ts test/room/dog-line.test.ts test/room/eat-3d.test.ts
+  test/room/eat-available.test.ts test/room/eat-box.test.ts test/room/eat-checks.test.ts
+  test/room/eat-chunker.test.ts test/room/eat-data.test.ts test/room/eat-meal.test.ts test/room/eat-mouth.test.ts
+  test/room/eat-pause.test.ts test/room/eat-scene.test.ts test/room/emblem-data.test.ts test/room/events.test.ts
+  test/room/faces.test.ts test/room/fit.test.ts test/room/flat-frame.test.ts test/room/flat.test.ts
+  test/room/floor.test.ts test/room/gait-rig.test.ts test/room/generated.test.ts test/room/geometry.test.ts
+  test/room/gltf-images.test.ts test/room/highlight.test.ts test/room/hints.test.ts test/room/hud-contrast.test.ts
+  test/room/hud-stats.test.ts test/room/lettering.test.ts test/room/likeness-line-anywhere.test.ts
+  test/room/live.test.ts test/room/loader.test.ts test/room/loading-contrast.test.ts test/room/loading-hints.test.ts
+  test/room/loading-progress.test.ts test/room/motion.test.ts test/room/movement.test.ts test/room/objects.test.ts
+  test/room/protect.test.ts test/room/quality.test.ts test/room/ray.test.ts test/room/reach.test.ts
+  test/room/scene-fit.test.ts test/room/scene.test.ts test/room/stage-walk.test.ts test/room/stages-checks.test.ts
+  test/room/stages-floor.test.ts test/room/stages.test.ts test/room/status-poller.test.ts test/room/text.test.ts
+  test/room/turn-cost.test.ts test/room/twin-compose.test.ts test/room/twin-faults.test.ts
+  test/room/twin-figure.test.ts test/room/twin-handoff.test.ts test/room/twin-network.test.ts
+  test/room/twin-reach.test.ts test/room/twin-shirt.test.ts test/room/vocabulary.test.ts test/room/walk-hold.test.ts
+  test/room/walking.test.ts test/smoke.test.ts test/talk/turn-client.test.ts test/ui/a11y.test.ts
+  test/ui/around.test.ts test/ui/avatars.test.ts test/ui/choice.test.ts test/ui/credits.test.ts
+  test/ui/degraded.test.ts test/ui/eat-button.test.ts test/ui/eat-degraded.test.ts test/ui/eat-fall.test.ts
+  test/ui/eat-hidden.test.ts test/ui/eat-input.test.ts test/ui/eat-key-repeat.test.ts test/ui/eat-place.test.ts
+  test/ui/eat-reduced.test.ts test/ui/flat-frame.test.ts test/ui/fullscreen.test.ts test/ui/handoff-wait.test.ts
+  test/ui/handoff.test.ts test/ui/highlight.test.ts test/ui/hud-a11y.test.ts test/ui/hud-faults.test.ts
+  test/ui/hud-look.test.ts test/ui/hud-model.test.ts test/ui/hud-notes.test.ts test/ui/hud-pointer.test.ts
+  test/ui/hud-split-a11y.test.ts test/ui/hud-split-contrast.test.ts test/ui/hud-split-model.test.ts
+  test/ui/hud-split-rest-row.test.ts test/ui/hud-split.test.ts test/ui/hud.test.ts test/ui/loading-a11y.test.ts
+  test/ui/loading-degraded.test.ts test/ui/loading-faults.test.ts test/ui/loading-notes.test.ts
+  test/ui/loading-page.test.ts test/ui/loading-style.test.ts test/ui/loading.test.ts test/ui/narration-room.test.ts
+  test/ui/notes-causes.test.ts test/ui/pause.test.ts test/ui/pdf-download.test.ts test/ui/pick.test.ts
+  test/ui/resize.test.ts test/ui/resume-room.test.ts test/ui/talk-activity.test.ts test/ui/talk-turns.test.ts
+  test/ui/talk.test.ts test/ui/text-copy.test.ts test/ui/walking.test.ts
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, each change a data edit (FR-006, SC-001) > an addition: a catalog entry, a placement, a selectable, and a topic become a labelled, selectable stand-in
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RG6 apps/web/room/scene.yaml:selectables[4]: its exclusive core lies under a panel's box, the walking control's box, or the \"Eat\" tile's box in 3D at 320 × 250 and 334 others for a 3D dinosaur visit",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:548:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/room/dinosaur-compose.test.ts > the dinosaur's folder in the bundle and the report (FR-001, FR-012, SC-001) > without the folder, names no dinosaur and carries no new measure in the 3D part, dist/a/, or the report
+AssertionError: expected '## Room report\n\nBundle 33f4a8729152…' not to match /dinosaur|extent/
+
+- Expected:
+/dinosaur|extent/
+
++ Received:
+… (89 lines of the received report elided here; the line that matches /dinosaur/ is:)
+A 3D dinosaur visit (spec 024, Q150): the \"Eat\" tile's box, 8rem × 2.75rem beside the walking control, reserved for the whole visit; 7,461 stages over the same screens, checked by RG6 and RG7 and not emitted; 9,230 screens and states, 4,122 at ease 0, 3,033 between, 2,075 at ease 1.
+…
+
+ ❯ test/room/dinosaur-compose.test.ts:323:40
+    321|     expect(result.scene.avatars.dinosaur).toBeUndefined();
+    322|     expect(result.avatars.some((a) => a.url.includes("dinosaur"))).toB…
+    323|     expect(result.report.markdown).not.toMatch(/dinosaur|extent/);
+       |                                        ^
+    324|     expect(JSON.stringify(result.scene)).not.toMatch(/extent_[xz]/);
+    325|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+ Test Files  2 failed | 130 passed (132)
+      Tests  2 failed | 2107 passed (2109)
+   Duration  902.28s (tests 70%, import 30%)
+```
+
+The two failures are in files this branch doesn't touch, and neither is chased (the order's rule 4). The same two fail with this branch's `src` set back to b472e391's (`git checkout b472e391 -- apps/web/src`, the two files run, `git checkout HEAD -- apps/web/src`), with the same messages:
+
+```
+npx vitest run test/room/data-only.test.ts test/room/dinosaur-compose.test.ts
+     × without the folder, names no dinosaur and carries no new measure in the 3D part, dist/a/, or the report 311ms
+     × an addition: a catalog entry, a placement, a selectable, and a topic become a labelled, selectable stand-in 11014ms
+AssertionError: expected [ Array(1) ] to deeply equal []
++   "RG6 apps/web/room/scene.yaml:selectables[4]: its exclusive core lies under a panel's box, the walking control's box, or the \"Eat\" tile's box in 3D at 320 × 250 and 334 others for a 3D dinosaur visit",
+AssertionError: expected '## Room report\n\nBundle 33f4a8729152…' not to match /dinosaur|extent/
+ Test Files  2 failed (2)
+      Tests  2 failed | 53 passed (55)
+```
+
+- `data-only.test.ts` is plan §5.5's met risk: the variant refuses that test's data edit, and `docs/merge-requests/proposed/024-data-only-eat-box.patch` is on the page, recommended "apply".
+- `dinosaur-compose.test.ts:323` (spec 021: without the dinosaur's folder, the report names no dinosaur) fails on T011a's dinosaur-visit report lines, which print with or without the folder. It wasn't recorded before. It is on the page, recommended: the report prints those lines only with the folder bundled, a fix task on item 7 with the test left as it is.
+
+The lint target, at this branch's tip (run at 9c772a19, again after this note; its count of files ruff formats read 786 at 18252336), whole:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+787 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit 0
+```
+
+SC-006: `git diff --stat b472e391 HEAD -- .claude tools/gates corpus assets CLAUDE.md REVIEW.md .specify/memory/constitution.md evals/agent-config redteam/forbidden-actions.sh` is empty. No full suite here: the stack's last task runs it once.
+
+For the Author: two questions on the page, each with its recommended answer. One is N-3's choice (a HUD layout mid-resize reserves as a plain visit's, as built). The other is `dinosaur-compose.test.ts`'s failure (the report's dinosaur-visit lines only with the folder).
+
+Interruptions: no hook or bash-gate refusal. One harness block, not a hook: a Monitor watch needed an approval it didn't have, so I waited with a background shell loop instead. The setup target ran first (no `node_modules` in the worktree); its one notice was that the git hooks' folder isn't writable in the sandbox, which is the Author's step. A `git archive` copy of b472e391 with `node_modules` symlinked couldn't load vite's config (pako's named export), so the base comparison used the checkout above instead.
+
+### Verification (rule 7, verify-024)
+
+Branch `night/verify-024/verify-024`, from rework2-024's reviewed tip dcac765c (rv-rework2-024, Opus: not blocking), by a different worker (Opus 5.5) from item 7's implementers (impl-024, rework-024, rework2-024). `cat /sys/fs/cgroup/cpu.max` gave `400000 100000`: 4 CPUs, not the 2 the brief expected, so each run below used `--maxWorkers=4`.
+
+#### The merge
+
+`git merge` of the line's tip, verify3-021 (300944f6), into dcac765c: merge commit 3d80bb3b. One conflict, in this note. Both sides added text after item 4's verification: item 7 here; on the line, item 4's intake, record, review, and verification sections, then items 6 and 10. The resolution takes the line's text whole through item 6, then item 7's section whole as dcac765c has it, then item 10 whole, in his order. No line of either side was removed. There was no code conflict. The merge brought `build/corpus-size.ts`, `build/film-links.ts` and their tests, `apps/web/package.json`, and documents. It brought no Python.
+
+The setup target ran first (no `node_modules`). Its one notice: the git hooks' folder "isn't writable here (the agent sandbox)".
+
+#### I-1 (page Q247, the Author's answer of 2026-11-13), test-first
+
+His answer, whole: "Yes, one condition for all three: a dinosaur visit reserves the Eat box, and the compositor checks and reports it, only when the bundle carries the dinosaur's model (the tile can't show without it, FR-001). verify-024 builds it test-first, with dinosaur-compose.test.ts left unchanged. data-only.test.ts then passes on today's repository, and its proposed patch stays for the day the folder lands."
+
+What was built is in plan.md §5.5's new departure, "Only with the dinosaur's model". In short:
+- `carriesModel(set, id)` (`build/room/avatars.ts`) decides, from the 3D part's `avatars`.
+- `rg.ts`'s `dinosaurVisit(ctx)` reads it for RG6's variant-only refusals (`spacingReasons(g, dinosaur)`) and RG7's floor at `referenceEat`.
+- `report.ts` prints `dinosaurLines` only with it.
+- `scene.ts`'s `eats` adds `bundled(EATER)`, so without the model there is no `eat`, no Eat box in the protector or the stacked reserve, and no tile.
+- `geometry()` and `pickSweep` still build and sweep the variant, which `eat-checks.test.ts` judges on the repository's geometry.
+
+RED, 536fb557, `eat-model.test.ts` (new), each place with and without the model. This run was made before prettier reformatted the file; the committed file differs only in formatting:
+
+```
+cd apps/web && npx vitest run test/room/eat-model.test.ts --maxWorkers=4
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-13/verify-024/apps/web
+
+ ❯ test/room/eat-model.test.ts (7 tests | 5 failed) 3156ms
+   ❯ whether the bundle carries the dinosaur's model (2)
+     × is the 3D part's avatars.dinosaur: not without the folder, and with it 2371ms
+     × is what the compositor's checks read for a compose (rg.ts's dinosaurVisit) 26ms
+   ❯ the report's dinosaur visit lines (report.ts) (2)
+     × prints none without the model: the report names no dinosaur 5ms
+   ❯ RG6's refusals found in the variant sweep alone (rg.ts's spacingReasons) (1)
+     × names the dinosaur visit's refusal with the model, and leaves only the plain visit's without it 634ms
+   ❯ the 3D stage (scene.ts's eats) (2)
+     × reserves no Eat box and gives no eating to a dinosaur visit whose bundle has no dinosaur's model 97ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/room/eat-model.test.ts > whether the bundle carries the dinosaur's model > is the 3D part's avatars.dinosaur: not without the folder, and with it
+TypeError: carriesModel is not a function
+ ❯ test/room/eat-model.test.ts:90:14
+     88|       const t = tree(dinosaur);
+     89|       const set = avatarsOf(t, avatarPolicy(), loadRoom(t).scene?.valu…
+     90|       expect(carriesModel(set, "dinosaur"), `carriesModel, the folder …
+       |              ^
+     91|     }
+     92|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  test/room/eat-model.test.ts > whether the bundle carries the dinosaur's model > is what the compositor's checks read for a compose (rg.ts's dinosaurVisit)
+TypeError: dinosaurVisit is not a function
+ ❯ test/room/eat-model.test.ts:95:12
+     93|
+     94|   it("is what the compositor's checks read for a compose (rg.ts's dino…
+     95|     expect(dinosaurVisit(contextOf(tree(false), avatarPolicy()))).toBe…
+       |            ^
+     96|     expect(dinosaurVisit(contextOf(tree(true), avatarPolicy()))).toBe(…
+     97|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  test/room/eat-model.test.ts > the report's dinosaur visit lines (report.ts) > prints none without the model: the report names no dinosaur
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ test/room/eat-model.test.ts:103:64
+    101|   it("prints none without the model: the report names no dinosaur", ()…
+    102|     const report = nightWithout().report.markdown;
+    103|     expect(report.split("\n").some((l) => l.startsWith(HEAD))).toBe(fa…
+       |                                                                ^
+    104|     expect(report).not.toMatch(/dinosaur/);
+    105|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  test/room/eat-model.test.ts > RG6's refusals found in the variant sweep alone (rg.ts's spacingReasons) > names the dinosaur visit's refusal with the model, and leaves only the plain visit's without it
+AssertionError: expected [ { selectable: +0, …(1) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "reason": "its exclusive core lies under a panel's box, the walking control's box, or the \"Eat\" tile's box in 3D at 320 × 274 and 166 others for a 3D dinosaur visit",
++     "selectable": 0,
++   },
++ ]
+
+ ❯ test/room/eat-model.test.ts:177:99
+    175|     const own = (dinosaur: boolean) => spacingReasons(g, dinosaur).fil…
+    176|     expect(own(true).some((r) => r.reason.includes("for a 3D dinosaur …
+    177|     expect(own(false).filter((r) => r.reason.includes("dinosaur") || r…
+       |                                                                                                   ^
+    178|     expect(spacingReasons(g, false)).toEqual(spacingReasons(g, true).f…
+    179|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  test/room/eat-model.test.ts > the 3D stage (scene.ts's eats) > reserves no Eat box and gives no eating to a dinosaur visit whose bundle has no dinosaur's model
+AssertionError: expected true not to be true // Object.is equality
+ ❯ test/room/eat-model.test.ts:213:38
+    211|     const stage = stageOver(part);
+    212|     try {
+    213|       expect(stage.protect?.eat).not.toBe(true);
+       |                                      ^
+    214|       expect(stage.eat).toBeUndefined();
+    215|     } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 2 passed (7)
+   Start at  20:08:16
+   Duration  93.74s (import 83%, tests 12%, transform 5%)
+```
+
+The two passing cases are the two with the model (the report's lines and the 3D stage's Eat box).
+
+GREEN, cd9e130a, with plan.md's departure in the same commit:
+
+```
+cd apps/web && npx vitest run test/room/eat-model.test.ts test/room/dinosaur-compose.test.ts test/room/data-only.test.ts test/room/eat-checks.test.ts --maxWorkers=4
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-13/verify-024/apps/web
+
+ ❯ test/room/eat-checks.test.ts (13 tests | 1 failed) 52399ms
+   ❯ the report's dinosaur visit lines (1)
+     × adds them after the frame lines, the existing lines as they were 2373ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/room/eat-checks.test.ts > the report's dinosaur visit lines > adds them after the frame lines, the existing lines as they were
+AssertionError: expected -1 to be greater than 0
+ ❯ test/room/eat-checks.test.ts:239:18
+    237|     const lines = result.report.markdown.split("\n");
+    238|     const head = lines.findIndex((l) => l.startsWith("A 3D dinosaur vi…
+    239|     expect(head).toBeGreaterThan(0);
+       |                  ^
+    240|     expect(lines[head - 1]).toBe("");
+    241|     expect(lines[head]).toContain("stages over the same screens, check…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed | 3 passed (4)
+      Tests  1 failed | 74 passed (75)
+   Start at  20:10:46
+   Duration  376.34s (tests 84%, import 15%, transform 1%)
+```
+
+`eat-model`, `dinosaur-compose`, and `data-only` pass unchanged. **One existing case pins the old behaviour:** `eat-checks.test.ts:234-247`, "the report's dinosaur visit lines", composes the fixture room, which has no dinosaur, and expects the lines. That is the opposite of his answer and of `dinosaur-compose.test.ts:323`, so no code can pass both. It isn't edited here. `docs/merge-requests/proposed/024-eat-checks-report-with-model.patch` composes that case with the dinosaur's test folder (`dinosaurNight()`) and drops the two imports it no longer uses. A scratch copy of the patched file, `test/room/zz-scratch-eat-checks.test.ts`, was run in the worktree and then deleted, never committed:
+
+```
+cd apps/web && npx vitest run test/room/zz-scratch-eat-checks.test.ts --maxWorkers=4
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-13/verify-024/apps/web
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  20:17:43
+   Duration  120.60s (tests 96%, transform 2%, import 2%)
+```
+
+The patch is on the page, recommended "apply". `docs/merge-requests/proposed/024-data-only-eat-box.patch` is no longer needed for `data-only.test.ts` to pass. It stays for the day the dinosaur's folder lands, when the variant judges the repository's room.
+
+#### Documents and comments (each its own commit)
+
+- N-C, 0e5ba168: `stage.ts`'s `eating.state` comment says "read each frame and at each `eat.sync()`", as `stage.ts:82-86` says.
+- b7df98ac: `stage.ts`'s `eat` comment adds the model condition (Q247).
+- N-A, 059dd26d: in `2026-11-14-night-rework2-024-rework2-024.md` and in this note's "Rule 6's second rework", the GREEN figures for ee366364 and 18252336 are marked "recorded, not pasted", the `eat-*` block is marked elided, and the 132-file command is marked rewrapped.
+
+#### For his hand and for others (not done here)
+
+- **N-B (a test edit, so not made here; a follow-up):** `eat-scene.test.ts:291-319`'s regrowth half was never seen RED. The title at `:322` names "hidden", but its loop covers `paused` and `loading`.
+- **The reviewer's CLAUDE.md line** (rv-rework2-024), for his hand (CLAUDE.md is human-only): "Writing a test figure (RED, GREEN, a count) in a note without pasting its output or marking it 'recorded, not pasted', including in the section that fixes exactly that."
+- **Spec 004's FR-007 scan finds item 7's IDs in item 7's tests: not fixed here, on the page.** The whole run below found it. It wasn't recorded before: no earlier run of item 7 included `scan.test.ts`. The case "finds 0 IDs only the room's data defines in the room's code" (`scan.test.ts:426`) gets 94 hits in seven of item 7's test files. The literals are `busy-sign`, `laptop`, `work-desk`, `chalkboard`, `charger`, and `bicycle`. Fixing it means editing those files, which this task may not do. The page recommends a fix task on item 7 that makes them read the IDs from the bundle, or from compose(), or use `fx-` fixtures, with `scan.test.ts` unchanged. Each tree below is a `git archive` into a fresh `mktemp -d` folder, with the worktree's `node_modules` linked in. These two outputs were piped through `awk -F: '{print $1}' | sort | uniq -c`, so they are counts, not the whole output:
+
+```
+main (3c0e4cd0): cd apps/web && npx vitest run test/room/scan.test.ts --maxWorkers=4
+      1  Test Files  1 passed (1)
+      1    Duration  46.58s (tests 81%, import 9%, transform 9%)
+      1       Tests  17 passed (17)
+dcac765c, before the merge: the same
+     26 "FR-007 apps/web/test/room/eat-chunker.test.ts
+     23 "FR-007 apps/web/test/room/eat-3d.test.ts
+     18 "FR-007 apps/web/test/ui/eat-reduced.test.ts
+     14 "FR-007 apps/web/test/ui/eat-input.test.ts
+      6 "FR-007 apps/web/test/room/eat-data.test.ts
+      5 "FR-007 apps/web/test/ui/eat-degraded.test.ts
+      2 "FR-007 apps/web/test/room/eat-scene.test.ts
+      1 ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      1  Test Files  1 failed (1)
+      1    Duration  54.20s (tests 74%, import 14%, transform 12%)
+      1      × finds 0 IDs only the room's data defines in the room's code 4ms
+      1       Tests  1 failed | 16 passed (17)
+```
+
+#### Runs
+
+Item 7's test files: every test file item 7 added or changed since its base 282279d5 (20), plus `eat-model` (new) and the two Q247 names (`dinosaur-compose`, `data-only`). The code is as at d8e36374, which is also this tip's code:
+
+```
+cd apps/web && npx vitest run test/room/bundle.test.ts test/room/eat-3d.test.ts test/room/eat-available.test.ts test/room/eat-box.test.ts test/room/eat-checks.test.ts test/room/eat-chunker.test.ts test/room/eat-data.test.ts test/room/eat-meal.test.ts test/room/eat-mouth.test.ts test/room/eat-pause.test.ts test/room/eat-scene.test.ts test/room/vocabulary.test.ts test/ui/eat-button.test.ts test/ui/eat-degraded.test.ts test/ui/eat-fall.test.ts test/ui/eat-hidden.test.ts test/ui/eat-input.test.ts test/ui/eat-key-repeat.test.ts test/ui/eat-place.test.ts test/ui/eat-reduced.test.ts test/room/eat-model.test.ts test/room/dinosaur-compose.test.ts test/room/data-only.test.ts --maxWorkers=4
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-13/verify-024/apps/web
+
+ ❯ test/room/eat-checks.test.ts (13 tests | 1 failed) 49108ms
+   ❯ the report's dinosaur visit lines (1)
+     × adds them after the frame lines, the existing lines as they were 2438ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/room/eat-checks.test.ts > the report's dinosaur visit lines > adds them after the frame lines, the existing lines as they were
+AssertionError: expected -1 to be greater than 0
+ ❯ test/room/eat-checks.test.ts:239:18
+    237|     const lines = result.report.markdown.split("\n");
+    238|     const head = lines.findIndex((l) => l.startsWith("A 3D dinosaur vi…
+    239|     expect(head).toBeGreaterThan(0);
+       |                  ^
+    240|     expect(lines[head - 1]).toBe("");
+    241|     expect(lines[head]).toContain("stages over the same screens, check…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed | 22 passed (23)
+      Tests  1 failed | 318 passed (319)
+   Start at  20:46:01
+   Duration  287.14s (tests 77%, import 23%)
+```
+
+The whole `apps/web` suite, at b7df98ac (the code is the same at this tip). The scan's 94 hit lines are kept:
+
+```
+cd apps/web && npx vitest run --maxWorkers=4
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-13/verify-024/apps/web
+
+ ❯ test/room/report.test.ts (25 tests | 1 failed) 22943ms
+   ❯ the report's exempt faces and side-wall selectables (5)
+     × marks the counter face exempt on the phone, and the word face readable 306ms
+ ❯ test/room/scan.test.ts (17 tests | 1 failed) 4736ms
+   ❯ the committed tree (T107; FR-007, SC-001, User Story 1 scenario 4) (2)
+     × finds 0 IDs only the room's data defines in the room's code 9ms
+ ❯ test/room/legibility.test.ts (20 tests | 3 failed) 2011ms
+   ❯ RG7's per-face exemption on the reference phone (6)
+     × exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it 79ms
+     × holds the same face to the floor on the desktop 429ms
+     × holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable 29ms
+ ❯ test/room/eat-checks.test.ts (13 tests | 1 failed) 59179ms
+   ❯ the report's dinosaur visit lines (1)
+     × adds them after the frame lines, the existing lines as they were 2997ms
+ ❯ test/disclosure.test.ts (11 tests | 2 failed) 406ms
+   ❯ the disclosure page (11)
+     × gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words 11ms
+     × names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6) 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+AssertionError: V1: expected [ …(3) ] to deeply equal [ …(3) ]
+
+- Expected
++ Received
+
+  [
+-   "requests for the room's static assets, the narration's audio, and the PDF: the paths requested (which show which items a visitor plays), the IP address, the user agent, and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the twin's still in a visit that shows the 2D room; the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose",
++   "requests for the room's static assets, the narration's audio, and the PDF: the paths requested (which show which items a visitor plays), the IP address, the user agent, and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the twin's still in a visit that shows the 2D room, or, in a 3D visit, once, when the conversation panel first opens in the split layout (spec 018); the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose",
+    "anything to a third-party host (FR-057)",
+    "the room, the resume, and the PDF are static assets; the twin and the credits are among them",
+  ]
+
+ ❯ test/disclosure.test.ts:119:36
+    117|       const carries = id === "V1" ? `${entry?.[2] ?? ""}, ${m17.carrie…
+    118|       const why = id === "V1" ? `${entry?.[4] ?? ""}; ${m17.why}` : en…
+    119|       expect(row?.slice(3, 6), id).toEqual([carries, entry?.[3], why]);
+       |                                    ^
+    120|     }
+    121|     expect(rows.get("V1")?.[2]).toContain(m17.trigger);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+AssertionError: expected 'requests for the room\'s static asset…' to contain 'and the avatar files now: the twin\'s…'
+
+Expected: "and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the twin's still in a visit that shows the 2D room; the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose"
+Received: "requests for the room's static assets, the narration's audio, and the PDF: the paths requested (which show which items a visitor plays), the IP address, the user agent, and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the twin's still in a visit that shows the 2D room, or, in a 3D visit, once, when the conversation panel first opens in the split layout (spec 018); the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose"
+
+ ❯ test/disclosure.test.ts:180:33
+    178|       /^and the avatar files now: the twin's model and clips .*whose p…
+    179|     );
+    180|     expect(rows.get("V1")?.[3]).toContain(carries);
+       |                                 ^
+    181|     expect(rows.get("V1")?.[3]).not.toContain(v1);
+    182|     expect(v4).toBe("and a figure's avatar failing to load, once a vis…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  test/room/eat-checks.test.ts > the report's dinosaur visit lines > adds them after the frame lines, the existing lines as they were
+AssertionError: expected -1 to be greater than 0
+ ❯ test/room/eat-checks.test.ts:239:18
+    237|     const lines = result.report.markdown.split("\n");
+    238|     const head = lines.findIndex((l) => l.startsWith("A 3D dinosaur vi…
+    239|     expect(head).toBeGreaterThan(0);
+       |                  ^
+    240|     expect(lines[head - 1]).toBe("");
+    241|     expect(lines[head]).toContain("stages over the same screens, check…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+  [
+    {
+-     "desktop": 52,
++     "desktop": 52.7,
+      "face": "fx-neon.panel",
+      "phone": 16.8,
+      "phone_exempt": false,
+    },
+    {
+-     "desktop": 23.1,
++     "desktop": 23.4,
+      "face": "fx-neon.counters",
+      "phone": 7.4,
+      "phone_exempt": true,
+    },
+  ]
+
+ ❯ test/room/legibility.test.ts:262:79
+    260|     // At spec 005's reference stages, the clear areas (28.1 and 16.1,…
+    261|     // desktop's is its frame area (49.2 and 21.8 at the clear area), …
+    262|     expect(caps(countersTree()).filter((f) => f.face.startsWith("fx-ne…
+       |                                                                               ^
+    263|       { face: "fx-neon.panel", desktop: 52, phone: 16.8, phone_exempt:…
+    264|       { face: "fx-neon.counters", desktop: 23.1, phone: 7.4, phone_exe…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+AssertionError: expected [ …(5) ] to include 'placements[3].faces.counters: cap hei…'
+ ❯ test/room/legibility.test.ts:274:19
+    272|     // exempt there.
+    273|     const found = rg7(countersTree(), floorOf(24));
+    274|     expect(found).toContain(
+       |                   ^
+    275|       "placements[3].faces.counters: cap height 23.1 px on the desktop…
+    276|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+AssertionError: expected { face: 'fx-neon.counters', …(3) } to deeply equal { face: 'fx-neon.counters', …(3) }
+
+- Expected
++ Received
+
+  {
+-   "desktop": 23.1,
++   "desktop": 23.4,
+    "face": "fx-neon.counters",
+    "phone": 7.4,
+    "phone_exempt": false,
+  }
+
+ ❯ test/room/legibility.test.ts:307:28
+    305|   it("holds a face whose regions are all turn-cost to the floor on the…
+    306|     const t = counters({ readable: "readable: false" });
+    307|     expect(counterCaps(t)).toEqual({ face: "fx-neon.counters", desktop…
+       |                            ^
+    308|     expect(rg7(t)).toEqual([
+    309|       "placements[3].faces.counters: cap height 7.4 px on the phone st…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯
+
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+AssertionError: expected [ '## Room report', '', …(71) ] to include '| `fx-neon.counters` | yes | 23.1 px …'
+ ❯ test/room/report.test.ts:351:18
+    349|     // At spec 005's reference stages (12.5 and 7.2, and 28.1 and 16.2…
+    350|     // Spec 014: the reference desktop is its frame area, so its caps …
+    351|     expect(rows).toContain(
+       |                  ^
+    352|       '| `fx-neon.counters` | yes | 23.1 px | 7.5 px | 9 | -1.5 px | e…
+    353|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯
+
+ FAIL  test/room/scan.test.ts > the committed tree (T107; FR-007, SC-001, User Story 1 scenario 4) > finds 0 IDs only the room's data defines in the room's code
+AssertionError: expected { lines: [ …(94) ], code: 1 } to deeply equal { lines: [], code: +0 }
+
+- Expected
++ Received
+
+  {
+-   "code": 0,
+-   "lines": [],
++   "code": 1,
++   "lines": [
++     "FR-007 apps/web/test/room/eat-3d.test.ts:341: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:342: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:343: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:344: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:376: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:376: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:376: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:376: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:433: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:434: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:435: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:451: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:455: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:456: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:458: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:466: holds \"charger\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:466: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:468: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:471: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:472: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:475: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:476: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:478: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:273: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:362: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:363: holds \"charger\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:365: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:369: holds \"charger\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:372: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:385: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:398: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:398: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:398: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:398: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:459: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:461: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:461: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:471: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:478: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:479: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:480: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:493: holds \"charger\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:493: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:494: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:504: holds \"charger\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:504: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:505: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:513: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:514: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-data.test.ts:103: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-data.test.ts:103: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-data.test.ts:107: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-data.test.ts:107: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-data.test.ts:107: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-data.test.ts:107: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-scene.test.ts:70: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-scene.test.ts:78: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-degraded.test.ts:90: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-degraded.test.ts:90: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-degraded.test.ts:90: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-degraded.test.ts:90: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-degraded.test.ts:132: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:185: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:185: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:185: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:185: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:190: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:191: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:192: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:198: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:203: holds \"bicycle\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:210: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:211: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:212: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:213: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:218: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:38: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:38: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:62: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:63: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:67: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:70: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:73: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:82: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:83: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:90: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:91: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:94: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:95: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:96: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:97: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:97: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:115: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:118: holds \"laptop\", which only the room's data defines",
++   ],
+  }
+
+ ❯ test/room/scan.test.ts:426:25
+    424|
+    425|   it("finds 0 IDs only the room's data defines in the room's code", ()…
+    426|     expect(committed()).toEqual({ lines: [], code: 0 });
+       |                         ^
+    427|   });
+    428| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/8]⎯
+
+ Test Files  5 failed | 205 passed (210)
+      Tests  8 failed | 3980 passed | 3 skipped (3991)
+   Start at  20:20:46
+   Duration  1260.28s (tests 74%, import 26%)
+
+```
+
+Of the eight failures:
+- Six are exactly D-V2's (Q165), the same as verify-018's to verify-027's full runs: `disclosure`'s two, `legibility`'s three, and `report`'s one.
+- One is `eat-checks`' report case (I-1, above).
+- One is the scan (above).
+
+`test/room/twin-2d.test.ts` passed in this run, so it needed no rerun alone.
+
+**D-V2's six, carried (Q165), confirmed on a copy.** `git archive HEAD` (059dd26d, the same code) was put into a fresh `mktemp -d` folder. There, `git apply docs/merge-requests/proposed/018-verify-test-amendments.patch` (`--check` clean; 4 files changed, 43 insertions, 11 deletions), with the worktree's `node_modules` linked in. The patch was never applied on this branch.
+
+```
+cd <copy>/apps/web && npx vitest run test/disclosure.test.ts test/room/legibility.test.ts test/room/report.test.ts --maxWorkers=4
+ RUN  v5.0.3 /tmp/verify-024-dv2.vNso/apps/web
+
+ Test Files  3 passed (3)
+      Tests  56 passed (56)
+   Start at  20:44:43
+   Duration  68.82s (tests 83%, import 14%, transform 4%)
+```
+
+`pytest`: no Python changed in item 7 (`git diff --name-only 77b1a244 dcac765c` lists no `.py`) or in the merge, so no folder to run.
+
+The lint target, from the repository's root, whole:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+804 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit 0
+```
+
+SC-006: `git diff --stat dcac765c HEAD -- .claude tools/gates corpus assets CLAUDE.md REVIEW.md .specify/memory/constitution.md evals/agent-config redteam/forbidden-actions.sh` is empty. The test files this branch changes against dcac765c are `eat-model.test.ts` (new) and the merge's two (`film-links`, `corpus-size`). No test file that exists at dcac765c was edited.
+
+#### Fixed
+
+I-1 (536fb557 RED, cd9e130a GREEN), N-A, N-C, and the `eat` comment, above. Not fixed:
+- `eat-checks`' report case: the proposed patch, on the page.
+- The scan's 94 hits: a fix task, on the page.
+- N-B: a test edit, listed above.
+
+Commit hooks: each of this session's commits printed gitleaks' "no leaks found" and an `arrival-check: 0 findings in <n> file(s)` line (the merge: 30 files).
+
+Interruptions: no hook or bash-gate refusal. One notice that is not a refusal: every git command printed "warning: ignoring broken ref refs/replace". The main repository's `.git/refs/replace` is an empty, read-only file, so git reads no replace refs. Nothing was respelled.
+
+verify-024: not green: `eat-checks.test.ts`'s report case waits on `docs/merge-requests/proposed/024-eat-checks-report-with-model.patch` (page), and spec 004's FR-007 scan finds 94 IDs in seven of item 7's own test files, a fix task (page); otherwise green, carrying D-V2's six (Q165)
+
+### Fix (fix-024)
+
+`night/fix-024/fix-024`, from verify-024's tip b25e2783, 2026-11-14, Opus 5.5. It merges nothing; verify2-024 merges and verifies. Two fixes, RED before GREEN, one commit each. The runs are at the branch's code, 00f4b6e7.
+
+#### Fix 1: Q254, the report case composes with the dinosaur's folder (81372c14)
+
+The page's Q254, answered as recommended: `git apply docs/merge-requests/proposed/024-eat-checks-report-with-model.patch`. It changes only `apps/web/test/room/eat-checks.test.ts`, which is item 7's own file. The applied patch file is `git rm`'d in the same commit. `024-data-only-eat-box.patch` stays for the day the folder lands.
+
+RED, before the patch: `cd apps/web && npx vitest run test/room/eat-checks.test.ts`. These are the last 30 lines, as printed through `tail -30`, which held the whole output:
+
+```
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/fix-024/apps/web
+
+ ❯ test/room/eat-checks.test.ts (13 tests | 1 failed) 36751ms
+   ❯ the report's dinosaur visit lines (1)
+     × adds them after the frame lines, the existing lines as they were 1913ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/room/eat-checks.test.ts > the report's dinosaur visit lines > adds them after the frame lines, the existing lines as they were
+AssertionError: expected -1 to be greater than 0
+ ❯ test/room/eat-checks.test.ts:239:18
+    237|     const lines = result.report.markdown.split("\n");
+    238|     const head = lines.findIndex((l) => l.startsWith("A 3D dinosaur vi…
+    239|     expect(head).toBeGreaterThan(0);
+       |                  ^
+    240|     expect(lines[head - 1]).toBe("");
+    241|     expect(lines[head]).toContain("stages over the same screens, check…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 12 passed (13)
+   Start at  21:27:36
+   Duration  90.39s (tests 97%, import 1%, transform 1%)
+```
+
+GREEN, after the patch: the same command, whole output:
+
+```
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/fix-024/apps/web
+
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  21:29:13
+   Duration  81.23s (tests 97%, transform 2%, import 2%)
+```
+
+#### Fix 2: Q255, spec 004's FR-007 scan finds no ID in item 7's tests (00f4b6e7)
+
+The page's Q255, answered as recommended. Only the seven files changed. `scan.test.ts`, every other test, and every source file are as they were (`git diff --stat b25e2783 HEAD -- apps/web/src apps/web/build apps/web/test/room/scan.test.ts` is empty).
+
+What each file now does:
+- **A real piece is found in the repository's bundle by its placement's label words.** Each file has a small local `labelled(words)`. It returns the one placement whose `label` key maps to those words in `index.ui`, and it throws if there is not exactly one. The words are "Desk", "Desk sign, busy", "Laptop", "Chalkboard", and "Bicycle". The scan matches case-sensitively, so a capitalised word is not a hit. Every identity the cases pinned stays pinned, including the desk's 6 chunks against the others' 4. Renaming or moving a piece is a data edit again. Changing one of those five words in `room/ui-words.yaml` fails these tests with "0 placements labelled …".
+- **The charger is found from the data, never written.** In `eat-3d` and `eat-chunker` it is the piece of the switch whose pose mounts on the laptop. In `eat-3d`, that switch's own ID fills the title's "spec 004's …".
+- **The sign's stand mesh is written as `${SIGN}-stand`.** The model names that mesh after its piece.
+- **Stubs use `fx-` IDs.** `eat-chunker`'s keep-out case and its `meshNameOf` node tree are synthetic, so they now use `fx-laptop` and `fx-charger`.
+- **Titles that held an ID are templates filled from the same lookups.** Every case's name at run time is the same as before.
+- **`eat-scene`'s hoisted `edibleReach` mock** returns `swapped.reach`. That is set to the looked-up busy sign once the bundle is read.
+
+Cases before (b25e2783) and after (00f4b6e7), from vitest's JSON reporter over the seven files. The sorted lists of full case names are identical: `diff` printed nothing, then "case names identical". `expect(` occurrences per file are counted with `grep -o 'expect(' | wc -l`:
+
+| File | Cases before | Cases after | `expect(` before | `expect(` after | Scan hits before |
+|---|---|---|---|---|---|
+| `test/room/eat-chunker.test.ts` | 34 passed | 34 passed | 69 | 69 | 26 |
+| `test/room/eat-3d.test.ts` | 19 passed | 19 passed | 75 | 75 | 23 |
+| `test/ui/eat-reduced.test.ts` | 4 passed | 4 passed | 15 | 15 | 18 |
+| `test/ui/eat-input.test.ts` | 14 passed | 14 passed | 26 | 26 | 14 |
+| `test/room/eat-data.test.ts` | 16 passed | 16 passed | 21 | 21 | 6 |
+| `test/ui/eat-degraded.test.ts` | 7 passed | 7 passed | 19 | 19 | 5 |
+| `test/room/eat-scene.test.ts` | 10 passed | 10 passed | 34 | 34 | 2 |
+| Total | 104, 0 failed, 0 skipped | 104, 0 failed, 0 skipped | 259 | 259 | 94 |
+
+None is dropped, skipped, or weakened. An `it.each` table holds the same rows, now filled from the bundle.
+
+RED, at 81372c14: `cd apps/web && npx vitest run test/room/scan.test.ts`, whole output:
+
+```
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/fix-024/apps/web
+
+ ❯ test/room/scan.test.ts (17 tests | 1 failed) 2690ms
+   ❯ the committed tree (T107; FR-007, SC-001, User Story 1 scenario 4) (2)
+     × finds 0 IDs only the room's data defines in the room's code 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/room/scan.test.ts > the committed tree (T107; FR-007, SC-001, User Story 1 scenario 4) > finds 0 IDs only the room's data defines in the room's code
+AssertionError: expected { lines: [ …(94) ], code: 1 } to deeply equal { lines: [], code: +0 }
+
+- Expected
++ Received
+
+  {
+-   "code": 0,
+-   "lines": [],
++   "code": 1,
++   "lines": [
++     "FR-007 apps/web/test/room/eat-3d.test.ts:341: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:342: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:343: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:344: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:376: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:376: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:376: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:376: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:433: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:434: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:435: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:451: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:455: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:456: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:458: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:466: holds \"charger\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:466: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:468: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:471: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:472: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:475: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:476: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-3d.test.ts:478: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:273: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:362: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:363: holds \"charger\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:365: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:369: holds \"charger\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:372: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:385: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:398: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:398: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:398: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:398: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:459: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:461: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:461: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:471: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:478: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:479: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:480: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:493: holds \"charger\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:493: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:494: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:504: holds \"charger\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:504: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:505: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:513: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-chunker.test.ts:514: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-data.test.ts:103: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-data.test.ts:103: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-data.test.ts:107: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-data.test.ts:107: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-data.test.ts:107: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-data.test.ts:107: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-scene.test.ts:70: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/room/eat-scene.test.ts:78: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-degraded.test.ts:90: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-degraded.test.ts:90: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-degraded.test.ts:90: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-degraded.test.ts:90: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-degraded.test.ts:132: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:185: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:185: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:185: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:185: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:190: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:191: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:192: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:198: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:203: holds \"bicycle\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:210: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:211: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:212: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:213: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-input.test.ts:218: holds \"work-desk\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:38: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:38: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:62: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:63: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:67: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:70: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:73: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:82: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:83: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:90: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:91: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:94: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:95: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:96: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:97: holds \"busy-sign\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:97: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:115: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/eat-reduced.test.ts:118: holds \"laptop\", which only the room's data defines",
++   ],
+  }
+
+ ❯ test/room/scan.test.ts:426:25
+    424|
+    425|   it("finds 0 IDs only the room's data defines in the room's code", ()…
+    426|     expect(committed()).toEqual({ lines: [], code: 0 });
+       |                         ^
+    427|   });
+    428| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 passed (17)
+   Start at  21:30:42
+   Duration  52.14s (tests 81%, import 10%, transform 9%)
+```
+
+GREEN, at 00f4b6e7: the same command, whole output:
+
+```
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/fix-024/apps/web
+
+
+ Test Files  1 passed (1)
+      Tests  17 passed (17)
+   Start at  21:38:11
+   Duration  51.89s (tests 82%, transform 9%, import 9%)
+```
+
+#### Runs (00f4b6e7)
+
+`scan.test.ts` and the eight `eat-*` files this task changed. The 134 cases are scan 17, eat-checks 13, and the seven files' 104. Whole output:
+
+```
+cd apps/web && npx vitest run test/room/scan.test.ts test/room/eat-checks.test.ts test/room/eat-chunker.test.ts test/room/eat-3d.test.ts test/room/eat-data.test.ts test/room/eat-scene.test.ts test/ui/eat-reduced.test.ts test/ui/eat-input.test.ts test/ui/eat-degraded.test.ts
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/fix-024/apps/web
+
+
+ Test Files  9 passed (9)
+      Tests  134 passed (134)
+   Start at  21:42:15
+   Duration  103.88s (import 63%, tests 36%, transform 1%)
+exit 0
+```
+
+The lint target, whole output:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+804 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit 0
+```
+
+No path under `corpus/`, `assets/**`, `/srv/studio/`, or any human-only path changed. Each of this task's commits printed gitleaks' "no leaks found" and an `arrival-check: 0 findings` line. The setup target was run first, because the worktree had no `node_modules`.
+
+Interruptions: no hook or bash-gate refusal. Nothing was respelled.
+
+fix-024: green on the brief's runs: eat-checks 13 of 13, the FR-007 scan 17 of 17 with 0 hits, the seven files 104 of 104 with the same names, and lint exit 0. D-V2's six (Q165) are carried as they were. verify2-024 merges the line's tip and verifies.
+
+### Verification (rule 7, verify2-024)
+
+`night/verify2-024/verify2-024`, from verify-024's tip b25e2783, 2026-11-14, Opus 5.5. This worker wrote none of item 7: impl-024, rework-024, rework2-024, verify-024, and fix-024 did. `cat /sys/fs/cgroup/cpu.max` gave `400000 100000`, so 4 workers.
+
+**Merges.** Neither merge had a conflict, so no resolution or test was needed.
+
+- `git merge refs/heads/night/fix-024/fix-024` (93529518) gave ca77cdc3. It changed 10 files: 438 insertions and 113 deletions.
+- `git merge refs/heads/night/verify-022/verify-022`, the line's tip (7db03c0f: verify3-021's 300944f6 plus item 5), gave 216c6163. It changed 13 files with 8173 insertions, all of them item 5's: `scripts/corpus/`, spec 022, its intent, its notes, and its proposal `corpus/proposals/film-scripts-2026-11-14.md`.
+
+That proposal is the only path under `corpus/` that differs from b25e2783. It arrived with item 5's merge, and this task wrote nothing under `corpus/`. In this note, the auto-merge kept every item's section whole and in his order: Items 1 to 7, then 10.
+
+**fix-024's diff, read** (`git diff b25e2783 refs/heads/night/fix-024/fix-024`). It touches only these files:
+
+- `eat-checks.test.ts`;
+- the seven `eat-*` files (`eat-3d`, `eat-chunker`, `eat-data`, `eat-scene`, `eat-degraded`, `eat-input`, `eat-reduced`);
+- this note;
+- the removed `docs/merge-requests/proposed/024-eat-checks-report-with-model.patch`.
+
+The `eat-checks.test.ts` hunks are the removed patch's hunks, line for line (Q254).
+
+In the seven files, every room ID now comes from the bundle or is an `fx-` stub:
+
+- Each real piece comes from the bundle through a `labelled(words)` lookup, which throws unless exactly one placement matches.
+- The charger comes from the switch whose pose mounts on the laptop.
+- The sign's stand is `${SIGN}-stand`.
+- `eat-chunker`'s stub part uses `fx-laptop` and `fx-charger`.
+
+The FR-007 scan below finds 0 hits. Case and `expect(` counts are the same before and after, and no `.skip`, `.todo`, `.only`, or `skipIf` was added. That was counted with `grep -cE '\bit(\.each)?\('`, `grep -c 'expect('`, and `grep -cE '\.(skip|todo|only)\b|skipIf'` over `git show` of each side:
+
+| File | `it`/`it.each` | `expect(` | skip/todo/only |
+| --- | --- | --- | --- |
+| eat-3d | 14 / 14 | 75 / 75 | 0 / 0 |
+| eat-chunker | 23 / 23 | 69 / 69 | 0 / 0 |
+| eat-data | 12 / 12 | 21 / 21 | 0 / 0 |
+| eat-scene | 10 / 10 | 34 / 34 | 0 / 0 |
+| eat-degraded | 7 / 7 | 19 / 19 | 0 / 0 |
+| eat-input | 12 / 12 | 26 / 26 | 0 / 0 |
+| eat-reduced | 4 / 4 | 15 / 15 | 0 / 0 |
+| eat-checks | 13 / 13 | 43 / 43 | 0 / 0 |
+
+No assertion was weakened. The `CHARGER` and `POWER` lookups feed only test names, never an assertion, so a missing switch could only change a case's name. The report case's switch from `compose(goodTree(), noPolicy(), …)` to `dinosaurNight()` is Q247's condition, as the page answered it. Nothing here goes to a question.
+
+**Runs**, at the merged code (216c6163; the later commits are save points and this note). The setup target ran first, because the worktree had no `node_modules`. Its only notice was that `.git/hooks` isn't writable in the sandbox.
+
+Item 7's test files: the 23 that verify-024 ran, plus `scan.test.ts` (spec 004's FR-007). Whole output:
+
+```
+cd apps/web && npx vitest run test/room/bundle.test.ts test/room/eat-3d.test.ts test/room/eat-available.test.ts test/room/eat-box.test.ts test/room/eat-checks.test.ts test/room/eat-chunker.test.ts test/room/eat-data.test.ts test/room/eat-meal.test.ts test/room/eat-mouth.test.ts test/room/eat-pause.test.ts test/room/eat-scene.test.ts test/room/vocabulary.test.ts test/ui/eat-button.test.ts test/ui/eat-degraded.test.ts test/ui/eat-fall.test.ts test/ui/eat-hidden.test.ts test/ui/eat-input.test.ts test/ui/eat-key-repeat.test.ts test/ui/eat-place.test.ts test/ui/eat-reduced.test.ts test/room/eat-model.test.ts test/room/dinosaur-compose.test.ts test/room/data-only.test.ts test/room/scan.test.ts --maxWorkers=4
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/verify2-024/apps/web
+
+
+ Test Files  24 passed (24)
+      Tests  336 passed (336)
+   Start at  21:46:43
+   Duration  341.96s (tests 70%, import 29%)
+
+exit=0
+```
+
+The whole `apps/web` suite, whole output:
+
+```
+cd apps/web && npx vitest run --maxWorkers=4
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/verify2-024/apps/web
+
+ ❯ test/room/report.test.ts (25 tests | 1 failed) 22863ms
+   ❯ the report's exempt faces and side-wall selectables (5)
+     × marks the counter face exempt on the phone, and the word face readable 338ms
+ ❯ test/room/legibility.test.ts (20 tests | 3 failed) 1698ms
+   ❯ RG7's per-face exemption on the reference phone (6)
+     × exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it 32ms
+     × holds the same face to the floor on the desktop 367ms
+     × holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable 26ms
+ ❯ test/disclosure.test.ts (11 tests | 2 failed) 383ms
+   ❯ the disclosure page (11)
+     × gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words 10ms
+     × names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6) 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+AssertionError: V1: expected [ …(3) ] to deeply equal [ …(3) ]
+
+- Expected
++ Received
+
+  [
+-   "requests for the room's static assets, the narration's audio, and the PDF: the paths requested (which show which items a visitor plays), the IP address, the user agent, and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the twin's still in a visit that shows the 2D room; the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose",
++   "requests for the room's static assets, the narration's audio, and the PDF: the paths requested (which show which items a visitor plays), the IP address, the user agent, and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the twin's still in a visit that shows the 2D room, or, in a 3D visit, once, when the conversation panel first opens in the split layout (spec 018); the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose",
+    "anything to a third-party host (FR-057)",
+    "the room, the resume, and the PDF are static assets; the twin and the credits are among them",
+  ]
+
+ ❯ test/disclosure.test.ts:119:36
+    117|       const carries = id === "V1" ? `${entry?.[2] ?? ""}, ${m17.carrie…
+    118|       const why = id === "V1" ? `${entry?.[4] ?? ""}; ${m17.why}` : en…
+    119|       expect(row?.slice(3, 6), id).toEqual([carries, entry?.[3], why]);
+       |                                    ^
+    120|     }
+    121|     expect(rows.get("V1")?.[2]).toContain(m17.trigger);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+AssertionError: expected 'requests for the room\'s static asset…' to contain 'and the avatar files now: the twin\'s…'
+
+Expected: "and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the twin's still in a visit that shows the 2D room; the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose"
+Received: "requests for the room's static assets, the narration's audio, and the PDF: the paths requested (which show which items a visitor plays), the IP address, the user agent, and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the twin's still in a visit that shows the 2D room, or, in a 3D visit, once, when the conversation panel first opens in the split layout (spec 018); the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose"
+
+ ❯ test/disclosure.test.ts:180:33
+    178|       /^and the avatar files now: the twin's model and clips .*whose p…
+    179|     );
+    180|     expect(rows.get("V1")?.[3]).toContain(carries);
+       |                                 ^
+    181|     expect(rows.get("V1")?.[3]).not.toContain(v1);
+    182|     expect(v4).toBe("and a figure's avatar failing to load, once a vis…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+  [
+    {
+-     "desktop": 52,
++     "desktop": 52.7,
+      "face": "fx-neon.panel",
+      "phone": 16.8,
+      "phone_exempt": false,
+    },
+    {
+-     "desktop": 23.1,
++     "desktop": 23.4,
+      "face": "fx-neon.counters",
+      "phone": 7.4,
+      "phone_exempt": true,
+    },
+  ]
+
+ ❯ test/room/legibility.test.ts:262:79
+    260|     // At spec 005's reference stages, the clear areas (28.1 and 16.1,…
+    261|     // desktop's is its frame area (49.2 and 21.8 at the clear area), …
+    262|     expect(caps(countersTree()).filter((f) => f.face.startsWith("fx-ne…
+       |                                                                               ^
+    263|       { face: "fx-neon.panel", desktop: 52, phone: 16.8, phone_exempt:…
+    264|       { face: "fx-neon.counters", desktop: 23.1, phone: 7.4, phone_exe…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+AssertionError: expected [ …(5) ] to include 'placements[3].faces.counters: cap hei…'
+ ❯ test/room/legibility.test.ts:274:19
+    272|     // exempt there.
+    273|     const found = rg7(countersTree(), floorOf(24));
+    274|     expect(found).toContain(
+       |                   ^
+    275|       "placements[3].faces.counters: cap height 23.1 px on the desktop…
+    276|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+AssertionError: expected { face: 'fx-neon.counters', …(3) } to deeply equal { face: 'fx-neon.counters', …(3) }
+
+- Expected
++ Received
+
+  {
+-   "desktop": 23.1,
++   "desktop": 23.4,
+    "face": "fx-neon.counters",
+    "phone": 7.4,
+    "phone_exempt": false,
+  }
+
+ ❯ test/room/legibility.test.ts:307:28
+    305|   it("holds a face whose regions are all turn-cost to the floor on the…
+    306|     const t = counters({ readable: "readable: false" });
+    307|     expect(counterCaps(t)).toEqual({ face: "fx-neon.counters", desktop…
+       |                            ^
+    308|     expect(rg7(t)).toEqual([
+    309|       "placements[3].faces.counters: cap height 7.4 px on the phone st…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+AssertionError: expected [ '## Room report', '', …(71) ] to include '| `fx-neon.counters` | yes | 23.1 px …'
+ ❯ test/room/report.test.ts:351:18
+    349|     // At spec 005's reference stages (12.5 and 7.2, and 28.1 and 16.2…
+    350|     // Spec 014: the reference desktop is its frame area, so its caps …
+    351|     expect(rows).toContain(
+       |                  ^
+    352|       '| `fx-neon.counters` | yes | 23.1 px | 7.5 px | 9 | -1.5 px | e…
+    353|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  3 failed | 207 passed (210)
+      Tests  6 failed | 3982 passed | 3 skipped (3991)
+   Start at  21:52:40
+   Duration  1200.59s (tests 73%, import 27%)
+
+exit=1
+```
+
+The six failures are exactly D-V2's six (Q165): `disclosure`'s two, `legibility`'s three, and `report`'s one. None is in a file item 7 touches. `test/room/twin-2d.test.ts` passed in this run, so it needed no rerun.
+
+**D-V2's six, carried (Q165), confirmed on a copy.** `git archive HEAD` (63083efe, the merged code) was put into a fresh `mktemp -d` folder. There, `git apply docs/merge-requests/proposed/018-verify-test-amendments.patch` (`--check` clean; 4 files changed, 43 insertions, 11 deletions), with the worktree's `node_modules` linked in. The patch was never applied on this branch. Whole output:
+
+```
+cd <copy>/apps/web && npx vitest run test/disclosure.test.ts test/room/legibility.test.ts test/room/report.test.ts --maxWorkers=4
+ RUN  v5.0.3 /tmp/verify2-024-dv2.2crA/apps/web
+
+
+ Test Files  3 passed (3)
+      Tests  56 passed (56)
+   Start at  22:13:28
+   Duration  78.65s (tests 82%, import 14%, transform 5%)
+
+exit=0
+```
+
+`pytest` over the one Python folder the merges changed, `scripts/corpus` (item 5's, from verify-022's merge). Item 7 changed no Python. Whole output:
+
+```
+pytest -q -p no:cacheprovider --import-mode=importlib scripts/corpus
+........................................................................ [ 20%]
+........................................................................ [ 40%]
+........................................................................ [ 61%]
+........................................................................ [ 81%]
+..................................................................       [100%]
+354 passed in 4.39s
+exit=0
+```
+
+The lint target, from the repository's root, whole output:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+812 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit=0
+```
+
+**Fixes:** none were needed. No test or source file was changed on this branch beyond the two merges.
+
+**Hooks:** each of this task's commits printed gitleaks' "no leaks found" and an `arrival-check: 0 findings` line.
+
+**Interruptions:** there was one bash-gate refusal, and nothing was respelled. The final commit's command ended with `rm -rf` of the D-V2 copy under `/tmp`, and `.claude/hooks/bash-gate.sh` refused the whole command: "recursive delete outside workspace. Route: delete only inside the repo". The commit was then run alone. The copy, `/tmp/verify2-024-dv2.2crA`, was left where it is, and the refusal is on the page under Interruptions. One shell wait on the full suite (`until grep …`) reached the tool's 10-minute limit and was stopped. That was not a refusal: the suite itself ran to its end (exit 1, the six above), and its log is pasted whole.
+
+verify2-024: green
+
+---
+
 ## Item 10: spec 027, when the twin's file context stops being enough (`night/impl-027/impl-027`)
 
 Spec: specs/027-corpus-retrieval-adr/ · Intent: intent/027-corpus-retrieval-adr.md (draft) · ADR: docs/adr/0054-when-file-context-stops-being-enough.md (proposed) · Written by: implementer (night shift, impl-027, Opus 5.5); the review is for a worker who didn't write the code (T006; the reviewer follows this task) · Date: 2026-11-14

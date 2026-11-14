@@ -61,6 +61,10 @@ export const UI_KEYS = {
   "walk.entered": [],
   "walk.left": [],
   "walk.target": ["name"],
+  // Spec 024 (its FR-010, FR-012): the "Eat" tile's word, and the polite line at a piece's first bite in a visit, with
+  // the piece's label.
+  "eat.button": [],
+  "eat.first_bite": ["name"],
   // Spec 009's stand-in line (its FR-013, FR-039): in the stage's note and first in "Around the room" while the twin's
   // figure shows anything but the twin's own avatar. It states nothing about the Author but that the figure isn't the
   // Author's likeness.

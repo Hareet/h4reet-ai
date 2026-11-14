@@ -66,6 +66,8 @@ export interface WalkingOptions {
   nearsEdge?(camera: Camera, pose: Pose, stage: Stage): boolean;
   /** Spec 014 (FR-064): told at entry, `hold`, and at the hand-over, `follow` with its cause. */
   held?(state: "hold" | "follow", cause: HoldCause | null): void;
+  /** Spec 024 (FR-012): B pressed, with the figure's pose after this frame's step; the eating's gate decides. */
+  eat?(pose: Pose): void;
 }
 
 export interface WalkingView {
@@ -164,6 +166,7 @@ export function createWalking(options: WalkingOptions): WalkingView {
       if (id !== null) options.select(id);
     }
     if (pose.x !== before.x || pose.z !== before.z || pose.heading !== before.heading) nameReach();
+    if (intents.eat) options.eat?.(pose);
     figure.frame({ pose, camera: base.position, animate, dt });
     shown = base;
     // The edge: the figure's box at the room's view, after this frame's step.
@@ -257,6 +260,7 @@ export function createWalking(options: WalkingOptions): WalkingView {
       }
       // Reach, only when the figure moved or turned.
       if (pose.x !== before.x || pose.z !== before.z || pose.heading !== before.heading) nameReach();
+      if (intents.eat) options.eat?.(pose);
       figure.frame({ pose, camera: camera.position, animate, dt });
       shown = camera;
       return camera;
