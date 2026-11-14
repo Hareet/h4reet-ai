@@ -72,7 +72,7 @@ As a visitor, I want the room to keep working whatever the avatar's rig, the set
 
 As the Author, I want to see the walk on the real models before I merge.
 
-**Independent Test**: the lookdev page (`apps/web/src/lookdev/`) can run the gait on a loaded avatar, or the plan's note says why it can't (plan.md §5, R-07). His look approval of the gait is on the morning page.
+**Independent Test**: the lookdev page (`apps/web/src/lookdev/`) can run the gait on a loaded avatar, or the plan's note says why it can't (plan.md §2.5: it can't; lookdev's hands page drives its own mixer, so the gait is judged in the room). His look approval of the gait is on the morning page.
 
 ## Edge Cases
 

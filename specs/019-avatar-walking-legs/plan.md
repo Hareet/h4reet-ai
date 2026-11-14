@@ -91,6 +91,17 @@ No scene-data, schema, compose, asset, policy, or human-only change. No new byte
 
 The 3D chunk's gzip size is read from the web app's build (Vite's report prints each chunk's gzip size; the build is the workspace's `build` script, or the repository's build target for `BUILD OK`) at this line's tip and at impl-018's tip (b9378980), both built the same way; the difference is at most 2 KB. The two numbers and the difference go here, under this heading, and into the stack note.
 
+**Measured (T019, 2026-11-14)**, `npm run build -w apps/web` (Vite's report, gzip, its kB = 1,000 bytes), in this worktree at the rework's tip (60482485), then with the only five files that differ from b9378980 in the web app's code (`src/room/app.ts`, `scene/avatars.ts`, `signals/frame-log.ts`, `stage.ts` at b9378980; `scene/gait.ts` absent) and restored after, so both builds share every other byte and the same `node_modules`:
+
+| Chunk | b9378980 | this tip | Difference |
+|---|---|---|---|
+| `avatars-*.js`, the avatar controller's, where the gait lives (FR-011) | 4.73 kB | 6.09 kB | **+1.36 kB** |
+| `scene-*.js`, three and the room | 112.81 kB | 112.81 kB | 0 |
+| `index-*.js`, the entry (the frame log's `gait` kind and `app.ts`'s record of it) | 48.36 kB | 48.38 kB | +0.02 kB |
+| `loader-*.js`, `ledger-*.js`, `status-*.js` | 17.68, 72.63, 2.33 kB | the same | 0 |
+
+The 3D chunks grow by 1.36 kB gzip, under SC-004's 2 KB. The first visit's report lines (RK3 and the budgets) come from the repository's build target, which the stack's T012 runs; the entry chunk's 0.02 kB is the one first-visit change, and T012's report shows whether any line moves.
+
 ## 3. Decisions
 
 - **R-01 Distance, not time, drives the phase** (FR-002): the steps keep pace with the distance at any speed, so walk-to's slow arrival and diagonals come out right with no special case. (Corrected in the rework: this alone doesn't keep a foot from sliding or lifting; §2.6.)
