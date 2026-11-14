@@ -17,6 +17,18 @@ import type { Visit } from "../helpers/room";
 
 const WORDS = (parse(readFileSync(join(WEB, "room/ui-words.yaml"), "utf8")) as { words: Record<string, string> }).words;
 
+// Spec 004's FR-007: no room ID stands in a test, so each real piece is found in the repository's bundle by its
+// placement's label words.
+const labelled = (words: string): string => {
+  const { scene, index } = repositoryBundle();
+  const found = scene.placements.filter((p) => p.label !== null && index.ui[p.label] === words);
+  if (found.length !== 1 || !found[0]) throw new Error(`${found.length} placements labelled ${words}`);
+  return found[0].id;
+};
+const SIGN = labelled("Desk sign, busy");
+const CHALKBOARD = labelled("Chalkboard");
+const LAPTOP = labelled("Laptop");
+
 function shown(node: Object3D, root: Object3D): boolean {
   for (let n: Object3D | null = node; n; n = n === root ? null : n.parent) if (!n.visible) return false;
   return true;
@@ -35,7 +47,7 @@ const chunkMeshes = (root: Object3D, chunk: number): Mesh[] => {
 function rig(reduced: boolean) {
   const scene = repositoryBundle().scene;
   const models: Record<string, Group> = {};
-  for (const id of ["busy-sign", "chalkboard"]) models[id] = pieceModel(roomGlb(id), scene.pieces[id]?.scale ?? 1);
+  for (const id of [SIGN, CHALKBOARD]) models[id] = pieceModel(roomGlb(id), scene.pieces[id]?.scale ?? 1);
   const clock = { t: 1000 };
   const meal = createMeal({ regrow_s: 5, now: () => clock.t });
   const said = vi.fn();
@@ -59,18 +71,18 @@ function rig(reduced: boolean) {
 describe("reduced motion (FR-010)", () => {
   it("hides the bitten chunk at once, no flight, and returns it whole at once, no growth", () => {
     const r = rig(true);
-    expect(r.eat.bite("busy-sign")).toBe(true);
-    const states = r.meal.states("busy-sign");
+    expect(r.eat.bite(SIGN)).toBe(true);
+    const states = r.meal.states(SIGN);
     const index = states.indexOf("eaten");
     expect(index, "eaten at once, never flying").toBeGreaterThanOrEqual(0);
     expect(states).not.toContain("flying");
-    const root = r.models["busy-sign"] as Group;
+    const root = r.models[SIGN] as Group;
     for (const m of chunkMeshes(root, index)) expect(shown(m, root)).toBe(false);
     // A second bite needs no frame between: nothing is in flight.
-    expect(r.eat.bite("busy-sign")).toBe(true);
+    expect(r.eat.bite(SIGN)).toBe(true);
     r.clock.t += 5000;
     r.eat.frame();
-    expect(r.meal.states("busy-sign")[index]).toBe("standing");
+    expect(r.meal.states(SIGN)[index]).toBe("standing");
     for (const m of chunkMeshes(root, index)) {
       expect(shown(m, root)).toBe(true);
       expect(m.scale.toArray()).toEqual([1, 1, 1]);
@@ -79,22 +91,22 @@ describe("reduced motion (FR-010)", () => {
 
   it("flies and grows with motion on", () => {
     const r = rig(false);
-    r.eat.bite("busy-sign");
-    expect(r.meal.states("busy-sign")).toContain("flying");
+    r.eat.bite(SIGN);
+    expect(r.meal.states(SIGN)).toContain("flying");
   });
 });
 
 describe("the polite line (FR-010)", () => {
   it("is asked once for a piece's first bite of the visit, and once for another piece's", () => {
     const r = rig(true);
-    r.eat.bite("busy-sign");
-    r.eat.bite("busy-sign");
+    r.eat.bite(SIGN);
+    r.eat.bite(SIGN);
     r.clock.t += 5000;
     r.eat.frame();
-    r.eat.bite("busy-sign");
-    expect(r.said.mock.calls).toEqual([["busy-sign"]]);
-    r.eat.bite("chalkboard");
-    expect(r.said.mock.calls).toEqual([["busy-sign"], ["chalkboard"]]);
+    r.eat.bite(SIGN);
+    expect(r.said.mock.calls).toEqual([[SIGN]]);
+    r.eat.bite(CHALKBOARD);
+    expect(r.said.mock.calls).toEqual([[SIGN], [CHALKBOARD]]);
   });
 
   async function dinosaurVisit(): Promise<Visit> {
@@ -112,10 +124,10 @@ describe("the polite line (FR-010)", () => {
     const eating = v.scene.created.at(-1)?.eating;
     expect(eating?.said).toBeDefined();
     // The 3D side gives the placement and its label word's key, as the part carries it.
-    const key = repositoryBundle().scene.placements.find((p) => p.id === "laptop")?.label as string;
+    const key = repositoryBundle().scene.placements.find((p) => p.id === LAPTOP)?.label as string;
     const label = repositoryBundle().index.ui[key] as string;
     expect(label).toBeTruthy();
-    eating?.said?.("laptop", key);
+    eating?.said?.(LAPTOP, key);
     await flush();
     const region = announcer(v.doc);
     expect(region.getAttribute("aria-live")).toBe("polite");

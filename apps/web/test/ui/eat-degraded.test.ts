@@ -38,6 +38,15 @@ async function arrive(avatar: string, o: { webgl?: boolean; through?: boolean } 
 
 const eatButton = (v: Visit): HTMLButtonElement => v.doc.querySelector(".room-eat") as HTMLButtonElement;
 
+// Spec 004's FR-007: no room ID stands in a test, so each real piece is found in the repository's bundle by its
+// placement's label words.
+const labelled = (words: string): string => {
+  const { scene, index } = repositoryBundle();
+  const found = scene.placements.filter((p) => p.label !== null && index.ui[p.label] === words);
+  if (found.length !== 1 || !found[0]) throw new Error(`${found.length} placements labelled ${words}`);
+  return found[0].id;
+};
+
 describe("the room's degraded states (US3; FR-001, FR-009)", () => {
   it("tells the 3D side the loader shows, and then that it doesn't", async () => {
     const v = await arrive("dinosaur", { through: false });
@@ -87,7 +96,7 @@ describe("nothing leaves for the eating (FR-014, FR-016; SC-006)", () => {
     const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.reject(new Error("no network")));
     const scene = repositoryBundle().scene;
     const models: Record<string, Group> = {};
-    for (const id of ["work-desk", "busy-sign", "laptop", "chalkboard"])
+    for (const id of ["Desk", "Desk sign, busy", "Laptop", "Chalkboard"].map(labelled))
       models[id] = pieceModel(roomGlb(id), scene.pieces[id]?.scale ?? 1);
     const clock = { t: 1000 };
     const meal = createMeal({ regrow_s: 5, now: () => clock.t });
@@ -126,10 +135,13 @@ describe("nothing leaves for the eating (FR-014, FR-016; SC-006)", () => {
       beacons: v.spies.beacons.length,
     };
     const eating = v.scene.created.at(-1)?.eating;
+    const laptop = labelled("Laptop");
+    // Its label word's key, as the 3D part carries it.
+    const key = repositoryBundle().scene.placements.find((p) => p.id === laptop)?.label as string;
     for (let k = 0; k < 5; k++) {
       eating?.available?.(true);
       eatButton(v).click();
-      eating?.said?.("laptop", "label.laptop");
+      eating?.said?.(laptop, key);
       eating?.available?.(false);
       v.clock.advance(1000);
       await flush();

@@ -31,6 +31,23 @@ import { repositoryBundle } from "../helpers/room";
 
 type Part = Pick<RoomScene, "pieces" | "placements" | "switches">;
 
+// Spec 004's FR-007: no room ID stands in a test, so each real piece is found in the repository's bundle by its
+// placement's label words, and the charger by the switch whose pose mounts on the laptop.
+const labelled = (words: string): string => {
+  const { scene, index } = repositoryBundle();
+  const found = scene.placements.filter((p) => p.label !== null && index.ui[p.label] === words);
+  if (found.length !== 1 || !found[0]) throw new Error(`${found.length} placements labelled ${words}`);
+  return found[0].id;
+};
+const DESK = labelled("Desk");
+const SIGN = labelled("Desk sign, busy");
+const LAPTOP = labelled("Laptop");
+const CHALKBOARD = labelled("Chalkboard");
+const POWER = repositoryBundle().scene.switches.find((s) =>
+  Object.values(s.poses).some((pose) => pose.mount.on === LAPTOP),
+);
+const CHARGER = POWER?.piece ?? "";
+
 /** Each effective visibility: the node and its ancestors up to the model's root. */
 function shown(node: Object3D, root: Object3D): boolean {
   for (let n: Object3D | null = node; n; n = n === root ? null : n.parent) if (!n.visible) return false;
@@ -338,10 +355,10 @@ describe("a bite's flight and the regrowth (FR-007, FR-008, FR-011; N-3)", () =>
 
 describe("the four real pieces' draw calls (FR-015)", () => {
   const PIECES = [
-    ["busy-sign", 3],
-    ["chalkboard", 10],
-    ["laptop", 13],
-    ["work-desk", 16],
+    [SIGN, 3],
+    [CHALKBOARD, 10],
+    [LAPTOP, 13],
+    [DESK, 16],
   ] as const;
 
   it("draw their own meshes whole, at most 100 each split, and at most 240 more with all four split", () => {
@@ -373,7 +390,7 @@ describe("the four real pieces' draw calls (FR-015)", () => {
 // T009 (US2 AS1, AS2, AS4; SC-002): every chunk eaten, what the room holds up still stands.
 // --------------------------------------------------------------------------------------------------------------------
 describe("every chunk of the four pieces eaten (US2; SC-002)", () => {
-  const PIECES = ["work-desk", "busy-sign", "laptop", "chalkboard"] as const;
+  const PIECES = [DESK, SIGN, LAPTOP, CHALKBOARD] as const;
   const scene = repositoryBundle().scene;
   const before = JSON.stringify({ placements: scene.placements, selectables: repositoryBundle().index.selectables });
   const models: Record<string, Group> = {};
@@ -430,9 +447,10 @@ describe("every chunk of the four pieces eaten (US2; SC-002)", () => {
   });
 
   it.each([
-    ["busy-sign", "lettering", "busy-sign-stand"],
-    ["chalkboard", "slate", "frame"],
-    ["laptop", "screen", "lid"],
+    // The sign's stand is a mesh the model names after the piece: `<piece>-stand`.
+    [SIGN, "lettering", `${SIGN}-stand`],
+    [CHALKBOARD, "slate", "frame"],
+    [LAPTOP, "screen", "lid"],
   ] as const)(
     "%s: its face's mesh %s still hidden as the loader left it, and %s holding it standing",
     (id, role, holder) => {
@@ -448,14 +466,14 @@ describe("every chunk of the four pieces eaten (US2; SC-002)", () => {
     },
   );
 
-  it("laptop: the screen glow's point in front of the standing lid, and the charge light's within its radius of a standing triangle", () => {
-    const glows = glowsOf(scene.pieces.laptop as RoomScene["pieces"][string]);
+  it(`${LAPTOP}: the screen glow's point in front of the standing lid, and the charge light's within its radius of a standing triangle`, () => {
+    const glows = glowsOf(scene.pieces[LAPTOP] as RoomScene["pieces"][string]);
     const screen = glows.find((g) => g.id === "screen-glow") as GlowPoint;
-    const face = facesOf(scene.pieces.laptop as RoomScene["pieces"][string]).find((f) => f.role === "screen") as Face;
-    const behind = firstHit(standing("laptop"), screen.at, [-face.facing[0], -face.facing[1], -face.facing[2]]);
-    expect(behind && standing("laptop")[behind.p]?.mesh).toBe("lid");
+    const face = facesOf(scene.pieces[LAPTOP] as RoomScene["pieces"][string]).find((f) => f.role === "screen") as Face;
+    const behind = firstHit(standing(LAPTOP), screen.at, [-face.facing[0], -face.facing[1], -face.facing[2]]);
+    expect(behind && standing(LAPTOP)[behind.p]?.mesh).toBe("lid");
     const light = glows.find((g) => g.id === "charge-light") as GlowPoint;
-    const prims = standing("laptop");
+    const prims = standing(LAPTOP);
     const near = prims.some((p) => {
       for (let t = 0; t < triangles(p); t++) if (triangleDistance(light.at, corners(p, t)) <= light.radius) return true;
       return false;
@@ -463,19 +481,19 @@ describe("every chunk of the four pieces eaten (US2; SC-002)", () => {
     expect(near).toBe(true);
   });
 
-  it("laptop: the charger's plugged pose keeps its port whether the plug is in or out (spec 004's laptop-power)", () => {
+  it(`${LAPTOP}: the ${CHARGER}'s plugged pose keeps its port whether the plug is in or out (spec 004's ${POWER?.id ?? ""})`, () => {
     // The keep-outs take every pose mounted on the piece, whichever the switch shows, so the port stands in both.
-    const boxes = keepOutBoxes(scene, "laptop");
+    const boxes = keepOutBoxes(scene, LAPTOP);
     expect(boxes).toHaveLength(1);
-    const port = scene.pieces.laptop?.anchors.port?.at as V3;
-    const hit = firstHit(standing("laptop"), [port[0] + 0.05, port[1], port[2]], [-1, 0, 0]);
-    expect(hit && standing("laptop")[hit.p]?.mesh).toBe("base");
+    const port = scene.pieces[LAPTOP]?.anchors.port?.at as V3;
+    const hit = firstHit(standing(LAPTOP), [port[0] + 0.05, port[1], port[2]], [-1, 0, 0]);
+    expect(hit && standing(LAPTOP)[hit.p]?.mesh).toBe("base");
   });
 
-  it("work-desk: no placement or switch pose mounted on it loses the top under it", () => {
-    const boxes = keepOutBoxes(scene, "work-desk");
+  it(`${DESK}: no placement or switch pose mounted on it loses the top under it`, () => {
+    const boxes = keepOutBoxes(scene, DESK);
     expect(boxes).toHaveLength(9);
-    const prims = standing("work-desk");
+    const prims = standing(DESK);
     for (const box of boxes) {
       const centre: V3 = [(box.min[0] + box.max[0]) / 2, 2, (box.min[2] + box.max[2]) / 2];
       expect(firstHit(prims, centre, [0, -1, 0]), `the top under ${JSON.stringify(box)}`).not.toBeNull();
