@@ -186,7 +186,7 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "stat.tier.unavailable": [],
       "stat.tier.unknown": [],
     });
-    expect(Object.keys(UI_KEYS)).toHaveLength(77);
+    expect(Object.keys(UI_KEYS)).toHaveLength(79);
   });
 
   // T013 (spec 012; FR-051; D8): the loader's twelve words join the closed list, two with their live counts' slots, and
