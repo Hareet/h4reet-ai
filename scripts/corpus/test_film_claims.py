@@ -932,6 +932,47 @@ def test_a_url_against_this_repository() -> None:
     assert fc.numbers_in(fc.without_exempt(real, quotes=())) == []
 
 
+# rv-rework4-022's N-1: a date is a month from 01 to 12 and a day from 01 to 31, and its `/NN` is a day too; anything
+# else reads its numbers, in prose, in a claim tag, and as a path's segment. The protected 2026-11-13/14 still passes.
+@pytest.mark.parametrize(
+    ("added", "needle"),
+    [
+        ("As of 2026-13-45.", "2026"),
+        ("As of 2026-00-00.", "2026"),
+        ("As of 2026-11-00.", "2026"),
+        ("As of 2026-11-32.", "2026"),
+        ("As of 9999-99-99.", "9999"),
+        ("As of 2026-11-13/99.", "99"),
+        ("As of 2026-11-13/5.", "5"),
+        ("As of 2026-11-13/00.", "00"),
+        ("`[A 2026-99-99]` As of then.", "2026"),
+        ("See `docs/2026-99-99/run.md`.", "2026"),
+    ],
+    ids=[
+        "month-13",
+        "month-00",
+        "day-00",
+        "day-32",
+        "all-nines",
+        "slash-99",
+        "slash-one-digit",
+        "slash-00",
+        "a-claim-tag",
+        "a-path-segment",
+    ],
+)
+def test_a_date_is_a_real_month_and_day_or_its_numbers_count(
+    repo: Path, added: str, needle: str
+) -> None:
+    problems = run(repo, changed(GAP, f"{GAP} {added}"))
+    assert failing(problems, "R4", "number", f"'{needle}'"), problems
+
+
+def test_real_dates_read_no_number(repo: Path) -> None:
+    good = "As of 2026-11-13/14, 2026-01-01, 2026-12-31, and 2026-11-30/31. `[A 2026-11-09]`"
+    assert run(repo, changed(GAP, f"{GAP} {good}")) == []
+
+
 def test_number_words_are_g1s() -> None:
     assert fc.numbers_in("one command and a first run") == []
     assert fc.numbers_in("twenty-one of twenty-four, a dozen, thousands") == [
