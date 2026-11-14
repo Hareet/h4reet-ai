@@ -77,7 +77,7 @@ The sections from *The kill switch* to *What the corpus doesn't hold yet*, the G
 
 - `[P]` The laptop's production stack (`ENV=prod`, `COMPOSE_PROFILES=gpu`) runs on one laptop, with one command, and starts [slot `site.prod_containers`]: the edge, the gateway, the site, the meter's database, the model server, and the tools that watch them, from metrics and logs to Grafana and Langfuse. The `tunnel` profile, once added, runs the tunnel beside them. — https://github.com/hareet/h4reet-ai/blob/main/deploy/compose.yaml
 - `[P]` Its model server is llama.cpp, on the laptop's GPU. — https://github.com/hareet/h4reet-ai/blob/main/deploy/compose.yaml
-- `[P]` Every question tries the local model first. A local answer costs nothing, and nothing leaves the machine. — https://github.com/hareet/h4reet-ai/blob/main/config/routing.yaml
+- `[P]` On the laptop, every question tries the local model first. A local answer costs nothing, and nothing leaves the machine. — https://github.com/hareet/h4reet-ai/blob/main/config/routing.yaml
 - `[P]` Only when it's down does the capped paid fallback answer. On the cloud server, which has no GPU, the Anthropic API answers first. — https://github.com/hareet/h4reet-ai/blob/main/config/routing.yaml
 - `[P]` It is production, not a demo: every image is pinned by its digest, and one build at one commit makes the same image everywhere. — https://github.com/hareet/h4reet-ai/blob/main/deploy/images.lock
 - Offline-first work before hareet.ai, at Medic, with Voice for CHT, and at Denver Local AI: see `05-mission.md`, `01-ai-strategy-and-cht.md`, and `07-denver-local-ai.md`.
