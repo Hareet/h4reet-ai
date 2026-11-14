@@ -2459,7 +2459,7 @@ Every commit on this branch printed gitleaks' "no leaks found" and the arrival c
 
 - The bash gate, once: "Blocked by .claude/hooks/bash-gate.sh — redirecting git hooks or config". This was a false match on text. A `python3 -I` heredoc editing `human-patches/025.md` carried rv-impl-025's proposed line, which names git's hook settings, and the command ran no git. I didn't respell it (rule 5): the same edits went in with the Edit tool (a2f7cd27). It is on the page, under Interruptions.
 - The harness, once, not a hook or the gate: a Monitor watch on the full run's log needed an approval. I waited on the log with a bounded `tail` instead.
-- The harness, once more: removing the D-V2 copy by a path read from a file (a command substitution) needed an approval, which also held back the commit in the same command. I committed alone, then removed the copy by its literal `/tmp` path.
+- The harness, once more: removing the D-V2 copy by a path read from a file (a command substitution) needed an approval, which also held back the commit in the same command. I committed alone. Removing the copy by its literal path was then refused by the bash gate ("recursive delete outside workspace"). That refusal is real, so the copy stays: `/tmp/v025-dv2.AkrAht`, a `git archive` export of a2f7cd27 with the two proposed patches applied, holding nothing secret. It is on the page.
 
 verify-025: green, carrying D-V2's six (Q165)
 
