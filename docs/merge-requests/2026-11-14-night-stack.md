@@ -1337,3 +1337,60 @@ $ npx vitest run test/room/scan.test.ts
  Test Files  1 failed (1)
       Tests  1 failed | 16 passed (17)
 ```
+
+#### Fixed
+
+- **T002's lead fixture** (3c63e2d0, plan §9 D7): the selectable `bicycle` in `test/corpus-size.test.ts`'s lead case is now `fx-bicycle`, in the reserved fixture prefix the scan never hits. The ID is a name only; no assertion changed, and `test/room/scan.test.ts` itself is untouched. Test-first: the scan's RED above, then GREEN:
+
+```
+$ npx vitest run test/room/scan.test.ts test/corpus-size.test.ts
+ Test Files  2 passed (2)
+      Tests  32 passed (32)
+   Duration  50.59s (tests 76%, import 12%, transform 11%)
+$ node_modules/.bin/prettier --check apps/web/test/corpus-size.test.ts
+All matched files use Prettier code style!
+```
+
+`twin:pack` wasn't rerun: no input of the record or the pack moved (the "fresh" case passes).
+
+#### D-V2's six, carried (Q165)
+
+`git archive HEAD` (3c63e2d0) into a fresh `/tmp` folder (`mktemp -d`), `git apply docs/merge-requests/proposed/018-verify-test-amendments.patch` there (`--check` clean), the worktree's `node_modules` linked in. Never applied on the line; no test file of the six edited.
+
+```
+$ cd <copy> && python3 -I -m pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+80 passed in 1.27s
+$ cd <copy>/apps/web && npx vitest run test/disclosure.test.ts test/site.test.ts test/room/legibility.test.ts test/room/report.test.ts
+ Test Files  4 passed (4)
+      Tests  72 passed (72)
+   Duration  62.91s (tests 74%, import 19%, transform 7%)
+```
+
+`test/room/twin-2d.test.ts` passed in the full run, so it needed no rerun alone.
+
+#### Lint, at 3c63e2d0
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+794 files already formatted
+(shellcheck: no finding; exit 0)
+```
+
+No Python changed in item 10 or the merge (`git diff --name-only bb839ff1 HEAD -- '*.py'`: empty), so no `pytest` folder beyond the docs' and the disclosure's evals above. Only `apps/web` changed among the workspaces.
+
+#### What stays as it was
+
+`git diff --stat bb839ff1 HEAD -- corpus config .claude tools/gates CLAUDE.md REVIEW.md .specify/memory/constitution.md evals/agent-config redteam/forbidden-actions.sh assets/policy` is empty. ADR 0054 stays `Status: proposed`. **T005, T007, and T008 still wait** for spec 022's and spec 026's patches on the line (Q171); not this task's.
+
+Commit hooks: each of this session's commits printed gitleaks' "no leaks found" and an `arrival-check: 0 findings in <n> file(s)` line (the fix: 2 files).
+
+Interruptions (verify-027): one bash-gate refusal. Removing my own earlier `/tmp` export (`rm -rf /tmp/verify-027-dv2.<random>`) was refused: "recursive delete outside workspace. Route: delete only inside the repo". I didn't retry it in any form; the copy was made again in a new `mktemp -d` folder, and both `/tmp/verify-027-dv2.*` folders stay for whoever clears `/tmp`.
+
+verify-027: green, carrying D-V2's six (Q165)
