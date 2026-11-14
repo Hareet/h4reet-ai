@@ -5,11 +5,13 @@ His answer on the decision page accepts this, or corrects it, before any of it r
 
 ## Problem
 
-His item, word for word, from his order of 2026-11-13 (item 5 in the order's numbering):
+His item, in his words, from his order of 2026-11-13:
 
-> 5. g) "hareet-ai corpus from film scripts". Corpus changes are proposals in `corpus/proposals/`, for his hand.
+> g) "hareet-ai corpus from film scripts"
 
-What the repository shows, which is the drafter's reading and not his words: `corpus/08-hareet-ai.md` holds the project's topic, and the twin answers only from the corpus (Constitution VIII). The repository's film scripts (`films/SCRIPTS.md` and each film's `script.txt`) say more about how hareet.ai is built than `08` does. Whether the twin can say it depends on the corpus holding it. The reading of "film scripts" as these scripts is the drafter's; question Q1 of the clarifications keeps the other reading open.
+His orders file lists it as item 5 and adds "Corpus changes are proposals in `corpus/proposals/`, for his hand." That sentence is the orders file's, not his words; it restates the night's rule 2, under "What still waits for him": "corpus changes, which are proposals in `corpus/proposals/`".
+
+What the repository shows, which is the drafter's reading and not his words: `corpus/08-hareet-ai.md` holds the project's topic, and the twin answers only from the corpus (Constitution VIII). The repository's film scripts (`films/SCRIPTS.md`, and `films/kill-switch-b2/script.txt`, which `SCRIPTS.md` has no section for) say more about how hareet.ai is built than `08` does. The films' note records his approval of the scripts (`docs/merge-requests/2026-11-11-feat-015-explainer-films.md:4`). Whether the twin can say it depends on the corpus holding it. The reading of "film scripts" as these scripts is the drafter's; question Q1 of the clarifications keeps the other reading open.
 
 ## Proposed outcome
 
@@ -21,7 +23,7 @@ The Author (he applies the proposal), the twin (a visitor's answers), the evals 
 
 ## Constraints
 
-- The corpus is human-only; agents propose (`corpus/README.md`, "Who edits the corpus").
+- The corpus is human-only; agents propose (`corpus/README.md`, "Who edits the corpus"; the night's rule 2).
 - His own words stay in his words (`CLAUDE.md`, "Things Claude gets wrong").
 - No fact about him that isn't in the corpus or a filled `facts/` slot.
 - Constitution VII and VIII.
