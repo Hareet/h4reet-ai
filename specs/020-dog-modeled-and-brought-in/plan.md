@@ -125,3 +125,12 @@ Each task runs only its own files and the ones covering what it changes, and `ma
 ## 10. Complexity tracking
 
 One new check (RA9), one new copy slot, one lookdev view. Each is the narrowest thing that gives the Author the gate (RA9), the disclosure (slot), and the look (view); none is a new service or dependency.
+
+## 11. Departures in implementation (impl-020, 2026-11-14)
+
+- **R-03 holds as written (T004, T005).** Every case of `dog-avatar.test.ts` passed on spec 009's and 019's code: the scale by the rest pose's precise bounds, floor, +z, walk, idle with the slide, reduced motion, no hand bone, the cut-out on a failed or lost model. They are pins; `src/room/scene/avatars.ts` changed for none of them.
+- **R-02, how the line reaches the room (T008).** The 3D stage's picture signal (`FigureSignal`, `src/room/stage.ts`) gains an optional `line`, set by `scene/avatars.ts` only where the shown avatar's bundle entry has one, so no existing signal pin moves. `app.ts` hands it to the stage's notes (`layout.ts`'s `setVisitorLine`) and to the text copy (`setVisitorLine`). Both add their element only while there are words and remove it otherwise, so the cut-out's layout and "Around the room" are exactly as before. The text copy still reads the index alone. The line comes with the signal, never from the 3D part.
+- **The report (T003).** The dog's files, bytes, and texture memory were already in the avatars table, with RA9 as the refused model's `why`. The new part is one `Likeness` line per likeness: the approval holds (with its line), or RA9 leaves it on the cut-out. The line is read from the compose's findings and the avatar's `line`, so `Avatar` gains only `line`, as §4 has it.
+- **R-05 taken: lookdev's Avatars view dropped (T009, T010).** The view could draw only a bundled model, and RA9 keeps the dog out of every bundle (drafts and lenient builds included) until his approval. So the view would show the dog only after the approval it was meant to inform. Showing it earlier needs a drafts-only exception to RA9, which is his call (on the questions page). He judges the model in a glTF viewer or Blender, as R-05's fallback has it.
+- **T012.** One sentence in the disclosure's D1: the dog's AI-made likeness reaches Anthropic when a session reads it, as the Author's does. No new row and no new flow.
+
