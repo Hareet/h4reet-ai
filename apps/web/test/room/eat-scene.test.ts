@@ -12,6 +12,7 @@ import type { Mesh, Object3D, Scene } from "three";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { RoomScene } from "../../src/room/compose/bundle";
+import { reservedBoxes } from "../../src/room/compose/hud";
 import { FLIGHT_MS } from "../../src/room/eat/eat3d";
 import { readImage } from "../../src/room/glb/images";
 import { createScene } from "../../src/room/scene";
@@ -24,7 +25,27 @@ import { dinosaurFolder, dinosaurNight } from "../helpers/room-dinosaur";
 const swapped = vi.hoisted(() => ({
   part: null as RoomScene | null,
   renderer: null as ((parameters: unknown) => unknown) | null,
+  /** Each stage scene.ts gives the selectables' picker (its resize), in order. */
+  picked: [] as { w: number; h: number; reserved?: readonly (readonly number[])[] }[],
 }));
+
+// The picker as built, its stages recorded (I-1: what scene.ts reserves in the stacked layout).
+vi.mock("../../src/room/scene/bundle3d", async (importOriginal) => {
+  const own = await importOriginal<typeof import("../../src/room/scene/bundle3d")>();
+  return {
+    ...own,
+    selectablePicker: (...args: Parameters<typeof own.selectablePicker>) => {
+      const picker = own.selectablePicker(...args);
+      return {
+        ...picker,
+        resize(stage: Parameters<typeof picker.resize>[0]) {
+          swapped.picked.push(stage);
+          picker.resize(stage);
+        },
+      };
+    },
+  };
+});
 
 vi.mock("virtual:room-scene", async (importOriginal) => {
   const own = await importOriginal<{ default: RoomScene }>();
@@ -257,6 +278,19 @@ describe("the eating's wiring in the 3D stage (scene.ts; FR-001, FR-009, FR-010,
     s.state.loading = false;
     run(s, FLIGHT_MS + 32);
     expect(shownChunks(s).size).toBe(before - 1);
+    s.stage.dispose();
+  });
+
+  it("reserves the Eat box beside the walking control in the stacked layout (I-1, page Q215)", async () => {
+    // The stacked layout: the room gives no frame and no clear area, and the canvas is its own stage.
+    swapped.picked = [];
+    const s = await staged();
+    const last = swapped.picked.at(-1);
+    expect(last, "the picker was sized").toBeDefined();
+    expect({ w: last?.w, h: last?.h }).toEqual({ w: 960, h: 600 });
+    expect(last?.reserved, "the walking control's box and the Eat box beside it").toEqual(
+      reservedBoxes({ w: 960, h: 600 }, 16, { eat: true }),
+    );
     s.stage.dispose();
   });
 });
