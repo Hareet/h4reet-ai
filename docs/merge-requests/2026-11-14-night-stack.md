@@ -2292,6 +2292,161 @@ Interruptions: three bash-gate refusals (rule 5). Two came in a throwaway `mktem
 
 rework-025's interruptions: none. No bash-gate or hook refusal in its session.
 
+### Backlog (rv-rework-025)
+
+rv-rework-025 (Opus, on rework-025's tip 8ce1558f): **not blocking**, four nits. Nit-1 and Nit-2 were documents, fixed by verify-025 (below). Nit-4 asked for no change. Nit-3, in its words:
+
+> nothing tests the stage's use of `chaseDue` (`scene.ts:646`).
+> Suggestion: add a stage-level case. With the dinosaur chosen and `options.handoff` pending, the stage makes no shell and signals no `chase`. Once the promise resolves, the shell is made.
+
+Done by verify-025: `test/room/chase-stage.test.ts` (549d4815; see Verification below). Nothing is left in this backlog.
+
+### Verification (rule 7, verify-025)
+
+Branch `night/verify-025/verify-025`, from item 8's reviewed tip 8ce1558f (rework-025, rv-rework-025 not blocking), by a different worker (Opus 5.5) from item 8's implementers (impl-025, rework-025). The setup target ran first (no `node_modules`). Its git-hooks step said the hooks folder "isn't writable here (the agent sandbox)".
+
+#### The merge
+
+`git merge refs/heads/night/verify-022/verify-022` (7db03c0f, the line's tip: items 1 to 6 and 10, each verified): merge commit 47591332. There were two conflicts, both text, and no code conflict:
+- `docs/data-flow-disclosure.md`, row V1: item 8's clause on the room's dog's model and clips, and item b's parenthesis on a link in the downloaded PDF, are both kept. A check before writing confirmed the two sides differ by exactly those two additions.
+- This note: item 4's later sections (his look approval, the intake, round 2's record, its reviews, verify3-021) and items 5, 6, and 10 come from the line. Item 8's section is whole, placed after item 6 and before item 10, in his order (a, c, d, e, g, b, i, h). No line of either side was lost, except the one line of item 4 that the line's side had rewritten since the merge base. Item 8's section is byte-for-byte as rework-025 left it.
+
+The merge brought `apps/web` (item b's `build/film-links.ts`, item 10's `build/corpus-size.ts`, their tests, `package.json`) and Python (`scripts/corpus/`). No `services/gateway` change, from the item or the merge.
+
+#### The review's words (Q258)
+
+The page's copy of rv-impl-025's findings ("rv-impl-025's findings, its words") was read against rework-025's fixes, the code, and the tests at 8ce1558f:
+- **B-1, its four "What must change" steps.** (1) `chase-figures.ts`'s `place` writes a picture only while `p.away`, and once on the frame its runner gets home. Nothing is written while a figure stays home with no run on, or while it's held (`chase-handoff.test.ts`, "the shell writes a picture only while its runner is away"). (2) `scene.ts` makes the shell only when `chaseDue(options.avatar, handedOff)`, and `handedOff` is set when `options.handoff` resolves. (3) Both RED cases are there, with a real controller's `showHandoff(p)` beside the shell's `frame` for a dinosaur visitor and `room.twin.rotation.y` checked at p 0.3 (the full 0.45 rad turn): the shell made before the hand-off, and the shell made in its middle. (4) Plan §4's `createChaseFigures` bullet records the departure. Checked against the review's words. Step 2 had no stage-level test, which is rv-rework-025's Nit-3, added below.
+- **I-2.** The Interruptions line says the second attempt respelled the first and no longer says "none respelled" (a search for it in the note, the spec folder, and human patch 025 finds nothing). Checked against the review's words. The proposed line itself is now the review's, word for word (Q257, For the Author item 6).
+- **N-1.** `spec.md:103`, `:129`, and `:214` read as FR-017 does. Checked against the review's words.
+- **N-2.** Plan §4's `steer` has its "As built" signature, and plan §5's own merge-request note is struck. Checked against the review's words.
+- **N-3.** The T016 bullet quotes the bests (0.0105, 0.0098) and says what the bench doesn't time (the twin's gait from `stride`, the dog's clip change, the mixers). Checked against the review's words.
+- **N-4.** `both` and `wanting` are lists made once (`avatars.ts:406`, `:410`), and `update()` loops over `wanting`. Checked against the review's words.
+- **N-5.** `chase.ts` names the end by the figures that moved in the run (`whoOf(ranTwin, ranDog) ?? said`, `:208`). Checked against the review's words.
+
+#### Fixes on this branch
+
+- **Q257** (a2f7cd27): For the Author item 6 and `human-patches/025.md` carry rv-impl-025's proposed `CLAUDE.md` line word for word. A byte match against the page's line found it once in each file. rework-025's reading is gone. It is still a proposal for his hand.
+- **rv-rework-025's Nit-1** (a2f7cd27): human patch 025's opening and For the Author item 1 now say there is one proposal for a human-only path, the `CLAUDE.md` line from Q249. **Nit-2** (a2f7cd27): the B-1 bullet under Review carries its RED's condition, "with `chaseDue` stubbed out for the run", and "The committed RED fails at its import (`chaseDue`)", from rework-025's impl-log.
+- **Nit-3** (549d4815): `test/room/chase-stage.test.ts`, on the real stage over the repository's room, its shell counted through a wrapper around the real `createChaseFigures`. With the dinosaur chosen and the hand-off pending, the walking view on, there is no shell and no `chase` signal. Once the promise resolves, the next frame makes the shell, once. The woman, the man, and the dog never make it. The code it checks was already in, so its RED was shown by two mutations of `scene.ts`, run and reverted, never committed:
+  ```
+  chaseDue(options.avatar, true)
+       × makes no shell and signals no chase while the hand-off is pending, the dinosaur chosen and walking 147ms
+       × makes the shell once the hand-off's promise resolves, and only once 16ms
+  AssertionError: expected [ 'dinosaur' ] to deeply equal []
+        Tests  2 failed | 3 passed (5)
+  chaseDue("dinosaur", handedOff)
+       × never makes it for the woman, the hand-off ended 18ms
+       × never makes it for the man, the hand-off ended 15ms
+       × never makes it for the dog, the hand-off ended 15ms
+        Tests  3 failed | 2 passed (5)
+  ```
+  GREEN: `Tests  5 passed (5)`. Plan §4 says so. Writing it showed that the stage makes the shell on the frame after the hand-off's promise settles, not on the same frame, since the promise's `then` runs as a microtask. The test waits for that, and no code changed.
+- **Spec 004's FR-007 scan** (161bccf9), found by the full run below: `test/room/scan.test.ts` reads test files too, and it found the room's placement ID `twin-figure` as a fixture name at `chase-figures.test.ts:51` and `:56` (T014, a28d4910) and `chase-handoff.test.ts:110` (rework-025, a17e11b0). It is item 8's own failure, not the merge's: rework-025's runs didn't include `scan.test.ts`. RED, alone:
+  ```
+  cd apps/web && npx vitest run --maxWorkers=4 test/room/scan.test.ts
+       × finds 0 IDs only the room's data defines in the room's code 6ms
+  +     "FR-007 apps/web/test/room/chase-figures.test.ts:51: holds \"twin-figure\", which only the room's data defines",
+  +     "FR-007 apps/web/test/room/chase-figures.test.ts:56: holds \"twin-figure\", which only the room's data defines",
+  +     "FR-007 apps/web/test/room/chase-handoff.test.ts:110: holds \"twin-figure\", which only the room's data defines",
+   Test Files  1 failed (1)
+        Tests  1 failed | 16 passed (17)
+     Duration  62.28s (tests 76%, transform 12%, import 12%)
+  ```
+  The fix is verify-027's for item 10: the fixture ID is `fx-twin-figure`, in the reserved prefix the scan never reads. The fake floor's obstacle and `figures.twin` still match, no assertion changed, and `scan.test.ts` is untouched. Plan §4 says so. GREEN:
+  ```
+  cd apps/web && npx vitest run --maxWorkers=4 test/room/scan.test.ts test/room/chase-figures.test.ts test/room/chase-handoff.test.ts
+   Test Files  3 passed (3)
+        Tests  55 passed (55)
+     Duration  60.58s (tests 78%, transform 13%, import 9%)
+  ```
+
+#### Runs
+
+`cat /sys/fs/cgroup/cpu.max` gives `400000 100000`: 4 CPUs in this container tonight, not the order's 2, so `<n>` is 4.
+
+All of `apps/web` at 549d4815 (the merge, Nit-3's test; before the FR-007 fix), the failures and the totals as vitest printed them:
+
+```
+cd apps/web && npx vitest run --maxWorkers=4
+ ❯ test/room/report.test.ts (25 tests | 1 failed) 11676ms
+   ❯ the report's exempt faces and side-wall selectables (5)
+     × marks the counter face exempt on the phone, and the word face readable 207ms
+ ❯ test/room/legibility.test.ts (20 tests | 3 failed) 1023ms
+   ❯ RG7's per-face exemption on the reference phone (6)
+     × exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it 32ms
+     × holds the same face to the floor on the desktop 192ms
+     × holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable 19ms
+ ❯ test/room/scan.test.ts (17 tests | 1 failed) 4340ms
+   ❯ the committed tree (T107; FR-007, SC-001, User Story 1 scenario 4) (2)
+     × finds 0 IDs only the room's data defines in the room's code 5ms
+room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
+ ❯ test/disclosure.test.ts (11 tests | 2 failed) 462ms
+   ❯ the disclosure page (11)
+     × gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words 9ms
+     × names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6) 40ms
+chase bench: 600 frames, mean ms a frame per run 0.0206, 0.0147, 0.0146; best 0.0146
+ Test Files  4 failed | 202 passed (206)
+      Tests  7 failed | 3947 passed | 3 skipped (3957)
+   Start at  21:43:27
+   Duration  1011.60s (tests 72%, import 28%)
+```
+
+Six are exactly D-V2's (Q165), the same as verify-018's to verify-027's full runs. The seventh, the FR-007 scan, was item 8's own and is fixed above (161bccf9). `test/room/twin-2d.test.ts` passed in this run, so it needed no rerun alone. The fix touched only the two test files' fixture name, so the scan and both files were run again at 161bccf9 (GREEN above) rather than the whole suite.
+
+Item 8's own test files at 161bccf9, the 20 rework-025 ran, the two of the first thirteen not among them, and Nit-3's:
+
+```
+cd apps/web && npx vitest run --maxWorkers=4 test/room/chase-bench.test.ts test/room/chase-degraded.test.ts
+  test/room/chase-director.test.ts test/room/chase-end-line.test.ts test/room/chase-figures.test.ts
+  test/room/chase-handoff.test.ts test/room/chase-notes.test.ts test/room/chase-schema.test.ts test/room/chase-stage.test.ts
+  test/room/chase-states.test.ts test/room/chase-steer.test.ts test/room/dog-avatar.test.ts test/room/dog-disclosure.test.ts
+  test/room/dog-figure.test.ts test/room/dog-first-visit.test.ts test/room/dog-line.test.ts test/room/dog-report.test.ts
+  test/room/dog-run.test.ts test/room/avatar-handoff.test.ts test/room/twin-handoff.test.ts
+  test/room/avatars-frame-lists.test.ts test/room/likeness-line-anywhere.test.ts test/room/twin-states.test.ts
+chase bench: 600 frames, mean ms a frame per run 0.0236, 0.0268, 0.0214; best 0.0214
+room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
+ Test Files  23 passed (23)
+      Tests  227 passed (227)
+   Duration  117.25s (tests 74%, import 24%, transform 2%)
+```
+
+`pytest` over each Python folder that changed: `deploy/scripts` (item 8's `test_dashboard.py`) and `scripts/corpus` (the merge), with the disclosure's two checks in `evals/` (both sides changed row V1):
+
+```
+pytest -q -p no:cacheprovider --import-mode=importlib deploy/scripts scripts/corpus evals/test_disclosure.py evals/test_docs_links.py
+FAILED evals/test_disclosure.py::test_the_rooms_rows_are_in_its_own_section_with_the_specs_words
+1 failed, 1720 passed in 31.67s
+```
+
+The one failure is D-V2's (Q164).
+
+**D-V2's six, carried (Q165), on a copy.** `git archive HEAD` (a2f7cd27) went into a fresh `mktemp -d` folder. `git apply --check`, then `git apply`, of `docs/merge-requests/proposed/018-verify-test-amendments.patch` (4 files, 43 insertions, 11 deletions) and then `025-disclosure-test-amendments.patch` (2 files, 28 insertions, 3 deletions), both clean, with the worktree's `node_modules` linked in. Neither was ever applied on the line, and no test file was edited for them:
+
+```
+cd <copy> && pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+80 passed in 1.82s
+cd <copy>/apps/web && npx vitest run --maxWorkers=4 test/disclosure.test.ts test/room/legibility.test.ts test/room/report.test.ts test/room/dog-disclosure.test.ts test/site.test.ts
+ Test Files  5 passed (5)
+      Tests  74 passed (74)
+   Duration  63.21s (tests 70%, import 20%, transform 10%)
+```
+
+With row V1 as merged (the dog's clause and item b's parenthesis) and both patches, the disclosure's tests pass.
+
+LINT_RUN_HERE
+
+#### The hooks
+
+Every commit on this branch printed gitleaks' "no leaks found" and the arrival check's "0 findings": the merge (42 files), the save point (1), 549d4815 (2), a2f7cd27 (2), 161bccf9 (3), and this section's.
+
+#### Interruptions
+
+- The bash gate, once: "Blocked by .claude/hooks/bash-gate.sh — redirecting git hooks or config". This was a false match on text. A `python3 -I` heredoc editing `human-patches/025.md` carried rv-impl-025's proposed line, which names git's hook settings, and the command ran no git. I didn't respell it (rule 5): the same edits went in with the Edit tool (a2f7cd27). It is on the page, under Interruptions.
+- The harness, once, not a hook or the gate: a Monitor watch on the full run's log needed an approval. I waited on the log with a bounded `tail` instead.
+
+verify-025: green, carrying D-V2's six (Q165)
+
 ---
 
 ## Item 10: spec 027, when the twin's file context stops being enough (`night/impl-027/impl-027`)
