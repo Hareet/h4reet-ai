@@ -14,6 +14,23 @@ line: pass
 exit 0
 ```
 
+Small tests (the Author's rule 4): this task changes no code and no test, so the only test it runs is `make lint` (after `make setup`, since `node_modules` was missing):
+
+```
+$ make lint; echo "exit $?"
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+759 files already formatted
+… shellcheck over the repository's shell scripts, no finding
+exit 0
+```
+
 ## Where the brief departs from the contract, and why
 
 1. **Tool IDs: the shipped records' IDs, not the contract's list.** `contracts/dinosaur-brief.md` lists `blender-5.2.3` and `comfyui-core` and leaves out `dinov3-vit-l-patch-16-with-naf` and `claude-opus-5.5`. But `line.py candidate` checks every model and tool a record step names by `norm(name)` (lower case, other runs a hyphen; `scripts/studio/line.py:129`, `:842`) against the brief's `tools`. The shipped avatars' records (`assets/visitors/{man,woman}/records.json` on main) name "Blender" (`blender`), "ComfyUI" (`comfyui`), "DINOv3 ViT-L, patch 16, with NAF" (Pixal3D's auxiliary, in both mesh steps), and "Claude Opus 5.5" (every step by the studio agent's script, with the Claude Code service, row D4). A record made the way they were made would fail against the contract's list on four names. The contract's own reading says the brief "is cut to those if the list is wider than they are" and the Author's answer is "copy it from there", so the brief names exactly the fourteen IDs those records use, all on main's list with `outputs_ship: true`. None of them is Qwen-Image-2.1, FLUX [dev], or an `UNREVIEWED` node. The contract's line "`claude-opus-5.5` is not listed: it isn't a model the studio's pipeline uses for geometry" doesn't hold for the build step the records show. The contract should be brought in line by a spec-writer task. This task commits only this note, so that change is a question on the morning page (`/night/io/out/questions.md`), not an edit here.
