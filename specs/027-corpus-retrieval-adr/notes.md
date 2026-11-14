@@ -54,3 +54,22 @@ None, in either rework. No hook or bash-gate refusal was hit.
 ## What's left
 
 T000 is the Author's answers (Q1 to Q8, Q144, Q145, and Q157, the lead in T1). Then T001 to T008 run on the line after spec 026, in the order T001 → T002 → T003 → T004 → T008 → T005 → T006 → T007. T005 takes the pending patches' final figures from T008's records and corrects each place they appear. Nothing more is built tonight (Q144). Stage 1's spec is the next item once he applies either corpus patch and the record reads "stage 1 due".
+
+## impl-027 (2026-11-14), on `night/impl-027/impl-027`
+
+From rework2-spec-027's tip (13e1da8c), the supervisor's steps 1 to 5.
+
+### T001: the merge of the line's verified tip
+
+`git merge refs/heads/night/verify2-020/verify2-020` (3767859f, items 1 to 3): no conflict; merge commit a90b0e82. The merge brought 95 files, 8,807 insertions, 57 deletions (`git diff --shortstat HEAD^1 HEAD`), none under `specs/027-*` and no section of the stack note in conflict. The supervisor moved this merge ahead of item f's, so the line's tip doesn't carry spec 026 yet.
+
+What moved since 3c0e4cd0 in what the record measures:
+
+```
+$ git diff --stat 3c0e4cd0 HEAD -- corpus/ config/twin/ config/budgets.yaml
+(no output)
+```
+
+Nothing, not even under `corpus/proposals/`. Neither pending corpus patch is on the line's tip: no `docs/merge-requests/2026-11-14-corpus-film-scripts.patch` (spec 022's) and no `docs/merge-requests/*-corpus-dog-intro.patch` (spec 026's); impl-022 and impl-026 build them beside this task. So T008, T005's patch figures, and T007's patch figures wait (Q171).
+
+`node_modules` was missing; `make setup` installed it (`npm ci --ignore-scripts`; the git hooks step reports the sandbox can't write `.git/hooks`, the Author's).
