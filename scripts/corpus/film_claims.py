@@ -18,8 +18,9 @@ R2  every line in scope is in the table once, carried, in part, or left out, eac
 R3  no line `SCRIPTS.md` marks unbuilt or retracted is carried whole, and no carried `kill-switch-b2` row cites a
     `materials.md` row noted "shown as built".
 R4  the new text states no number outside a slot (digits, or G1's number words; its exempt spans aside: slots, URLs,
-    the claim tags [P], [?], [A], [A <date>] and [slot `id`], paths with a segment that isn't a number or with a file
-    extension, dates, a list item's number, and the quotes R5 accepts) and no currency amount (check_corpus.py's
+    the claim tags [P], [?], [A], [A <date>] and [slot `id`], paths (no whitespace, no segment that is a number but a
+    date), a setting such as ENV=prod whose value isn't a number, dates, a list item's number, and the quotes R5
+    accepts) and no currency amount (check_corpus.py's
     CURRENCY, redteam/run.py's AMOUNT_WORDS, guards.ts's EXTRA_PATTERN); every slot exists; and the whole file holds no
     CURRENCY match, since corpus-check reads `corpus/proposals/` too.
 R5  every quotation in the new text is the Author's words as `SCRIPTS.md` quotes them, his words in the disclosure's
@@ -505,23 +506,37 @@ _CODE = re.compile(r"`([^`\n]*)`")
 _BARE_PATH = re.compile(
     r"(?<![\w/])[\w.-]+(?:/[\w.*-]+)+/?|\b[\w-]+\.(?:md|ya?ml|ts|py|json|txt|sh)\b"
 )
-_PATHLIKE = re.compile(r"/|\.[a-z]{1,5}$|^[A-Z_]+=[\w-]+$")
-_EXTENSION = re.compile(r"\.[a-z]{1,5}$")
+_PATHLIKE = re.compile(r"/|\.[a-z]{1,5}$")
 _QUOTE = re.compile(r'"([^"\n]+)"|“([^”\n]+)”')
 
 
+_PUNCTUATION = ".,;:!?"  # a sentence's punctuation around a segment isn't the segment's
+
+
 def _numeric(segment: str) -> bool:
-    """A path segment that reads as a number: no letter or underscore, or one of G1's number words."""
-    segment = segment.strip(".")  # a sentence's full stop isn't the segment's
-    return not re.search(r"[A-Za-z_]", segment) or bool(WORD.fullmatch(segment))
+    """A segment that is a number: a digit and no letter or underscore (`100`, `2026-11-13`, `267-299`), or one of
+    G1's number words (`twelve`, `fifty-two`)."""
+    segment = segment.strip(_PUNCTUATION)
+    digits = bool(re.search(r"\d", segment)) and not re.search(r"[A-Za-z_]", segment)
+    return digits or bool(WORD.fullmatch(segment))
 
 
 def is_path(token: str) -> bool:
-    """A path needs a segment that isn't a number, or a file extension: `52/52` and `fifty-two/fifty-two` are ratios
-    (rv-impl-022's I-2), `docs/adr/0020-x.md` and `films/kill-switch-b2/` are paths."""
-    if _EXTENSION.search(token):
-        return True
-    return not all(_numeric(s) for s in token.strip("/").split("/"))
+    """A path has no whitespace and no segment that is a number, but a date `_DATE` takes: `52/52`, `100/day`,
+    `52/run`, `twelve/hour`, and `fifty-two of fifty-two passed/run` aren't paths (rv-impl-022's I-2, rv-rework-022's
+    F-2); `docs/adr/0020-x.md`, `history/2026-11-09/run.json`, and `films/kill-switch-b2/` are."""
+    if re.search(r"\s", token):
+        return False
+    return not any(
+        _numeric(s) and not _DATE.fullmatch(s.strip(_PUNCTUATION))
+        for s in token.strip("/").split("/")
+    )
+
+
+def _assignment(token: str) -> bool:
+    """`ENV=prod`, `COMPOSE_PROFILES=gpu`: a setting whose value isn't a number (`DAILY_CAP=100` states one)."""
+    m = re.fullmatch(r"[A-Z_]+=([\w-]+)", token)
+    return bool(m) and not _numeric(m.group(1))
 
 
 def without_exempt(text: str, quotes: Iterable[str]) -> str:
@@ -535,8 +550,8 @@ def without_exempt(text: str, quotes: Iterable[str]) -> str:
     text = _CODE.sub(
         lambda m: (
             " "
-            if _PATHLIKE.search(m.group(1))
-            and ("/" not in m.group(1) or is_path(m.group(1)))
+            if _assignment(m.group(1))
+            or (_PATHLIKE.search(m.group(1)) and is_path(m.group(1)))
             else m.group(1)
         ),
         text,
