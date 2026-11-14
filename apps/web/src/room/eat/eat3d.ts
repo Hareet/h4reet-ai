@@ -50,6 +50,9 @@ export interface Eat3d {
   bite(placement: string): boolean;
   /** Each frame: the flights, the regrowths, the meal's tick. */
   frame(): void;
+  /** The visitor left walking (Escape, the walking control, a failed step): every flight lands at once, as the spec's
+   *  edge case says; while the meal is paused, at the resume's first frame, since nothing lands while paused (FR-009). */
+  settle(): void;
   disabled(): boolean;
 }
 
@@ -77,7 +80,8 @@ interface Split {
 interface Motion {
   readonly placement: string;
   readonly index: number;
-  readonly start: number;
+  /** Its start on the eating's time; -Infinity for a flight a leave cut short (settle), due at the next frame. */
+  start: number;
   readonly kind: "flight" | "growth";
   /** A flight's chunk centre in the world at its start. */
   readonly from: Vector3;
@@ -403,6 +407,18 @@ export function createEat3d(options: Eat3dOptions): Eat3d {
           else {
             place(s, r.index, new Vector3(), 1e-3);
             motions.push(motion);
+          }
+        }
+      });
+    },
+    settle() {
+      guarded(undefined, () => {
+        for (const m of [...motions]) {
+          if (m.kind !== "flight") continue;
+          if (meal.paused()) m.start = -Infinity;
+          else {
+            motions.splice(motions.indexOf(m), 1);
+            land(m);
           }
         }
       });

@@ -504,6 +504,8 @@ export function createScene(options: SceneOptions): Stage3D {
   };
   const leaveWalk = (): void => {
     if (!walking?.on) return;
+    // Spec 024's edge case: leaving walking during a flight lands the chunk at once (rework-024, nit 1).
+    eat3d?.settle();
     input.unbind();
     walking.leave(clock.now());
     returning = true;
@@ -577,6 +579,7 @@ export function createScene(options: SceneOptions): Stage3D {
   /** A step that threw: the walk ends at the production framing, the figure at its place, and the room is told
    *  (FR-005), so the scene is never left blank or frozen. */
   const failWalk = (): void => {
+    eat3d?.settle();
     input.unbind();
     try {
       walking?.leave(clock.now());
