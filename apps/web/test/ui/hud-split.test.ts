@@ -1,4 +1,7 @@
 // Spec 018's split HUD, the panel and the list (T003 starts it: the key cap; T008 to T012, T010 add the rest).
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 
@@ -8,7 +11,7 @@ import { noPolicy } from "../../build/room/policy";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import { keycap } from "../../src/room/hud/keycap";
 import type { TurnRequest } from "../../src/talk/talk";
-import { button, enter, flush, stubViewport, start, throughLoader } from "../helpers/room";
+import { button, enter, flush, parseCss, stubViewport, start, throughLoader } from "../helpers/room";
 import type { Visit } from "../helpers/room";
 import { goodTree } from "../helpers/room-fixtures";
 
@@ -230,5 +233,74 @@ describe("the portrait (T010)", () => {
     expect(seen[0]).toMatchObject({ mode: "same-origin", credentials: "same-origin", redirect: "error" });
     expect(await fetchStill(still, serve(new Uint8Array([9, 9])))).toBeNull();
     expect(await fetchStill(still, () => Promise.reject(new Error("down")))).toBeNull();
+  });
+});
+
+// ---- T011 (FR-007, FR-008): choosing ----
+
+const entries = (v: Visit): HTMLButtonElement[] => [
+  ...v.doc.querySelectorAll<HTMLButtonElement>(".room-list button[data-object-id]"),
+];
+
+describe("the list (T011; FR-007, FR-008)", () => {
+  it("has the label, and Back only while the panel is open, named with its key", async () => {
+    const { v } = await room();
+    expect(v.doc.querySelector(".split-label")?.textContent).toBe("Select a piece");
+    const back = v.doc.querySelector<HTMLButtonElement>(".split-back");
+    expect(back?.hidden).toBe(true);
+    expect(back?.getAttribute("aria-label")).toBe("Back, Escape");
+    talkingPiece(v).click();
+    await flush();
+    expect(back?.hidden).toBe(false);
+    expect(back?.querySelector(".hud-keycap")?.textContent).toBe("Esc");
+    back?.click();
+    expect(talk(v).getAttribute("data-panel")).toBe("bar");
+    expect(back?.hidden).toBe(true);
+  });
+
+  it("marks the focused entry: aria-current, a stroke above and below, the confirm key cap; no other entry has them", async () => {
+    const { v } = await room();
+    const [first, second] = entries(v);
+    first?.focus();
+    expect(first?.getAttribute("aria-current")).toBe("true");
+    expect(first?.closest("li")?.querySelectorAll(".split-stroke")).toHaveLength(2);
+    expect(first?.closest("li")?.querySelector(".split-confirm")?.textContent).toBe("Enter");
+    expect(first?.closest("li")?.querySelector(".split-confirm")?.getAttribute("aria-hidden")).toBe("true");
+    second?.focus();
+    expect(first?.hasAttribute("aria-current")).toBe(false);
+    expect(first?.closest("li")?.querySelector(".split-stroke, .split-confirm")).toBeNull();
+    expect(second?.getAttribute("aria-current")).toBe("true");
+    expect(v.doc.querySelectorAll(".room-list [aria-current]")).toHaveLength(1);
+  });
+
+  it("falls back to the hovered entry, then to the piece of the open conversation", async () => {
+    const { v } = await room();
+    const [first] = entries(v);
+    const piece = talkingPiece(v);
+    first?.dispatchEvent(new v.win.Event("pointerover", { bubbles: true }));
+    expect(first?.getAttribute("aria-current")).toBe("true");
+    v.doc.querySelector(".room-list")?.dispatchEvent(new v.win.Event("pointerleave"));
+    expect(v.doc.querySelectorAll(".room-list [aria-current]")).toHaveLength(0);
+    piece.click();
+    await flush();
+    expect(piece.getAttribute("aria-current")).toBe("true");
+  });
+
+  it("opens a piece in one tap", async () => {
+    const { v, sent } = await room();
+    talkingPiece(v).click();
+    await flush();
+    expect(sent).toHaveLength(1);
+    expect(talk(v).getAttribute("data-panel")).toBe("open");
+  });
+
+  it("gives no entry another row size when the selection moves: the selected rule sets type, never a size", () => {
+    const css = readFileSync(fileURLToPath(new URL("../../src/room/hud/split.css", import.meta.url)), "utf8");
+    const rules = parseCss(css).rules.filter((r) => /\[data-selected\]/.test(r.selector));
+    expect(rules.length).toBeGreaterThan(0);
+    for (const r of rules)
+      for (const name of ["height", "min-height", "max-height", "padding", "margin", "border-width", "line-height"])
+        expect(r.declarations.has(name), `${r.selector} sets ${name}`).toBe(false);
+    expect(css).toMatch(/\.room-list[^{]*\{[^}]*text-align:\s*right/);
   });
 });
