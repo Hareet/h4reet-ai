@@ -62,8 +62,8 @@ import type { Room3D } from "./bundle3d";
 import type { FigureDriver } from "./figure";
 import { gripCentre, gripMatrix } from "./grip";
 import type { GripData } from "./grip";
-import { advance, applyGait, clearGait, cycleLength, findLegRig, legOffsets } from "./gait";
-import type { GaitState, LegRig } from "./gait";
+import { advance, applyGait, clearGait, cycleLength, findLegRig, legOffsets, standingLift } from "./gait";
+import type { GaitOffsets, GaitStateOut, LegRig } from "./gait";
 import { disposeModel } from "./loader";
 import type { FigureRole, FigureSource } from "./loader";
 import { createTwinStates } from "./twin-states";
@@ -115,8 +115,15 @@ export interface AvatarFigures {
   missed(avatar: FigureSource, role: FigureRole | null, why: "failed" | "skipped" | "floor" | "2d"): void;
   /** Whether a figure shows its avatar. */
   shows(figure: FigureId): boolean;
-  /** Spec 019: the visitor's walk clip's time scale, set from its speed, or null where no walk clip plays. */
+  /** Spec 019: the walk clip's time scale where it plays, or null: 1, its own speed, which nothing sets (FR-007, Q8). */
   clipScale(figure: FigureId): number | null;
+  /** Spec 019 (FR-011): the visitor's gait objects, each made once and written in place every frame; tests read their
+   *  identity. Not for writing. */
+  gaitFrame(): {
+    readonly state: Readonly<GaitStateOut>;
+    readonly offsets: GaitOffsets;
+    readonly last: { readonly x: number; readonly z: number; readonly has: boolean };
+  };
   /** The figure's holding hand's bone, or null. */
   handOf(figure: FigureId): Object3D | null;
   /** The clip role a figure plays now, or null (its fallback, or its rest pose). */
@@ -654,18 +661,22 @@ export function createAvatarFigures(
    *  driver puts it, and the picture group, which holds the avatar, turned to the heading, at its own scale made
    *  positive and its own height, so nothing mirrors or bobs; its first frame since a rest keeps what it found. */
   const visitorNode = room.placements.get(part.figures.visitor) ?? null;
-  /** Spec 019 (plan.md §2.3): the visitor's gait: its phase and amplitude, the last place, the distance walked since the
-   *  last update, and the pose's speed and walking, from the driver's frames. */
+  /** Spec 019 (plan.md §2.3, §2.7): the visitor's gait: its phase and amplitude, its legs' offsets, the last place (with
+   *  `has` false until a frame gives one), the distance walked since the last update, and the pose's speed and walking,
+   *  from the driver's frames. Each object is made once here and written in place, so a frame allocates nothing for
+   *  the gait (FR-011). */
   const gait = {
-    state: { phase: 0, amp: 0 } as GaitState,
-    last: null as { x: number; z: number } | null,
+    state: { phase: 0, amp: 0 } as GaitStateOut,
+    offsets: legOffsets(0, 0),
+    last: { x: 0, z: 0, has: false },
     dist: 0,
     speed: 0,
     walking: false,
   };
   function resetGait(): void {
-    gait.state = { phase: 0, amp: 0 };
-    gait.last = null;
+    gait.state.phase = 0;
+    gait.state.amp = 0;
+    gait.last.has = false;
     gait.dist = 0;
     gait.speed = 0;
     gait.walking = false;
@@ -697,8 +708,10 @@ export function createAvatarFigures(
       group.position.y = home.lift;
       group.updateMatrixWorld(true);
       // The distance from the pose's places, never from speed × dt (FR-002); the first frame since a rest has none.
-      if (gait.last) gait.dist += Math.hypot(pose.x - gait.last.x, pose.z - gait.last.z);
-      gait.last = { x: pose.x, z: pose.z };
+      if (gait.last.has) gait.dist += Math.hypot(pose.x - gait.last.x, pose.z - gait.last.z);
+      gait.last.x = pose.x;
+      gait.last.z = pose.z;
+      gait.last.has = true;
       gait.speed = pose.speed;
       gait.walking = pose.walking;
       if (pose.walking !== walkingNow) {
@@ -741,13 +754,17 @@ export function createAvatarFigures(
     const idling = f.playing === "idle" || f.playing === "idle-holding";
     if (!moving || level >= 1 || !idling) {
       clearGait(f.legs);
-      gait.state = { phase: gait.state.phase, amp: 0 };
+      gait.state.amp = 0;
       return;
     }
     const on = gait.walking && !f.actions.has("walk");
-    gait.state = advance(gait.state, distance, gait.speed / part.walking.speed_mps, dt, on, cycleLength(f.target));
-    if (gait.state.amp > 0) applyGait(f.legs, legOffsets(gait.state.phase, gait.state.amp));
-    else clearGait(f.legs);
+    const share = gait.speed / part.walking.speed_mps;
+    advance(gait.state, distance, share, dt, on, cycleLength(f.target), gait.state);
+    if (gait.state.amp > 0) {
+      // The legs' angles, and the hips lowered by the standing leg's lift, from the same frame's angles (FR-015).
+      legOffsets(gait.state.phase, gait.state.amp, gait.offsets);
+      applyGait(f.legs, gait.offsets, standingLift(gait.offsets, f.legs.shape));
+    } else clearGait(f.legs);
   }
 
   /** Spec 016 (FR-019): the twin's arrival, once a visit, for one play of its greeting; the greeting's end ends it. */
@@ -877,6 +894,7 @@ export function createAvatarFigures(
     },
     shows: (figure) => figures[figure].shown,
     handOf: (figure) => figures[figure].hand,
+    gaitFrame: () => gait,
     clipScale: (figure) =>
       figures[figure].playing === "walk" ? (figures[figure].actions.get("walk")?.timeScale ?? null) : null,
     playing: (figure) => figures[figure].playing,
@@ -885,9 +903,6 @@ export function createAvatarFigures(
       animate = moving;
       // The twin's own states move on the clock whether or not the motion store animates (FR-024).
       if (figures.twin.shown && figures.twin.wants === "twin") play(figures.twin);
-      // Spec 019 (FR-007): a walk clip plays at the figure's speed, within half to one and a half.
-      const walkAction = figures.visitor.playing === "walk" ? figures.visitor.actions.get("walk") : undefined;
-      if (walkAction) walkAction.timeScale = Math.min(1.5, Math.max(0.5, gait.speed / part.walking.speed_mps));
       if (moving)
         for (const f of both()) {
           if (!f.shown || !f.mixer) continue;

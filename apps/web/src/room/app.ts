@@ -275,7 +275,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       keyboard: m.keyboard,
       split: splitAt,
     });
-    if (splitAt) split?.setSize(splitAt.panel.w, splitAt.panel.h);
+    if (splitAt) split?.setSize(splitAt.frame.w, splitAt.frame.h, splitAt.title.h);
     split?.setActive(splitAt !== null);
     layout.setBlur(blurAt(visit.quality));
     // The conversation's log is a sheet above the dock in the dock layout (spec 005; the review's finding 1).
@@ -757,15 +757,17 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         smaller: uiWord(deps.room.ui, "talk.smaller") ?? "Smaller conversation",
       },
       onPanel: (part, state) => panel(part, state),
-      // Spec 018 (FR-006): a conversation, or a line in the log, opens the split layout's panel; its larger toggle opens it from the bar.
+      // Spec 018 (FR-006, FR-009): a conversation, or a line in the log, opens the split layout's panel, the text box its
+      // opener where nothing opened it first (a piece chosen records its entry, selectObject); its larger toggle opens
+      // it from the rest row, and is its opener.
       onConversation: (feature) => {
         split?.setConversation(feature === FREE_TALK ? null : feature);
-        split?.openPanel();
+        split?.openPanel(talkText());
       },
-      onLine: () => split?.openPanel(),
+      onLine: () => split?.openPanel(talkText()),
       onLarger: (on) => {
         if (!split?.active) return;
-        if (on) split.openPanel(true);
+        if (on) split.openPanel(talk?.element.querySelector<HTMLElement>(".talk-larger") ?? null, true);
         else split.closePanel(false);
       },
     });
@@ -819,14 +821,18 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         statsFrom(live.tier.tier, cost.state, { ui: deps.room.ui, drafts: deps.room.build.kind === "drafts" }),
       onClose: () => talk?.closeLarger(),
       // Spec 018 (Q4; FR-003): the twin's still, through spec 016's verified fetch, once, at the first opening in 3D.
-      portrait: () => {
-        const still = deps.room.twin?.still ?? null;
+      // The twin is the one speaker with a still today; item d's dog adds its own here (the speaker seam).
+      portrait: (speaker) => {
+        const still = speaker === "twin" ? (deps.room.twin?.still ?? null) : null;
         return still && visit.mode !== "2d"
           ? fetchStill(still, (url, init) => win.fetch(url, init))
           : Promise.resolve(null);
       },
       turnOut: () => talk?.turnOut() ?? false,
       walking: () => walker(stage)?.walk.walking === true,
+      resumeOpen: () => resumeOpen,
+      // The emblem the room's data names for the piece (D-V3; FR-005), the speech glyph where it names none.
+      emblem: (id) => deps.room.selectables.find((s) => s.id === id)?.emblem,
     });
     // Spec 005 (FR-034; plan.md §7): a press on the scene while walking gives the walking view focus, so walking's keys
     // go there and not to a panel the visitor typed in.
@@ -1186,6 +1192,17 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     room.resumeButton.focus();
   }
 
+  /** The talk panel's text box: the opener of a panel a sent turn or an arriving line opened (spec 018, FR-009). */
+  function talkText(): HTMLElement | null {
+    return talk?.element.querySelector<HTMLElement>("#talk-text") ?? null;
+  }
+
+  /** The list's entry for a selectable: the opener of a panel its choice opened (spec 018, FR-009). */
+  function listEntry(id: string): HTMLElement | null {
+    const entries = doc.querySelectorAll<HTMLElement>(".room-list button[data-object-id]");
+    return [...entries].find((b) => b.dataset.objectId === id) ?? null;
+  }
+
   /** A resume item selected in the view: item_selected, for an ID the manifest lists (contracts/room-events.md §1). */
   function itemSelected(id: string): void {
     if (content.manifest.items.includes(id)) emit({ kind: "item_selected", id });
@@ -1211,9 +1228,10 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       return;
     }
     const topic = deps.room.topics.find((t) => t.id === action.topic);
+    // Spec 018 (FR-006, FR-009): a piece chosen opens the split layout's panel, even where its conversation was already
+    // the active one, before its opening is sent, so its list entry is the opener focus goes back to.
+    if (topic) split?.openPanel(listEntry(selectable.id));
     if (topic) talk.topicSelected(selectable.id, topic);
-    // Spec 018: a piece chosen opens the split layout's panel, even where its conversation was already the active one.
-    if (topic) split?.openPanel();
   }
 
   return {

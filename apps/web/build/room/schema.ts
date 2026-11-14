@@ -401,6 +401,9 @@ const selectable = z.strictObject({
   id: name("a selectable's ID"),
   name: z.string().min(1).max(40),
   members: z.array(z.string()).min(1),
+  /** Spec 018 (FR-005; D-V3): the conversation panel's emblem, a name src/room/hud/icons.ts draws; any other name, or
+   *  none, has the speech glyph. */
+  emblem: name("an emblem's name").optional(),
   action: z
     .strictObject({
       talk: z

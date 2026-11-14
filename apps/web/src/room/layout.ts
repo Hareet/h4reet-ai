@@ -364,7 +364,9 @@ export function renderRoom(
         ["--frame-w", applied.frame.w],
         ["--frame-h", applied.frame.h],
       ];
-      // Spec 018: the split layout's boxes for room.css and hud/split.css, and data-split beside data-hud.
+      // Spec 018: the split layout's boxes for hud/split.css, and data-split beside data-hud. The walking control's
+      // place is compact.walk's, above (R-3); the rest row is in the bar's band (R-2), and the open panel's frame is the
+      // panel with the rest row below it, its title row at its top.
       const sp = applied.layout === "column" ? (applied.split ?? null) : null;
       root.setAttribute("data-split", sp ? "on" : "off");
       if (sp)
@@ -373,8 +375,13 @@ export function renderRoom(
           ["--split-panel-y", sp.panel.y],
           ["--split-panel-w", sp.panel.w],
           ["--split-panel-h", sp.panel.h],
-          ["--split-bar-y", sp.bar.y],
-          ["--split-bar-h", sp.bar.h],
+          ["--split-title-h", sp.title.h],
+          ["--split-frame-y", sp.frame.y],
+          ["--split-frame-h", sp.frame.h],
+          ["--split-rest-x", sp.rest.x],
+          ["--split-rest-y", sp.rest.y],
+          ["--split-rest-w", sp.rest.w],
+          ["--split-rest-h", sp.rest.h],
           ["--split-list-x", sp.list.x],
           ["--split-list-y", sp.list.y],
           ["--split-list-w", sp.list.w],

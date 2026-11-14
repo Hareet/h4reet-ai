@@ -87,12 +87,15 @@ function* walk(n: number): Generator<Pose> {
 }
 const standing = (z: number): Pose => ({ x: 0, z, heading: 0, speed: 0, walking: false });
 
+const hipsOf = (root: Object3D): Object3D => root.getObjectByName("mixamorigHips") as Object3D;
+
 describe("the legs on a walking avatar", () => {
-  it("move off the clip's pose while it walks and return to it after the ease-out; the arms, spine, and head never differ (FR-005)", async () => {
+  it("move off the clip's pose while it walks and return to it within 0.2 s of stopping; the hips only lower, and the hips' rotation, arms, spine, and head never differ (FR-005, FR-015)", async () => {
     const s = await setup(true);
     const control = await setup(true);
     const rest = quats(s.visitor, LEGS);
     let most = 0;
+    let lowest = 0;
     let z = 0;
     for (const pose of walk(120)) {
       z = pose.z;
@@ -101,14 +104,28 @@ describe("the legs on a walking avatar", () => {
       frame(control, standing(0));
       control.figures.update(16, true, 0);
       most = Math.max(most, apart(quats(s.visitor, LEGS), rest));
-      expect(apart(quats(s.visitor, ARMS), quats(control.visitor, ARMS))).toBe(0);
+      expect(
+        apart(quats(s.visitor, [...ARMS, "mixamorigHips"]), quats(control.visitor, [...ARMS, "mixamorigHips"])),
+      ).toBe(0);
+      // The hips bone's position differs from the clip's only along the avatar's down (its parent's −y here).
+      const off = hipsOf(s.visitor).position.clone().sub(hipsOf(control.visitor).position);
+      expect(Math.abs(off.x)).toBeLessThan(1e-12);
+      expect(Math.abs(off.z)).toBeLessThan(1e-12);
+      expect(off.y).toBeLessThanOrEqual(1e-12);
+      lowest = Math.min(lowest, off.y);
     }
     expect(most).toBeGreaterThan(0.05);
-    for (let i = 0; i < 20; i += 1) {
+    expect(lowest).toBeLessThan(-0.01);
+    // US1 scenario 2: back to the clip's pose within 0.2 s (12 frames of 16 ms), and staying there.
+    for (let i = 0; i < 24; i += 1) {
       frame(s, standing(z));
       s.figures.update(16, true, 0);
+      frame(control, standing(0));
+      control.figures.update(16, true, 0);
+      if (i < 11) continue;
+      expect(apart(quats(s.visitor, LEGS), rest)).toBeLessThan(1e-9);
+      expect(hipsOf(s.visitor).position.distanceTo(hipsOf(control.visitor).position)).toBeLessThan(1e-9);
     }
-    expect(apart(quats(s.visitor, LEGS), rest)).toBeLessThan(1e-9);
   });
 
   it("is the same on two runs of the same seeded walk (SC-001)", async () => {
@@ -165,21 +182,27 @@ describe("the legs on a walking avatar", () => {
     }
   });
 
-  it("leaves no residue after rest() or a fallback mid-walk (FR-006)", async () => {
+  it("leaves no residue after rest() or a fallback mid-walk, on the legs or the hips' position (FR-006)", async () => {
     const s = await setup(true);
+    const control = await setup(true);
     const rest = quats(s.visitor, LEGS);
-    for (const pose of walk(30)) {
+    const hips = hipsOf(s.visitor);
+    const step = (pose: Pose): void => {
       frame(s, pose);
       s.figures.update(16, true, 0);
-    }
+      frame(control, standing(0));
+      control.figures.update(16, true, 0);
+    };
+    for (const pose of walk(30)) step(pose);
+    expect(hips.position.distanceTo(hipsOf(control.visitor).position)).toBeGreaterThan(0.005);
     s.figures.driver.rest();
     expect(apart(quats(s.visitor, LEGS), rest)).toBeLessThan(1e-9);
-    for (const pose of walk(30)) {
-      frame(s, pose);
-      s.figures.update(16, true, 0);
-    }
+    expect(hips.position.distanceTo(hipsOf(control.visitor).position)).toBeLessThan(1e-9);
+    for (const pose of walk(30)) step(pose);
+    expect(hips.position.distanceTo(hipsOf(control.visitor).position)).toBeGreaterThan(0.005);
     s.figures.missed("woman", null, "failed");
     expect(apart(quats(s.visitor, LEGS), rest)).toBeLessThan(1e-9);
+    expect(hips.position.distanceTo(hipsOf(control.visitor).position)).toBeLessThan(1e-9);
   });
 });
 
@@ -196,7 +219,7 @@ describe("the models the gait doesn't fit", () => {
     ]);
   });
 
-  it("plays a loaded walk clip at the figure's speed, with no gait (FR-007)", async () => {
+  it("plays a loaded walk clip at its own speed, whatever the figure's, with no gait (FR-007; Q8)", async () => {
     const s = await setup(true, ["idle", "idle-holding", "take", "walk"]);
     const rest = quats(s.visitor, LEGS);
     const scale = (share: number): number => {
@@ -205,9 +228,9 @@ describe("the models the gait doesn't fit", () => {
       s.figures.update(16, true, 0);
       return s.figures.clipScale("visitor") as number;
     };
-    expect(scale(1)).toBeCloseTo(1, 9);
-    expect(scale(0.1)).toBeCloseTo(0.5, 9);
-    expect(scale(5)).toBeCloseTo(1.5, 9);
+    expect(scale(1)).toBe(1);
+    expect(scale(0.5)).toBe(1);
+    expect(scale(1.5)).toBe(1);
     expect(s.figures.playing("visitor")).toBe("walk");
     expect(apart(quats(s.visitor, LEGS), rest)).toBe(0);
   });

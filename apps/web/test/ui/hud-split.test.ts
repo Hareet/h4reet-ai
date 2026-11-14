@@ -11,7 +11,7 @@ import { noPolicy } from "../../build/room/policy";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import { keycap } from "../../src/room/hud/keycap";
 import type { TurnRequest } from "../../src/talk/talk";
-import { button, enter, flush, parseCss, stubViewport, start, throughLoader } from "../helpers/room";
+import { button, enter, flush, parseCss, roomContent, stubViewport, start, throughLoader } from "../helpers/room";
 import type { Visit } from "../helpers/room";
 import { goodTree } from "../helpers/room-fixtures";
 
@@ -39,13 +39,16 @@ interface Sent {
   request: TurnRequest;
   signal: AbortSignal | undefined;
 }
-const WIDE = { w: 1280, h: 720 } as const;
+/** T024 (plan.md §13): a window the split layout takes by FR-001's rule; 1280 × 720 no longer does. */
+const WIDE = { w: 1920, h: 1080 } as const;
 
-async function room(screen: { w: number; h: number } = WIDE) {
+async function room(screen: { w: number; h: number } = WIDE, o: { freeTalk?: boolean } = {}) {
   const sent: Sent[] = [];
   const viewport = stubViewport(screen);
+  const content = roomContent();
   const v = start({
     room: ready(),
+    ...(o.freeTalk ? { content: { ...content, manifest: { ...content.manifest, free_talk: { ready: true } } } } : {}),
     sendTurn: (request, ended, signal) => {
       sent.push({ request, signal });
       signal?.addEventListener("abort", () => ended({ kind: "error", error: "aborted" }));
@@ -130,14 +133,14 @@ describe("the panel (T008; FR-005, FR-006, FR-009)", () => {
     expect(v.doc.querySelector(".split-frame")).toBeNull();
   });
 
-  it("keeps the log and the typed text across a resize under 48rem and back", async () => {
+  it("keeps the log and the typed text across a resize to 1280 x 720, which takes no split, and back", async () => {
     const { v, viewport } = await room();
     talkingPiece(v).click();
     await flush();
     const text = v.doc.getElementById("talk-text") as HTMLInputElement;
     text.value = "hello";
     const lines = v.doc.querySelectorAll("#talk-log > *").length;
-    viewport.set({ w: 700, h: 400 });
+    viewport.set({ w: 1280, h: 720 });
     expect(root(v).getAttribute("data-split")).toBe("off");
     expect(v.doc.querySelectorAll("#talk-log > *").length).toBe(lines);
     expect((v.doc.getElementById("talk-text") as HTMLInputElement).value).toBe("hello");
@@ -371,6 +374,362 @@ describe("after review (T018)", () => {
     talkingPiece(v).click();
     await flush();
     viewport.set(WIDE);
+    expect(talk(v).getAttribute("data-panel")).toBe("bar");
+  });
+});
+
+// ---- T024 (rule 6's rework; FR-004, FR-006, FR-009, plan.md §3, §13): the rest row, the openings, Escape's order, and
+// focus back to the opener ----
+
+const SPLIT_CSS = parseCss(
+  readFileSync(fileURLToPath(new URL("../../src/room/hud/split.css", import.meta.url)), "utf8"),
+).rules;
+/** The last top-level rule naming `selector` exactly among its selector list that sets `property`. */
+const decl = (selector: string, property: string): string | undefined =>
+  SPLIT_CSS.filter(
+    (r) =>
+      r.selector
+        .split(",")
+        .map((x) => x.trim())
+        .includes(selector) && r.declarations.has(property),
+  )
+    .at(-1)
+    ?.declarations.get(property);
+const ON = 'html[data-split="on"][data-hud="column"]';
+
+/** A split on a page of its own, its talk section holding the text box, the larger toggle, and the log. */
+const unit = (
+  o: { turnOut?: boolean; walking?: boolean; resumeOpen?: boolean; emblems?: Readonly<Record<string, string>> } = {},
+) => {
+  const dom = new JSDOM(
+    '<body><div class="room-list"><h2 class="room-list-heading"></h2><ul>' +
+      '<li><button data-object-id="a">A</button></li><li><button data-object-id="b">B</button></li></ul></div>' +
+      '<section class="talk" data-larger="off"><div class="talk-sheet"><div class="talk-head">' +
+      '<button class="talk-log-toggle"><span>Conversation</span></button><button class="talk-larger">Larger</button></div>' +
+      '<div class="talk-log"></div></div><form class="talk-form"><input id="talk-text"></form></section>' +
+      '<button id="outside">Outside</button></body>',
+    { pretendToBeVisual: true },
+  );
+  const doc = dom.window.document;
+  const s = createSplit(doc, {
+    talk: doc.querySelector(".talk") as HTMLElement,
+    list: doc.querySelector(".room-list") as HTMLElement,
+    words: { select: "Select a piece", back: "Back", close: "Close", esc: "Esc", enter: "Enter" },
+    stats: () => [],
+    turnOut: () => o.turnOut ?? false,
+    walking: () => o.walking ?? false,
+    resumeOpen: () => o.resumeOpen ?? false,
+    ...(o.emblems ? { emblem: (id: string) => o.emblems?.[id] } : {}),
+  });
+  s.setActive(true);
+  const escape = (target: Element = doc.body): KeyboardEvent => {
+    const e = new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    target.dispatchEvent(e);
+    return e;
+  };
+  const q = <T extends Element = HTMLElement>(sel: string): T => doc.querySelector(sel) as unknown as T;
+  return { dom, doc, s, escape, q };
+};
+
+describe("the rest row (T024; FR-004, R-2)", () => {
+  it("is in the bar's band at its left, at --split-rest-*, holding the head and the text box row", async () => {
+    const { v } = await room();
+    const style = root(v).style;
+    expect(
+      ["--split-rest-x", "--split-rest-y", "--split-rest-w", "--split-rest-h"].map((n) => style.getPropertyValue(n)),
+    ).toEqual(["0px", "1028px", "640px", "52px"]);
+    expect(style.getPropertyValue("--split-bar-y")).toBe("");
+    const rest = `${ON} .talk[data-panel="bar"]`;
+    expect(decl(rest, "left")).toBe("var(--split-rest-x)");
+    expect(decl(rest, "top") ?? "").toContain("var(--split-rest-y)");
+    expect(decl(rest, "width")).toBe("var(--split-rest-w)");
+    expect(decl(rest, "height")).toBe("var(--split-rest-h)");
+    // Its contents: the title toggle, "Larger conversation", the label, the text box, Send, and the talk button.
+    const t = talk(v);
+    expect(t.getAttribute("data-panel")).toBe("bar");
+    for (const part of [".talk-log-toggle", ".talk-larger", 'label[for="talk-text"]', "#talk-text", ".talk-voice"])
+      expect(t.querySelector(part), part).not.toBeNull();
+    expect(button(v.doc, "Send")).toBeTruthy();
+  });
+
+  it("opens the panel round the frame's box, its title row at --split-title-h, the frame below it", () => {
+    const open = `${ON} .talk[data-panel="open"]`;
+    expect(decl(open, "top")).toBe("var(--split-frame-y)");
+    expect(decl(open, "height") ?? "").toContain("var(--split-frame-h)");
+    expect(decl(`${ON} .split-frame`, "top")).toBe("var(--split-title-h)");
+    expect(decl(`${ON} .talk-head`, "min-height")).toBe("var(--split-title-h)");
+  });
+
+  it("draws the frame below the title row the kernel gives, never a fixed 44 px", () => {
+    const { s, q } = unit();
+    s.setSize(640, 970.5, 55);
+    s.openPanel();
+    expect(q(".split-frame").getAttribute("viewBox")).toBe("0 0 640 915.5");
+    s.setSize(800, 1000, 44);
+    expect(q(".split-frame").getAttribute("viewBox")).toBe("0 0 800 956");
+  });
+});
+
+describe("the openings (T024; FR-006)", () => {
+  it("opens the panel for a sent turn with no piece open, free talk included", async () => {
+    const { v, sent } = await room(WIDE, { freeTalk: true });
+    expect(talk(v).getAttribute("data-panel")).toBe("bar");
+    const text = v.doc.getElementById("talk-text") as HTMLInputElement;
+    text.value = "Hello";
+    button(v.doc, "Send").click();
+    await flush();
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.request.feature).toBe("free_talk");
+    expect(talk(v).getAttribute("data-panel")).toBe("open");
+  });
+});
+
+describe("Escape's order (T024; FR-009, R-5)", () => {
+  it("1: leaves an event whose default is already prevented", () => {
+    const u = unit();
+    u.s.openPanel();
+    u.dom.window.addEventListener("keydown", (e) => e.preventDefault(), true);
+    u.escape();
+    expect(u.s.open).toBe(true);
+  });
+
+  it("2: leaves Escape to the browser in full screen", () => {
+    const u = unit();
+    u.s.openPanel();
+    Object.defineProperty(u.doc, "fullscreenElement", { value: u.doc.documentElement, configurable: true });
+    const e = u.escape();
+    expect(u.s.open).toBe(true);
+    expect(e.defaultPrevented).toBe(false);
+  });
+
+  it("3: leaves it to a turn out", () => {
+    const u = unit({ turnOut: true });
+    u.s.openPanel();
+    expect(u.escape(u.q("#talk-text")).defaultPrevented).toBe(false);
+    expect(u.s.open).toBe(true);
+  });
+
+  it("4: leaves it to the walking view while walking", () => {
+    const u = unit({ walking: true });
+    u.s.openPanel();
+    expect(u.escape().defaultPrevented).toBe(false);
+    expect(u.s.open).toBe(true);
+  });
+
+  it("5: leaves it to the resume while it is open", () => {
+    const u = unit({ resumeOpen: true });
+    u.s.openPanel();
+    expect(u.escape().defaultPrevented).toBe(false);
+    expect(u.s.open).toBe(true);
+  });
+
+  it("6: leaves it to the larger view where the conversation holds focus, and takes it where it doesn't", () => {
+    const u = unit();
+    u.s.openPanel();
+    u.q(".talk").setAttribute("data-larger", "on");
+    const text = u.q<HTMLInputElement>("#talk-text");
+    text.focus();
+    expect(u.escape(text).defaultPrevented).toBe(false);
+    expect(u.s.open).toBe(true);
+    const outside = u.q<HTMLButtonElement>("#outside");
+    outside.focus();
+    expect(u.escape(outside).defaultPrevented).toBe(true);
+    expect(u.s.open).toBe(false);
+  });
+
+  it("7: else closes the open panel, preventing the default; with the panel at rest, does nothing", () => {
+    const u = unit();
+    expect(u.escape().defaultPrevented).toBe(false);
+    u.s.openPanel();
+    expect(u.escape().defaultPrevented).toBe(true);
+    expect(u.s.open).toBe(false);
+  });
+});
+
+describe("focus after closing (T024; FR-009, spec 005's FR-045)", () => {
+  it("goes back to the entry that opened the panel", async () => {
+    const { v } = await room();
+    const piece = talkingPiece(v);
+    piece.click();
+    await flush();
+    (v.doc.querySelector(".split-back") as HTMLButtonElement).click();
+    expect(v.doc.activeElement).toBe(piece);
+  });
+
+  it("goes back to Larger conversation where that opened it", async () => {
+    const { v } = await room();
+    const larger = v.doc.querySelector(".talk-larger") as HTMLButtonElement;
+    larger.click();
+    key(v, v.doc.querySelector(".split-hint") as Element, "Escape");
+    expect(talk(v).getAttribute("data-panel")).toBe("bar");
+    expect(v.doc.activeElement).toBe(larger);
+  });
+
+  it("goes back to the text box where a sent turn opened it", async () => {
+    const { v } = await room(WIDE, { freeTalk: true });
+    const text = v.doc.getElementById("talk-text") as HTMLInputElement;
+    text.value = "Hello";
+    button(v.doc, "Send").click();
+    await flush();
+    const entry = entries(v)[0] as HTMLButtonElement;
+    entry.focus();
+    // A turn is out: the first Escape is the turn's (from the form), the second the panel's.
+    key(v, text, "Escape");
+    key(v, entry, "Escape");
+    expect(talk(v).getAttribute("data-panel")).toBe("bar");
+    expect(v.doc.activeElement).toBe(text);
+  });
+
+  it("goes to the selected entry where the opener is hidden", () => {
+    const u = unit();
+    const opener = u.q<HTMLButtonElement>("#outside");
+    u.s.setConversation("b");
+    u.s.closePanel();
+    u.s.openPanel(opener);
+    opener.hidden = true;
+    u.escape();
+    expect(u.doc.activeElement).toBe(u.q('button[data-object-id="b"]'));
+  });
+});
+
+describe("the list's parts (T024; FR-007, FR-008)", () => {
+  it("scrolls the entries, never Back or the label", () => {
+    expect(decl(`${ON} .room-list`, "overflow-y")).toBe("hidden");
+    expect(decl(`${ON} .room-list ul`, "overflow-y")).toBe("auto");
+    expect(decl(`${ON} .room-list ul`, "min-height")).toBe("0");
+    expect(decl(`${ON} .room-list ul`, "flex")).toBe("1 1 auto");
+  });
+
+  it("lets a press through the confirm key cap to its entry", () => {
+    expect(decl(`${ON} .split-confirm`, "pointer-events")).toBe("none");
+  });
+});
+
+// ---- T026 (rv2-impl-018's B3; FR-005, Q60, R6): the emblem is the open piece's icon; and the portrait's speaker ----
+
+import { EMBLEM_ICONS, SPEECH_ICON } from "../../src/room/hud/icons";
+
+// verify-018 (D-V3; spec 002's FR-007): the emblem is named by the room's data, the selectable's `emblem`, which the
+// room passes as `emblem`; these cases name pieces p0 to p3, one per emblem icons.ts draws, and test/room/emblem-data
+// .test.ts holds the committed scene to an emblem for each of its pieces.
+describe("the emblem (T026; FR-005, Q60; named by the room's data, D-V3)", () => {
+  const NAMES = Object.keys(EMBLEM_ICONS);
+  const named = () => unit({ emblems: Object.fromEntries(NAMES.map((n, i) => [`p${i}`, n])) });
+  const emblem = (u: ReturnType<typeof unit>) => u.doc.querySelector(".split-emblem");
+  const path = (u: ReturnType<typeof unit>) => emblem(u)?.querySelector("path")?.getAttribute("d");
+
+  it("draws one icon per emblem the scene names, on the 24-unit grid, none the speech glyph", () => {
+    expect([...NAMES].sort()).toEqual(["board", "screen", "slate", "wheels"]);
+    const all = [...Object.values(EMBLEM_ICONS), SPEECH_ICON];
+    expect(new Set(all).size).toBe(all.length);
+    for (const d of all) {
+      expect(d).toMatch(/^[MmLlHhVvCcSsQqAaZz0-9.,\-\s]+$/);
+      for (const n of d.match(/-?\d*\.?\d+/g) ?? []) expect(Math.abs(Number(n))).toBeLessThanOrEqual(24);
+    }
+  });
+
+  for (const [i, n] of NAMES.entries())
+    it(`is the ${n} emblem while the conversation on a piece the data gives it is open`, () => {
+      const u = named();
+      u.s.setConversation(`p${i}`);
+      expect(u.s.open).toBe(true);
+      expect(emblem(u)?.getAttribute("data-emblem")).toBe(n);
+      expect(path(u)).toBe(EMBLEM_ICONS[n]);
+      expect(emblem(u)?.getAttribute("aria-hidden")).toBe("true");
+    });
+
+  it("gives two pieces two emblems, and follows the conversation while the panel is open", () => {
+    const u = named();
+    u.s.setConversation("p0");
+    const first = path(u);
+    u.s.setConversation("p3");
+    expect(u.doc.querySelectorAll(".split-emblem")).toHaveLength(1);
+    expect(path(u)).not.toBe(first);
+    expect(path(u)).toBe(EMBLEM_ICONS[NAMES[3] ?? ""]);
+  });
+
+  it("is the speech glyph in free talk, for a piece with no emblem, and for a name icons.ts doesn't draw", () => {
+    const free = named();
+    free.s.openPanel();
+    expect(emblem(free)?.getAttribute("data-emblem")).toBe("speech");
+    expect(path(free)).toBe(SPEECH_ICON);
+    for (const [u, id] of [
+      [named(), "a"],
+      [unit(), "p0"],
+      [unit({ emblems: { a: "zz-not-an-emblem" } }), "a"],
+    ] as const) {
+      u.s.setConversation(id);
+      expect(emblem(u)?.getAttribute("data-emblem")).toBe("speech");
+      expect(path(u)).toBe(SPEECH_ICON);
+    }
+  });
+});
+
+describe("the portrait's speaker (T026; the brief's item d)", () => {
+  it("draws and fetches the speaker's portrait, the twin's by default", async () => {
+    const seen: string[] = [];
+    const drawn: string[] = [];
+    const make = (speaker?: () => string) => {
+      const dom = new JSDOM('<body><div class="room-list"><ul></ul></div><section class="talk"></section></body>');
+      const doc = dom.window.document;
+      const s = createSplit(doc, {
+        talk: doc.querySelector(".talk") as HTMLElement,
+        list: doc.querySelector(".room-list") as HTMLElement,
+        words: { select: "Select a piece", back: "Back", close: "Close", esc: "Esc", enter: "Enter" },
+        stats: () => [],
+        turnOut: () => false,
+        walking: () => false,
+        portrait: (who) => {
+          seen.push(who);
+          return Promise.resolve(null);
+        },
+        draw: {
+          portrait: (d, who) => {
+            drawn.push(who);
+            return d.createElement("span");
+          },
+        },
+        ...(speaker ? { speaker } : {}),
+      });
+      s.setActive(true);
+      s.openPanel();
+      return doc;
+    };
+    const twin = make();
+    expect(twin.querySelector(".split-portrait")?.getAttribute("data-speaker")).toBe("twin");
+    const dog = make(() => "dog");
+    expect(dog.querySelector(".split-portrait")?.getAttribute("data-speaker")).toBe("dog");
+    await settle();
+    expect(drawn).toEqual(["twin", "dog"]);
+    expect(seen).toEqual(["twin", "dog"]);
+  });
+});
+
+// ---- T028 (rv2-impl-018's B1; FR-006): the soft keyboard's inset ----
+
+import { splitBoxes } from "../../src/room/compose/hud";
+
+describe("the soft keyboard (T028; FR-006, B1)", () => {
+  const TABLET = { w: 1400, h: 1000 } as const;
+
+  it("keeps the rest row and the open panel's foot above the keyboard's inset, at a landscape tablet in the split layout", async () => {
+    expect(splitBoxes(TABLET)).not.toBeNull();
+    const { v, viewport } = await room(TABLET);
+    expect(root(v).getAttribute("data-split")).toBe("on");
+    viewport.set({ keyboard: 300 }, "keyboard");
+    expect(root(v).style.getPropertyValue("--keyboard")).toBe("300px");
+    expect(root(v).getAttribute("data-split")).toBe("on");
+    // The rest row's top and the open panel's foot both move up by the inset; the clear area and the frame don't.
+    expect(decl(`${ON} .talk[data-panel="bar"]`, "top")).toBe("calc(var(--split-rest-y) - var(--keyboard))");
+    expect(decl(`${ON} .talk[data-panel="open"]`, "top")).toBe("var(--split-frame-y)");
+    expect(decl(`${ON} .talk[data-panel="open"]`, "height")).toBe(
+      "max(0px, calc(var(--split-frame-h) - var(--keyboard)))",
+    );
+    // The text box keeps its text and the panel its state across the inset.
+    const text = v.doc.getElementById("talk-text") as HTMLInputElement;
+    text.value = "typing";
+    viewport.set({ keyboard: 0 }, "keyboard");
+    expect(text.value).toBe("typing");
     expect(talk(v).getAttribute("data-panel")).toBe("bar");
   });
 });

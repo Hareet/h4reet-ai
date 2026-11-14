@@ -1124,6 +1124,7 @@ function indexBody(c: Composed, placeholders: boolean, models: readonly string[]
       name: x.name,
       members: [...x.members],
       action: x.action.talk ? { kind: "talk" as const, topic: x.action.talk.topic } : { kind: "resume" as const },
+      ...(x.emblem !== undefined ? { emblem: x.emblem } : {}),
       side_wall: sideWall[k] ?? false,
     })),
     // Ready only as the twin's readiness says, by FR-030's rule (spec 007, FR-037); nothing without it.
