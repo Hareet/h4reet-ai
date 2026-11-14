@@ -1,4 +1,4 @@
-// T008 (spec 024; FR-003, FR-004, FR-006 to FR-008, FR-015; RB-1, N-3; plan.md §5.4): the 3D side, on stub meshes and
+// T008 and T009 (spec 024; FR-003, FR-004, FR-006 to FR-008, FR-015; RB-1, N-3; plan.md §5.4): the 3D side, on stub meshes and
 // on the four real pieces built as three.js trees in GLTFLoader's names (helpers/eat-pieces.ts), no GPU. A first bite
 // splits the piece: one mesh per chunk and primitive, sharing its primitive's attributes and material; a cut-face mesh
 // beside each, one back-side cut material per original material, base colour × 0.7, no texture; the set-aside part's
@@ -22,7 +22,11 @@ import type { RoomScene } from "../../src/room/compose/bundle";
 import { CUT_SHADE, FLIGHT_MS, GROW_MS, createEat3d } from "../../src/room/eat/eat3d";
 import type { EatKind } from "../../src/room/eat/eat3d";
 import { createMeal } from "../../src/room/eat/meal";
-import { pieceModel, roomGlb } from "../helpers/eat-pieces";
+import { facesOf, glowsOf, meshNameOf } from "../../src/room/eat/chunker";
+import type { Face, GlowPoint, Primitive } from "../../src/room/eat/chunker";
+import { keepOutBoxes } from "../../src/room/eat/keepouts";
+import { corners, firstHit, pieceModel, roomGlb, triangleDistance, triangles } from "../helpers/eat-pieces";
+import type { V3 } from "../helpers/eat-pieces";
 import { repositoryBundle } from "../helpers/room";
 
 type Part = Pick<RoomScene, "pieces" | "placements" | "switches">;
@@ -355,5 +359,113 @@ describe("the four real pieces' draw calls (FR-015)", () => {
     }
     console.info(`all four: ${split} split, ${whole} whole, ${split - whole} more`);
     expect(split - whole).toBeLessThanOrEqual(240);
+  });
+});
+
+// --------------------------------------------------------------------------------------------------------------------
+// T009 (US2 AS1, AS2, AS4; SC-002): every chunk eaten, what the room holds up still stands.
+// --------------------------------------------------------------------------------------------------------------------
+describe("every chunk of the four pieces eaten (US2; SC-002)", () => {
+  const PIECES = ["work-desk", "busy-sign", "laptop", "chalkboard"] as const;
+  const scene = repositoryBundle().scene;
+  const before = JSON.stringify({ placements: scene.placements, selectables: repositoryBundle().index.selectables });
+  const models: Record<string, Group> = {};
+  for (const id of PIECES) {
+    const root = pieceModel(roomGlb(id), scene.pieces[id]?.scale ?? 1);
+    // As prepareModel hides them: each node named for a live face's role.
+    const roles = new Set(Object.keys(scene.pieces[id]?.faces ?? {}));
+    root.traverse((n) => {
+      if (roles.has(n.name)) n.visible = false;
+    });
+    models[id] = root;
+  }
+  const r = rig(scene, models, 120);
+  for (const id of PIECES) {
+    for (let k = 0; k < 20 && r.eat.bite(id); k++) {
+      r.clock.t += FLIGHT_MS;
+      r.eat.frame();
+    }
+  }
+
+  /** The standing meshes of a piece as the chunker's primitives, in its frame at scale 1 (identity transforms below the
+   *  root, as pieceModel builds it). */
+  const standing = (id: (typeof PIECES)[number]): Primitive[] => {
+    const root = models[id] as Group;
+    const scale = scene.pieces[id]?.scale ?? 1;
+    const out: Primitive[] = [];
+    root.traverse((n) => {
+      const mesh = n as Mesh;
+      if (!mesh.isMesh || !shown(mesh, root)) return;
+      const positions = (mesh.geometry.getAttribute("position").array as Float32Array).map((v) => v / scale);
+      const index = mesh.geometry.index ? Uint32Array.from(mesh.geometry.index.array) : null;
+      out.push({ mesh: meshNameOf(mesh.name.includes(":eat-") ? (mesh.parent as Object3D) : mesh), positions, index });
+    });
+    return out;
+  };
+
+  it.each(PIECES)("%s: every chunk eaten, only its set-aside part standing, unmoved", (id) => {
+    expect(r.meal.states(id).length).toBeGreaterThan(0);
+    expect(r.meal.states(id).every((s) => s === "eaten")).toBe(true);
+    const root = models[id] as Group;
+    for (const m of eatMeshes(root, "chunk")) expect(shown(m, root)).toBe(false);
+    const aside = eatMeshes(root, "aside");
+    expect(aside.some((m) => shown(m, root))).toBe(true);
+    for (const m of aside) {
+      expect(m.position.toArray()).toEqual([0, 0, 0]);
+      expect(m.scale.toArray()).toEqual([1, 1, 1]);
+    }
+  });
+
+  it("leaves the placements and the selectables as they were: selectable, labelled, the same pick areas and frame boxes", () => {
+    expect(JSON.stringify({ placements: scene.placements, selectables: repositoryBundle().index.selectables })).toBe(before);
+  });
+
+  it.each([
+    ["busy-sign", "lettering", "busy-sign-stand"],
+    ["chalkboard", "slate", "frame"],
+    ["laptop", "screen", "lid"],
+  ] as const)("%s: its face's mesh %s still hidden as the loader left it, and %s holding it standing", (id, role, holder) => {
+    const root = models[id] as Group;
+    root.traverse((n) => {
+      if (n.name === role) expect(n.visible).toBe(false);
+    });
+    for (const m of eatMeshes(root, "aside")) if (meshNameOf(m.parent as Object3D) === role || m.parent?.name === role) expect(shown(m, root)).toBe(false);
+    const face = facesOf(scene.pieces[id] as RoomScene["pieces"][string]).find((f) => f.role === role) as Face;
+    const hit = firstHit(standing(id), face.at, [-face.facing[0], -face.facing[1], -face.facing[2]]);
+    expect(hit, `nothing standing behind the ${role}`).not.toBeNull();
+  });
+
+  it("laptop: the screen glow's point in front of the standing lid, and the charge light's within its radius of a standing triangle", () => {
+    const glows = glowsOf(scene.pieces.laptop as RoomScene["pieces"][string]);
+    const screen = glows.find((g) => g.id === "screen-glow") as GlowPoint;
+    const face = facesOf(scene.pieces.laptop as RoomScene["pieces"][string]).find((f) => f.role === "screen") as Face;
+    const behind = firstHit(standing("laptop"), screen.at, [-face.facing[0], -face.facing[1], -face.facing[2]]);
+    expect(behind && standing("laptop")[behind.p]?.mesh).toBe("lid");
+    const light = glows.find((g) => g.id === "charge-light") as GlowPoint;
+    const prims = standing("laptop");
+    const near = prims.some((p) => {
+      for (let t = 0; t < triangles(p); t++) if (triangleDistance(light.at, corners(p, t)) <= light.radius) return true;
+      return false;
+    });
+    expect(near).toBe(true);
+  });
+
+  it("laptop: the charger's plugged pose keeps its port whether the plug is in or out (spec 004's laptop-power)", () => {
+    // The keep-outs take every pose mounted on the piece, whichever the switch shows, so the port stands in both.
+    const boxes = keepOutBoxes(scene, "laptop");
+    expect(boxes).toHaveLength(1);
+    const port = scene.pieces.laptop?.anchors.port?.at as V3;
+    const hit = firstHit(standing("laptop"), [port[0] + 0.05, port[1], port[2]], [-1, 0, 0]);
+    expect(hit && standing("laptop")[hit.p]?.mesh).toBe("base");
+  });
+
+  it("work-desk: no placement or switch pose mounted on it loses the top under it", () => {
+    const boxes = keepOutBoxes(scene, "work-desk");
+    expect(boxes).toHaveLength(9);
+    const prims = standing("work-desk");
+    for (const box of boxes) {
+      const centre: V3 = [(box.min[0] + box.max[0]) / 2, 2, (box.min[2] + box.max[2]) / 2];
+      expect(firstHit(prims, centre, [0, -1, 0]), `the top under ${JSON.stringify(box)}`).not.toBeNull();
+    }
   });
 });
