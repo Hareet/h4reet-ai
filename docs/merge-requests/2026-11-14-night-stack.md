@@ -920,4 +920,31 @@ ruff format --check --no-cache --extend-exclude corpus .
 779 files already formatted
 ```
 
-All of `apps/web`: pending (below).
+All of `apps/web`, at dfd854ec (68f1eced plus this section's first lines; 2576 s):
+
+```
+cd apps/web && npx vitest run
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ FAIL  test/room/twin-2d.test.ts > the twin's still in the 2D room (FR-034, FR-035; SC-010) > refuses bytes that fail their integrity: the drawing, never the image
+ Test Files  4 failed | 185 passed (189)
+      Tests  7 failed | 3754 passed | 1 skipped (3762)
+```
+
+Six are exactly D-V2's, the same as verify-018's, verify-019's, and verify-020's full runs, shown passing on the patched copy above.
+
+The seventh, `twin-2d.test.ts`'s integrity case (`expected undefined to deeply equal { kind: 'picture', … }`: its loop of 40 flushes ended before the signal came), is the file the brief names as flaky under load. Item 4 doesn't touch it or the code it tests (`git diff --stat refs/heads/night/verify2-020/verify2-020...HEAD -- apps/web/src apps/web/test/room/twin-2d.test.ts`: empty). Alone at the line's tip, three times: `Test Files 1 passed (1) · Tests 5 passed (5)` each time. On main's tip (3c0e4cd0, a `git archive` copy with the worktree's `node_modules` linked in): `Test Files 1 passed (1) · Tests 5 passed (5)`. Nothing to fix.
+
+#### Fixed
+
+Nothing: no failure outside D-V2's six and the flaky `twin-2d` case, so no code, test, or plan changed. This branch changes two documents: the spec, where page Q168's words for Q75 and Q88 now stand whole beside its reading (ab55771e, documents only; this closes rv-rework-spec-021's N-2, listed above as "Open for others"), and this note (rv-impl-021's five nits, N3's correction, and this section). The dinosaur stays the cut-out until his look approval and intake (rule 2): no `assets/**` change. Not fixed, under rule 6: rv-impl-021's N1, N2 (page Q169), N4, N5.
+
+Commit hooks: each of this session's commits printed gitleaks' "no leaks found" and `arrival-check: 0 findings in <n> file(s)`.
+
+Interruptions: one harness refusal, not a hook or the bash gate: a Monitor watch on the run's log needed an approval it didn't have, so I waited with a plain shell loop instead. Nothing was respelled.
+
+verify-021: green, carrying D-V2's six (Q165)
