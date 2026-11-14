@@ -49,3 +49,7 @@ RED: `vitest run test/room/chase-notes.test.ts`: 6 failed | 4 passed (10). GREEN
 ## T011 (GREEN)
 
 `vitest run` T010's two files, tasks.md's T011 list (28 files), and chase-steer (the dog's home moved to [0.30, 0.45]): Test Files 31 passed (31), Tests 869 passed (869); `room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations`. `make lint`: exit 0 (after prettier on `src/lookdev/stage.ts`).
+
+## T012 (RED+GREEN)
+
+RED: `vitest run test/room/dog-first-visit.test.ts`: Tests 5 failed (5) (`figuresVisit` has no `dog`; RK5 and the report don't name it). GREEN: that file and tasks.md's T012 list (9 files): Test Files 1 failed | 8 passed (9), Tests 1 failed | 515 passed (516). The one is `test/room/report.test.ts`'s "marks the counter face exempt on the phone, and the word face readable" (23.1 → 23.4 px), one of D-V2's six (Q164), carried under Q165: it fails the same with T012's code set aside (`-t "counter face exempt"`: 1 failed). `make lint`: exit 0.

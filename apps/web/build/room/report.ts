@@ -333,7 +333,7 @@ function avatars(c: Composed, memory: SceneTextureMemory, share: number, f3: num
       `${stand === null ? "" : "other "}visitor avatar at ${px} px.`,
   );
   // RK5's sum, and spec 003's F3, which counts the largest visitor folder alone (arrival-check.md §3; M13).
-  const visit = figuresVisit(set, c.twin);
+  const visit = figuresVisit(set, c.twin, c.scene?.figures.dog !== undefined);
   const tree = c.reader.tree;
   const glbsUnder = (dir: string): number =>
     filesUnder(tree, dir)
@@ -342,11 +342,12 @@ function avatars(c: Composed, memory: SceneTextureMemory, share: number, f3: num
   const largestFolder = Math.max(0, ...tree.list(VISITORS_DIR).map((name) => glbsUnder(`${VISITORS_DIR}/${name}`)));
   // assets/animations/ aside, which the compositor never reads (contracts/room-data-files.md §1).
   const f3View = f3 + glbsUnder(TWIN_DIR) + largestFolder;
-  const total = share + visit.twin + visit.stand_in + visit.other;
+  const total = share + visit.twin + visit.stand_in + visit.dog + visit.other;
   const twinShare = visit.twin > 0 ? `${count(visit.twin)} of the twin's own files, ` : "";
+  const dogShare = visit.dog > 0 ? `${count(visit.dog)} of the room's dog's files, ` : "";
   out.push(
     `First visit with both figures' files (RK5): ${count(total)} gzip-9 bytes, ${count(share)} of the room's placed ` +
-      `models and cards, ${twinShare}${count(visit.stand_in)} of the stand-in's files, and ${count(visit.other)} of ` +
+      `models and cards, ${twinShare}${count(visit.stand_in)} of the stand-in's files, ${dogShare}and ${count(visit.other)} of ` +
       `the largest ${visit.twin > 0 ? "" : "other "}visitor avatar's${visit.other_id === null ? "" : ` (\`${visit.other_id}\`)`}, against the phase-3 ` +
       `budget of ${count(c.policy.phase3_bytes)}; spec 003's F3 view, which counts one visitor folder (assets/animations/ ` +
       `aside): ${count(f3View)}.`,
