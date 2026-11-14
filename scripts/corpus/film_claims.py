@@ -22,10 +22,11 @@ R3  no line `SCRIPTS.md` marks unbuilt or retracted is carried whole, and no car
 R4  the new text states no number outside a slot (digits, or G1's number words; its exempt spans aside: slots, URLs,
     the claim tags [P], [?], [A], [A <date>] and [slot `id`], paths (no whitespace, no segment that is a number but a
     date, inside --root, found under it or rooted at its top-level entry, and, holding a number, found or a file name
-    in a directory it holds), a setting such as ENV=prod whose value holds no digit and no number word, dates, a list
-    item's number, and the quotes R5 accepts) and no currency amount (check_corpus.py's
-    CURRENCY, redteam/run.py's AMOUNT_WORDS, guards.ts's EXTRA_PATTERN); every slot exists; and the whole file holds no
-    CURRENCY match, since corpus-check reads `corpus/proposals/` too.
+    in a directory it holds; a backticked `:<line>` suffix only on a file that holds every line it names), a setting
+    such as ENV=prod whose value holds no digit and no number word, dates, a list item's number, and the quotes R5
+    accepts) and no currency amount (check_corpus.py's CURRENCY, redteam/run.py's AMOUNT_WORDS, guards.ts's
+    EXTRA_PATTERN); every slot exists; and the whole file holds no CURRENCY match, since corpus-check reads
+    `corpus/proposals/` too.
 R5  every quotation in the new text is the Author's words as `SCRIPTS.md` quotes them (the checker's fixed list), his
     words in the disclosure's row F3, or a cited file's own text: a carried or in-part row's source only, never the
     proposal being checked, a file under `films/`, `corpus/proposals/`, `docs/merge-requests/`, `specs/`, or
@@ -594,14 +595,14 @@ def is_path(token: str, root: Path | None = None) -> bool:
     """A path has no whitespace and no segment that is a number, but a date `_DATE` takes: `52/52`, `100/day`,
     `52/run`, `twelve/hour`, and `fifty-two of fifty-two passed/run` aren't paths (rv-impl-022's I-2, rv-rework-022's
     F-2). And it is read against the root (rv2-rework2-022's B-1): it is found under the root, or its first segment
-    is a top-level entry of the root; and if it holds a number (a digit or one of G1's words, outside a date and a
-    line suffix), it is found, or it is a file name with an extension in a directory the root holds. So `5k/day`,
-    `day/100-requests`, `docs/100-per-day`, and `100-per-day.md` aren't paths; `docs/adr/0020-x.md`,
-    `history/2026-11-09/run.json`, `films/kill-switch-b2/`, and `redteam/run.py:267-299` are."""
+    is a top-level entry of the root; and if it holds a number (a digit or one of G1's words, outside a date), it is
+    found, or it is a file name with an extension in a directory the root holds. So `5k/day`, `day/100-requests`,
+    `docs/100-per-day`, and `100-per-day.md` aren't paths; `docs/adr/0020-x.md`, `history/2026-11-09/run.json`, and
+    `films/kill-switch-b2/` are. A `:<line>` suffix is `_code`'s to read, not this function's (B-5)."""
     root = REPO if root is None else root
     if re.search(r"\s", token):
         return False
-    bare = normalised(_LINE_SUFFIX.sub("", token).rstrip("/") or token)
+    bare = normalised(token.rstrip("/") or token)
     segments = bare.split("/")
     if any(
         _numeric(s) and not _DATE.fullmatch(s.strip(_PUNCTUATION)) for s in segments
@@ -621,6 +622,47 @@ def is_path(token: str, root: Path | None = None) -> bool:
     ) and in_root(root, parent)
 
 
+def file_of(root: Path, path: str) -> Path | None:
+    """The file a path names in the repository: itself, or under one of the root's top-level directories (as
+    `found_under` reads `05-mission.md`); none for a glob, a directory, a missing file, or a path outside."""
+    path = normalised(path)
+    if any(ch in path for ch in GLOB) or not in_root(root, path):
+        return None
+    for candidate in [path, *(f"{top}/{path}" for top in sorted(_top_level(root)))]:
+        if in_root(root, candidate) and (root / candidate).is_file():
+            return root / candidate
+    return None
+
+
+def lines_within(root: Path, path: str, suffix: str) -> bool:
+    """A `:<n>`, `:<a>-<b>`, or `:<n>,<a>-<b>` suffix names lines the path's file holds: each from 1 to its line
+    count, each range forwards (rv-rework3-022's B-5)."""
+    file = file_of(root, path)
+    if file is None:
+        return False
+    count = len(file.read_text(errors="replace").splitlines())
+    for part in suffix.lstrip(":").split(","):
+        first, _, last = part.partition("-")
+        if not 1 <= int(first) <= int(last or first) <= count:
+            return False
+    return True
+
+
+def _code(token: str, root: Path) -> str:
+    """A backticked token, with R4's exempt spans blanked: a setting, or a path; and a path's `:<line>` suffix only
+    when its file holds every line it names. Otherwise the suffix's numbers count (rv-rework3-022's B-5)."""
+    if _assignment(token):
+        return " "
+    suffix = _LINE_SUFFIX.search(token)
+    path = token[: suffix.start()] if suffix else token
+    if not (path and _PATHLIKE.search(path) and is_path(path, root)):
+        return token
+    if suffix and not lines_within(root, path, suffix.group(0)):
+        # Each line number on its own (`DIGITS` would read `5,9000` as one).
+        return " " + suffix.group(0).replace(",", " ")
+    return " "
+
+
 def _assignment(token: str) -> bool:
     """`ENV=prod`, `COMPOSE_PROFILES=gpu`: a setting whose value holds no digit and no G1 word anywhere
     (`DAILY_CAP=100`, `CAP=100k`, `CAP=five-dollars`, and `LIMIT=per-100` state one; rv2-rework2-022's B-1)."""
@@ -637,15 +679,7 @@ def without_exempt(text: str, quotes: Iterable[str], root: Path | None = None) -
     text = _SLOT.sub(" ", text)
     text = _URL.sub(" ", text)
     text = _CLAIM_TAG.sub(" ", text)
-    text = _CODE.sub(
-        lambda m: (
-            " "
-            if _assignment(m.group(1))
-            or (_PATHLIKE.search(m.group(1)) and is_path(m.group(1), root))
-            else m.group(1)
-        ),
-        text,
-    )
+    text = _CODE.sub(lambda m: _code(m.group(1), root), text)
     text = _BARE_PATH.sub(
         lambda m: " " if is_path(m.group(0), root) else m.group(0), text
     )
