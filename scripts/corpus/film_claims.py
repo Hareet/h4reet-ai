@@ -23,7 +23,7 @@ R4  the new text states no number outside a slot (digits, or G1's number words; 
     CURRENCY, redteam/run.py's AMOUNT_WORDS, guards.ts's EXTRA_PATTERN); every slot exists; and the whole file holds no
     CURRENCY match, since corpus-check reads `corpus/proposals/` too.
 R5  every quotation in the new text is the Author's words as `SCRIPTS.md` quotes them, his words in the disclosure's
-    row F3, or a cited file's own text; `SCRIPTS.md` and the films' `script.txt` are never a cited file here.
+    row F3, or a cited file's own text; no file under `films/` is ever a cited file here, its path normalised.
 R6  with --third-party, no quoted span longer than a title, anywhere in the proposal, that the repository doesn't hold.
 R7  the summary says the denylist was not applied: this checker never reads `corpus/intake/private/`.
 
@@ -34,6 +34,7 @@ tests hold its copies equal to those files' text. Exit 0 when clean, 1 with one 
 from __future__ import annotations
 
 import argparse
+import posixpath
 import re
 import sys
 from collections.abc import Iterable
@@ -300,9 +301,21 @@ def read_materials(text: str) -> tuple[set[str], set[str]]:
     return listed, shown
 
 
-def is_script(path: str) -> bool:
-    """`films/SCRIPTS.md`, or a film's `script.txt`: the films' own text, written by the agents."""
-    return path == SCRIPTS_MD or bool(re.fullmatch(r"films/[\w-]+/script\.txt", path))
+def normalised(path: str) -> str:
+    """A cited path as one spelling: a leading `./` stripped, then `posixpath.normpath` (`a//b`, `a/./b`, `a/x/../b`)."""
+    while path.startswith("./"):
+        path = path[2:]
+    return posixpath.normpath(path)
+
+
+def under_films(root: Path, path: str) -> bool:
+    """A file under `films/`: the films' own text (scripts, captions, notes, materials), written by the agents
+    (rv-rework-022's F-1). Read by its normalised spelling and, through a link, by where it resolves."""
+    path = normalised(path)
+    if path == "films" or path.startswith("films/"):
+        return True
+    films = (root / "films").resolve()
+    return (root / path).resolve().is_relative_to(films)
 
 
 def exists(root: Path, path: str) -> bool:
@@ -755,13 +768,13 @@ def check(
                 out["R2"].append(f"R2: {label}: not in the table")
 
     # ---- R5: quotes in the new text ----
-    # The scripts themselves are the agents' text, not a source's: a row may cite `films/SCRIPTS.md` (§1 line 5 does,
-    # for his words), but a quote from it stands only as his words (author_quotes), and a film's script.txt not at
-    # all (rv-impl-022's I-2).
+    # The films' files are the agents' text, not a source's: a row may cite `films/SCRIPTS.md` (§1 line 5 does, for
+    # his words), but a quote from it stands only as his words (author_quotes), and no file under `films/`, however
+    # its path is spelled, is a cited file's text (rv-impl-022's I-2, rv-rework-022's F-1).
     cited_texts = [
         norm((root / p).read_text())
-        for p in sorted(cited)
-        if "*" not in p and (root / p).is_file() and not is_script(p)
+        for p in sorted({normalised(c) for c in cited})
+        if "*" not in p and (root / p).is_file() and not under_films(root, p)
     ]
     accepted: list[str] = []
     for block in prose:
