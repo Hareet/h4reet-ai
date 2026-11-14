@@ -309,7 +309,7 @@ His words, about 17:25Z, verbatim:
 
 *Reading, beside his words:* "dinosaur is approved" is his look approval of round 2's candidate, `/srv/studio/handoff/dinosaur/2/`, which is the four GLBs by the SHA-256s above. The rest is about the dog (item 3, spec 020) and isn't this item's. Q210 is answered (recommended): with this approval, his review of the mesh is given.
 
-**Not recorded.** No `--record` ran, and nothing under `/srv/studio/` changed. The record waits only for Q207's date (`models_checked`). *(Overtaken: his answer at about 17:35Z gives the date as `2026-11-11`. The record now waits on the edit to the handoff's `records.json`, which no implementer can make. See "Round 2's record, not made (`record-dino-r2`)" below.)*
+**Not recorded.** No `--record` ran, and nothing under `/srv/studio/` changed. The record waits for Q207's date (`models_checked`). *(Undercounted, rv-intake-021's nit 3: it waited for all four steps below, in order, not only the date: his mesh review in the record, his date, the dry re-judge, and `--record`.)* *(Overtaken: his answer at about 17:35Z gives the date as `2026-11-11`. The record now waits on the edit to the handoff's `records.json`, which no implementer can make. See "Round 2's record, not made (`record-dino-r2`)" below.)*
 
 ### For his morning, in order
 

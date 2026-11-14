@@ -1113,7 +1113,7 @@ The bash gate refused three commands. All three are on the page.
 
 Nothing was respelled. I didn't open, view, copy, or list the inbox, the dog's photos folder, or the handoff's `front.png` and `side.png`.
 
-intake-021: his look approval recorded; the intake, the record's two steps, and `--record` wait for him (Q207's date). *(Overtaken: Q207's date is his answer, `2026-11-11`. What waits now is in the next section.)*
+intake-021: his look approval recorded; the intake, the record's two steps, and `--record` wait for him (Q207's date). *(Overtaken: Q207's date is his answer, `2026-11-11`. What waits now is in the next section.)* *(Undercounted, rv-intake-021's nit 3: "Q207's date" was never all it waited for. The record waits on his morning's steps 1 to 4 above, in order, and his intake follows the record.)*
 
 ### Round 2's record (record-dino-r2)
 
