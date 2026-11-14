@@ -4404,3 +4404,347 @@ Lint again after both, on this section's text before its commit: exit 0, the sam
 Nothing under `corpus/`, `assets/**`, `/srv/studio/`, or a human-only path changed in merge-1. No merge into main, no push.
 
 merge-1: green; the line's tip is `night/merge-1/merge-1`: 9c9ad472's code, with this note's two documents-only commits on top
+
+---
+
+## Merge (rule 7, merge-2)
+
+Branch `night/merge-2/merge-2`, from the line's tip, `night/merge-1/merge-1` (74c428b2), by a worker (Opus 5.5) that wrote none of the items. Merge-1's section ends "merge-1: green", so the batch went ahead.
+
+**The batch, in his order:**
+
+- **Item 7** (spec 024, the dinosaur eats chunks of the room's assets): `night/verify2-024/verify2-024`, bc734a6f. Its section ends "verify2-024: green".
+- **Item 8** (spec 025, the twin and the dog run from the dinosaur): `night/verify-025/verify-025`, 3a780499, still that branch's tip at the merge. Its section ends "verify-025: green, carrying D-V2's six (Q165)".
+
+Item 9 (impl3-026) is still being built and goes in a later merge.
+
+### The merges
+
+Both verify tips branch from 7db03c0f, merge-1's base. Neither holds merge-1's tip or the other item.
+
+1. `git merge refs/heads/night/verify2-024/verify2-024` merged with no conflict (d2bca2e9). Item 7's section went in before item 10, unchanged.
+2. `git merge refs/heads/night/verify-025/verify-025` hit three conflicts, where both items added at the same place. They were resolved in the merge commit, a8446e19:
+   - `apps/web/test/room/vocabulary.test.ts`, the UI keys' count. Item 7 made it 79 (77 + `eat.button`, `eat.first_bite`) and item 8 made it 83 (77 + the six `chase.*` keys). Merged, it is 85. Both items' keys auto-merged into `ui-keys.ts` and the test's list. The test was resolved first, before the code.
+   - `apps/web/build/room/schema.ts`. Item 7's `EATING_DEFAULTS` and item 8's `dogBlock` and `chaseBlock` are all kept. The scene schema is item 8's `.superRefine` object (FR-005's run speeds against the walking speed) with item 7's `eating` field added after `figures`, its line unchanged. Against verify-025's file, the merged one differs only by item 7's own hunks (`edible`, `EATING_DEFAULTS`, `eating`).
+   - This note. Each verify had inserted its item before item 10. The note was rebuilt as: everything before item 7 from merge-1's side (it carries merge-1's changes), then item 7 whole from verify2-024's file, then item 8 whole from verify-025's file, then item 10 and merge-1's section from merge-1's side. A check by diff showed item 7 and item 8 each equal to their verify's file line for line, and everything from item 10 on equal to merge-1's. Item 10 was the same in all three files.
+
+The small tests over the two resolved files, before the whole suite:
+
+```
+$ cd apps/web && npx vitest run --maxWorkers=4 test/room/vocabulary.test.ts test/room/chase-schema.test.ts test/room/eat-scene.test.ts test/room/eat-data.test.ts test/room/data-only.test.ts test/room/bundle.test.ts
+ Test Files  6 passed (6)
+      Tests  147 passed (147)
+   Duration  298.73s (tests 74%, import 26%, transform 1%)
+```
+
+### The check
+
+```
+$ git diff refs/heads/main --stat -- deploy/night-shift/ .claude/ CLAUDE.md REVIEW.md .specify/memory/ corpus/ tools/gates/ evals/agent-config/ redteam/forbidden-actions.sh assets/policy/
+ corpus/proposals/film-scripts-2026-11-14.md | 265 ++++++++++++++++++++++++++++
+ 1 file changed, 265 insertions(+)
+```
+
+The check lists only item 5's proposal, for his hand (Q275), as expected.
+
+### Runs on the merged tip
+
+a8446e19, d116301e, and cff8038c, the merge and two empty save points, share one tree (5563703). The `node_modules` came from the setup target, which exited 0. `cat /sys/fs/cgroup/cpu.max` printed `400000 100000`, so `--maxWorkers=4`.
+
+`services/gateway`'s suite didn't run. The batch doesn't change it:
+
+```
+$ git diff --stat 74c428b2 HEAD -- services/gateway
+```
+
+That printed nothing.
+
+**`apps/web`'s whole suite**, whole log:
+
+```
+$ cd apps/web && npx vitest run --maxWorkers=4
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/merge-2/apps/web
+
+ ❯ test/room/report.test.ts (25 tests | 1 failed) 20816ms
+   ❯ the report's exempt faces and side-wall selectables (5)
+     × marks the counter face exempt on the phone, and the word face readable 252ms
+ ❯ test/room/legibility.test.ts (20 tests | 3 failed) 1899ms
+   ❯ RG7's per-face exemption on the reference phone (6)
+     × exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it 23ms
+     × holds the same face to the floor on the desktop 344ms
+     × holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable 24ms
+visitor floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; start (-0.7, 0.58)
+  obstacle work-desk: x [-0.87, 0.87], z [-0.73, 0.312]
+  obstacle desk-screen: x [-0.766, 0.458], z [-0.695, -0.169]
+  obstacle neon-sign: x [-0.942, 0.845], z [-0.637, -0.309]
+  obstacle laptop-stand: x [0.3, 0.8], z [-0.55, -0.07]
+  obstacle laptop: x [0.274, 0.826], z [-0.561, -0.08]
+  obstacle busy-sign: x [-0.839, -0.261], z [-0.431, -0.048]
+  obstacle dog-sign: x [0.025, 0.515], z [-0.428, -0.071]
+  obstacle chalkboard: x [-1.187, -0.887], z [-0.19, 0.765]
+  obstacle snowboard: x [-1.187, -0.749], z [-0.676, -0.124]
+  obstacle bicycle: x [0.769, 1.185], z [-0.407, 0.601]
+  obstacle wall-window: x [-1.12, 1.12], z [-0.73, -0.429]
+  obstacle window-view: x [-1.08, 1.08], z [-0.718, -0.47]
+  obstacle split-keyboard: x [-0.491, 0.209], z [-0.278, 0.25]
+  obstacle vertical-mouse: x [-0.007, 0.328], z [-0.162, 0.203]
+  obstacle notebook: x [-0.836, -0.239], z [-0.247, 0.282]
+  obstacle helmet: x [0.559, 1.149], z [-0.347, 0.191]
+  obstacle bag: x [-0.092, 0.71], z [-0.578, 0.075]
+  obstacle wall-outlet: x [0.902, 1.187], z [-0.556, -0.244]
+  obstacle twin-figure: x [0.17, 1.14], z [0.025, 0.789]
+chase floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; 18 obstacles (the visitor's less twin-figure)
+room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
+ ❯ test/disclosure.test.ts (11 tests | 2 failed) 276ms
+   ❯ the disclosure page (11)
+     × gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words 6ms
+     × names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6) 7ms
+chase bench: 600 frames, mean ms a frame per run 0.0140, 0.0150, 0.0121; best 0.0121
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+AssertionError: V1: expected [ …(3) ] to deeply equal [ …(3) ]
+
+- Expected
++ Received
+
+  [
+-   "requests for the room's static assets, the narration's audio, and the PDF: the paths requested (which show which items a visitor plays), the IP address, the user agent, and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the twin's still in a visit that shows the 2D room; the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose",
++   "requests for the room's static assets, the narration's audio, and the PDF: the paths requested (which show which items a visitor plays), the IP address, the user agent, and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the room's dog's model and clips in every 3D visit above the floor where the bundle has them, the same for every visitor; the twin's still in a visit that shows the 2D room, or, in a 3D visit, once, when the conversation panel first opens in the split layout (spec 018); the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose",
+    "anything to a third-party host (FR-057)",
+    "the room, the resume, and the PDF are static assets; the twin and the credits are among them",
+  ]
+
+ ❯ test/disclosure.test.ts:119:36
+    117|       const carries = id === "V1" ? `${entry?.[2] ?? ""}, ${m17.carrie…
+    118|       const why = id === "V1" ? `${entry?.[4] ?? ""}; ${m17.why}` : en…
+    119|       expect(row?.slice(3, 6), id).toEqual([carries, entry?.[3], why]);
+       |                                    ^
+    120|     }
+    121|     expect(rows.get("V1")?.[2]).toContain(m17.trigger);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+AssertionError: expected 'requests for the room\'s static asset…' to contain 'and the avatar files now: the twin\'s…'
+
+Expected: "and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the twin's still in a visit that shows the 2D room; the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose"
+Received: "requests for the room's static assets, the narration's audio, and the PDF: the paths requested (which show which items a visitor plays), the IP address, the user agent, and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the room's dog's model and clips in every 3D visit above the floor where the bundle has them, the same for every visitor; the twin's still in a visit that shows the 2D room, or, in a 3D visit, once, when the conversation panel first opens in the split layout (spec 018); the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose"
+
+ ❯ test/disclosure.test.ts:180:33
+    178|       /^and the avatar files now: the twin's model and clips .*whose p…
+    179|     );
+    180|     expect(rows.get("V1")?.[3]).toContain(carries);
+       |                                 ^
+    181|     expect(rows.get("V1")?.[3]).not.toContain(v1);
+    182|     expect(v4).toBe("and a figure's avatar failing to load, once a vis…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+  [
+    {
+-     "desktop": 52,
++     "desktop": 52.7,
+      "face": "fx-neon.panel",
+      "phone": 16.8,
+      "phone_exempt": false,
+    },
+    {
+-     "desktop": 23.1,
++     "desktop": 23.4,
+      "face": "fx-neon.counters",
+      "phone": 7.4,
+      "phone_exempt": true,
+    },
+  ]
+
+ ❯ test/room/legibility.test.ts:262:79
+    260|     // At spec 005's reference stages, the clear areas (28.1 and 16.1,…
+    261|     // desktop's is its frame area (49.2 and 21.8 at the clear area), …
+    262|     expect(caps(countersTree()).filter((f) => f.face.startsWith("fx-ne…
+       |                                                                               ^
+    263|       { face: "fx-neon.panel", desktop: 52, phone: 16.8, phone_exempt:…
+    264|       { face: "fx-neon.counters", desktop: 23.1, phone: 7.4, phone_exe…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+AssertionError: expected [ …(5) ] to include 'placements[3].faces.counters: cap hei…'
+ ❯ test/room/legibility.test.ts:274:19
+    272|     // exempt there.
+    273|     const found = rg7(countersTree(), floorOf(24));
+    274|     expect(found).toContain(
+       |                   ^
+    275|       "placements[3].faces.counters: cap height 23.1 px on the desktop…
+    276|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+AssertionError: expected { face: 'fx-neon.counters', …(3) } to deeply equal { face: 'fx-neon.counters', …(3) }
+
+- Expected
++ Received
+
+  {
+-   "desktop": 23.1,
++   "desktop": 23.4,
+    "face": "fx-neon.counters",
+    "phone": 7.4,
+    "phone_exempt": false,
+  }
+
+ ❯ test/room/legibility.test.ts:307:28
+    305|   it("holds a face whose regions are all turn-cost to the floor on the…
+    306|     const t = counters({ readable: "readable: false" });
+    307|     expect(counterCaps(t)).toEqual({ face: "fx-neon.counters", desktop…
+       |                            ^
+    308|     expect(rg7(t)).toEqual([
+    309|       "placements[3].faces.counters: cap height 7.4 px on the phone st…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+AssertionError: expected [ '## Room report', '', …(71) ] to include '| `fx-neon.counters` | yes | 23.1 px …'
+ ❯ test/room/report.test.ts:351:18
+    349|     // At spec 005's reference stages (12.5 and 7.2, and 28.1 and 16.2…
+    350|     // Spec 014: the reference desktop is its frame area, so its caps …
+    351|     expect(rows).toContain(
+       |                  ^
+    352|       '| `fx-neon.counters` | yes | 23.1 px | 7.5 px | 9 | -1.5 px | e…
+    353|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  3 failed | 222 passed (225)
+      Tests  6 failed | 4149 passed | 3 skipped (4158)
+   Start at  22:32:53
+   Duration  1134.42s (tests 73%, import 27%)
+
+(exit 1)
+```
+
+The six failures are exactly D-V2's six (Q165): `disclosure`'s two, `legibility`'s three, and `report`'s one, the same six as in verify2-024's and verify-025's full runs. `test/room/twin-2d.test.ts` passed in this run, so it needed no rerun.
+
+**pytest.** The only Python file the batch changed is `deploy/scripts/test_dashboard.py` (item 8), so the run covers `deploy/scripts`. `docs/data-flow-disclosure.md` changed too, so the disclosure's two checks in `evals/` are included, as verify-025 ran them. `scripts/corpus/` didn't change in this batch. Whole output:
+
+```
+$ pytest -q -p no:cacheprovider --import-mode=importlib deploy/scripts evals/test_disclosure.py evals/test_docs_links.py
+........................................................................ [  5%]
+........................................................................ [ 10%]
+........................................................................ [ 15%]
+........................................................................ [ 21%]
+........................................................................ [ 26%]
+........................................................................ [ 31%]
+........................................................................ [ 36%]
+........................................................................ [ 42%]
+........................................................................ [ 47%]
+........................................................................ [ 52%]
+........................................................................ [ 57%]
+........................................................................ [ 63%]
+........................................................................ [ 68%]
+........................................................................ [ 73%]
+........................................................................ [ 79%]
+........................................................................ [ 84%]
+........................................................................ [ 89%]
+........................................................................ [ 94%]
+........F..............................................................  [100%]
+=================================== FAILURES ===================================
+_______ test_the_rooms_rows_are_in_its_own_section_with_the_specs_words ________
+
+    def test_the_rooms_rows_are_in_its_own_section_with_the_specs_words() -> None:
+        # specs/002-the-room/spec.md's Data-Flow Disclosure Entries give V1's Carries, Never carries, and Why; the
+        # web service has its row, as every service does (tools/gates/compose_policy.py's disclosure rule). Spec 009's
+        # Amendment M6 added the avatar files to V1's Carries, after spec 002's words; spec 016's Amendment M17 (its
+        # FR-053) puts its own avatar files in their place, and adds to V1's Trigger and Why, in its own words (changed
+        # with T073, specs/016-the-twins-own-avatar/plan.md R-18).
+        room = TEXT.split("\n## Spec 002: the room\n", 1)[1]
+        assert "| S14 | `web` →" in room and "| V1 |" in room
+        spec = (REPO / "specs" / "002-the-room" / "spec.md").read_text(encoding="utf-8")
+        (entry,) = [ln for ln in spec.splitlines() if ln.startswith("| V1 |")]
+        _, _, carries, never, why = [c.strip() for c in entry.strip().strip("|").split("|")]
+        amended = (REPO / "specs" / "016-the-twins-own-avatar" / "spec.md").read_text(
+            encoding="utf-8"
+        )
+        (m17,) = [
+            ln for ln in amended.splitlines() if ln.startswith("| V1, amended (M17) |")
+        ]
+        cells = [c.strip() for c in m17.strip().strip("|").split("|")]
+        trigger = re.fullmatch(r"as before, (and following .*)", cells[2])
+        files = re.fullmatch(r"as before, with (the avatar files now: .*)", cells[3])
+        reason = re.fullmatch(
+            r"as before: the room's static assets and pages; (.*)", cells[5]
+        )
+        assert trigger and files and reason, (
+            "spec 016's M17 doesn't read as this test reads it"
+        )
+        _from_to, row_trigger, row_carries, row_never, row_why, *_ = rows()["V1"]
+>       assert (row_carries, row_never, row_why) == (
+            f"{carries}, and {files.group(1)}",
+            never,
+            f"{why}; {reason.group(1)}",
+        )
+E       assert ('requests fo...e among them') == ('requests fo...e among them')
+E         
+E         At index 0 diff: "requests for the room's static assets, the narration's audio, and the PDF: the paths requested (which show which items a visitor plays), the IP address, the user agent, and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the room's dog's model and clips in every 3D visit above the floor where the bundle has them, the same for every visitor; the twin's still in a visit that shows the 2D room, or, in a 3D visit, once, when the conversation panel first opens in the split layout (spec 018); th...
+E         
+E         ...Full output truncated (2 lines hidden), use '-vv' to show
+
+evals/test_disclosure.py:403: AssertionError
+=========================== short test summary info ============================
+FAILED evals/test_disclosure.py::test_the_rooms_rows_are_in_its_own_section_with_the_specs_words
+1 failed, 1366 passed in 16.72s
+(exit 1)
+```
+
+The one failure is D-V2's (Q164), the same one verify-025 recorded.
+
+**D-V2's six, carried (Q165), on a copy.** `git archive HEAD` (d116301e) went into a fresh `mktemp -d` folder, `/tmp/merge2-dv2.D9Nu`. There, `git apply --check` and then `git apply` ran for `docs/merge-requests/proposed/018-verify-test-amendments.patch` (4 files changed, 43 insertions, 11 deletions) and then `025-disclosure-test-amendments.patch` (2 files changed, 28 insertions, 3 deletions). Both applied clean. The worktree's two `node_modules` folders were linked in. Neither patch was applied on the line, and no test file was edited:
+
+```
+$ cd <copy> && pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+........                                                                 [100%]
+80 passed in 1.85s
+$ cd <copy>/apps/web && npx vitest run --maxWorkers=4 test/disclosure.test.ts test/room/legibility.test.ts test/room/report.test.ts test/room/dog-disclosure.test.ts test/site.test.ts
+
+ Test Files  5 passed (5)
+      Tests  74 passed (74)
+   Start at  22:52:51
+   Duration  82.89s (tests 82%, import 14%, transform 4%)
+```
+
+With his two patches, the six pass and Q164's pytest check passes on the merged code.
+
+**The lint target**, exit 0. As in merge-1 and verify-025, shellcheck's echoed file list is left out:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+826 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- <the file list>
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+(exit 0)
+```
+
+### What waits for him
+
+This batch adds nothing new for his hand. Items 7 and 8 carry their own human patches and proposals, `human-patches/024.md`, `human-patches/025.md`, and `proposed/*.patch`, as their sections say. D-V2's patches (Q165) and Q275's corpus proposal are still waiting. Nothing under `corpus/`, `assets/**`, `/srv/studio/`, or a human-only path changed in merge-2. There was no merge into main and no push.
+
+**Interruptions (merge-2):** none. No hook or bash-gate refusal. The D-V2 copy stays at `/tmp/merge2-dv2.D9Nu` (a `git archive` export with the two proposed patches applied, nothing secret), as verify2-024's and verify-025's copies stayed.
+
+merge-2: green, carrying D-V2's six (Q165); the line's tip is `night/merge-2/merge-2`: a8446e19's merged code (tree 5563703), with this note's documents-only commit on top
