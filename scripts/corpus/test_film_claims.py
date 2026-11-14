@@ -494,6 +494,48 @@ def test_exempt_spans_read_no_number() -> None:
     assert fc.numbers_in(fc.without_exempt(text, quotes=())) == []
 
 
+@pytest.mark.parametrize(
+    ("old", "new", "needle"),
+    [
+        # rv-impl-022's I-2: a bracketed span that isn't a claim tag is prose, not a tag.
+        (
+            "The gateway reads the kill switch first. — ",
+            "The gateway reads the kill switch first [fifty-two assertions, fifty-two passed]. — ",
+            "fifty-two",
+        ),
+        # A ratio isn't a path, bare or in backticks.
+        ("runs with one command", "runs with one command, and passed 52/52", "52"),
+        ("runs with one command", "runs with one command, and passed `52/52`", "52"),
+        (
+            "runs with one command",
+            "runs with one command, and passed fifty-two/fifty-two",
+            "fifty-two",
+        ),
+    ],
+)
+def test_a_number_in_brackets_or_a_ratio_fails(
+    repo: Path, old: str, new: str, needle: str
+) -> None:
+    problems = run(repo, changed(old, new))
+    assert failing(problems, "R4", "number", needle), problems
+
+
+def test_claim_tags_and_paths_read_no_number_but_brackets_and_ratios_do() -> None:
+    tags = "- `[P]` `[?][A]` [A 2026-11-06] [?] [A] [slot `site.prod_containers`] [A][A 2026-11-09]\n"
+    assert fc.numbers_in(fc.without_exempt(tags, quotes=())) == []
+    paths = "`docs/adr/0020-gateway.md`, deploy/compose.yaml, films/kill-switch-b2/, 2026-11-13/14, `v2/notes`\n"
+    assert fc.numbers_in(fc.without_exempt(paths, quotes=())) == []
+    prose = "[3 runs] [twelve cases] 24/7 `52/52`\n"
+    assert fc.numbers_in(fc.without_exempt(prose, quotes=())) == [
+        "3",
+        "twelve",
+        "24",
+        "7",
+        "52",
+        "52",
+    ]
+
+
 def test_number_words_are_g1s() -> None:
     assert fc.numbers_in("one command and a first run") == []
     assert fc.numbers_in("twenty-one of twenty-four, a dozen, thousands") == [
@@ -520,6 +562,39 @@ def test_a_paraphrased_f3_quote_fails(repo: Path) -> None:
         'up to 30 days, never for training" [A', 'up to a month, never for training" [A'
     )
     assert failing(run(repo, bad), "R5", "up to a month")
+
+
+@pytest.mark.parametrize(
+    ("row_old", "row_new", "quote"),
+    [
+        # rv-impl-022's I-2: a row may cite `films/SCRIPTS.md` (§1 line 3 does, for his words), but a script line the
+        # agents wrote isn't his words, so quoting one, amount and all, fails.
+        (
+            "| The meter #2 | `src/sign.md` | `[A 2026-11-10]` |",
+            "| The meter #2 | `films/SCRIPTS.md` | `[A 2026-11-10]` |",
+            "A sign shows what each call cost, to the millionth of a dollar.",
+        ),
+        # The same for a film's script.txt, cited by a row.
+        (
+            "| The tests #1 | `evals/run.md` | `[P]` |",
+            "| The tests #1 | `evals/run.md`, `films/kill-switch-b2/script.txt` | `[P]` |",
+            "So it has a ceiling: five dollars a day.",
+        ),
+    ],
+)
+def test_a_quoted_script_line_isnt_a_cited_files_text(
+    repo: Path, row_old: str, row_new: str, quote: str
+) -> None:
+    cites = changed(row_old, row_new)
+    assert run(repo, cites) == []
+    bad = changed(
+        "- `[?]` The daily summary of the CPU metrics.",
+        f'- `[?]` The daily summary of the CPU metrics. The film says "{quote}"',
+        cites,
+    )
+    problems = run(repo, bad)
+    assert failing(problems, "R5", quote[:20]), problems
+    assert failing(problems, "R4", "currency"), problems
 
 
 # ---- R6: third-party text ----
