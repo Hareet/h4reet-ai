@@ -739,23 +739,32 @@ export function pickSweep(g: Geometry, at?: readonly Stage[]): PickSweep {
  *  side-wall selectable there instead of refusing it. Each problem is reported once, with the first stage it comes at
  *  and how many more; in 2D, a problem that comes at the drawing's smallest scale is named by that scale. */
 function spacing(ctx: Context, g: Geometry): void {
+  for (const { selectable, reason } of spacingReasons(g))
+    ctx.report("RG6", g.scene.file, ctx.path("selectables", selectable), reason);
+}
+
+/** RG6's refusals over a geometry, each selectable's index and its reason, in the sweep's order; a problem found only
+ *  in a 3D dinosaur visit's sweep (spec 024, Q150) says so. */
+export function spacingReasons(g: Geometry): { readonly selectable: number; readonly reason: string }[] {
   const smallest = flatScale(smallestFlatStage());
   const meets = { core: "the core of", member: "a member of", union: "the union of the members of" } as const;
-  for (const { problem, mode, first, more, dinosaur } of pickSweep(g).problems) {
+  return pickSweep(g).problems.map(({ problem, mode, first, more, dinosaur }) => {
     const what =
       problem.problem === "outside"
         ? "its 44 × 44 core leaves the view"
         : problem.problem === "reserved"
-          ? "its exclusive core lies under a panel's box or the walking control's box"
+          ? dinosaur
+            ? "its exclusive core lies under a panel's box, the walking control's box, or the \"Eat\" tile's box"
+            : "its exclusive core lies under a panel's box or the walking control's box"
           : `its exclusive core overlaps ${meets[problem.problem]} selectables[${problem.other ?? ""}]`;
     const where =
       mode === "3D"
-        ? `in 3D at ${stagesPhrase(first, more)}${dinosaur ? ' for a 3D dinosaur visit, the "Eat" tile\'s box reserved' : ""}`
+        ? `in 3D at ${stagesPhrase(first, more)}${dinosaur ? " for a 3D dinosaur visit" : ""}`
         : flatScale(first) === smallest
           ? "in 2D, at the drawing's smallest scale"
           : `in 2D, at the drawing's scale on ${stagesPhrase(first, more)}`;
-    ctx.report("RG6", g.scene.file, ctx.path("selectables", Number(problem.selectable)), `${what} ${where}`);
-  }
+    return { selectable: Number(problem.selectable), reason: `${what} ${where}` };
+  });
 }
 
 /** The side-wall selectables FR-064's carve-out (see listOnly) leaves to the "In the room" list somewhere, in scene
