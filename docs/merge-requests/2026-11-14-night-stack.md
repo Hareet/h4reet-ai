@@ -948,3 +948,42 @@ Commit hooks: each of this session's commits printed gitleaks' "no leaks found" 
 Interruptions: one harness refusal, not a hook or the bash gate: a Monitor watch on the run's log needed an approval it didn't have, so I waited with a plain shell loop instead. Nothing was respelled.
 
 verify-021: green, carrying D-V2's six (Q165)
+
+## Item 9: spec 026, the twin pets the dog, and the dog-intro conversation (`night/impl-026/impl-026`, the first part)
+
+Spec: specs/026-twin-pets-dog/ · Written by: implementer (night shift), impl-026 on Opus 5.5; the review is for a worker who didn't write the code (T022) · Date: 2026-11-14
+Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl-026 · Repo hooks active: the commit hooks ran (gitleaks, arrival check) on every commit
+Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at the top of plan.md and tasks.md), the spec, and the plan as reworked three times (rework3-spec-026, 9bba8f36). The page's questions on spec 026 (Q120 to Q128, Q140 to Q145, Q153, Q154, Q158 to Q162) are taken as recommended under the orders file's rule. Base: rework3-spec-026's tip, with verify2-020 (3767859f) merged first (no conflict), then verify-021 (b3d043a2), whose note ends item 4 "verify-021: green, carrying D-V2's six (Q165)" (no conflict). This branch is the line's new tip with items 1 to 4 and this item's first part.
+
+### What was built
+
+His item f): "twin petting do gand dog-intro conversation corpus". Each task was test-first, its RED committed before its GREEN. Each task's runs are in `docs/merge-requests/2026-11-14-feat-026-twin-pets-dog.md`.
+
+- **The reach's math** (T001, T002): `scene/pet-reach.ts`, pure: the spine's lean, the two-bone solve, the stroke, the weight.
+- **The pet director** (T007 to T010): `scene/pet.ts`, pure, on fakes of specs 016, 020, and 025. A `dog` selection, with both figures at home and the dog's home within `reach_m`, turns the twin by `faceTwin`. Then it pets: the clip's path or the reach's. Then it turns back. A run, reduced motion, quality level 1, 2D, or a lost figure cuts it, and a pause holds it. It says "The twin pets the dog." once (a new UI word, `figures.pet_note`), logs one `twin-pet` frame-log record, and sends no usage event (Q142, the named deviation).
+- **The corpus half** (T017, T018): `scripts/corpus/dog_intro_proposal.py`, the deterministic checker, and `corpus/proposals/dog-intro-2026-11-14.md`, the proposal. The checker reads the proposal as OK and the patch as "buildable: no" until his approval of the dog's model is on the line.
+- **Docs** (T020): `docs/studio/twin-petting.md`, the clip's brief. Data-flow row V1 already covers the clip.
+- **N-2** (rv-rework3-spec-022): `topicHashInput` runs from line 220 to line 233. 026's spec, plan, and human-patch note now say so.
+
+### What waits
+
+- **T003 stopped RED at the measure** (Q162; plan §3). On the twin's and the man's real models, at the dog's default home and heading, FR-007's spine lean leaves the hand 0.15 m to 0.30 m short at 75°, and SC-002 asks 0.08 m. Even about the hips, the man needs 74.8°. The new question on the page recommends a crouch through the hips and knees. Waiting on it: T003's tests and T004, the rig's reach.
+- **T005 and T006** (the `petting` state and the closed lists) wait for spec 025's code. It changes the same lines for `fleeing`, and a RED left here would fail the line (notes.md). **T011 to T016** wait for spec 025's code too (Q170): a later task finishes them from impl-025's reviewed tip.
+- **T019** (the patch) waits on his approval of the dog's model, with its line (spec 020).
+- T021 isn't this task's, and T022 is the review, by another worker.
+
+### Cost
+
+$0 and no model call at run time. The petting adds no request, no event, and no byte leaving the device. The studio's `petting.glb`, once approved, is one more twin clip under row V1, and RK5 counts it.
+
+### Reviews' non-blocking findings
+
+The spec's last review, rv-rework2-spec-026 (I-1, I-2, Nit-1 to Nit-3), was fixed by rework3-spec-026, and nothing from it is open. rv-rework3-spec-022's N-2 is corrected here (above). The code's review is T022's.
+
+### For the Author
+
+`docs/merge-requests/human-patches/026.md`: the corpus patch (item 1, built by T019 after your approval of the dog's model, and applied **back to back with spec 022's**, Q141, since each closes the three ready topics); the proposal (item 2, written); the studio clip, its approval, and your evaluations (items 3 to 5). Also yours: **the one ADR** for the "no usage event" deviation of specs 024, 025, and 026 (Q161), the docs role's draft merged by you on `main`; the slot `hobbies.room_dog_name` and Golden Q&A 9, in your own words only; the page's answers, T003's question among them.
+
+### Small runs (rule 4), on this branch's tip with verify-021 merged
+
+`pet-reach`, `pet-director`, `pet-degraded`, `pet-notes`, `vocabulary`, `words`, `live`, `builds`, `pet-reach-measure`: `Test Files 9 passed (9) · Tests 235 passed (235)`. `scripts/corpus/test_dog_intro_proposal.py`: 18 passed. The docs links: 0 failed. `make lint`: exit 0. The output is in full in the feature's note. D-V2's six (Q165) weren't hit.

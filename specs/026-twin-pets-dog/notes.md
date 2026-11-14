@@ -40,6 +40,38 @@ man: shoulder 1.438 m, a 0.269 m, b 0.407 m (to the middle finger's base), hips 
 
 What the measure assumes: the man is scaled to `figures.twin_height` (1.82 m, the `twin-figure` piece's `h`) from its 1.76 m, as `avatars.ts` scales a stand-in, and the twin keeps its own size. The dog's head is on the side its picture faces, which is glTF's +z at `heading_deg` 0 (spec 025's R-10, spec 020's fixture). There's no dog model on the line to check that against (spec 020's round 1 stopped). The two other facings are there for the question.
 
+### T005, T006: wait for spec 025's code
+
+Adding `petting` to `TWIN_STATES` and `TWIN_CLIP_ROLES` changes the emitted twin block (`emit.ts`'s `twinBlockOf`), RA8's played roles (`reach.ts`'s `playedRoles`), RI8's keys, and `twin-reach.test.ts`. That test reads `assets/twin/<role>.glb` for every role, so it would fail on a `petting.glb` that isn't there. Spec 025's T003 and T004, built beside this branch on `night/impl-025/impl-025`, change the same lines for `fleeing`. Writing T005's RED now would leave a failing test on the line, and splitting T006 would leave the same lines to merge twice. Both wait, and a later task does them from impl-025's reviewed tip. Nothing in T007 to T010 needs them: the director declares `PetActivity`, the same shape as the `pet` kind T006 adds (plan §4, "As built").
+
+### T007 to T010: the director, on fakes
+
+Each RED was committed before its GREEN:
+
+| Task | RED | GREEN |
+|---|---|---|
+| T007 / T008 | `pet-director.test.ts` failed at import (no `pet.ts`) | 15 passed |
+| T009 | `pet-degraded.test.ts`: 12 failed, 8 passed (the null figures, the levels at selection, the pause's hold, another piece's selection, and the fetch spy passed on T008's code) | with T007's: 35 passed |
+| T010 | `pet-notes.test.ts`: 6 failed, 3 passed (the frame log takes any kind at run time; tsc refuses it until `FrameEvent` has it) | 44 passed with T007's and T009's |
+
+T010's covering tests caught two pins on the closed list of UI keys: `vocabulary.test.ts`'s keys and count (77 to 78), and the known-good fixture's `ui-words.yaml`, which spec 018's words commit also changed. Both changed in T010's commit, the pin only. The key goes after `twin.stand_in`, not at the list's end, so it doesn't sit where spec 025's six chase keys go. T008's commit was checked with eslint only, and `make lint`'s tsc then found `config` refusing `undefined` (`exactOptionalPropertyTypes`). That was fixed in T010's commit.
+
+### T017, T018: the checker and the proposal
+
+T017 RED: `test_dog_intro_proposal.py`, 17 failed and 1 passed (the determinism case, both runs failing alike). GREEN: 18 passed. Plan R-13 records the CLI and the two departures in reading. T018: `corpus/proposals/dog-intro-2026-11-14.md`, written at that path (the container allowed it, so FR-017's fallback wasn't needed). The checker in proposal mode reads it as OK, "buildable: no". Line 4 says "the room's dog figure" where plan §3 said "in 3D", because the digit rule refuses the added digit (plan §3 records it). rv-rework3-spec-022's N-2: `topicHashInput` runs from line 220 (its comment) to line 233. "220 to 228" is corrected in the spec, the plan, the human-patch note, and the proposal. The second rework's record below keeps its old words.
+
+### T020: the docs
+
+`docs/studio/twin-petting.md`, the clip's brief (RK5 and row V1 named; Blender 5.2.3 and the exporter from main's list). Data-flow check: row V1's "the twin's model and clips in every 3D visit above the floor, the same for every visitor" covers `petting.glb`. No row lists the selectables or the twin's clips by name (`grep -n "snowboard\|chalkboard\|greeting\|idle.glb" docs/data-flow-disclosure.md`: none), so no sentence was added. There's no dashboard change and no ADR here: the one ADR (Q161) is the docs role's, and the notes name it as waiting. The merge-request note is `docs/merge-requests/2026-11-14-feat-026-twin-pets-dog.md`.
+
+### Step 5: verify-021 merged
+
+`night/verify-021/verify-021` (b3d043a2) ends item 4 with "verify-021: green, carrying D-V2's six (Q165)", so it merged (8b815f02) with no conflict. The small tests ran again on the merged tip, all passing (the merge-request note has the output).
+
+### Interruptions
+
+One hook finding, not a refusal: the post-edit hook reported two ruff findings in `dog_intro_proposal.py` (FURB188, ISC004). Both were fixed before the commit. No bash-gate refusal was hit, and nothing was respelled.
+
 ## The third rework (rework3-spec-026, on `night/rework3-spec-026/rework3-spec-026`, from rework2-spec-026's tip 8e676f55)
 
 Fixes for the Opus review rv-rework2-spec-026 (**not blocking**), done while a worker was free so impl-026 starts from a spec that matches the line's code. No code. Files: `intent/026-twin-pets-dog.md` (its rework line only) and `specs/026-twin-pets-dog/` (spec, plan, tasks, analysis, these notes). Read with `git --no-replace-objects`: `night/fix-020/fix-020` (3953b4c1: `compose/pick.ts`, its `memberRect` and `listOnly`; `compose/framing.ts`'s `Box`; `scene/bundle3d.ts`; `build/room/checks/rg.ts`'s `pickSweep`, lines 639 to 700; `room/scene.yaml`'s `selectables` and `twin-figure`; `src/choice/avatars.ts`'s `dog` shape; the tests that import them), spec 025's final tip bb1240be (plan §3, §3.1: the shell's z ±0.610), and the page's Q160 and its note.
