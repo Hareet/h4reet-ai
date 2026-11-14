@@ -266,7 +266,9 @@ export function createEat3d(options: Eat3dOptions): Eat3d {
     s.attached = false;
   };
 
-  /** Frees a split's own geometries (a cut mesh shares its chunk mesh's; the attributes are its source's and stay). */
+  /** Frees a split's own geometries, once each (a cut mesh shares its chunk mesh's). The attributes' arrays are its
+   *  source's and stay with it; a geometry's dispose also deletes their GPU buffers, which three.js uploads again at the
+   *  source's next draw where the source is still drawn (rv-rework-024's N-4). */
   const free = (s: Split): void => {
     for (const g of new Set([...s.aside, ...s.chunks.flat()].map((p) => p.mesh.geometry))) g.dispose();
   };
