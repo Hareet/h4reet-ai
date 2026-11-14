@@ -98,13 +98,24 @@ describe("the eating's scene keys (FR-002, FR-011)", () => {
 });
 
 describe("the repository's bundle (FR-002, FR-011)", () => {
-  const scene = repositoryBundle().scene;
+  const { scene, index } = repositoryBundle();
+  // Spec 004's FR-007: no room ID stands in a test, so each placement is found by its label's words.
+  const labelled = (words: string): string => {
+    const found = scene.placements.filter((p) => p.label !== null && index.ui[p.label] === words);
+    if (found.length !== 1 || !found[0]) throw new Error(`${found.length} placements labelled ${words}`);
+    return found[0].id;
+  };
 
-  it("carries edible on the desk (6), the busy sign, the laptop, and the chalkboard (4 each), null elsewhere", () => {
+  it(`carries edible on the desk (6), the busy sign, the ${labelled("Laptop")}, and the ${labelled("Chalkboard")} (4 each), null elsewhere`, () => {
     const edible = Object.fromEntries(
       scene.placements.filter((p) => p.edible !== null).map((p) => [p.id, p.edible?.chunks]),
     );
-    expect(edible).toEqual({ "work-desk": 6, "busy-sign": 4, laptop: 4, chalkboard: 4 });
+    expect(edible).toEqual({
+      [labelled("Desk")]: 6,
+      [labelled("Desk sign, busy")]: 4,
+      [labelled("Laptop")]: 4,
+      [labelled("Chalkboard")]: 4,
+    });
     expect(scene.placements.every((p) => p.edible === null || typeof p.edible.chunks === "number")).toBe(true);
   });
 

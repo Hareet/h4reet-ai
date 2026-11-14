@@ -27,6 +27,8 @@ const swapped = vi.hoisted(() => ({
   renderer: null as ((parameters: unknown) => unknown) | null,
   /** Each stage scene.ts gives the selectables' picker (its resize), in order. */
   picked: [] as { w: number; h: number; reserved?: readonly (readonly number[])[] }[],
+  /** The placement the stood-in reach names: PIECE, set below once the bundle is read. */
+  reach: "",
 }));
 
 // The picker as built, its stages recorded (I-1: what scene.ts reserves in the stacked layout).
@@ -67,7 +69,7 @@ vi.mock("three", async (importOriginal) => {
 // The reach, stood in: the busy sign for any pose.
 vi.mock("../../src/room/eat/press", async (importOriginal) => {
   const own = await importOriginal<typeof import("../../src/room/eat/press")>();
-  return { ...own, edibleReach: () => "busy-sign" };
+  return { ...own, edibleReach: () => swapped.reach };
 });
 
 afterEach(() => {
@@ -75,7 +77,15 @@ afterEach(() => {
   swapped.renderer = null;
 });
 
-const PIECE = "busy-sign";
+// Spec 004's FR-007: no room ID stands in a test, so the busy sign is found in the repository's bundle by its label's
+// words.
+const PIECE = ((): string => {
+  const { scene, index } = repositoryBundle();
+  const found = scene.placements.filter((p) => p.label !== null && index.ui[p.label] === "Desk sign, busy");
+  if (found.length !== 1 || !found[0]) throw new Error(`${found.length} placements labelled as the busy sign`);
+  return found[0].id;
+})();
+swapped.reach = PIECE;
 
 /** The repository's 3D part with the dinosaur's files bundled, and their bytes by URL. */
 function dinosaurPart(): {

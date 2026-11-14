@@ -159,6 +159,18 @@ describe("the walking view passes B on (FR-012)", () => {
 describe("the press's gate (FR-001; US1 AS2, AS3)", () => {
   const part = repositoryBundle().scene as RoomScene;
   const targets = edibleTargets(part);
+  // Spec 004's FR-007: no room ID stands in a test, so each placement is found by its label's words.
+  const labelled = (words: string): string => {
+    const { index } = repositoryBundle();
+    const found = part.placements.filter((p) => p.label !== null && index.ui[p.label] === words);
+    if (found.length !== 1 || !found[0]) throw new Error(`${found.length} placements labelled ${words}`);
+    return found[0].id;
+  };
+  const DESK = labelled("Desk");
+  const LAPTOP = labelled("Laptop");
+  const SIGN = labelled("Desk sign, busy");
+  const CHALKBOARD = labelled("Chalkboard");
+  const BICYCLE = labelled("Bicycle");
   const options = {
     reach: part.walking.reach_m,
     cone: (part.walking.reach_cone_deg * Math.PI) / 180,
@@ -182,39 +194,39 @@ describe("the press's gate (FR-001; US1 AS2, AS3)", () => {
   const model = (): boolean => true;
 
   it("targets only the edible placements, in scene order", () => {
-    expect(targets.map((t) => t.id)).toEqual(["work-desk", "laptop", "busy-sign", "chalkboard"]);
+    expect(targets.map((t) => t.id)).toEqual([DESK, LAPTOP, SIGN, CHALKBOARD]);
   });
 
   it("takes the dinosaur's press at the desk", () => {
     const meal = createMeal({ regrow_s: 20, now: () => 0 });
-    const piece = edibleReach(before("work-desk"), targets, options);
-    expect(piece).toBe("work-desk");
-    expect(eatTarget(base, piece, meal, model)).toBe("work-desk");
+    const piece = edibleReach(before(DESK), targets, options);
+    expect(piece).toBe(DESK);
+    expect(eatTarget(base, piece, meal, model)).toBe(DESK);
     expect(availabilityFor(base, piece, meal, model).reached).toEqual({ edible: true, model: true, canBite: true });
   });
 
   it.each(["woman", "man", "dog"])("ignores the %s's press", (avatar) => {
     const meal = createMeal({ regrow_s: 20, now: () => 0 });
-    expect(eatTarget({ ...base, avatar }, "work-desk", meal, model)).toBeNull();
+    expect(eatTarget({ ...base, avatar }, DESK, meal, model)).toBeNull();
   });
 
   it("ignores a press at a piece that isn't edible (US1 AS3)", () => {
     const meal = createMeal({ regrow_s: 20, now: () => 0 });
-    const piece = edibleReach(before("bicycle"), targets, options);
+    const piece = edibleReach(before(BICYCLE), targets, options);
     expect(piece).toBeNull();
     expect(eatTarget(base, piece, meal, model)).toBeNull();
   });
 
   it("ignores a press while a chunk is in flight", () => {
     const meal = createMeal({ regrow_s: 20, now: () => 0 });
-    meal.addPiece("laptop", { centres: [[0, 0, 0]], asideEmpty: false });
-    expect(meal.bite("laptop", [0, 0, 0])).toBe(0);
-    expect(eatTarget(base, "work-desk", meal, model)).toBeNull();
-    expect(eatTarget(base, "laptop", meal, model)).toBeNull();
+    meal.addPiece(LAPTOP, { centres: [[0, 0, 0]], asideEmpty: false });
+    expect(meal.bite(LAPTOP, [0, 0, 0])).toBe(0);
+    expect(eatTarget(base, DESK, meal, model)).toBeNull();
+    expect(eatTarget(base, LAPTOP, meal, model)).toBeNull();
   });
 
   it("ignores a press at a piece on its stand-in", () => {
     const meal = createMeal({ regrow_s: 20, now: () => 0 });
-    expect(eatTarget(base, "work-desk", meal, () => false)).toBeNull();
+    expect(eatTarget(base, DESK, meal, () => false)).toBeNull();
   });
 });

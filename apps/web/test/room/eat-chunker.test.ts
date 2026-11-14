@@ -270,7 +270,7 @@ describe("the chunker on stub primitives (plan.md §5.2)", () => {
   });
 
   it("reads a primitive's mesh name: the parent group's for a multi-primitive mesh, its own for a one-primitive one", () => {
-    const laptop = { name: "laptop", isMesh: false, parent: null };
+    const laptop = { name: "fx-laptop", isMesh: false, parent: null };
     const base = { name: "base", isMesh: false, parent: laptop };
     expect(meshNameOf({ name: "base_1", isMesh: true, parent: base })).toBe("base");
     expect(meshNameOf({ name: "base_4", isMesh: true, parent: base })).toBe("base");
@@ -359,17 +359,17 @@ describe("keep-out boxes from the mounts on a piece", () => {
     const model = { url: "", sha256: "", bytes: 0, bounds: measured, texture_bytes: 0 };
     const part = {
       pieces: {
-        laptop: piece(1, { port: { at: [0.155, 0.008, 0.05], turn: { x: 0, y: 180, z: 0 } } }),
-        charger: piece(2, {}, [box([1, 1, 1], [0, 0, 0])]),
+        "fx-laptop": piece(1, { port: { at: [0.155, 0.008, 0.05], turn: { x: 0, y: 180, z: 0 } } }),
+        "fx-charger": piece(2, {}, [box([1, 1, 1], [0, 0, 0])]),
       },
-      placements: [placement("laptop", "laptop", null)],
+      placements: [placement("fx-laptop", "fx-laptop", null)],
       switches: [
         {
           id: "power",
-          piece: "charger",
+          piece: "fx-charger",
           poses: {
             plugged: {
-              mount: { on: "laptop", anchor: "port", offset: [0, 0, 0], turn: { x: 0, y: 0, z: 0 } },
+              mount: { on: "fx-laptop", anchor: "port", offset: [0, 0, 0], turn: { x: 0, y: 0, z: 0 } },
               glows: [],
             },
             away: {
@@ -382,7 +382,7 @@ describe("keep-out boxes from the mounts on a piece", () => {
         },
       ],
     } as unknown as Part;
-    const boxes = keepOutBoxes(part, "laptop");
+    const boxes = keepOutBoxes(part, "fx-laptop");
     expect(boxes).toHaveLength(1);
     const [b] = boxes;
     expect(b?.min[0]).toBeCloseTo(0.155, 6);
@@ -395,7 +395,22 @@ describe("keep-out boxes from the mounts on a piece", () => {
 // --------------------------------------------------------------------------------------------------------------------
 // The four real pieces
 // --------------------------------------------------------------------------------------------------------------------
-const PIECES = ["work-desk", "busy-sign", "laptop", "chalkboard"] as const;
+// Spec 004's FR-007: no room ID stands in a test, so each real piece is found in the repository's bundle by its
+// placement's label words, and the charger by the switch whose pose mounts on the laptop.
+const bundled = repositoryBundle().scene;
+const labelled = (words: string): string => {
+  const { index } = repositoryBundle();
+  const found = bundled.placements.filter((p) => p.label !== null && index.ui[p.label] === words);
+  if (found.length !== 1 || !found[0]) throw new Error(`${found.length} placements labelled ${words}`);
+  return found[0].id;
+};
+const DESK = labelled("Desk");
+const SIGN = labelled("Desk sign, busy");
+const LAPTOP = labelled("Laptop");
+const CHALKBOARD = labelled("Chalkboard");
+const CHARGER =
+  bundled.switches.find((s) => Object.values(s.poses).some((pose) => pose.mount.on === LAPTOP))?.piece ?? "";
+const PIECES = [DESK, SIGN, LAPTOP, CHALKBOARD] as const;
 type PieceId = (typeof PIECES)[number];
 
 interface Real {
@@ -456,9 +471,9 @@ const isAside = (r: Real, hit: { p: number; t: number } | null): boolean =>
   hit !== null && r.mask[hit.p]?.[hit.t] === 1;
 
 describe("the chunker on the four real pieces (FR-003, FR-004, FR-015, SC-001)", () => {
-  it("reads the laptop's mesh names as three's GLTFLoader gives them: base's 4 primitives and the one charge-light", async () => {
+  it(`reads the ${LAPTOP}'s mesh names as three's GLTFLoader gives them: base's 4 primitives and the one charge-light`, async () => {
     const loader = new GLTFLoader();
-    for (const id of ["laptop", "busy-sign"] as const) {
+    for (const id of [LAPTOP, SIGN] as const) {
       const bytes = new Uint8Array(readFileSync(join(REPO, "assets/room", `${id}.glb`)));
       const root: Object3D = (await loader.parseAsync(bytes.slice().buffer, "")).scene;
       const names: string[] = [];
@@ -468,16 +483,17 @@ describe("the chunker on the four real pieces (FR-003, FR-004, FR-015, SC-001)",
       // The helper's rebuild of the loader's tree gives the same names in the same order.
       expect(of(id).input.primitives.map((p) => p.mesh)).toEqual(names);
     }
-    const names = of("laptop").input.primitives.map((p) => p.mesh);
+    const names = of(LAPTOP).input.primitives.map((p) => p.mesh);
     expect(names.filter((n) => n === "base")).toHaveLength(4);
     expect(names.filter((n) => n === "charge-light")).toHaveLength(1);
     expect([...new Set(names)].sort()).toEqual(["base", "charge-light", "keyboard", "lid", "screen", "trackpad"]);
   });
 
   it.each([
-    ["busy-sign", "lettering", "busy-sign-stand"],
-    ["chalkboard", "slate", "frame"],
-    ["laptop", "screen", "lid"],
+    // The sign's stand is a mesh the model names after the piece: `<piece>-stand`.
+    [SIGN, "lettering", `${SIGN}-stand`],
+    [CHALKBOARD, "slate", "frame"],
+    [LAPTOP, "screen", "lid"],
   ] as const)("%s: sets aside its face's mesh %s, and what holds it up (%s, behind its centre)", (id, role, holder) => {
     const r = of(id);
     expect(meshIndices(r, role).length).toBeGreaterThan(0);
@@ -490,8 +506,8 @@ describe("the chunker on the four real pieces (FR-003, FR-004, FR-015, SC-001)",
     expect(asideCount(r, holder)).toBeGreaterThan(0);
   });
 
-  it("work-desk: sets aside the top under each of its 9 mounts (7 placements and the charger's two desk poses)", () => {
-    const r = of("work-desk");
+  it(`${DESK}: sets aside the top under each of its 9 mounts (7 placements and the ${CHARGER}'s two desk poses)`, () => {
+    const r = of(DESK);
     expect(r.input.keepOuts).toHaveLength(9);
     for (const box of r.input.keepOuts) {
       const centre: V3 = [(box.min[0] + box.max[0]) / 2, 2, (box.min[2] + box.max[2]) / 2];
@@ -501,17 +517,17 @@ describe("the chunker on the four real pieces (FR-003, FR-004, FR-015, SC-001)",
     }
   });
 
-  it("laptop: sets aside its port, where the plugged charger mounts", () => {
-    const r = of("laptop");
+  it(`${LAPTOP}: sets aside its port, where the plugged ${CHARGER} mounts`, () => {
+    const r = of(LAPTOP);
     expect(r.input.keepOuts).toHaveLength(1);
-    const port = scene.pieces.laptop?.anchors.port?.at as V3;
+    const port = scene.pieces[LAPTOP]?.anchors.port?.at as V3;
     const hit = firstHit(r.input.primitives, [port[0] + 0.05, port[1], port[2]], [-1, 0, 0]);
     expect(hit && r.input.primitives[hit.p]?.mesh).toBe("base");
     expect(isAside(r, hit)).toBe(true);
   });
 
-  it("laptop: sets aside the charge-light mesh and the base within 6 mm of its point; the screen glow takes no ball", () => {
-    const r = of("laptop");
+  it(`${LAPTOP}: sets aside the charge-light mesh and the base within 6 mm of its point; the screen glow takes no ball`, () => {
+    const r = of(LAPTOP);
     expect(asideCount(r, "charge-light")).toBe(totalOf(r, "charge-light"));
     const glow = r.input.glows.find((g) => g.id === "charge-light") as GlowPoint;
     expect(glow.radius).toBeCloseTo(0.006, 9);
