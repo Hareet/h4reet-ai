@@ -17,3 +17,7 @@ room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
 ## T003 (RED)
 
 `vitest run test/room/twin-states.test.ts test/room/chase-states.test.ts test/room/bundle.test.ts test/room/schema.test.ts`: 7 failed | 324 passed. The schema case (`fleeing` refused at `figures.twin.clips.fleeing`) passes before T004 too, as "a state outside the twin's closed list"; it holds the refusal once `fleeing` joins the list.
+
+## T004 (GREEN)
+
+`vitest run` T003's four files and those covering `twin-states.ts`, `ri.ts`, `emit.ts`, `reach.ts` (tasks.md's list, 14 files): `Test Files  14 passed (14)`, `Tests  476 passed (476)`. `make lint`: exit 0.
