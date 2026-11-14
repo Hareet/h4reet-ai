@@ -103,6 +103,60 @@ docs links: 0 failed, 2458 relative links in 410 files
 
 The measure's table and the two corrections (the RED commit's mixer cases, d459cace; a type, 32909058) are in specs/026-twin-pets-dog/notes.md, "impl2-026". No refusal was hit.
 
+## rework-026: rv-impl-026's findings (`night/rework-026/rework-026`, from 13eaf76f, Opus 5.5)
+
+Session: /home/h4reet/h4reet-ai/night/2026-11-13/rework-026 · Repo hooks active: the commit hooks ran (gitleaks, arrival check) on every commit. rv-impl-026 was blocking (Opus), with one finding, B-1. Its review file wasn't mounted in this container, so the findings were read from the page's summary of them (Stacks, rv-impl-026's row; the page's Q243). Each RED commit came before its GREEN, and each fix's plan.md change is in its commit.
+
+| Finding | What changed | RED, then GREEN |
+|---|---|---|
+| **B-1** (FR-023, Q143; blocking) | `scripts/corpus/dog_intro_proposal.py`. A quoted span exempts its digits only when it is the dog's approval's `disclosure_line` whole, or lies inside his consent's own sentence (main's `specs/017-the-night-shift/spec.md`, line 48). An "Answered:" line holding "recommend" in any case or spelling never fills Golden Q&A 9. This includes "Answered: as recommended", "Recommended", "recomended", "the recommendation", and a lower-case or bold label. An empty or wordless Golden Q&A 9 answer is refused. Any other numbered item the patch adds to `04` is refused. Proposal mode looks up the same two sources the same way. Plan R-13's "As built (rework-026, B-1)" records it. | 2384c828: 8 failed, 20 passed; 3f7e6187: 28 passed |
+| **I-2**, answered by Q226 (taken provisionally) | On a run's cut, the hips and the six leg bones are the clip's from the cut's first frame. Only the arm and the spine ease out over 0.2 s. `pet.ts`'s `reach` gained `legs`, and `applyReach` gained `legs`. FR-011, User Story 2 scenario 4, plan R-04 and §5, and T014 are amended, each marked Q226. | 01b4e1c8: 3 failed, 29 passed; 5fa97c2d: 86 passed |
+| **I-1** (FR-027) | `pet.frame` and the reach no longer allocate per frame, and this is measured. Removing the lines the review named didn't move the measure: V8 was boxing fractions. Points and every number written per frame now live in class instances. The new `applyReachLayer(rig, layer, cfg)` reads the weight from the director's `reach`. Plan R-04's "As built (I-1)" has the details. T016's text covers both `pet.frame` and `applyReachLayer`, and the wired twin once T014 is built. T004's "preallocated" is corrected. b8c63998 makes the bench wait for TurboFan before it measures, because under load one run read 14 bytes a frame. | 6dac6f3b: 2 failed (48 and 1,901 bytes a frame); ac17ffa4: 0.27 and 0.44 bytes a frame |
+| **N-1 to N-5**, `pet-degraded.test.ts:127` | N-1: Q212's leftovers in the spec. N-2: the studio brief's stand-in line. N-3: claims in the notes without pasted output, which this section and the stack's item 9 now carry. N-4: the checker's untested refusals (`evals/agent-config`, `redteam/forbidden-actions.sh`, `assets`). N-5: T011a and T011b. Line 127: the fetch stub comes off in a `finally`. They were read from the page's summary, so the page asks rv-rework-026 to check them against the review's words (Q243). | 90b96aaf: 28 passed; `pet-degraded` 20 passed |
+
+**For his hand, a CLAUDE.md line** (rv-impl-026's feedback, in its words, from the page; a proposal only, and never written to CLAUDE.md by a worker), under "Things Claude gets wrong":
+
+> Writing a checker rule against a page or file's wording that matches only one spelling ("Answered: recommended"): match case-insensitively and test the variants, as for bash-gate rules.
+
+**Questions this rework put on the page**: Q243 (the review file wasn't mounted), Q244 (should Golden Q&A 9's answer equal one whole quotation of his?), Q245 (refusing "recommend" even in his own words), Q246 (FR-027's bar measured as the heap's growth). Each has its recommended answer there.
+
+**Still waiting, unchanged**: T005, T006, and T011 to T016 wait for impl-025's reviewed tip (Q170). T016's timing half and its wired-twin half are included. T019 waits on his approval of the dog's model. This branch merges nothing.
+
+### Small runs (rule 4), rework-026, on b8c63998
+
+```
+$ python3 -m pytest -q scripts/corpus/test_dog_intro_proposal.py
+............................                                             [100%]
+28 passed in 4.11s
+
+$ python3 -I scripts/corpus/dog_intro_proposal.py proposal corpus/proposals/dog-intro-2026-11-14.md
+OK: proposal dog-intro-2026-11-14.md
+buildable: no (FR-019: waiting on his approval of the dog's model, with a disclosure line)
+
+$ npx vitest run test/room/pet-bench.test.ts test/room/pet-degraded.test.ts test/room/pet-director.test.ts test/room/pet-notes.test.ts test/room/pet-reach-measure.test.ts test/room/pet-reach-rig.test.ts test/room/pet-reach.test.ts test/room/avatar-gait.test.ts
+pet.frame: 0.26 bytes a frame
+applyReachLayer at weight 1: 0.56 bytes a frame; legs off 0.42
+applyReachLayer at weight 0.37: 0.42 bytes a frame; legs off 0.42
+ Test Files  8 passed (8)
+      Tests  99 passed (99)
+   Start at  19:54:51
+   Duration  63.37s (tests 80%, import 16%, transform 4%)
+
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+788 files already formatted
+# then shellcheck over the repository's scripts: no finding; make exited 0
+```
+
+The vitest files are every `pet-*` test this rework added or changed: `pet-bench` (new), `pet-degraded`, `pet-director`, and `pet-reach-rig`. They also include those covering `pet.ts` and `pet-reach.ts` (`pet-notes`, `pet-reach`, `pet-reach-measure`) and `avatar-gait`, whose rig the reach shares. No other test imports either file. The heap figures are under one heap number (12 bytes), and the test's bar is 8 bytes a frame. No hook or bash-gate refusal was hit.
+
 ## Cost and data-flow impact
 
 $0 and no model call at run time. The petting adds no request, no event, and no byte leaving the device (FR-025; `pet-degraded.test.ts`'s fetch spy). The studio's `petting.glb`, once his approval bundles it, is one more twin clip that row V1 already covers, and RK5 counts it. This session's own cost is the night's, on the subscription.

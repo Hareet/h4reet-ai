@@ -990,3 +990,34 @@ The spec's last review, rv-rework2-spec-026 (I-1, I-2, Nit-1 to Nit-3), was fixe
 `pet-reach`, `pet-director`, `pet-degraded`, `pet-notes`, `vocabulary`, `words`, `live`, `builds`, `pet-reach-measure`: `Test Files 9 passed (9) · Tests 235 passed (235)`. `scripts/corpus/test_dog_intro_proposal.py`: 18 passed. The docs links: 0 failed. `make lint`: exit 0. The output is in full in the feature's note. D-V2's six (Q165) weren't hit.
 
 impl2-026, on f1901d29: `pet-reach-rig`, `pet-reach`, `pet-reach-measure`, `avatar-gait`: `Test Files 4 passed (4) · Tests 50 passed (50)`; `pet-director`, `pet-degraded`, `pet-notes` (`PetConfig` gained `crouch_max_m`): `Test Files 3 passed (3) · Tests 44 passed (44)`; `make lint`: exit 0. In full in the feature's note.
+
+### Rule 6's rework (`night/rework-026/rework-026`, from 13eaf76f, Opus 5.5)
+
+rv-impl-026 was blocking, with one finding, in its words: "the proposal's checker lets through what FR-023 says it must refuse". Its review file wasn't mounted in this container, so its findings were read from the page's summary (Q243). This branch merges nothing. T005, T006, and T011 to T016 still wait for impl-025's reviewed tip (Q170).
+
+- **B-1** (FR-023, Q143): the checker exempts a quoted span only as the dog's approval's `disclosure_line` whole, or inside his consent's own sentence (main's spec 017, line 48). It refuses any "Answered:" line holding "recommend" in any case or spelling, "Answered: as recommended" included. It also refuses an empty or wordless Golden Q&A 9 answer, and any other numbered item added to `04`. RED 2384c828 (8 failed, 20 passed), GREEN 3f7e6187 (28 passed). Plan R-13's "As built" records it.
+- **I-2, by Q226** (taken provisionally): on a run's cut, the hips and legs are the clip's from the cut's first frame, and only the arm and the spine ease over 0.2 s. RED 01b4e1c8 (3 failed, 29 passed), GREEN 5fa97c2d (86 passed). FR-011, plan R-04 and §5, and T014 are marked Q226.
+- **I-1** (FR-027): no allocation per frame in `pet.frame` or the reach's new `applyReachLayer`, measured by `pet-bench.test.ts`. RED 6dac6f3b (48 and 1,901 bytes a frame), GREEN ac17ffa4 (0.27 and 0.44). T016's text covers both functions. No note says "preallocated" without the run.
+- **N-1 to N-5 and `pet-degraded.test.ts:127`**: 90b96aaf. Each is listed in the feature's note.
+
+**For his hand, a CLAUDE.md line** (rv-impl-026's feedback, in its words; a proposal, not written by any worker), under "Things Claude gets wrong":
+
+> Writing a checker rule against a page or file's wording that matches only one spelling ("Answered: recommended"): match case-insensitively and test the variants, as for bash-gate rules.
+
+New on the page: Q243 to Q246. Small runs on b8c63998 (in full in the feature's note):
+
+```
+$ python3 -m pytest -q scripts/corpus/test_dog_intro_proposal.py
+28 passed in 4.11s
+$ python3 -I scripts/corpus/dog_intro_proposal.py proposal corpus/proposals/dog-intro-2026-11-14.md
+OK: proposal dog-intro-2026-11-14.md
+buildable: no (FR-019: waiting on his approval of the dog's model, with a disclosure line)
+$ npx vitest run test/room/pet-bench.test.ts test/room/pet-degraded.test.ts test/room/pet-director.test.ts test/room/pet-notes.test.ts test/room/pet-reach-measure.test.ts test/room/pet-reach-rig.test.ts test/room/pet-reach.test.ts test/room/avatar-gait.test.ts
+ Test Files  8 passed (8)
+      Tests  99 passed (99)
+$ make lint
+All matched files use Prettier code style!
+All checks passed!
+788 files already formatted
+# eslint, tsc, and shellcheck: no finding; make exited 0
+```
