@@ -140,4 +140,4 @@ None: $0; no request, no byte leaves the device, no disclosure entry; no model c
 - Look approval of the gait on the real models, with the hips' lowering (SC-005); the amplitudes are one-line edits in `gait.ts` (README).
 - No human-only patch (`docs/merge-requests/human-patches/019.md` says so).
 - Open for others: T020 (a review of the rework by a worker who didn't write it), T011 (the supervisor ticks it with review-019's verdict), T012 (the stack's one `make check`).
-- Interruptions: one permission prompt denied in this session (a `cd` then `sed -n` over the Makefile, to read its test target); read it with `grep` instead. No hook or bash-gate refusal.
+- Interruptions: one permission prompt denied in this session (a `cd` then `sed -n` over the Makefile, to read its test target); read it with `grep` instead. One bash-gate refusal: `rm -rf /tmp/scratch019` ("recursive delete outside workspace"), the rework's scratch scripts and build logs; not retried, the directory is left in place.
