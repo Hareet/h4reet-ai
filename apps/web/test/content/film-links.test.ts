@@ -51,7 +51,9 @@ const tracked = (path: string): boolean =>
   execFileSync("git", ["-C", REPO, "ls-files", "--error-unmatch", "--", path], { stdio: ["ignore", "pipe", "ignore"] })
     .toString()
     .trim() !== "";
+/** In a checkout, git's answer; in the gate's export (git archive, no .git), every file there is the commit's. */
 const isTracked = (path: string): boolean => {
+  if (!existsSync(join(REPO, ".git"))) return existsSync(join(REPO, path));
   try {
     return tracked(path);
   } catch {
