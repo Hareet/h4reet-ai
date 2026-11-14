@@ -584,3 +584,92 @@ What waits for you (patch 020, `docs/merge-requests/human-patches/020.md`; none 
 5. Only if needed: a studio tool (item 5), C5's words (item 7).
 
 Also: the questions on the morning page with their recommended answers (the spec's Q1 to Q6, D1 to D5; Q77, Q78 taken; Q87; and rework-020's, in `/night/io/out/questions.md`). Open for others: N1 (the report's `Likeness` line) and N2 (two test comments), for a later task; verify-020's merge into the line; T013, the stack's one `make check`.
+
+### Verification (rule 7, verify-020)
+
+Branch `night/verify2-020/verify2-020` (it replaces verify-020, which started before verify2-019 ended and stopped, changing nothing; Q166), from fix-020's tip 3953b4c1, by a different worker (Opus 5.5) from item 3's implementers. Read under Q165 (answered: recommended), as verify2-019 read it: a failure that only a pending test-amendment patch for the Author's hand fixes, shown passing with that patch on a copy of the line's tree, is carried, not fixed and not skipped.
+
+#### The merge
+
+Before it, item 2's "Verification (rule 7, verify-019)" at verify2-019's tip c1c4895f was read: its last line is "verify-019: green, carrying D-V2's six (Q165)". So the merge went ahead.
+
+`git merge refs/heads/night/verify2-019/verify2-019` (c1c4895f), merge commit b4ef7034 (merge base 4bd25ce3). Resolutions:
+- **This note** conflicted (both branches appended after item 2's "For the Author"). Before item 3, fix-020's side differed from the merge base only by the `---` before item 3. Kept items 1 and 2 whole as verify2-019 has them (item 2's "For the Author" with its "Open for others" and "Interruptions" lines, and "Verification (rule 7, verify-019)"), then `---`, then item 3 whole as fix-020 has it, in item order. Checked by diff: the part before item 3 equals verify2-019's file line for line, item 3 equals fix-020's.
+- **Code**: `apps/web/build/room/emit.ts`, `apps/web/src/room/app.ts`, `apps/web/src/room/compose/bundle.ts`, `apps/web/src/room/layout.ts`, `apps/web/src/room/scene/avatars.ts`, and `docs/data-flow-disclosure.md` auto-merged, with no conflict. No resolution by hand, so none by the specs' words.
+
+#### Runs at the merged tip (b4ef7034)
+
+The setup target was run first (no `node_modules`).
+
+Item 3's test files (every test file it added or changed, with `data-only`, which failed in impl-020's run):
+
+```
+cd apps/web && npx vitest run test/room/avatars-compose.test.ts test/room/avatars.test.ts test/room/bundle.test.ts
+  test/room/compose.test.ts test/room/dog-avatar.test.ts test/room/dog-line.test.ts test/room/dog-report.test.ts
+  test/room/dog-run.test.ts test/room/likeness-line-anywhere.test.ts test/room/likeness-visitor.test.ts
+  test/ui/text-copy.test.ts test/room/data-only.test.ts
+ Test Files  12 passed (12)
+      Tests  448 passed (448)
+```
+
+(Item 3's changed fixture, `test/fixtures/room/bad/RA9/expect.yaml`, is read by the fixture suites in the full run below.)
+
+All of `apps/web` (2807 s):
+
+```
+cd apps/web && npx vitest run
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ Test Files  3 failed | 185 passed (188)
+      Tests  6 failed | 3719 passed | 1 skipped (3726)
+```
+
+Those six are exactly D-V2's, the same as verify-018's and verify-019's full runs. `test/room/twin-2d.test.ts` passed in the full run.
+
+**`test/room/data-only.test.ts`, settled.** impl-020's run had "says the twin can't talk about its topic yet, in its phrase, and calls no model" fail, in a 20-file run and alone. On the line it passes: in the item-3 run above, in the full run, and alone afterwards (`Test Files 1 passed (1) · Tests 31 passed (31)`). verify-018 and verify2-019 saw it pass too. Item 3 doesn't touch the test or the talk path. Nothing to fix.
+
+```
+pytest -q -p no:cacheprovider --import-mode=importlib scripts/assets
+95 passed in 6.31s
+pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+FAILED evals/test_disclosure.py::test_the_rooms_rows_are_in_its_own_section_with_the_specs_words
+1 failed, 79 passed in 1.15s
+```
+
+The eval's one failure is D-V2's (V1's Carries with T029's H-11 clause, "… once, when the conversation panel first opens in the split layout (spec 018) …"); item 3's D1 sentence adds none.
+
+**Carried (Q165), confirmed on a copy.** `git archive HEAD` (b4ef7034) into a fresh `/tmp` folder, `git apply docs/merge-requests/proposed/018-verify-test-amendments.patch` there (`--check` clean; 4 files, 43 insertions, 11 deletions, still applying with item 3's disclosure change in the tree), the worktree's `node_modules` linked in. Never applied on the line; no test file edited.
+
+```
+cd <copy> && pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+80 passed in 1.06s
+cd <copy>/apps/web && npx vitest run test/disclosure.test.ts test/room/legibility.test.ts test/room/report.test.ts
+ Test Files  3 passed (3)
+      Tests  56 passed (56)
+```
+
+`make lint`: exit 0 (shellcheck's file list left out):
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+771 files already formatted
+```
+
+#### Fixed
+
+Nothing: no failure outside D-V2's six, so no code, test, or plan changed. The dog stays the stand-in until his look approval (rule 2); its likeness line and credits stay as rework-020 and fix-020 left them. Not fixed, as fix-020 recorded: rv-rework-020's N1, N2, N5.
+
+Interruptions: none. No hook or bash-gate refusal in this session.
+
+verify-020: green, carrying D-V2's six (Q165)
