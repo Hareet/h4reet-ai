@@ -64,7 +64,7 @@ No principle deferred. No endpoint, model call, or data-flow row (CLAUDE.md's "n
 ## 5. Files expected to touch
 
 New: `apps/web/src/room/scene/gait.ts`; `apps/web/test/room/gait.test.ts`; `apps/web/test/room/gait-rig.test.ts`; `apps/web/test/room/avatar-gait.test.ts`.
-Changed: `apps/web/src/room/scene/avatars.ts` (the controller: §2.3); `apps/web/src/room/stage.ts` (the signal's type only); `apps/web/test/helpers/room-avatars.ts` (fixture rig gets the six leg bones); `apps/web/test/room/avatar-driver.test.ts` (its "slides in idle-holding" expectations now hold for a model without leg bones only); `apps/web/README.md` (a short note); possibly `apps/web/src/lookdev/*` (T010).
+Changed: `apps/web/src/room/scene/avatars.ts` (the controller: §2.3); `apps/web/src/room/stage.ts` (the signal's type only); `apps/web/test/helpers/glb.ts` (an opt-in `legs` option on the fixture rig at line 1174, which adds the six leg bones, so no other test's skeleton changes); `apps/web/test/room/avatar-driver.test.ts` (its "slides in idle-holding" expectations now hold for a model without leg bones only); `apps/web/README.md` (a short note); possibly `apps/web/src/lookdev/*` (T010).
 Not touched: `scene/walking.ts`, `scene/figure.ts`, `walk/*`, `room/scene.yaml`, compose and build code, `assets/**`, `.claude/**`, CLAUDE.md, REVIEW.md, the constitution, `corpus/**`, `tools/gates/**`, `evals/agent-config/**`, `assets/policy/**`.
 
 Overlap with the night's other items: `avatars.ts` and `stage.ts` are shared ground with the dog, dinosaur, and twin-running specs (d, e, h, i); this stack's edits to them are additive and small, and the implementer merges this branch first (the supervisor's one line).
