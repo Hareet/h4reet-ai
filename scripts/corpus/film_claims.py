@@ -30,7 +30,7 @@ R4  the new text states no number outside a slot (digits, or G1's number words; 
 R5  every quotation in the new text is the Author's words as `SCRIPTS.md` quotes them or his one sentence in the
     disclosure's row F3 (the checker's fixed lists, HIS_WORDS and F3_WORDS), or a cited file's own text: a carried or
     in-part row's source only, never the proposal being checked, a file under `films/`, `corpus/proposals/`,
-    `docs/merge-requests/`, `specs/`, or `intent/`, or a file outside the repository, its path normalised and
+    `docs/merge-requests/`, `specs/`, `intent/`, or `scripts/corpus/`, or a file outside the repository, its path normalised and
     resolved; and the disclosure, when cited, is read without row F3.
 R6  with --third-party, no quoted span longer than a title, anywhere in the proposal, that the repository doesn't hold.
 R7  the summary says the denylist was not applied: this checker never reads `corpus/intake/private/`.
@@ -328,9 +328,17 @@ def in_root(root: Path, path: str) -> bool:
 
 
 # The trees R5 never reads as a cited file's text: the films' own text (scripts, captions, notes, materials;
-# rv-rework-022's F-1), and the agents' proposals, merge-request notes, specs, and intents (rv-rework3-022's B-4,
-# page Q217). Each is the agents' writing about a source, not the source.
-UNREAD = ("films", "corpus/proposals", "docs/merge-requests", "specs", "intent")
+# rv-rework-022's F-1), the agents' proposals, merge-request notes, specs, and intents (rv-rework3-022's B-4, page
+# Q217), and this checker and its tests, whose patterns and fixtures quote amounts (rv-rework4-022's F-4, page Q235).
+# Each is the agents' writing about a source, not the source.
+UNREAD = (
+    "films",
+    "corpus/proposals",
+    "docs/merge-requests",
+    "specs",
+    "intent",
+    "scripts/corpus",
+)
 GLOB = "*?["
 
 
