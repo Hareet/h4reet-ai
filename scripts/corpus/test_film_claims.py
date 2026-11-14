@@ -523,9 +523,10 @@ def test_a_number_in_brackets_or_a_ratio_fails(
 def test_claim_tags_and_paths_read_no_number_but_brackets_and_ratios_do() -> None:
     tags = "- `[P]` `[?][A]` [A 2026-11-06] [?] [A] [slot `site.prod_containers`] [A][A 2026-11-09]\n"
     assert fc.numbers_in(fc.without_exempt(tags, quotes=())) == []
-    paths = "`docs/adr/0020-gateway.md`, deploy/compose.yaml, films/kill-switch-b2/, 2026-11-13/14, `v2/notes`\n"
+    paths = "`docs/adr/0020-gateway.md`, deploy/compose.yaml, films/kill-switch-b2/, 2026-11-13/14\n"
     assert fc.numbers_in(fc.without_exempt(paths, quotes=())) == []
-    prose = "[3 runs] [twelve cases] 24/7 `52/52`\n"
+    # `v2/notes` is no path since rv2-rework2-022's B-1: the repository has no top-level `v2`.
+    prose = "[3 runs] [twelve cases] 24/7 `52/52` `v2/notes`\n"
     assert fc.numbers_in(fc.without_exempt(prose, quotes=())) == [
         "3",
         "twelve",
@@ -533,6 +534,7 @@ def test_claim_tags_and_paths_read_no_number_but_brackets_and_ratios_do() -> Non
         "7",
         "52",
         "52",
+        "2",
     ]
 
 
@@ -560,6 +562,66 @@ def test_a_number_as_a_path_segment_fails(
 ) -> None:
     problems = run(repo, changed(old, new))
     assert failing(problems, "R4", "number", needle), problems
+
+
+RUNS = "runs with one command"
+
+
+@pytest.mark.parametrize(
+    ("new", "needle"),
+    [
+        # rv2-rework2-022's B-1: a segment with a letter beside its number, a number word that isn't the whole
+        # segment, a number in a later segment, and a setting whose value holds a number or a number word.
+        (", 5k/day", "5"),
+        (", 100ms/run", "100"),
+        (", twelve-hundred/day", "twelve"),
+        (", day/100-requests", "100"),
+        (", `cap/100-per-day`", "100"),
+        (", `CAP=100k`", "100"),
+        (", `CAP=five-dollars`", "five"),
+        # Siblings of other shapes: a token rooted at a real top-level entry that names no file, the same in
+        # backticks with a number word, a bare file name no directory holds, a token that climbs out of the root, a
+        # setting whose number isn't at its start, and a file name with a number in a directory that doesn't exist.
+        (", docs/100-per-day", "100"),
+        (", `docs/twelve-hundred`", "twelve"),
+        (", 100-per-day.md", "100"),
+        (", ../5k/day", "5"),
+        (", `LIMIT=per-100`", "100"),
+        (", docs/caps/100-per-day.md", "100"),
+    ],
+    ids=[
+        "5k-per-day",
+        "100ms-per-run",
+        "twelve-hundred-per-day",
+        "day-per-100-requests",
+        "backticked-cap",
+        "setting-100k",
+        "setting-five-dollars",
+        "docs-100-per-day",
+        "backticked-docs-twelve-hundred",
+        "bare-file-name",
+        "climbs-out",
+        "setting-per-100",
+        "file-in-no-directory",
+    ],
+)
+def test_a_number_is_a_path_only_under_the_root(
+    repo: Path, new: str, needle: str
+) -> None:
+    problems = run(repo, changed(RUNS, RUNS + new))
+    assert failing(problems, "R4", "number", needle), problems
+
+
+def test_a_path_is_read_against_the_root_it_is_given(repo: Path) -> None:
+    # B-1's rule: the first segment is a top-level entry of the root, or the token is found under the root (at it, or
+    # under one of its top-level directories); a token holding a number must be found, or be a file name in a
+    # directory that exists. `corpus/05-mission.md` is cited bare as `05-mission.md` in the real proposal.
+    (repo / "corpus/05-mission.md").write_text("# Mission\n")
+    plain = "`05-mission.md`, `src/sign.md`, docs/adr/0020-gateway.md, docs/adr/0021-next.md, evals/run.md:12-14\n"
+    assert fc.numbers_in(fc.without_exempt(plain, quotes=(), root=repo)) == []
+    assert fc.numbers_in(
+        fc.without_exempt("`07-other.md`, src/100-per-day\n", quotes=(), root=repo)
+    ) == ["07", "100"]
 
 
 def test_real_paths_with_numbers_in_them_read_no_number() -> None:
