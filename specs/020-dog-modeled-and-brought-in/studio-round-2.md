@@ -1,5 +1,144 @@
 # Studio round 2 of the dog: the brief, written, then placed
 
+## Round 2's candidate, judged dry
+
+Task `judge-dog-r2` (night of 2026-11-13, implementer, Opus 5.5, on 2026-11-14). It judged studio-dog-r6's handoff, `/srv/studio/handoff/dog/2/`, against `/srv/studio/briefs/dog/2.json`, with no `--record`. **Round 2 isn't recorded:** no `2.result.json` was written, and nothing under `/srv/studio/` changed.
+
+**Outcome: the candidate fails on one finding, and that finding doesn't depend on Q199.**
+- **The finding:** `candidate.json` lists `records.json` among its `files`. The brief's own example asks for this, but `line.py` refuses it.
+- **What it hid:** this fault stops the judge before main's arrival check. A scratch copy with only that line removed shows the rest:
+  - 6 R6 findings, the placeholder (Q199);
+  - 1 N1 finding, no `LICENSE.md`;
+  - 3 M5 findings, the mark's term against the record's steps.
+- **What it means:** filling Q199 won't make round 2 pass. Round 3 is the dog's last (three per asset), so its brief has to carry every fix below.
+
+### The checks before judging (all as the supervisor gave them)
+- `/srv/studio/briefs/dog/2.json` exists. `/srv/studio/briefs/dog/2.result.json` doesn't. `/srv/studio/handoff/dog/` holds `1/` and `2/` only.
+- The three GLBs' SHA-256s match the supervisor's prefixes and the record's entries:
+
+```text
+ec835c4bcf590157f0307924d03917329ce2a9c0b71809853cf8acba31f787df  /srv/studio/handoff/dog/2/dog-idle.glb
+a5c456f952c6d7ac59be1ccd58df4e12a3774643f43739eb68b1178100581099  /srv/studio/handoff/dog/2/dog-walk.glb
+2da9621c50e03d4f3053ee5502399146f080c9c439da498ff0ba5ea42eda2dc3  /srv/studio/handoff/dog/2/dog.glb
+```
+
+### The judge, dry: its whole output
+
+```text
+$ python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dog/2 --brief /srv/studio/briefs/dog/2.json; echo "exit=$?"
+files: records.json (limit: a distinct file name in the folder, not the record or the notice)
+arrival-check: not run, since the candidate's files or its record's directory are missing
+line: 1 finding; round 2 fails
+exit=1
+```
+
+A `files` finding sets `present = False` (`scripts/studio/line.py:906` to `:921`). Then `judge` skips main's arrival check (`:1176` to `:1179`), so R6 (the placeholder) is never reached. If the round were recorded tonight or after Q199, its result would hold this one finding.
+
+### The same judge on a scratch copy, for the findings it hid (not a verdict)
+I copied the folder's `candidate.json`, three GLBs, and `records.json` to `/tmp/judge-dog-r2-mEbg/2/`. In the copy only, I dropped `"records.json"` from `candidate.json`'s `files`. Then I ran the same judge, dry, on the copy. The handoff folder wasn't changed.
+
+```text
+$ python3 -I -B scripts/studio/line.py candidate /tmp/judge-dog-r2-mEbg/2 --brief /srv/studio/briefs/dog/2.json; echo "exit=$?"
+arrival-check: main's copy, at 3c0e4cd06861, on a scratch copy under assets/visitors/dog/
+R6 assets/visitors/dog/records.json: entries[0].steps[0] is a model step with no models_checked date
+R6 assets/visitors/dog/records.json: entries[0].steps[1] is a model step with no models_checked date
+R6 assets/visitors/dog/records.json: entries[1].steps[0] is a model step with no models_checked date
+R6 assets/visitors/dog/records.json: entries[1].steps[1] is a model step with no models_checked date
+R6 assets/visitors/dog/records.json: entries[2].steps[0] is a model step with no models_checked date
+R6 assets/visitors/dog/records.json: entries[2].steps[1] is a model step with no models_checked date
+N1 assets/visitors/dog/LICENSE.md: the directory has no LICENSE.md, the media license's notice
+M5 assets/visitors/dog/dog-idle.glb: the mark is compositeWithTrainedAlgorithmicMedia where its record's steps call for trainedAlgorithmicMedia
+M5 assets/visitors/dog/dog-walk.glb: the mark is compositeWithTrainedAlgorithmicMedia where its record's steps call for trainedAlgorithmicMedia
+M5 assets/visitors/dog/dog.glb: the mark is compositeWithTrainedAlgorithmicMedia where its record's steps call for trainedAlgorithmicMedia
+file                                bytes     gzip      vertices  triangles  texture
+assets/visitors/dog/dog-idle.glb    35072     14427     0         0          0
+assets/visitors/dog/dog-walk.glb    29072     11943     0         0          0
+assets/visitors/dog/dog.glb         7089172   6138468   32967     39999      22369621
+arrival-check: 10 findings in 4 files
+line: 10 findings; round 2 fails
+exit=1
+```
+
+**Within the brief's limits:** the caps, bones, clips, tools, and texture size raise no `line.py` finding. dog.glb has 39,999 triangles and 22,369,621 texture bytes, against 180,000 and 46,000,000.
+
+**Not cleaned up:** the scratch copy is still at `/tmp/judge-dog-r2-mEbg/`. The bash gate refused its recursive delete outside the workspace (Interruptions below). It holds only copies of the handoff's files, with no photo and no secret.
+
+### The sort
+**(a) The placeholder only (Q199): 6 lines.** These are the six R6 lines. `models_checked` on steps 0 (the concept) and 1 (the mesh) of each entry holds `<the Author's: the date these models were last checked against newer releases, no later than 2026-11-14>`. Those are the two GPU steps. The build and clip steps hold `2026-11-14`. Only the Author can give the date. I didn't fill it.
+
+**(b) Faults in the candidate alone: none.** Each fault below shows in the candidate, but each comes from the brief, so each is sorted (c). Each one's fix lists what round 3's candidate must change.
+
+**(c) Faults in the brief or in `line.py`: 4.**
+
+1. **The brief asks for `records.json` in `files`.**
+   - **The file:** `/srv/studio/briefs/dog/2.json`, CANDIDATE. It reads `"files": ["dog.glb", "dog-idle.glb", "dog-walk.glb", "records.json", ...]`. This is inherited from `1.json`. The dinosaur's `1.json` and `2.json` list only the GLBs.
+   - **The limit:** `scripts/studio/line.py:911` refuses `records.json`, `LICENSE.md`, and `candidate.json` in `files`. Data-model.md's Candidate example (spec 017) doesn't list it either.
+   - **The fix:** round 3's brief lists the three GLBs only, as the dinosaur's do. It says the record is named by `"records": "records.json"` alone, and `LICENSE.md` isn't named at all. Round 3's `candidate.json` drops `records.json` from `files`.
+2. **The brief doesn't ask for `LICENSE.md` (N1).**
+   - **The file:** `/srv/studio/briefs/dog/2.json`. FILES AND LIMITS and RECORD FORMAT never name the notice. The studio left it out on purpose ("its copyright line is the Author's to fill").
+   - **The limit:** `tools/gates/arrival_check.py:2833` to `:2838` fails a directory with files and no `LICENSE.md`. `:2817` to `:2831` fails one whose text isn't `NOTICE_RE` (`:309`), or whose copyright line still holds `<YEAR>` or `<HOLDER>`. So a placeholder fails too.
+   - **The fix:** round 3's brief gives the notice's text in full, byte for byte from main's `assets/visitors/man/LICENSE.md`. That copyright line is one the Author already filled for his visitors. The studio writes it as `LICENSE.md` in the handoff folder, outside `files`. `line.py:1072` already carries it into the arrival check's copy.
+3. **The brief's mark rule and its review steps disagree (M5).**
+   - **The file:** `/srv/studio/briefs/dog/2.json`. FILES AND LIMITS says each GLB carries "the term its record's steps call for, as the man's files do". STEPS 2 and 4 are the Author's reviews "by hand", which come "after the round". The studio marked `compositeWithTrainedAlgorithmicMedia`, the man's term. But it truthfully recorded no hand step, because no review has happened yet.
+   - **The limit:** `tools/gates/arrival_check.py:37` to `:39` (C1). The term is `trainedAlgorithmicMedia` when every step is by a model, and `compositeWithTrainedAlgorithmicMedia` when model and hand steps mix. The man's record holds his reviews as hand steps, so his mark is composite. The dog's record holds model steps only.
+   - **The fix:** the mark and the record have to agree, and the record can only hold reviews that have happened. Round 3 does one of two things:
+     - It records the Author's reviews of the concept (seed 2 of P-0030) and the mesh as hand steps, once he has made them, and keeps the composite mark.
+     - Or it records no hand step and marks `trainedAlgorithmicMedia`.
+
+     The question below recommends the first.
+4. **`line.py` hides the arrival check's findings behind a `files` finding.**
+   - **The file:** `scripts/studio/line.py:906` to `:921` and `:1176` to `:1179`. A refused name in `files` sets `present = False`. Then the arrival check doesn't run, even though the record and the three GLBs are there.
+   - **The limit:** "Round *n*+1's brief copies a failed round's `findings` verbatim" (data-model.md, spec 017). Round 3's `findings` would therefore carry only the `files` line, not the 10 findings it hid.
+   - **The fix:** this is a follow-up for the stack's note, not tonight, like the `candidate.json` one from rule 9. A refused name drops that name only, and the arrival check runs whenever the record parses and every named GLB is present. Until then, round 3's brief carries the scratch copy's 10 lines in its notes, marked as a dry check and not as recorded findings. I didn't change `line.py`.
+
+### From `records.json` alone (the handoff's, read, not changed)
+- `directory` is `assets/visitors/dog` and `license` is `all-rights-reserved-2026`. There are three entries: `dog-idle.glb`, `dog-walk.glb`, and `dog.glb`.
+- In every entry:
+  - `"source": {"type": "prompt", "id": "P-0030"}`;
+  - `"likeness": false`;
+  - `media_license` `all-rights-reserved-2026`;
+  - no `approval`.
+- **A text scan of the whole file** found no "likeness of", and none of `photo`, `/srv`, `/home`, `inbox`, `dog-concept`, `exif`, `.jpg`, `.jpeg`, or `heic` (0 hits each). It also found no name for the dog. **No credit calls the dog a likeness of the Author's dog.**
+- **The photos:** no step of this task opened, viewed, copied, or listed `/srv/studio/briefs/dog/photos/` or the studio's inbox. Listing `/srv/studio/briefs/dog/` to check for `2.result.json` showed the `photos` entry by name, and nothing inside it was listed.
+
+### Nothing went into the repository's assets or the room
+Nothing under `assets/**` or the room's code changed. The stand-in stays the room's dog until the Author's look approval (rule 2).
+
+### The morning command
+Once Q199's date is in `records.json`, run this from the line's checkout: this stack's branch, or main once it's merged. That checkout holds `scripts/studio/line.py`. Then check what it wrote.
+
+```text
+python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dog/2 --brief /srv/studio/briefs/dog/2.json --record
+cat /srv/studio/briefs/dog/2.result.json
+```
+
+**What it will record:** the same verdict as tonight, `fail` with the single `files` line. The `files` line stops the judge before main's arrival check, which is where R6 is checked, and `candidate.json` stays as the studio wrote it. So the date changes nothing in round 2's verdict. Whether to wait for it is the first question below.
+
+### What waits for the Author
+- **Q199:** the date the concept's and the mesh's models were last checked against newer releases. It goes in `models_checked`, in all three entries, at steps 0 and 1.
+- **His look approval of the concept** (step 2): seed 2 of P-0030, `f9d18f2b3ef2ea92df0fb6d4dfb0984a53010e6e704b55a410bf57823cc0cf99`. All eight frames are in `/srv/studio/outputs/dog/step1/`, with the sheet `step1/concepts-P-0030-seeds-1-8.png`. Seed 4 is the runner-up, with white paws.
+- **His look approval of the mesh** (step 4): `/srv/studio/outputs/dog/step3/`. The renders `front.png` and `side.png` are in the handoff folder for review only. The note's "For his look" names the head's slight turn, the low tail a little to one side, and the solid red-gold coat.
+- **The record:** recording round 2 (the command above) and the four questions below.
+- **Lessons for the workflows folder:** the handoff note's "Lessons the workflows folder could add (his to add; for the page)", in `/srv/studio/handoff/dog/2/note.md`. It has four lessons:
+  - Blender's heat weights fail at room scale, so weight a copy at 10×;
+  - the importer's `Icosphere`;
+  - ComfyUI's three flags for Pixal3D, and the turn phrase;
+  - the save prefix.
+
+### Questions left on the page (`/night/io/out/questions.md`)
+1. Record round 2 now, without waiting for Q199? Recommended: yes. The verdict is the same either way, and round 3 needs the result.
+2. Round 3's `files`: the GLBs only? Recommended: yes (fault 1).
+3. Round 3's `LICENSE.md`: the man's notice, byte for byte? Recommended: yes (fault 2).
+4. Round 3's mark: his reviews as hand steps with the composite mark, or no hand step with `trainedAlgorithmicMedia`? Recommended: his reviews first (fault 3).
+
+The `line.py` change (fault 4) is a follow-up for the stack's note, not a question.
+
+### Interruptions
+- 2026-11-14, judge-dog-r2: the bash gate refused deleting the scratch copy (`/tmp/judge-dog-r2-mEbg/`): "recursive delete outside workspace. Route: delete only inside the repo". I didn't try another spelling or route. The copy stays (see above).
+
+### Lint
+(pasted below, after `make lint`)
+
 ## Placed: brief-dog-r6 (night of 2026-11-13, implementer, Opus 5.5, on 2026-11-14)
 
 Task `brief-dog-r6` followed the recommended answer to brief-dog-r5's question (Q195): it recorded round 1, then placed this text as `/srv/studio/briefs/dog/2.json`. `line.py` is unchanged (no diff against brief-dog-r5's tip). **Outcome: round 1 is recorded `fail` with one finding, `2.json` is placed and its check passes, so `studio-dog-r5` can run.**
