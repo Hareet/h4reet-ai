@@ -706,7 +706,7 @@ Departures, in plan §8 in the same commits: the shared helper, and `clipGlb`'s 
 
 ### Acceptance criteria
 
-FR-001, FR-002, FR-012, SC-001: `dinosaur-compose.test.ts` ("the dinosaur's folder in the bundle and the report"), and by hand on the real tree (below). FR-003 (RA12), FR-004 (RA11), FR-005 (RA10, the table), SC-002: `dinosaur-compose.test.ts` and `compose.test.ts`'s bad cases. FR-006: the rules are in the compositor and the arrival check is untouched (SC-006 below). FR-007: the brief's notes and `likeness: false` (T008), plus the existing rule P and RA9; no new rule (Q75). FR-008, SC-003: `avatar-hands`, `avatar-scene`, `avatar-gait`. FR-009: `avatar-hands`'s placement case. FR-010: `notes-causes.test.ts`. FR-011: no event, call, or fetch was added (no `src/` change). FR-013, FR-014, SC-004: `scripts/studio/test_line.py`. FR-015: his, in human patch 021. FR-016: this section. FR-017, FR-018: T009 below. SC-005 (F3 at the brief's targets) can only be measured at his intake, from the report's lines.
+FR-001, FR-002, FR-012, SC-001: `dinosaur-compose.test.ts` ("the dinosaur's folder in the bundle and the report"), and by hand on the real tree (below). FR-003 (RA12), FR-004 (RA11), FR-005 (RA10, the table), SC-002: `dinosaur-compose.test.ts` and `compose.test.ts`'s bad cases. FR-006: the rules are in the compositor and the arrival check is untouched (SC-006 below). FR-007: the brief's notes (T008 checks 'no film or franchise creature'); `likeness: false` is prose in the notes, held by the record and his look approval (Q75), plus the existing rule P and RA9; no new rule (corrected by verify-021, rv-impl-021's N3). FR-008, SC-003: `avatar-hands`, `avatar-scene`, `avatar-gait`. FR-009: `avatar-hands`'s placement case. FR-010: `notes-causes.test.ts`. FR-011: no event, call, or fetch was added (no `src/` change). FR-013, FR-014, SC-004: `scripts/studio/test_line.py`. FR-015: his, in human patch 021. FR-016: this section. FR-017, FR-018: T009 below. SC-005 (F3 at the brief's targets) can only be measured at his intake, from the report's lines.
 
 ### Verification (small tests, the order's rule 4)
 
@@ -842,6 +842,20 @@ SC-006, `git diff --stat fb46c911 HEAD -- .claude tools/gates corpus assets CLAU
 - **N-4, fixed**: RA10's reason is `the <id> rig lacks <bone>`, in plan §4 and the code.
 - **N-5, fixed**: the tasks' dependencies say T007 needs no dinosaur file or rule.
 
+N-2 is closed by verify-021 (page Q168): the page's words for Q75 and Q88 are now whole in the spec, beside its reading (below).
+
+### Review (rv-impl-021)
+
+On impl2-021's code (77b1a244), by a worker who didn't write it: nothing blocking. Its five nits, none fixed here (rule 6: they go in this note):
+
+- **N1**: T007 injects the fallback signal by hand.
+- **N2**: RA10 matches any node name, `line.py` only skin joints (page Q169).
+- **N3**: this note's FR-007 line claimed more than T008 tests. Corrected above by verify-021 (a note line, not code): "FR-007: the brief's notes (T008 checks 'no film or franchise creature'); `likeness: false` is prose in the notes, held by the record and his look approval (Q75)".
+- **N4**: FR-009's placement and the report's scale use a fixture already 1.2 m high, so the runtime's scaling never runs for the dinosaur.
+- **N5**: FR-013's "exactly the fourteen IDs" isn't pinned.
+
+rv-impl-021 couldn't verify the header's "the commit hooks ran (gitleaks, arrival check) on every commit". verify-021's own commits show them: each printed gitleaks' "no leaks found" and an `arrival-check: 0 findings in <n> file(s)` line (under "Verification (rule 7, verify-021)" below). That speaks for this session's commits, not impl2-021's.
+
 ### Cost and data-flow impact
 
 $0, and no model call. No byte leaves a visitor's device that didn't before: the dinosaur's files, once he takes them in, are served from the site's origin under row V1, as the other avatars' are. No disclosure row, panel, or event added. The cost of the studio round is his GPU time (spec, Expected Cost Impact).
@@ -858,3 +872,79 @@ What waits for you (none of it is needed for this item's gate):
 Also: the questions on the morning page with their recommended answers (the spec's nine, page Q32 to Q38, Q73, Q75; Q88; and this session's, in `/night/io/out/questions.md`). Open for others: N-2's page words; rv-rework-020's N1 (the report's `Likeness` line), still open from item 3; verify-021's merge onto the line; T013, the stack's one `make check`.
 
 Interruptions: one bash-gate refusal. T008's commit command was refused as "an Author-only make target" (`Blocked by .claude/hooks/bash-gate.sh — an Author-only make target. Route: make publish-check, make tools, make matrix-canary, and make evals-agent-config: the Author runs it`). It was a false match on the words I was writing (the commit message and a plan line naming the tools list). Nothing ran. Under rule 5 I didn't respell anything: the plan line and T008's tick in tasks.md were written with the Edit tool, and the message with the Write tool, then `git commit -F`. One harness block, not a hook: a shell `sleep` before reading a log, waited for with a background `until` loop instead.
+
+### Verification (rule 7, verify-021)
+
+Branch `night/verify-021/verify-021`, from impl2-021's tip 77b1a244 (verify2-020's tip 3767859f with item 4 in it), by a different worker (Opus 5.5) from item 4's implementer. No merge: the line already holds items 1 to 3, verified ("verify-020: green, carrying D-V2's six (Q165)"). Read under Q165, as verify2-020 read it.
+
+#### Runs at the tip (68f1eced; the branch's code and tests are impl2-021's, only this note and the spec's text differ)
+
+`node_modules` was there (an earlier session of this task ran the setup target); not run again.
+
+Item 4's test files (every test file in `git diff --stat refs/heads/night/verify2-020/verify2-020...HEAD`; its changed `bad/RA10-no-jaw`, `bad/RA11-long`, and `bad/RA12-no-walk` fixtures are read by `compose.test.ts`, its helpers by these and by the full run below):
+
+```
+cd apps/web && npx vitest run test/room/avatar-gait.test.ts test/room/avatar-hands.test.ts test/room/avatar-scene.test.ts
+  test/room/compose.test.ts test/room/dinosaur-compose.test.ts test/ui/notes-causes.test.ts
+ Test Files  6 passed (6)
+      Tests  318 passed (318)
+   Duration  197.70s (tests 69%, import 30%, transform 1%)
+
+pytest -q -p no:cacheprovider --import-mode=importlib scripts/studio
+130 passed in 11.09s
+```
+
+(`scripts/studio` is the one Python folder item 4 changed: `test_line.py`.)
+
+**Carried (Q165), confirmed on a copy.** `git archive HEAD` (68f1eced) into a fresh `/tmp` folder, `git apply docs/merge-requests/proposed/018-verify-test-amendments.patch` there (`--check` clean; 4 files, 43 insertions, 11 deletions), the worktree's `node_modules` linked in. Never applied on the line; no test file edited.
+
+```
+cd <copy> && pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+80 passed in 1.05s
+cd <copy>/apps/web && npx vitest run test/disclosure.test.ts test/room/legibility.test.ts test/room/report.test.ts
+ Test Files  3 passed (3)
+      Tests  56 passed (56)
+```
+
+`make lint`: exit 0 (shellcheck's file list left out):
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+779 files already formatted
+```
+
+All of `apps/web`, at dfd854ec (68f1eced plus this section's first lines; 2576 s):
+
+```
+cd apps/web && npx vitest run
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ FAIL  test/room/twin-2d.test.ts > the twin's still in the 2D room (FR-034, FR-035; SC-010) > refuses bytes that fail their integrity: the drawing, never the image
+ Test Files  4 failed | 185 passed (189)
+      Tests  7 failed | 3754 passed | 1 skipped (3762)
+```
+
+Six are exactly D-V2's, the same as verify-018's, verify-019's, and verify-020's full runs, shown passing on the patched copy above.
+
+The seventh, `twin-2d.test.ts`'s integrity case (`expected undefined to deeply equal { kind: 'picture', … }`: its loop of 40 flushes ended before the signal came), is the file the brief names as flaky under load. Item 4 doesn't touch it or the code it tests (`git diff --stat refs/heads/night/verify2-020/verify2-020...HEAD -- apps/web/src apps/web/test/room/twin-2d.test.ts`: empty). Alone at the line's tip, three times: `Test Files 1 passed (1) · Tests 5 passed (5)` each time. On main's tip (3c0e4cd0, a `git archive` copy with the worktree's `node_modules` linked in): `Test Files 1 passed (1) · Tests 5 passed (5)`. Nothing to fix.
+
+#### Fixed
+
+Nothing: no failure outside D-V2's six and the flaky `twin-2d` case, so no code, test, or plan changed. This branch changes two documents: the spec, where page Q168's words for Q75 and Q88 now stand whole beside its reading (ab55771e, documents only; this closes rv-rework-spec-021's N-2, listed above as "Open for others"), and this note (rv-impl-021's five nits, N3's correction, and this section). The dinosaur stays the cut-out until his look approval and intake (rule 2): no `assets/**` change. Not fixed, under rule 6: rv-impl-021's N1, N2 (page Q169), N4, N5.
+
+Commit hooks: each of this session's commits printed gitleaks' "no leaks found" and `arrival-check: 0 findings in <n> file(s)`.
+
+Interruptions: one harness refusal, not a hook or the bash gate: a Monitor watch on the run's log needed an approval it didn't have, so I waited with a plain shell loop instead. Nothing was respelled.
+
+verify-021: green, carrying D-V2's six (Q165)
