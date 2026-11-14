@@ -234,4 +234,4 @@ None new: the petting sends nothing (FR-025). The selection's `object_selected` 
 
 ## Open Questions
 
-Q1 to Q8 above, each with its recommended answer, each also in `/night/io/out/questions.md`.
+Q1 to Q8 above, each with its recommended answer, each also in `/night/io/out/questions.md`. A ninth on the page asks for his answer to Golden Q&A 9 (FR-020), with a recommended answer made only of his words.
