@@ -29,12 +29,26 @@ export interface LegAngles {
   readonly ankle: number;
 }
 
+/** A gait state written in place: what `advance` writes into its `out` (FR-011). */
+export interface GaitStateOut {
+  phase: number;
+  amp: number;
+}
+
+/** Both legs' angles, written in place: what `legOffsets` writes into its `out`, its `left` and `right` kept (FR-011). */
+export interface GaitOffsets {
+  readonly left: { hip: number; knee: number; ankle: number };
+  readonly right: { hip: number; knee: number; ankle: number };
+}
+
 /** One whole stride, left foot down to left foot down, in metres, for a body this tall. */
 export const cycleLength = (heightM: number): number => CYCLE_PER_HEIGHT * heightM;
 
 /**
  * One frame: the phase moves by the distance walked over the cycle (never by time, so the steps keep pace with the
  * distance at any speed, FR-002), and the amplitude eases toward `min(1, speedShare)` while `on`, else toward 0.
+ * With an `out` (which may be `state` itself) the result is written into it and it is returned, so a frame allocates
+ * nothing (FR-011); without, a new state.
  */
 export function advance(
   state: GaitState,
@@ -43,25 +57,36 @@ export function advance(
   dt: number,
   on: boolean,
   cycleM: number,
+  out?: GaitStateOut,
 ): GaitState {
   const step = Math.min(Math.max(dt, 0), DT_MAX_S) / EASE_S;
   const target = on ? Math.min(1, Math.max(0, speedShare)) : 0;
   const amp = state.amp < target ? Math.min(target, state.amp + step) : Math.max(target, state.amp - step);
   const turns = cycleM > 0 && Number.isFinite(distanceM) ? Math.max(0, distanceM) / cycleM : 0;
   const phase = (((state.phase + turns) % 1) + 1) % 1;
-  return { phase, amp };
+  if (!out) return { phase, amp };
+  out.phase = phase;
+  out.amp = amp;
+  return out;
 }
 
-/** One leg's angles: the thigh swings as a sine, the shin bends only through the forward swing, the foot stays level. */
-function leg(phase: number, amp: number): LegAngles {
+/** One leg's angles, into `out`: the thigh swings as a sine, the shin bends only through the forward swing, the foot
+ *  stays level. */
+function leg(phase: number, amp: number, out: GaitOffsets["left"]): void {
   const turn = 2 * Math.PI * phase;
   const hip = amp * HIP_MAX * Math.sin(turn);
-  return { hip, knee: amp * KNEE_MAX * Math.max(0, Math.cos(turn)), ankle: -ANKLE_GAIN * hip };
+  out.hip = hip;
+  out.knee = amp * KNEE_MAX * Math.max(0, Math.cos(turn));
+  out.ankle = -ANKLE_GAIN * hip;
 }
 
-/** Both legs' angles, the right half a cycle behind the left. Pure and total. */
-export function legOffsets(phase: number, amp: number): { left: LegAngles; right: LegAngles } {
-  return { left: leg(phase, amp), right: leg(phase + 0.5, amp) };
+/** Both legs' angles, the right half a cycle behind the left. Pure and total. With an `out` they are written into its
+ *  own `left` and `right`, and it is returned (FR-011); without, new objects. */
+export function legOffsets(phase: number, amp: number, out?: GaitOffsets): GaitOffsets {
+  const into = out ?? { left: { hip: 0, knee: 0, ankle: 0 }, right: { hip: 0, knee: 0, ankle: 0 } };
+  leg(phase, amp, into.left);
+  leg(phase + 0.5, amp, into.right);
+  return into;
 }
 
 /** One leg as the lift reads it (plan.md §2.6): the thigh's and the shin's lengths in the plane of the avatar's down and
@@ -220,28 +245,36 @@ function lower(hips: HipsBone, down: Vector3, lift: number): void {
 }
 
 /** Lays the legs' offsets over the clip's rotations and lowers the hips bone by `lift` (the standing leg's, FR-015),
- *  each bone's base kept. */
+ *  each bone's base kept. No object or array is made (FR-011). */
 export function applyGait(rig: LegRig, offsets: { left: LegAngles; right: LegAngles }, lift = 0): void {
-  for (const [bones, angles] of [
-    [rig.left, offsets.left],
-    [rig.right, offsets.right],
-  ] as const) {
-    lay(bones.hip, HIP_SIGN * angles.hip);
-    lay(bones.knee, KNEE_SIGN * angles.knee);
-    lay(bones.ankle, ANKLE_SIGN * angles.ankle);
-  }
+  layLeg(rig.left, offsets.left);
+  layLeg(rig.right, offsets.right);
   lower(rig.hips, rig.down, lift);
+}
+
+/** One leg's three bones, by name. */
+function layLeg(bones: LegBones, angles: LegAngles): void {
+  lay(bones.hip, HIP_SIGN * angles.hip);
+  lay(bones.knee, KNEE_SIGN * angles.knee);
+  lay(bones.ankle, ANKLE_SIGN * angles.ankle);
+}
+
+/** One bone given the clip's rotation back, where the gait's is still on it. */
+function unlay(bone: GaitBone): void {
+  // A bone the mixer wrote since the gait did holds a newer pose than `base`: leave it.
+  if (bone.on && bone.node.quaternion.equals(bone.applied)) bone.node.quaternion.copy(bone.base);
+  bone.on = false;
 }
 
 /** Puts the clip's rotations and the hips' position back wherever the gait laid itself over them, and forgets: no
  *  residue (FR-006, SC-002). */
 export function clearGait(rig: LegRig): void {
-  for (const bones of [rig.left, rig.right])
-    for (const bone of [bones.hip, bones.knee, bones.ankle]) {
-      // A bone the mixer wrote since the gait did holds a newer pose than `base`: leave it.
-      if (bone.on && bone.node.quaternion.equals(bone.applied)) bone.node.quaternion.copy(bone.base);
-      bone.on = false;
-    }
+  unlay(rig.left.hip);
+  unlay(rig.left.knee);
+  unlay(rig.left.ankle);
+  unlay(rig.right.hip);
+  unlay(rig.right.knee);
+  unlay(rig.right.ankle);
   const { hips } = rig;
   if (hips.on && hips.node.position.equals(hips.applied)) hips.node.position.copy(hips.base);
   hips.on = false;
