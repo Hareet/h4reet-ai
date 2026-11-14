@@ -42,6 +42,11 @@ export interface Meal {
   whole(id: string): boolean;
   pause(): void;
   resume(): void;
+  /** Whether the ledger is paused: the eating's one pause, which the 3D side reads too (FR-009). */
+  paused(): boolean;
+  /** The time the ledger has spent paused so far, the pause in progress included, in its clock's milliseconds: the
+   *  3D side's motions run on its clock less this, so they stop while paused, as the ledger's timer does. */
+  pausedMs(): number;
 }
 
 interface PieceState {
@@ -151,5 +156,7 @@ export function createMeal(options: { readonly regrow_s: number; readonly now: (
       offset += options.now() - pausedAt;
       pausedAt = null;
     },
+    paused: () => pausedAt !== null,
+    pausedMs: () => offset + (pausedAt === null ? 0 : options.now() - pausedAt),
   };
 }

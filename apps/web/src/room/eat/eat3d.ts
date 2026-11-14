@@ -36,7 +36,8 @@ export interface Eat3dOptions {
   readonly figure: () => { readonly root: Object3D; readonly height: number } | null;
   readonly meal: Meal;
   readonly highlight: { refresh(): void };
-  /** The room's clock, in milliseconds, which stops while paused. */
+  /** The room's clock, in milliseconds: the meal's own. The motions run on it less the meal's paused time
+   *  (`meal.pausedMs()`), so they stop while the meal is paused, whatever this clock does then (FR-009). */
   readonly now: () => number;
   readonly reduced?: () => boolean;
   /** FR-010: a piece's first bite of the visit, for the polite line. */
@@ -92,6 +93,8 @@ export function createEat3d(options: Eat3dOptions): Eat3d {
   const cutMaterials = new Map<Material, MeshBasicMaterial>();
   const motions: Motion[] = [];
   let off = false;
+  /** The eating's time: the room's clock less the meal's paused time, so it stops while paused (FR-009). */
+  const time = (): number => options.now() - meal.pausedMs();
 
   const cutOf = (material: Material): MeshBasicMaterial => {
     let cut = cutMaterials.get(material);
@@ -324,6 +327,8 @@ export function createEat3d(options: Eat3dOptions): Eat3d {
   return {
     bite(id) {
       return guarded(false, () => {
+        // Paused, a press neither splits nor starts anything (FR-009, US3 AS5).
+        if (meal.paused()) return false;
         const root = options.model(id);
         if (!root) return false;
         let s = splits.get(id);
@@ -349,7 +354,7 @@ export function createEat3d(options: Eat3dOptions): Eat3d {
         const motion: Motion = {
           placement: id,
           index,
-          start: options.now(),
+          start: time(),
           kind: "flight",
           from: (s.centres[index] as Vector3).clone(),
         };
@@ -360,7 +365,9 @@ export function createEat3d(options: Eat3dOptions): Eat3d {
     },
     frame() {
       guarded(undefined, () => {
-        const now = options.now();
+        // Paused, nothing moves, lands, grows, or comes due: each motion takes up where it was at the resume (FR-009).
+        if (meal.paused()) return;
+        const now = time();
         for (const m of [...motions]) {
           const s = splits.get(m.placement);
           if (!s) continue;

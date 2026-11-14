@@ -490,7 +490,8 @@ export function createScene(options: SceneOptions): Stage3D {
   const eatFrame = (): void => {
     if (!meal || !eat3d) return;
     const base = eatBase();
-    if (base.paused) meal.pause();
+    // FR-009: the eating's one pause, while the room is paused or the loader shows; the 3D side reads it too.
+    if (base.paused || base.loading) meal.pause();
     else meal.resume();
     eat3d.frame();
     const pose = walking?.on ? walking.pose : null;
