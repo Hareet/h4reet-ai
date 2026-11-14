@@ -26,7 +26,7 @@
     "room:scan": "node --import tsx build/room/cli.ts scan",
     "room:fit": "node --import tsx build/room/cli.ts fit",
     "room:lettering": "node --import tsx build/room/lettering.ts",
-    "twin:pack": "node --import tsx build/twin-pack.ts"
+    "twin:pack": "node --import tsx build/twin-pack.ts && node --import tsx build/corpus-size.ts"
   },
   "devDependencies": {
     "@types/jsdom": "30.0.0",
