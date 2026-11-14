@@ -802,8 +802,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         statsFrom(live.tier.tier, cost.state, { ui: deps.room.ui, drafts: deps.room.build.kind === "drafts" }),
       onClose: () => talk?.closeLarger(),
       // Spec 018 (Q4; FR-003): the twin's still, through spec 016's verified fetch, once, at the first opening in 3D.
-      portrait: () => {
-        const still = deps.room.twin?.still ?? null;
+      // The twin is the one speaker with a still today; item d's dog adds its own here (the speaker seam).
+      portrait: (speaker) => {
+        const still = speaker === "twin" ? (deps.room.twin?.still ?? null) : null;
         return still && visit.mode !== "2d"
           ? fetchStill(still, (url, init) => win.fetch(url, init))
           : Promise.resolve(null);

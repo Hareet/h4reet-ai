@@ -52,3 +52,29 @@ export function icon(doc: Document, name: IconName): SVGSVGElement {
   svg.append(path);
   return svg;
 }
+
+// Spec 018 (FR-005; Q60, R6): the conversation panel's emblem, by the selectable's id: one stroked path on the same
+// 24-unit grid for each piece of the repository's scene (room/scene.yaml's selectables), and the speech glyph for free
+// talk and for any piece without one yet. hud/split.ts draws them, stroked in the accent colour by hud/split.css.
+
+/** Each piece's emblem, keyed by its selectable's id. */
+export const PIECE_ICONS: Readonly<Record<string, string>> = {
+  // A board on its edge, its two bindings across it.
+  snowboard: "M4.5 17.5L17.5 4.5a2.1 2.1 0 0 1 3 3L7.5 20.5a2.1 2.1 0 0 1-3-3z M9 12l3 3 M12 9l3 3",
+  // Two wheels, the frame between them, the saddle and the bars.
+  bicycle:
+    "M2.5 16a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0z M14.5 16a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0z M6 16l4-7h6l2 7 M10 9l2.5 7H6 M9 6h3 M16 9l-1-3h2",
+  // A screen over a keyboard's deck.
+  laptop: "M5 5h14v9H5z M3 17h18l-1.5 2h-15z",
+  // A board on two legs, two lines of chalk.
+  chalkboard: "M3 4h18v12H3z M8 16l-2 4 M16 16l2 4 M6 8h6 M6 11h9",
+};
+
+/** The speech glyph: a speech bubble, for free talk and a piece with no emblem of its own. */
+export const SPEECH_ICON = "M4 5h16v10h-9l-4 4v-4H4z";
+
+/** The emblem for a conversation: its piece's icon, or the speech glyph, with the name it is drawn under. */
+export function emblemIcon(id: string | null): { readonly name: string; readonly d: string } {
+  const d = id === null ? undefined : PIECE_ICONS[id];
+  return id !== null && d !== undefined ? { name: id, d } : { name: "speech", d: SPEECH_ICON };
+}

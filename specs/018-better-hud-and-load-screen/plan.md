@@ -184,6 +184,8 @@ The test files spec 018 itself added change where FR-001's rule moved 1280 × 72
 
 - **D-R5 (T025): how the opener is recorded.** `Split.openPanel(opener, focusHint)` records the control at the opening and `closePanel(true)` sends focus back to it, or to the selected entry where it is gone, hidden, inert, or disabled. `app.ts` passes the list's entry from `selectObject`, now called before `talk.topicSelected` so the entry is recorded before the opening turn's `onConversation`; the text box from `onConversation` and `onLine`; and "Larger conversation" from `onLarger`. `talk.ts` needed no hook: a sent turn already reaches `onConversation`. `SplitOptions` gains `resumeOpen` for FR-009's step 5. Escape is one capture listener, as §3 says; impl-018's second, bubbling listener is gone.
 
+- **D-R6 (T026): the emblem and the portrait's speaker.** `hud/icons.ts` gains `PIECE_ICONS` (snowboard, bicycle, laptop, chalkboard), `SPEECH_ICON`, and `emblemIcon(id)`; `SplitDraw.emblem(doc, piece)` draws it, so FR-002's fallback test can force it to throw, and an open panel's emblem follows `setConversation`. From the brief, not tasks.md: `SplitDraw.portrait` and `SplitOptions.portrait` take the speaker, and `SplitOptions.speaker` names it ("twin" where absent; the slot carries `data-speaker`), so item d's dog is a new speaker with no change to `split.ts`. `app.ts` fetches the twin's still alone.
+
 ## The rework's decisions (rule 6; tasks T021 to T030)
 
 - **R-1 (FR-001; Q57, R1)**: the split layout's rule is computed (§2 (a) to (e)), not a width. At the compositor's metrics it starts at 1392 px (87rem). Q57's "about 83rem" counted the list's 24rem as the right band, and D-I1 keeps the column's 28rem.

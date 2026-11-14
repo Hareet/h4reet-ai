@@ -19,6 +19,7 @@ import "./split.css";
 import { h, svg } from "../dom";
 import { browserOwnsEscape } from "../fullscreen";
 import { brushStrokePath, roughFramePath } from "./frame";
+import { emblemIcon } from "./icons";
 import { keycap } from "./keycap";
 import type { Stat } from "./stats";
 
@@ -36,7 +37,10 @@ export interface SplitDraw {
   readonly frame: (w: number, h: number, seed: number) => string;
   readonly stroke: (w: number, seed: number) => string;
   readonly keycap: (doc: Document, name: string) => HTMLElement;
-  readonly portrait: (doc: Document) => HTMLElement;
+  /** The portrait's plain form for a speaker, shown until its still arrives, and where it doesn't. */
+  readonly portrait: (doc: Document, speaker: string) => HTMLElement;
+  /** The emblem for the open conversation's piece, or for free talk (null): hud/icons.ts's (FR-005, Q60). */
+  readonly emblem: (doc: Document, piece: string | null) => Element;
 }
 
 export interface SplitOptions {
@@ -50,8 +54,12 @@ export interface SplitOptions {
   readonly turnOut: () => boolean;
   readonly walking: () => boolean;
   readonly resumeOpen?: () => boolean;
-  /** Spec 016's still as a data URL, fetched once through its verified path; absent or null, the silhouette stays. */
-  readonly portrait?: () => Promise<string | null>;
+  /** A speaker's still as a data URL, fetched once per speaker through its verified path (spec 016's, for the twin);
+   *  absent or null, the silhouette stays. */
+  readonly portrait?: (speaker: string) => Promise<string | null>;
+  /** Who speaks in the conversation, whose portrait stands at the frame's edge: "twin" where absent. A seam for item d
+   *  (the dog), which adds a speaker without a change here. */
+  readonly speaker?: () => string;
   readonly draw?: Partial<SplitDraw>;
   /** The panel closed, by any means: the room's larger view ends with it. */
   readonly onClose?: () => void;
@@ -93,6 +101,15 @@ const DEFAULT_DRAW: SplitDraw = {
       svg(doc, "circle", { cx: 50, cy: 38, r: 22 }),
       svg(doc, "path", { d: "M10 160 C10 105 30 84 50 84 C70 84 90 105 90 160 Z" }),
     ) as unknown as HTMLElement,
+  emblem: (doc, piece) => {
+    const { name, d } = emblemIcon(piece);
+    return svg(
+      doc,
+      "svg",
+      { class: "split-emblem", viewBox: "0 0 24 24", "aria-hidden": "true", focusable: "false", "data-emblem": name },
+      svg(doc, "path", { d }),
+    );
+  },
 };
 
 /** Runs a decoration, and gives its plain form (null) where it throws. */
@@ -120,7 +137,7 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
   let conversation: string | null = null;
   let parts: HTMLElement[] = [];
   let listParts: HTMLElement[] = [];
-  let portraitUrl: Promise<string | null> | null = null;
+  const portraitUrls = new Map<string, Promise<string | null>>();
   let opener: HTMLElement | null = null;
 
   /** A button's label: the key cap and the word where the cap draws, the word alone where it doesn't. The key's name is
@@ -194,12 +211,18 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
   };
 
   const portraitSlot = (): HTMLElement => {
-    const slot = h(doc, "div", { class: "split-portrait", "aria-hidden": "true" });
-    const plain = attempt(() => draw.portrait(doc));
+    const speaker = attempt(() => options.speaker?.()) ?? "twin";
+    const slot = h(doc, "div", { class: "split-portrait", "aria-hidden": "true", "data-speaker": speaker });
+    const plain = attempt(() => draw.portrait(doc, speaker));
     if (plain) slot.append(plain);
-    if (options.portrait) {
-      portraitUrl ??= attempt(options.portrait)?.catch(() => null) ?? Promise.resolve(null);
-      void portraitUrl.then((url) => {
+    const fetchIt = options.portrait;
+    if (fetchIt) {
+      let still = portraitUrls.get(speaker);
+      if (!still) {
+        still = attempt(() => fetchIt(speaker))?.catch(() => null) ?? Promise.resolve(null);
+        portraitUrls.set(speaker, still);
+      }
+      void still.then((url) => {
         if (url === null || !slot.isConnected) return;
         const img = h(doc, "img", { class: "split-still", alt: "", src: url });
         slot.replaceChildren(img);
@@ -223,16 +246,10 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
       head.append(hint);
       keep(hint);
     });
-    // The emblem, and beside it the three stats: a small label over a large value.
+    // The emblem, the open piece's icon or the speech glyph (Q60), and beside it the three stats: a small label over a
+    // large value. An emblem that can't be drawn is none (FR-002).
     attempt(() => {
-      const emblem = attempt(() =>
-        svg(
-          doc,
-          "svg",
-          { class: "split-emblem", viewBox: "0 0 24 24", "aria-hidden": "true", focusable: "false" },
-          svg(doc, "path", { d: "M4 5h16v10h-9l-4 4v-4H4z" }),
-        ),
-      );
+      const emblem = attempt(() => draw.emblem(doc, conversation));
       const stats = h(doc, "dl", { class: "split-stats" });
       for (const s of options.stats())
         stats.append(
@@ -413,6 +430,16 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
     },
     setConversation(feature) {
       conversation = feature;
+      // An open panel's emblem follows the conversation; one that can't be drawn is none (FR-002).
+      const top = talk.querySelector(".split-top");
+      if (open && top) {
+        const fresh = attempt(() => draw.emblem(doc, conversation));
+        const old = top.querySelector(".split-emblem");
+        if (fresh) {
+          if (old) old.replaceWith(fresh);
+          else top.prepend(fresh);
+        } else old?.remove();
+      }
       if (feature !== null) api.openPanel();
       showSelection();
     },
