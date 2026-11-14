@@ -19,7 +19,8 @@ R2  every line in scope is in the table once, carried, in part, or left out, eac
     duplicate of" names the corpus file. An "about you" line is carried only under the Author's tag.
 R3  no line `SCRIPTS.md` marks unbuilt or retracted is carried whole, and no carried `kill-switch-b2` row cites a
     `materials.md` row noted "shown as built".
-R4  the new text states no number outside a slot (digits, or G1's number words; its exempt spans aside: slots, URLs,
+R4  the new text states no number outside a slot (digits, or G1's number words; its exempt spans aside: slots, URLs
+    (another host's whole; this repository's `blob/main/` and `tree/main/` by their path, as a path is read),
     the claim tags [P], [?], [A], [A <date>] and [slot `id`], paths (no whitespace, no segment that is a number but a
     date, inside --root, found under it or rooted at its top-level entry, and, holding a number, naming an entry the
     root holds and no glob; a backticked `:<line>` suffix only on a file that holds every line it names), a setting
@@ -563,7 +564,13 @@ _CLAIM_TAG = re.compile(
 _DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}(?:/\d{1,2})?\b")
 _LIST_NUMBER = re.compile(r"^\s*\d+\.\s", re.MULTILINE)
 _SLOT = re.compile(r"\{\{slot:[^}]*\}\}")
-_URL = re.compile(r"\bhttps?://\S+")
+# A URL (rv-rework4-022's F-3): ASCII URL characters only, so it ends at whitespace, a bracket, a quote mark, a dash
+# (`—`, `–`), or `,`, `;`, `!`, `*` glued on; trailing punctuation (`_URL_TAIL`) is the sentence's, not the URL's.
+_URL = re.compile(r"\bhttps?://[A-Za-z0-9._~/?#%=&+@:-]+")
+_URL_TAIL = ".:?!#&=+@-"
+_GITHUB = re.compile(r"https?://(?:www\.)?github\.com(?=[/?#:]|$)", re.IGNORECASE)
+_THIS_REPO = re.compile(r"/hareet/h4reet-ai(?:\.git)?(?=[/?#]|$)", re.IGNORECASE)
+_BLOB = re.compile(r"/(?:blob|tree)/main/([^?#]*)(?:#L(\d+)(?:-L(\d+))?)?")
 _CODE = re.compile(r"`([^`\n]*)`")
 _BARE_PATH = re.compile(
     r"(?<![\w/])[\w.-]+(?:/[\w.*-]+)+/?|\b[\w-]+\.(?:md|ya?ml|ts|py|json|txt|sh)\b"
@@ -682,6 +689,31 @@ def _code(token: str, root: Path) -> str:
     return " "
 
 
+def _url(url: str, root: Path) -> str:
+    """A URL with R4's exempt part blanked (page Q234): another host's URL whole; this repository's
+    `blob/main/<path>` or `tree/main/<path>` by its path, read as `is_path` reads one (B-8), and its `#L<n>` or
+    `#L<a>-L<b>` anchor only where `lines_within` holds (B-5); any other URL on GitHub (this repository's issues,
+    another branch, another repository) is read after the host. Trailing punctuation is the sentence's."""
+    core = url.rstrip(_URL_TAIL)
+    tail = url[len(core) :]
+    github = _GITHUB.match(core)
+    if not github:
+        return " " + tail
+    rest = core[github.end() :]
+    repo = _THIS_REPO.match(rest)
+    blob = _BLOB.fullmatch(rest[repo.end() :]) if repo else None
+    if not blob:
+        return " " + (rest[repo.end() :] if repo else rest) + tail
+    path, first, last = blob.groups()
+    path_text = " " if not path or is_path(path, root) else " " + path
+    anchor = ""
+    if first is not None:
+        suffix = f":{first}" + (f"-{last}" if last is not None else "")
+        if path_text != " " or not lines_within(root, path, suffix):
+            anchor = f" {first} {last or ''}"
+    return path_text + anchor + " " + tail
+
+
 def _assignment(token: str) -> bool:
     """`ENV=prod`, `COMPOSE_PROFILES=gpu`: a setting whose value holds no digit and no G1 word anywhere
     (`DAILY_CAP=100`, `CAP=100k`, `CAP=five-dollars`, and `LIMIT=per-100` state one; rv2-rework2-022's B-1)."""
@@ -696,7 +728,7 @@ def without_exempt(text: str, quotes: Iterable[str], root: Path | None = None) -
     for q in quotes:
         text = text.replace(f'"{q}"', " ").replace(f"“{q}”", " ")
     text = _SLOT.sub(" ", text)
-    text = _URL.sub(" ", text)
+    text = _URL.sub(lambda m: _url(m.group(0), root), text)
     text = _CLAIM_TAG.sub(" ", text)
     text = _CODE.sub(lambda m: _code(m.group(1), root), text)
     text = _BARE_PATH.sub(

@@ -557,7 +557,8 @@ def test_exempt_spans_read_no_number() -> None:
     text = (
         "9. *How does the kill switch stop spending?* — The gateway reads the kill switch first. [P]\n"
         "- `[A 2026-11-06]` As of 2026-11-13, one command, `docs/adr/0020-gateway-state-store-and-meter.md`, "
-        "https://github.com/hareet/h4reet-ai/blob/main/docs/adr/0044-ec2.md, {{slot:site.prod_containers}}.\n"
+        "https://github.com/hareet/h4reet-ai/blob/main/docs/adr/0044-ec2-as-prods-default-host.md, "
+        "{{slot:site.prod_containers}}.\n"
     )
     assert fc.numbers_in(fc.without_exempt(text, quotes=())) == []
 
