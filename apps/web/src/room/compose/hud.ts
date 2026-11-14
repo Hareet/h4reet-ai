@@ -124,14 +124,19 @@ export const HUD_PLACEMENTS = {
       { belowRem: Number.POSITIVE_INFINITY, n: 2 },
     ] as readonly Band[],
   },
-  /** Spec 018 (FR-001, FR-004; plan.md §2): the split layout, a refinement of the column layout: from a landscape window of
-   *  `minWidthRem`, the conversation panel in the clear area's left (at most `maxRem` wide and `shareMax` of the window,
-   *  and at least `minWidthRem`/`minHeightRem` or no split) and the list in the column's right `widthRem`, at most
-   *  `heightRem` tall. The panel keeps the notes' reserve above it and the walking control's corner beside it. */
+  /** Spec 018 (FR-001, FR-004; plan.md §2, R-1 to R-4): the split layout, a refinement of the column layout, chosen by
+   *  FR-001's rule, not a width: the open conversation panel over the clear area's left, under the notes' reserve, at
+   *  most `maxRem` wide and `shareMax` of the window, at least `minWidthRem` × `minHeightRem`, its title row `titleRem`
+   *  tall; the rest row, the conversation at rest, in the bar's band at its left, at least `rest.minRem` wide (the
+   *  model's finding, test/ui/hud-split-model.test.ts) and `rest.gapRem` short of the tile cluster; the list at the
+   *  column band's top right, `list.widthRem` wide and at most `list.heightRem` tall; the walking control at the band's
+   *  foot, `walkGapRem` in from its right and its foot; and the always-on interface at rest at most `coverMax`. */
   split: {
-    minWidthRem: 48,
-    panel: { shareMax: 0.5, maxRem: 40, minWidthRem: 18, minHeightRem: 14, gapRem: 0.5, titleRem: 2.75 },
+    panel: { shareMax: 0.5, maxRem: 40, minWidthRem: 18, minHeightRem: 14, titleRem: 2.75 },
+    rest: { minRem: 40, gapRem: 0.25 },
     list: { widthRem: 24, heightRem: 22 },
+    walkGapRem: 0.25,
+    coverMax: 0.25,
   },
   /** The dock, across the foot above the bar: its padding around the list's strip and the text box's row. */
   dock: { padRem: 0.25 },
@@ -365,7 +370,28 @@ export interface CompactBoxes {
   readonly walk: Box;
   /** Where the walking control sits: at the column's head, or in the stage's corner (spec 008's FR-021). */
   readonly walkPlace: "column" | "stage";
+  /** Spec 018 (FR-004, R-4): the split layout's boxes where the window takes it, else null. Where it isn't null, `walk`
+   *  is its walking control and `all` holds its boxes at rest; `column` is still the column's compact box, computed for
+   *  spec 014's content case and not shown. */
+  readonly split: SplitBoxes | null;
   readonly all: readonly Box[];
+}
+
+/** The column layout's strip and the bar's tile cluster (spec 014, PD-6): the strip as wide as its words' bound, centred
+ *  at the top, and the cluster at the foot's right. */
+function columnClusters(
+  screen: { readonly w: number; readonly h: number },
+  bands: HudBoxes,
+  metrics: HudMetrics,
+): { strip: Box; bar: Box } {
+  const t = HUD_PLACEMENTS;
+  const rem = metrics.rem;
+  const width = across(screen, metrics);
+  const stripW = Math.min(t.strip.maxRem * rem, width);
+  const strip: Box = { x: metrics.safe.left + (width - stripW) / 2, y: 0, w: stripW, h: bands.strip.h };
+  const barW = Math.min(t.bar.maxRem * rem, width);
+  const bar: Box = { x: screen.w - metrics.safe.right - barW, y: bands.bar.y, w: barW, h: bands.bar.h };
+  return { strip, bar };
 }
 
 /** The compact boxes a window's table gives (contracts/frame-area.md §1): each inside its band. */
@@ -389,18 +415,30 @@ export function compactBoxes(
       dock: bands.dock,
       walk,
       walkPlace: "stage",
+      split: null,
       all,
     };
   }
-  const width = across(screen, metrics);
-  const stripW = Math.min(t.strip.maxRem * rem, width);
-  const strip: Box = { x: metrics.safe.left + (width - stripW) / 2, y: 0, w: stripW, h: bands.strip.h };
-  const barW = Math.min(t.bar.maxRem * rem, width);
-  const bar: Box = { x: screen.w - metrics.safe.right - barW, y: bands.bar.y, w: barW, h: bands.bar.h };
+  const { strip, bar } = columnClusters(screen, bands, metrics);
   const band = bands.column;
   const contentW = band.w - metrics.safe.right;
   const h = Math.min(band.h, columnContentHeight(screen, metrics, contentW));
   const column: Box = { x: band.x, y: band.y + band.h - h, w: band.w, h };
+  // Spec 018 (FR-004, R-3, R-4): where the window takes the split layout, the column's content is moved out: the
+  // boxes at rest are the strip, the cluster, the rest row, the list, and the walking control at the band's foot.
+  const split = splitBoxes(screen, state, metrics);
+  if (split)
+    return {
+      layout: "column",
+      strip,
+      bar,
+      column,
+      dock: null,
+      walk: split.walk,
+      walkPlace: "column",
+      split,
+      all: [strip, bar, split.rest, split.list, split.walk],
+    };
   // T053 (Amendment W19; the Author's answer of 2026-11-10, "Move the walk control (Recommended)"): where the column's
   // band has room above its content, the walking control sits at the column's head, at its right, a gap above it;
   // else in the clear area's corner, as spec 008 put it.
@@ -415,6 +453,7 @@ export function compactBoxes(
       dock: null,
       walk: head,
       walkPlace: "column",
+      split: null,
       all: [strip, bar, column, head],
     };
   }
@@ -426,6 +465,7 @@ export function compactBoxes(
     dock: null,
     walk,
     walkPlace: "stage",
+    split: null,
     all: [strip, bar, column, walk],
   };
 }
@@ -470,49 +510,78 @@ export function alwaysOnCoverage(
   return unionArea([...c.all, notesBox(clear, metrics.rem)]) / (screen.w * screen.h);
 }
 
-// ---- Spec 018: the split layout (FR-001, FR-004; plan.md §2) ----
+// ---- Spec 018: the split layout (FR-001, FR-004; plan.md §2, R-1 to R-4) ----
 
-/** The split layout's boxes in a window's pixels: the panel open, its resting bar (the text box's row at its foot), and
- *  the list. */
+/** The split layout's boxes in a window's pixels. `panel` is the open conversation panel over the scene's left;
+ *  `title` its title row, at its top (the frame is drawn below it); `rest` the conversation at rest, one row in the bar's
+ *  band at its left; `frame` the panel with the rest row below it, the box the open panel's frame is drawn round; `list`
+ *  the list at the column band's top right; and `walk` the walking control at the band's foot. */
 export interface SplitBoxes {
   readonly panel: Box;
-  readonly bar: Box;
+  readonly title: Box;
+  readonly rest: Box;
+  readonly frame: Box;
   readonly list: Box;
+  readonly walk: Box;
 }
 
 /**
- * The split layout's boxes, or null where the window takes none: it is landscape, at least `split.minWidthRem` wide,
- * in the column layout, and its left half holds a panel (`panel.minWidthRem` by `panel.minHeightRem`) clear of the
- * notes' reserve and the walking control's corner. A refinement of the column layout, so the bands, the clear area, and
- * the compositor's checks are the column layout's, unchanged (plan.md §2).
+ * The split layout's boxes, or null where the window takes none. FR-001's rule, in plan.md §2's order: (a) the window
+ * takes the column layout and holds its HUD; (b) the panel is at least `panel.minWidthRem` × `panel.minHeightRem`; (c)
+ * the scene beside it is at least spec 005's floor; (d) the rest row is at least `rest.minRem` wide; and (e) the
+ * always-on interface at rest covers at most `coverMax` of the window. A refinement of the column layout: the bands, the
+ * clear area, and the stages are the column layout's, unchanged (D-I1, Q53); the open panel lies over the scene and is
+ * not a box at rest (Q59).
  */
 export function splitBoxes(
   screen: { readonly w: number; readonly h: number },
   state: HudState = OPENING,
   metrics: HudMetrics = DEFAULT_METRICS,
 ): SplitBoxes | null {
-  const t = HUD_PLACEMENTS;
+  const T = HUD_PLACEMENTS;
+  const t = T.split;
   const { rem, safe } = metrics;
-  if (!(screen.w > screen.h) || screen.w < t.split.minWidthRem * rem) return null;
+  // (a)
+  if (layoutFor(screen, metrics) !== "column" || !fitsHud(screen, state, metrics)) return null;
   const bands = hudBoxes(screen, state, metrics);
-  if (bands.layout !== "column" || !bands.column || !fitsHud(screen, state, metrics)) return null;
+  const band = bands.column;
+  if (!band) return null;
   const { clear } = bands;
-  const reserve = notesReserve(clear, rem);
-  const p = t.split.panel;
-  const walkLeft = clear.w - WALK_CONTROL.insetRem * rem - WALK_CONTROL.widthRem * rem - p.gapRem * rem;
-  const width = Math.min(p.maxRem * rem, p.shareMax * screen.w - clear.x, walkLeft);
-  const height = clear.h - reserve;
-  if (width < p.minWidthRem * rem || height < p.minHeightRem * rem) return null;
-  const panel: Box = { x: clear.x, y: clear.y + reserve, w: width, h: height };
-  const talk =
-    (t.talk.labelRem * t.talk.lineHeight + t.talk.gapRem + t.talk.rowRem + p.titleRem) * rem + 2 * t.dock.padRem * rem;
-  const bar: Box = { x: panel.x, y: panel.y + panel.h - talk, w: panel.w, h: talk };
-  const listW = Math.min(t.split.list.widthRem * rem, bands.column.w - safe.right);
-  const list: Box = {
-    x: bands.column.x + bands.column.w - safe.right - listW,
-    y: bands.column.y,
-    w: listW,
-    h: Math.min(bands.column.h, t.split.list.heightRem * rem),
+  // (b) The panel: from the notes' reserve's foot to the clear area's foot, at most 40rem and half the window.
+  const top = clear.y + notesReserve(clear, rem);
+  const panel: Box = {
+    x: clear.x,
+    y: top,
+    w: Math.min(t.panel.maxRem * rem, t.panel.shareMax * screen.w - clear.x),
+    h: clear.y + clear.h - top,
   };
-  return { panel, bar, list };
+  if (panel.w < t.panel.minWidthRem * rem || panel.h < t.panel.minHeightRem * rem) return null;
+  // (c) The scene beside the panel: the floor.
+  if (clear.w - panel.w < T.minimum.w || clear.h < T.minimum.h) return null;
+  // (d) The rest row: in the bar's band at its left, as wide as the panel, short of the tile cluster.
+  const { strip, bar: cluster } = columnClusters(screen, bands, metrics);
+  const rest: Box = {
+    x: safe.left,
+    y: bands.bar.y,
+    w: Math.min(panel.w, cluster.x - t.rest.gapRem * rem - safe.left),
+    h: bands.bar.h,
+  };
+  if (rest.w < t.rest.minRem * rem) return null;
+  // The walking control at the band's foot, at its right (R-3); the list above it, at the band's top right.
+  const gap = t.walkGapRem * rem;
+  const [ww, wh] = [WALK_CONTROL.widthRem * rem, WALK_CONTROL.heightRem * rem];
+  const walk: Box = { x: band.x + band.w - safe.right - gap - ww, y: band.y + band.h - gap - wh, w: ww, h: wh };
+  const listW = Math.min(t.list.widthRem * rem, band.w - safe.right);
+  const list: Box = {
+    x: band.x + band.w - safe.right - listW,
+    y: band.y,
+    w: listW,
+    h: Math.min(t.list.heightRem * rem, walk.y - gap - band.y),
+  };
+  // (e) At rest, at most a quarter of the window (Q58).
+  const cover = unionArea([strip, cluster, rest, list, walk, notesBox(clear, rem)]) / (screen.w * screen.h);
+  if (cover > t.coverMax) return null;
+  const title: Box = { x: panel.x, y: panel.y, w: panel.w, h: t.panel.titleRem * rem };
+  const frame: Box = { x: panel.x, y: panel.y, w: panel.w, h: rest.y + rest.h - panel.y };
+  return { panel, title, rest, frame, list, walk };
 }

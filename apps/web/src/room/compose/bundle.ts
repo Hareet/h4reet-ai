@@ -99,6 +99,9 @@ export interface RoomIndex {
     name: string;
     members: string[];
     action: { kind: "talk"; topic: string } | { kind: "resume" };
+    /** The conversation panel's emblem, a name hud/icons.ts draws (spec 018, FR-005; D-V3); absent where the data
+     *  names none, which has the speech glyph. */
+    emblem?: string;
     /** Every member hangs directly on the shell's side-wall anchors: FR-064's carve-out (see listOnly) may leave it
      *  to the "In the room" list at any stage where its core can't fit. */
     side_wall: boolean;

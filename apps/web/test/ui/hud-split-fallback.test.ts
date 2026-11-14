@@ -81,8 +81,20 @@ describe("a decoration that throws shows its plain form (FR-002)", () => {
     expect(doc.getElementById("talk-text")).not.toBeNull();
   });
 
+  it("the emblem (T026): none, the stats and every control still there", () => {
+    const { doc, s } = build({ emblem: boom });
+    s.setConversation("a");
+    expect(s.open).toBe(true);
+    expect(doc.querySelector(".split-emblem")).toBeNull();
+    expect(doc.querySelectorAll(".split-stats dd")).toHaveLength(3);
+    expect(() => s.setConversation("b")).not.toThrow();
+    expect(doc.querySelector(".split-emblem")).toBeNull();
+    (doc.querySelector(".split-hint") as HTMLButtonElement).click();
+    expect(s.open).toBe(false);
+  });
+
   it("everything at once: still opens, closes, selects, and Escape closes", () => {
-    const { doc, s } = build({ frame: boom, stroke: boom, keycap: boom, portrait: boom });
+    const { doc, s } = build({ frame: boom, stroke: boom, keycap: boom, portrait: boom, emblem: boom });
     s.openPanel();
     s.setTarget("a");
     expect(doc.querySelectorAll(".split-stats dt")).toHaveLength(3);

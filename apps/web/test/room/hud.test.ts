@@ -236,7 +236,9 @@ describe("the compact boxes (spec 014, T005; compose/hud.ts's compactBoxes)", ()
         // the column's content; else in the clear area, as spec 008 put it.
         const band = c.walkPlace === "column" ? bands.column : bands.clear;
         if (!band || !inside(c.walk, band)) failures.push(`${where}: the walking control`);
-        if (c.all.length !== 4) failures.push(`${where}: ${c.all.length} boxes`);
+        // Spec 018 (FR-004, H-8): where the window takes the split layout, five: the rest row and the list stand for the
+        // column's content.
+        if (c.all.length !== (c.split ? 5 : 4)) failures.push(`${where}: ${c.all.length} boxes`);
       }
     expect(failures.slice(0, 5), `${failures.length} failures; the first`).toEqual([]);
   });
@@ -387,6 +389,14 @@ describe("the walking control at the column's head (spec 014, T053)", () => {
       if (!column || !bands.column) throw new Error(`${where}: no column`);
       expect(c.layout, where).toBe("column");
       expect(c.walkPlace, where).toBe("column");
+      // Spec 018 (FR-004, H-8): where the window takes the split layout, the column's content is moved out, and the
+      // walking control stands at the band's foot, the column's head with nothing under it.
+      if (c.split) {
+        expect(inside(bands.column, c.walk), where).toBe(true);
+        expect(c.walk, where).toEqual(c.split.walk);
+        expect(c.all, where).toEqual([c.strip, c.bar, c.split.rest, c.split.list, c.walk]);
+        continue;
+      }
       expect(inside(bands.column, c.walk), where).toBe(true);
       expect(c.walk.y + c.walk.h, where).toBeCloseTo(column.y - HUD_PLACEMENTS.column.walkGapRem * 16, 6);
       expect(c.walk.x + c.walk.w, where).toBeCloseTo(column.x + column.w - HUD_PLACEMENTS.column.walkGapRem * 16, 6);

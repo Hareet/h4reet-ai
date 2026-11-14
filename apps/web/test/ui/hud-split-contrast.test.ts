@@ -84,3 +84,57 @@ describe("the split layout's contrast (FR-014)", () => {
     expect(ratio(colours.border, glass)).toBeGreaterThanOrEqual(3);
   });
 });
+
+// T027 (rv2-impl-018's B2; FR-014, SC-003): the open panel's title row, the title toggle and the hint, sits above the
+// frame, so the frame's glass is not behind it: it has the panel's glass of its own. Every rule of split.css that sets
+// type or colour on the open panel's text names a part that one of the two glasses backs.
+describe("the open panel's text on glass (T027; FR-014, B2)", () => {
+  const ON = 'html[data-split="on"][data-hud="column"]';
+  const OPEN = `${ON} .talk[data-panel="open"]`;
+  const GLASS = "rgb(var(--glass) / var(--split-glass-alpha))";
+  const rule = (selector: string, property: string): string | undefined =>
+    SPLIT_SHEET.rules
+      .filter(
+        (r) =>
+          r.selector
+            .split(",")
+            .map((x) => x.trim())
+            .includes(selector) && r.declarations.has(property),
+      )
+      .at(-1)
+      ?.declarations.get(property);
+
+  it("puts the panel's glass behind the title row, and the frame's behind the rest", () => {
+    expect(rule(`${OPEN} .talk-head`, "background")).toBe(GLASS);
+    expect(rule(`${ON} .split-frame path`, "fill")).toBe(GLASS);
+    expect(rule(`${OPEN}.split-plain`, "background")).toBe(GLASS);
+  });
+
+  for (const [beneath, under] of [
+    ["white", [255, 255, 255]],
+    ["black", [0, 0, 0]],
+  ] as [string, Rgb][])
+    it(`gives the title 4.5:1 over the title row's glass over ${beneath}`, () => {
+      const glass = over(glassRgb(), alpha, under);
+      expect(ratio(colours.text, glass)).toBeGreaterThanOrEqual(4.5);
+    });
+
+  it("makes the title row's glass opaque under reduced transparency and more contrast, and Canvas in forced colours", () => {
+    expect(rule(`${OPEN} .talk-head`, "background")).toContain("var(--split-glass-alpha)");
+    const forced = SPLIT_SHEET.atRules.find((a) => /forced-colors:\s*active/.test(a.prelude));
+    expect(forced?.body).toMatch(/\.talk\[data-panel="open"\] \.talk-head[^{]*\{[^}]*background:\s*Canvas/);
+  });
+
+  it("sets the open panel's type and colour only on parts a glass backs", () => {
+    const TITLE_ROW = [".talk-head", ".talk-log-toggle", ".split-hint"];
+    const IN_FRAME = [".split-top", ".split-stat", ".split-emblem", ".talk-log", ".talk-status", ".talk-form"];
+    const unbacked: string[] = [];
+    for (const r of SPLIT_SHEET.rules)
+      for (const sel of r.selector.split(",").map((x) => x.trim())) {
+        if (!sel.includes('[data-panel="open"]')) continue;
+        if (![...r.declarations.keys()].some((k) => /^(color|font|font-size|font-family)$/.test(k))) continue;
+        if (![...TITLE_ROW, ...IN_FRAME].some((part) => sel.includes(part))) unbacked.push(sel);
+      }
+    expect(unbacked).toEqual([]);
+  });
+});
