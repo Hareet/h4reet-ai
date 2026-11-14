@@ -52,6 +52,7 @@ import {
   showHandoff as drawHandoff,
 } from "./scene/bundle3d";
 import { floorOfPart } from "./compose/floor";
+import { reservedBoxes } from "./compose/hud";
 import type { Box } from "./compose/hud";
 import { bufferRatio, clearNdc, fillsCanvas, viewOffsetFor } from "./fit";
 import { reservedIn } from "./compose/frame";
@@ -647,7 +648,15 @@ export function createScene(options: SceneOptions): Stage3D {
       given.area.h > 0;
     const next: Box = fits ? given.area : { x: 0, y: 0, w, h };
     const nextHud: readonly Box[] = fits && framed ? framed.hud : [];
-    const nextReserved = fits && framed ? reservedIn(next, nextHud) : undefined;
+    // Spec 024 (rework-024, I-1; page Q215): in the stacked layout (the canvas its own stage), a dinosaur visit reserves
+    // the "Eat" tile's box beside the walking control's, where room.css puts the tile; every other visit leaves it to
+    // the picker's fallback, the walking control's box alone, as before.
+    const nextReserved =
+      fits && framed
+        ? reservedIn(next, nextHud)
+        : !fits && eats
+          ? reservedBoxes(next, undefined, { eat: true })
+          : undefined;
     if (
       w === size.w &&
       h === size.h &&
