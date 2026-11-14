@@ -1,7 +1,8 @@
 // The twin's reach toward the room's dog (spec 026; FR-007, FR-008; plan.md R-03, R-04, amended by the page's Q212,
 // taken provisionally): the stand-in for the studio's `petting` clip. The math here is pure (the spine's lean, the
 // posture's crouch and lean, the two-bone solve, the stroke's target, the layer's weight), over plain numbers, with no
-// three.js object; the bones' part follows it, three's, preallocated.
+// three.js object; the bones' part follows it, three's. No frame makes an object, numbers included, measured by
+// test/room/pet-bench.test.ts (FR-027; rv-impl-026's I-1): see `Point`.
 import { PropertyBinding, Quaternion, Vector3 } from "three";
 import type { Object3D } from "three";
 
@@ -10,6 +11,18 @@ export interface Vec3 {
   x: number;
   y: number;
   z: number;
+}
+
+/**
+ * A `Vec3` to write in place each frame (FR-027; rv-impl-026's I-1). A class, not an `{ x, y, z }` literal: V8 shares
+ * one hidden class among every such literal in the page, whose fields any other code can generalize to hold anything,
+ * and a fraction stored in such a field is then a new heap number at each write (measured: `pet-bench.test.ts`). A
+ * class's instances have a hidden class of their own, whose number fields stay unboxed.
+ */
+export class Point implements Vec3 {
+  x = 0;
+  y = 0;
+  z = 0;
 }
 
 /** The reach's tunables (spec FR-007, FR-008; plan §3): scene data in `figures.pet`, these its defaults. Placeholders,
@@ -47,7 +60,7 @@ export function solveLean(shoulder: Vec3, hips: Vec3, target: Vec3, reach: numbe
   const A = rx * wx + ry * wy + rz * wz;
   // In reach already: |w − r|² = w² + r² − 2A.
   if (w2 + r2 - 2 * A <= reach * reach) return 0;
-  const n = Math.hypot(wx, wz);
+  const n = Math.sqrt(wx * wx + wz * wz);
   if (n < 1e-9 || maxRad <= 0) return 0;
   // k = up × (wx, 0, wz)/n = (wz, 0, −wx)/n.
   const kx = wz / n;
@@ -59,7 +72,7 @@ export function solveLean(shoulder: Vec3, hips: Vec3, target: Vec3, reach: numbe
   const B = cx * wx + cy * wy + cz * wz;
   const C = (kx * rx + kz * rz) * (kx * wx + kz * wz);
   const P = A - C;
-  const R = Math.hypot(P, B);
+  const R = Math.sqrt(P * P + B * B);
   const phi = Math.atan2(B, P);
   // The dot needed for |w − r′| = reach.
   const D = (w2 + r2 - reach * reach) / 2 - C;
@@ -79,11 +92,20 @@ export interface TwoBoneOut {
   reached: boolean;
 }
 
+/** A `TwoBoneOut` to write in place each frame (a class, as `Point` is; I-1). */
+export class TwoBone implements TwoBoneOut {
+  readonly elbow = new Point();
+  readonly hand = new Point();
+  elbowRad = 0;
+  reached = false;
+}
+
 /**
  * The arm's two bones toward `target` from `shoulder` (R-03): the upper of length `a`, the fore of length `b`, the
  * elbow bent toward `pole` and never past `elbowMax` from straight. A target in range is met exactly; one beyond reach
  * gives the straight arm toward it; one nearer than the elbow's limit allows gives the hand at the limit, on the line
- * toward it. Written into `out`, which it returns: no allocation (FR-027).
+ * toward it. Written into `out`, which it returns, making no object; its numbers, passed as arguments, are boxed at the
+ * call while they are fractions, so the reach calls its body, `twoBone`, with them in a class's fields (FR-027; I-1).
  */
 export function solveTwoBone(
   shoulder: Vec3,
@@ -94,10 +116,31 @@ export function solveTwoBone(
   elbowMax: number,
   out: TwoBoneOut,
 ): TwoBoneOut {
+  const len = TWO_BONE_ARGS;
+  len.a = a;
+  len.b = b;
+  len.elbowMax = elbowMax;
+  return twoBone(shoulder, target, pole, len, out);
+}
+
+/** The two-bone solve's lengths and limit, set in place (I-1): the reach passes its numbers in a class's fields, never
+ *  as arguments, since a fraction passed to a call V8 doesn't inline is boxed at each call. */
+class TwoBoneLengths {
+  a = 0;
+  b = 0;
+  elbowMax = 0;
+}
+const TWO_BONE_ARGS = new TwoBoneLengths();
+
+/** `solveTwoBone`'s body, its numbers in `len`. */
+function twoBone(shoulder: Vec3, target: Vec3, pole: Vec3, len: TwoBoneLengths, out: TwoBoneOut): TwoBoneOut {
+  const a = len.a;
+  const b = len.b;
+  const elbowMax = len.elbowMax;
   let dx = target.x - shoulder.x;
   let dy = target.y - shoulder.y;
   let dz = target.z - shoulder.z;
-  const dist = Math.hypot(dx, dy, dz);
+  const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
   if (dist < 1e-12) {
     // No direction: the arm hangs down, its elbow at the limit.
     dx = 0;
@@ -122,18 +165,18 @@ export function solveTwoBone(
   px -= dx * along;
   py -= dy * along;
   pz -= dz * along;
-  let pn = Math.hypot(px, py, pz);
+  let pn = Math.sqrt(px * px + py * py + pz * pz);
   if (pn < 1e-9) {
     along = -dy;
     px = -dx * along;
     py = -1 - dy * along;
     pz = -dz * along;
-    pn = Math.hypot(px, py, pz);
+    pn = Math.sqrt(px * px + py * py + pz * pz);
     if (pn < 1e-9) {
       px = dz;
       py = 0;
       pz = -dx;
-      pn = Math.hypot(px, py, pz) || 1;
+      pn = Math.sqrt(px * px + py * py + pz * pz) || 1;
     }
   }
   px /= pn;
@@ -216,11 +259,27 @@ export interface PostureOut {
   readonly axis: Vec3;
 }
 
+/** A `PostureOut` to write in place each frame (a class, as `Point` is; I-1). */
+export class Posture implements PostureOut {
+  share = 0;
+  crouch = 0;
+  lean = 0;
+  readonly axis = new Point();
+}
+
+/** `PostureLimits` and the reach, set in place each frame (a class, as `Point` is; I-1). */
+class Limits implements PostureLimits {
+  reach = 0;
+  crouch_max_m = 0;
+  lean_max_rad = 0;
+}
+const POSTURE_ARGS = new Limits();
+
 /** The posture's scan and its halvings (R-03): 16 steps, then 12 halvings of the step that first reaches. */
 const POSTURE_STEPS = 16;
 const POSTURE_HALVINGS = 12;
 
-/** Adds `r` turned by `t` about the unit horizontal axis (kx, 0, kz) into `acc` (Rodrigues), with no allocation. */
+/** Adds `r` turned by `t` about the unit horizontal axis (kx, 0, kz) into `acc` (Rodrigues), in place. */
 function addTurned(acc: Vec3, rx: number, ry: number, rz: number, kx: number, kz: number, t: number): void {
   const c = Math.cos(t);
   const s = Math.sin(t);
@@ -234,11 +293,28 @@ function addTurned(acc: Vec3, rx: number, ry: number, rz: number, kx: number, kz
   acc.z += rz * c + cz * s + kz * kr * (1 - c);
 }
 
-const SHOULDER: Vec3 = { x: 0, y: 0, z: 0 };
+/** The posture scan's numbers, fields written in place (I-1): the lean's axis (kx, 0, kz), the crouch c and the lean t
+ *  to try, and the squared distance found. */
+class Scan {
+  kx = 0;
+  kz = 0;
+  c = 0;
+  t = 0;
+  d2 = 0;
+}
 
-/** The shoulder's distance to `target` after a crouch `c` and a lean `t` about (kx, 0, kz), each spine bone turned by a
- *  third: the segments below `Spine` by t/3, below `Spine1` by 2t/3, below `Spine2` by t. */
-function distanceAt(chain: PostureChain, target: Vec3, kx: number, kz: number, c: number, t: number): number {
+const SHOULDER = new Point();
+const SCAN = new Scan();
+
+/** The shoulder's squared distance to `target` after a crouch `SCAN.c` and a lean `SCAN.t` about (`SCAN.kx`, 0,
+ *  `SCAN.kz`), each spine bone turned by a third: the segments below `Spine` by t/3, below `Spine1` by 2t/3, below
+ *  `Spine2` by t. Its numbers come and go in SCAN's fields, not as arguments or a result: the scan calls it up to 29
+ *  times a frame, and a fraction passed to or returned from a call V8 doesn't inline is boxed each time (FR-027; I-1). */
+function distanceAt(chain: PostureChain, target: Vec3): void {
+  const kx = SCAN.kx;
+  const kz = SCAN.kz;
+  const c = SCAN.c;
+  const t = SCAN.t;
   const [p0, p1, p2] = chain.spine;
   SHOULDER.x = p0.x;
   SHOULDER.y = p0.y - c;
@@ -247,7 +323,10 @@ function distanceAt(chain: PostureChain, target: Vec3, kx: number, kz: number, c
   addTurned(SHOULDER, p2.x - p1.x, p2.y - p1.y, p2.z - p1.z, kx, kz, (2 * t) / 3);
   const sh = chain.shoulder;
   addTurned(SHOULDER, sh.x - p2.x, sh.y - p2.y, sh.z - p2.z, kx, kz, t);
-  return Math.hypot(target.x - SHOULDER.x, target.y - SHOULDER.y, target.z - SHOULDER.z);
+  const dx = target.x - SHOULDER.x;
+  const dy = target.y - SHOULDER.y;
+  const dz = target.z - SHOULDER.z;
+  SCAN.d2 = dx * dx + dy * dy + dz * dz;
 }
 
 /**
@@ -256,7 +335,8 @@ function distanceAt(chain: PostureChain, target: Vec3, kx: number, kz: number, c
  * (crouch s · `crouch_max_m`, lean s · `lean_max_rad`), s the least in [0, 1] that reaches: a scan of 16 steps, then 12
  * halvings of the first step that reaches. Where s = 1 doesn't, the scan's nearest. The lean's axis is up × the
  * target's direction on the floor from the hips; for a target straight above or below them, there is no lean, only the
- * crouch. Written into `out`, which it returns: no allocation (FR-027).
+ * crouch. Written into `out`, which it returns, making no object; the reach calls its body, `posture`, with the reach
+ * and the limits in a class's fields, as `solveTwoBone`'s (FR-027; I-1).
  */
 export function solvePosture(
   chain: PostureChain,
@@ -265,23 +345,42 @@ export function solvePosture(
   limits: PostureLimits,
   out: PostureOut,
 ): PostureOut {
+  const args = POSTURE_ARGS;
+  args.reach = reach;
+  args.crouch_max_m = limits.crouch_max_m;
+  args.lean_max_rad = limits.lean_max_rad;
+  return posture(chain, target, args, out);
+}
+
+/** `solvePosture`'s body, its reach and limits in `limits` (I-1). */
+function posture(chain: PostureChain, target: Vec3, limits: Limits, out: PostureOut): PostureOut {
+  const reach = limits.reach;
   const wx = target.x - chain.hips.x;
   const wz = target.z - chain.hips.z;
-  const n = Math.hypot(wx, wz);
+  const n = Math.sqrt(wx * wx + wz * wz);
   const leans = n >= 1e-9;
   const kx = leans ? wz / n : 0;
   const kz = leans ? -wx / n : 0;
   const cMax = Math.max(0, limits.crouch_max_m);
   const tMax = leans ? Math.max(0, limits.lean_max_rad) : 0;
+  const reach2 = reach * reach;
   let share = 0;
-  let best = distanceAt(chain, target, kx, kz, 0, 0);
-  if (best > reach) {
+  SCAN.kx = kx;
+  SCAN.kz = kz;
+  SCAN.c = 0;
+  SCAN.t = 0;
+  distanceAt(chain, target);
+  let best = SCAN.d2;
+  if (best > reach2) {
     let found = -1;
     let nearest = 0;
     for (let i = 1; i <= POSTURE_STEPS; i++) {
       const s = i / POSTURE_STEPS;
-      const d = distanceAt(chain, target, kx, kz, s * cMax, s * tMax);
-      if (d <= reach) {
+      SCAN.c = s * cMax;
+      SCAN.t = s * tMax;
+      distanceAt(chain, target);
+      const d = SCAN.d2;
+      if (d <= reach2) {
         found = i;
         break;
       }
@@ -296,7 +395,10 @@ export function solvePosture(
       let hi = found / POSTURE_STEPS;
       for (let i = 0; i < POSTURE_HALVINGS; i++) {
         const mid = (lo + hi) / 2;
-        if (distanceAt(chain, target, kx, kz, mid * cMax, mid * tMax) <= reach) hi = mid;
+        SCAN.c = mid * cMax;
+        SCAN.t = mid * tMax;
+        distanceAt(chain, target);
+        if (SCAN.d2 <= reach2) hi = mid;
         else lo = mid;
       }
       share = hi;
@@ -436,7 +538,7 @@ const POLE_M = 0.3;
 /** The arm's reach: 0.98 of its two lengths (R-03). */
 const REACH_SHARE = 0.98;
 
-// Preallocated: one reach is laid at a time, and no frame makes an object (FR-027).
+// Made once: one reach is laid at a time, and no frame makes an object (FR-027), measured by pet-bench.test.ts.
 const _q = new Quaternion();
 const _r = new Quaternion();
 const _p = new Quaternion();
@@ -450,22 +552,22 @@ const _pos = new Vector3();
 const _u = new Vector3();
 const _w = new Vector3();
 const _fwd = new Vector3();
+const UP = new Vector3(0, 1, 0);
 const _out = new Vector3();
-const _hips = { x: 0, y: 0, z: 0 };
-const _spine: [Vec3, Vec3, Vec3] = [
-  { x: 0, y: 0, z: 0 },
-  { x: 0, y: 0, z: 0 },
-  { x: 0, y: 0, z: 0 },
-];
-const _shoulder = { x: 0, y: 0, z: 0 };
+const _hips = new Point();
+const _spine: [Point, Point, Point] = [new Point(), new Point(), new Point()];
+const _shoulder = new Point();
 const CHAIN: PostureChain = { hips: _hips, spine: _spine, shoulder: _shoulder };
-const POSTURE: PostureOut = { share: 0, crouch: 0, lean: 0, axis: { x: 0, y: 0, z: 0 } };
-const TWO: TwoBoneOut = { elbow: { x: 0, y: 0, z: 0 }, hand: { x: 0, y: 0, z: 0 }, elbowRad: 0, reached: false };
-const _j = { x: 0, y: 0, z: 0 };
-const _k = { x: 0, y: 0, z: 0 };
-const _a = { x: 0, y: 0, z: 0 };
-const _pole = { x: 0, y: 0, z: 0 };
-const _t = { x: 0, y: 0, z: 0 };
+const POSTURE = new Posture();
+const LIMITS = new Limits();
+const TWO = new TwoBone();
+const _j = new Point();
+const _k = new Point();
+const _a = new Point();
+const _pole = new Point();
+const _t = new Point();
+const LEG_LENGTHS = new TwoBoneLengths();
+const ARM_LENGTHS = new TwoBoneLengths();
 const LEG_SCRATCH = [0, 1].map(() => ({
   hip: new Vector3(),
   knee: new Vector3(),
@@ -513,6 +615,68 @@ function write(b: ReachBone, rotation: Quaternion): void {
   b.on = true;
 }
 
+const SLERP_A = new Float64Array(4);
+const SLERP_B = new Float64Array(4);
+/** The share `slerpInto` takes, set in place (I-1). */
+const SLERP_T = new Float64Array(1);
+
+/**
+ * `q` becomes three's `q.slerp(r, SLERP_T[0])`, the same arithmetic (the shorter way; a lerp and a normalize within
+ * 0.9995 of the same rotation), its numbers through typed arrays and `toArray`/`fromArray`: `slerp` takes its share as
+ * an argument, a heap number made at each call while it is a fraction (I-1).
+ */
+function slerpInto(q: Quaternion, r: Quaternion): Quaternion {
+  q.toArray(SLERP_A);
+  r.toArray(SLERP_B);
+  let t = SLERP_T[0] as number;
+  const ax = SLERP_A[0] as number;
+  const ay = SLERP_A[1] as number;
+  const az = SLERP_A[2] as number;
+  const aw = SLERP_A[3] as number;
+  let bx = SLERP_B[0] as number;
+  let by = SLERP_B[1] as number;
+  let bz = SLERP_B[2] as number;
+  let bw = SLERP_B[3] as number;
+  let dot = ax * bx + ay * by + az * bz + aw * bw;
+  if (dot < 0) {
+    bx = -bx;
+    by = -by;
+    bz = -bz;
+    bw = -bw;
+    dot = -dot;
+  }
+  let s = 1 - t;
+  if (dot < 0.9995) {
+    const theta = Math.acos(dot);
+    const sin = Math.sin(theta);
+    s = Math.sin(s * theta) / sin;
+    t = Math.sin(t * theta) / sin;
+  }
+  let x = ax * s + bx * t;
+  let y = ay * s + by * t;
+  let z = az * s + bz * t;
+  let w = aw * s + bw * t;
+  if (!(dot < 0.9995)) {
+    const l = Math.sqrt(x * x + y * y + z * z + w * w);
+    if (l === 0) {
+      x = 0;
+      y = 0;
+      z = 0;
+      w = 1;
+    } else {
+      x /= l;
+      y /= l;
+      z /= l;
+      w /= l;
+    }
+  }
+  SLERP_A[0] = x;
+  SLERP_A[1] = y;
+  SLERP_A[2] = z;
+  SLERP_A[3] = w;
+  return q.fromArray(SLERP_A);
+}
+
 /** `q` becomes p⁻¹ · r · p · base: a world turn r given to a bone whose parent's world rotation is p, as a local one. */
 function localTurn(base: Quaternion, parentWorld: Quaternion, r: Quaternion, q: Quaternion): Quaternion {
   _pi.copy(parentWorld).invert();
@@ -526,13 +690,46 @@ function localTurn(base: Quaternion, parentWorld: Quaternion, r: Quaternion, q: 
  * bones; both scaled by the weight, so the feet stay planted through the ease. Then the arm on the rig's side by
  * `solveTwoBone`, the elbow toward a pole out and down from the clip's elbow, within `elbow_deg`, its two bones slerped
  * from the clip's by the weight; the hand keeps the clip's rotation. Each bone's base is the mixer's last write
- * (spec 019's tracking). A weight of 0 or less clears the reach. No object is made (FR-027).
+ * (spec 019's tracking). A weight of 0 or less clears the reach. It makes no object but a fractional `weight`'s box at
+ * its call; the twin's controller calls `applyReachLayer`, which makes none (FR-027; I-1).
  *
  * `legs` false is a run's cut (Q226; FR-011): the hips and both legs are given back to the clip at once, where the
  * reach's write is still on them (a bone the run's mixer or leg layer wrote since keeps that write), and are neither
  * read as a base nor written while it lasts; only the spine's lean and the arm ease out by the weight.
  */
 export function applyReach(rig: ReachRig, target: Vec3, weight: number, cfg: ReachConfig, legs = true): void {
+  const layer = LAYER_ARGS;
+  layer.target = target;
+  layer.weight = weight;
+  layer.legs = legs;
+  applyReachLayer(rig, layer, cfg);
+}
+
+/** The reach layer's numbers for a frame: the hand's target in world space, the weight, and whether the crouch is laid
+ *  (Q226). The director's `reach` (pet.ts) is one. */
+export interface ReachLayer {
+  readonly target: Vec3;
+  readonly weight: number;
+  readonly legs: boolean;
+}
+
+/** `applyReach`'s arguments, set in place (I-1). */
+class LayerArgs implements ReachLayer {
+  target: Vec3 = new Point();
+  weight = 0;
+  legs = true;
+}
+const LAYER_ARGS = new LayerArgs();
+
+/**
+ * `applyReach` with its numbers read from `layer`'s fields, the entry the twin's controller calls each frame with the
+ * director's `reach` (T014): a weight passed as an argument is a heap number made at each call while it is a fraction
+ * (the reach-in, the withdraw, a run's cut), and this makes none (FR-027; I-1, measured by `pet-bench.test.ts`).
+ */
+export function applyReachLayer(rig: ReachRig, layer: ReachLayer, cfg: ReachConfig): void {
+  const weight = layer.weight;
+  const target = layer.target;
+  const legs = layer.legs;
   if (!(weight > 0)) {
     clearReach(rig);
     return;
@@ -544,15 +741,14 @@ export function applyReach(rig: ReachRig, target: Vec3, weight: number, cfg: Rea
     if (!hips.on || !hips.node.position.equals(hips.applied)) hips.base.copy(hips.node.position);
     hips.node.position.copy(hips.base);
   } else clearLegs(rig);
-  for (const b of rig.spine) sync(b);
+  for (let i = 0; i < 3; i++) sync(rig.spine[i]!);
   sync(rig.arm);
   sync(rig.fore);
-  if (legs) {
-    for (const leg of rig.legs) {
-      sync(leg.up);
-      sync(leg.knee);
-      sync(leg.foot);
-    }
+  for (let i = 0; legs && i < 2; i++) {
+    const leg = rig.legs[i]!;
+    sync(leg.up);
+    sync(leg.knee);
+    sync(leg.foot);
   }
   hips.node.updateWorldMatrix(true, true);
   // 2. The clip's pose, read in world space.
@@ -564,8 +760,16 @@ export function applyReach(rig: ReachRig, target: Vec3, weight: number, cfg: Rea
   }
   setV(_shoulder, worldPos(rig.arm.node, _u));
   const elbow0 = worldPos(rig.fore.node, _w);
-  const a = elbow0.distanceTo(_u.setFromMatrixPosition(rig.arm.node.matrixWorld));
-  const b = elbow0.distanceTo(_u.setFromMatrixPosition(rig.end.matrixWorld));
+  worldPos(rig.arm.node, _u);
+  const ax = elbow0.x - _u.x;
+  const ay = elbow0.y - _u.y;
+  const az = elbow0.z - _u.z;
+  const a = Math.sqrt(ax * ax + ay * ay + az * az);
+  worldPos(rig.end, _u);
+  const bx = elbow0.x - _u.x;
+  const by = elbow0.y - _u.y;
+  const bz = elbow0.z - _u.z;
+  const b = Math.sqrt(bx * bx + by * by + bz * bz);
   for (let i = 0; legs && i < 2; i++) {
     const leg = rig.legs[i]!;
     const s = LEG_SCRATCH[i]!;
@@ -583,26 +787,31 @@ export function applyReach(rig: ReachRig, target: Vec3, weight: number, cfg: Rea
   if (rig.side === "right") _out.negate();
   // 3. The posture, scaled by the weight. On a run's cut the crouch is solved as before (so the lean eases from where
   // it was) but not laid (Q226).
-  solvePosture(
-    CHAIN,
-    target,
-    REACH_SHARE * (a + b),
-    { crouch_max_m: cfg.crouch_max_m, lean_max_rad: (cfg.lean_max_deg * Math.PI) / 180 },
-    POSTURE,
-  );
+  LIMITS.reach = REACH_SHARE * (a + b);
+  LIMITS.crouch_max_m = cfg.crouch_max_m;
+  LIMITS.lean_max_rad = (cfg.lean_max_deg * Math.PI) / 180;
+  posture(CHAIN, target, LIMITS, POSTURE);
   const crouch = legs ? w * POSTURE.crouch : 0;
   const lean = w * POSTURE.lean;
   // The crouch: the hips straight down.
   if (legs) {
-    _u.set(_hips.x, _hips.y - crouch, _hips.z);
+    _u.x = _hips.x;
+    _u.y = _hips.y - crouch;
+    _u.z = _hips.z;
     (hips.node.parent as Object3D).worldToLocal(_u);
     hips.node.position.copy(_u);
     hips.applied.copy(_u);
     hips.on = true;
   }
   // The lean: each spine bone turned by a third about the axis, in world space.
-  _w.set(POSTURE.axis.x, 0, POSTURE.axis.z);
-  _r.setFromAxisAngle(_w, lean / 3);
+  // The turn by lean/3 about the horizontal axis k = (kx, 0, kz), as the turn from up to up turned by it, (−kz sin,
+  // cos, kx sin): three's `setFromAxisAngle` would take the angle as an argument, boxed at each call (I-1).
+  const third = lean / 3;
+  const sn = Math.sin(third);
+  _w.x = -POSTURE.axis.z * sn;
+  _w.y = Math.cos(third);
+  _w.z = POSTURE.axis.x * sn;
+  _r.setFromUnitVectors(UP, _w);
   for (let i = 0; i < 3; i++) {
     const sb = rig.spine[i]!;
     write(sb, localTurn(sb.base, SPINE_PARENT[i]!, _r, _q));
@@ -612,8 +821,14 @@ export function applyReach(rig: ReachRig, target: Vec3, weight: number, cfg: Rea
   for (let i = 0; legs && i < 2; i++) {
     const leg = rig.legs[i]!;
     const s = LEG_SCRATCH[i]!;
-    const thigh = s.knee.distanceTo(s.hip);
-    const shin = s.ankle.distanceTo(s.knee);
+    const tx = s.knee.x - s.hip.x;
+    const ty = s.knee.y - s.hip.y;
+    const tz = s.knee.z - s.hip.z;
+    const thigh = Math.sqrt(tx * tx + ty * ty + tz * tz);
+    const sx = s.ankle.x - s.knee.x;
+    const sy = s.ankle.y - s.knee.y;
+    const sz = s.ankle.z - s.knee.z;
+    const shin = Math.sqrt(sx * sx + sy * sy + sz * sz);
     _j.x = s.hip.x;
     _j.y = s.hip.y - crouch;
     _j.z = s.hip.z;
@@ -621,18 +836,31 @@ export function applyReach(rig: ReachRig, target: Vec3, weight: number, cfg: Rea
     _pole.y = s.knee.y;
     _pole.z = s.knee.z + _fwd.z * POLE_M;
     setV(_a, s.ankle);
-    solveTwoBone(_j, _a, _pole, thigh, shin, KNEE_MAX_RAD, TWO);
+    LEG_LENGTHS.a = thigh;
+    LEG_LENGTHS.b = shin;
+    LEG_LENGTHS.elbowMax = KNEE_MAX_RAD;
+    twoBone(_j, _a, _pole, LEG_LENGTHS, TWO);
     setV(_k, s.knee);
     // The thigh: from the clip's direction to the solve's.
-    _u.set(_k.x - s.hip.x, _k.y - s.hip.y, _k.z - s.hip.z).normalize();
-    _w.set(TWO.elbow.x - _j.x, TWO.elbow.y - _j.y, TWO.elbow.z - _j.z).normalize();
+    _u.x = _k.x - s.hip.x;
+    _u.y = _k.y - s.hip.y;
+    _u.z = _k.z - s.hip.z;
+    _u.normalize();
+    _w.x = TWO.elbow.x - _j.x;
+    _w.y = TWO.elbow.y - _j.y;
+    _w.z = TWO.elbow.z - _j.z;
+    _w.normalize();
     _qa.setFromUnitVectors(_u, _w);
     write(leg.up, localTurn(leg.up.base, s.hipsWorld, _qa, _q));
     // The shin: its clip direction as the thigh's turn carries it, to the solve's.
-    _u.set(s.ankle.x - _k.x, s.ankle.y - _k.y, s.ankle.z - _k.z)
-      .normalize()
-      .applyQuaternion(_qa);
-    _w.set(TWO.hand.x - TWO.elbow.x, TWO.hand.y - TWO.elbow.y, TWO.hand.z - TWO.elbow.z).normalize();
+    _u.x = s.ankle.x - _k.x;
+    _u.y = s.ankle.y - _k.y;
+    _u.z = s.ankle.z - _k.z;
+    _u.normalize().applyQuaternion(_qa);
+    _w.x = TWO.hand.x - TWO.elbow.x;
+    _w.y = TWO.hand.y - TWO.elbow.y;
+    _w.z = TWO.hand.z - TWO.elbow.z;
+    _w.normalize();
     _qb.setFromUnitVectors(_u, _w);
     // The knee's parent (the thigh) now holds _qa · upWorld.
     _p.copy(_qa).multiply(s.upWorld);
@@ -655,25 +883,39 @@ export function applyReach(rig: ReachRig, target: Vec3, weight: number, cfg: Rea
   _t.x = target.x;
   _t.y = target.y;
   _t.z = target.z;
-  solveTwoBone(_shoulder, _t, _pole, a, b, (cfg.elbow_deg * Math.PI) / 180, TWO);
+  ARM_LENGTHS.a = a;
+  ARM_LENGTHS.b = b;
+  ARM_LENGTHS.elbowMax = (cfg.elbow_deg * Math.PI) / 180;
+  twoBone(_shoulder, _t, _pole, ARM_LENGTHS, TWO);
   worldRot(rig.arm.node.parent as Object3D, _p);
   worldRot(rig.arm.node, _wb);
   // The upper arm: from the clip's direction to the solve's.
-  _u.set(_k.x - _shoulder.x, _k.y - _shoulder.y, _k.z - _shoulder.z).normalize();
-  _w.set(TWO.elbow.x - _shoulder.x, TWO.elbow.y - _shoulder.y, TWO.elbow.z - _shoulder.z).normalize();
+  _u.x = _k.x - _shoulder.x;
+  _u.y = _k.y - _shoulder.y;
+  _u.z = _k.z - _shoulder.z;
+  _u.normalize();
+  _w.x = TWO.elbow.x - _shoulder.x;
+  _w.y = TWO.elbow.y - _shoulder.y;
+  _w.z = TWO.elbow.z - _shoulder.z;
+  _w.normalize();
   _qa.setFromUnitVectors(_u, _w);
   localTurn(rig.arm.base, _p, _qa, _r);
-  write(rig.arm, _q.copy(rig.arm.base).slerp(_r, w));
+  SLERP_T[0] = w;
+  write(rig.arm, slerpInto(_q.copy(rig.arm.base), _r));
   // The forearm: the hand's end as the upper arm's turn carries it, to the solve's.
-  _u.set(_a.x - _k.x, _a.y - _k.y, _a.z - _k.z)
-    .normalize()
-    .applyQuaternion(_qa);
-  _w.set(TWO.hand.x - TWO.elbow.x, TWO.hand.y - TWO.elbow.y, TWO.hand.z - TWO.elbow.z).normalize();
+  _u.x = _a.x - _k.x;
+  _u.y = _a.y - _k.y;
+  _u.z = _a.z - _k.z;
+  _u.normalize().applyQuaternion(_qa);
+  _w.x = TWO.hand.x - TWO.elbow.x;
+  _w.y = TWO.hand.y - TWO.elbow.y;
+  _w.z = TWO.hand.z - TWO.elbow.z;
+  _w.normalize();
   _qb.setFromUnitVectors(_u, _w);
   _wa.copy(_qa).multiply(_wb);
   // Solved for the whole turn of the upper arm, then slerped from the clip's by the weight, as the upper arm is.
   localTurn(rig.fore.base, _wa, _qb, _r);
-  write(rig.fore, _q.copy(rig.fore.base).slerp(_r, w));
+  write(rig.fore, slerpInto(_q.copy(rig.fore.base), _r));
 }
 
 /** One bone given the clip's rotation back, where the reach's is still on it; a bone the mixer wrote since keeps it. */
@@ -685,7 +927,8 @@ function unlay(b: ReachBone): void {
 /** The crouch's bones, the hips' position and both legs, given back to the clip where the reach's write is still on
  *  them, and forgotten (Q226: a run's cut clears them at once). */
 function clearLegs(rig: ReachRig): void {
-  for (const leg of rig.legs) {
+  for (let i = 0; i < 2; i++) {
+    const leg = rig.legs[i]!;
     unlay(leg.up);
     unlay(leg.knee);
     unlay(leg.foot);
@@ -698,7 +941,7 @@ function clearLegs(rig: ReachRig): void {
 /** Puts the clip's rotations and the hips' position back wherever the reach laid itself over them, and forgets: no
  *  residue (FR-008). */
 export function clearReach(rig: ReachRig): void {
-  for (const b of rig.spine) unlay(b);
+  for (let i = 0; i < 3; i++) unlay(rig.spine[i]!);
   unlay(rig.arm);
   unlay(rig.fore);
   clearLegs(rig);

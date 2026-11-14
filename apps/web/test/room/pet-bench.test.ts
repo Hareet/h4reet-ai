@@ -1,14 +1,17 @@
 // T016's allocation half (spec 026; FR-027, SC-007; plan.md R-04; rv-impl-026's I-1, built by rework-026): no
 // allocation per frame, measured, in the pet director's `frame` (on fakes that hand out the same objects each frame, as
-// the adapters must) and in `applyReach` on the twin's real rig at the measured defaults, the stroke moving the target
-// each frame. The measure: V8's heap in use across many frames, after a warm-up and a full collection; a frame that
-// makes one object adds 16 bytes or more. T016 adds the timing (under 0.1 ms a frame) to this file.
+// the adapters must) and in `applyReachLayer`, the reach's entry the twin's controller calls with the director's `reach`
+// (T014), on the twin's real rig at the measured defaults, the stroke moving the target each frame. The measure: V8's heap in use across many frames, after a warm-up and a full collection; a frame that
+// makes one object adds 12 bytes or more. A number is an object too where V8 can't keep it unboxed: a fraction held in
+// a closure variable, or in a field of an `{ x, y, z }` literal, whose fields this process has generalized, is a new
+// heap number at each write; so the harness itself keeps its state in a `Float64Array` and three's `Vector3`s.
+// T016 adds the timing (under 0.1 ms a frame) to this file.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import v8 from "node:v8";
 import vm from "node:vm";
 
-import { Group } from "three";
+import { Group, Vector3 } from "three";
 import type { Object3D } from "three";
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -18,7 +21,7 @@ import { parseModel } from "../../src/room/scene/gltf-images";
 import type { Decode } from "../../src/room/scene/gltf-images";
 import { createPet, PET_DEFAULTS } from "../../src/room/scene/pet";
 import type { PetChase, PetDog, PetMotion, PetTwin } from "../../src/room/scene/pet";
-import { applyReach, findReachRig, strokeTarget } from "../../src/room/scene/pet-reach";
+import { applyReachLayer, findReachRig, strokeTarget } from "../../src/room/scene/pet-reach";
 import type { ReachRig, Vec3 } from "../../src/room/scene/pet-reach";
 import { FakeClock, REPO } from "../helpers/room";
 
@@ -26,7 +29,7 @@ v8.setFlagsFromString("--expose-gc");
 const gc = vm.runInNewContext("gc") as () => void;
 
 const FRAMES = 20_000;
-/** Below one object a frame (16 bytes or more), above the measure's noise. */
+/** Below one object a frame (12 bytes or more), above the measure's noise. */
 const MAX_BYTES_PER_FRAME = 8;
 
 /** The heap's growth per frame over `FRAMES` calls of `step`, after two warm-ups of the same loop and a collection;
@@ -123,19 +126,33 @@ describe("no allocation per frame (FR-027, SC-007; I-1)", () => {
       const rig = findReachRig(root, "right") as ReachRig;
       expect(rig).not.toBeNull();
       const h = AVATAR_SHAPES.dog.height;
-      const head: Vec3 = { x: DOG_HOME.x, y: 0.9 * h - 0.03, z: DOG_HOME.z + 0.35 * h };
-      const target: Vec3 = { x: 0, y: 0, z: 0 };
-      let u = 0;
+      const head: Vec3 = new Vector3(DOG_HOME.x, 0.9 * h - 0.03, DOG_HOME.z + 0.35 * h);
+      const target: Vec3 = new Vector3();
+      const u = new Float64Array(1);
+      // The layer as the director's `reach` holds it, a class's fields: the full reach, and a weight inside an ease
+      // (the reach-in, the withdraw, a run's cut), where the arm's two bones are slerped from the clip's.
+      class Layer {
+        readonly target: Vec3 = target;
+        weight = 1;
+        legs = true;
+      }
+      const layer = new Layer();
       const step = (legs: boolean) => (): void => {
-        u = (u + 1 / 240) % 1;
-        strokeTarget(head, 0, u, PET_DEFAULTS, target);
-        applyReach(rig, target, 1, PET_DEFAULTS, legs);
+        u[0] = ((u[0] as number) + 1 / 240) % 1;
+        strokeTarget(head, 0, u[0] as number, PET_DEFAULTS, target);
+        layer.legs = legs;
+        applyReachLayer(rig, layer, PET_DEFAULTS);
       };
-      const crouched = bytesPerFrame(step(true));
-      const cut = bytesPerFrame(step(false));
-      process.stderr.write(`\napplyReach: ${crouched.toFixed(2)} bytes a frame; legs off ${cut.toFixed(2)}\n`);
-      expect(crouched).toBeLessThan(MAX_BYTES_PER_FRAME);
-      expect(cut).toBeLessThan(MAX_BYTES_PER_FRAME);
+      for (const w of [1, 0.37]) {
+        layer.weight = w;
+        const crouched = bytesPerFrame(step(true));
+        const cut = bytesPerFrame(step(false));
+        process.stderr.write(
+          `\napplyReachLayer at weight ${w}: ${crouched.toFixed(2)} bytes a frame; legs off ${cut.toFixed(2)}\n`,
+        );
+        expect(crouched, `weight ${w}`).toBeLessThan(MAX_BYTES_PER_FRAME);
+        expect(cut, `weight ${w}, legs off`).toBeLessThan(MAX_BYTES_PER_FRAME);
+      }
     });
   });
 });

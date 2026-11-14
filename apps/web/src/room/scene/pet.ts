@@ -4,7 +4,7 @@
 // heading stays chase-figures.ts), pets it (the studio's `petting` clip where it is loaded, else the reach layer's
 // numbers, which the twin's controller applies), and turns it back. The dog stays at its home throughout (Q159): the
 // director reads its view and never writes it. A run from the dinosaur outranks the petting (FR-011).
-import { PET_REACH_DEFAULTS, strokeShare, strokeTarget, weightAt } from "./pet-reach";
+import { PET_REACH_DEFAULTS, Point, strokeShare, strokeTarget, weightAt } from "./pet-reach";
 import type { Vec3 } from "./pet-reach";
 
 /** The pet block's tunables (spec "Pet block"; plan §3): scene data in `figures.pet`, these its defaults. */
@@ -117,6 +117,21 @@ export interface Pet {
   readonly reach: Readonly<PetReach> | null;
 }
 
+/** The reach's numbers, written in place each frame: a class, so V8 keeps its number fields unboxed (FR-027; I-1;
+ *  `Point`, pet-reach.ts). */
+class ReachState implements PetReach {
+  side: PetSide = "right";
+  weight = 0;
+  readonly target = new Point();
+  legs = true;
+}
+
+/** The present phase's seconds, a field written in place each frame (I-1): a closure variable holding a fraction is
+ *  boxed anew at each write. */
+class Elapsed {
+  t = 0;
+}
+
 /** The `dog` selectable's ID (spec FR-013). */
 export const DOG_SELECTABLE = "dog";
 /** The run's cut eases the arm and the spine out over this; the crouch clears at once (FR-011; Q226). */
@@ -134,7 +149,9 @@ export function inReach(
   dog: { readonly x: number; readonly z: number },
   reach_m: number,
 ): boolean {
-  return Math.hypot(dog.x - twin.x, dog.z - twin.z) <= reach_m + 1e-12;
+  const dx = dog.x - twin.x;
+  const dz = dog.z - twin.z;
+  return Math.sqrt(dx * dx + dz * dz) <= reach_m + 1e-12;
 }
 
 /** The twin's heading toward the dog's home, within `turn_max_deg` of its home heading, and the arm on the dog's side:
@@ -175,9 +192,11 @@ export function createPet(options: {
   let aim = 0;
   let side: PetSide = "right";
   /** Seconds in the present phase, on the room's frames (a pause holds it). */
-  let t = 0;
-  /** The petting's length: the clip's or `pet_s`. */
+  const clock_ = new Elapsed();
+  /** The petting's length: the clip's or `pet_s`; `span` holds it for the reach's weight and stroke, made once, so a
+   *  frame makes no object (FR-027; I-1). */
   let length = config.pet_s;
+  const span = { pet_s: length };
   /** The present petting's start, on the clock. */
   let startMs = 0;
   /** The last petting's end, on the clock; none yet. */
@@ -189,9 +208,9 @@ export function createPet(options: {
   let dogHeading = 0;
   let homeHeading = 0;
 
-  const head: Vec3 = { x: 0, y: 0, z: 0 };
-  const base: Vec3 = { x: 0, y: 0, z: 0 };
-  const reach = { side: "right" as PetSide, weight: 0, target: { x: 0, y: 0, z: 0 } as Vec3, legs: true };
+  const head = new Point();
+  const base = new Point();
+  const reach = new ReachState();
   let reachOn = false;
 
   const near = (heading: number): boolean => Math.abs(wrap(chase.twinHeading() - heading)) <= AT_HEADING;
@@ -227,7 +246,7 @@ export function createPet(options: {
     dog.headPoint(head);
     const bx = twin.home.x - head.x;
     const bz = twin.home.z - head.z;
-    const n = Math.hypot(bx, bz) || 1;
+    const n = Math.sqrt(bx * bx + bz * bz) || 1;
     base.x = head.x + (0.05 * bx) / n;
     base.y = head.y - 0.03;
     base.z = head.z + (0.05 * bz) / n;
@@ -241,7 +260,7 @@ export function createPet(options: {
     lastEnd = clock.now();
     options.log?.({ start_ms: startMs, end_ms: lastEnd, path: path ?? "reach", outcome });
     phase = "return";
-    t = 0;
+    clock_.t = 0;
   };
 
   /** A run's cut (FR-011; Q226): the crouch clears at once, since the run drives the legs; the arm and the spine ease
@@ -267,7 +286,7 @@ export function createPet(options: {
     path = null;
     reachOn = false;
     fading = false;
-    t = 0;
+    clock_.t = 0;
   };
 
   return {
@@ -290,9 +309,10 @@ export function createPet(options: {
       reach.legs = true;
       path = twin.petting_s !== null && twin.petting_s > 0 ? "clip" : "reach";
       length = path === "clip" ? (twin.petting_s as number) : config.pet_s;
+      span.pet_s = length;
       aimAt(twin, dog);
       phase = "turn";
-      t = 0;
+      clock_.t = 0;
       chase.faceTwin(aim);
       options.note?.();
       return true;
@@ -307,37 +327,37 @@ export function createPet(options: {
       if (m.paused) return;
       const step = Math.max(0, dt);
       if ((phase === "turn" || phase === "petting") && chase.running()) cutByRun();
-      t += step;
+      clock_.t += step;
       switch (phase) {
         case "turn":
-          if (near(aim) || t >= TURN_LIMIT_S) {
+          if (near(aim) || clock_.t >= TURN_LIMIT_S) {
             phase = "petting";
-            t = 0;
+            clock_.t = 0;
             say(true);
             reachOn = path === "reach";
           }
           break;
         case "petting":
-          if (t >= length) endPetting("done");
+          if (clock_.t >= length) endPetting("done");
           break;
         case "return":
           if (fading) {
-            if (t >= CUT_EASE_S) {
+            if (clock_.t >= CUT_EASE_S) {
               fading = false;
               reachOn = false;
             }
           } else {
             reachOn = false;
           }
-          if (!fading && (chase.running() || near(homeHeading) || t >= TURN_LIMIT_S)) toIdle();
+          if (!fading && (chase.running() || near(homeHeading) || clock_.t >= TURN_LIMIT_S)) toIdle();
           break;
       }
       if (reachOn) {
         if (phase === "petting") {
-          reach.weight = weightAt(t, { pet_s: length });
-          strokeTarget(base, dogHeading, strokeShare(t, { pet_s: length }), config, reach.target);
+          reach.weight = weightAt(clock_.t, span);
+          strokeTarget(base, dogHeading, strokeShare(clock_.t, span), config, reach.target);
         } else if (fading) {
-          const u = Math.min(1, t / CUT_EASE_S);
+          const u = Math.min(1, clock_.t / CUT_EASE_S);
           reach.weight = fadeFrom * (1 - u * u * (3 - 2 * u));
         }
       }

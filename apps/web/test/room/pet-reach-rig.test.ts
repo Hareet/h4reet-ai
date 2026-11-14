@@ -325,7 +325,10 @@ describe("clearReach: every bone the clip's own (FR-008)", () => {
       applyReach(rig, target(HOMES[1]![1]), 0.9, CFG, false);
       const { rotated, moved } = changed(root, own);
       expect(moved, f.name).toEqual([]);
-      expect(rotated.filter((b) => LEG_BONES.includes(b)), f.name).toEqual([]);
+      expect(
+        rotated.filter((b) => LEG_BONES.includes(b)),
+        f.name,
+      ).toEqual([]);
       expect(rotated, f.name).toContain("RightArm");
       expect(rotated, f.name).toContain("Spine");
       expect(rig.hips.on, f.name).toBe(false);
@@ -352,7 +355,10 @@ describe("clearReach: every bone the clip's own (FR-008)", () => {
       applyReach(rig, target(HOMES[1]![1]), 0.8, CFG, false);
       const { rotated, moved } = changed(root, run);
       expect(moved, f.name).toEqual([]);
-      expect(rotated.filter((b) => LEG_BONES.includes(b)), f.name).toEqual([]);
+      expect(
+        rotated.filter((b) => LEG_BONES.includes(b)),
+        f.name,
+      ).toEqual([]);
       expect(rotated, f.name).toContain("RightArm");
     }
   });
