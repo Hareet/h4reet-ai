@@ -1504,6 +1504,8 @@ function avatarsPart(c: Composed): RoomScene["avatars"] {
         texture_bytes: model.measures?.decoded_bytes ?? 0,
       },
       clips,
+      // Spec 020 (FR-003): a likeness's line, where main's approval gives one; absent for every other avatar.
+      ...(avatar.line === null ? {} : { line: avatar.line }),
     };
   }
   return out;

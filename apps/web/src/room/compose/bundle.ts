@@ -308,13 +308,15 @@ export interface RoomScene {
   walking: Walking;
   /** Spec 009's avatars (its FR-009, FR-023, FR-024; plan.md §3.2): only avatars whose model is bundled, by ID, each
    *  file's `url` `a/<stem>.<hash16>.glb`, `sha256` the plain file's, and `bytes` the served copy's length; a model's
-   *  `texture_bytes` at texture_px, for the texture ledger. */
+   *  `texture_bytes` at texture_px, for the texture ledger. Spec 020 (FR-003; plan.md R-02): `line`, main's likeness
+   *  approval's disclosure line, only on an avatar recorded as a likeness or from a photo (RA9 bundles none without). */
   avatars: Partial<
     Record<
       AvatarId,
       {
         model: { url: string; sha256: string; bytes: number; texture_bytes: number };
         clips: Partial<Record<ClipRole, { url: string; sha256: string; bytes: number }>>;
+        line?: string;
       }
     >
   >;
