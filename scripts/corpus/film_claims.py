@@ -26,7 +26,7 @@ R4  the new text states no number outside a slot (digits, or G1's number words; 
     item's number, and the quotes R5 accepts) and no currency amount (check_corpus.py's
     CURRENCY, redteam/run.py's AMOUNT_WORDS, guards.ts's EXTRA_PATTERN); every slot exists; and the whole file holds no
     CURRENCY match, since corpus-check reads `corpus/proposals/` too.
-R5  every quotation in the new text is the Author's words as `SCRIPTS.md` quotes them (after a his-words marker), his
+R5  every quotation in the new text is the Author's words as `SCRIPTS.md` quotes them (the checker's fixed list), his
     words in the disclosure's row F3, or a cited file's own text; no file under `films/`, and no file outside the
     repository, is ever a cited file here, its path normalised and resolved.
 R6  with --third-party, no quoted span longer than a title, anywhere in the proposal, that the repository doesn't hold.
@@ -459,29 +459,16 @@ class Context:
         return out
 
 
-# The markers that introduce his words in `SCRIPTS.md` (rv-rework-022's F-3): "In Hareet's words:" (§1 line 5),
-# "the Author's wording" (§2 line 6's note), "the Author, YYYY-MM-DD, …:" (§5 line 9's note), and "**about you**".
-HIS_WORDS = re.compile(
-    r"\b[Ii]n Hareet's words:"
-    r"|\b[Tt]he Author's wording\b"
-    r"|\b[Tt]he Author, \d{4}-\d{2}-\d{2},[^\"\n:]*:"
-    r"|\*\*about you\*\*"
+# His words as `SCRIPTS.md` quotes them: a fixed list, FR-005's Q6 quotes from that file, each with its file line
+# (rv2-rework2-022's B-3, page Q213). A marker scan took a note's quote as his whenever the note named him ("Not in
+# Hareet's words: …", "**about you**: …"); no scan reads them now. F3's words come from the disclosure. A test holds
+# each quote verbatim on its line, after "In Hareet's words:"; a new quote of his is a change to this list.
+HIS_WORDS: tuple[tuple[int, str], ...] = (
+    (
+        18,
+        "we chose haiku since our context base is small and manually evaluated haiku and sonnet.",
+    ),
 )
-_LINE_QUOTE = re.compile(r'"([^"\n]+)"')
-_SENTENCE_END = re.compile(r"[.;!?](?:\s|$)")
-
-
-def his_quotes(scripts_text: str) -> list[str]:
-    """His words as `SCRIPTS.md` quotes them: on each line, the first quote after a his-words marker, with no sentence
-    end between them. A quote a line holds for another reason (a review's, a detector's name) isn't his, though the
-    line names the Author (line 67's review note: "every live run")."""
-    out: list[str] = []
-    for raw in scripts_text.splitlines():
-        for marker in HIS_WORDS.finditer(raw):
-            quote = _LINE_QUOTE.search(raw, marker.end())
-            if quote and not _SENTENCE_END.search(raw, marker.end(), quote.start()):
-                out.append(norm(quote.group(1)))
-    return out
 
 
 def read_context(root: Path) -> Context:
@@ -496,7 +483,7 @@ def read_context(root: Path) -> Context:
         for note in line.notes
         for p in paths_in(note)
     }
-    author_quotes = his_quotes(scripts_text)
+    author_quotes = [quote for _, quote in HIS_WORDS]
     disclosure = root / DISCLOSURE
     f3 = next(
         (
