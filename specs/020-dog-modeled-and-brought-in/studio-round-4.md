@@ -215,6 +215,160 @@ exit=0
 - **The photo isn't visible from here** (above).
 - **The scratch folders stay:** `/tmp/brief-dog-r9-scratch.MT7x/` (the briefs' copies) and `/tmp/brief-dog-r9.zAUQ/` (main's `arrival_check.py` and the two check scripts). Neither holds a photo or a secret.
 
+## Judged dry (judge-dog-r4)
+
+Task `judge-dog-r4` (night of 2026-11-14, implementer, Opus 5.5, on 2026-11-14), rule 13's last step before the Author's answer. Started from brief-dog-r8's tip (`39c1a1a6`), with `night/brief-dog-r9/brief-dog-r9` merged in, then `night/patch-rounds4-020/patch-rounds4-020` (merge commit `a105e1d8`). Both merged without conflict.
+
+**Outcome:**
+
+- **studio-dog-r9 handed round 4 off:** `/srv/studio/handoff/dog/4/` exists, so no stop note was needed.
+- **The dry judge finds what the brief expected:** P1 on each GLB, "no approval names this file's hash", and nothing else. Exit 1, and nothing recorded.
+- **His approval is written as a patch for his hand:** `docs/merge-requests/human-patches/020-approval-round-4.md`, three `approvals.json` entries.
+- **With those entries applied to a scratch copy of main, the same judge passes:** `line: pass; round 4`, exit 0.
+- **Round 4 isn't recorded.** It is recorded only after he says the entries are on main.
+- **Nothing changed** under `assets/**`, `corpus/`, `/srv/studio/`, or any human-only path.
+
+### The handoff
+
+```text
+$ ls -la /srv/studio/handoff/dog/4/
+-rw-r--r-- 1 dev dev     327 Nov 14 22:40 LICENSE.md
+-rw-r--r-- 1 dev dev    1222 Nov 14 22:40 candidate.json
+-rw-r--r-- 1 dev dev 1758247 Nov 14 22:40 concept.png
+-rw-r--r-- 1 dev dev   34948 Nov 14 22:35 dog-idle.glb
+-rw-r--r-- 1 dev dev   28552 Nov 14 22:35 dog-walk.glb
+-rw-r--r-- 1 dev dev 9765184 Nov 14 22:35 dog.glb
+-rw-r--r-- 1 dev dev 1473644 Nov 14 22:40 front.png
+-rw-r--r-- 1 dev dev   16769 Nov 14 22:42 note.md
+-rw-r--r-- 1 dev dev   24123 Nov 14 22:40 records.json
+-rw-r--r-- 1 dev dev 1488682 Nov 14 22:40 side.png
+$ sha256sum /srv/studio/handoff/dog/4/*.glb
+1bd5ee9454ed654700dbbec6279ec54861419d8ae47ffc61d243aa8107e9ff25  /srv/studio/handoff/dog/4/dog-idle.glb
+f35b742a6b8070faddf9f184fc1ac94d4560e1d4c501e2bee9a2c1ad3e53e306  /srv/studio/handoff/dog/4/dog-walk.glb
+d31c085cfa6dc92449f3ada3873417c829acd8e4989a3ae54c2bacc524842078  /srv/studio/handoff/dog/4/dog.glb
+```
+
+**My reading:**
+
+- The hashes are the ones in the studio's note.
+- Each entry in records.json says `source: {"type": "photo", "id": "PH-0002"}` and `likeness: false`. Each carries the brief's approval ID: `A-20261114-dog`, `-dog-idle`, and `-dog-walk`.
+- I read `candidate.json`, the note, and the record's fields. I opened no image: the renders are for his eyes.
+
+### The dry judge, on main as it is
+
+```text
+$ python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dog/4 --brief /srv/studio/briefs/dog/4.json; echo "exit=$?"
+arrival-check: main's copy, at 3c0e4cd06861, on a scratch copy under assets/visitors/dog/
+P1 assets/visitors/dog/dog-idle.glb: it needs the Author's approval on the main branch, and no approval names this file's hash
+P1 assets/visitors/dog/dog-walk.glb: it needs the Author's approval on the main branch, and no approval names this file's hash
+P1 assets/visitors/dog/dog.glb: it needs the Author's approval on the main branch, and no approval names this file's hash
+file                                bytes     gzip      vertices  triangles  texture
+assets/visitors/dog/dog-idle.glb    34948     14414     0         0          0
+assets/visitors/dog/dog-walk.glb    28552     11958     0         0          0
+assets/visitors/dog/dog.glb         9765184   6448373   100172    150000     22369621
+arrival-check: 3 findings in 5 files
+line: 3 findings; round 4 fails
+exit=1
+```
+
+**My reading:**
+
+- These are exactly the three lines the brief's JUDGING expects.
+- The finding is the photo source's approval: main holds a photo-sourced file (`tools/gates/arrival_check.py:2968-2970`) until an approval names its hash (`:2987-3001`).
+- There's no other finding. Every line.py check and every other arrival rule (record, notice, licences, caps, format) passes.
+- So no other question arises from the judge.
+
+### His approval, as a patch
+
+The patch is `docs/merge-requests/human-patches/020-approval-round-4.md`. It has three entries in main's shape (the twin's seven are the model):
+
+- **SHA-256s:** each file's, computed.
+- **Paths:** `assets/visitors/dog/<file>`, the record's `directory`, where the intake puts them.
+- **The date:** 2026-11-14.
+- **The IDs:** the record's.
+- **`confirms`:** all five true.
+- **`disclosure_line`:** a draft line on `dog.glb` (FR-002 bundles nothing without one), and `null` on the clips.
+- **`reason`:** his rule 13 words.
+
+Two departures from rule 13's words, both put to him in the patch and on the page:
+
+- **`likeness_accepted` is `true`, not rule 13's "not_applicable"** (Q268). Main takes "not_applicable" only for a room file (`tools/gates/arrival_check.py:2955-2964`). The rehearsal below shows the difference.
+- **No entry for the photo's own SHA-256.** Main matches approvals only by the arriving file's own hash (`:2987`), and a source is an opaque `{type, id}` (`:2287-2307`). So an entry for the photo would be read by nothing. The patch gives the photo's SHA-256 from the studio's note (`3761dd8d58250a297c86d6dada22f6225f2fc3a4fe533f20d3cf143f9acf1df6`, Q269) as prose, so he can see it's the file his order names.
+
+The patch, checked on a fresh export of main:
+
+```text
+$ E=$(mktemp -d /tmp/judge-dog-r4-main.XXXX); git archive refs/heads/main | tar -x -C "$E"
+export: /tmp/judge-dog-r4-main.o6tQ (refs/heads/main = 3c0e4cd0)
+$ (cd "$E" && patch -p1 --dry-run < <worktree>/docs/merge-requests/human-patches/020-approval-round-4.md; echo "exit=$?")
+checking file assets/policy/approvals.json
+exit=0
+$ awk '/^```diff$/{f=1;next} /^```$/{if(f){exit}} f' docs/merge-requests/human-patches/020-approval-round-4.md | sha256sum
+e613935888da4e8717331d1cbd3a43227a8812c975aa999e02edbce8e1e47f6b  -
+$ (cd "$E" && patch -p1 < …020-approval-round-4.md); cmp "$E/assets/policy/approvals.json" <rehearsed file>
+apply exit=0
+identical to the rehearsed file
+32 entries; ids unique: True
+```
+
+### The rehearsal: the same judge against main with the patch
+
+To check the entries do what they're for, I built a scratch repository, `/tmp/judge-dog-r4.xBd7/rehearse`. Its only commit is on `main`. It holds main's `tools/gates/arrival_check.py`, `assets/policy/`, and `docs/data-flow-disclosure.md` from `git archive refs/heads/main`, with the patch applied. Then I ran `line.py` with `--repo` pointing at it, without `--record`:
+
+```text
+$ python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dog/4 --brief /srv/studio/briefs/dog/4.json --repo /tmp/judge-dog-r4.xBd7/rehearse; echo "exit=$?"
+arrival-check: main's copy, at 2979a4ca6ad5, on a scratch copy under assets/visitors/dog/
+file                                bytes     gzip      vertices  triangles  texture
+assets/visitors/dog/dog-idle.glb    34948     14414     0         0          0
+assets/visitors/dog/dog-walk.glb    28552     11958     0         0          0
+assets/visitors/dog/dog.glb         9765184   6448373   100172    150000     22369621
+arrival-check: 0 findings in 5 files
+line: pass; round 4
+exit=0
+```
+
+The same, with the three entries' `likeness_accepted` set to rule 13's `"not_applicable"` (a second scratch commit):
+
+```text
+arrival-check: main's copy, at 8d600364ce3c, on a scratch copy under assets/visitors/dog/
+P1 assets/visitors/dog/dog-idle.glb: it needs the Author's approval on the main branch, and the approval naming this file's hash has a confirmation that isn't true
+P1 assets/visitors/dog/dog-walk.glb: it needs the Author's approval on the main branch, and the approval naming this file's hash has a confirmation that isn't true
+P1 assets/visitors/dog/dog.glb: it needs the Author's approval on the main branch, and the approval naming this file's hash has a confirmation that isn't true
+file                                bytes     gzip      vertices  triangles  texture
+assets/visitors/dog/dog-idle.glb    34948     14414     0         0          0
+assets/visitors/dog/dog-walk.glb    28552     11958     0         0          0
+assets/visitors/dog/dog.glb         9765184   6448373   100172    150000     22369621
+arrival-check: 3 findings in 5 files
+line: 3 findings; round 4 fails
+exit=1
+```
+
+**My reading:**
+
+- His entries, as the patch writes them, are the last thing round 4 needs on main's side.
+- Rule 13's "not_applicable" would leave round 4 failing.
+- Neither run used `--record`. `/srv/studio/briefs/dog/` has no `4.result.json`.
+
+### Lint (judge-dog-r4)
+
+This task changes this spec file and adds the patch file. It changes no code and no test, so the lint target is its only test (rule 4). There was no `node_modules`, so I ran `make setup`, which exited 0. Its git-hooks step said the hooks folder isn't writable from the sandbox and the Author runs `make git-hooks`. The lint run is pasted in the merge-request note, `docs/merge-requests/2026-11-14-judge-dog-r4.md`.
+
+### Questions left on the page (judge-dog-r4)
+
+1. **Apply the three approval entries** (`020-approval-round-4.md`) after looking at `/srv/studio/handoff/dog/4/front.png` and `side.png`? This is for the page's top. Recommended: apply them.
+2. **The draft disclosure line on `dog.glb`'s entry:** keep it, or rewrite it? Recommended: keep it.
+
+### Interruptions (judge-dog-r4)
+
+Two permission refusals, and no hook or bash-gate refusal:
+
+- A compound `ls` of the handoff folder, `/srv/studio/outputs/dog/round4/`, `/srv/studio/briefs/dog/`, and `node_modules` was denied. I listed the handoff folder alone, which was allowed.
+- `ls -la /srv/studio/outputs/dog/round4/` alone was denied: `/srv/studio/outputs/` is denied to implementers, as brief-dog-r9 found. Its stop note wasn't needed, since the handoff exists. I didn't reach it another way.
+
+One post-edit hook finding on a scratch script (`/tmp/judge-dog-r4.xBd7/tool/build.py`, SIM115, `open` without a context manager). I fixed it in the script.
+
+The scratch folders stay: `/tmp/judge-dog-r4.xBd7/` (main's policy files, the builder, the diff, the rehearsal repository) and `/tmp/judge-dog-r4-main.o6tQ/` (main's export with the patch applied). Neither holds a photo or a secret.
+
 ## The text placed as `/srv/studio/briefs/dog/4.json` (brief-dog-r9)
 
 ```json
