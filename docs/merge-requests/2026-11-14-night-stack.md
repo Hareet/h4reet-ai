@@ -676,21 +676,21 @@ verify-020: green, carrying D-V2's six (Q165)
 
 ---
 
-## Item 5: spec 022, the corpus from the film scripts (`night/impl-022/impl-022`, finished on `night/impl2-022/impl2-022`)
+## Item 5: spec 022, the corpus from the film scripts (`night/impl-022/impl-022`, finished on `night/impl2-022/impl2-022`, reworked on `night/rework-022/rework-022`)
 
-Spec: specs/022-corpus-from-film-scripts/ · Written by: implementer (night shift): impl-022 (T001 to T006, T008 to T010), then impl2-022 (T011), both Claude Opus 5.5; the review is for a worker who didn't write it (rv-impl-022, T007) · Date: 2026-11-14
-Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl-022, then /home/h4reet/h4reet-ai/night/2026-11-13/impl2-022 · Repo hooks active: the commit hooks ran (gitleaks, the arrival check) on every commit
+Spec: specs/022-corpus-from-film-scripts/ · Written by: implementer (night shift): impl-022 (T001 to T006, T008 to T010), then impl2-022 (T011), then rework-022 (rv-impl-022's blocking I-1 and I-2, and N-2, N-4), all Claude Opus 5.5; reviewed by workers who didn't write it (rv-impl-022, T007; rv-rework-022, the rework) · Date: 2026-11-14
+Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl-022, then /home/h4reet/h4reet-ai/night/2026-11-13/impl2-022, then /home/h4reet/h4reet-ai/night/2026-11-13/rework-022 · Repo hooks active: the commit hooks ran (gitleaks, the arrival check) on every commit
 Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at the top of plan.md and tasks.md), the spec, and the plan as reworked three times. Base: `night/rework3-spec-022/rework3-spec-022`, with the line's verified tip `night/verify2-020/verify2-020` (3767859f, items 1 to 3) merged at 7674f699. Item 4 (spec 021) isn't on this branch: the line's verify tasks merge it and item 5, one at a time. The branch's own note: `docs/merge-requests/2026-11-14-night-spec-022-spec-022.md`.
 
 ### What changed and why
 
 His item g), in his words: "hareet-ai corpus from film scripts". The corpus is his hand, so the change to `08` is a proposal in `corpus/proposals/` and a patch he applies. Nothing writes a checkout's `corpus/` except `corpus/proposals/`.
 
-- **The checker**, `scripts/corpus/film_claims.py` with 63 tests (T001 to T003). It holds the proposal to the scripts by plan §3's R1 to R7: every one of the 90 lines in scope accounted for once and found verbatim; nothing unbuilt, retracted, or "shown as built" carried; no number outside a slot and no amount of money, with parity tests against `check_corpus.py`, `redteam/run.py`, and `guards.ts`; quotes only of his recorded words.
+- **The checker**, `scripts/corpus/film_claims.py` with 73 tests (T001 to T003; rework-022 added ten). It holds the proposal to the scripts by plan §3's R1 to R7: every one of the 90 lines in scope accounted for once and found verbatim; nothing unbuilt, retracted, or "shown as built" carried; no number outside a slot and no amount of money, with parity tests against `check_corpus.py`, `redteam/run.py`, and `guards.ts` (its `WORD` too); and a quote in the new text only if it is his words as `SCRIPTS.md` quotes them, his F3 words, or a cited file's own text, the scripts themselves never counting as a cited file.
 - **The proposal**, `corpus/proposals/film-scripts-2026-11-14.md` (T004 to T006): a reading guide, the table, the new text for `08` (seven sections and a gap section, five "Do not claim" lines, Golden Q&A 9 to 17), Golden Q&A 5's suggested sentence (Q97), Q6's quotes "to confirm", and one slot, `site.prod_containers`.
-- **The patch**, `docs/merge-requests/2026-11-14-corpus-film-scripts.patch` (T008, T009): 104 files, `08` and its facts and what they regenerate, from plain copies.
+- **The patch**, `docs/merge-requests/2026-11-14-corpus-film-scripts.patch` (T008, T009): 104 files, `08` and its facts and what they regenerate, from plain copies. Rebuilt by rework-022 on `main`'s export (3c0e4cd0): 167,843 bytes, git blob `3d5ddb59666e1bc1589ec71b26640b8481c77c0c`, SHA-256 `d05a7bf11e87c0853ec466eb80b0ede0d28748663a1fab0ac1a7414f0daf7c15`.
 - **Human patch 022**'s note (T010), and the two merge-request notes (T011).
-- Departures: plan §9 (among them a ninth reason, "a number outside a slot", Q176).
+- Departures: plan §9 (among them a ninth reason, "a number outside a slot", Q176; and rework-022's two: R4's and R5's narrowing, and "on a network with no route out" left out, Q192).
 
 ### Cost and data-flow impact
 
@@ -717,6 +717,21 @@ ruff format --check --no-cache --extend-exclude corpus .
 779 files already formatted
 ```
 
+rework-022 (each commit replayed on an export of itself; full runs in the branch's note): I-2 RED 933c79fc 7 failed, 63 passed; GREEN 6761668e 70 passed; N-4 RED 6e1abf90 1 failed, GREEN 13d247d5 71 passed; I-1 RED 3493356d 1 failed; N-2 RED 654d0475 2 failed, GREEN fe975546 (I-1's test still failing); I-1 GREEN 40300935 73 passed. The checker on the proposal exits 0 at every commit. The rebuilt patch on a fresh `main` export (3c0e4cd0): `patch -p1 --dry-run`, then `patch -p1`, 104 files, no `.rej` or `.orig`; `corpus-check: OK`; `content:check` current; `twin:pack` byte for byte as patched; `pytest evals/test_twin_readiness.py corpus/tools/test_check_corpus.py` 85 passed; `vitest run test/twin-pack.test.ts test/content/narration.test.ts` 80 passed. At rework-022's tip:
+
+```
+$ python3 -I scripts/corpus/film_claims.py corpus/proposals/film-scripts-2026-11-14.md
+film-claims: OK — 0 problems, 90 rows, 90 lines in scope (§1 12, §2 10, §3 10, §4 10, §5 13, §6 14, kill-switch-b2 21); the films' script.txt holds 69 of 69 SCRIPTS.md lines verbatim; the denylist was not applied (this checker never reads corpus/intake/private/)
+$ python3 -I -m pytest -q scripts/corpus/test_film_claims.py corpus/tools/test_check_corpus.py evals/test_docs_links.py evals/test_repository_docs.py
+184 passed in 1.17s
+$ make lint          (exit 0; shellcheck's file list left out)
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+779 files already formatted
+```
+
 D-V2's six (Q165): none of these runs hit them. `make check` is T012's, the stack's closing task's.
 
 ### Review: the non-blocking findings, and how each was settled
@@ -726,12 +741,19 @@ D-V2's six (Q165): none of these runs hit them. `make check` is T012's, the stac
 - **rv-rework3-spec-022 I-A**: the human-patch note's "Before you apply it" gives the measured stage in place of spec 027's projection: "the topic mission needs 21274 characters of grounding, past the 21182 the input bound leaves", as page Q177 records it. T000 lists Q144, and now Q176 to Q178 too.
 - **N-1** plan §7 cites `topicSelected` and the turn route's 409, not `talk.ts` line 365; **N-2** `topicHashInput` runs to line 233 (checked), in the human-patch note and plan §6; **N-3** "specs 026 and 027's pages", in the spec and T000.
 
-Open: T007, rv-impl-022's line-by-line pass, follows this branch.
+T007, rv-impl-022's line-by-line pass (Opus), found two blocking findings; rework-022 fixed both, test first, one commit per fix:
+
+- **I-1** (Q192, answered recommended): after Q115, The stack #12 still said every container is "on a network with no route out", though `deploy/compose.yaml` puts `gateway` on `egress`. That span of `SCRIPTS.md` §5 line 12 is now left out as contradicted by the repository (`deploy/compose.yaml`), and the line carries "Every container runs with no new privileges" and "Only the edge listens"; `test_the_real_proposal_leaves_no_route_out_for_every_container_out` holds it. Human patch 022 was rebuilt, its new IDs in the proposal and `human-patches/022.md`.
+- **I-2**: the checker passed `[fifty-two assertions, fifty-two passed]` (any bracketed span was blanked as a claim tag), `, and passed 52/52` (a ratio read as a path), and a quoted agent-written script line carrying an amount in words (R5 took a quote from any cited file, `films/SCRIPTS.md` included). Now the claim-tag exemption covers only `[P]`, `[?]`, `[A]`, `[A YYYY-MM-DD]`, runs of them, and ``[slot `id`]``; a path needs a segment that isn't a number, or a file extension; and `films/SCRIPTS.md` and the films' `script.txt` are never cited files for R5, so a `SCRIPTS.md` quote stands only as his words. Seven fixtures failed first. The real proposal passes unchanged.
+- **N-2**: Local models first #3 now names its host ("On the laptop, every question tries the local model first"), as Golden Q&A 13 does. **N-4**: a parity test holds the checker's `WORD` equal to G1's in `guards.ts`, its template filled from `guards.ts`'s own keys.
+- **N-1** and **N-3** carried here, as the supervisor directed. N-3: keep replay exports inside the worktree; rework-022 did, and deleted them by repo-relative path. N-1's own words aren't in the repository or in rework-022's brief, so they aren't restated here; rv-impl-022's report has them.
+
+rv-rework-022 reviews the rework.
 
 ### For the Author
 
 - **Human patch 022** (`docs/merge-requests/human-patches/022.md`): apply it on a short branch, gate, merge, then re-run your evaluations and re-mark mission, work projects, and hobbies and travel. Apply it back to back with spec 026's corpus patch, whichever is second rebuilt on the first, and evaluate once (Q141). `docs/corpus-size.json` joins it when spec 027's T008 rebuilds it (Q145). The resume item's stack and this patch both touch `apps/web/content/resume.lock.json`; whichever merges second regenerates it and re-runs `content:check`.
-- **The page**: Q1 to Q6, Q95 to Q97, Q102, Q104, Q106, Q115, Q141, Q144, Q145, Q176 to Q178, each answered: recommended, yours to confirm or overturn (T000); an overturned one reworks T004 to T010 before you merge. New, from impl2-022: impl-022's refused last question, asked again (below).
+- **The page**: Q1 to Q6, Q95 to Q97, Q102, Q104, Q106, Q115, Q141, Q144, Q145, Q176 to Q178, Q192, each answered: recommended, yours to confirm or overturn (T000); an overturned one reworks T004 to T010 before you merge. New, from impl2-022: impl-022's refused last question, asked again (below).
 
 Interruptions:
 1. impl-022, 14:39Z: the bash gate refused its `rm -rf` of its own `/tmp` exports ("recursive delete outside workspace"). It then moved them into its worktree and deleted them there.
