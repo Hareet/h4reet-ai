@@ -261,6 +261,11 @@ export function renderRoom(
   );
   const eatCap = attempt(() => (parts.eat?.keycap ?? keycap)(doc, "B"));
   if (eatCap) eatButton.append(eatCap);
+  // rework-024 (nit 2): a held Enter or Space is one press, as a held B is (walk/input.ts): a repeat's keydown is
+  // prevented, so the browser makes no click of it.
+  eatButton.addEventListener("keydown", (e) => {
+    if (e.repeat && (e.key === "Enter" || e.key === " ")) e.preventDefault();
+  });
   const standIn = h(doc, "p", { class: "room-note room-stand-in", hidden: !parts.standIn }, parts.standIn ?? "");
   const notes = h(doc, "div", { class: "room-notes" }, note, standIn);
   /** Spec 020's visitor line, in the notes after the line slot's while it has words. */

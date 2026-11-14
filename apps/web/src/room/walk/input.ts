@@ -100,7 +100,8 @@ export function createWalkInput(surface: HTMLElement, win: Window): WalkInput {
     // The browser's and the system's shortcuts stay theirs: Ctrl+F, Ctrl+D, Cmd+A (whose key-up macOS never sends).
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.code === "KeyB") {
-      if (!typing(e.target)) eat = true;
+      // A held B is one press: the keyboard's auto-repeat bites nothing more (rework-024, nit 2).
+      if (!typing(e.target) && !e.repeat) eat = true;
       return;
     }
     const what = keyOf(e);
