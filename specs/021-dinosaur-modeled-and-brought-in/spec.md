@@ -46,6 +46,10 @@ Taken under the Author's order of 2026-11-13, rule 1: the recommended answer at 
 - Q7 [page Q38]: Is the rig check shared with the dog's? → Answered, recommended: one rig table (FR-005), avatar id → required bones, one rule, a row each; this spec owns it. On the line, the rows are `woman`, `man`, and `dog`: `null` (no rig check; spec 020 names no dog bones), and `dinosaur`: the contract's list. A later spec that names the dog's bones fills its row; nothing here asks it to. *Others: each spec its own rule.* (Reworked: rv-spec-021's B1.)
 - Q8 [page Q73]: Which tool IDs does the brief name? → Answered, recommended: the fourteen IDs of `main`'s `studio-tools.json` that the shipped woman's and man's records use, as his answer says ("copy it from there"); `line.py candidate` checks the record's names against the brief (FR-013, `contracts/dinosaur-brief.md`). *Others: the first contract's list (`blender-5.2.3`, `comfyui-core`, without DINOv3 or Claude Opus 5.5); both spellings.*
 - Q9 [page Q75]: Is "never a likeness" held in code? → Answered, recommended: by the brief, the record, and his look approval, with the enforcement that exists (FR-007): no new compositor rule. *Others: a compositor rule refusing a likeness for any avatar with a rig-table row; RA3 extended to every visitor avatar but one his approval names.*
+  - The page's words for Q75, whole (added by verify-021 under page Q168; the reading above stays beside them):
+    > Recommended: the brief, the record, and your look approval: FR-007 reworded to the enforcement that exists (brief and record say `likeness: false`; any likeness needs your approval in `assets/policy/approvals.json` under the arrival check's rule P); no new compositor rule
+    >
+    > Answered: recommended, the Author 2026-11-13 (the orders file's rule: "any new one: the recommended answer stands"; yours to confirm or overturn here).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -182,3 +186,9 @@ None new: same-origin static files, row V1 (FR-017). No byte leaves the device t
 ## Open Questions
 
 One, on the page as Q88: whether a later spec fills the dog's `null` row. Recommended: yes, a spec that names the dog's bones fills it. Answered: recommended, under the orders file's rule ("any new one: the recommended answer stands"). It blocks nothing here.
+
+The page's words for Q88, whole (added by verify-021 under page Q168; the reading above stays beside them):
+
+> Recommended: yes, the spec that names the dog's bones (ADR 0010: "with their bones listed in the rig's spec when the characters are made") fills its row, and RA10 to RA12 then apply to the dog too; nothing waits on it tonight
+>
+> Answered: recommended, the Author 2026-11-13 (the orders file's rule: "any new one: the recommended answer stands"; yours to confirm or overturn here).
