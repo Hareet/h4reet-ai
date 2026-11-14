@@ -676,21 +676,21 @@ verify-020: green, carrying D-V2's six (Q165)
 
 ---
 
-## Item 5: spec 022, the corpus from the film scripts (`night/impl-022/impl-022`, finished on `night/impl2-022/impl2-022`, reworked on `night/rework-022/rework-022`, then on `night/rework2-022/rework2-022`)
+## Item 5: spec 022, the corpus from the film scripts (`night/impl-022/impl-022`, finished on `night/impl2-022/impl2-022`, reworked on `night/rework-022/rework-022`, then on `night/rework2-022/rework2-022`, then on `night/rework3-022/rework3-022`)
 
-Spec: specs/022-corpus-from-film-scripts/ · Written by: implementer (night shift): impl-022 (T001 to T006, T008 to T010), then impl2-022 (T011), then rework-022 (rv-impl-022's blocking I-1 and I-2, and N-2, N-4), then rework2-022 (rv-rework-022's blocking F-1 to F-3), all Claude Opus 5.5; reviewed by workers who didn't write it (rv-impl-022, T007; rv-rework-022, the rework; rv-rework2-022, the second rework) · Date: 2026-11-14
-Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl-022, then /home/h4reet/h4reet-ai/night/2026-11-13/impl2-022, then /home/h4reet/h4reet-ai/night/2026-11-13/rework-022, then /home/h4reet/h4reet-ai/night/2026-11-13/rework2-022 · Repo hooks active: the commit hooks ran (gitleaks, the arrival check) on every commit
+Spec: specs/022-corpus-from-film-scripts/ · Written by: implementer (night shift): impl-022 (T001 to T006, T008 to T010), then impl2-022 (T011), then rework-022 (rv-impl-022's blocking I-1 and I-2, and N-2, N-4), then rework2-022 (rv-rework-022's blocking F-1 to F-3), then rework3-022 (rv2-rework2-022's blocking B-1 to B-3), all Claude Opus 5.5; reviewed by workers who didn't write it (rv-impl-022, T007; rv-rework-022, the rework; rv2-rework2-022, the second rework; rv-rework3-022, the third) · Date: 2026-11-14
+Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl-022, then /home/h4reet/h4reet-ai/night/2026-11-13/impl2-022, then /home/h4reet/h4reet-ai/night/2026-11-13/rework-022, then /home/h4reet/h4reet-ai/night/2026-11-13/rework2-022, then /home/h4reet/h4reet-ai/night/2026-11-13/rework3-022 · Repo hooks active: the commit hooks ran (gitleaks, the arrival check) on every commit
 Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at the top of plan.md and tasks.md), the spec, and the plan as reworked three times. Base: `night/rework3-spec-022/rework3-spec-022`, with the line's verified tip `night/verify2-020/verify2-020` (3767859f, items 1 to 3) merged at 7674f699. Item 4 (spec 021) isn't on this branch: the line's verify tasks merge it and item 5, one at a time. The branch's own note: `docs/merge-requests/2026-11-14-night-spec-022-spec-022.md`.
 
 ### What changed and why
 
 His item g), in his words: "hareet-ai corpus from film scripts". The corpus is his hand, so the change to `08` is a proposal in `corpus/proposals/` and a patch he applies. Nothing writes a checkout's `corpus/` except `corpus/proposals/`.
 
-- **The checker**, `scripts/corpus/film_claims.py` with 88 tests (T001 to T003; rework-022 added ten, rework2-022 fifteen). It holds the proposal to the scripts by plan §3's R1 to R7: every one of the 90 lines in scope accounted for once and found verbatim; nothing unbuilt, retracted, or "shown as built" carried; no number outside a slot and no amount of money, with parity tests against `check_corpus.py`, `redteam/run.py`, and `guards.ts` (its `WORD` too); and a quote in the new text only if it is his words as `SCRIPTS.md` quotes them after a his-words marker, his F3 words, or a cited file's own text, no file under `films/` counting as a cited file.
+- **The checker**, `scripts/corpus/film_claims.py` with 124 tests (T001 to T003; rework-022 added ten, rework2-022 fifteen, rework3-022 thirty-six, counted as pytest counts them). It holds the proposal to the scripts by plan §3's R1 to R7: every one of the 90 lines in scope accounted for once and found verbatim, each source in the repository; nothing unbuilt, retracted, or "shown as built" carried; no number outside a slot and no amount of money, with parity tests against `check_corpus.py`, `redteam/run.py`, and `guards.ts` (its `WORD` too); and a quote in the new text only if it is one of his `SCRIPTS.md` quotes the checker lists (the Haiku reason, line 18), his F3 words, or a cited file's own text, no file under `films/` and none outside the repository counting as a cited file.
 - **The proposal**, `corpus/proposals/film-scripts-2026-11-14.md` (T004 to T006): a reading guide, the table, the new text for `08` (seven sections and a gap section, five "Do not claim" lines, Golden Q&A 9 to 17), Golden Q&A 5's suggested sentence (Q97), Q6's quotes "to confirm", and one slot, `site.prod_containers`.
 - **The patch**, `docs/merge-requests/2026-11-14-corpus-film-scripts.patch` (T008, T009): 104 files, `08` and its facts and what they regenerate, from plain copies. Rebuilt by rework-022 on `main`'s export (3c0e4cd0): 167,843 bytes, git blob `3d5ddb59666e1bc1589ec71b26640b8481c77c0c`, SHA-256 `d05a7bf11e87c0853ec466eb80b0ede0d28748663a1fab0ac1a7414f0daf7c15`.
 - **Human patch 022**'s note (T010), and the two merge-request notes (T011).
-- Departures: plan §9 (among them a ninth reason, "a number outside a slot", Q176; and rework-022's two: R4's and R5's narrowing, and "on a network with no route out" left out, Q192; rework2-022's three: R5's cited files and his words, and R4's paths, F-1 to F-3).
+- Departures: plan §9 (among them a ninth reason, "a number outside a slot", Q176; and rework-022's two: R4's and R5's narrowing, and "on a network with no route out" left out, Q192; rework2-022's three: R5's cited files and his words, and R4's paths, F-1 to F-3; rework3-022's three: R4's paths read against the root, R1's and R5's paths outside the repository, and his words as a fixed list, B-1 to B-3).
 
 ### Cost and data-flow impact
 
@@ -744,7 +744,7 @@ D-V2's six (Q165): none of these runs hit them. `make check` is T012's, the stac
 T007, rv-impl-022's line-by-line pass (Opus), found two blocking findings; rework-022 fixed both, test first, one commit per fix:
 
 - **I-1** (Q192, answered recommended): after Q115, The stack #12 still said every container is "on a network with no route out", though `deploy/compose.yaml` puts `gateway` on `egress`. That span of `SCRIPTS.md` §5 line 12 is now left out as contradicted by the repository (`deploy/compose.yaml`), and the line carries "Every container runs with no new privileges" and "Only the edge listens"; `test_the_real_proposal_leaves_no_route_out_for_every_container_out` holds it. Human patch 022 was rebuilt, its new IDs in the proposal and `human-patches/022.md`.
-- **I-2**: the checker passed `[fifty-two assertions, fifty-two passed]` (any bracketed span was blanked as a claim tag), `, and passed 52/52` (a ratio read as a path), and a quoted agent-written script line carrying an amount in words (R5 took a quote from any cited file, `films/SCRIPTS.md` included). Now the claim-tag exemption covers only `[P]`, `[?]`, `[A]`, `[A YYYY-MM-DD]`, runs of them, and ``[slot `id`]``; rework-022 made a path need a segment that isn't a number, or a file extension, and left `films/SCRIPTS.md` and the films' `script.txt` out of R5's cited files by their exact spelling. Seven fixtures failed first. The real proposal passes unchanged. What the code does since rework2-022 (rv-rework-022's F-1 to F-3, below): a token is a path only with no whitespace and no segment that is a number, but a date `_DATE` takes; no file under `films/`, its path normalised, is a cited file for R5; and a `SCRIPTS.md` quote stands as his words only when a his-words marker introduces it ("In Hareet's words:", "the Author's wording", "the Author, YYYY-MM-DD, …:", "**about you**"), not whenever its line names the Author.
+- **I-2**: the checker passed `[fifty-two assertions, fifty-two passed]` (any bracketed span was blanked as a claim tag), `, and passed 52/52` (a ratio read as a path), and a quoted agent-written script line carrying an amount in words (R5 took a quote from any cited file, `films/SCRIPTS.md` included). Now the claim-tag exemption covers only `[P]`, `[?]`, `[A]`, `[A YYYY-MM-DD]`, runs of them, and ``[slot `id`]``; rework-022 made a path need a segment that isn't a number, or a file extension, and left `films/SCRIPTS.md` and the films' `script.txt` out of R5's cited files by their exact spelling. Seven fixtures failed first. The real proposal passes unchanged. What the code does since rework3-022 (rv2-rework2-022's B-1 to B-3, below): a token is a path only with no whitespace and no segment that is a number, but a date `_DATE` takes, and only as the repository holds it: inside the root, found there or rooted at a top-level entry of it, and, if it holds a number, found or a file name in a directory the root holds; a setting is exempt only if its value holds no digit and no G1 word; no file under `films/` and no path outside the repository, normalised and resolved, is a cited file for R5, and R1 fails a source outside the repository on any row; and his words from `SCRIPTS.md` are a fixed list in the checker, the Haiku reason on line 18, with no marker scan.
 - **N-2**: Local models first #3 now names its host ("On the laptop, every question tries the local model first"), as Golden Q&A 13 does. **N-4**: a parity test holds the checker's `WORD` equal to G1's in `guards.ts`, its template filled from `guards.ts`'s own keys.
 - **N-1** and **N-3** carried here, as the supervisor directed. N-3: keep replay exports inside the worktree; rework-022 did, and deleted them by repo-relative path. N-1's own words aren't in the repository or in rework-022's brief, so they aren't restated here; rv-impl-022's report has them.
 
@@ -756,7 +756,7 @@ Test first, one commit per fix, each fix's fixtures seen RED before GREEN, with 
 
 - **F-1** (`is_script`, R5's cited texts; page Q200, answered recommended): a row citing `films/kill-switch-b2/captions.srt` or `./films/kill-switch-b2/script.txt` let a quoted agent-written line through with its amount ("five dollars a day"). Each cited path is now normalised (a leading `./` stripped, then `posixpath.normpath`), and no file under `films/` is a cited file for R5, by its spelling or by where it resolves (`under_films`). Fixtures: those two, and two siblings, `films/meter/../kill-switch-b2/script.txt` and another film's notes (`films/meter/notes.md`). RED 29507862, GREEN a37abfce.
 - **F-2** (`is_path`, `without_exempt`): `It caps at 100/day.`, `It passed 52/run.`, and `` `fifty-two of fifty-two passed/run` `` passed with 0 problems. A token with whitespace is now never a path, and a token with any segment that is a number (a digit and no letter, or one of G1's words) is never one unless the segment is a date `_DATE` takes (`history/2026-11-09/run.json` stays a path). The same class in a setting: `` `DAILY_CAP=100` `` was blanked as `ENV=prod` is; a setting is exempt now only when its value isn't a number. Fixtures: the review's three, and `twelve/hour`, `` `100/day` ``, and `` `DAILY_CAP=100` ``; another test holds real paths with numbers in them (`docs/adr/0020-gateway.md`, `redteam/run.py:267-299`, `2026-11-13/14`) reading none. RED cf975c74, GREEN fd364d4a.
-- **F-3** (`read_context`, `author_quotes`): `films/SCRIPTS.md` line 67, a review note, made "every live run" quotable as his, since the line names the Author ("the Author's checkout"). A quote is his words now only when a his-words marker introduces it (`his_quotes`): the first quote after "In Hareet's words:", "the Author's wording", "the Author, YYYY-MM-DD, …:", or "**about you**" on the same line, with no sentence end between. On today's `SCRIPTS.md` that gives exactly three: line 18's "we chose haiku …", line 46's "up to 30 days", and line 121's. Fixtures: line 67's shape, two siblings (the Author named with no date; a quote before the marker), and the real file's three. RED ff8c821f, GREEN 10660f67. The I-2 sentence above now says what the code does.
+- **F-3** (`read_context`, `author_quotes`): `films/SCRIPTS.md` line 67, a review note, made "every live run" quotable as his, since the line names the Author ("the Author's checkout"). A quote is his words now only when a his-words marker introduces it (`his_quotes`): the first quote after "In Hareet's words:", "the Author's wording", "the Author, YYYY-MM-DD, …:", or "**about you**" on the same line, with no sentence end between. On `SCRIPTS.md` at the time that gave three: line 18's "we chose haiku …", line 46's "up to 30 days", and line 121's. Fixtures: line 67's shape, two siblings (the Author named with no date; a quote before the marker), and the real file's three. RED ff8c821f, GREEN 10660f67. That closed line 67's shape, not the class: a note that says the words aren't his (`Not in Hareet's words: "…"`) still made them his. rework3-022's B-3 (below) removed the scan: his words from `SCRIPTS.md` are now a fixed list in the checker, line 18's quote alone, and line 46's and line 121's are no longer among them. The I-2 sentence above says what the code does since rework3-022.
 - **The real proposal passes unchanged** at every commit, so it wasn't edited and human patch 022 wasn't rebuilt: `docs/merge-requests/2026-11-14-corpus-film-scripts.patch` is still 167,843 bytes, git blob `3d5ddb59666e1bc1589ec71b26640b8481c77c0c`, SHA-256 `d05a7bf11e87c0853ec466eb80b0ede0d28748663a1fab0ac1a7414f0daf7c15` (checked at the tip). No human-only path changed.
 - Departures: plan §3's R4 and R5, and three new §9 entries, each in its fix's GREEN commit.
 
@@ -813,12 +813,106 @@ ruff format --check --no-cache --extend-exclude corpus .
 779 files already formatted
 ```
 
-Refusals in rework2-022: one, under Interruptions (6). rv-rework2-022 reviews this rework.
+Refusals in rework2-022: one, under Interruptions (6). rv2-rework2-022 reviewed this rework (Opus) and found three blocking findings, B-1 to B-3; rework3-022 fixed them, below.
+
+### rework3-022: rv2-rework2-022's B-1 to B-3 (`night/rework3-022/rework3-022`, from rework2-022's tip 3c49d098)
+
+Test first, one commit per fix, each fix's fixtures RED before GREEN, plan §3 and §9 in the GREEN commit. Twice a fix had closed the review's examples and not the class, so each fix's rule is written into plan §9, and each RED carries siblings of shapes the review didn't name.
+
+- **B-1** (`_numeric`, `is_path`, `_assignment`): `5k/day`, `100ms/run`, `twelve-hundred/day`, `day/100-requests`, `` `cap/100-per-day` ``, and the settings `` `CAP=100k` `` and `` `CAP=five-dollars` `` each hid a number as a path or a setting. The rule now: a token is a path only as the repository holds it. After normalising, it is inside `--root`, and it is found there (at the root or under a top-level directory: the real proposal's `05-mission.md` is `corpus/05-mission.md`) or its first segment is a top-level entry of the root; a token that holds a number (a digit or a G1 word anywhere, a date and a backticked `:<line>` suffix aside) must be found, or be a file name with an extension in a directory the root holds. A setting is exempt only if its value holds no digit and no G1 word anywhere (a search). Fixtures: the review's seven, and six siblings (`docs/100-per-day`, `` `docs/twelve-hundred` ``, `100-per-day.md`, `../5k/day`, `` `LIMIT=per-100` ``, `docs/caps/100-per-day.md`), with one more test reading the rule against a fixture root. `` `v2/notes` `` moved to the number-reading side of an older test (no top-level `v2`). `test_real_paths_with_numbers_in_them_read_no_number` is unchanged and green. RED 3f8f712b, GREEN 0a50ebf9. One sibling stays open, named in plan §9 and asked on the page: a made-up file name with a number, in a directory the root holds (`docs/adr/0100-per-day.md`), still reads as a path. Closing it needs the file to exist, and the protected test's own `docs/adr/0020-gateway.md` doesn't exist (the real ADR is `0020-gateway-state-store-and-meter.md`). Recommended: require it, and make that test's path the real one. The real proposal holds no such token.
+- **B-2** (`normalised`, `under_films`, `exists`, R5's `cited_texts`): R1 took a cited `../<other checkout>/films/kill-switch-b2/script.txt`, an absolute path, or `../plain.txt` as a source that exists, never checked a left-out row's source, and R5 read all three, so a quote with an amount in it passed from a file outside the repository. The rule now (`in_root`): after normalising, a path that is absolute, starts with `..`, or resolves, through any link, outside `root.resolve()` isn't in the repository. R1 fails it on every row, carried or left out; `exists` is false for it (so "contradicted by the repository" can't name it), and a glob counts only by a match that resolves inside; R5 never reads it. Fixtures: the review's three, and three siblings (`docs/../../plain.txt`, a link inside the root to a file outside, a link to a directory outside), each as a carried row's source and as a left-out row's, then a glob outside and a contradicting file outside. The review's N-1, a link inside the root into `films/`: R1 takes it, R5 refuses it. Its test passed before the fix, because rework2-022's `under_films` already resolves links, so it was never RED. RED ff9d1485, GREEN 3bfebbb0.
+- **B-3** (`HIS_WORDS`, `his_quotes`; page Q213, answered recommended): the marker scan took a note's quote as his whenever a marker stood before it, even in a note that says the opposite. R5's his words from `films/SCRIPTS.md` are now a fixed list in the checker, `HIS_WORDS`, FR-005's Q6 quote from that file, the Haiku reason on line 18 (F3's words already come from the disclosure). A test holds each listed quote verbatim on its line after "In Hareet's words:", and holds the list; `his_quotes` and its markers are gone. Fixtures: the review's six note shapes (`**about you**: "…" was the review's phrase`, `Not the Author's wording: "…"`, `Not in Hareet's words: "…"`, `Asked the Author, 2026-11-11, and the review said: "…"`, `Not the Author, 2026-11-12, but the review: "…"`, `The draft, not **about you**, said: "…"`), and a sibling, a real `In Hareet's words: "…"` on a line the list doesn't name; rework2-022's three still pass. The fixture `SCRIPTS.md` and the good proposal now quote the real Haiku reason, since R5 takes only the list. RED 3607ca98, GREEN b6d053d6. The I-2 sentence and the F-3 bullet above are corrected to say what the code does.
+- **The real proposal passes unchanged** at every commit, so it wasn't edited and human patch 022 wasn't rebuilt: `docs/merge-requests/2026-11-14-corpus-film-scripts.patch` is still 167,843 bytes, git blob `3d5ddb59666e1bc1589ec71b26640b8481c77c0c`, SHA-256 `d05a7bf11e87c0853ec466eb80b0ede0d28748663a1fab0ac1a7414f0daf7c15` (checked at the tip). No human-only path changed.
+
+Runs (the order's rule 4; each in the worktree at its commit, the checker on the proposal exit 0 at every one, since each RED commit leaves the checker's code as the GREEN before it):
+
+```
+== 3f8f712b B-1 RED
+FAILED ...::test_claim_tags_and_paths_read_no_number_but_brackets_and_ratios_do      (`v2/notes` now reads 2)
+FAILED ...::test_a_number_is_a_path_only_under_the_root[…]   (13: 5k-per-day, 100ms-per-run, twelve-hundred-per-day,
+          day-per-100-requests, backticked-cap, setting-100k, setting-five-dollars, docs-100-per-day,
+          backticked-docs-twelve-hundred, bare-file-name, climbs-out, setting-per-100, file-in-no-directory)
+FAILED ...::test_a_path_is_read_against_the_root_it_is_given
+15 failed, 87 passed in 0.46s
+== 0a50ebf9 B-1 GREEN
+102 passed in 0.41s
+   (the GREEN commit also backticks the `evals/run.md:12-14` in the RED commit's root test: R4 exempts a line suffix
+    only in backticks, as before; the bare form read 12 and 14, a mistake in rework3-022's fixture, not the rule's)
+== ff9d1485 B-2 RED
+FAILED ...::test_a_path_outside_the_repository_is_no_source_and_no_quote[…]   (12: other-checkouts-films, absolute,
+          above-the-root, climbs-out, link-out, linked-directory-out; each carried and left-out)
+FAILED ...::test_a_glob_or_a_contradicting_file_outside_the_repository_fails[glob-out]
+FAILED ...::test_a_glob_or_a_contradicting_file_outside_the_repository_fails[contradicted-by-a-file-outside]
+14 failed, 103 passed in 0.59s   (test_a_link_inside_the_root_into_films_is_a_source_but_no_quote: passed, N-1)
+== 3bfebbb0 B-2 GREEN
+117 passed in 0.62s
+== 3607ca98 B-3 RED
+FAILED ...::test_a_quote_in_scripts_md_is_his_only_if_the_checker_lists_it[…]   (7: about-you,
+          not-the-authors-wording, not-in-hareets-words, asked-the-author-dated, not-the-author-dated,
+          not-about-you, a-marker-on-an-unlisted-line)
+FAILED ...::test_his_words_are_the_checkers_fixed_list_each_verbatim_on_its_scripts_md_line
+8 failed, 116 passed in 0.69s
+== b6d053d6 B-3 GREEN
+124 passed in 0.63s
+```
+
+Each fix's probes, past its tests (scratch scripts in `/tmp`, run with `python3 -I` from the worktree):
+
+```
+B-1, numbers_in(without_exempt(token)) against this repository:
+'5k/day' -> ['5']                 '100ms/run' -> ['100']            'twelve-hundred/day' -> ['twelve', 'hundred']
+'day/100-requests' -> ['100']     '`cap/100-per-day`' -> ['100']    '`CAP=100k`' -> ['100']
+'`CAP=five-dollars`' -> ['five']  'docs/100-per-day' -> ['100']     '`docs/twelve-hundred`' -> ['twelve', 'hundred']
+'100-per-day.md' -> ['100']       '../5k/day' -> ['5']              '`LIMIT=per-100`' -> ['100']
+'docs/caps/100-per-day.md' -> ['100']   '/etc/100/day' -> ['100']   './5k/day' -> ['5']
+'`docs/adr/../../5k/day`' -> ['5']      'fifty-two.md' -> ['fifty-two']   '`evals/run.py:5k`' -> ['5']
+'`ENV=dev-cpu`' -> []   '`DATE=2026-11-13`' -> []   '`ENV=prod`' -> []   '`COMPOSE_PROFILES=gpu`' -> []
+'`docs/adr/0020-gateway.md`' -> []   '`evals/product/history/2026-11-09/run.json`' -> []
+'`redteam/run.py:267-299`' -> []     'films/kill-switch-b2/' -> []   'specs/001-cloud-elevation/spec.md' -> []
+'`05-mission.md`' -> []              '`proposals/film-scripts-2026-11-14.md`' -> []
+'docs/adr/0100-per-day.md' -> []     (the open sibling, on the page)
+
+B-2, a root at <tmp>/checkout with <tmp>/plain.txt beside it:
+../plain.txt              in_root=False exists=False     ./../plain.txt           in_root=False exists=False
+docs/./../../plain.txt    in_root=False exists=False     //tmp/plain.txt          in_root=False exists=False
+<tmp>/plain.txt           in_root=False exists=False     docs/out.txt (link out)  in_root=False exists=False
+docs/in.txt (into films)  in_root=True  exists=True  under_films=True
+docs/real.txt             in_root=True  exists=True      docs/*.txt               in_root=True  exists=True
+../checkout/docs/real.txt in_root=False exists=False     ..                       in_root=False exists=False
+the root given through a link: docs/real.txt True, ../plain.txt False
+
+B-3, against this repository:
+author_quotes: ['we chose haiku since our context base is small and manually evaluated haiku and sonnet.']
+his_quotes present: False
+line 18 holds it after "In Hareet's words:": True
+```
+
+At rework3-022's tip (`test_film_claims.py` is the only test file covering `film_claims.py`; the setup target ran first, since the worktree had no `node_modules`):
+
+```
+$ python3 -I scripts/corpus/film_claims.py corpus/proposals/film-scripts-2026-11-14.md
+film-claims: OK — 0 problems, 90 rows, 90 lines in scope (§1 12, §2 10, §3 10, §4 10, §5 13, §6 14, kill-switch-b2 21); the films' script.txt holds 69 of 69 SCRIPTS.md lines verbatim; the denylist was not applied (this checker never reads corpus/intake/private/)
+exit 0
+$ python3 -I -m pytest -q scripts/corpus/test_film_claims.py
+124 passed in 0.66s
+$ make lint          (exit 0; shellcheck's file list left out)
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+779 files already formatted
+```
+
+Refusals in rework3-022: none. rv-rework3-022 reviews this rework.
 
 ### For the Author
 
 - **Human patch 022** (`docs/merge-requests/human-patches/022.md`): apply it on a short branch, gate, merge, then re-run your evaluations and re-mark mission, work projects, and hobbies and travel. Apply it back to back with spec 026's corpus patch, whichever is second rebuilt on the first, and evaluate once (Q141). `docs/corpus-size.json` joins it when spec 027's T008 rebuilds it (Q145). The resume item's stack and this patch both touch `apps/web/content/resume.lock.json`; whichever merges second regenerates it and re-runs `content:check`.
-- **The page**: Q1 to Q6, Q95 to Q97, Q102, Q104, Q106, Q115, Q141, Q144, Q145, Q176 to Q178, Q192, Q200, each answered: recommended, yours to confirm or overturn (T000); an overturned one reworks T004 to T010 before you merge. New, from impl2-022: impl-022's refused last question, asked again (below).
+- **The page**: Q1 to Q6, Q95 to Q97, Q102, Q104, Q106, Q115, Q141, Q144, Q145, Q176 to Q178, Q192, Q200, Q213, each answered: recommended, yours to confirm or overturn (T000); an overturned one reworks T004 to T010 before you merge. New, from impl2-022: impl-022's refused last question, asked again (below). New, from rework3-022: whether a path token that holds a number must name a file the repository has (B-1's open sibling; recommended: yes, with the protected test's made-up ADR path made the real one).
 
 Interruptions:
 1. impl-022, 14:39Z: the bash gate refused its `rm -rf` of its own `/tmp` exports ("recursive delete outside workspace"). It then moved them into its worktree and deleted them there.
