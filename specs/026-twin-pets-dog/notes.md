@@ -1,5 +1,68 @@
 # Notes: spec-026 and its reworks (2026-11-14)
 
+## rework2-026 (on `night/rework2-026/rework2-026`, from rework-026's tip 6973088c)
+
+The findings, as the supervisor's brief quotes them (no review file was mounted): rv-rework-026's B-3 (blocking) and its nit 5; rv-impl-026's N-1, N-3, and N-4, which rework-026 had fixed from a summary; and the checker's B-1, B-2, I-4, and nit 1, which go to the Backlog under the Author's rule 11. This branch merges nothing. Each RED came before its GREEN, and the plan's changes are in their fix's commit.
+
+### B-3: the director measured over whole pettings
+
+rv-rework-026, in its words: "only the petting's steady middle. `heading` is NaN (line 104), so the turn ends on its time limit in one `pet.frame(1)`. Every measured frame has `reach.weight` at exactly 1 (line 109)." It was right: rework-026's 0.27 bytes a frame measured the middle of a petting, nothing else.
+
+`pet-bench.test.ts` now measures a whole petting at a time, from `select` to idle: at the defaults, the twin turning on a fractional heading that converges (19 turn frames, 211 petting frames with 59 eased, 20 return frames); a 0.1 s petting whose phases change every few frames; and a run's cut 15 frames into the reach-in, through its fade. The bound is 12 bytes (one object) a petting. A bound of 8 bytes a frame let 1,310 bytes a petting through on the first harness I tried.
+
+| Commit | What | Whole, short, cut (bytes a petting) |
+|---|---|---|
+| 831e1bb7 | RED: the three director tests; the bench's own timeout (nit 5) | 418.78, 216.26, 176.25 |
+| 427b2ac3 | RED: 20 warm-up passes, 5,000 whole pettings a pass | 188.33, 216.26, 176.25 |
+| 497115bf | GREEN: `pet.ts`; plan R-04's "As reworked (rework2-026)" | 3.14, 0.25, 0.25 |
+
+The fixes and what each removed are in plan R-04. The last 16 bytes a petting came from one line of `select`, found by removing `select`'s lines one at a time in a scratch copy of the bench (deleted): `pet_s = path === "clip" ? petting_s : config.pet_s`. Its two branches are a tagged field and an unboxed one, so the choice was boxed at each selection. Two stores replaced it.
+
+The 3.14 is the measure's noise: it read 7.86 over 2,000 pettings a pass and 3.14 over 5,000, a constant of about 16 KB a pass. The first GREEN run, with no fixed warm-up, read 232 bytes a petting. The functions a petting calls once (`endPetting`, `toIdle`, the selection's checks) were still in V8's lower tiers, which box fractions. By the twentieth pass they read nothing. **What the bench shows, and no more:** no object a petting, the selection and every frame included, on the reach's path with no frame log, once V8 has optimized the code. Not measured: the page, where a petting comes at most once in `cooldown_s`, so the once-a-petting functions may stay in the lower tiers; the clip's path; the draft build's frame log; spec 025's real `twinHeading()`, which isn't on this line (T014's wiring re-runs the bench with it). The page's new question asks about it.
+
+### Nit 5: the bench's own timeout
+
+Each of the bench's tests has `BENCH_TIMEOUT_MS`, 300 s. On 6e962042, in one run with the other seven files: 1.79 s (whole pettings), 0.33 s (short), 1.08 s (cut), 7.43 s (`applyReachLayer`, after its 180 s `beforeAll`, the GLB's parse). The eight files took 67.82 s.
+
+### N-1, N-4, N-3
+
+- **N-1** (563b20a6): `PetTwin.rig`'s comment names the bones `findReachRig` reads: the spine's three; each arm's `Arm`, `ForeArm`, `Hand`, `HandMiddle1`; since Q212, the `Hips` and both legs' `UpLeg`, `Leg`, `Foot`.
+- **N-4** (135d4378): `pet-reach-rig.test.ts` asserts the knees bend forward along the root's +z, and checks that the toes are ahead of the ankles along it. It runs SC-002 on the left arm, the dog's homes mirrored across the twin's, on both rigs. It covers `findReachRig`'s null cases: any of the six leg bones missing gives null on both sides, and a missing `HandMiddle1` gives null on its side only. This is coverage of built behaviour, so there is no RED: 29 passed.
+- **N-3**: the "under 0.1 mm off" and the hips' falls (impl2-026's T003 GREEN, below) come from these lines, now pasted. They print the miss to 0.1 mm, four decimals of a metre, and all eight read 0.0000. The feet's 1 mm and their kept rotation are the test's assertions (`toBeLessThan(1e-3)`, the rotations' dot above 1 − 1e-5), not printed. On 135d4378:
+
+```
+$ npx vitest run test/room/pet-reach-rig.test.ts --silent=false
+twin at spec 025's estimate [0.36, 0.55], the right hand: 0.0000 m from the target; hips down 0.291 m
+twin at Q158's estimate [0.30, 0.45], the right hand: 0.0000 m from the target; hips down 0.262 m
+twin at spec 025's estimate [0.36, 0.55] mirrored, the left hand: 0.0000 m from the target; hips down 0.291 m
+twin at Q158's estimate [0.30, 0.45] mirrored, the left hand: 0.0000 m from the target; hips down 0.261 m
+man at spec 025's estimate [0.36, 0.55], the right hand: 0.0000 m from the target; hips down 0.341 m
+man at Q158's estimate [0.30, 0.45], the right hand: 0.0000 m from the target; hips down 0.304 m
+man at spec 025's estimate [0.36, 0.55] mirrored, the left hand: 0.0000 m from the target; hips down 0.350 m
+man at Q158's estimate [0.30, 0.45] mirrored, the left hand: 0.0000 m from the target; hips down 0.322 m
+twin at spec 025's estimate [0.36, 0.55]: the knees 0.027 → 0.304 and 0.027 → 0.304 m ahead of the hip-to-ankle line
+twin at Q158's estimate [0.30, 0.45]: the knees 0.027 → 0.292 and 0.027 → 0.292 m ahead of the hip-to-ankle line
+man at spec 025's estimate [0.36, 0.55]: the knees 0.023 → 0.312 and 0.013 → 0.312 m ahead of the hip-to-ankle line
+man at Q158's estimate [0.30, 0.45]: the knees 0.023 → 0.301 and 0.013 → 0.301 m ahead of the hip-to-ankle line
+ Test Files  1 passed (1)
+      Tests  29 passed (29)
+   Duration  53.71s (transform 49%, import 38%, tests 13%)
+```
+
+The man's left side, at spec 025's mirrored estimate, crouches to the limit (0.350 m, `crouch_max_m`).
+
+### The checker: to the Backlog (rule 11)
+
+The real proposal fills no Golden Q&A 9: its item 9 holds `<his answer>`. So the checker's findings don't block, and its logic is unchanged. Plan R-13's and the docstring's "in any case or spelling" are narrowed to what `rec+om+end` matches, as a deviation (6e962042). The Backlog in the stack note's item 9 and in the feature's note lists the probes. Each was run on this branch against `golden_problems` and `RECOMMENDED` (a scratch script outside the repository).
+
+### Interruptions
+
+No hook or bash-gate refusal. The harness refused one foreground `sleep 100`, which it doesn't allow, and I waited with an until-loop instead. One of my edits silently didn't run: its `cd` failed in a chained command, the same slip impl2-026 recorded. The first RED run measured a harness with an `expect` inside the measured step, which made objects of its own. I found it before committing and re-ran.
+
+### What waits
+
+T005, T006, and T011 to T016 still wait for impl-025's reviewed tip (Q170), and with them T016's timing half and the wired twin. T014's wiring re-runs `pet-bench` with spec 025's real `twinHeading()`. T019 waits on his approval of the dog's model.
+
 ## impl2-026 (on `night/impl2-026/impl2-026`, from impl-026's tip 5fbedcb5)
 
 No merge was needed: impl-026 had merged verify-021. The worktree held one untracked file, `test/room/zz-scratch-crouch.test.ts`, an earlier attempt's scratch that measured the crouch. It was run once for its numbers, then deleted, and its math went into the measure's second test.
@@ -35,7 +98,7 @@ the larger lean the default heading needs at 0.35 m: 60.9°
 | 18947317 | GREEN: `solvePosture`, `findReachRig`, `applyReach`, `clearReach` | 39 passed |
 | 32909058, f1901d29 | A type for `exactOptionalPropertyTypes` in the rig test; prettier over the four files | lint exit 0 |
 
-On both rigs, at both homes, the hand's end (`HandMiddle1`) lands on the target at the stroke's middle, under 0.1 mm off (SC-002 asks 0.08 m). The hips fall 0.291 m and 0.262 m (the twin) and 0.341 m and 0.304 m (the man), which are the measured shares of 0.35 m. The feet stay within 1 mm, with their world rotation kept.
+On both rigs, at both homes, the hand's end (`HandMiddle1`) lands on the target at the stroke's middle, under 0.1 mm off (SC-002 asks 0.08 m). The hips fall 0.291 m and 0.262 m (the twin) and 0.341 m and 0.304 m (the man), which are the measured shares of 0.35 m. The feet stay within 1 mm, with their world rotation kept. (The test's console lines behind these figures were first pasted by rework2-026, under its N-3, above.)
 
 **The correction (d459cace).** The RED commit was meant to compare the mixer cases against the same figure with the idle clip alone. That edit didn't run, because its `cd` failed in a chained command, so the RED commit snapshot the pose after the mixer's frame. There, a bone the idle clip has no track for still holds the reach's rotation, but the clip's own pose for such a bone is the rest pose. The test now compares against the clip-only figure. The change is to the test's reference, not its claim: every bone is the clip's own after `clearReach`. This task owns the file (T003), and it isn't a fix task.
 

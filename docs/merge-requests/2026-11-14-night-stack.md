@@ -995,9 +995,9 @@ impl2-026, on f1901d29: `pet-reach-rig`, `pet-reach`, `pet-reach-measure`, `avat
 
 rv-impl-026 was blocking, with one finding, in its words: "the proposal's checker lets through what FR-023 says it must refuse". Its review file wasn't mounted in this container, so its findings were read from the page's summary (Q243). This branch merges nothing. T005, T006, and T011 to T016 still wait for impl-025's reviewed tip (Q170).
 
-- **B-1** (FR-023, Q143): the checker exempts a quoted span only as the dog's approval's `disclosure_line` whole, or inside his consent's own sentence (main's spec 017, line 48). It refuses any "Answered:" line holding "recommend" in any case or spelling, "Answered: as recommended" included. It also refuses an empty or wordless Golden Q&A 9 answer, and any other numbered item added to `04`. RED 2384c828 (8 failed, 20 passed), GREEN 3f7e6187 (28 passed). Plan R-13's "As built" records it.
+- **B-1** (FR-023, Q143): the checker exempts a quoted span only as the dog's approval's `disclosure_line` whole, or inside his consent's own sentence (main's spec 017, line 48). It refuses any "Answered:" line holding "recommend" in any case, its "c" and "m" doubled or not, "Answered: as recommended" included (rework2-026 narrowed "in any case or spelling", which the regex doesn't do: the Backlog, below). It also refuses an empty or wordless Golden Q&A 9 answer, and any other numbered item added to `04`. RED 2384c828 (8 failed, 20 passed), GREEN 3f7e6187 (28 passed). Plan R-13's "As built" records it.
 - **I-2, by Q226** (taken provisionally): on a run's cut, the hips and legs are the clip's from the cut's first frame, and only the arm and the spine ease over 0.2 s. RED 01b4e1c8 (3 failed, 29 passed), GREEN 5fa97c2d (86 passed). FR-011, plan R-04 and §5, and T014 are marked Q226.
-- **I-1** (FR-027): no allocation per frame in `pet.frame` or the reach's new `applyReachLayer`, measured by `pet-bench.test.ts`. RED 6dac6f3b (48 and 1,901 bytes a frame), GREEN ac17ffa4 (0.27 and 0.44). T016's text covers both functions. No note says "preallocated" without the run.
+- **I-1** (FR-027): no allocation per frame in `pet.frame` or the reach's new `applyReachLayer`, measured by `pet-bench.test.ts`. RED 6dac6f3b (48 and 1,901 bytes a frame), GREEN ac17ffa4 (0.27 and 0.44). For `pet.frame`, that was the petting's steady middle only, as rv-rework-026's B-3 found; rework2-026, below, measures whole pettings. T016's text covers both functions. No note says "preallocated" without the run.
 - **N-1 to N-5 and `pet-degraded.test.ts:127`**: 90b96aaf. Each is listed in the feature's note.
 
 **For his hand, a CLAUDE.md line** (rv-impl-026's feedback, in its words; a proposal, not written by any worker), under "Things Claude gets wrong":
@@ -1021,3 +1021,67 @@ All checks passed!
 788 files already formatted
 # eslint, tsc, and shellcheck: no finding; make exited 0
 ```
+
+### Rework 2 (`night/rework2-026/rework2-026`, from rework-026's tip 6973088c, Opus 5.5)
+
+The supervisor's brief quotes rv-rework-026 (blocking: B-3; nit 5) and rv-impl-026's N-1, N-3, N-4, which rework-026 had fixed from a summary. No review file was mounted. This branch merges nothing. Each RED came before its GREEN, and the plan's changes are in their fix's commit. In full in the feature's note and in `specs/026-twin-pets-dog/notes.md`.
+
+- **B-3** (FR-027), in the review's words: "only the petting's steady middle. `heading` is NaN (line 104), so the turn ends on its time limit in one `pet.frame(1)`. Every measured frame has `reach.weight` at exactly 1 (line 109)." `pet-bench.test.ts` now measures the director a whole petting at a time, from `select` to idle. It covers the defaults (a turn on a fractional heading that converges, the reach-in, the stroke, the withdraw, the return), a 0.1 s petting, and a run's cut through its fade, each bounded at one object a petting. RED 831e1bb7 and 427b2ac3 (188 to 419, 216, and 176 bytes a petting), GREEN 497115bf (3.14, the measure's noise, then 0.25 and 0.25). The fix: two frozen activity records, the once-a-petting numbers in one class's fields, the aim written in place, and the heading checks reading fields. The last 16 bytes a petting came from one line, bisected: the petting's length was a choice between a tagged value and an unboxed one, and so was boxed. **What it shows, and no more:** no object a petting, its selection and every frame included, on the reach's path with no frame log, once V8 has optimized the code. Not measured: the page, where the once-a-petting functions may stay in V8's lower tiers (232 bytes a petting on the first pass once `frame` was optimized); the clip's path; the frame log; spec 025's real `twinHeading()`. Plan R-04's "As reworked (rework2-026)" records it, and the page's new question asks whether that bar stands.
+- **Nit 5**: each bench test has its own 300 s timeout. 1.79 s, 0.33 s, 1.08 s, 7.43 s in the run below.
+- **N-1** (563b20a6): `PetTwin.rig`'s comment names the bones `findReachRig` reads. **N-4** (135d4378, 29 passed, coverage so no RED): the knees bend forward along the root's +z, SC-002 on the left arm, and `findReachRig`'s null cases. **N-3**: the rig test's console lines, behind "under 0.1 mm off" and the hips' falls, are pasted in notes.md.
+
+### Backlog: the checker (rule 11, so these don't block)
+
+The real proposal, `corpus/proposals/dog-intro-2026-11-14.md`, fills no Golden Q&A 9: its item 9 holds `<his answer>`. So under the Author's rule 11 the checker's findings don't block, and its logic is unchanged. The findings are rv-rework-026's, as the supervisor's brief quotes them. Each probe below was run on this branch against `golden_problems` and `RECOMMENDED`, with a scratch script outside the repository.
+
+- **B-1: a second Golden Q&A 9 is never read.** `golden_problems` returns at the first numbered item it matches. Take a patch that adds `9. *Who's the dog in the room?* — Biscuit [A]`, whose answer is inside a quotation on Q172's "Answered:" line. If it then adds `9. *Who's the dog in the room?* — a cat named Rex [A]`, the check returns no problem.
+- **B-2: "Answered:" lines that get past `RECOMMENDED`** (`rec+om+end`, case-insensitive; line 77 before this branch, 81 after its comment). Each of these passes as his: recommeded; recommanded; re-commended; the word with U+00AD or U+200B inside it; the word with a Cyrillic "о"; the word in fullwidth letters. "recommended" and "Recommended" are refused. Plan R-13 and the docstring now say so, as a deviation (6e962042).
+- **I-4: a fragment fills it.** Q172's "Answered:" line here quotes "his name is Biscuit, my dog", and the answers "s" and "my" are both accepted. The rule only asks that the answer appear somewhere inside a quotation.
+- **Nit 1.** "Answered: taken provisionally (rule 1): "Biscuit"" fills it. The line is the rule's, not his, but it holds no "recommend".
+
+A fix would take three things, recommended for whoever picks it up. First, one Golden Q&A 9 at most, so a second is refused. Second, the "Answered:" line normalized before it's read (NFKC, format characters such as U+00AD and U+200B removed, letters from other scripts refused). Better still, a positive mark of his own answer than a list of the rule's words. Third, the answer equal to one whole quotation, which the page's Q244 asks.
+
+### Small runs (rule 4), rework2-026, on 6e962042
+
+The vitest files are every `pet-*` test, and with them `avatar-gait`, whose rig the reach shares. This branch changed `pet-bench` and `pet-reach-rig`. The rest cover `pet.ts` and `pet-reach.ts`, and no other test imports either file. The bench's own lines are its measure, and the per-test durations are vitest's verbose reporter's (nit 5). The docs commit after 6e962042 changes no code.
+
+```
+$ npx vitest run test/room/pet-bench.test.ts test/room/pet-degraded.test.ts test/room/pet-director.test.ts test/room/pet-notes.test.ts test/room/pet-reach-measure.test.ts test/room/pet-reach-rig.test.ts test/room/pet-reach.test.ts test/room/avatar-gait.test.ts --reporter=verbose
+pet.select and pet.frame, a whole petting of 251 frames (turn 19, petting 211, return 20; 59 eased): 3.14 bytes a petting
+ ✓ test/room/pet-bench.test.ts > no allocation per frame (FR-027, SC-007; I-1) > in the pet director's frame, over whole pettings: the turn, the reach-in, the stroke, the withdraw, the return 1792ms
+pet.select and pet.frame, a short petting of 9 frames: 0.25 bytes a petting
+ ✓ test/room/pet-bench.test.ts > no allocation per frame (FR-027, SC-007; I-1) > in the pet director's frame, a whole short petting at a time, the selection and the phase changes included 331ms
+pet.frame through a cut petting of 40 frames (fade 11): 0.25 bytes a cut petting
+ ✓ test/room/pet-bench.test.ts > no allocation per frame (FR-027, SC-007; I-1) > in the pet director's frame, over a run's cut and its fade, a whole cut petting at a time 1082ms
+applyReachLayer at weight 1: 0.25 bytes a frame; legs off 0.25
+applyReachLayer at weight 0.37: 0.25 bytes a frame; legs off 0.25
+ ✓ test/room/pet-bench.test.ts > no allocation per frame (FR-027, SC-007; I-1) > in applyReach, on the twin's real rig > with the crouch, and on a run's cut (legs off) 7432ms
+ Test Files  8 passed (8)
+      Tests  114 passed (114)
+   Start at  21:03:45
+   Duration  67.82s (tests 85%, import 10%, transform 5%)
+
+$ python3 -m pytest -q scripts/corpus/test_dog_intro_proposal.py
+............................                                             [100%]
+28 passed in 3.95s
+
+$ python3 -I scripts/corpus/dog_intro_proposal.py proposal corpus/proposals/dog-intro-2026-11-14.md
+OK: proposal dog-intro-2026-11-14.md
+buildable: no (FR-019: waiting on his approval of the dog's model, with a disclosure line)
+```
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+788 files already formatted
+# then shellcheck over the repository's scripts: no finding; make exited 0
+```
+
+That lint run was on the working tree with these notes written, just before this paste. No hook or bash-gate refusal was hit. The harness refused one foreground `sleep`, and the notes' Interruptions say so.

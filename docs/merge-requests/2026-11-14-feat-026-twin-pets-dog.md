@@ -109,9 +109,9 @@ Session: /home/h4reet/h4reet-ai/night/2026-11-13/rework-026 · Repo hooks active
 
 | Finding | What changed | RED, then GREEN |
 |---|---|---|
-| **B-1** (FR-023, Q143; blocking) | `scripts/corpus/dog_intro_proposal.py`. A quoted span exempts its digits only when it is the dog's approval's `disclosure_line` whole, or lies inside his consent's own sentence (main's `specs/017-the-night-shift/spec.md`, line 48). An "Answered:" line holding "recommend" in any case or spelling never fills Golden Q&A 9. This includes "Answered: as recommended", "Recommended", "recomended", "the recommendation", and a lower-case or bold label. An empty or wordless Golden Q&A 9 answer is refused. Any other numbered item the patch adds to `04` is refused. Proposal mode looks up the same two sources the same way. Plan R-13's "As built (rework-026, B-1)" records it. | 2384c828: 8 failed, 20 passed; 3f7e6187: 28 passed |
+| **B-1** (FR-023, Q143; blocking) | `scripts/corpus/dog_intro_proposal.py`. A quoted span exempts its digits only when it is the dog's approval's `disclosure_line` whole, or lies inside his consent's own sentence (main's `specs/017-the-night-shift/spec.md`, line 48). An "Answered:" line holding "recommend" in any case, its "c" and "m" doubled or not, never fills Golden Q&A 9 (rework2-026 narrowed "in any case or spelling", which the regex doesn't do: the Backlog, below). This includes "Answered: as recommended", "Recommended", "recomended", "the recommendation", and a lower-case or bold label. An empty or wordless Golden Q&A 9 answer is refused. Any other numbered item the patch adds to `04` is refused. Proposal mode looks up the same two sources the same way. Plan R-13's "As built (rework-026, B-1)" records it. | 2384c828: 8 failed, 20 passed; 3f7e6187: 28 passed |
 | **I-2**, answered by Q226 (taken provisionally) | On a run's cut, the hips and the six leg bones are the clip's from the cut's first frame. Only the arm and the spine ease out over 0.2 s. `pet.ts`'s `reach` gained `legs`, and `applyReach` gained `legs`. FR-011, User Story 2 scenario 4, plan R-04 and §5, and T014 are amended, each marked Q226. | 01b4e1c8: 3 failed, 29 passed; 5fa97c2d: 86 passed |
-| **I-1** (FR-027) | `pet.frame` and the reach no longer allocate per frame, and this is measured. Removing the lines the review named didn't move the measure: V8 was boxing fractions. Points and every number written per frame now live in class instances. The new `applyReachLayer(rig, layer, cfg)` reads the weight from the director's `reach`. Plan R-04's "As built (I-1)" has the details. T016's text covers both `pet.frame` and `applyReachLayer`, and the wired twin once T014 is built. T004's "preallocated" is corrected. b8c63998 makes the bench wait for TurboFan before it measures, because under load one run read 14 bytes a frame. | 6dac6f3b: 2 failed (48 and 1,901 bytes a frame); ac17ffa4: 0.27 and 0.44 bytes a frame |
+| **I-1** (FR-027) | `pet.frame` and the reach no longer allocate per frame, and this is measured (for `pet.frame`, in the petting's steady middle only, as rv-rework-026's B-3 found; rework2-026, below, measures whole pettings). Removing the lines the review named didn't move the measure: V8 was boxing fractions. Points and every number written per frame now live in class instances. The new `applyReachLayer(rig, layer, cfg)` reads the weight from the director's `reach`. Plan R-04's "As built (I-1)" has the details. T016's text covers both `pet.frame` and `applyReachLayer`, and the wired twin once T014 is built. T004's "preallocated" is corrected. b8c63998 makes the bench wait for TurboFan before it measures, because under load one run read 14 bytes a frame. | 6dac6f3b: 2 failed (48 and 1,901 bytes a frame); ac17ffa4: 0.27 and 0.44 bytes a frame |
 | **N-1 to N-5**, `pet-degraded.test.ts:127` | N-1: Q212's leftovers in the spec. N-2: the studio brief's stand-in line. N-3: claims in the notes without pasted output, which this section and the stack's item 9 now carry. N-4: the checker's untested refusals (`evals/agent-config`, `redteam/forbidden-actions.sh`, `assets`). N-5: T011a and T011b. Line 127: the fetch stub comes off in a `finally`. They were read from the page's summary, so the page asks rv-rework-026 to check them against the review's words (Q243). | 90b96aaf: 28 passed; `pet-degraded` 20 passed |
 
 **For his hand, a CLAUDE.md line** (rv-impl-026's feedback, in its words, from the page; a proposal only, and never written to CLAUDE.md by a worker), under "Things Claude gets wrong":
@@ -156,6 +156,77 @@ ruff format --check --no-cache --extend-exclude corpus .
 ```
 
 The vitest files are every `pet-*` test this rework added or changed: `pet-bench` (new), `pet-degraded`, `pet-director`, and `pet-reach-rig`. They also include those covering `pet.ts` and `pet-reach.ts` (`pet-notes`, `pet-reach`, `pet-reach-measure`) and `avatar-gait`, whose rig the reach shares. No other test imports either file. The heap figures are under one heap number (12 bytes), and the test's bar is 8 bytes a frame. No hook or bash-gate refusal was hit.
+
+## rework2-026: rv-rework-026's B-3 and nit 5, rv-impl-026's N-1, N-3, N-4 (`night/rework2-026/rework2-026`, from 6973088c, Opus 5.5)
+
+Session: /home/h4reet/h4reet-ai/night/2026-11-13/rework2-026 · Repo hooks active: the commit hooks ran (gitleaks, arrival check) on every commit. No review file was mounted, so the findings were read in the reviews' words as the supervisor's brief quotes them. This branch merges nothing. Each RED came before its GREEN, and each fix's plan.md change is in its commit. The details are in `specs/026-twin-pets-dog/notes.md`, "rework2-026".
+
+| Finding | What changed | RED, then GREEN |
+|---|---|---|
+| **B-3** (FR-027; blocking) | `pet-bench.test.ts` measures the director a whole petting at a time, from `select` to idle. It covers the defaults (a turn on a fractional heading that converges, 59 eased frames, a return), a 0.1 s petting, and a run's cut through its fade, each bounded at 12 bytes a petting. `pet.ts`: the activity records are two frozen constants. The numbers written once a petting are one `Numbers` instance's fields. The aim is written into an `Aim`. The heading checks read fields. The petting's length takes two stores, not one of a choice whose tagged result boxed it (bisected). Plan R-04's "As reworked (rework2-026)" says what the bench shows and what it doesn't. | 831e1bb7 and 427b2ac3: 418.78 then 188.33, 216.26, 176.25 bytes a petting; 497115bf: 3.14 (the noise), 0.25, 0.25 |
+| **Nit 5** | Each bench test has its own 300 s timeout. Durations: 1.79 s, 0.33 s, 1.08 s, 7.43 s (below) | in 831e1bb7 |
+| **N-1** | `PetTwin.rig`'s comment names the bones `findReachRig` reads | 563b20a6 |
+| **N-4** | The rig test asserts the knees bend forward along the root's +z (the toes confirm it's the model's forward), SC-002 on the left arm, and `findReachRig`'s null cases (a leg bone, `HandMiddle1`). Coverage of built behaviour, so no RED | 135d4378: 29 passed |
+| **N-3** | The rig test's console lines, behind "under 0.1 mm off" and the hips' falls, pasted in notes.md | this note's commit |
+| **Checker** (rule 11) | Plan R-13's and the docstring's "in any case or spelling" narrowed to what `rec+om+end` matches, a deviation. No logic change. The findings are in the Backlog, below | 6e962042: 28 passed |
+
+**What the bench shows, and no more:** no object a petting, its selection and every frame included, on the reach's path with no frame log, once V8 has optimized the code (20 warm-up passes, and `frame` TurboFan's). Not measured: the page, where once-a-petting functions may stay in V8's lower tiers (232 bytes a petting on the first pass once `frame` was optimized, none by the twentieth); the clip's path; the frame log; spec 025's real `twinHeading()` (T014's wiring re-runs the bench). The page's new question asks whether that bar stands.
+
+### Backlog: the checker (rule 11, so these don't block)
+
+The real proposal, `corpus/proposals/dog-intro-2026-11-14.md`, fills no Golden Q&A 9: its item 9 holds `<his answer>`. So under the Author's rule 11 the checker's findings don't block, and its logic is unchanged. The findings are rv-rework-026's, as the supervisor's brief quotes them. Each probe below was run on this branch against `golden_problems` and `RECOMMENDED`, with a scratch script outside the repository.
+
+- **B-1: a second Golden Q&A 9 is never read.** `golden_problems` returns at the first numbered item it matches. Take a patch that adds `9. *Who's the dog in the room?* — Biscuit [A]`, whose answer is inside a quotation on Q172's "Answered:" line. If it then adds `9. *Who's the dog in the room?* — a cat named Rex [A]`, the check returns no problem.
+- **B-2: "Answered:" lines that get past `RECOMMENDED`** (`rec+om+end`, case-insensitive; line 77 before this branch, 81 after its comment). Each of these passes as his: recommeded; recommanded; re-commended; the word with U+00AD or U+200B inside it; the word with a Cyrillic "о"; the word in fullwidth letters. "recommended" and "Recommended" are refused. Plan R-13 and the docstring now say so, as a deviation (6e962042).
+- **I-4: a fragment fills it.** Q172's "Answered:" line here quotes "his name is Biscuit, my dog", and the answers "s" and "my" are both accepted. The rule only asks that the answer appear somewhere inside a quotation.
+- **Nit 1.** "Answered: taken provisionally (rule 1): "Biscuit"" fills it. The line is the rule's, not his, but it holds no "recommend".
+
+A fix would take three things, recommended for whoever picks it up. First, one Golden Q&A 9 at most, so a second is refused. Second, the "Answered:" line normalized before it's read (NFKC, format characters such as U+00AD and U+200B removed, letters from other scripts refused). Better still, a positive mark of his own answer than a list of the rule's words. Third, the answer equal to one whole quotation, which the page's Q244 asks.
+
+### Small runs (rule 4), rework2-026, on 6e962042
+
+The vitest files are every `pet-*` test, and with them `avatar-gait`, whose rig the reach shares. This branch changed `pet-bench` and `pet-reach-rig`. The rest cover `pet.ts` and `pet-reach.ts`, and no other test imports either file. The bench's own lines are its measure, and the per-test durations are vitest's verbose reporter's (nit 5). The docs commit after 6e962042 changes no code.
+
+```
+$ npx vitest run test/room/pet-bench.test.ts test/room/pet-degraded.test.ts test/room/pet-director.test.ts test/room/pet-notes.test.ts test/room/pet-reach-measure.test.ts test/room/pet-reach-rig.test.ts test/room/pet-reach.test.ts test/room/avatar-gait.test.ts --reporter=verbose
+pet.select and pet.frame, a whole petting of 251 frames (turn 19, petting 211, return 20; 59 eased): 3.14 bytes a petting
+ ✓ test/room/pet-bench.test.ts > no allocation per frame (FR-027, SC-007; I-1) > in the pet director's frame, over whole pettings: the turn, the reach-in, the stroke, the withdraw, the return 1792ms
+pet.select and pet.frame, a short petting of 9 frames: 0.25 bytes a petting
+ ✓ test/room/pet-bench.test.ts > no allocation per frame (FR-027, SC-007; I-1) > in the pet director's frame, a whole short petting at a time, the selection and the phase changes included 331ms
+pet.frame through a cut petting of 40 frames (fade 11): 0.25 bytes a cut petting
+ ✓ test/room/pet-bench.test.ts > no allocation per frame (FR-027, SC-007; I-1) > in the pet director's frame, over a run's cut and its fade, a whole cut petting at a time 1082ms
+applyReachLayer at weight 1: 0.25 bytes a frame; legs off 0.25
+applyReachLayer at weight 0.37: 0.25 bytes a frame; legs off 0.25
+ ✓ test/room/pet-bench.test.ts > no allocation per frame (FR-027, SC-007; I-1) > in applyReach, on the twin's real rig > with the crouch, and on a run's cut (legs off) 7432ms
+ Test Files  8 passed (8)
+      Tests  114 passed (114)
+   Start at  21:03:45
+   Duration  67.82s (tests 85%, import 10%, transform 5%)
+
+$ python3 -m pytest -q scripts/corpus/test_dog_intro_proposal.py
+............................                                             [100%]
+28 passed in 3.95s
+
+$ python3 -I scripts/corpus/dog_intro_proposal.py proposal corpus/proposals/dog-intro-2026-11-14.md
+OK: proposal dog-intro-2026-11-14.md
+buildable: no (FR-019: waiting on his approval of the dog's model, with a disclosure line)
+```
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+788 files already formatted
+# then shellcheck over the repository's scripts: no finding; make exited 0
+```
+
+That lint run was on the working tree with these notes written, just before this paste. No hook or bash-gate refusal was hit. The harness refused one foreground `sleep`, and the notes' Interruptions say so.
 
 ## Cost and data-flow impact
 
