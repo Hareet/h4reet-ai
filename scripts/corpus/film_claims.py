@@ -27,10 +27,11 @@ R4  the new text states no number outside a slot (digits, or G1's number words; 
     accepts) and no currency amount (check_corpus.py's CURRENCY, redteam/run.py's AMOUNT_WORDS, guards.ts's
     EXTRA_PATTERN); every slot exists; and the whole file holds no CURRENCY match, since corpus-check reads
     `corpus/proposals/` too.
-R5  every quotation in the new text is the Author's words as `SCRIPTS.md` quotes them (the checker's fixed list), his
-    words in the disclosure's row F3, or a cited file's own text: a carried or in-part row's source only, never the
-    proposal being checked, a file under `films/`, `corpus/proposals/`, `docs/merge-requests/`, `specs/`, or
-    `intent/`, or a file outside the repository, its path normalised and resolved.
+R5  every quotation in the new text is the Author's words as `SCRIPTS.md` quotes them or his one sentence in the
+    disclosure's row F3 (the checker's fixed lists, HIS_WORDS and F3_WORDS), or a cited file's own text: a carried or
+    in-part row's source only, never the proposal being checked, a file under `films/`, `corpus/proposals/`,
+    `docs/merge-requests/`, `specs/`, or `intent/`, or a file outside the repository, its path normalised and
+    resolved; and the disclosure, when cited, is read without row F3.
 R6  with --third-party, no quoted span longer than a title, anywhere in the proposal, that the repository doesn't hold.
 R7  the summary says the denylist was not applied: this checker never reads `corpus/intake/private/`.
 
@@ -481,6 +482,15 @@ HIS_WORDS: tuple[tuple[int, str], ...] = (
         "we chose haiku since our context base is small and manually evaluated haiku and sonnet.",
     ),
 )
+# And his F3 words: the one sentence of row F3 of `docs/data-flow-disclosure.md` after its marker, on the same fixed
+# list (rv-rework3-022's B-6). The rest of the row (the endpoints, the model and its version, Anthropic's terms, how
+# long a flagged request is kept) is the disclosure's, not his promise, so R5 reads none of it, as his words or as a
+# cited file. A test holds the sentence verbatim in the row, after the marker.
+F3_WORDS: tuple[str, str] = (
+    "Against my promise that a visitor's conversation isn't saved:",
+    "this site saves none of it, and Anthropic may keep a turn it answered for up to 30 days, never for training.",
+)
+F3_ROW = "| F3 |"
 
 
 def read_context(root: Path) -> Context:
@@ -496,17 +506,7 @@ def read_context(root: Path) -> Context:
         for p in paths_in(note)
     }
     author_quotes = [quote for _, quote in HIS_WORDS]
-    disclosure = root / DISCLOSURE
-    f3 = next(
-        (
-            norm(raw)
-            for raw in (
-                disclosure.read_text() if disclosure.exists() else ""
-            ).splitlines()
-            if raw.startswith("| F3 |")
-        ),
-        "",
-    )
+    f3 = F3_WORDS[1]
     slots: set[str] = set()
     facts = root / "corpus" / "facts"
     if facts.is_dir():
@@ -734,6 +734,16 @@ def _left_items(cell: str) -> list[tuple[str | None, str]]:
     return out
 
 
+def cited_text(root: Path, path: str) -> str:
+    """A cited file's text as R5 reads it; for the disclosure, by whatever spelling or link reaches it, without row
+    F3, whose one sentence of his words R5 reads from `F3_WORDS` (rv-rework3-022's B-6)."""
+    file = root / path
+    text = file.read_text()
+    if file.resolve() == (root / DISCLOSURE).resolve():
+        text = "\n".join(raw for raw in text.splitlines() if not raw.startswith(F3_ROW))
+    return norm(text)
+
+
 def check(
     proposal: Path,
     root: Path = REPO,
@@ -926,7 +936,7 @@ def check(
     # `films/SCRIPTS.md` (§1 line 5 does, for his words), but a quote from it stands only as his words (HIS_WORDS).
     here = proposal.resolve()
     cited_texts = [
-        norm((root / p).read_text())
+        cited_text(root, p)
         for p in sorted({normalised(c) for c in read})
         if not any(ch in p for ch in GLOB)
         and in_root(root, p)
