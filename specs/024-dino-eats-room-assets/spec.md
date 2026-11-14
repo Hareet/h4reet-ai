@@ -16,7 +16,7 @@ Summary: a visitor who has chosen the Dinosaur can walk up to the desk, the busy
 
 Each answer takes the recommended option, by the Author's order of 2026-11-13 (rule 1). Each is also a question on the morning page, with its recommendation.
 
-- **Q1: Who makes the dinosaur eat?** Options: A) the visitor, who chose the Dinosaur, by an "Eat" action on the piece they have walked up to (recommended); B) the room, on its own, as a scripted gag; C) both. → **A**. It uses what spec 008 built (reach, the target) and asks nothing of the twin or the corpus. The action is key **E**, and an "Eat" button shown in the walking view only while the figure is the dinosaur, reaches an edible piece, and the piece isn't resting. (The key and the button are the session's choice; the intent doesn't name them.)
+- **Q1: Who makes the dinosaur eat?** Options: A) the visitor, who chose the Dinosaur, by an "Eat" action on the piece they have walked up to (recommended); B) the room, on its own, as a scripted gag; C) both. → **A**. It uses what spec 008 built (reach, the target) and asks nothing of the twin or the corpus. The action is key **B** ("Bite"; E is already the walking view's turn-right, `walk/input.ts`), and an "Eat" button shown in the walking view only while the figure is the dinosaur, reaches an edible piece, and the piece isn't resting. (The key and the button are the session's choice; the intent doesn't name them.)
 - **Q2: What is a chunk, and what stays after?** Options: A) the piece's own mesh split by shape into a fixed number of chunks (6 for the desk, 4 for each of the others), at the first bite; a bite removes one; the rest stays; pieces grow back (recommended); B) pre-modelled broken pieces from the studio (an asset per piece; waits for the Author's look approval and the studio's tools list); C) a shader's bite-shaped hole. → **A**. No new asset, no studio round, nothing for the Author's look approval but the effect itself. The cut faces show a flat colour taken from the piece's material (FR-006). B stays open for later as a look upgrade.
 - **Q3: Does a bite send a usage event?** Options: A) no; nothing leaves the device (recommended); B) one `piece_eaten` event with the piece's ID, as `object_selected` has. → **A**. It saves a row in the data-flow disclosure, a kind in `config/room-events.yaml` (generated), and a gateway change. CLAUDE.md asks a new feature for a telemetry span and a dashboard panel; with no byte leaving, there is neither, and Assumptions A5 names that as the deviation.
 - **Q4: Which pieces, and what is protected?** Options: A) the four he names, and no more (recommended); B) every piece. → **A**, with the protections in FR-004 and FR-005: a mesh that carries a face (the laptop's screen) or has a piece mounted on it (the desk's top under the monitor, the signs, and the laptop's stand) is never a chunk to eat, and at least one chunk of each piece always stays. His list says "like", so more pieces are a config line later (FR-002), not code.
@@ -37,14 +37,14 @@ As a visitor who chose the Dinosaur, I want to walk up to the desk and bite a pi
 
 **Why this priority**: it is the Author's item.
 
-**Independent Test**: `vitest run` on the chunker and the eating driver, with a stub piece, a stub dinosaur, and a stub stage: split a stub mesh, take one chunk, and read the piece's meshes: one fewer chunk, the other chunks' vertices unchanged. By hand, on a dev-cpu stack with the dinosaur's model: walk to the desk, press E.
+**Independent Test**: `vitest run` on the chunker and the eating driver, with a stub piece, a stub dinosaur, and a stub stage: split a stub mesh, take one chunk, and read the piece's meshes: one fewer chunk, the other chunks' vertices unchanged. By hand, on a dev-cpu stack with the dinosaur's model: walk to the desk, press B.
 
 **Acceptance Scenarios**:
 
-1. **Given** the figure is the dinosaur and has walked up to the desk, **When** the visitor presses E, **Then** one of the desk's edible chunks flies to the dinosaur's mouth over at most 600 ms and is gone, the dinosaur holds its idle (FR-013), and the rest of the desk is where it was.
-2. **Given** the figure is the woman, the man, or the dog, **When** the visitor presses E at the desk, **Then** nothing happens and no "Eat" button shows.
-3. **Given** the figure has reached the monitor (not edible), **When** the visitor presses E, **Then** nothing happens.
-4. **Given** the desk has one chunk left, **When** the visitor presses E, **Then** nothing is eaten and the "Eat" button hides.
+1. **Given** the figure is the dinosaur and has walked up to the desk, **When** the visitor presses B, **Then** one of the desk's edible chunks flies to the dinosaur's mouth over at most 600 ms and is gone, the dinosaur holds its idle (FR-013), and the rest of the desk is where it was.
+2. **Given** the figure is the woman, the man, or the dog, **When** the visitor presses B at the desk, **Then** nothing happens and no "Eat" button shows.
+3. **Given** the figure has reached the monitor (not edible), **When** the visitor presses B, **Then** nothing happens.
+4. **Given** the desk has one chunk left, **When** the visitor presses B, **Then** nothing is eaten and the "Eat" button hides.
 
 ### User Story 2 - The Room Is Never Left Broken (Priority: P1)
 
@@ -71,15 +71,15 @@ As a visitor on any device, I want the room to work as it did, whatever the eati
 
 **Acceptance Scenarios**:
 
-1. **Given** the 2D room, **When** the Dinosaur is chosen, **Then** its flat figure shows as today, with no "Eat" button, and E does nothing.
+1. **Given** the 2D room, **When** the Dinosaur is chosen, **Then** its flat figure shows as today, with no "Eat" button, and B does nothing.
 2. **Given** the dinosaur has no model (spec 021's file absent or failed, so the flat fallback shows), **When** the figure walks, **Then** the eating is off, as in the 2D room.
 3. **Given** a piece shows its stand-in shape (its model failed, or is skipped on a weak device), **When** the figure reaches it, **Then** it isn't offered to eat.
-4. **Given** reduced motion, **When** E is pressed at the desk, **Then** the chunk vanishes at once, with no flight, and one polite line is said (Q6).
-5. **Given** the room is paused (spec 002, FR-060), **When** E is pressed, **Then** nothing happens, and a regrowth timer in progress waits.
+4. **Given** reduced motion, **When** B is pressed at the desk, **Then** the chunk vanishes at once, with no flight, and one polite line is said (Q6).
+5. **Given** the room is paused (spec 002, FR-060), **When** B is pressed, **Then** nothing happens, and a regrowth timer in progress waits.
 
 ### Edge Cases
 
-- E pressed again while a chunk is in flight: ignored until it lands (one bite at a time).
+- B pressed again while a chunk is in flight: ignored until it lands (one bite at a time).
 - A piece is selected, or targeted, while a chunk of it is in flight: the border (spec 008) follows the meshes that stand; the highlight is refreshed at each bite and regrowth.
 - The visitor leaves walking (Escape) during a flight: the chunk lands at once.
 - The visitor changes avatar: not in the room today (the choice is made at the door); if a later spec adds it, the eaten state stays with the pieces, not the avatar.
@@ -91,7 +91,7 @@ As a visitor on any device, I want the room to work as it did, whatever the eati
 
 ### Functional Requirements
 
-- **FR-001**: The eating MUST be offered only in the 3D walking view, only while the visitor's figure is the dinosaur and shows its model, only on an edible piece the figure has reached (spec 008's reach), and only when the piece shows its model and has more than one chunk.
+- **FR-001**: The eating MUST be offered only in the 3D walking view, only while the visitor's figure is the dinosaur and shows its model, only on an edible piece the figure has reached (spec 008's reach), and only when the piece shows its model and more than one of its chunks stands, one of them edible (FR-004, FR-005).
 - **FR-002**: Which pieces are edible, and into how many chunks, MUST be room data, an `edible` key on a placement in `apps/web/room/scene.yaml` (`edible: { chunks: 6 }`), checked by the compositor (`build/room/schema.ts`): a count from 2 to 12, on a placement that has a `piece`, and never on `room-shell`. The starting data names `work-desk` (6), `busy-sign` (4), `laptop` (4), and `chalkboard` (4).
 - **FR-003**: At the first bite on a piece, the room MUST split its model's meshes by shape into the placement's chunk count: the triangles grouped by the nearest of N seed points spread over the piece's bounds (a k-means pass of a fixed iteration count over the triangles' centres, seeded by the piece's ID so the split is the same on every device and every visit), each group a mesh sharing the original's material, with no texture added. The result is memoized per piece.
 - **FR-004**: A mesh that carries a face (spec 004's `faces` regions) MUST never be eaten, and a chunk MUST NOT be eaten while its footprint carries a mounted piece (any placement whose `mount.on` is this piece, or, transitively, rests on one that does). The chunks that qualify are decided at the split from the bundle's mounts and are the piece's edible chunks; the rest are fixed.
@@ -102,7 +102,7 @@ As a visitor on any device, I want the room to work as it did, whatever the eati
 - **FR-009**: The eating MUST NOT run, or schedule anything, while the room is paused, while the loader shows, or after the room has fallen to 2D.
 - **FR-010**: Under reduced motion (spec 002's `reducedMotion`, read throughout the visit), the flight and the regrowth's fade MUST be replaced by an immediate hide and an immediate return; One polite live-region line, "The dinosaur ate part of the {name}.", MUST be said at a piece's first bite of a visit, from `ui-words.yaml` (`eat.first_bite`, slot `{name}`, the piece's label); the "Eat" button's label is `eat.button`, and its disabled-state hint `eat.none_left`.
 - **FR-011**: A chunk MUST regrow `eat.regrow_s` seconds (starting value 20, room data: a top-level `eating: { regrow_s: 20 }` in `apps/web/room/scene.yaml`, checked by the compositor and carried in the bundle) after the last bite on its piece, earliest-eaten first, one at a time, each next one that long after the last. The timer stops while paused and restarts at the resume.
-- **FR-012**: The key E and the "Eat" button MUST be the only inputs; the key MUST NOT act while a text field has focus (the twin's chat), and the button MUST be a real button, reachable by keyboard, named by `eat.button`, shown only when FR-001 holds, in the walking view's controls, not over the AI disclosure or the stand-in line.
+- **FR-012**: The key B and the "Eat" button MUST be the only inputs; the key MUST NOT act while a text field has focus (the twin's chat), and the button MUST be a real button, reachable by keyboard, named by `eat.button`, shown only when FR-001 holds, in the walking view's controls, not over the AI disclosure or the stand-in line.
 - **FR-013**: The first version MUST NOT add a clip role. The dinosaur holds its idle (or its walk's rest pose) while the chunk flies, which is the whole feature. A `bite` clip is a later, separate change: a new role in `CLIP_ROLES` is also a new file in the loader's lists, the build's avatar checks, and the loading bar's counts (`scene/loader.ts`, `build/room/avatars.ts`), which this spec doesn't touch. If spec 021 delivers a bite clip, it is a follow-up task, not this one.
 - **FR-014**: The feature MUST add no network request and no usage event, and MUST NOT change `config/room-events.yaml` or `docs/data-flow-disclosure.md` (Q3).
 - **FR-015**: A bite MUST cost less than 2 ms of main-thread time at the frame it starts, after the first on its piece; the first bite's split MUST take less than 50 ms for the starting pieces (measured on the test fixtures' triangle counts, at the room's phone budget), and MUST be a single pass, not spread over frames.
@@ -143,3 +143,7 @@ See User Story 3 and FR-001, FR-009, FR-010. With the feature failing in any way
 - **A5 (a deviation from CLAUDE.md, named)**: "New endpoint or feature → also: telemetry span, dashboard panel, cost estimate in the spec, degraded-mode behavior, data-flow disclosure entry if a byte leaves the device". This spec has the cost estimate and the degraded mode; it has no span, no panel, and no disclosure entry, because it adds no endpoint, no server contact, and no byte leaving the device (FR-014). If the Author takes Q3 B, the span, the panel, and the disclosure row come with it.
 - **A6**: the constitution's principles are met as follows: I (degraded mode, US3); II (small tests, the room's gates, FR-015); V (cost $0); VIII (the twin says nothing of the eating, FR-017). No principle is deferred.
 - **A7**: item h of the Author's list ("twin and dog running from dino") builds on the dinosaur's own figure and may later want an eaten-state signal; this spec exposes none and leaves it to that spec.
+
+## Revision, 2026-11-13 (analysis)
+
+The analysis found that **E** is the walking view's turn-right key (`apps/web/src/room/walk/input.ts`, `HELD`; W A S D Q E R F, the arrows, Enter, and Escape are taken). The action key is **B**, free there, and the spec, plan, and tasks say B. Recorded in [analysis.md](analysis.md) A-1.
