@@ -167,9 +167,9 @@ export interface RoomIndex {
   };
   /** The text copy's order. Spec 016 (FR-014; contracts/twin-data.md §4): `{twin_line: true}`, first, is the line slot,
    *  which the room resolves to `twin.line` while the twin's own picture shows and to the stand-in line otherwise.
-   *  Spec 020 (FR-003; plan.md R-02): `{visitor_line: true}`, after it, the visitor's avatar's likeness line, which the
-   *  room fills from the 3D part's `avatars.<id>.line` while the visitor's figure shows that model, and leaves out
-   *  otherwise. */
+   *  Spec 020 (FR-007; plan.md R-02): `{visitor_line: true}`, after it, the likeness line of any visitor-avatar model
+   *  the room shows, which the room fills, once, from the 3D part's `avatars.<id>.line` while any figure but the twin's
+   *  shows that model (the visitor's, or a room figure's: spec 025's dog), and leaves out otherwise. The name stays. */
   copy: (
     | { face: string }
     | { switch: string }
@@ -318,7 +318,7 @@ export interface RoomScene {
   walking: Walking;
   /** Spec 009's avatars (its FR-009, FR-023, FR-024; plan.md §3.2): only avatars whose model is bundled, by ID, each
    *  file's `url` `a/<stem>.<hash16>.glb`, `sha256` the plain file's, and `bytes` the served copy's length; a model's
-   *  `texture_bytes` at texture_px, for the texture ledger. Spec 020 (FR-003; plan.md R-02): `line`, main's likeness
+   *  `texture_bytes` at texture_px, for the texture ledger. Spec 020 (FR-007; plan.md R-02): `line`, main's likeness
    *  approval's disclosure line, only on an avatar recorded as a likeness or from a photo (RA9 bundles none without). */
   avatars: Partial<
     Record<

@@ -152,3 +152,7 @@ One new check (RA9), one new copy slot and its holder, one clip role, one credit
 - **R-05 taken: lookdev's Avatars view dropped (T009, T010).** The view could draw only a bundled model, and RA9 keeps the dog out of every bundle (drafts and lenient builds included) until his approval. So the view would show the dog only after the approval it was meant to inform. Showing it earlier needs a drafts-only exception to RA9, which is his call (on the questions page). He judges the model in a glTF viewer or Blender, as R-05's fallback has it.
 - **T012.** One sentence in the disclosure's D1: the dog's AI-made likeness reaches Anthropic when a session reads it, as the Author's does. No new row and no new flow.
 
+
+### Departures in the rework (rework-020, 2026-11-14)
+
+- **R-02's holder, fed every figure but the twin's (T015).** `src/room/likeness-line.ts` takes the picture signals of every figure except the twin's: the twin's likeness has its own slot (spec 016), and `dog-line.test.ts` already pins that the twin's picture never fills this one. The twin's figure can't show the dog anyway (RA3: the stand-in is never a likeness). The holder is cleared as the room goes to 2D, and pictures that arrive in 2D are ignored, so a 2D room shows no line. Where two figures hold different lines, the earliest-held one shows (one dog today, so one line).

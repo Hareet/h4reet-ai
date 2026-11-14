@@ -14,8 +14,9 @@
 //   `sign.not_affiliated` with the neon sign, `around.illustration` once the monitor's face is bound), but
 //   `pause.paused_at` only while the room is paused, "Paused at HH:MM", its {time} the live value
 //   setPausedAt gives (motion.ts; FR-060), in its place in copy[]'s order, and gone on resume; a hidden page shows none;
-// - spec 020's visitor line slot (FR-003): the visitor's avatar's likeness line, in its place, only while setVisitorLine
-//   gives one (the visitor's figure shows a model whose bundle entry has a line), and no entry otherwise.
+// - spec 020's visitor line slot (FR-007): the likeness line of any visitor-avatar model the room shows, in its place,
+//   only while setVisitorLine gives one (a figure, the visitor's or a room figure, shows a model whose bundle entry has
+//   a line), once, and no entry otherwise.
 // Updates replace text in place, in no live region, so a poll announces nothing (FR-063). The section is a Tab stop,
 // the last of the room's before the resume (FR-065; Amendment B8), and every tier value has its own sentence, so no state
 // rests on the charger's pose or a colour alone (R-40). Badges ("Draft", "Sample", "test") are UI words, said in
@@ -48,8 +49,8 @@ export interface TextCopy {
   /** Spec 016 (FR-014): whether the twin's own picture shows: the line slot says the index's twin.line while it does,
    *  the stand-in line otherwise, in place. */
   setTwinOwn(own: boolean): void;
-  /** Spec 020 (FR-003; plan.md R-02): the visitor's avatar's likeness line while its model shows, in the slot's place
-   *  after the twin's line; null takes the entry away. */
+  /** Spec 020 (FR-007; plan.md R-02): the likeness line of any visitor-avatar model the room shows, once, in the
+   *  slot's place after the twin's line; null takes the entry away. */
   setVisitorLine(line: string | null): void;
 }
 
@@ -108,7 +109,7 @@ export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
       lineSlot = h(doc, "li", {}, uiWord(room.ui, STAND_IN) ?? "");
       list.append(lineSlot);
     } else if ("visitor_line" in entry) {
-      // Spec 020's slot (FR-003): nothing until the visitor's figure shows a model with a line (setVisitorLine).
+      // Spec 020's slot (FR-007): nothing until a figure shows a model with a line (setVisitorLine).
       visitorMarker = doc.createComment("");
       list.append(visitorMarker);
     }

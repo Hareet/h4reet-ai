@@ -96,7 +96,7 @@ export interface Avatar {
   readonly clips: readonly AvatarFile[];
   /** Files with no role (RA5), in the folder's order. */
   readonly others: readonly AvatarFile[];
-  /** Spec 020 (FR-003): the likeness approval's line, for a model recorded as a likeness or from a photo that main
+  /** Spec 020 (FR-007): the likeness approval's line, for a model recorded as a likeness or from a photo that main
    *  approves; null for every other avatar. */
   readonly line: string | null;
 }

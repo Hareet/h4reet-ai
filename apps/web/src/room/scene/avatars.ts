@@ -347,7 +347,7 @@ export function createAvatarFigures(
   };
 
   const picture = (f: Figure, shows: "avatar" | "fallback", why: FigureWhy | null): void => {
-    // Spec 020 (FR-003): an avatar's likeness line rides with its picture, where its bundle entry has one.
+    // Spec 020 (FR-007): an avatar's likeness line rides with its picture, where its bundle entry has one.
     const line = shows === "avatar" && f.wants !== null && f.wants !== "twin" ? part.avatars[f.wants]?.line : undefined;
     signal({
       kind: "picture",

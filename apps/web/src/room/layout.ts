@@ -92,8 +92,9 @@ export interface RoomLayout {
   /** Spec 016 (FR-014; contracts/twin-states.md §4): the line slot's words, in place: the twin's line while its own
    *  picture shows, the stand-in line otherwise. The paragraph isn't a live region, so nothing is announced. */
   setLine(words: string): void;
-  /** Spec 020 (FR-003; plan.md R-02): the visitor's avatar's likeness line, a note of its own after the line slot's,
-   *  only while it has words: "" takes the paragraph away, so the layout holds no empty line. Not a live region. */
+  /** Spec 020 (FR-007; plan.md R-02): the likeness line of a visitor-avatar model any figure shows, a note of its own
+   *  after the line slot's, only while it has words: "" takes the paragraph away, so the layout holds no empty line.
+   *  Not a live region. */
   setVisitorLine(words: string): void;
   /** Shows whether the room is paused, in "Pause the room"'s aria-pressed. */
   setPaused(on: boolean): void;
