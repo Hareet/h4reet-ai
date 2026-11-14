@@ -1,7 +1,7 @@
-/* The split layout (spec 018; FR-004 to FR-012, FR-014, FR-016, FR-017; plan.md §2 to §5). On a landscape window of 48rem
-   and more, inside the column layout's bands (data-hud="column", data-split="on"): the conversation panel at the left,
-   the list at the right, each at the boxes compose/hud.ts's splitBoxes gives, which layout.ts sets as --split-* in
-   pixels. The room's own art only: Patrick Hand for the title, the stats' labels, and the selected entry; IBM Plex
+/* The split layout (spec 018; FR-004 to FR-012, FR-014, FR-016, FR-017; plan.md §2 to §5). On the windows FR-001's rule
+   selects, inside the column layout's bands (data-hud="column", data-split="on"): the conversation at rest as one row in
+   the bar's band at its left, open as a panel over the scene's left, framed down to that row; the list at the column
+   band's top right; each at the boxes compose/hud.ts's splitBoxes gives, which layout.ts sets as --split-* in pixels. The room's own art only: Patrick Hand for the title, the stats' labels, and the selected entry; IBM Plex
    Sans for the body; IBM Plex Mono for the stats' values; the glass, --hud-text, the neon accent. Classes only: the
    CSP's style-src 'self'. Every selector names the root's two attributes, so it outranks room.css's and talk.css's
    whatever the order they load in. */
@@ -16,8 +16,13 @@
   --split-panel-y: 0px;
   --split-panel-w: 0px;
   --split-panel-h: 0px;
-  --split-bar-y: 0px;
-  --split-bar-h: 0px;
+  --split-title-h: 2.75rem;
+  --split-frame-y: 0px;
+  --split-frame-h: 0px;
+  --split-rest-x: 0px;
+  --split-rest-y: 0px;
+  --split-rest-w: 0px;
+  --split-rest-h: 0px;
   --split-list-x: 0px;
   --split-list-y: 0px;
   --split-list-w: 0px;
@@ -87,7 +92,7 @@ html[data-split="on"][data-hud="column"] .room-list {
   align-items: flex-end;
   gap: 0.25rem;
   padding: 0.5rem 0.75rem;
-  overflow-y: auto;
+  overflow-y: hidden;
   text-align: right;
   background: rgb(var(--glass) / var(--split-glass-alpha));
   border-radius: 0.75rem;
@@ -108,10 +113,14 @@ html[data-split="on"][data-hud="column"] .room-list .split-label {
   color: var(--split-muted);
 }
 
+/* Only the entries scroll, so "Back" and the label stay in view (the list is at most its table height). */
 html[data-split="on"][data-hud="column"] .room-list ul {
+  flex: 1 1 auto;
   width: 100%;
+  min-height: 0;
   margin: 0;
   padding: 0 2.5rem 0 0;
+  overflow-y: auto;
   list-style: none;
 }
 
@@ -148,6 +157,7 @@ html[data-split="on"][data-hud="column"] .room-list li button[data-selected] {
 
 html[data-split="on"][data-hud="column"] .split-confirm {
   position: absolute;
+  pointer-events: none;
   right: -2.25rem;
   top: 50%;
   margin-top: -0.75rem;
@@ -184,6 +194,7 @@ html[data-split="on"][data-hud="column"] .split-hint {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  min-height: 2.75rem;
   font: 1rem/1.2 var(--heading-font);
 }
 
@@ -202,7 +213,7 @@ html[data-split="on"][data-hud="column"] .talk-head {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  min-height: 2.75rem;
+  min-height: var(--split-title-h);
   padding: 0 0.25rem;
 }
 
@@ -220,18 +231,62 @@ html[data-split="on"][data-hud="column"] .split-hint {
   margin-left: auto;
 }
 
-/* The bar, at rest: the title row and the text box's row, on the glass; the log stays a live region, out of sight. */
+/* The rest row (R-2): one row in the bar's band at its left, on the glass: the title toggle and "Larger conversation",
+   the label inline, the text box, Send, and the talk button, at the sizes test/ui/hud-model.ts's splitModel counts; the
+   log stays a live region, out of sight. */
 html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] {
-  top: var(--split-bar-y);
-  height: var(--split-bar-h);
-  grid-template-rows: 2.75rem auto;
-  padding: 0.25rem;
+  left: var(--split-rest-x);
+  top: var(--split-rest-y);
+  width: var(--split-rest-w);
+  height: var(--split-rest-h);
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 0.25rem;
   background: rgb(var(--glass) / var(--split-glass-alpha));
   border-radius: 0.75rem;
 }
 
-html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-sheet {
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-sheet,
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-head {
   display: contents;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-log-toggle {
+  flex: none;
+  padding: 0 0.5rem;
+  font-size: 1rem;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-larger {
+  flex: none;
+  padding: 0 0.5rem;
+  font-size: 0.8125rem;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-larger svg {
+  display: none;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-form label {
+  flex: none;
+  white-space: nowrap;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-row {
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-log,
@@ -246,13 +301,14 @@ html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-status {
   white-space: nowrap;
 }
 
-/* Open: the title above the frame, the hint at its right; in the frame the emblem and the stats, then the body in the
-   left two thirds, the text box row at the foot, and the portrait at the right edge, over the frame. */
+/* Open: the frame's box, the panel with the rest row below it (FR-004); the title above the frame, the hint at its right;
+   in the frame the emblem and the stats, then the body in the left two thirds, the text box row at the foot, where the
+   rest row was, and the portrait at the right edge, over the frame. */
 html[data-split="on"][data-hud="column"] .talk[data-panel="open"] {
-  top: var(--split-panel-y);
-  height: var(--split-panel-h);
+  top: var(--split-frame-y);
+  height: var(--split-frame-h);
   grid-template-columns: 2fr 1fr;
-  grid-template-rows: 2.75rem auto minmax(0, 1fr) auto auto;
+  grid-template-rows: var(--split-title-h) auto minmax(0, 1fr) auto auto;
   column-gap: 0;
   row-gap: 0.25rem;
   background: none;
@@ -333,9 +389,9 @@ html[data-split="on"][data-hud="column"] .split-frame {
   left: 0;
   right: 0;
   bottom: 0;
-  top: 2.75rem;
+  top: var(--split-title-h);
   width: 100%;
-  height: calc(100% - 2.75rem);
+  height: calc(100% - var(--split-title-h));
   z-index: 0;
   pointer-events: none;
 }
