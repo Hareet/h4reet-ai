@@ -115,7 +115,7 @@ export interface AvatarFigures {
   missed(avatar: FigureSource, role: FigureRole | null, why: "failed" | "skipped" | "floor" | "2d"): void;
   /** Whether a figure shows its avatar. */
   shows(figure: FigureId): boolean;
-  /** Spec 019: the visitor's walk clip's time scale, set from its speed, or null where no walk clip plays. */
+  /** Spec 019: the walk clip's time scale where it plays, or null: 1, its own speed, which nothing sets (FR-007, Q8). */
   clipScale(figure: FigureId): number | null;
   /** The figure's holding hand's bone, or null. */
   handOf(figure: FigureId): Object3D | null;
@@ -874,9 +874,6 @@ export function createAvatarFigures(
       animate = moving;
       // The twin's own states move on the clock whether or not the motion store animates (FR-024).
       if (figures.twin.shown && figures.twin.wants === "twin") play(figures.twin);
-      // Spec 019 (FR-007): a walk clip plays at the figure's speed, within half to one and a half.
-      const walkAction = figures.visitor.playing === "walk" ? figures.visitor.actions.get("walk") : undefined;
-      if (walkAction) walkAction.timeScale = Math.min(1.5, Math.max(0.5, gait.speed / part.walking.speed_mps));
       if (moving)
         for (const f of both()) {
           if (!f.shown || !f.mixer) continue;
