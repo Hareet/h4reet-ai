@@ -83,11 +83,11 @@ describe("a decoration that throws shows its plain form (FR-002)", () => {
 
   it("the emblem (T026): none, the stats and every control still there", () => {
     const { doc, s } = build({ emblem: boom });
-    s.setConversation("snowboard");
+    s.setConversation("a");
     expect(s.open).toBe(true);
     expect(doc.querySelector(".split-emblem")).toBeNull();
     expect(doc.querySelectorAll(".split-stats dd")).toHaveLength(3);
-    expect(() => s.setConversation("bicycle")).not.toThrow();
+    expect(() => s.setConversation("b")).not.toThrow();
     expect(doc.querySelector(".split-emblem")).toBeNull();
     (doc.querySelector(".split-hint") as HTMLButtonElement).click();
     expect(s.open).toBe(false);

@@ -398,7 +398,9 @@ const decl = (selector: string, property: string): string | undefined =>
 const ON = 'html[data-split="on"][data-hud="column"]';
 
 /** A split on a page of its own, its talk section holding the text box, the larger toggle, and the log. */
-const unit = (o: { turnOut?: boolean; walking?: boolean; resumeOpen?: boolean } = {}) => {
+const unit = (
+  o: { turnOut?: boolean; walking?: boolean; resumeOpen?: boolean; emblems?: Readonly<Record<string, string>> } = {},
+) => {
   const dom = new JSDOM(
     '<body><div class="room-list"><h2 class="room-list-heading"></h2><ul>' +
       '<li><button data-object-id="a">A</button></li><li><button data-object-id="b">B</button></li></ul></div>' +
@@ -417,6 +419,7 @@ const unit = (o: { turnOut?: boolean; walking?: boolean; resumeOpen?: boolean } 
     turnOut: () => o.turnOut ?? false,
     walking: () => o.walking ?? false,
     resumeOpen: () => o.resumeOpen ?? false,
+    ...(o.emblems ? { emblem: (id: string) => o.emblems?.[id] } : {}),
   });
   s.setActive(true);
   const escape = (target: Element = doc.body): KeyboardEvent => {
@@ -604,15 +607,20 @@ describe("the list's parts (T024; FR-007, FR-008)", () => {
 
 // ---- T026 (rv2-impl-018's B3; FR-005, Q60, R6): the emblem is the open piece's icon; and the portrait's speaker ----
 
-import { PIECE_ICONS, SPEECH_ICON } from "../../src/room/hud/icons";
+import { EMBLEM_ICONS, SPEECH_ICON } from "../../src/room/hud/icons";
 
-describe("the emblem (T026; FR-005, Q60)", () => {
+// verify-018 (D-V3; spec 002's FR-007): the emblem is named by the room's data, the selectable's `emblem`, which the
+// room passes as `emblem`; these cases name pieces p0 to p3, one per emblem icons.ts draws, and test/room/emblem-data
+// .test.ts holds the committed scene to an emblem for each of its pieces.
+describe("the emblem (T026; FR-005, Q60; named by the room's data, D-V3)", () => {
+  const NAMES = Object.keys(EMBLEM_ICONS);
+  const named = () => unit({ emblems: Object.fromEntries(NAMES.map((n, i) => [`p${i}`, n])) });
   const emblem = (u: ReturnType<typeof unit>) => u.doc.querySelector(".split-emblem");
   const path = (u: ReturnType<typeof unit>) => emblem(u)?.querySelector("path")?.getAttribute("d");
 
-  it("draws one icon per piece of the repository's scene, on the 24-unit grid, none the speech glyph", () => {
-    expect(Object.keys(PIECE_ICONS).sort()).toEqual(["bicycle", "chalkboard", "laptop", "snowboard"]);
-    const all = [...Object.values(PIECE_ICONS), SPEECH_ICON];
+  it("draws one icon per emblem the scene names, on the 24-unit grid, none the speech glyph", () => {
+    expect([...NAMES].sort()).toEqual(["board", "screen", "slate", "wheels"]);
+    const all = [...Object.values(EMBLEM_ICONS), SPEECH_ICON];
     expect(new Set(all).size).toBe(all.length);
     for (const d of all) {
       expect(d).toMatch(/^[MmLlHhVvCcSsQqAaZz0-9.,\-\s]+$/);
@@ -620,35 +628,40 @@ describe("the emblem (T026; FR-005, Q60)", () => {
     }
   });
 
-  for (const id of ["snowboard", "bicycle", "laptop", "chalkboard"])
-    it(`is the ${id}'s icon while its conversation is open`, () => {
-      const u = unit();
-      u.s.setConversation(id);
+  for (const [i, n] of NAMES.entries())
+    it(`is the ${n} emblem while the conversation on a piece the data gives it is open`, () => {
+      const u = named();
+      u.s.setConversation(`p${i}`);
       expect(u.s.open).toBe(true);
-      expect(emblem(u)?.getAttribute("data-emblem")).toBe(id);
-      expect(path(u)).toBe(PIECE_ICONS[id]);
+      expect(emblem(u)?.getAttribute("data-emblem")).toBe(n);
+      expect(path(u)).toBe(EMBLEM_ICONS[n]);
       expect(emblem(u)?.getAttribute("aria-hidden")).toBe("true");
     });
 
   it("gives two pieces two emblems, and follows the conversation while the panel is open", () => {
-    const u = unit();
-    u.s.setConversation("snowboard");
+    const u = named();
+    u.s.setConversation("p0");
     const first = path(u);
-    u.s.setConversation("chalkboard");
+    u.s.setConversation("p3");
     expect(u.doc.querySelectorAll(".split-emblem")).toHaveLength(1);
     expect(path(u)).not.toBe(first);
-    expect(path(u)).toBe(PIECE_ICONS.chalkboard);
+    expect(path(u)).toBe(EMBLEM_ICONS[NAMES[3] ?? ""]);
   });
 
-  it("is the speech glyph in free talk, and for a piece with no icon", () => {
-    const free = unit();
+  it("is the speech glyph in free talk, for a piece with no emblem, and for a name icons.ts doesn't draw", () => {
+    const free = named();
     free.s.openPanel();
     expect(emblem(free)?.getAttribute("data-emblem")).toBe("speech");
     expect(path(free)).toBe(SPEECH_ICON);
-    const other = unit();
-    other.s.setConversation("a");
-    expect(emblem(other)?.getAttribute("data-emblem")).toBe("speech");
-    expect(path(other)).toBe(SPEECH_ICON);
+    for (const [u, id] of [
+      [named(), "a"],
+      [unit(), "p0"],
+      [unit({ emblems: { a: "zz-not-an-emblem" } }), "a"],
+    ] as const) {
+      u.s.setConversation(id);
+      expect(emblem(u)?.getAttribute("data-emblem")).toBe("speech");
+      expect(path(u)).toBe(SPEECH_ICON);
+    }
   });
 });
 
