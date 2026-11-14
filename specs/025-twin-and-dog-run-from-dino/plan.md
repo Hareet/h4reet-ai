@@ -37,6 +37,8 @@ Same table as the spec's: passes before and after design, with one named deviati
 - the dog's home is walkable on the chase floor and at least `separation_m` from the twin's home.
 
 It is a test over the shipped `scene.yaml`, not a build rule. With clause (a), a home under `safe_m` is safe (the figure moves away), so the data isn't wrong, only a run that starts with a step. The twin's placement is spec 009's and 016's data, which a build rule for the run shouldn't refuse. At the defaults, both homes pass (§3).
+
+**As built (T013):** `figures.chase` is `schema.ts`'s `chaseBlock`, every key optional with `CHASE_DEFAULTS` (the schema imports it from `chase-steer.ts`), its ranges RD3 (`headings` an integer from 4 to 64; `clip_thresholds.walk_mps` below `run_mps`), a key it doesn't define RD2. FR-005's refine is on the whole scene (`sceneSchema.superRefine`), since `walking` is the scene's: RD3 at `figures.chase.twin_run_mps` or `.dog_run_mps`, and only where the block is given (the spec's "a `figures.chase` whose …"). `emit.ts` carries the block resolved (`chaseOf`, to 1e-6), as T011 made it carry `figures.dog`; so `emit.ts` changed, which §5 listed as read only. The shipped `scene.yaml` writes plan §3's defaults out. One consequence, two changed tests: spec 008's proof set edited the walking speed to 1.5 m/s, which with the shipped twin's 2.0 m/s and the 0.5 margin FR-005 now refuses; `data-only.test.ts`'s case takes 1.4 instead (a faster walk is a data edit with the run's speeds beside it; on the page). `avatars-compose.test.ts`'s committed figures keys gain `chase`.
 - **R-10 The room's dog.** `scene/avatars.ts`: `FigureId`'s `dog` gets a figure record with `wants: bundled("dog")` where the bundle has the dog and `part.figures.dog` exists, else null; its picture is a `Group` the controller adds at the home (on the floor, turned by `heading_deg`), holding the instance; it plays `idle` once ready; `update` advances its mixer only at quality level 0 (the visitor's rule). Its `target` is `AVATAR_SHAPES.dog.height`, which `instanceFor` scales to, as the visitor's figure's (FR-018); the loader doesn't scale. It isn't in `both()` (the hand-off's two) or `settle()`. The source's paths that read `both()` today read a new `wanting()` list, `both()` plus the room's dog where it wants a model:
 - `place` (`avatars.ts:771` on `fix-020`), so one parsed model is placed in every figure that wants it, the visitor's dog and the room's dog alike;
 - `clip` and `missed` (`:840-870`), so a clip binds, and a failure falls back, in the room's dog as in the others.
@@ -121,6 +123,7 @@ The implementer merges this branch first. Each file by its path; none is human-o
 - `apps/web/build/room/checks/ri.ts`: RI8's `twinBlock` (`:414` on `fix-020`) refuses `fleeing` as a key of `figures.twin.clips` (R-04).
 - `apps/web/build/room/checks/rk.ts`: RK5's dog share (R-11).
 - `apps/web/build/room/report.ts`: the report's figures line names the room's dog's bytes (R-11).
+- `apps/web/build/room/emit.ts`: carries `figures.dog` (T011) and `figures.chase` (T013) into the 3D part (added on departure).
 
 **Changed data**
 - `apps/web/room/scene.yaml`: `figures.dog`, `figures.chase` (not a human-only path).
@@ -135,6 +138,7 @@ The implementer merges this branch first. Each file by its path; none is human-o
 - `apps/web/test/room/bundle.test.ts`: the emitted twin block's `toEqual` (`:1403` on `fix-020`) gains `fleeing: "idle"`. The `toMatchObject` at `:1441` needs no change.
 - `apps/web/test/room/schema.test.ts`: an RI8 case beside `:1242`'s, `{ clips: { fleeing: "idle" } }` refused at `figures.twin.clips.fleeing`.
 - `apps/web/test/room/avatars.test.ts`, `twin-figure.test.ts`, `avatars-compose.test.ts`: `wants` gains `dog: null`, the committed figures keys `dog` (T011; added on departure).
+- `apps/web/test/room/avatars-compose.test.ts`'s committed figures keys gain `chase`, and `data-only.test.ts`'s walking-speed case takes 1.4 m/s, not 1.5 (T013; added on departure, R-09's as built).
 - `apps/web/test/room/vocabulary.test.ts`: the closed list's six new keys and its count (T009; added on departure).
 - `apps/web/test/room/likeness-line-anywhere.test.ts` (spec 020's): its `ROOM_DOG` stand-in key becomes the real `"dog"` `FigureId`, and a case drives the line from the stage's dog picture signal.
 - `deploy/scripts/test_dashboard.py`: the avatar-failure panel's description names the room's dog.
@@ -144,7 +148,7 @@ The implementer merges this branch first. Each file by its path; none is human-o
 - `deploy/grafana/dashboards/h4-runtime.json`: the "Visits whose avatar failed" panel's description (R-12).
 - `docs/merge-requests/2026-11-14-feat-025-twin-and-dog-run-from-dino.md`: the merge-request note (T016).
 
-**Read, not changed**: `apps/web/build/room/emit.ts` (`twinBlockOf`, `:1165`, loops over `TWIN_STATES`: the emitted map gains `fleeing: "idle"`) and `apps/web/build/room/reach.ts` (`playedRoles`, `:574`, likewise: the played roles don't change).
+**Read, not changed**: `apps/web/build/room/emit.ts`'s `twinBlockOf` (`:1165`, loops over `TWIN_STATES`: the emitted map gains `fleeing: "idle"`; the file changed elsewhere, above) and `apps/web/build/room/reach.ts` (`playedRoles`, `:574`, likewise: the played roles don't change).
 
 **Not touched**: `apps/web/src/room/scene/walking.ts` (its `on` and `pose` already exist), `apps/web/src/room/compose/floor.ts` (R-02 filters its output), `apps/web/src/room/scene/gait.ts` (spec 019's FR-014), `apps/web/src/room/likeness-line.ts` (spec 020's holder takes any figure), `config/room-events.yaml`, `apps/web/src/room/events.ts`.
 
