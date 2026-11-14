@@ -1195,7 +1195,7 @@ verify-023: green, carrying D-V2's six (Q165)
 ## Item 10: spec 027, when the twin's file context stops being enough (`night/impl-027/impl-027`)
 
 Spec: specs/027-corpus-retrieval-adr/ · Intent: intent/027-corpus-retrieval-adr.md (draft) · ADR: docs/adr/0054-when-file-context-stops-being-enough.md (proposed) · Written by: implementer (night shift, impl-027, Opus 5.5); the review is for a worker who didn't write the code (T006; the reviewer follows this task) · Date: 2026-11-14
-Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl-027 · Repo hooks active: the commit hooks ran (gitleaks, arrival check) on every commit
+Session: /home/h4reet/h4reet-ai/night/2026-11-13/impl-027 · Repo hooks active: each commit printed gitleaks' "no leaks found" and an `arrival-check: 0 findings in <n> file(s)` line (verify-027's commits, below); the setup target's own git-hooks step can't install hooks from the sandbox ("isn't writable here (the agent sandbox); the Author runs make git-hooks")
 Authorized by: the Author's order of 2026-11-13 ("Approved provisionally", at the top of plan.md and tasks.md), the spec, and the plan as reworked twice (rv-spec-027, rv-rework-spec-027). Every question about spec 027 on the page (Q129 to Q138, Q144, Q145, Q157) is answered: recommended, under the orders file's rule ("any new one: the recommended answer stands"). Base: rework2-spec-027's tip (13e1da8c), with `night/verify2-020/verify2-020` (3767859f, items 1 to 3) merged as T001, then `night/verify-021/verify-021` (item 4) merged last (below).
 
 ### What changed and why
@@ -1261,6 +1261,15 @@ ruff format --check --no-cache --extend-exclude corpus .
 ```
 
 The check's own 15 cases take about 35 ms together (SC-003: under 2 seconds); the rest of the run is the two site builds every `apps/web` vitest run makes first. None of D-V2's six (Q165) is in these files, so none was hit.
+
+### Review (rv-impl-027)
+
+rv-impl-027 (T006, a worker that didn't write T002 to T004): nothing blocking. Its nits, as the supervisor relayed them; N1, N3, and N4 are recorded here, not fixed (rule 6), and N2 is fixed in the documents:
+
+- **N1**: `limits.source` reads `"defaults"` when `limits.twin` holds only some of its keys (D2's rule: all three keys as integers, or `"defaults"`), though the keys it holds are used.
+- **N2**: plan §9 lacked T001's departure, the merge onto the line before item f. **Fixed** by verify-027 in its own commit, documents only (37ffc54f): plan §9's D6 (Q171).
+- **N3**: band notes print while `band` omits a crossed T1 (my reading: with T1 crossed by one topic, another topic within T1's band still gets its stderr note, but D5 keeps a crossed threshold out of `band`, so the record and the notes disagree).
+- **N4**: a room of zero or less writes `share: null` in the record.
 
 ### What waits
 
