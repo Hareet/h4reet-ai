@@ -111,9 +111,11 @@ describe("the polite line (FR-010)", () => {
     const v = await dinosaurVisit();
     const eating = v.scene.created.at(-1)?.eating;
     expect(eating?.said).toBeDefined();
-    const label = repositoryBundle().index.flat.labels.find((l) => l.placement === "laptop")?.label as string;
+    // The 3D side gives the placement and its label word's key, as the part carries it.
+    const key = repositoryBundle().scene.placements.find((p) => p.id === "laptop")?.label as string;
+    const label = repositoryBundle().index.ui[key] as string;
     expect(label).toBeTruthy();
-    eating?.said?.("laptop");
+    eating?.said?.("laptop", key);
     await flush();
     const region = announcer(v.doc);
     expect(region.getAttribute("aria-live")).toBe("polite");

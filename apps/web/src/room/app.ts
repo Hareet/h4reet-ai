@@ -1078,8 +1078,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
                   eatOffered = on;
                   offerEat();
                 },
-                said: (placement: string) => {
-                  const name = deps.room.flat.labels.find((l) => l.placement === placement)?.label ?? placement;
+                said: (placement: string, label: string | null) => {
+                  // The piece's label: its placement's label word (the part carries its key), else its ID.
+                  const name = (label !== null ? uiWord(deps.room.ui, label) : null) ?? placement;
                   const line = uiWord(deps.room.ui, "eat.first_bite", { name });
                   if (line) announcer.say(line);
                 },

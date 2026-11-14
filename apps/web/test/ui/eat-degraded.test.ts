@@ -115,12 +115,16 @@ describe("nothing leaves for the eating (FR-014, FR-016; SC-006)", () => {
 
   it("keeps nothing in the page's storage, and sends nothing, through a dinosaur visit", async () => {
     const v = await arrive("dinosaur");
-    const before = { storage: v.spies.storage.length, network: v.spies.network.length, beacons: v.spies.beacons.length };
+    const before = {
+      storage: v.spies.storage.length,
+      network: v.spies.network.length,
+      beacons: v.spies.beacons.length,
+    };
     const eating = v.scene.created.at(-1)?.eating;
     for (let k = 0; k < 5; k++) {
       eating?.available?.(true);
       eatButton(v).click();
-      eating?.said?.("laptop");
+      eating?.said?.("laptop", "label.laptop");
       eating?.available?.(false);
       v.clock.advance(1000);
       await flush();

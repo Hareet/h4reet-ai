@@ -125,6 +125,16 @@ A bite flies one chunk (both its meshes) by a fixed ease over 600 ms to the mout
     - `scene.ts`'s `protectorFor` call and `reservedIn`;
     - `bundle3d.ts`'s `selectablePicker`.
 - **The tile**, in spec 018's split HUD: `layout.ts` builds an "Eat" tile with its `tile(...)` helper, after the walking control in the stage's clear box (`.room-clear`: the notes, the walking control, then the Eat tile), class `room-eat hud-glass`, hidden by default; an `eat` icon added to `hud/icons.ts` (`IconName`), drawn in code as the others are; a "B" key cap from `hud/keycap.ts`, styled by `split.css`'s `.hud-keycap`, `aria-hidden`, drawn through `hud/split.ts`'s `attempt(...)` (NB-1: exported from `split.ts` for it, a one-word change), as `labelled` draws its cap, so a throw leaves the tile its icon and words, and its accessible name `"{eat.button}, B"` either way. The layout returns `eatButton` and `setEatOffered(on)`, as it does `walkButton` and `setWalkOffered`. `room.css` places `.room-eat` at `--eat-x` and `--eat-y` in each `data-hud` layout, never over the AI disclosure, the notes, or the stand-in line. `app.ts` shows it on the 3D side's `eat:available` signal (reach is an edible piece with a model, the figure is the dinosaur and shows its model, the room isn't paused, a chunk stands) and hides it otherwise.
+  **Departure (T011b to T013, impl-024).** As built:
+  - **The tile** is the clear box's last child, after the walking control's hidden instructions. It also carries `aria-keyshortcuts="B"`. It joins the controls the hand-off makes inert.
+  - **In the stacked layout** (no HUD boxes), `room.css` puts it on the walking control's left, `right: 8.75rem`. That is the walking control's 0.5rem inset, its 8rem width, and the 0.25rem gap.
+  - **The eating option** goes to `createScene` only for a dinosaur visit:
+    - `state()` is `{ paused: motion.paused || motion.hidden, loading: data-loading is "on" }`.
+    - `available(on)` keeps the 3D side's signal. The tile shows while that signal holds, the room isn't paused, and the visit is in 3D.
+    - `said(id, label)` says `eat.first_bite` in the room's polite region. `stage.ts`'s `said` gains the second argument: the placement's label word's key, which the 3D part carries and the index doesn't map, so `scene.ts` passes it. Its `{name}` is that word, or the placement's ID where there is none.
+  - **The fall to 2D** takes the tile away.
+  - **No hover rule of its own.** `hud-look.test.ts` (spec 014's T053) holds every hover rule to the HUD's own buttons by class (`hud-panels`, `hud-bar`, `room-offer`, `room-walk`). So the tile has the walking control's glass, focus ring, and forced-colours ring, and no hover change. A hover like the walking control's is a look change for the Author's approval, with that test's list.
+  - **The order.** The room's wiring for T012 (the line) and T013 (the pause and the loader) is in T011b's commit, since it is one option block. Their tests were committed RED before it, against the code before T011b. Their 3D-side cases passed there as pins on T008's code.
 - **No event (Q117).** `events.ts`, `config/room-events.yaml`, row V4, the dashboard, and their contracts are not touched.
 - **Words**: `ui-keys.ts` and `ui-words.yaml`: `eat.button` ("Eat"), `eat.first_bite` (`{name}`). The polite line goes through `a11y.ts`'s live region.
 

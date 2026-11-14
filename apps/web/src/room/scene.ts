@@ -460,7 +460,9 @@ export function createScene(options: SceneOptions): Stage3D {
       highlight,
       now: () => clock.now(),
       reduced: () => (options.motion ? options.motion.reducedMotion : options.reducedMotion),
-      ...(eatingRoom?.said ? { said: (id: string) => eatingRoom.said?.(id) } : {}),
+      ...(eatingRoom?.said
+        ? { said: (id: string) => eatingRoom.said?.(id, part.placements.find((p) => p.id === id)?.label ?? null) }
+        : {}),
     });
   }
   /** The availability's parts the room and the stage know, apart from the reached piece. */
