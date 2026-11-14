@@ -236,7 +236,9 @@ html[data-split="on"][data-hud="column"] .split-hint {
    log stays a live region, out of sight. */
 html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] {
   left: var(--split-rest-x);
-  top: var(--split-rest-y);
+  /* The soft keyboard's inset lifts the rest row over the scene, as it lifts the column's foot; nothing re-fits (FR-006,
+     rv2-impl-018's B1). */
+  top: calc(var(--split-rest-y) - var(--keyboard));
   width: var(--split-rest-w);
   height: var(--split-rest-h);
   display: flex;
@@ -306,7 +308,8 @@ html[data-split="on"][data-hud="column"] .talk[data-panel="bar"] .talk-status {
    rest row was, and the portrait at the right edge, over the frame. */
 html[data-split="on"][data-hud="column"] .talk[data-panel="open"] {
   top: var(--split-frame-y);
-  height: var(--split-frame-h);
+  /* Its foot, the text box's row, stays above the soft keyboard's inset (FR-006, B1). */
+  height: max(0px, calc(var(--split-frame-h) - var(--keyboard)));
   grid-template-columns: 2fr 1fr;
   grid-template-rows: var(--split-title-h) auto minmax(0, 1fr) auto auto;
   column-gap: 0;
