@@ -2399,3 +2399,106 @@ Commit hooks: each of this session's commits printed gitleaks' "no leaks found" 
 Interruptions (verify-027): one bash-gate refusal. Removing my own earlier `/tmp` export (`rm -rf /tmp/verify-027-dv2.<random>`) was refused: "recursive delete outside workspace. Route: delete only inside the repo". I didn't retry it in any form; the copy was made again in a new `mktemp -d` folder, and both `/tmp/verify-027-dv2.*` folders stay for whoever clears `/tmp`.
 
 verify-027: green, carrying D-V2's six (Q165)
+
+## Merge (rule 7, merge-1)
+
+Branch `night/merge-1/merge-1`, from the line's tip, `night/verify-022/verify-022` (7db03c0f: items 1 to 6 and 10), by a worker (Opus 5.5) that wrote none of the batch.
+
+**The batch: item 3's studio line** (`night/verify3-020/verify3-020`, 9c9ad472): spec 017's `line.py` rounds under rule 13 (four rounds, and a round after a recorded pass), with spec 020's round records. Its note, `docs/merge-requests/2026-11-14-rounds4-020.md`, ends "verify3-020: green". Its backlog, its review's findings, and Q274's proposed CLAUDE.md line live there; this section doesn't repeat them. Items 7 and 8 (verify2-024, verify-025) were still running and go in merge-2.
+
+### The merge
+
+`git merge refs/heads/night/verify3-020/verify3-020`: 9c9ad472 already holds 7db03c0f (`git merge-base --is-ancestor` exits 0), so it fast-forwarded, with no merge commit and no conflict. Nothing needed resolving test-first.
+
+```
+$ git diff --stat 7db03c0f HEAD
+ docs/adr/0053-the-studio-line.md                   |   1 +
+ docs/adr/README.md                                 |   2 +-
+ docs/merge-requests/2026-11-14-rounds4-020.md      | 464 ++++++++++
+ .../human-patches/017-studio-prompt-rounds.md      |  98 +++
+ docs/runbooks/night-shift.md                       |   2 +-
+ scripts/studio/line.py                             | 151 +++-
+ scripts/studio/test_line.py                        | 154 +++-
+ specs/017-the-night-shift/contracts/studio-line.md |  12 +-
+ specs/017-the-night-shift/data-model.md            |   4 +-
+ specs/017-the-night-shift/plan.md                  |   6 +-
+ specs/017-the-night-shift/spec.md                  |   8 +-
+ .../studio-round-1.md                              | 198 +++++
+ .../studio-round-2.md                              | 321 +++++++
+ .../studio-round-3.md                              | 937 +++++++++++++++++++++
+ .../studio-round-4.md                              | 269 ++++++
+ 15 files changed, 2567 insertions(+), 60 deletions(-)
+$ git diff --stat 7db03c0f HEAD -- apps/web services/gateway
+```
+
+The second command prints nothing: the batch changes no file under `apps/web` or `services/gateway`, so no vitest run.
+
+### The check
+
+```
+$ git diff refs/heads/main --stat -- deploy/night-shift/ .claude/ CLAUDE.md REVIEW.md .specify/memory/ corpus/ tools/gates/ evals/agent-config/ redteam/forbidden-actions.sh assets/policy/
+ corpus/proposals/film-scripts-2026-11-14.md | 265 ++++++++++++++++++++++++++++
+ 1 file changed, 265 insertions(+)
+```
+
+Only item 5's proposal, for his hand (the page's Q275), as expected. The studio prompt's change stays a patch for his hand (`docs/merge-requests/human-patches/017-studio-prompt-rounds.md`, Q271); `deploy/night-shift/` isn't touched.
+
+### Runs on the merged tip (9c9ad472)
+
+```
+$ pytest -p no:cacheprovider scripts/studio/
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0
+rootdir: /home/h4reet/h4reet-ai/night/2026-11-14/merge-1
+collected 137 items
+
+scripts/studio/test_comfyui_params.py ...                                [  2%]
+scripts/studio/test_line.py ............................................ [ 34%]
+........................................................................ [ 86%]
+..................                                                       [100%]
+
+============================= 137 passed in 18.46s =============================
+```
+
+```
+$ pytest -p no:cacheprovider deploy/night-shift/tests/test_install.py
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0
+rootdir: /home/h4reet/h4reet-ai/night/2026-11-14/merge-1
+collected 81 items
+
+deploy/night-shift/tests/test_install.py ............................... [ 38%]
+..................................................                       [100%]
+
+======================== 81 passed in 337.84s (0:05:37) ========================
+```
+
+The worktree had no `node_modules`, so the setup target ran first (npm's audit notice, and "git hooks: … isn't writable here (the agent sandbox); the Author runs make git-hooks"; the worktree stayed clean). Then the lint target, exit 0:
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+810 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+```
+
+### After the merge: documents only
+
+- **Item 5's backlog (Q252).** "Backlog (rule 11, rv-rework5-022)" above now quotes rv-rework5-022's B-1 to B-6 and N-a to N-c whole, from the supervisor's page, under "rv-rework5-022's findings, its words" (commit 158f8bb4). The quote matches the page's lines 251 to 311 byte for byte (`diff` of the two ranges: empty). The table of "not yet copied" rows went with the "aren't here yet" paragraph, since the quote holds each finding's probe and fix-later line in the review's words. The page's copy doesn't hold the review's proposed CLAUDE.md line past its opening words, so that paragraph still waits for the review (merge-1's question on the page).
+- This section.
+
+Lint again after both, on this section's text before its commit: exit 0, the same lines as above ("All matched files use Prettier code style!", "All checks passed!", "810 files already formatted", shellcheck silent).
+
+**Interruptions (merge-1): one bash-gate refusal.** Appending this section from a heredoc was refused ("running the agents' engine's Author commands"): a false match on this note's text, which quotes the lint run's shellcheck file list, `deploy/agents-engine/engine.sh` among them. Per rule 5, the same text was written with the Edit tool instead; no command was respelled.
+
+Nothing under `corpus/`, `assets/**`, `/srv/studio/`, or a human-only path changed in merge-1. No merge into main, no push.
+
+merge-1: green; the line's tip is `night/merge-1/merge-1`: 9c9ad472's code, with this note's two documents-only commits on top
