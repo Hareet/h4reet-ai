@@ -1138,9 +1138,26 @@ His answer to Q199 and Q207, about 17:35Z, verbatim:
 
 #### On the branch (small runs only, rule 4)
 
-This branch changes two documents and no code or test: `specs/021-…/studio-round-2.md` and this note. `scripts/studio` has no tests of its own here. Its `line.py` is unchanged, and its tests sit with the evals (see the runs below).
+This branch changes two documents and no code or test: `specs/021-…/studio-round-2.md` and this note. The runs are the tests covering them, `scripts/studio`'s own tests (`line.py` ran tonight and is unchanged), and the lint target, all from the repository's root. The setup target ran first, since there was no `node_modules`. It exited 0, and its git-hooks step said the hooks folder "isn't writable here (the agent sandbox)".
 
-RUNS_PLACEHOLDER
+```
+$ pytest -q -p no:cacheprovider --import-mode=importlib evals/test_docs_links.py evals/test_repository_docs.py scripts/studio/test_line.py scripts/studio/test_comfyui_params.py
+191 passed in 14.78s
+$ make lint        (exit 0; shellcheck's file list left out)
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+788 files already formatted
+```
+
+No full suite: the stack's last task runs it once.
+
+SC-006: `git diff --stat fc89bcd1 HEAD -- .claude tools/gates corpus assets CLAUDE.md REVIEW.md .specify/memory/constitution.md evals/agent-config redteam/forbidden-actions.sh` is empty.
 
 #### Interruptions (rule 5)
 
