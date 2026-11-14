@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   PET_REACH_DEFAULTS,
+  reachAt,
   solveLean,
   solvePosture,
   solveTwoBone,
@@ -214,6 +215,27 @@ describe("weightAt and strokeShare (R-03; FR-007)", () => {
     expect(strokeShare(1.75, cfg)).toBeCloseTo(0.5, 12);
     expect(strokeShare(3.0, cfg)).toBe(1);
     expect(strokeShare(3.4, cfg)).toBe(1);
+  });
+});
+
+// rework3-026 (the page's Q284; FR-027): the director's per-frame call takes objects only, so no fraction crosses a call
+// V8 may not inline. It must give the same numbers as weightAt, strokeShare, and strokeTarget, to the bit.
+describe("reachAt (FR-007, FR-027)", () => {
+  it("writes weightAt's weight and strokeTarget's target at strokeShare's share, to the bit", () => {
+    const head = v(0.31, 0.52, 0.66);
+    for (const pet_s of [3.5, 0.6, 0.1, 10_000]) {
+      for (const dogHeading of [0, Math.PI, -2.1]) {
+        const at = { t: 0, pet_s, dogHeading };
+        const out = { weight: Number.NaN, target: v(0, 0, 0) };
+        for (let t = -0.2; t < pet_s + 0.3; t += pet_s / 97) {
+          at.t = t;
+          reachAt(at, head, PET_REACH_DEFAULTS, out);
+          const want = strokeTarget(head, dogHeading, strokeShare(t, at), PET_REACH_DEFAULTS, v(0, 0, 0));
+          expect(out.weight, `weight at ${t} of ${pet_s}`).toBe(weightAt(t, at));
+          expect(out.target, `target at ${t} of ${pet_s}`).toEqual(want);
+        }
+      }
+    }
   });
 });
 
