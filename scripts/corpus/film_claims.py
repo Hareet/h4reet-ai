@@ -12,8 +12,8 @@ R1  each row's script line is found verbatim (whitespace collapsed) in its scrip
     are the sentence's, and each row names a repository source: for a carried row, one that exists; for a
     `kill-switch-b2` row, a path `materials.md` lists, or one `SCRIPTS.md`'s notes give where materials.md has no row
     for the claim (plan §9). No row's source is outside the repository: after normalising, a path that is absolute,
-    starts with `..`, or resolves (through a link) outside the root fails, for carried and left-out rows alike.
-    Its corpus lines are in the new text and carry its tags; its mark is in the one form.
+    starts with `..`, or resolves (through a link) outside the root fails, and so does a glob that matches nothing or
+    has a match resolving outside, for carried, in-part, and left-out rows alike. Its corpus lines are in the new text and carry its tags; its mark is in the one form.
 R2  every line in scope is in the table once, carried, in part, or left out, each left-out span with a reason from the
     closed list (FR-006), each span found in its line; "contradicted by the repository" names the file, and "a
     duplicate of" names the corpus file. An "about you" line is carried only under the Author's tag.
@@ -345,16 +345,29 @@ def unread(root: Path, path: str) -> bool:
     )
 
 
+def is_glob(path: str) -> bool:
+    return any(ch in path for ch in GLOB)
+
+
+def glob_inside(root: Path, path: str) -> bool:
+    """A glob is in the repository only if something matches and every match resolves, through any link, inside the
+    root (rv-rework3-022's B-7: `docs/out?ide.txt` matching only a link out, `docs/*` matching one among files)."""
+    matches = list(root.glob(normalised(path)))
+    inside = root.resolve()
+    return bool(matches) and all(m.resolve().is_relative_to(inside) for m in matches)
+
+
+def not_in_repository(root: Path, path: str) -> bool:
+    """R1's test for every row's source: outside the root (`in_root`), or a glob not wholly inside (`glob_inside`)."""
+    return not in_root(root, path) or (is_glob(path) and not glob_inside(root, path))
+
+
 def exists(root: Path, path: str) -> bool:
-    """The path names something in the repository: inside the root (`in_root`), and, for a glob, a match that
-    resolves inside it (rv2-rework2-022's B-2)."""
-    if not in_root(root, path):
+    """The path names something in the repository: inside the root (`in_root`), and, for a glob, something matches
+    and every match resolves inside it (`glob_inside`)."""
+    if not_in_repository(root, path):
         return False
-    path = normalised(path)
-    if any(ch in path for ch in GLOB):
-        inside = root.resolve()
-        return any(m.resolve().is_relative_to(inside) for m in root.glob(path))
-    return (root / path).exists()
+    return is_glob(path) or (root / normalised(path)).exists()
 
 
 # ---- The proposal ----
@@ -626,7 +639,7 @@ def file_of(root: Path, path: str) -> Path | None:
     """The file a path names in the repository: itself, or under one of the root's top-level directories (as
     `found_under` reads `05-mission.md`); none for a glob, a directory, a missing file, or a path outside."""
     path = normalised(path)
-    if any(ch in path for ch in GLOB) or not in_root(root, path):
+    if is_glob(path) or not in_root(root, path):
         return None
     for candidate in [path, *(f"{top}/{path}" for top in sorted(_top_level(root)))]:
         if in_root(root, candidate) and (root / candidate).is_file():
@@ -816,11 +829,17 @@ def check(
             read.update(sources)
         if not sources:
             out["R1"].append(f"R1: {row.label}: no repository source")
-        # A path outside the repository is no repository source, whatever the row's status (rv2-rework2-022's B-2).
-        outside = [p for p in sources if not in_root(root, p)]
+        # A path outside the repository is no repository source, whatever the row's status (rv2-rework2-022's B-2),
+        # and nor is a glob that matches nothing or has a match outside (rv-rework3-022's B-7).
+        outside = [p for p in sources if not_in_repository(root, p)]
         for path in outside:
+            why = (
+                "a glob: nothing inside matches, or a match resolves outside the root"
+                if in_root(root, path)
+                else "it resolves outside the root"
+            )
             out["R1"].append(
-                f"R1: {row.label}: source `{path}` isn't in the repository (it resolves outside the root)"
+                f"R1: {row.label}: source `{path}` isn't in the repository ({why})"
             )
         for path in sources if carrying else ():
             if path in outside:
@@ -938,7 +957,7 @@ def check(
     cited_texts = [
         cited_text(root, p)
         for p in sorted({normalised(c) for c in read})
-        if not any(ch in p for ch in GLOB)
+        if not is_glob(p)
         and in_root(root, p)
         and (root / p).is_file()
         and (root / p).resolve() != here
