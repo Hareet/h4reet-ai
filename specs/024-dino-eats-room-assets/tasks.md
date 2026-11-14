@@ -6,7 +6,7 @@
 >
 > > I'd like them to keep going beyond the plan and approval and finish implementation and keep merging down to as few patches and gates as we've seen the difficulty there. Ensure there are small tests that can be run instead of the whole suite over and over
 >
-> The reworks of 2026-11-14 (after rv-spec-024, and after rv-rework-spec-024) take page Q107 to Q109's, Q117's and Q119's, and Q-R2a's and Q-R2b's recommended answers, provisionally, under the same rule.
+> The reworks of 2026-11-14 (after rv-spec-024, and after rv-rework-spec-024) take page Q107 to Q109's, Q117's and Q119's, and Q-R2a's to Q-R2c's recommended answers, provisionally, under the same rule.
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md). **Tests**: test-first, each task's small tests (rule 4): `cd apps/web && npx vitest run <files>` plus `make lint`, pasted into the task's notes. A task runs the tests it adds or changes and those in `apps/web/test/` that import the files it changes (plan §7). The full `make check` is not run here; it runs once, at the end of the night's stack, by one task. **Format**: `[ID] [P] [US] description (files) — small tests`. `[P]` = no shared file with the tasks beside it.
 
@@ -43,7 +43,7 @@
 ## Phase 5: Budgets and notes
 
 - [ ] T014 [US1] The budgets: `npx vitest run test/room/chunk.test.ts test/room/budgets.test.ts test/room/eat-3d.test.ts` (the chunk test builds through its global setup), pasting the sizes and FR-015's mesh counts; the entry chunk must be unchanged and the draw-call ceilings hold. `make lint`. If a budget fails, fix the code, not the budget. — those three files, `make lint`.
-- [ ] T015 A merge-request note, `docs/merge-requests/2026-11-1x-feat-024-dino-eats-room-assets.md`: what changed, the small tests' output, the Author's look approval to do by hand (A4: the cut colour, the flight, the regrowth, the set-aside part, on dev-cpu with spec 021's model), Q1 to Q6, Q107 to Q109, Q117, Q119, Q-R2a and Q-R2b with their recommended answers, spec A5's named deviations (Principle II, Development Workflow 7: no event, span, or panel), rv-spec-024's and rv-rework-spec-024's non-blocking findings as fixed (I-4 to I-6, N-1 to N-5; NB-1 to NB-5), spec 021's contract line 7 (T007), and what's left. The full `make check` is the stack's one, not this task's.
+- [ ] T015 A merge-request note, `docs/merge-requests/2026-11-1x-feat-024-dino-eats-room-assets.md`: what changed, the small tests' output, the Author's look approval to do by hand (A4: the cut colour, the flight, the regrowth, the set-aside part, on dev-cpu with spec 021's model), Q1 to Q6, Q107 to Q109, Q117, Q119, Q-R2a to Q-R2c with their recommended answers, spec A5's named deviations (Principle II, Development Workflow 7: no event, span, or panel) and their ADR (Q-R2c: on main before the merge, or named as waiting), rv-spec-024's and rv-rework-spec-024's non-blocking findings as fixed (I-4 to I-6, N-1 to N-5; NB-1 to NB-5), spec 021's contract line 7 (T007), and what's left. The full `make check` is the stack's one, not this task's.
 
 ## Dependencies
 

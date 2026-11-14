@@ -8,7 +8,7 @@
 >
 > His item, as his orders file lists it (his own words are the quoted letter and title): 7. i) "dino being able to eat chunks of assets like desk, busy sign, laptop, chalkboard". Needs e.
 >
-> The clarify answers (Q1 to Q6 of [spec.md](spec.md)), the first rework's answers (page Q107 to Q109, after rv-spec-024), and the second rework's (page Q117 and Q119, and Q-R2a and Q-R2b, after rv-rework-spec-024) take their recommended options by his rule 1, provisionally; each is on the morning page, and an overturned one is reworked before he merges.
+> The clarify answers (Q1 to Q6 of [spec.md](spec.md)), the first rework's answers (page Q107 to Q109, after rv-spec-024), and the second rework's (page Q117 and Q119, and Q-R2a to Q-R2c, after rv-rework-spec-024) take their recommended options by his rule 1, provisionally; each is on the morning page, and an overturned one is reworked before he merges.
 
 **Branch**: `night/spec-024/spec-024`, reworked on `night/rework-spec-024/rework-spec-024` and `night/rework2-spec-024/rework2-spec-024` (documents) | **Date**: 2026-11-13, reworked 2026-11-14 (twice) | **Spec**: [spec.md](spec.md)
 
@@ -40,7 +40,7 @@ The code reads these through one function, `mouthWorldPoint(figure)` in `src/roo
 
 ## 4. Constitution Check
 
-I Data-Local by Default: the eaten state stays in memory (FR-016); no byte leaves for the eating (FR-014). II Production-Grade or Not Shipped: degraded mode first (US3, FR-001, FR-009, FR-010, the spec's Degraded Mode), small tests, budgets, a deterministic split; its production telemetry is a **named deviation** (spec A5, Q117): no event, span, or panel, because an event would carry what row V4 says the events never carry (the avatar); the dinosaur's model failing is observed by the existing "Visits whose avatar failed" panel. III The lifecycle: intent (draft), spec, clarify, plan, tasks, analysis, review, rework (twice); the Author merges. IV No `.claude/**`, no human-only path is written (see `docs/merge-requests/human-patches/024.md`). V $0. VI The note beside the merge. VIII The twin is told nothing (FR-017). Development Workflow 7 ("A feature without a graph is not done") is the other named deviation (spec A5). No accepted ADR is reversed.
+I Data-Local by Default: the eaten state stays in memory (FR-016); no byte leaves for the eating (FR-014). II Production-Grade or Not Shipped: degraded mode first (US3, FR-001, FR-009, FR-010, the spec's Degraded Mode), small tests, budgets, a deterministic split; its production telemetry is a **named deviation** (spec A5, Q117): no event, span, or panel, because an event would carry what row V4 says the events never carry (the avatar); the dinosaur's model failing is observed by the existing "Visits whose avatar failed" panel. III The lifecycle: intent (draft), spec, clarify, plan, tasks, analysis, review, rework (twice); the Author merges. IV No `.claude/**`, no human-only path is written (see `docs/merge-requests/human-patches/024.md`). V $0. VI The note beside the merge. VIII The twin is told nothing (FR-017). Development Workflow 7 ("A feature without a graph is not done") is the other named deviation (spec A5). No accepted ADR is reversed. The constitution's governance asks an ADR for a permanent deviation: if the Author confirms Q117, the docs role's ADR records it, on main before the implementation merges (page Q-R2c).
 
 ## 5. Design
 
