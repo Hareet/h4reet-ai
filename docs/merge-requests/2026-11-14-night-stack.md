@@ -1408,7 +1408,7 @@ AssertionError: expected '## Room report\n\nBundle 33f4a8729152…' not to match
 - `data-only.test.ts` is plan §5.5's met risk: the variant refuses that test's data edit, and `docs/merge-requests/proposed/024-data-only-eat-box.patch` is on the page, recommended "apply".
 - `dinosaur-compose.test.ts:323` (spec 021: without the dinosaur's folder, the report names no dinosaur) fails on T011a's dinosaur-visit report lines, which print with or without the folder. It wasn't recorded before. It is on the page, recommended: the report prints those lines only with the folder bundled, a fix task on item 7 with the test left as it is.
 
-The lint target, at this branch's tip, whole:
+The lint target, at this branch's tip (run at 9c772a19, again after this note; its count of files ruff formats read 786 at 18252336), whole:
 
 ```
 node_modules/.bin/eslint --max-warnings 0 .
@@ -1419,7 +1419,7 @@ All matched files use Prettier code style!
 ruff check .
 All checks passed!
 ruff format --check --no-cache --extend-exclude corpus .
-786 files already formatted
+787 files already formatted
 { git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
 shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
 exit 0
