@@ -106,7 +106,7 @@ describe("the repository's bundle (FR-002, FR-011)", () => {
     return found[0].id;
   };
 
-  it("carries edible on the desk (6), the busy sign, the laptop, and the chalkboard (4 each), null elsewhere", () => {
+  it(`carries edible on the desk (6), the busy sign, the ${labelled("Laptop")}, and the ${labelled("Chalkboard")} (4 each), null elsewhere`, () => {
     const edible = Object.fromEntries(
       scene.placements.filter((p) => p.edible !== null).map((p) => [p.id, p.edible?.chunks]),
     );
