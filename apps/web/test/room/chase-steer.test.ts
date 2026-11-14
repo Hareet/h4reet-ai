@@ -250,6 +250,13 @@ describe("steering (FR-004, FR-006, FR-009; R-02)", () => {
     expect(Math.abs(fig.x - 0.05)).toBeGreaterThan(0.2);
   });
 
+  it("escapes a corner the dinosaur can enter, along the edge, rather than into it", () => {
+    const fig = createRunner(1.5, 1.5, 0);
+    for (let i = 0; i < 60; i += 1) steer(floor, fig, 2, { x: 0.9, z: 0.9 }, CHASE_DEFAULTS, WALK, DT, null);
+    const toCorner = Math.hypot(OPEN.x1 - fig.x, OPEN.z1 - fig.z);
+    expect(toCorner).toBeGreaterThan(0.2);
+  });
+
   it("escapes a corner the dinosaur can enter, along the edge and around it, never pinned", () => {
     // The dinosaur comes straight at the figure, which stands near the floor's corner; it never falls under safe_m and
     // ends the walk away from the corner.
@@ -266,7 +273,8 @@ describe("steering (FR-004, FR-006, FR-009; R-02)", () => {
   });
 
   it("keeps the dead band: pressed into a wall it can't leave, it stands still, no jitter", () => {
-    // A pocket three walls close: the dinosaur at its mouth, the figure at its end, nowhere farther to go.
+    // A pocket three walls close: the dinosaur at its mouth, the figure at its end. Its corner is 8 mm farther than the
+    // end's middle, so the figure walks there (8 frames, T002) and then stands: from frame 10 on, one position.
     const pocket = fakeFloor({ x0: 0, x1: 0.6, z0: 0, z1: 0.2 }, [], { x: 0, z: 0.1 });
     const fig = createRunner(0.6, 0.1, 0);
     const xs: number[] = [];
