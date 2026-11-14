@@ -118,12 +118,16 @@ describe("nothing leaves the device (FR-025; SC-003)", () => {
   it("makes no request and no model call during a petting", () => {
     const fetchSpy = vi.fn(() => Promise.reject(new Error("no request")));
     vi.stubGlobal("fetch", fetchSpy);
-    const w = petWorld();
-    w.pet.select("dog");
-    w.run(0.4 + 4 + 1);
-    w.pet.select("dog");
-    w.run(1);
-    expect(fetchSpy).not.toHaveBeenCalled();
-    vi.unstubAllGlobals();
+    // The stub comes off whether or not the test passes: the config unstubs envs, not globals.
+    try {
+      const w = petWorld();
+      w.pet.select("dog");
+      w.run(0.4 + 4 + 1);
+      w.pet.select("dog");
+      w.run(1);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

@@ -391,6 +391,11 @@ def test_patch_refuses_touching_a_human_only_path_or_another_corpus_file(
         "REVIEW.md",
         ".specify/memory/constitution.md",
         "tools/gates/gate",
+        # The paths impl-026 added to FR-023's list (plan R-13, As built), untested until rework-026 (N-4).
+        "evals/agent-config/cases.yaml",
+        "redteam/forbidden-actions.sh",
+        "assets/policy/approvals.json",
+        "assets/visitors/dog/dog.glb",
         "corpus/00-profile.md",
         "corpus/facts/denver-local-ai.yaml",
     ):

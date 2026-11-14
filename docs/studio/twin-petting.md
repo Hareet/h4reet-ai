@@ -6,7 +6,7 @@ His item, in his words as his orders file lists it: f) "twin petting do gand dog
 
 ## What it replaces
 
-Until this clip passes his look approval, the twin pets the room's dog with a code stand-in: a reach over its idle (spec FR-007). The stand-in's measure (plan §3, T003) shows why a clip is the better answer. The twin's shoulder is 1.395 m high, and its arm reaches 0.62 m to the middle finger's base. The dog's head, at its default home beside the twin, is about 0.53 m above the floor. A spine lean alone, even at 75°, leaves the hand 0.15 m to 0.20 m short, so a person petting a dog that size bends their knees. The clip can do that, and the stand-in waits on the page's question about a crouch.
+Until this clip passes his look approval, the twin pets the room's dog with a code stand-in: a reach over its idle (spec FR-007). The stand-in's measure (plan §3, T003) shows why a clip is the better answer. The twin's shoulder is 1.395 m high, and its arm reaches 0.62 m to the middle finger's base. The dog's head, at its default home beside the twin, is about 0.53 m above the floor. A spine lean alone, even at 75°, leaves the hand 0.15 m to 0.20 m short, so a person petting a dog that size bends their knees. The stand-in does that now (the page's Q212, taken provisionally): it lowers the hips by up to 0.35 m, bends both knees with the feet kept, and leans the spine by up to 66° (plan §3), all by code, so it doesn't shift its weight or balance as a person does. The clip can.
 
 ## Inputs
 
