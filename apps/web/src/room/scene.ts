@@ -438,7 +438,8 @@ export function createScene(options: SceneOptions): Stage3D {
   // with an edible placement. The meal ledger on the room's clock, the 3D side over each placement's model, and the
   // press's gate (eat/press.ts) over the edible placements' frame boxes, which key B and the "Eat" tile both take.
   const eatingRoom = options.eating;
-  const eats = options.avatar === EATER && part.placements.some((p) => p.edible !== null);
+  // Only where the bundle carries the dinosaur's model (page Q247): without it the figure shows no dinosaur to eat.
+  const eats = options.avatar === EATER && bundled(EATER) && part.placements.some((p) => p.edible !== null);
   const edible = eats ? edibleTargets(part) : [];
   const eatReach = {
     reach: part.walking.reach_m,

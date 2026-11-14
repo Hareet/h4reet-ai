@@ -85,6 +85,8 @@ import type {
   Scene,
   Switch,
 } from "../schema";
+import { EATER } from "../../../src/room/eat/available";
+import { avatarsOf, carriesModel } from "../avatars";
 import { readTypefaces } from "../typefaces";
 import type { TreeReader, Typeface } from "../typefaces";
 import type { Context, Family } from "./family";
@@ -732,33 +734,45 @@ export function pickSweep(g: Geometry, at?: readonly Stage[]): PickSweep {
   return sweep;
 }
 
+/** Spec 024 (FR-001, FR-012; page Q247): whether a compose's bundle carries the dinosaur's model, so a 3D dinosaur
+ *  visit, with its "Eat" tile, can happen. The compositor reports the dinosaur visit's own RG6 refusals and RG7 floor
+ *  only then; the geometry builds the variant either way (a test's geometry judges it whole). */
+export function dinosaurVisit(ctx: Context): boolean {
+  return carriesModel(avatarsOf(ctx.tree, ctx.policy, ctx.room.scene?.value ?? null), EATER);
+}
+
 /** RG6: a selectable's exclusive 44 × 44 core that leaves the view, or lies over another selectable's core, a member,
  *  or its union, where a pick that misses every member goes: in 3D at every supported stage, at its production
  *  framing; in 2D in the drawing's view box, at each stage's scale. FR-064's carve-out (see listOnly) holds a
  *  side-wall selectable there instead of refusing it. Each problem is reported once, with the first stage it comes at
  *  and how many more; in 2D, a problem that comes at the drawing's smallest scale is named by that scale. */
 function spacing(ctx: Context, g: Geometry): void {
-  for (const { selectable, reason } of spacingReasons(g))
+  for (const { selectable, reason } of spacingReasons(g, dinosaurVisit(ctx)))
     ctx.report("RG6", g.scene.file, ctx.path("selectables", selectable), reason);
 }
 
 /** RG6's refusals over a geometry, each selectable's index and its reason, in the sweep's order; a problem found only
- *  in a 3D dinosaur visit's sweep (spec 024, Q150) says so. */
-export function spacingReasons(g: Geometry): { readonly selectable: number; readonly reason: string }[] {
+ *  in a 3D dinosaur visit's sweep (spec 024, Q150) says so, and is left out with `dinosaur` false (page Q247: the
+ *  bundle carries no dinosaur's model, so no such visit happens). */
+export function spacingReasons(
+  g: Geometry,
+  dinosaur = true,
+): { readonly selectable: number; readonly reason: string }[] {
   const smallest = flatScale(smallestFlatStage());
   const meets = { core: "the core of", member: "a member of", union: "the union of the members of" } as const;
-  return pickSweep(g).problems.map(({ problem, mode, first, more, dinosaur }) => {
+  const problems = pickSweep(g).problems.filter((p) => dinosaur || !p.dinosaur);
+  return problems.map(({ problem, mode, first, more, dinosaur: own }) => {
     const what =
       problem.problem === "outside"
         ? "its 44 × 44 core leaves the view"
         : problem.problem === "reserved"
-          ? dinosaur
+          ? own
             ? "its exclusive core lies under a panel's box, the walking control's box, or the \"Eat\" tile's box"
             : "its exclusive core lies under a panel's box or the walking control's box"
           : `its exclusive core overlaps ${meets[problem.problem]} selectables[${problem.other ?? ""}]`;
     const where =
       mode === "3D"
-        ? `in 3D at ${stagesPhrase(first, more)}${dinosaur ? " for a 3D dinosaur visit" : ""}`
+        ? `in 3D at ${stagesPhrase(first, more)}${own ? " for a 3D dinosaur visit" : ""}`
         : flatScale(first) === smallest
           ? "in 2D, at the drawing's smallest scale"
           : `in 2D, at the drawing's scale on ${stagesPhrase(first, more)}`;
@@ -948,7 +962,9 @@ function legibility(ctx: Context, g: Geometry): void {
           `cap height ${tenth(px)} px on the ${name} stage, under the floor of ${floor}`,
         );
   }
-  // Spec 024 (Q-R3a): the floor at a 3D dinosaur visit's reference stages too, where the plain visit's holds it.
+  // Spec 024 (Q-R3a): the floor at a 3D dinosaur visit's reference stages too, where the plain visit's holds it; only
+  // where the bundle carries the dinosaur's model (page Q247).
+  if (!dinosaurVisit(ctx)) return;
   const typefaces = lookTypefaces(ctx.room, ctx.tree);
   const plainCaps = new Map(measureFaces(g, typefaces).map((f) => [f.face, f] as const));
   for (const f of measureFaces(g, typefaces, g.referenceEat)) {

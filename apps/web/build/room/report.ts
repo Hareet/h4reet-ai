@@ -34,11 +34,13 @@ import { AVATAR_SHAPES } from "../../src/choice/avatars";
 import { TIER_VALUES } from "../../src/room/compose/vocabulary";
 import { gzipBytes } from "../../src/room/glb/gzip";
 import { count, fixed } from "../../src/room/glb/rules";
+import { carriesModel } from "./avatars";
 import type { AvatarFile } from "./avatars";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import { framing } from "../../src/room/compose/framing";
 import type { Box as WorldBox } from "../../src/room/compose/framing";
 import { EAT_CONTROL, layoutFor } from "../../src/room/compose/hud";
+import { EATER } from "../../src/room/eat/available";
 import { memberRect } from "../../src/room/compose/pick";
 import {
   REFERENCE_DESKTOP,
@@ -232,8 +234,9 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
   // Spec 014's frame areas (its FR-060, FR-061): the stages RG5 to RG7 run at since, each screen's ease, and the growth.
   lines.push(...frameLines(c), "");
 
-  // Spec 024's dinosaur visit (Q150, Q-R3a): its frame areas with the "Eat" tile's box, and what that box holds.
-  lines.push(...dinosaurLines(c), "");
+  // Spec 024's dinosaur visit (Q150, Q-R3a): its frame areas with the "Eat" tile's box, and what that box holds; only
+  // where the bundle carries the dinosaur's model, without which no such visit happens (page Q247).
+  if (carriesModel(c.avatars, EATER)) lines.push(...dinosaurLines(c), "");
 
   // The switches: their cases, and their poses' separation (RG8).
   lines.push(...switches(c), "");
