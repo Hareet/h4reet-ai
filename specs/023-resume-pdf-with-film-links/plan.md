@@ -2,70 +2,103 @@
 
 **Approved provisionally by the Author's order of 2026-11-13**, which reads, in his words: "Okay, we want the night-shift, in order of importance, from the"improvements, in your words" section: a) "better HUD with examples provided, and load screen", c) "avatar walking leg animations", d) "dog modeled and brought in", e) "dinosaur modeled and brought in", g) "hareet-ai corpus from film scripts", "b) "re-do PDF resume with links from films", i) "dino being able to eat chunks of assets like desk, busy sign, laptop, chalkboard", h) "twin and dog running from dino" .... I will give you the examples of the HUD and placement of the interface layout, and provide you photos of my dog to model and it's okay that we use the likeness of my dog." And on how far the night goes: "I'd like them to keep going beyond the plan and approval and finish implementation and keep merging down to as few patches and gates as we've seen the difficulty there. Ensure there are small tests that can be run instead of the whole suite over and over". Each answer below is the recommended one; he confirms or overturns them on the morning page, and an overturned answer is reworked before he merges.
 
-**Branch**: `spec/023-resume-pdf-with-film-links` (this plan), then `feat/023-resume-pdf-with-film-links` (the build) | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md)
+**Branches** (the night's): this plan on `night/spec-023/spec-023`, reworked on `night/rework-spec-023/rework-spec-023` after rv-spec-023; the code on `night/impl-023/impl-023`, from impl-022's tip in the night's one stack (`feat/018-hud-to-dino-stack`, named by the supervisor), with this branch merged first | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md)
 
 ## Summary
 
-Four claims in the Author's PDF become links to their films. The night builds a candidate file by adding link annotations to his approved PDF, checks it with the room's existing PDF checks, and prepares the approval request. It never replaces the file the room serves and never writes an approval. He publishes with a `git mv` and one entry on `main`, after the repository is public.
+Four claims in the Author's PDF become links to their films. The night builds a candidate file by appending link annotations to his approved PDF, checks it with the room's existing PDF checks and this plan's own, and prepares the approval request. It never replaces the file the room serves and never writes an approval. He publishes with a `git mv` and one entry on `main`, after the repository is public. The checks pass before he publishes and after, with no test edited (FR-013).
 
 ## Technical context
 
 - **Language**: TypeScript (the room's build code, vitest). No new service, endpoint, container, or model call. No provider SDK, so the gateway rules don't apply.
 - **The reader**: `readPdf` in `apps/web/build/resume-pdf.ts` already reads link annotations through `pdfjs-dist` (a dependency of `apps/web`). PDFKit is a dev dependency for test fixtures.
 - **The writer**: nothing in the tree edits an existing PDF. R-1 below decides how.
-- **Constitution check**: I (local-first): static file, no run-time dependency. VII/VIII: no new claim about him; links only. Data flow: V1 gets a sentence (FR-011). Cost: $0. Degraded mode: none. Telemetry/dashboard: none new (link clicks happen in the reader's viewer; downloads are already counted). Human-only paths: none edited; one patch for his hand described in `docs/merge-requests/human-patches/023.md`.
+- **Constitution check**: I (local-first): static file, no run-time dependency. VII/VIII: no new claim about him; links only. Data flow: V1's Trigger gets a sentence (FR-011). Cost: $0. Degraded mode: none. Telemetry/dashboard: none new (link clicks happen in the reader's viewer; downloads are already counted). Human-only paths: none edited; one patch for his hand described in `docs/merge-requests/human-patches/023.md`.
 
 ## Design
 
 ### 1. One table (FR-003, FR-012)
 
-`films/resume-links.json`: `{"schema": 1, "repo": "https://github.com/hareet/h4reet-ai", "links": [{"claim": "Local models first", "film": "local-first"}, …]}`. The claim strings are the PDF's own wording; the first task reads the approved PDF's text to set them exactly (SmallCaps may be stored as upper or lower case, which the locator handles case-blind). The URL of a link is `repo + "/tree/main/films/" + film`. This table is the stand-in for spec 022's film list.
+`films/resume-links.json`:
+
+```json
+{"schema": 1, "repo": "https://github.com/hareet/h4reet-ai", "pdf_sha256": "",
+ "links": [
+  {"claim": "Local models first", "film": "local-first", "media": "media/local-first.mp4"},
+  {"claim": "A real-time cost meter", "film": "cost-meter", "media": "media/cost-meter.mp4"},
+  {"claim": "A $5-a-day kill switch", "film": "kill-switch-b2", "media": "media/kill-switch.mp4"},
+  {"claim": "Every data flow disclosed", "film": "data-flows", "media": "media/data-flows.mp4"}]}
+```
+
+The claim strings shown are RESUME-LINKS-PLAN step 1's casing; T002 reads the approved PDF's text to set them exactly (SmallCaps may be stored as upper or lower case, which the locator handles case-blind). `media` is each film's MP4 as its README links it ("Watch the film"); `kill-switch-b2`'s is `media/kill-switch.mp4`, and no film file is renamed (rv-spec-023 B1). The URL of a link is `repo + "/tree/main/films/" + film`. `pdf_sha256` is the candidate's SHA-256, written once by T007 and the only place the tree records it: the human patch and the stack note quote it, and a case checks they match (§3, case 9). This table is the stand-in for spec 022's film list.
 
 ### 2. The locator and the writer (FR-001, FR-006)
 
 `apps/web/build/film-links.ts` exports:
 
-- `locateClaims(pdf, table)`: with pdfjs `getTextContent`, finds each claim's text items and returns one rectangle per line, in page space. Fails naming the claim when not found or found twice.
-- `addLinks(pdf, rects)`: an incremental update appended to the file: one `/Link` annotation per rectangle (`/Border [0 0 0]`, so no box is drawn; `/A << /S /URI /URI (…) >>`), the page's `/Annots` extended, a new xref section and trailer with `/Prev`. The original bytes stay as they were, so SC-004 holds by construction. It refuses a file whose SHA-256 isn't C-0002's.
+- `locateClaims(pdf, table)`: with pdfjs `getTextContent`, finds each claim's text items and returns, per claim, one rectangle per line, in page space. Fails naming the claim when not found or found twice.
+- `addLinks(pdf, claims)`: an incremental update appended to the file. It appends the page object under its own object number with `/Annots` extended (the existing entries kept, in order), and one `/Annot /Link` object per claim: `/Rect` the union of its lines, `/QuadPoints` one quad per line, `/Border [0 0 0]` (no box), `/A << /S /URI /URI (…) >>`, and no `/AP`, `/C`, `/JS`, or `/Launch`; then a new xref section and a trailer with `/Prev`. The original bytes stay as they were, so SC-004's prefix holds by construction.
+- `c0002Sha(policy)`: reads C-0002's SHA-256 from `assets/policy/content-approvals.json` (read-only; the hash isn't copied anywhere). `addLinks` refuses a file whose SHA-256 isn't that. The guard binds the writer only (FR-006); no check requires the served file to be C-0002's (§3's states).
 - There is no command-line script. The candidate is written by one vitest case (an explicit opt-in, `WRITE_CANDIDATE=1`), so nothing the Author runs executes agent-written code (CLAUDE.md, "Things Claude gets wrong"). He verifies the candidate with `sha256sum` and `pdfinfo -url`, which are his own tools.
 
-**R-1 (the risk).** An incremental update needs the original's xref to be one the update can chain to. Chromium's PDF output is, as far as the night can tell, a classic xref table without object streams, but the spike (task T003) confirms it on the real file. If it uses xref streams, the update writes an xref stream too (more code, same idea). If both fail, the fallback is a pinned dependency (`pdf-lib`), which is a new dependency and the Author's to allow, so the plan stops there and the night ends with the edit text for his source (route (b), FR-007), the table, the checks, and the approval request with its hash left blank. Q-D in questions.md carries that.
+**R-1 (the risk).** An incremental update needs the original's xref to be one the update can chain to. rv-spec-023's own read found the approved file a classic xref table, with four links and no script, and the four claims each one text run; T003's spike confirms it and records it. If it uses xref streams after all, the update writes an xref stream too (more code, same idea). If both fail, the fallback is a pinned dependency (`pdf-lib`), which is a new dependency and the Author's to allow, so the plan stops there and the night ends with the edit text for his source (route (b), FR-007), the table, the checks, and the approval request with its hash left blank. The page's Q31 (the spec's Q5) carries the route; a new question would carry the dependency.
 
-### 3. The checks (FR-009, FR-012)
+### 3. The checks (FR-009, FR-012, FR-013)
 
-`apps/web/test/content/film-links.test.ts` (new). Cases, each its own `it`:
-1. the table's four entries are well-formed and the URLs match `repo/tree/main/films/<film>`;
-2. each film's `README.md` and `media/<film>.mp4` are tracked on this tree (`git ls-files`);
+`apps/web/test/content/film-links.test.ts` (new). A helper, `treeState()`, reads four things and names one of three states (FR-013):
+
+| State | Served file's SHA-256 | Candidate (`candidates/resume-author-links.pdf`) | Outcome |
+|---|---|---|---|
+| **before** | C-0002's (read from the approvals file) | present, its SHA-256 equals the table's `pdf_sha256` | every case runs; cases 5, 7, 8 read the candidate |
+| **published** | the table's `pdf_sha256` | absent (`candidates/` gone) | cases 5, 7, 8 skip with `it.skipIf`, their title stating "published: the served file is the candidate"; case 10 runs |
+| **neither** | anything else, or any other combination | – | case 0 fails, naming the three hashes and whether the candidate exists; nothing skips silently |
+
+During T001 to T006, before the candidate exists and while `pdf_sha256` is empty, the tree is in "neither"; case 0 is part of T006's RED and goes GREEN with T007. In the published state the served file is also checked at every build by the room's own PDF checks (spec 002; their mechanism is `author-pdf.test.ts`'s, over fixtures).
+
+Cases, each its own `it`:
+0. the tree is in "before" or "published" (FR-013);
+1. the table's four entries are well-formed (`claim`, `film`, `media` under `media/` and ending `.mp4`) and the URLs match `repo/tree/main/films/<film>`;
+2. each film's `README.md` and `<media>` are tracked on this tree (`git ls-files`), and the README's "Watch the film" link is `<media>` (FR-012; `kill-switch-b2` → `media/kill-switch.mp4`);
 3. `locateClaims` over a PDFKit fixture with the claims, including one that wraps, returns the right rectangles; a missing claim fails naming it;
-4. `addLinks` over the fixture keeps the original bytes as a prefix, and `readPdf` then lists the four URLs;
-5. over the real approved file (when the tree holds it; the existing test reads it the same way): the SHA-256 guard, then the candidate passes `pdfProblems` (PDF1 to PDF9) under a header like `main`'s, has one page, and the page's content stream is unchanged;
-6. every link passes `allowedUrl`; a link to another owner fails PDF5.
-7. the committed candidate equals what `addLinks` writes from the approved file (so no one can hand-edit it unseen).
+4. `addLinks` over the fixture keeps the original bytes as a prefix, and `readPdf` then lists the four URLs; `addLinks` refuses bytes whose SHA-256 isn't the given C-0002 hash;
+5. (before) over the real approved file: the guard passes, the candidate passes `pdfProblems` (PDF1 to PDF9) under a header like `main`'s, has one page, the approved file's bytes are its prefix, and the approved file's own links are among its links, unchanged (US1-AC1);
+6. every link passes `allowedUrl`; a link to another owner fails PDF5;
+7. (before) the committed candidate equals what `addLinks` writes from the approved file (so no one can hand-edit it unseen);
+8. (before) the appended section, parsed: only the page object (the approved file's page object number, `/Annots` = the old entries plus four new references) and four `/Annot /Link` objects, each `/Border [0 0 0]`, a `/URI` that is one of the table's, and none of `/AP`, `/C`, `/JS`, `/Launch` (US1-AC3, SC-004; rv-spec-023 I1);
+9. the SHA-256 that `docs/merge-requests/human-patches/023.md` and the stack note's item for 023 quote equals the table's `pdf_sha256`, and the stack note's edit text for his source holds each of the table's URLs (T008; US3-AC1);
+10. (published) the served file's links, read by `readPdf`, include the table's four URLs, one per claim (US2-AC2).
+
+Each case is written RED first (T001, T004, T006, T008) and goes GREEN with its task's code or file.
 
 ### 4. The candidate and the approval request (FR-008, FR-010)
 
-The candidate is committed at `apps/web/content/candidates/resume-author-links.pdf`. The note in `docs/merge-requests/` and `docs/merge-requests/human-patches/023.md` carry its SHA-256 and the entry's text: id C-0005, kind `resume`, path when approved `apps/web/content/resume-author.pdf`, the SHA-256, the date left for him, and his reason left for him (his words only). Not on main before the gate: the entry goes on `main` after the merge (ADR 0034; spec 003's rule A9 refuses a branch that changes `assets/policy/`).
+The candidate is committed at `apps/web/content/candidates/resume-author-links.pdf`, and its SHA-256 in the table's `pdf_sha256` in the same commit. The stack note's item for 023 and `docs/merge-requests/human-patches/023.md` quote the hash and give the entry's text: the next free ID on `main` when he adds it (C-0005 today), kind `resume`, path when approved `apps/web/content/resume-author.pdf`, the SHA-256, the date left for him, and his reason left for him (his words only). Not on main before the gate: the entry goes on `main` after the merge (ADR 0034; spec 003's rule A9 refuses a branch that changes `assets/policy/`).
 
 ### 5. His route (FR-007)
 
-A section in the merge note gives, as text, the edit to `resume/source/twin.html` from `films/RESUME-LINKS-PLAN.md` step 1 with the final URLs, and its steps 2 to 4. `films/RESUME-LINKS-PLAN.md` step 5 is corrected (the room serves the render, not C-0002's file, if the file at the served path changes without an entry) and its open decisions are marked answered provisionally.
+A section of the stack note's item for 023 gives, as text, the edit, as RESUME-LINKS-PLAN step 1 gives it, with the table's URLs in place of `OWNER/REPO`, and its steps 2 to 4. If he takes this route, the commit that moves his render onto the served path also sets the table's `pdf_sha256` to his render's hash and removes `candidates/`, which puts the tree in the "published" state; the human patch says so.
 
-### 6. Disclosure (FR-011)
+### 6. `films/RESUME-LINKS-PLAN.md` (Q98)
 
-One sentence in V1's "what it never carries" cell or its trigger cell. The data-flow checks that read the file (`deploy/scripts/preflight.py`, `apps/web/test/site.test.ts`) run as the small tests.
+His session's text stays as written. T009 adds a dated note (2026-11-14, the night's spec 023) beside step 5 (with an unapproved file at the served path the room serves the render, not C-0002's file; the candidate waits in `candidates/`; C-0004 is taken, the next free ID on `main` is his) and beside each open decision (the URL: the corpus's; the fifth claim: four kept, provisionally; landing pages: kept, provisionally, until his step 6), each naming its source (this spec's Q2, Q3, Q4, Q6, and the page's Q98).
+
+### 7. Disclosure (FR-011)
+
+The sentence FR-011 gives, word for word, goes in V1's Trigger cell, right after `following the PDF link` and before `, and following "Credits"`. Not in the other cells: V1's Carries, Never carries, and Why are spec 002's words plus spec 016's M17, which `apps/web/test/disclosure.test.ts:113-121` and `evals/test_disclosure.py` hold word for word; its Trigger is held only to contain M17's words (`toContain`) and to end with them (`endswith`), so the sentence goes before them. The small tests: `test/disclosure.test.ts`, `test/site.test.ts`, `evals/test_disclosure.py`, and `deploy/scripts/test_preflight.py`.
 
 ## Files expected to be touched
 
-New: `films/resume-links.json`; `apps/web/build/film-links.ts`; `apps/web/test/content/film-links.test.ts`; `apps/web/content/candidates/resume-author-links.pdf`; `docs/merge-requests/<date>-feat-023-resume-pdf-with-film-links.md`.
-Edited: `docs/data-flow-disclosure.md` (V1, one sentence); `films/RESUME-LINKS-PLAN.md` (step 5; open decisions); `specs/023-…/` (tasks tick-offs).
-Not touched: `apps/web/build/resume-pdf.ts` (the allowlist, unchanged: FR-005), `apps/web/content/resume-author.pdf`, `resume.yaml`, `resume.lock.json`, `corpus/**`, `assets/policy/**`, `.claude/**`.
-Merge order: this branch (spec only) merges first into the implementer's; the only shared file another night spec might also edit is `docs/data-flow-disclosure.md`. This spec edits V1's row alone, so a conflict would be local to that row.
+New: `films/resume-links.json`; `apps/web/build/film-links.ts`; `apps/web/test/content/film-links.test.ts`; `apps/web/content/candidates/resume-author-links.pdf`.
+Edited: `docs/merge-requests/2026-11-14-night-stack.md` (the stack note: its item for 023); `docs/merge-requests/human-patches/023.md` (the hash and the entry's text, filled from the table); `docs/data-flow-disclosure.md` (V1's Trigger, one sentence); `films/RESUME-LINKS-PLAN.md` (dated notes beside step 5 and the open decisions; his text unchanged); `specs/023-…/` (tasks tick-offs).
+Not touched: `apps/web/build/resume-pdf.ts` (the allowlist, unchanged: FR-005), `apps/web/content/resume-author.pdf`, `resume.yaml`, `resume.lock.json`, any film file, `corpus/**`, `assets/policy/**`, `.claude/**`.
+Merge order: this branch (spec only) merges into impl-023's before its code. Another night spec may also edit `docs/data-flow-disclosure.md` (spec 020 edited D1); this spec edits V1's Trigger cell alone, so a conflict would be local to that cell.
 
 ## Small tests (rule 4)
 
-Each task runs `vitest run <its files>` from `apps/web` and `make lint`. The files: `test/content/film-links.test.ts`; `test/content/author-pdf.test.ts` (covers `resume-pdf.ts`, which the plan doesn't change but the new code imports); `test/site.test.ts` for the disclosure sentence; `pytest deploy/scripts/test_preflight.py` (the preflight reads the disclosure). The full `make check` runs once at the stack's end, by one task, and goes in the merge note (rule 4).
+Each task runs `vitest run <its files>` from `apps/web` and `make lint`. The files: `test/content/film-links.test.ts`; `test/content/author-pdf.test.ts` (covers `resume-pdf.ts`, which the plan doesn't change but the new code imports); `test/disclosure.test.ts` and `test/site.test.ts` for the disclosure sentence; `pytest evals/test_disclosure.py deploy/scripts/test_preflight.py` (both read the disclosure; the first holds V1's cells). The full `make check` runs once at the stack's end, by one task, and goes in the stack note (rule 4).
 
 ## Departures from other documents
 
-- `films/RESUME-LINKS-PLAN.md` step 5 (the room "keeps serving the approved C-0002 file"): see Q6 in the spec; corrected in the same commit as the note.
+- `films/RESUME-LINKS-PLAN.md` step 5 (the room "keeps serving the approved C-0002 file", and "C-0004"): see Q6 in the spec; a dated note beside it, his text kept (Q98, §6).
+- RESUME-LINKS-PLAN's "What has to be true first" item 1 names `films/<name>/media/<name>.mp4`; `kill-switch-b2`'s file is `media/kill-switch.mp4`. The table records it as it is (§1).
 - Spec 002's contract §7 is unchanged. If the Author takes route (b), nothing in the contract changes either.
