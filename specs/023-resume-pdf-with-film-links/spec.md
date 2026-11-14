@@ -104,7 +104,7 @@ As the Author and the agents, we want the claim-to-film table in one file, so th
 - **FR-013**: The checks know three states of the tree, read from the served file's SHA-256, C-0002's in the approvals file, the table's `pdf_sha256`, and whether the candidate file (`apps/web/content/candidates/resume-author-links.pdf`) exists; the folder's presence isn't read:
   - **before** (served file is C-0002's, the candidate file present, and its hash is `pdf_sha256`): every case but the published one runs, the candidate's and the notes' included (plan §3);
   - **published** (served file's hash is `pdf_sha256`, the candidate file absent): the candidate's and the notes' cases skip, each with the reason stated ("published: the served file is the candidate"), and a published case reads the served file's links and checks them against the table; the build's own PDF checks (spec 002; `author-pdf.test.ts` covers their mechanism) check the file at every build;
-  - **neither** (any other combination): the state case fails, naming the three hashes and whether the candidate file exists; the cases that need a state skip, each with the reason stated ("neither: see the state case"), and the cases that don't need one run (plan §3).
+  - **neither** (any other combination): the state case fails, naming the three hashes and whether the candidate file exists; the cases that need a state skip, each with the reason stated in its title (plan §3: "neither: see case 0", case 0 being the state case), and the cases that don't need one run (plan §3).
 
 ### Key Entities
 
