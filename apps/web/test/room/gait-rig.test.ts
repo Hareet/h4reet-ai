@@ -40,6 +40,10 @@ function treeOf(path: string): Object3D {
   return root;
 }
 
+/** The largest component's difference: the real files' rotations aren't exactly unit, which angleTo would count. */
+const apart = (a: Quaternion, b: Quaternion): number =>
+  Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.z - b.z), Math.abs(a.w - b.w));
+
 const worldOf = (o: Object3D): Vector3 => {
   o.updateWorldMatrix(true, false);
   return new Vector3().setFromMatrixPosition(o.matrixWorld);
@@ -82,7 +86,7 @@ describe.each(["man", "woman"])("the leg rig on the %s", (id) => {
     applyGait(rig, { left: off, right: off });
     applyGait(rig, { left: off, right: off });
     clearGait(rig);
-    bones.forEach((b, i) => expect(b.quaternion.angleTo(before[i] as Quaternion)).toBeLessThan(1e-9));
+    bones.forEach((b, i) => expect(apart(b.quaternion, before[i] as Quaternion)).toBeLessThan(1e-9));
   });
 
   it("takes a clip's new pose as the base, and keeps it when the mixer didn't write", () => {
@@ -97,7 +101,7 @@ describe.each(["man", "woman"])("the leg rig on the %s", (id) => {
     // A frame the mixer didn't write: nothing compounds.
     applyGait(rig, { left: { hip: 0, knee: 0, ankle: 0 }, right: { hip: 0.3, knee: 0, ankle: 0 } });
     clearGait(rig);
-    expect(bone.quaternion.angleTo(clip)).toBeLessThan(1e-9);
+    expect(apart(bone.quaternion, clip)).toBeLessThan(1e-9);
   });
 });
 
