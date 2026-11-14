@@ -17,6 +17,7 @@ import type { Pose } from "../../src/room/walk/movement";
 import { avatarClips, avatarGlb, clipGlb, IDLE_TRACKS } from "../helpers/glb";
 import { overlay } from "../helpers/room-fixtures";
 import { avatarPolicy, nightFiles } from "../helpers/room-avatars";
+import { dinosaurFrame, dinosaurStage } from "../helpers/room-dinosaur";
 
 let night: ComposeResult;
 beforeAll(() => {
@@ -233,5 +234,25 @@ describe("the models the gait doesn't fit", () => {
     expect(scale(1.5)).toBe(1);
     expect(s.figures.playing("visitor")).toBe("walk");
     expect(apart(quats(s.visitor, LEGS), rest)).toBe(0);
+  });
+});
+
+// Spec 021 (T002; FR-008; plan.md R-07): the dinosaur's rig has none of the six Mixamo leg bones, so spec 019's gait
+// finds no leg rig and applies none (its FR-008: one `gait` signal, `unavailable`), and its own walk clip plays at its
+// own speed whatever the figure's (spec 019's FR-007 as rework-019 left it, Q8 on the page as Q63). Pins.
+describe("spec 021: the dinosaur's rig, which the gait doesn't fit", () => {
+  it("has no gait, says so once, and plays its walk clip at its own speed", async () => {
+    const s = await dinosaurStage();
+    for (const share of [1, 0.5, 1.5]) {
+      for (let i = 0; i < 20; i += 1) {
+        s.figures.driver.frame(dinosaurFrame(true, share));
+        s.figures.update(16, true, 0);
+      }
+      expect(s.figures.playing("visitor")).toBe("walk");
+      expect(s.figures.clipScale("visitor")).toBe(1);
+    }
+    expect(s.signals.filter((x) => x.kind === "gait")).toEqual([
+      { kind: "gait", figure: "visitor", state: "unavailable" },
+    ]);
   });
 });

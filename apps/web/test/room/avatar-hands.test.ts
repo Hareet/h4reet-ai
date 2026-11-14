@@ -11,17 +11,19 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { Object3D, PropertyBinding } from "three";
+import { Box3, Object3D, PropertyBinding, Quaternion, Vector3 } from "three";
 import type { AnimationClip, KeyframeTrack } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { AVATAR_SHAPES } from "../../src/choice/avatars";
 import type { AvatarId } from "../../src/choice/avatars";
 import { createAvatarFigures } from "../../src/room/scene/avatars";
 import { buildRoom } from "../../src/room/scene/bundle3d";
 import { parseModel } from "../../src/room/scene/gltf-images";
 import type { Decode } from "../../src/room/scene/gltf-images";
 import { REPO, repositoryBundle } from "../helpers/room";
+import { dinosaurStage } from "../helpers/room-dinosaur";
 
 /** ADR 0010's two hand bones, as three's loader names them. */
 const HANDS = {
@@ -106,4 +108,50 @@ describe("the holding hand of the tree's own avatars (FR-018; R-08; the Author's
       figures.dispose();
     });
   }
+});
+
+// Spec 021 (T002; FR-008, FR-009, SC-003; plan.md R-07): the dinosaur's rig has neither hand bone and no Mixamo name
+// (test/helpers/glb.ts's dinosaurGlb, the contract's eighteen raw names), so no hand holds, and the paper stays at the
+// hand anchor (spec 009's FR-018). The figure is scaled to the avatar table's 1.2 m and stands at the visitor's
+// placement (spec 009's FR-016, FR-017). Expected to pass on the line's code, so these are pins (plan R-07).
+describe("spec 021: the dinosaur, a rig with no hand bone (FR-008, FR-009)", () => {
+  it("holds no hand, plays take once in the hand-off, leaves the paper at the anchor, and logs no console error", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const s = await dinosaurStage({ ended: false });
+      expect(s.figures.shows("visitor")).toBe(true);
+      expect(s.figures.handOf("visitor")).toBeNull();
+      expect(() => {
+        s.figures.update(16, true, 0);
+        s.figures.showHandoff(1, false);
+        expect(s.figures.playing("visitor")).toBe("take");
+        s.figures.update(16, true, 0);
+        s.figures.handoffEnded();
+      }).not.toThrow();
+      // No "idle-holding": after the hand-off, the idle (spec 009's FR-019 with its idle in a missing clip's place).
+      expect(s.figures.playing("visitor")).toBe("idle");
+      expect(s.room.paper.kept.parent).not.toBe(s.avatar());
+      expect(s.room.paper.kept.parent?.name ?? "").not.toMatch(/Hand|Jaw|Head/);
+      expect(errors).not.toHaveBeenCalled();
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
+  it("stands 1.2 m high, its lowest point on the floor at the visitor's placement, centred on it, facing +z", async () => {
+    const s = await dinosaurStage();
+    let root: Object3D = s.room.visitor;
+    while (root.parent) root = root.parent;
+    root.updateMatrixWorld(true);
+    const avatar = s.avatar() as Object3D;
+    const box = new Box3().setFromObject(avatar, true);
+    const at = new Vector3().setFromMatrixPosition(s.room.visitor.matrixWorld);
+    expect(box.max.y - box.min.y).toBeCloseTo(AVATAR_SHAPES.dinosaur.height, 3);
+    expect(box.min.y).toBeCloseTo(at.y, 3);
+    expect((box.min.x + box.max.x) / 2).toBeCloseTo(at.x, 3);
+    expect((box.min.z + box.max.z) / 2).toBeCloseTo(at.z, 3);
+    const forward = new Vector3(0, 0, 1).applyQuaternion(avatar.getWorldQuaternion(new Quaternion()));
+    const placed = new Vector3(0, 0, 1).applyQuaternion(s.room.visitor.getWorldQuaternion(new Quaternion()));
+    expect(forward.dot(placed)).toBeCloseTo(1, 3);
+  });
 });
