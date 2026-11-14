@@ -1206,6 +1206,15 @@ export function boneRest(bones: readonly AvatarBone[], index: number): Vec3 {
   return at;
 }
 
+/** The six leg bones' lower joints, by their Mixamo names, each under its named parent (spec 019, T001): `legs` appends
+ *  them after every other bone, so no index a fixture already has moves. Rest offsets: a thigh 0.45 m, a shin 0.45 m. */
+export const LEG_BONES: readonly { readonly name: string; readonly parent: string; readonly at: Vec3 }[] = [
+  { name: "mixamorig:RightLeg", parent: "mixamorig:RightUpLeg", at: [0, -0.45, 0] },
+  { name: "mixamorig:RightFoot", parent: "mixamorig:RightLeg", at: [0, -0.4, 0] },
+  { name: "mixamorig:LeftLeg", parent: "mixamorig:LeftUpLeg", at: [0, -0.45, 0] },
+  { name: "mixamorig:LeftFoot", parent: "mixamorig:LeftLeg", at: [0, -0.4, 0] },
+];
+
 export interface AvatarGlbOptions extends PackOptions {
   /** The body's height from the floor, in metres: 1.6 by default. */
   readonly height?: number;
@@ -1215,12 +1224,22 @@ export interface AvatarGlbOptions extends PackOptions {
   readonly hands?: boolean;
   /** Whether each hand has its index finger's two joints (FINGER_BONES): false by default, and only with the hands. */
   readonly fingers?: boolean;
+  /** Whether the legs have their knee and foot joints (LEG_BONES), so the six leg bones all exist: false by default. */
+  readonly legs?: boolean;
   /** Images the body's material uses, each embedded: the decode cap's and the ledger's cases. */
   readonly images?: readonly Uint8Array[];
 }
 
 /** The avatar's bones as the options give them. */
-function avatarBones(o: { readonly hands?: boolean; readonly fingers?: boolean }): AvatarBone[] {
+function avatarBones(o: { readonly hands?: boolean; readonly fingers?: boolean; readonly legs?: boolean }): AvatarBone[] {
+  const base = handBones(o);
+  if (o.legs !== true) return base;
+  for (const leg of LEG_BONES)
+    base.push({ name: leg.name, parent: base.findIndex((b) => b.name === leg.parent), at: leg.at });
+  return base;
+}
+
+function handBones(o: { readonly hands?: boolean; readonly fingers?: boolean }): AvatarBone[] {
   if (o.hands !== false) return o.fingers === true ? [...AVATAR_BONES, ...FINGER_BONES] : [...AVATAR_BONES];
   // Without the hands, every index after a dropped bone moves down; no bone below has a hand as its parent.
   const kept = AVATAR_BONES.filter((b) => !HAND_BONES.has(b.name));
