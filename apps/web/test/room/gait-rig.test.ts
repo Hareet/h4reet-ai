@@ -60,23 +60,29 @@ describe.each(["man", "woman"])("the leg rig on the %s", (id) => {
         expect(t.node.name).toMatch(/^mixamorig(Left|Right)(UpLeg|Leg|Foot)$/);
   });
 
-  it("swings the foot toward +z on a positive hip offset, and bends the shin backward on a positive knee offset (R-07)", () => {
-    const root = treeOf(path);
-    const rig = findLegRig(root) as LegRig;
-    const zero = { hip: 0, knee: 0, ankle: 0 };
-    const foot = rig.left.ankle.node;
-    const knee = rig.left.knee.node;
-    const rest = { foot: worldOf(foot), knee: worldOf(knee) };
-    applyGait(rig, { left: { ...zero, hip: 0.3 }, right: zero });
-    root.updateMatrixWorld(true);
-    expect(worldOf(foot).z - rest.foot.z).toBeGreaterThan(0.05);
-    clearGait(rig);
-    root.updateMatrixWorld(true);
-    applyGait(rig, { left: { ...zero, knee: 0.5 }, right: zero });
-    root.updateMatrixWorld(true);
-    // The shin swings back: the foot's z, relative to the knee's, falls.
-    expect(worldOf(foot).z - worldOf(knee).z).toBeLessThan(rest.foot.z - rest.knee.z - 0.05);
-  });
+  // R-07, for each leg on its own (T013 added the right's beside the left's).
+  it.each(["left", "right"] as const)(
+    "swings the %s foot toward +z on a positive hip offset, and bends its shin backward on a positive knee offset (R-07)",
+    (which) => {
+      const root = treeOf(path);
+      const rig = findLegRig(root) as LegRig;
+      const zero = { hip: 0, knee: 0, ankle: 0 };
+      const only = (angles: typeof zero) =>
+        which === "left" ? { left: angles, right: zero } : { left: zero, right: angles };
+      const foot = rig[which].ankle.node;
+      const knee = rig[which].knee.node;
+      const rest = { foot: worldOf(foot), knee: worldOf(knee) };
+      applyGait(rig, only({ ...zero, hip: 0.3 }));
+      root.updateMatrixWorld(true);
+      expect(worldOf(foot).z - rest.foot.z).toBeGreaterThan(0.05);
+      clearGait(rig);
+      root.updateMatrixWorld(true);
+      applyGait(rig, only({ ...zero, knee: 0.5 }));
+      root.updateMatrixWorld(true);
+      // The shin swings back: the foot's z, relative to the knee's, falls.
+      expect(worldOf(foot).z - worldOf(knee).z).toBeLessThan(rest.foot.z - rest.knee.z - 0.05);
+    },
+  );
 
   it("leaves the clip's rotations where they were after clearGait, to 1e-9 (SC-002)", () => {
     const root = treeOf(path);
