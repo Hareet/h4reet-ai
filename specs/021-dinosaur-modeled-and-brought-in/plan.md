@@ -120,3 +120,12 @@ Run per task: `npx vitest run <the files>` from `apps/web` and `pytest scripts/s
 ## 7. For the page
 
 One question, on the page as Q88: whether a later spec fills the dog's `null` rig row. Recommended: yes, a spec that names the dog's bones fills it; nothing here waits on it. Answered: recommended, under the orders file's rule ("any new one: the recommended answer stands").
+
+## 8. Departures (impl2-021)
+
+Recorded as each task met them, in the same commit.
+
+- **T002, a shared helper.** `apps/web/test/helpers/room-dinosaur.ts` (not in §3) holds the dinosaur's folder (`dinosaurFolder`, over `room-avatars.ts`'s `avatarFolder`) and its stage (`dinosaurStage`, `dinosaurFrame`), used by `avatar-hands`, `avatar-scene`, `avatar-gait`, and `dinosaur-compose`. Its night is composed **with** the dinosaur's folder: a figure wants only an avatar the bundle holds (`src/room/scene/avatars.ts`, `wants: bundled(options.chosen)`), as spec 020's `dog-avatar.test.ts` composes with the dog's. `clipGlb` gains an optional `bones` skeleton (default `AVATAR_BONES`, so no other fixture changes) for the dinosaur's clips.
+- **T002, the walk.** The cases assert spec 019's FR-007 as rework-spec-019 left it (the walk clip at its own speed, `clipScale` 1), not a speed weighting (R-07, §4; rv-rework-spec-021's N-1).
+- **T003, RA10's finding.** One finding a model, not one a bone: `the <id> rig lacks <bones>`, the first three in the row's order, then `, and <n> more` (§4, N-4). `build/room/checks/ra.ts`'s header comment names the rule beside RA9 (the family's documentation; no code there).
+- **T003 to T005, the smoke test.** I-1's `smoke` is `apps/web/test/smoke.test.ts`, not under `test/room/`.

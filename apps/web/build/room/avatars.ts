@@ -40,6 +40,43 @@ import type { Scene } from "./schema";
 import type { Tree } from "./source";
 
 export const VISITORS_DIR = "assets/visitors";
+
+/** Spec 021 (FR-005; plan.md §4; contracts/dinosaur-rig.md): the rig table, an avatar's required bones by their raw
+ *  glTF names, or null where its rig isn't checked. A row that isn't null runs RA10 (the bones), RA11 (the box), and
+ *  RA12 (the clips) on its model; the woman's, the man's, and the dog's are null (Q7). */
+export const RIG_BONES: Readonly<Record<AvatarId, readonly string[] | null>> = {
+  woman: null,
+  man: null,
+  dinosaur: [
+    "Hips",
+    "Spine",
+    "Chest",
+    "Neck",
+    "Head",
+    "Jaw",
+    "Tail1",
+    "Tail2",
+    "Tail3",
+    "Tail4",
+    "Arm.L",
+    "Arm.R",
+    "Leg.L",
+    "Leg.R",
+    "Shin.L",
+    "Shin.R",
+    "Foot.L",
+    "Foot.R",
+  ],
+  dog: null,
+};
+
+/** A required bone among a model's raw node names: named it exactly, or ending with `:` and it, as
+ *  scripts/studio/line.py's has_bone reads it. */
+const hasBone = (nodes: readonly string[], bone: string): boolean =>
+  nodes.some((n) => n === bone || n.endsWith(`:${bone}`));
+/** The first three of a list, then how many more. */
+const firstFew = (names: readonly string[]): string =>
+  names.length > 3 ? `${names.slice(0, 3).join(", ")}, and ${names.length - 3} more` : names.join(", ");
 /** A folder's own files, which have no role and are no avatar's: the record and the notice. */
 const FOLDER_FILES = new Set(["records.json", "LICENSE.md"]);
 
@@ -106,7 +143,7 @@ export interface AvatarSet {
   readonly figures: FigureBlock;
   /** Each avatar of the table whose folder holds a file, in the table's order. */
   readonly avatars: readonly Avatar[];
-  /** RA1 to RA4, by file, then rule. */
+  /** RA1 to RA4, spec 020's RA9, and spec 021's RA10 to RA12, by file, then rule. */
   readonly problems: readonly Problem[];
 }
 
@@ -334,6 +371,13 @@ export function readAvatars(tree: Tree, policy: RoomPolicy, scene: Scene | null)
       if (cap) {
         const over = overCaps(r.file as AvatarFile, cap, role === "model" ? "avatar" : "animation");
         if (over.length > 0) refuse(r, "RA4", "-", over.join("; "));
+      }
+      // Spec 021's rules, only for an avatar with a rig-table row (FR-003 to FR-005).
+      const row = RIG_BONES[id];
+      if (role === "model" && row !== null) {
+        // RA10: each bone of the row among the model's raw node names (FR-005).
+        const lacking = row.filter((bone) => !hasBone(r.nodes, bone));
+        if (lacking.length > 0) refuse(r, "RA10", "-", `the ${id} rig lacks ${firstFew(lacking)}`);
       }
     }
     // The bundled set: RA3 aside, a finding on a file leaves it out.

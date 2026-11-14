@@ -128,6 +128,9 @@ export const RULES = {
   // Spec 020's RA9 (its FR-002; plan.md R-01): lenient, so a lenient build leaves a visitor's likeness out, its figure on
   // the cut-out, until main's approval names its model.
   RA9: rule("RA", model), // a visitor's likeness without main's approval naming its model's SHA-256 with a line
+  // Spec 021's RA10 (its FR-005; plan.md R-01, R-08; contracts/dinosaur-rig.md): lenient as RA1 to RA4, so a lenient
+  // build leaves the model and its clips out, its figure on the cut-out. Only for an avatar with a rig-table row.
+  RA10: rule("RA", model), // a model whose raw node names lack a bone of its rig-table row
   RK1: rule("RK"), // a budget above the caps
   RK2: rule("RK", model), // a model over its budget
   RK3: rule("RK"), // the scene's texture memory over its cap

@@ -16,17 +16,7 @@ import { noPolicy, policyFrom } from "../../build/room/policy";
 import type { RoomPolicy } from "../../build/room/policy";
 import { memoryTree, overlayTree } from "../../build/room/source";
 import type { Tree } from "../../build/room/source";
-import {
-  avatarClips,
-  avatarGlb,
-  clipGlb,
-  desk,
-  dinosaurClip,
-  dinosaurGlb,
-  pngHeader,
-  rxVariants,
-  sign,
-} from "./glb";
+import { avatarClips, avatarGlb, clipGlb, desk, dinosaurClip, dinosaurGlb, pngHeader, rxVariants, sign } from "./glb";
 import { FX_LINE, likenessText, TWIN_DIR, TWIN_ROLES, twinDefaults, twinKindOf, twinModel } from "./room-twin";
 
 const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
