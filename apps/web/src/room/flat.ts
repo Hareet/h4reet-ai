@@ -717,7 +717,7 @@ export function renderFlat(
 
 // ---- Spec 016: the twin's still (its FR-034, FR-035; plan.md R-11; contracts/twin-states.md §6) ----
 
-type Still = NonNullable<NonNullable<RoomIndex["twin"]>["still"]>;
+export type Still = NonNullable<NonNullable<RoomIndex["twin"]>["still"]>;
 
 /** The id of the still's clip, the drawing's own. */
 const STILL_CLIP = "h4-twin-still";
@@ -728,9 +728,10 @@ function integrityOf(sha256: string): string {
   return `sha256-${btoa(String.fromCharCode(...bytes.map((b) => parseInt(b, 16))))}`;
 }
 
-/** The still's bytes as a `data:image/png;base64,…` URL, after one retry; null where both tries fail, or the bytes
+/** The still's bytes as a `data:image/png;base64,…` URL, after one retry (spec 018's split panel's portrait fetches
+ *  through this too, once, at its first opening in 3D: no other path); null where both tries fail, or the bytes
  *  aren't the ones the index names (checked here too, beside the browser's own integrity check). */
-async function fetchStill(
+export async function fetchStill(
   still: Still,
   fetcher: (url: string, init: RequestInit) => Promise<Response>,
 ): Promise<string | null> {

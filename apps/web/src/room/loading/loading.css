@@ -114,6 +114,44 @@ html[data-hud="stacked"][data-loading] .talk {
   line-height: 1.4;
 }
 
+/* Spec 018 (FR-015; plan.md §5): the panel's title face, and its frame, a ring drawn in code from a seed over the card's
+   own glass, which stays room.css's (opaque under reduced transparency and more contrast). The card's 1 px border gives
+   way to the frame where the frame is drawn; the frame's own stroke is the same light border colour. */
+.room-loader-title {
+  font-family: var(--heading-font);
+  font-size: 1.375rem;
+}
+
+.room-loader--framed {
+  position: relative;
+  border-color: transparent;
+}
+
+.room-loader-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.room-loader-frame path {
+  fill: none;
+  stroke: var(--tile-border);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.room-loader--framed > :not(.room-loader-frame) {
+  position: relative;
+}
+
+/* The frame sits against the card in every layout: the stacked layout's static card is made a positioned one. */
+html[data-hud="stacked"] .room-loader--framed {
+  position: relative;
+}
+
 .room-loader-percent,
 .room-loader-stage {
   margin: 0;
@@ -214,6 +252,10 @@ html[data-hud="stacked"][data-loading] .talk {
   .room-loader-bar {
     background: Canvas;
     border-color: CanvasText;
+  }
+
+  .room-loader-frame path {
+    stroke: CanvasText;
   }
 
   /* The tints keep their dimming: forced colours would otherwise paint them opaque, hiding the page. */

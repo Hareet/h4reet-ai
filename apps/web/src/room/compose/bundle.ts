@@ -99,6 +99,9 @@ export interface RoomIndex {
     name: string;
     members: string[];
     action: { kind: "talk"; topic: string } | { kind: "resume" };
+    /** The conversation panel's emblem, a name hud/icons.ts draws (spec 018, FR-005; D-V3); absent where the data
+     *  names none, which has the speech glyph. */
+    emblem?: string;
     /** Every member hangs directly on the shell's side-wall anchors: FR-064's carve-out (see listOnly) may leave it
      *  to the "In the room" list at any stage where its core can't fit. */
     side_wall: boolean;
@@ -166,8 +169,18 @@ export interface RoomIndex {
     highlight: Highlight;
   };
   /** The text copy's order. Spec 016 (FR-014; contracts/twin-data.md §4): `{twin_line: true}`, first, is the line slot,
-   *  which the room resolves to `twin.line` while the twin's own picture shows and to the stand-in line otherwise. */
-  copy: ({ face: string } | { switch: string } | { figures: true } | { line: string } | { twin_line: true })[];
+   *  which the room resolves to `twin.line` while the twin's own picture shows and to the stand-in line otherwise.
+   *  Spec 020 (FR-007; plan.md R-02): `{visitor_line: true}`, after it, the likeness line of any visitor-avatar model
+   *  the room shows, which the room fills, once, from the 3D part's `avatars.<id>.line` while any figure but the twin's
+   *  shows that model (the visitor's, or a room figure's: spec 025's dog), and leaves out otherwise. The name stays. */
+  copy: (
+    | { face: string }
+    | { switch: string }
+    | { figures: true }
+    | { line: string }
+    | { twin_line: true }
+    | { visitor_line: true }
+  )[];
   typefaces: { use: TypefaceUse; family: string; weight: number; cap_ratio: number; fallback: string }[];
   /** Each set model the room's loader loads (a GLB), by its asset events' `asset`, in load_order, once a piece: what a
    *  room in 2D records as skipped, since the entry has no 3D part (FR-071; an addition to §3.1, plan.md §10). */
@@ -308,13 +321,15 @@ export interface RoomScene {
   walking: Walking;
   /** Spec 009's avatars (its FR-009, FR-023, FR-024; plan.md §3.2): only avatars whose model is bundled, by ID, each
    *  file's `url` `a/<stem>.<hash16>.glb`, `sha256` the plain file's, and `bytes` the served copy's length; a model's
-   *  `texture_bytes` at texture_px, for the texture ledger. */
+   *  `texture_bytes` at texture_px, for the texture ledger. Spec 020 (FR-007; plan.md R-02): `line`, main's likeness
+   *  approval's disclosure line, only on an avatar recorded as a likeness or from a photo (RA9 bundles none without). */
   avatars: Partial<
     Record<
       AvatarId,
       {
         model: { url: string; sha256: string; bytes: number; texture_bytes: number };
         clips: Partial<Record<ClipRole, { url: string; sha256: string; bytes: number }>>;
+        line?: string;
       }
     >
   >;
