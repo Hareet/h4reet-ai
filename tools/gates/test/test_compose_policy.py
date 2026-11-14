@@ -1877,3 +1877,37 @@ def test_only_ec2s_publisher_joins_egress_and_the_sink_alone_the_edge_network(
     model = snapshot_model()
     model["services"]["snapshot-publisher"]["ports"] = ["127.0.0.1:2301:8080"]
     assert ("snapshot-publisher", "ports") in snapshot_rules(model, tmp_path)
+
+
+def test_a_local_base_passes_only_at_its_own_file_and_argument(tmp_path: Path) -> None:
+    # P-12 (spec 017): the night worker builds FROM the toolchain image the install builds from .devcontainer/Dockerfile
+    write(
+        tmp_path / "deploy/night-shift/images/worker.Dockerfile",
+        "ARG TOOLCHAIN_IMAGE\nARG OTHER\nFROM ${TOOLCHAIN_IMAGE}\nFROM $TOOLCHAIN_IMAGE\nFROM ${OTHER}\n"
+        "FROM ${TOOLCHAIN_IMAGE}-x\n",
+    )
+    write(tmp_path / "x/Dockerfile", "ARG TOOLCHAIN_IMAGE\nFROM ${TOOLCHAIN_IMAGE}\n")
+    found, _ = cp.check_tree(tmp_path, LOCK)
+    got = {(f.where, f.detail.rsplit(": ", 1)[-1]) for f in found if f.rule == "FROM"}
+    assert got == {
+        (
+            "deploy/night-shift/images/worker.Dockerfile:5",
+            "a build argument without a default",
+        ),
+        (
+            "deploy/night-shift/images/worker.Dockerfile:6",
+            "a build argument without a default",
+        ),
+        ("x/Dockerfile:2", "a build argument without a default"),
+    }
+
+
+def test_a_local_base_with_a_default_is_held_to_the_lock(tmp_path: Path) -> None:
+    write(
+        tmp_path / "deploy/night-shift/images/worker.Dockerfile",
+        "ARG TOOLCHAIN_IMAGE=ghcr.io/x/y:1\nFROM ${TOOLCHAIN_IMAGE}\n",
+    )
+    found, _ = cp.check_tree(tmp_path, LOCK)
+    assert [f.detail for f in found if f.rule == "FROM"] == [
+        "ghcr.io/x/y:1: not pinned by digest"
+    ]
