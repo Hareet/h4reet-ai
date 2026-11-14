@@ -1,5 +1,7 @@
 # Studio round 2: the dinosaur's brief (live since `brief-dino-r3`, 2026-11-14 about 16:30Z)
 
+**Approved by the Author on 2026-11-14 (`intake-021`), and not yet recorded or taken in.** The record waits only for Q207's date. The intake is his. See "His look approval, and what follows it" below.
+
 **Judged dry (`judge-dino-r2`): round 2's candidate passes `line.py`, and the round isn't recorded.** See "Round 2's candidate, judged dry" below.
 
 **Live.** Task `brief-dino-r3` recorded round 1 as `fail` and put this brief at `/srv/studio/briefs/dinosaur/2.json`, byte for byte. `line.py brief` passes it. `studio-dino-r5` may run. See "Made live (`brief-dino-r3`)" below. The rest of this section, up to that one, is `brief-dino-r2`'s text, unchanged.
@@ -292,6 +294,61 @@ exit 0
 ### Interruptions (rule 5)
 
 None.
+
+## His look approval, and what follows it (`intake-021`)
+
+Task `intake-021` (night of 2026-11-13, implementer, Opus 5.5, run on 2026-11-14 around 18:15Z). It ran on the line's tip: judge-dino-r2's `f4d93409`, with `night/verify-023/verify-023` merged in (merge `4acf13c7`, no conflict).
+
+**Checks first.** Both held. The four GLBs in `/srv/studio/handoff/dinosaur/2/` have the SHA-256s recorded above under "What it judged", and `/srv/studio/briefs/dinosaur/` holds `1.json`, `1.result.json`, and `2.json`, with no `2.result.json`.
+
+### His look approval (User Story 4, FR-015), 2026-11-14
+
+His words, about 17:25Z, verbatim:
+
+> Okay, dinosaur is approved, and dog seems to have changed the face compared to the concept? Look at the face markings on the concept with white and white on the under body and white feet, common markings of a Nova Scotia Duck Tolling Retriever. Do you want to incorporate those
+
+*Reading, beside his words:* "dinosaur is approved" is his look approval of round 2's candidate, `/srv/studio/handoff/dinosaur/2/`, which is the four GLBs by the SHA-256s above. The rest is about the dog (item 3, spec 020) and isn't this item's. Q210 is answered (recommended): with this approval, his review of the mesh is given.
+
+**Not recorded.** No `--record` ran, and nothing under `/srv/studio/` changed. The record waits only for Q207's date (`models_checked`).
+
+### For his morning, in order
+
+Each step is his, or a studio task's for the first two. A judge doesn't write under `/srv/studio/`.
+
+1. **His review of the mesh in the record (Q210).** Add `{"name": "the Author's review of the mesh", "by": "hand"}` after the Pixal3D step ("the mesh and its base-colour texture, from the concept, by Pixal3D in ComfyUI") in all four entries of `/srv/studio/handoff/dinosaur/2/records.json`. Nothing else changes. On a copy in `/tmp`, this makes the file `6bbe5be5d1ff092a8584598c5b9421ed5664d03e99a51ce66b72703dd39f1771`, with 4 steps added and nothing else changed (the original is `341edde9…f14f9`). Each entry's steps become: the concept (hand), his review of the concept (hand), Pixal3D (model), his review of the mesh (hand), the build (model), and the clip's own step (model) for the three clips. The edit, as run on the copy (it checks that the file is in its canonical form first):
+
+   ```
+   python3 -I - /srv/studio/handoff/dinosaur/2/records.json <<'EOF'
+   import json, sys
+   p = sys.argv[1]; raw = open(p, encoding="utf-8").read(); d = json.loads(raw)
+   assert json.dumps(d, indent=2, ensure_ascii=False) + "\n" == raw
+   step = {"name": "the Author's review of the mesh", "by": "hand"}
+   for e in d["entries"]:
+       i = [k for k, s in enumerate(e["steps"]) if "by Pixal3D" in s["name"]]
+       assert len(i) == 1 and step not in e["steps"], e["file"]
+       e["steps"].insert(i[0] + 1, step)
+   open(p, "w", encoding="utf-8").write(json.dumps(d, indent=2, ensure_ascii=False) + "\n")
+   EOF
+   sha256sum /srv/studio/handoff/dinosaur/2/records.json   # 6bbe5be5…71771 if step 2 hasn't run yet
+   ```
+
+2. **Q207's date.** `models_checked` is `2026-11-14` on each of the **eleven** model steps: two in `dinosaur.glb`'s entry, and three in each clip's. (The judged section above says "twelve", but the file holds eleven.) Your date replaces it on each one. Any date up to 2026-11-14 keeps the pass. If the date you give is 2026-11-14, nothing changes.
+3. **The dry re-judge**, from the line's checkout, which writes nothing:
+
+   ```
+   python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dinosaur/2 --brief /srv/studio/briefs/dinosaur/2.json
+   ```
+
+   I ran this on a `/tmp` copy of the handoff with step 1's record and tonight's date. The copy held the four GLBs, `LICENSE.md`, `candidate.json`, and step 1's `records.json`, under `<tmp>/dinosaur/2/`. Its output was the same as the judged run above: the four C1 WARNs, the same size table, `arrival-check: 0 findings in 6 files, 4 warnings`, `line: pass; round 2`, and exit 0. Afterwards `/srv/studio/briefs/dinosaur/` still held only `1.json`, `1.result.json`, and `2.json`.
+4. **The record**, once, after step 3 passes:
+
+   ```
+   python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dinosaur/2 --brief /srv/studio/briefs/dinosaur/2.json --record
+   ```
+
+   It writes `/srv/studio/briefs/dinosaur/2.result.json`: `pass`, round 2, no findings.
+
+Then comes his intake into `assets/visitors/dinosaur/` (FR-015). The steps, the files' SHA-256s, and the scratch runs that show the room takes the model over the cut-out are in item 4's section of `docs/merge-requests/2026-11-14-night-stack.md`, under "The intake (intake-021)".
 
 ## The brief, verbatim
 
