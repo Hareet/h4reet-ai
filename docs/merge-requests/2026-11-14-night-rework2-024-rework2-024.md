@@ -40,7 +40,7 @@ AssertionError: paused: no landing at the first frame back: expected 3 to be 4 /
       Tests  2 failed | 7 skipped (9)
 ```
 
-GREEN (ee366364): `npx vitest run test/room/eat-scene.test.ts test/ui/eat-hidden.test.ts`, 2 files, 10 passed.
+GREEN (ee366364): `npx vitest run test/room/eat-scene.test.ts test/ui/eat-hidden.test.ts`, 2 files, 10 passed (recorded, not pasted; verify-024, rv-rework2-024's N-A).
 
 **N-3's RED** (3bd6613b), pasted:
 
@@ -51,14 +51,14 @@ AssertionError: the picker's fallback, as a plain visit's: expected [ [ 824, 548
       Tests  1 failed | 1 passed | 8 skipped (10)
 ```
 
-GREEN (18252336): `eat-scene.test.ts`, 10 passed.
+GREEN (18252336): `eat-scene.test.ts`, 10 passed (recorded, not pasted; verify-024, rv-rework2-024's N-A).
 
 What the I-A tests reach:
 - `eat-scene.test.ts` runs at `createScene`'s level with frames stopped (`clock.advance(ms, ms + 1)`, so the clock moves and no frame is drawn). Hidden through a flight, then shown, then one frame: the flight hasn't landed, and it lands after the rest of its flight. Hidden past `regrow_s` after a landing: no regrowth is due at the first frame back. The toggle and the loader each pass the same check.
 - `eat-hidden.test.ts` (new) runs at the room's level, through the stand-in stage: the room calls `eat.sync()` at the loader's end, at each toggle, and when the page is hidden and shown, at once, and `state()` reads each change then.
 - The class: the toggle and the loader drew frames, so B-1's poll already caught them, and the call now makes them exact. Hidden was the bug. The fall to 2D disposes the stage and its loop, so no meal is left to hold, and `eat-fall.test.ts` pins the tile's side of it.
 
-**Runs (the order's rule 4)**, from `apps/web`, at 18252336 (code unchanged since). First, every `eat-*` file:
+**Runs (the order's rule 4)**, from `apps/web`, at 18252336 (code unchanged since). First, every `eat-*` file (elided: the summary lines only; verify-024, rv-rework2-024's N-A):
 
 ```
 npx vitest run test/room/eat-*.test.ts test/ui/eat-*.test.ts
@@ -67,7 +67,7 @@ npx vitest run test/room/eat-*.test.ts test/ui/eat-*.test.ts
    Duration  122.63s (tests 66%, import 33%, transform 1%)
 ```
 
-Then the tests covering the files this branch changes, 132 files. `app.ts` is imported by `test/helpers/room.ts`, so every file importing that helper counts. `scene.ts` and `stage.ts` add the files importing them, plus every `eat-*` file. `twin-2d` is left out, as the order allows:
+Then the tests covering the files this branch changes, 132 files. `app.ts` is imported by `test/helpers/room.ts`, so every file importing that helper counts. `scene.ts` and `stage.ts` add the files importing them, plus every `eat-*` file. `twin-2d` is left out, as the order allows. (verify-024, rv-rework2-024's N-A: the command is rewrapped here, one file list over several lines, and the run's per-file lines aren't shown.)
 
 ```
 npx vitest run \
