@@ -1379,6 +1379,74 @@ def test_r5_reads_a_plain_file_only_from_a_carried_or_in_part_row(
     assert failing(run(trees, bad), "R5", quote) is not quotable, run(trees, bad)
 
 
+# rv-rework4-022's F-2 (page Q233, the recommended answer): a quote is accepted, and so exempt, only if it is found in
+# its source on word boundaries (no word character, and no number glued on by `.`, `,`, `:`, `/`, `-`, or an
+# apostrophe, on either side) and holds at least one word that isn't a number; a quote of numbers alone reads its
+# numbers. `docs/counts.md` is cited by a carried row.
+COUNTS = (
+    "It allows 100 requests a day and keeps logs 30 days; a thousand visitors came. It runs Haiku 5.5, step 2,000, "
+    "and a hundred cases; five-hundred runs; 5k calls; twenty-one tests. It allows 1000 calls.\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("added", "quote", "needle"),
+    [
+        # The review's four.
+        ('"5" dollars a day', "5", "'5'"),
+        ('"100" requests a day', "100", "'100'"),
+        ('"30" days', "30", "'30'"),
+        ('"thousand" visitors', "thousand", "'thousand'"),
+        # Siblings: curly quotes, an article with a number, a hyphenated number, digits with a letter, number words,
+        # a number with its punctuation, a substring of a longer number, and a quote cut from a decimal and from a
+        # number with a thousands separator.
+        ("“100” requests a day", "100", "'100'"),
+        ('"a hundred" cases', "a hundred", "'hundred'"),
+        ('"five-hundred" runs', "five-hundred", "'five'"),
+        ('"5k" calls', "5k", "'5'"),
+        ('"twenty-one" tests', "twenty-one", "'twenty'"),
+        ('"100 requests a day" and "30" days', "30", "'30'"),
+        ('"30;" days', "30;", "'30'"),
+        ('"10" requests', "10", "'10'"),
+        ('"It runs Haiku 5" now', "It runs Haiku 5", "'5'"),
+        ('"step 2" of many', "step 2", "'2'"),
+    ],
+    ids=[
+        "five",
+        "a-hundred-digits",
+        "thirty",
+        "thousand",
+        "curly",
+        "a-hundred-words",
+        "hyphenated",
+        "five-k",
+        "twenty-one",
+        "beside-an-accepted-quote",
+        "with-punctuation",
+        "a-substring",
+        "cut-from-a-decimal",
+        "cut-from-a-separated-number",
+    ],
+)
+def test_a_quote_of_numbers_alone_or_off_word_boundaries_reads_its_numbers(
+    repo: Path, added: str, quote: str, needle: str
+) -> None:
+    (repo / "docs/counts.md").write_text(COUNTS)
+    cites = changed(*(s.format(source="docs/counts.md") for s in CARRIED_ROW))
+    assert run(repo, cites) == []
+    problems = run(repo, changed(GAP, f"{GAP} {added}", cites))
+    assert failing(problems, "R5", f"“{quote}”"), problems
+    assert failing(problems, "R4", "number", needle), problems
+
+
+def test_a_quote_with_a_word_found_on_word_boundaries_stands(repo: Path) -> None:
+    # The control: a phrase from the cited file, its numbers inside it, stands, and R4 reads none of them.
+    (repo / "docs/counts.md").write_text(COUNTS)
+    cites = changed(*(s.format(source="docs/counts.md") for s in CARRIED_ROW))
+    good = '"It allows 100 requests a day" and "keeps logs 30 days" and "It runs Haiku 5.5"'
+    assert run(repo, changed(GAP, f"{GAP} {good}", cites)) == []
+
+
 # rv-rework4-022's F-4 (page Q235, the recommended answer): scripts/corpus/ holds the checker and its tests, whose
 # fixtures and patterns quote amounts and numbers; R5 reads no file there, by any spelling or link.
 CHECKER_FILES = {
@@ -1770,6 +1838,25 @@ def test_r5_reads_no_file_under_scripts_corpus_in_this_repository(
     assert real_with(tmp_path, "", source) == []
     problems = real_with(tmp_path, f'It says "{quote}".', source)
     assert failing(problems, "R5", quote), problems
+    assert failing(problems, "R4", "number", needle), problems
+
+
+@pytest.mark.parametrize(
+    ("added", "quote", "needle"),
+    [
+        ('"5" dollars a day', "5", "'5'"),
+        ('"100" requests a day', "100", "'100'"),
+        ('"30" days', "30", "'30'"),
+        ('"thousand" visitors', "thousand", "'thousand'"),
+        ('"a hundred" cases', "a hundred", "'hundred'"),
+    ],
+    ids=["five", "a-hundred-digits", "thirty", "thousand", "a-hundred-words"],
+)
+def test_a_quote_of_numbers_alone_reads_its_numbers_in_this_repository(
+    tmp_path: Path, added: str, quote: str, needle: str
+) -> None:
+    problems = real_with(tmp_path, added)
+    assert failing(problems, "R5", f"“{quote}”"), problems
     assert failing(problems, "R4", "number", needle), problems
 
 
