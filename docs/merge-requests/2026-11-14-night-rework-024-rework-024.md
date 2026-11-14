@@ -58,7 +58,9 @@ ruff format --check --no-cache --extend-exclude corpus .
 exit 0
 ```
 
-RED before GREEN for each fix: the commits and what each RED showed are in the stack note's section.
+(rework2-024, rv-rework-024's N-2: elided at shellcheck's line; the whole run is pasted in [2026-11-14-night-rework2-024-rework2-024.md](2026-11-14-night-rework2-024-rework2-024.md).)
+
+RED before GREEN for each fix: the commits and what each RED showed are in the stack note's section, recorded, not pasted (rework2-024, N-2).
 
 Interruptions: the brief's review path (`/home/h4reet/h4reet-ai/night/.io/rv-impl-024/out/review.md`) doesn't exist in this container; the fixes follow the brief's account of each finding. No hook or bash-gate refusal.
 

@@ -1113,6 +1113,8 @@ ruff format --check --no-cache --extend-exclude corpus .
 exit 0
 ```
 
+(rework2-024, rv-rework-024's N-2: this paste was elided at shellcheck's line. The whole lint run, at rework2-024's tip, is pasted in its section below.)
+
 After this section was written: `pytest -q -p no:cacheprovider --import-mode=importlib evals/test_docs_links.py evals/test_repository_docs.py`, 61 passed in 0.92s, and the lint target again (below the commit that adds this section).
 
 D-V2's six, as these runs met them: `legibility.test.ts`'s three, `report.test.ts`'s one, and `disclosure.test.ts`'s two. None was fixed here, and `docs/merge-requests/proposed/018-verify-test-amendments.patch` was never applied. No full suite was run here: the stack's last task runs the one full check.
@@ -1188,13 +1190,13 @@ rv-impl-024 (Opus) blocked item 7 on B-1 and B-2. This branch fixed them, the im
 | nit 3, disposal | ac4f4308 | e5590649 | §5.4: every GPU resource the eating builds is freed by the stage's dispose, wherever it is; a dropped one when dropped |
 | nit 4 | n/a | 76d01be0 | §5.5: 59eced2c's edit of `eat-checks.test.ts` (a first-run snapshot made `toBeGreaterThan(0)`) named |
 
-What each test reaches:
-- **B-1**: `eat-pause.test.ts` (a flight and a growth paused mid-way past their time, resumed, landing after the rest; the ledger's `landed` and `grown` not called while paused; a press while paused) and `eat-scene.test.ts`, at `createScene`'s level with the dinosaur's files (`helpers/room-dinosaur.ts`), so `scene.ts`'s `eatFrame`, `eatPress`, `modelOf`, the label to `said`, and `protectorFor(..., { eat })` run. RED: the unit cases failed, and the scene's paused and loader cases failed with a chunk landing during the hold; GREEN: 6 files, 52 passed.
-- **B-2**: `eat-place.test.ts` reads the tile's `left`/`top`/`right`/`bottom` through the cascade (every matching `room.css` rule, by specificity then order) under `data-hud="stacked"` with and without an Eat box, in each HUD layout with one, and with none. Two of impl-024's tests changed with the fix, by their own subject, and are named in plan §5.5: `eat-button.test.ts` looked the rule up by its old selector, and `eat-degraded.test.ts`'s visit gave its 3D stage no protector (so, under the new rule, no tile). With the code changed and those two not yet, they failed: 2 failed, 21 passed.
-- **I-1**: `eat-scene.test.ts` records the stage `scene.ts` gives the picker (`selectablePicker` wrapped): in the stacked layout it was `reserved: undefined` (RED), now `reservedBoxes(960 × 600, 16, { eat: true })`.
-- **nit 1**: `eat-scene.test.ts`, Escape on the view and the walking control: RED "expected 4 to be 3"; a leave while paused lands nothing until the resume. `failWalk` settles too (not staged in a test).
+What each test reaches. (rework2-024, rv-rework-024's N-2: the RED and GREEN figures in this list are as rework-024's sessions recorded them, not pasted; their outputs weren't kept. The table above names each RED commit, for a re-run.)
+- **B-1**: `eat-pause.test.ts` (a flight and a growth paused mid-way past their time, resumed, landing after the rest; the ledger's `landed` and `grown` not called while paused; a press while paused) and `eat-scene.test.ts`, at `createScene`'s level with the dinosaur's files (`helpers/room-dinosaur.ts`), so `scene.ts`'s `eatFrame`, `eatPress`, `modelOf`, the label to `said`, and `protectorFor(..., { eat })` run. RED: the unit cases failed, and the scene's paused and loader cases failed with a chunk landing during the hold; GREEN: 6 files, 52 passed (recorded, not pasted).
+- **B-2**: `eat-place.test.ts` reads the tile's `left`/`top`/`right`/`bottom` through the cascade (every matching `room.css` rule, by specificity then order) under `data-hud="stacked"` with and without an Eat box, in each HUD layout with one, and with none. Two of impl-024's tests changed with the fix, by their own subject, and are named in plan §5.5: `eat-button.test.ts` looked the rule up by its old selector, and `eat-degraded.test.ts`'s visit gave its 3D stage no protector (so, under the new rule, no tile). With the code changed and those two not yet, they failed: 2 failed, 21 passed (recorded, not pasted).
+- **I-1**: `eat-scene.test.ts` records the stage `scene.ts` gives the picker (`selectablePicker` wrapped): in the stacked layout it was `reserved: undefined` (RED, recorded, not pasted), now `reservedBoxes(960 × 600, 16, { eat: true })`.
+- **nit 1**: `eat-scene.test.ts`, Escape on the view and the walking control: RED "expected 4 to be 3" (recorded, not pasted); a leave while paused lands nothing until the resume. `failWalk` settles too (not staged in a test).
 - **nit 2**: `eat-key-repeat.test.ts`, the input's repeats and the tile's repeated Enter and Space (prevented, so no click). The walking control has the same shape and is spec 008's; on the page.
-- **nit 3**: `eat-pause.test.ts` (a whole piece's split freed at `dispose`, a reloaded model's at once) and `eat-scene.test.ts` (the stage's dispose after the room's `regrow_s`: RED "expected +0 to be 8").
+- **nit 3**: `eat-pause.test.ts` (a whole piece's split freed at `dispose`, a reloaded model's at once) and `eat-scene.test.ts` (the stage's dispose after the room's `regrow_s`: RED "expected +0 to be 8", recorded, not pasted).
 - **T013's claim**, corrected above to what `eat-degraded.test.ts` reaches; `eat-fall.test.ts` is a new pin for the fall to 2D in mid-visit (passed at once).
 
 Siblings probed (plan.md names each): no other code under `src/room/eat/` reads a clock or sets a timer; every other `var(--…)` in `room.css`, `hud/split.css`, and `loading/loading.css` is set in the layouts that read it; every route out of walking goes through `leaveWalk` or `failWalk`; `disposeRoom` is the only other disposer and reaches only the scene's graph.
@@ -1228,6 +1230,8 @@ ruff format --check --no-cache --extend-exclude corpus .
 … shellcheck …
 exit 0
 ```
+
+(rework2-024, rv-rework-024's N-2: this paste was elided at shellcheck's line. The whole lint run, at rework2-024's tip, is pasted in its section below.)
 
 No full suite here: the stack's last task runs it once. SC-006: `git diff --stat bbe55c0d HEAD -- .claude tools/gates corpus assets CLAUDE.md REVIEW.md .specify/memory/constitution.md evals/agent-config redteam/forbidden-actions.sh` is empty.
 
