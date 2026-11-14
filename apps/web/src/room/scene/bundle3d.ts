@@ -313,8 +313,15 @@ const PICTURE_NODES: ReadonlySet<string> = new Set(["standin", "model", "cutout"
  * laptop), and no label, face, or glow. The lookdev page's vignette reads a placement much the same way, but keeps its
  * switch cases, which a highlight mustn't.
  */
-export function memberDraws(room: Room3D, members: readonly string[]): Mesh[] {
+export function memberDraws(room: Room3D, members: readonly string[], figures: readonly Object3D[] = []): Mesh[] {
   const out: Mesh[] = [];
+  // Spec 026 (R-09): a selectable's figure (the room's dog) draws as its members do, every mesh of its picture, after
+  // the members'.
+  const tail: Mesh[] = [];
+  for (const figure of figures)
+    figure.traverse((node) => {
+      if ((node as Mesh).isMesh) tail.push(node as Mesh);
+    });
   for (const id of new Set(members)) {
     for (const child of room.placements.get(id)?.children ?? []) {
       if (!PICTURE_NODES.has(child.name)) continue;
@@ -323,7 +330,7 @@ export function memberDraws(room: Room3D, members: readonly string[]): Mesh[] {
       });
     }
   }
-  return out;
+  return [...out, ...tail];
 }
 
 /** The framed placements' boxes, which the room frames and picks from: never loaded geometry (R-18). */

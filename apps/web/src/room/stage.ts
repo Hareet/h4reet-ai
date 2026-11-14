@@ -78,6 +78,9 @@ export interface Stage3D extends Stage {
   /** Spec 016 (FR-022; contracts/twin-states.md §1): the conversation's activity, for the twin's own states; absent, as
    *  on a stand-in stage, nothing reads it. */
   twinActivity?(activity: TwinActivity): void;
+  /** Spec 026 (FR-001, FR-013; plan.md R-02): a selection, which the pet director takes: the `dog` selectable starts a
+   *  petting where its conditions hold; any other does nothing. Absent on a stand-in stage. */
+  pet?(id: string): void;
 }
 
 /** A file the 3D stage will load (spec 012): its asset events' `asset`, and its bytes as served (C11). */

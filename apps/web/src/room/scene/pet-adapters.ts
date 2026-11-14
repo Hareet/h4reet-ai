@@ -100,6 +100,13 @@ class DogView implements PetDog {
   }
 }
 
+/** Spec 026 (R-09; M5): the `dog` figure's front rectangle counts for a pick only while the dog shows its model at its
+ *  home: its picture there, its model shown, and spec 025's phase `home` (never fleeing or returning). */
+export function dogPickable(adapters: Pick<PetAdapters, "dog">): boolean {
+  const dog = adapters.dog();
+  return dog !== null && dog.phase === "home";
+}
+
 export function createPetAdapters(options: {
   readonly avatars: PetAvatars;
   /** Spec 025's director, where the room has made its shell; null before it, or where it has none. */

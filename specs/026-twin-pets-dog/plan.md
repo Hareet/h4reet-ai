@@ -115,6 +115,7 @@ The spec's table holds before and after design, with one named deviation (spec A
 - `Stage3D` gains `pet?(id: string): void` (`stage.ts`), absent on a stand-in stage, as `twinActivity?` is.
 - `TwinActivity` gains `{ kind: "pet"; on: boolean }`; spec 016's twin-states contract §1 and §2 are amended here (M1, M2), the contract file staying spec 016's.
 - `talk`'s rendered object gains a read-only `active: string | null` (R-02).
+  - **As built (impl3-026, T013b; a departure in order and shape):** `memberDraws(room, members, figures = [])` takes the figure's pictures and gives their meshes after the members'; `createHighlight`'s options gain `figures?(id)`, the pictures of a selectable's figure that show; `pet-adapters.ts` gains `dogPickable(adapters)` (the dog shows its model at its home, spec 025's phase `home`). `app.ts`'s `selectObject` calls `pet?(id)` right after the highlight's retarget, for any piece (the director starts a petting for the dog alone), unless `talk.active` is that piece's. `scene.ts`'s part (the picker's `pickable` from `dogPickable`, the highlight's `figures`, `Stage3D.pet`) lands with T014's wiring, where the adapters are made.
 - `FrameEvent` gains `"twin-pet"` (R-11).
 
 ## 5. Files expected to touch
