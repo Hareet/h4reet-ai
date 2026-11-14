@@ -428,3 +428,34 @@ describe("spec 023: the candidate, before and after the Author publishes it", ()
     },
   );
 });
+
+// ---- FR-011: the disclosure's sentence (added by impl-023; plan §3's departures) ----
+
+describe("spec 023: the data-flow disclosure", () => {
+  it("11. V1's Trigger holds FR-011's sentence, its three copies alike, after the PDF link and before \"Credits\"", () => {
+    const SPEC = "specs/023-resume-pdf-with-film-links";
+    const sentence = (path: string, after: RegExp): string => {
+      const text = readFileSync(join(REPO, path), "utf8");
+      const at = text.search(after);
+      expect(at, `${path}: ${String(after)}`).toBeGreaterThanOrEqual(0);
+      const block = /```text\n([^\n]*)\n\s*```/.exec(text.slice(at))?.[1];
+      expect(block, `${path}: the text block after ${String(after)}`).toBeDefined();
+      return (block ?? "").replace(/^ {2}/, "");
+    };
+    const copies = [
+      sentence(`${SPEC}/spec.md`, /\*\*FR-011\*\*/),
+      sentence(`${SPEC}/plan.md`, /^### 7\. Disclosure/m),
+      sentence(`${SPEC}/tasks.md`, /^- \[[ x]\] T010 /m),
+    ];
+    const [words] = copies;
+    expect(words).toMatch(/^ \(a link in the downloaded PDF/);
+    expect(words).not.toMatch(/[|`]/);
+    expect(copies).toEqual([words, words, words]);
+    const v1 = readFileSync(join(REPO, "docs/data-flow-disclosure.md"), "utf8")
+      .split("\n")
+      .filter((line) => line.startsWith("| V1 |"));
+    expect(v1).toHaveLength(1);
+    const trigger = v1[0]?.split("|")[3] ?? "";
+    expect(trigger).toContain(`following the PDF link${words}, and following "Credits"`);
+  });
+});
