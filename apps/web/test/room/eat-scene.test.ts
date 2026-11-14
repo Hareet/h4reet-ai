@@ -426,4 +426,20 @@ describe("the eating's wiring in the 3D stage (scene.ts; FR-001, FR-009, FR-010,
     );
     s.stage.dispose();
   });
+
+  it("reserves no stacked Eat box in a HUD layout mid-resize, whose frame was given for another window (N-3)", async () => {
+    // A HUD layout's frame, computed for a window the canvas no longer is: the stage frames the whole canvas until the
+    // room's next re-fit, and the tile sits at the HUD's Eat box, not in the canvas's corner, so the stage reserves as a
+    // plain visit's does there (the picker's fallback), not the stacked layout's boxes.
+    swapped.picked = [];
+    const box = { x: 0, y: 64, w: 900, h: 600 };
+    const s = await staged({
+      frame: () => ({ window: { w: 1280, h: 800 }, area: box, ease: 1, hud: [], clear: box, rem: 16 }),
+    });
+    const last = swapped.picked.at(-1);
+    expect(last, "the picker was sized").toBeDefined();
+    expect({ w: last?.w, h: last?.h }, "the whole canvas, until the re-fit").toEqual({ w: 960, h: 600 });
+    expect(last?.reserved, "the picker's fallback, as a plain visit's").toBeUndefined();
+    s.stage.dispose();
+  });
 });
