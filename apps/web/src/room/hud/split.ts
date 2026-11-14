@@ -12,6 +12,8 @@
 // - Every decoration is made inside its own try: a part that throws shows its plain form (a 1 px border, no strokes,
 //   the silhouette, text labels) and every control still works (FR-002; plan.md §9).
 // It makes no request: the portrait comes from the function the room gives it, spec 016's verified still (FR-003).
+import "./split.css";
+
 import { h, svg } from "../dom";
 import { browserOwnsEscape } from "../fullscreen";
 import { brushStrokePath, roughFramePath } from "./frame";
@@ -59,7 +61,8 @@ export interface Split {
   setActive(on: boolean): void;
   /** The open panel's size in CSS pixels, for the frame's path. */
   setSize(w: number, h: number): void;
-  openPanel(): void;
+  /** `focusHint` moves focus to the hint, where the control that opened the panel is gone from view. */
+  openPanel(focusHint?: boolean): void;
   closePanel(focus?: boolean): void;
   /** The three stats' values again, after a tier or cost change. */
   refreshStats(): void;
@@ -336,10 +339,12 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
         build();
       }
     },
-    openPanel() {
-      if (open) return;
-      open = true;
-      sync();
+    openPanel(focusHint = false) {
+      if (!open) {
+        open = true;
+        sync();
+      }
+      if (focusHint) talk.querySelector<HTMLElement>(".split-hint")?.focus();
     },
     closePanel(focus = false) {
       if (!open) return;

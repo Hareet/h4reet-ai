@@ -746,7 +746,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       onLine: () => split?.openPanel(),
       onLarger: (on) => {
         if (!split?.active) return;
-        if (on) split.openPanel();
+        if (on) split.openPanel(true);
         else split.closePanel(false);
       },
     });
