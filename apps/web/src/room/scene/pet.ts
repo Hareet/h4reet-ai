@@ -42,7 +42,8 @@ export interface PetTwin {
   readonly home: PetHome;
   /** What its picture shows: its own model, the man stand-in, or the capsule. */
   readonly shows: "model" | "stand-in" | "capsule";
-  /** Its rig has the six reach bones on both sides (pet-reach's `findReachRig`). */
+  /** Its rig has the reach's bones on both sides, as pet-reach's `findReachRig` reads them: the spine's three, each
+   *  arm's `Arm`, `ForeArm`, `Hand`, and `HandMiddle1`, and since Q212 the `Hips` and both legs' `UpLeg`, `Leg`, `Foot`. */
   readonly rig: boolean;
   /** The loaded `petting` clip's length in seconds, or null: no clip, the reach's path. */
   readonly petting_s: number | null;
