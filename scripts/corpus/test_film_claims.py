@@ -109,7 +109,11 @@ FILES = {
     "docs/data-flow-disclosure.md": DISCLOSURE_MD,
     "src/sign.md": "The sign reads the reply.\n",
     "src/gateway.md": "The gateway reads the switch first.\n",
-    "evals/run.md": "Scoring is deterministic: no model judges another.\n",
+    # Fourteen lines, so `evals/run.md:12-14` names lines it holds (rv-rework3-022's B-5).
+    "evals/run.md": "Scoring is deterministic: no model judges another.\n"
+    + "".join(f"Step {n}.\n" for n in range(2, 15)),
+    "config/budgets.yaml": "ceilings:\n  daily: slot\n  monthly: slot\n",
+    "redteam/run.py": '"""The red team."""\n\n\ndef main():\n    pass\n',
     "deploy/compose.yaml": "networks:\n  egress: {}\n",
     "apps/web/content/messages.yaml": "text: The twin can't talk right now. Today's budget for its answers is used.\n",
     "specs/tunnel.md": "No inbound ports.\n",
@@ -630,6 +634,68 @@ def test_real_paths_with_numbers_in_them_read_no_number() -> None:
         "`ENV=prod`, `COMPOSE_PROFILES=gpu`, films/kill-switch-b2/, specs/001-cloud-elevation/spec.md, 2026-11-13/14\n"
     )
     assert fc.numbers_in(fc.without_exempt(paths, quotes=())) == []
+
+
+# rv-rework3-022's B-5: a backticked line suffix is exempt only on a file under the root that holds every line it
+# names; on a directory, a missing file, a glob, or past the file's end, its numbers count. The fixture's
+# config/budgets.yaml has 3 lines, redteam/run.py 5, evals/run.md 14, specs/tunnel.md 1.
+@pytest.mark.parametrize(
+    ("token", "needle"),
+    [
+        # The review's four.
+        ("`config/budgets.yaml:5000`", "5000"),
+        ("`docs/adr:100`", "100"),
+        ("`films/kill-switch-b2:100`", "100"),
+        ("`redteam/run.py:1-1000000`", "1000000"),
+        # Siblings: line 0, a range backwards, a list with one line past the end, one past a one-line file, a glob,
+        # a file that isn't there, a file found under a top-level directory past its end, and a path outside.
+        ("`redteam/run.py:0`", "0"),
+        ("`redteam/run.py:4-2`", "4"),
+        ("`redteam/run.py:2,9000`", "9000"),
+        ("`specs/tunnel.md:2`", "2"),
+        ("`docs/adr/*.md:1`", "1"),
+        ("`docs/missing.md:1`", "1"),
+        ("`08-hareet-ai.md:300`", "300"),
+        ("`../plain.txt:1`", "1"),
+    ],
+    ids=[
+        "past-the-end",
+        "a-directory",
+        "a-film-directory",
+        "a-range-past-the-end",
+        "line-zero",
+        "backwards",
+        "a-list-past-the-end",
+        "one-line-file",
+        "a-glob",
+        "no-such-file",
+        "found-under-corpus-past-the-end",
+        "outside",
+    ],
+)
+def test_a_line_suffix_counts_unless_its_file_holds_every_line(
+    repo: Path, token: str, needle: str
+) -> None:
+    problems = run(repo, changed(RUNS, RUNS + f", {token}"))
+    assert failing(problems, "R4", "number", f"'{needle}'"), problems
+
+
+def test_a_line_suffix_its_file_holds_reads_no_number(repo: Path) -> None:
+    good = "`config/budgets.yaml:3`, `redteam/run.py:1-5`, `redteam/run.py:1,3-4`, `evals/run.md:12-14`, `08-hareet-ai.md:1`"
+    assert run(repo, changed(RUNS, RUNS + f", {good}")) == []
+
+
+def test_a_line_suffix_against_this_repository() -> None:
+    # The review's four, read against the real root; `redteam/run.py:267-299` (866 lines) stays exempt.
+    assert fc.numbers_in(
+        fc.without_exempt(
+            "`config/budgets.yaml:5000` `docs/adr:100` `films/kill-switch-b2:100` `redteam/run.py:1-1000000`\n",
+            quotes=(),
+        )
+    ) == ["5000", "100", "100", "1", "1000000"]
+    assert (
+        fc.numbers_in(fc.without_exempt("`redteam/run.py:267-299`\n", quotes=())) == []
+    )
 
 
 def test_number_words_are_g1s() -> None:
