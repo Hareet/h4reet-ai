@@ -121,11 +121,21 @@ export interface AvatarFigures {
   clipScale(figure: FigureId): number | null;
   /** Spec 019 (FR-011): the visitor's gait objects, each made once and written in place every frame; tests read their
    *  identity. Not for writing. */
-  gaitFrame(): {
+  gaitFrame(figure?: "visitor" | "twin"): {
     readonly state: Readonly<GaitStateOut>;
     readonly offsets: GaitOffsets;
     readonly last: { readonly x: number; readonly z: number; readonly has: boolean };
   };
+  /** Spec 025 (FR-013; plan.md R-05): the twin's place on the floor this frame while it runs, from the run's shell, for
+   *  its gait: the distance between two moving frames advances it, at `cycleLength` of the twin's height in metres; a
+   *  frame not moving (home, a cut, the run's end) counts no distance and lets the gait ease out and clear. */
+  stride(figure: "twin", x: number, z: number, speed: number, moving: boolean): void;
+  /** Spec 025 (plan.md R-06): a figure's picture group, which the run moves (the twin's, never its placement's node; the
+   *  room's dog's, only where the room has one); null for none. */
+  pictureOf(figure: FigureId): Object3D | null;
+  /** Spec 025 (FR-014; plan.md R-06): the leg rig of the figure's shown avatar, or null (no avatar shown, or a model
+   *  without the six leg bones or the hips bone). */
+  legsOf(figure: FigureId): LegRig | null;
   /** The figure's holding hand's bone, or null. */
   handOf(figure: FigureId): Object3D | null;
   /** The clip role a figure plays now, or null (its fallback, or its rest pose). */
@@ -174,6 +184,18 @@ interface Source {
   readonly ended: Set<FigureRole>;
 }
 
+/** Spec 019's gait for one figure (plan.md §2.3, §2.7): its phase and amplitude, its legs' offsets, the last place
+ *  (with `has` false until a frame gives one), the distance moved since the last update, and the speed and whether it
+ *  walks. Made once a figure and written in place (FR-011). */
+interface Gait {
+  readonly state: GaitStateOut;
+  readonly offsets: GaitOffsets;
+  readonly last: { x: number; z: number; has: boolean };
+  dist: number;
+  speed: number;
+  walking: boolean;
+}
+
 interface Figure {
   readonly id: FigureId;
   readonly group: Object3D;
@@ -181,6 +203,9 @@ interface Figure {
   wants: FigureSource | null;
   /** Its target height in metres; the twin's own stands at its own height (OWN). */
   target: number;
+  /** Spec 025 (R-05): its shown instance's height in metres: its target, or the twin's own model's measured height at
+   *  scale 1 (never OWN); what its gait's cycle length reads. */
+  height: number;
   instance: Object3D | null;
   mixer: AnimationMixer | null;
   readonly actions: Map<FigureRole, AnimationAction>;
@@ -318,6 +343,7 @@ export function createAvatarFigures(
       group: room.twin,
       wants: ownTwin ?? bundled(part.figures.stand_in),
       target: ownTwin ? OWN : part.figures.twin_height,
+      height: part.figures.twin_height,
       instance: null,
       mixer: null,
       actions: new Map(),
@@ -335,6 +361,7 @@ export function createAvatarFigures(
       group: room.visitor,
       wants: bundled(options.chosen),
       target: AVATAR_SHAPES[options.chosen].height,
+      height: AVATAR_SHAPES[options.chosen].height,
       instance: null,
       mixer: null,
       actions: new Map(),
@@ -352,6 +379,7 @@ export function createAvatarFigures(
       group: dogGroup,
       wants: dogWants,
       target: AVATAR_SHAPES.dog.height,
+      height: AVATAR_SHAPES.dog.height,
       instance: null,
       mixer: null,
       actions: new Map(),
@@ -434,6 +462,7 @@ export function createAvatarFigures(
     // The group's own scale (a figure piece's stylized scale) is undone, so the target is in metres; the twin's own
     // stands at its own size (spec 016, FR-010).
     const s = (f.target === OWN ? 1 : f.target / height) / (f.group.scale.y || 1);
+    f.height = f.target === OWN ? height : f.target;
     instance.scale.setScalar(s);
     instance.position.set(0, -box.min.y * s, 0);
     return instance;
@@ -678,7 +707,8 @@ export function createAvatarFigures(
   /** A figure back to its fallback, its instance and mixer gone. */
   function fallBack(f: Figure, why: FigureWhy | null): void {
     if (f.legs) clearGait(f.legs);
-    if (f.id === "visitor") resetGait();
+    if (f.id === "visitor") resetGait(gait);
+    else if (f.id === "twin") resetGait(twinGait);
     if (f.instance) {
       f.mixer?.stopAllAction();
       f.mixer?.uncacheRoot(f.instance);
@@ -712,21 +742,24 @@ export function createAvatarFigures(
    *  `has` false until a frame gives one), the distance walked since the last update, and the pose's speed and walking,
    *  from the driver's frames. Each object is made once here and written in place, so a frame allocates nothing for
    *  the gait (FR-011). */
-  const gait = {
+  const newGait = (): Gait => ({
     state: { phase: 0, amp: 0 } as GaitStateOut,
     offsets: legOffsets(0, 0),
     last: { x: 0, z: 0, has: false },
     dist: 0,
     speed: 0,
     walking: false,
-  };
-  function resetGait(): void {
-    gait.state.phase = 0;
-    gait.state.amp = 0;
-    gait.last.has = false;
-    gait.dist = 0;
-    gait.speed = 0;
-    gait.walking = false;
+  });
+  const gait = newGait();
+  /** Spec 025 (FR-013; plan.md R-05): the twin's own gait, while it runs, by the same rule and objects of its own. */
+  const twinGait = newGait();
+  function resetGait(g: Gait): void {
+    g.state.phase = 0;
+    g.state.amp = 0;
+    g.last.has = false;
+    g.dist = 0;
+    g.speed = 0;
+    g.walking = false;
   }
   let home: { position: Vector3; rotation: Euler; scale: Vector3; lift: number } | null = null;
   const driver: FigureDriver = {
@@ -783,7 +816,7 @@ export function createAvatarFigures(
       }
       home = null;
       if (figures.visitor.legs) clearGait(figures.visitor.legs);
-      resetGait();
+      resetGait(gait);
       if (walkingNow) {
         walkingNow = false;
         play(figures.visitor);
@@ -791,26 +824,26 @@ export function createAvatarFigures(
     },
   };
 
-  /** Spec 019 (FR-001 to FR-004, FR-009): after the mixer, the gait over the visitor's legs while it walks in an idle
-   *  clip, motion on and at quality 0; every other time the clip's own rotations stand, with no residue (FR-006). */
-  function stepGait(dt: number, moving: boolean, level: number): void {
-    const f = figures.visitor;
-    const distance = gait.dist;
-    gait.dist = 0;
+  /** Spec 019 (FR-001 to FR-004, FR-009): after the mixer, the gait over a figure's legs while it walks in an idle
+   *  clip, motion on and at quality 0; every other time the clip's own rotations stand, with no residue (FR-006). The
+   *  visitor's, and since spec 025 (FR-013; R-05) the twin's while it runs, at its height in metres. */
+  function stepGait(f: Figure, g: Gait, dt: number, moving: boolean, level: number): void {
+    const distance = g.dist;
+    g.dist = 0;
     if (!f.legs || !f.shown) return;
     const idling = f.playing === "idle" || f.playing === "idle-holding";
     if (!moving || level >= 1 || !idling) {
       clearGait(f.legs);
-      gait.state.amp = 0;
+      g.state.amp = 0;
       return;
     }
-    const on = gait.walking && !f.actions.has("walk");
-    const share = gait.speed / part.walking.speed_mps;
-    advance(gait.state, distance, share, dt, on, cycleLength(f.target), gait.state);
-    if (gait.state.amp > 0) {
+    const on = g.walking && !f.actions.has("walk");
+    const share = g.speed / part.walking.speed_mps;
+    advance(g.state, distance, share, dt, on, cycleLength(f.height), g.state);
+    if (g.state.amp > 0) {
       // The legs' angles, and the hips lowered by the standing leg's lift, from the same frame's angles (FR-015).
-      legOffsets(gait.state.phase, gait.state.amp, gait.offsets);
-      applyGait(f.legs, gait.offsets, standingLift(gait.offsets, f.legs.shape));
+      legOffsets(g.state.phase, g.state.amp, g.offsets);
+      applyGait(f.legs, g.offsets, standingLift(g.offsets, f.legs.shape));
     } else clearGait(f.legs);
   }
 
@@ -848,11 +881,12 @@ export function createAvatarFigures(
       f.instance = instance;
       const mixer = new AnimationMixer(instance as Object3D);
       f.mixer = mixer;
-      // Spec 019 (FR-008): the visitor's leg bones; a model without them slides, and says so once.
+      // Spec 019 (FR-008): the visitor's leg bones; a model without them slides, and says so once. Spec 025 (FR-013,
+      // FR-014; R-05): the twin's too, for its run; without them it is held, which the run's shell reads (legsOf).
       if (f.id === "visitor") {
         f.legs = findLegRig(instance as Object3D);
         if (f.legs === null) signal({ kind: "gait", figure: f.id, state: "unavailable" });
-      }
+      } else if (f.id === "twin") f.legs = findLegRig(instance as Object3D);
       for (const [role, clip] of source.clips) addAction(f, role, clip);
       // The greeting's end ends the twin's arrival at once (contracts/twin-states.md §3).
       if (f.id === "twin" && avatar === "twin")
@@ -941,7 +975,26 @@ export function createAvatarFigures(
     },
     shows: (figure) => figures[figure].shown,
     handOf: (figure) => figures[figure].hand,
-    gaitFrame: () => gait,
+    gaitFrame: (figure = "visitor") => (figure === "twin" ? twinGait : gait),
+    stride(_figure, x, z, speed, moving) {
+      const g = twinGait;
+      if (!moving) {
+        g.last.has = false;
+        g.dist = 0;
+        g.speed = 0;
+        g.walking = false;
+        return;
+      }
+      // The distance from the picture's places, never from speed × dt (spec 019's FR-002); a first frame has none.
+      if (g.last.has) g.dist += Math.hypot(x - g.last.x, z - g.last.z);
+      g.last.x = x;
+      g.last.z = z;
+      g.last.has = true;
+      g.speed = speed;
+      g.walking = true;
+    },
+    pictureOf: (figure) => (figure === "dog" && figures.dog.wants === null ? null : figures[figure].group),
+    legsOf: (figure) => (figures[figure].shown ? figures[figure].legs : null),
     clipScale: (figure) =>
       figures[figure].playing === "walk" ? (figures[figure].actions.get("walk")?.timeScale ?? null) : null,
     playing: (figure) => figures[figure].playing,
@@ -956,7 +1009,8 @@ export function createAvatarFigures(
           if (level >= 1 && f.id !== "twin") continue;
           f.mixer.update(dtMs / 1000);
         }
-      stepGait(dtMs / 1000, moving, level);
+      stepGait(figures.visitor, gait, dtMs / 1000, moving, level);
+      stepGait(figures.twin, twinGait, dtMs / 1000, moving, level);
       holdSheet();
     },
     redress() {

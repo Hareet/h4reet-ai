@@ -124,7 +124,14 @@ interface Run {
 function run(chosen: AvatarId = "dinosaur", f: Fake = fake()): Run {
   const walking = { on: true, pose: { x: NEAR.x, z: NEAR.z, heading: 0, speed: 0, walking: false } };
   const signals: FigureSignal[] = [];
-  const shell = createChaseFigures({ floor, part, avatars: f.avatars, walking, chosen, signal: (s) => signals.push(s) });
+  const shell = createChaseFigures({
+    floor,
+    part,
+    avatars: f.avatars,
+    walking,
+    chosen,
+    signal: (s) => signals.push(s),
+  });
   const frame = (n = 1, motion = MOVE): void => {
     for (let i = 0; i < n; i += 1) shell.frame(DT, motion);
   };
@@ -384,7 +391,11 @@ function real(o: { own?: boolean; manLegs?: boolean; dog?: boolean } = {}): Real
     ...(o.dog
       ? avatarFolder("dog", {
           model: avatarGlb({ height: 1.3, hands: false, legs: true }).bytes,
-          clips: { idle: clipGlb("idle", { tracks: IDLE_TRACKS, duration: 3 }).bytes, "idle-holding": null, take: null },
+          clips: {
+            idle: clipGlb("idle", { tracks: IDLE_TRACKS, duration: 3 }).bytes,
+            "idle-holding": null,
+            take: null,
+          },
           records: (e) => {
             for (const x of e) {
               x.likeness = false;

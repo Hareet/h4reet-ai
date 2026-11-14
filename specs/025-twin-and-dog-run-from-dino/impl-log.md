@@ -62,3 +62,4 @@ GREEN: `vitest run test/room/chase-schema.test.ts`: Tests 27 passed (27). Tasks.
 ## T014 (RED+GREEN)
 
 RED: `vitest run test/room/chase-figures.test.ts`: "Cannot find module '../../src/room/scene/chase-figures'", Test Files 1 failed (1).
+GREEN: `vitest run test/room/chase-figures.test.ts`: Tests 28 passed (28). With tasks.md's T014 list (`gait`, `gait-rig`, `stage-walk`, `walking`), T011's `avatars.ts` set (28 files), `dog-figure`, `gait-alloc`, and `avatar-gait-lift` (36 files): Test Files 36 passed (36), Tests 928 passed (928). `npx tsc --noEmit -p apps/web`: clean. `make lint`: exit 0 (after prettier on the new test file, its own task's).
