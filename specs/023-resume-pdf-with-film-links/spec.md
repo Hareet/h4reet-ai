@@ -98,8 +98,8 @@ As the Author and the agents, we want the claim-to-film table in one file, so th
   It starts with one space and holds no pipe. No other cell of V1 changes. The disclosure's checks still pass: `apps/web/test/disclosure.test.ts`, `apps/web/test/site.test.ts`, `evals/test_disclosure.py`, and the preflight's.
 - **FR-012**: For each row of the table, the tree holds `films/<film>/README.md` and `films/<film>/<media>`, with `<media>` under `media/` and ending `.mp4`, both tracked in git, and the README's "Watch the film" link is `<media>`; a test fails when one isn't so. No film file is renamed.
 - **FR-013**: The checks know three states of the tree, read from the served file's SHA-256, C-0002's in the approvals file, the table's `pdf_sha256`, and whether the candidate exists:
-  - **before** (served file is C-0002's, candidate present, and its hash is `pdf_sha256`): every case runs, the candidate's (5, 7, 8) included;
-  - **published** (served file's hash is `pdf_sha256`, `candidates/` gone): the candidate's cases skip, each with the reason stated ("published: the served file is the candidate"), and a published case reads the served file's links and checks them against the table; the build's own PDF checks (spec 002; `author-pdf.test.ts` covers their mechanism) check the file at every build;
+  - **before** (served file is C-0002's, candidate present, and its hash is `pdf_sha256`): every case but the published one runs, the candidate's and the notes' included (plan §3);
+  - **published** (served file's hash is `pdf_sha256`, `candidates/` gone): the candidate's and the notes' cases skip, each with the reason stated ("published: the served file is the candidate"), and a published case reads the served file's links and checks them against the table; the build's own PDF checks (spec 002; `author-pdf.test.ts` covers their mechanism) check the file at every build;
   - **neither**: the checks fail, naming the three hashes.
 
 ### Key Entities

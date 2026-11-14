@@ -49,8 +49,8 @@ The claim strings shown are RESUME-LINKS-PLAN step 1's casing; T002 reads the ap
 
 | State | Served file's SHA-256 | Candidate (`candidates/resume-author-links.pdf`) | Outcome |
 |---|---|---|---|
-| **before** | C-0002's (read from the approvals file) | present, its SHA-256 equals the table's `pdf_sha256` | every case runs; cases 5, 7, 8 read the candidate |
-| **published** | the table's `pdf_sha256` | absent (`candidates/` gone) | cases 5, 7, 8 skip with `it.skipIf`, their title stating "published: the served file is the candidate"; case 10 runs |
+| **before** | C-0002's (read from the approvals file) | present, its SHA-256 equals the table's `pdf_sha256` | cases 0 to 9 run; cases 5, 7, 8 read the candidate; case 10 skips, its title stating "before: not published yet" |
+| **published** | the table's `pdf_sha256` | absent (`candidates/` gone) | cases 5, 7, 8, 9 skip with `it.skipIf`, their title stating "published: the served file is the candidate"; cases 0 to 4, 6, and 10 run |
 | **neither** | anything else, or any other combination | – | case 0 fails, naming the three hashes and whether the candidate exists; nothing skips silently |
 
 During T001 to T006, before the candidate exists and while `pdf_sha256` is empty, the tree is in "neither"; case 0 is part of T006's RED and goes GREEN with T007. In the published state the served file is also checked at every build by the room's own PDF checks (spec 002; their mechanism is `author-pdf.test.ts`'s, over fixtures).
@@ -65,7 +65,7 @@ Cases, each its own `it`:
 6. every link passes `allowedUrl`; a link to another owner fails PDF5;
 7. (before) the committed candidate equals what `addLinks` writes from the approved file (so no one can hand-edit it unseen);
 8. (before) the appended section, parsed: only the page object (the approved file's page object number, `/Annots` = the old entries plus four new references) and four `/Annot /Link` objects, each `/Border [0 0 0]`, a `/URI` that is one of the table's, and none of `/AP`, `/C`, `/JS`, `/Launch` (US1-AC3, SC-004; rv-spec-023 I1);
-9. the SHA-256 that `docs/merge-requests/human-patches/023.md` and the stack note's item for 023 quote equals the table's `pdf_sha256`, and the stack note's edit text for his source holds each of the table's URLs (T008; US3-AC1);
+9. (before) the SHA-256 that `docs/merge-requests/human-patches/023.md` and the stack note's item for 023 quote equals the table's `pdf_sha256`, and the stack note's edit text for his source holds each of the table's URLs (T008; US3-AC1). It skips once published: the notes quote the night's candidate, and under route (b) the table holds his render's hash;
 10. (published) the served file's links, read by `readPdf`, include the table's four URLs, one per claim (US2-AC2).
 
 Each case is written RED first (T001, T004, T006, T008) and goes GREEN with its task's code or file.
