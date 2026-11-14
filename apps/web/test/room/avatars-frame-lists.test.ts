@@ -35,13 +35,15 @@ const declared = (name: string): ts.VariableDeclaration | null =>
   controller
     ? find(
         controller,
-        (n): n is ts.VariableDeclaration => ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === name,
+        (n): n is ts.VariableDeclaration =>
+          ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === name,
       )
     : null;
 const update = controller
   ? find(
       controller,
-      (n): n is ts.MethodDeclaration => ts.isMethodDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === "update",
+      (n): n is ts.MethodDeclaration =>
+        ts.isMethodDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === "update",
     )
   : null;
 const isFunction = (n: ts.Node | undefined): boolean =>

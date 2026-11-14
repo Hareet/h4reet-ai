@@ -141,7 +141,8 @@ function fake(): Fake {
       shows: (id) => f.shows[id],
       pictureOf: (id) => (id === "twin" ? twin : id === "dog" ? dog : null),
       legsOf: (id) => (id === "twin" ? ({} as never) : null),
-      clipOf: (avatar, role) => (avatar === "dog" && (role === "walk" || role === "run") ? ({} as AnimationClip) : null),
+      clipOf: (avatar, role) =>
+        avatar === "dog" && (role === "walk" || role === "run") ? ({} as AnimationClip) : null,
       dogPlays: () => undefined,
       twinActivity: () => undefined,
       stride: () => undefined,
