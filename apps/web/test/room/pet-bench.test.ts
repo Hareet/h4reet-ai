@@ -366,13 +366,10 @@ describe("no allocation per frame (FR-027, SC-007; I-1)", () => {
   // T016 (impl3-026): the director over the real adapters (pet-adapters.ts) and spec 025's real director (chase.ts),
   // whose frame runs in the step: `twinHeading()` reads its runner's facing and `faceTwin` turns it at 180°/s, as in the
   // page; the controller is a fake of its shape whose answers are constants, as the real one's are between pictures.
-  // A KNOWN GAP, marked `it.fails` (impl3-026; on the page, with its recommended rework): over the real adapters and
-  // spec 025's real director the director allocates, 246 bytes a petting in the bench's full run and 4,324 when this
-  // case runs alone; a scratch breakdown gave the real `twin()` adapter about 62 bytes a petting and the real
-  // director's turn (chase.ts's `turnTwin` writing the runner's `facing`, a field of spec 025's `{ x, z, … }` literal)
-  // about 14, alone, and 152 together. The time half holds (well under 0.1 ms a frame). When a rework brings the
-  // allocation under the bound, this case passes its expectations and `it.fails` fails: make it `it` then.
-  it.fails(
+  // impl3-026 marked this case `it.fails`, a known gap (246 bytes a petting in the bench's full run, 4,324 alone; about
+  // 62 in the real `twin()` adapter and 14 in the real director's turn). rework3-026 (the page's Q284): a plain `it`,
+  // under one object a petting, measured as Q259's answer says, on V8's optimized code after the warm-up.
+  it(
     "over the real adapters and spec 025's real director: whole pettings, and the frame's time",
     () => {
       const twinNode = new Group();
