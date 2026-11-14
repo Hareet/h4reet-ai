@@ -10,15 +10,7 @@ export type TwinClipRole = (typeof TWIN_CLIP_ROLES)[number];
 
 /** The twin's states, in FR-021's order of precedence; `fleeing` first, the run's (spec 025, FR-011); `petting` after
  *  `arriving`, before `answering` (spec 026, FR-009). */
-export const TWIN_STATES = [
-  "fleeing",
-  "arriving",
-  "petting",
-  "answering",
-  "listening",
-  "resting",
-  "present",
-] as const;
+export const TWIN_STATES = ["fleeing", "arriving", "petting", "answering", "listening", "resting", "present"] as const;
 export type TwinState = (typeof TWIN_STATES)[number];
 
 /** The state-to-clip map's defaults (FR-020; Clarifications, Q1): the greeting, talking, listening, the lean, the idle. */
