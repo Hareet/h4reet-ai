@@ -405,7 +405,7 @@ The four GLBs match "What it judged" above. There's no `2.result.json`.
 
 ### The dry re-judge, on the scratch copy
 
-The scratch copy is `/tmp/record-dino-r2.kR4x/scratch/dinosaur/2/`. It holds the four GLBs, `LICENSE.md`, and `candidate.json`, all copied from the handoff, plus the edited `records.json` (`39b89e14…d4df`). The run is from this branch's checkout. It's a preview of step 3, not the round's dry re-judge, which runs on the handoff folder itself:
+The scratch copy is `/tmp/record-dino-r2.kR4x/scratch/dinosaur/2/`. It holds the four GLBs, `LICENSE.md`, and `candidate.json`, all copied from the handoff, plus the edited `records.json` (`39b89e14…d4df`). The run is from this branch's checkout. Its `scripts/studio/` is identical to intake-021's: `git diff --stat fc89bcd1 HEAD -- scripts/studio` prints nothing (verify3-021, at the line's merge). It's a preview of step 3, not the round's dry re-judge, which runs on the handoff folder itself:
 
 ```
 $ python3 -I -B scripts/studio/line.py candidate /tmp/record-dino-r2.kR4x/scratch/dinosaur/2 --brief /srv/studio/briefs/dinosaur/2.json
