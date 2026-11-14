@@ -1,4 +1,48 @@
-# Studio round 2 of the dog: the brief, written, not placed
+# Studio round 2 of the dog: the brief, written, then placed
+
+## Placed: brief-dog-r6 (night of 2026-11-13, implementer, Opus 5.5, on 2026-11-14)
+
+Task `brief-dog-r6` followed the recommended answer to brief-dog-r5's question (Q195): it recorded round 1, then placed this text as `/srv/studio/briefs/dog/2.json`. `line.py` is unchanged (no diff against brief-dog-r5's tip). **Outcome: round 1 is recorded `fail` with one finding, `2.json` is placed and its check passes, so `studio-dog-r5` can run.**
+
+The checks before writing, all as the supervisor expected:
+- `/srv/studio/briefs/dog/1.json`: SHA-256 `f1897ad37cc88866b967e24b5b1e89b628d60a7b29f3469ed943e3a219e63b97`, the same as before the record and after it.
+- `/srv/studio/handoff/dog/1/` holds `note.md`, `note-2.md`, `note-3.md`, `note-4.md`, and no `candidate.json`.
+- Before this task, `/srv/studio/briefs/dog/` held no `1.result.json` and no `2.json`. The photos folder wasn't opened, viewed, copied, or listed.
+
+```text
+# round 1 recorded, from this branch
+$ python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dog/1 --brief /srv/studio/briefs/dog/1.json --record; echo "exit: $?"
+candidate.json: absent (limit: a file in the handoff folder)
+arrival-check: not run, since the candidate's files or its record's directory are missing
+line: 1 finding; round 1 fails
+exit: 1
+
+$ cat /srv/studio/briefs/dog/1.result.json
+{
+  "schema": 1,
+  "asset": "dog",
+  "round": 1,
+  "result": "fail",
+  "findings": [
+    "candidate.json: absent (limit: a file in the handoff folder)"
+  ]
+}
+```
+
+The recorded finding is the same as the text's `findings`, word for word, so the text needed no change.
+
+- `/srv/studio/briefs/dog/1.result.json`: SHA-256 `65783b3b6be96413b799bf04ae8c750b75dd6d1fefff1cd1b1c9b0245f39ecac`.
+- `/srv/studio/briefs/dog/2.json`, written with the Write tool: SHA-256 `d15050f122b7e0c334b0f335c1f47305e9b5675689a29d7009df3f46632a2495`, the text's hash below. It is byte-identical (`cmp`) to the JSON block at the end of this file.
+
+```text
+$ python3 -I -B scripts/studio/line.py brief /srv/studio/briefs/dog/2.json; echo "exit: $?"
+line: pass
+exit: 0
+```
+
+Interruptions: none. No hook or bash-gate refusal. No code or test changed and no `make` target ran.
+
+What follows is brief-dog-r5's record, as it was.
 
 Task `brief-dog-r5` (night of 2026-11-13, implementer, Opus 5.5, on 2026-11-14), the brief half of the dog's round 2 (the Author's orders, rule 9, "Round 2 for both", about 15:45Z). He wrote: "each asset goes on as round 2, which `line.py` allows (three rounds per asset; round 1 made nothing judged, and its notes say why)". The brief is to be written to `/srv/studio/briefs/dog/2.json` from brief-dog-r4's rewrite (`studio-round-1.md`) and checked with `line.py brief`. After that, `studio-dog-r5` runs it.
 
