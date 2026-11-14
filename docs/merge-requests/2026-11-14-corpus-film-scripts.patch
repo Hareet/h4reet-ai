@@ -1,4 +1,4 @@
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/apps/web/content/resume.lock.json b/apps/web/content/resume.lock.json
+diff -ruN '--exclude=__pycache__' a/apps/web/content/resume.lock.json b/apps/web/content/resume.lock.json
 --- a/apps/web/content/resume.lock.json
 +++ b/apps/web/content/resume.lock.json
 @@ -5,10 +5,10 @@
@@ -6,7 +6,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/apps/web/content/re
      "corpus/03-grants-and-credits.md": "e81dd17f9bf27d580a2db9eafe2728172c2174546e66f08ce0464da13947a359",
      "corpus/07-denver-local-ai.md": "372b165c9c5547f226993f43e8540350bc52edb2a8f81cef202a52a6af59e64f",
 -    "corpus/08-hareet-ai.md": "849c8895c0989145c693797536aa54972e11de98b2529864c7ac84dbb9ab2263",
-+    "corpus/08-hareet-ai.md": "75fdea3f770c61c5d2cce36e3f8c575bc3d166452213c55b933bc0118deba998",
++    "corpus/08-hareet-ai.md": "7ea36000d5a6f83ec2af026c19e4d3773635083a2ee8dc3fe19bf4fbcdf78957",
      "corpus/facts/awards.yaml": "543db6d2497e249fef7106c90d2dead341031585204547be4c19f51e84521296",
      "corpus/facts/career.yaml": "b57e3319b4d5576c092320e56cd090a44794b606e577f78e19f83c780d5774d4",
 -    "corpus/facts/hareet-ai.yaml": "e04c7d230b983974eaa85a2b9bce7c24beaee57aac65be7a1f2351910cc9a83d",
@@ -14,7 +14,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/apps/web/content/re
      "corpus/facts/medic-context.yaml": "c9778cefbc298c19b55f6860cd0494a41c17be3cea576fa0d5aff6e2920dd194",
      "corpus/facts/national-projects.yaml": "7d9d0ae9feb081eb2f7071ea98d2d24f14fbaf8aca94aaa9c7b665c6d3e47110",
      "corpus/facts/voice-for-cht.yaml": "55d5d9c24281e9f8f486f260166d5a848009416aad4674305c1989596b87d534"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/config/twin/corpus.json b/config/twin/corpus.json
+diff -ruN '--exclude=__pycache__' a/config/twin/corpus.json b/config/twin/corpus.json
 --- a/config/twin/corpus.json
 +++ b/config/twin/corpus.json
 @@ -20,7 +20,7 @@
@@ -57,13 +57,13 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/config/twin/corpus.
        "text": "- `[A 2026-11-06]` What he adds when a visitor asks how it's built, in his words: \"And share the GitHub repo: https://github.com/hareet/h4reet-ai. We want to add that it had the perspective of production-grade Applied AI and SRE perspectives, with observability, cost, and security at top of mind throughout the development and production lifecycle.\"\n- `[A 2026-11-06]` Which laptop the room shows, in his words: \"the laptop in the room is my own, as in when it's plugged in, it will be running on my own laptop from my actual work desk which is seen in the room\".\n- `[A 2026-11-06]` What happens to what visitors say, in his words: \"We disclose every data flow, their conversation is not saved and they can look at the GitHub repo for how all the code works. We come from a background of open source, public software.\"\n- `[A 2026-11-06]` Asked whether his Langfuse setup keeps the conversation text, or only cost and usage, in his words: \"Only costs and usage, and say we use Masking.\""
      },
      {
-+      "chars": 1973,
++      "chars": 1550,
 +      "file": "corpus/08-hareet-ai.md",
 +      "golden": null,
 +      "heading": "The kill switch",
 +      "id": "08-hareet-ai#3",
 +      "kind": "section",
-+      "text": "- `[P]` Every question falls through the same layers, and the gateway reads the kill switch first; if it can't read it, it assumes the worst. — https://github.com/hareet/h4reet-ai/blob/main/services/gateway/src/core/gateway.ts\n- `[P]` Local answers cost nothing. Paid ones are metered in the gateway's own database. — https://github.com/hareet/h4reet-ai/blob/main/docs/adr/0020-gateway-state-store-and-meter.md\n- `[P]` Every answer the twin gives can cost money, so the site has a daily ceiling of $5. Before spend reaches it, a warning goes out on Telegram and email; when spend reaches it, the site stops itself. — https://github.com/hareet/h4reet-ai/blob/main/config/budgets.yaml\n- `[P]` One transaction sets the switch, opens an incident, and queues the alert. Every request after that gets one line, local answers included: \"The twin can't talk right now. Today's budget for its answers is used.\" — https://github.com/hareet/h4reet-ai/blob/main/apps/web/content/messages.yaml\n- `[P]` A new day doesn't bring it back. Only an operator reset does: a person, with a reason, in the audit log. — https://github.com/hareet/h4reet-ai/blob/main/.specify/memory/constitution.md\n- `[P]` The breach test trips it on purpose. — https://github.com/hareet/h4reet-ai/blob/main/docs/merge-requests/2026-10-09-feat-000-us2-kill-switch.md\n- `[P]` On the laptop's production stack (`ENV=prod`, `COMPOSE_PROFILES=gpu`), only the gateway has a road out: of the services that run there, only `gateway` joins the `egress` network. That holds until the `tunnel` profile is added, which puts the tunnel on `egress` too; on the cloud server, prod's default host, a snapshot publisher joins it as well. — https://github.com/hareet/h4reet-ai/blob/main/deploy/compose.yaml\n- `[P]` The agents that write the code are fenced in too: the one that writes never reviews, and none can touch the budgets or the switch, push, merge, or apply. — https://github.com/hareet/h4reet-ai/tree/main/.claude/agents"
++      "text": "- `[P]` Every question falls through the same layers, and the gateway reads the kill switch first; if it can't read it, it assumes the worst. — https://github.com/hareet/h4reet-ai/blob/main/services/gateway/src/core/gateway.ts\n- `[P]` Local answers cost nothing. Paid ones are metered in the gateway's own database. — https://github.com/hareet/h4reet-ai/blob/main/docs/adr/0020-gateway-state-store-and-meter.md\n- `[P]` Every answer the twin gives can cost money, so the site has a daily ceiling of $5. Before spend reaches it, a warning goes out on Telegram and email; when spend reaches it, the site stops itself. — https://github.com/hareet/h4reet-ai/blob/main/config/budgets.yaml\n- `[P]` One transaction sets the switch, opens an incident, and queues the alert. Every request after that gets one line, local answers included: \"The twin can't talk right now. Today's budget for its answers is used.\" — https://github.com/hareet/h4reet-ai/blob/main/apps/web/content/messages.yaml\n- `[P]` A new day doesn't bring it back. Only an operator reset does: a person, with a reason, in the audit log. — https://github.com/hareet/h4reet-ai/blob/main/.specify/memory/constitution.md\n- `[P]` The breach test trips it on purpose. — https://github.com/hareet/h4reet-ai/blob/main/docs/merge-requests/2026-10-09-feat-000-us2-kill-switch.md\n- `[P]` The agents that write the code are fenced in too: the one that writes never reviews, and none can touch the budgets or the switch, push, merge, or apply. — https://github.com/hareet/h4reet-ai/tree/main/.claude/agents"
 +    },
 +    {
 +      "chars": 1599,
@@ -338,7 +338,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/config/twin/corpus.
      }
    ],
 -  "sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717",
-+  "sha256": "6dcabdac0daa15511c03459407f6e1e8f47719193989d024626f046b2bf1f497",
++  "sha256": "a9e4d8898c97dff3ccff907d81f6ea48144bee2f264affd6314609af01dc36a8",
    "topics": [
      {
        "files": [
@@ -366,7 +366,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/config/twin/corpus.
      }
    ]
  }
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/corpus/08-hareet-ai.md b/corpus/08-hareet-ai.md
+diff -ruN '--exclude=__pycache__' a/corpus/08-hareet-ai.md b/corpus/08-hareet-ai.md
 --- a/corpus/08-hareet-ai.md
 +++ b/corpus/08-hareet-ai.md
 @@ -1,7 +1,7 @@
@@ -378,7 +378,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/corpus/08-hareet-ai
  
  ## Role at a glance
  
-@@ -16,6 +16,98 @@
+@@ -16,6 +16,97 @@
  - `[A 2026-11-06]` What happens to what visitors say, in his words: "We disclose every data flow, their conversation is not saved and they can look at the GitHub repo for how all the code works. We come from a background of open source, public software."
  - `[A 2026-11-06]` Asked whether his Langfuse setup keeps the conversation text, or only cost and usage, in his words: "Only costs and usage, and say we use Masking."
  
@@ -390,7 +390,6 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/corpus/08-hareet-ai
 +- `[P]` One transaction sets the switch, opens an incident, and queues the alert. Every request after that gets one line, local answers included: "The twin can't talk right now. Today's budget for its answers is used." — https://github.com/hareet/h4reet-ai/blob/main/apps/web/content/messages.yaml
 +- `[P]` A new day doesn't bring it back. Only an operator reset does: a person, with a reason, in the audit log. — https://github.com/hareet/h4reet-ai/blob/main/.specify/memory/constitution.md
 +- `[P]` The breach test trips it on purpose. — https://github.com/hareet/h4reet-ai/blob/main/docs/merge-requests/2026-10-09-feat-000-us2-kill-switch.md
-+- `[P]` On the laptop's production stack (`ENV=prod`, `COMPOSE_PROFILES=gpu`), only the gateway has a road out: of the services that run there, only `gateway` joins the `egress` network. That holds until the `tunnel` profile is added, which puts the tunnel on `egress` too; on the cloud server, prod's default host, a snapshot publisher joins it as well. — https://github.com/hareet/h4reet-ai/blob/main/deploy/compose.yaml
 +- `[P]` The agents that write the code are fenced in too: the one that writes never reviews, and none can touch the budgets or the switch, push, merge, or apply. — https://github.com/hareet/h4reet-ai/tree/main/.claude/agents
 +
 +## The cost meter
@@ -477,7 +476,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/corpus/08-hareet-ai
  ## Public artifacts
  
  - hareet.ai, once spec 001 publishes it.
-@@ -24,6 +116,11 @@
+@@ -24,6 +115,11 @@
  ## Do not claim
  
  - Any spend, traffic, or cost figure for the site that isn't in a filled slot.
@@ -489,7 +488,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/corpus/08-hareet-ai
  
  ## Golden Q&A
  
-@@ -31,7 +128,16 @@
+@@ -31,7 +127,16 @@
  2. *How is this built?* — An AI twin of me, built in the open: local models first, a capped cloud fallback, a real-time cost meter, and a daily kill switch. AI agents in named roles do most of the typing, and only I merge. It had the perspective of production-grade Applied AI and SRE perspectives, with observability, cost, and security at top of mind throughout the development and production lifecycle. Here's the GitHub repo: https://github.com/hareet/h4reet-ai [A]
  3. *What features should I know about?* — The Langfuse cost-meter and how it shows observability. If the laptop is plugged in, that means we are using local models and everything is running on my laptop. Otherwise we have failed over to a cloud solution, or the room doesn't know the live state yet, and the kill switch to ensure we are cost monitoring and effective. Alongside how we make sure the AI twin is secure from common bad use cases, how we developed the twin in the open and to have best agentic security practices. [A]
  4. *Who writes the code?* — AI agents in named roles do most of the typing, and only I merge. [A]
@@ -507,7 +506,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/corpus/08-hareet-ai
 +15. *How is a change made?* — It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, a clean-room gate runs every check, and only a person merges. [P]
 +16. *What don't you know about how it's tested?* — I don't know yet how many evaluation cases there are, their latest pass rates, or what a run costs; those change with every run. [?]
 +17. *What isn't built yet?* — A daily summary of the CPU metrics and deploys that only pull aren't built yet, so I don't know more about them yet. [?]
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/corpus/facts/hareet-ai.yaml b/corpus/facts/hareet-ai.yaml
+diff -ruN '--exclude=__pycache__' a/corpus/facts/hareet-ai.yaml b/corpus/facts/hareet-ai.yaml
 --- a/corpus/facts/hareet-ai.yaml
 +++ b/corpus/facts/hareet-ai.yaml
 @@ -9,3 +9,10 @@
@@ -521,7 +520,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/corpus/facts/hareet
 +    source: "deploy/compose.yaml (the services that run under ENV=prod with COMPOSE_PROFILES=gpu, deploy/env.example/prod.env.example:15); films/SCRIPTS.md §5, line 1"
 +    public_safe: true
 +    phrasing: "{value} containers"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-agent-orchestrator-engineer.yaml b/evals/narration/cases/narration-agent-orchestrator-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-agent-orchestrator-engineer.yaml b/evals/narration/cases/narration-agent-orchestrator-engineer.yaml
 --- a/evals/narration/cases/narration-agent-orchestrator-engineer.yaml
 +++ b/evals/narration/cases/narration-agent-orchestrator-engineer.yaml
 @@ -54,3 +54,8 @@
@@ -533,7 +532,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml b/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml b/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
 --- a/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
 +++ b/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
 @@ -51,3 +51,8 @@
@@ -545,7 +544,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-agent-watchdog-engineer.yaml b/evals/narration/cases/narration-agent-watchdog-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-agent-watchdog-engineer.yaml b/evals/narration/cases/narration-agent-watchdog-engineer.yaml
 --- a/evals/narration/cases/narration-agent-watchdog-engineer.yaml
 +++ b/evals/narration/cases/narration-agent-watchdog-engineer.yaml
 @@ -55,3 +55,8 @@
@@ -557,7 +556,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml b/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml b/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
 --- a/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
 +++ b/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
 @@ -53,3 +53,8 @@
@@ -569,7 +568,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-ai-strategy-engineer.yaml b/evals/narration/cases/narration-ai-strategy-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-ai-strategy-engineer.yaml b/evals/narration/cases/narration-ai-strategy-engineer.yaml
 --- a/evals/narration/cases/narration-ai-strategy-engineer.yaml
 +++ b/evals/narration/cases/narration-ai-strategy-engineer.yaml
 @@ -56,3 +56,8 @@
@@ -581,7 +580,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-ai-strategy-non-engineer.yaml b/evals/narration/cases/narration-ai-strategy-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-ai-strategy-non-engineer.yaml b/evals/narration/cases/narration-ai-strategy-non-engineer.yaml
 --- a/evals/narration/cases/narration-ai-strategy-non-engineer.yaml
 +++ b/evals/narration/cases/narration-ai-strategy-non-engineer.yaml
 @@ -53,3 +53,8 @@
@@ -593,7 +592,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-change-management-engineer.yaml b/evals/narration/cases/narration-change-management-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-change-management-engineer.yaml b/evals/narration/cases/narration-change-management-engineer.yaml
 --- a/evals/narration/cases/narration-change-management-engineer.yaml
 +++ b/evals/narration/cases/narration-change-management-engineer.yaml
 @@ -52,3 +52,8 @@
@@ -605,7 +604,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-change-management-non-engineer.yaml b/evals/narration/cases/narration-change-management-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-change-management-non-engineer.yaml b/evals/narration/cases/narration-change-management-non-engineer.yaml
 --- a/evals/narration/cases/narration-change-management-non-engineer.yaml
 +++ b/evals/narration/cases/narration-change-management-non-engineer.yaml
 @@ -51,3 +51,8 @@
@@ -617,7 +616,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml b/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml b/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
 --- a/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
 +++ b/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
 @@ -54,3 +54,8 @@
@@ -629,7 +628,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml b/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml b/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
 --- a/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
 +++ b/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
 @@ -51,3 +51,8 @@
@@ -641,7 +640,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-cht-agent-engineer.yaml b/evals/narration/cases/narration-cht-agent-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-agent-engineer.yaml b/evals/narration/cases/narration-cht-agent-engineer.yaml
 --- a/evals/narration/cases/narration-cht-agent-engineer.yaml
 +++ b/evals/narration/cases/narration-cht-agent-engineer.yaml
 @@ -58,3 +58,8 @@
@@ -653,7 +652,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-cht-agent-non-engineer.yaml b/evals/narration/cases/narration-cht-agent-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-agent-non-engineer.yaml b/evals/narration/cases/narration-cht-agent-non-engineer.yaml
 --- a/evals/narration/cases/narration-cht-agent-non-engineer.yaml
 +++ b/evals/narration/cases/narration-cht-agent-non-engineer.yaml
 @@ -53,3 +53,8 @@
@@ -665,7 +664,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-cht-codebase-engineer.yaml b/evals/narration/cases/narration-cht-codebase-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-codebase-engineer.yaml b/evals/narration/cases/narration-cht-codebase-engineer.yaml
 --- a/evals/narration/cases/narration-cht-codebase-engineer.yaml
 +++ b/evals/narration/cases/narration-cht-codebase-engineer.yaml
 @@ -52,3 +52,8 @@
@@ -677,7 +676,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-cht-codebase-non-engineer.yaml b/evals/narration/cases/narration-cht-codebase-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-codebase-non-engineer.yaml b/evals/narration/cases/narration-cht-codebase-non-engineer.yaml
 --- a/evals/narration/cases/narration-cht-codebase-non-engineer.yaml
 +++ b/evals/narration/cases/narration-cht-codebase-non-engineer.yaml
 @@ -50,3 +50,8 @@
@@ -689,7 +688,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml b/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml b/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
 --- a/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
 +++ b/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
 @@ -51,3 +51,8 @@
@@ -701,7 +700,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml b/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml b/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
 --- a/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
 +++ b/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
 @@ -51,3 +51,8 @@
@@ -713,7 +712,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-cht-skills-engineer.yaml b/evals/narration/cases/narration-cht-skills-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-skills-engineer.yaml b/evals/narration/cases/narration-cht-skills-engineer.yaml
 --- a/evals/narration/cases/narration-cht-skills-engineer.yaml
 +++ b/evals/narration/cases/narration-cht-skills-engineer.yaml
 @@ -52,3 +52,8 @@
@@ -725,7 +724,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-cht-skills-non-engineer.yaml b/evals/narration/cases/narration-cht-skills-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cht-skills-non-engineer.yaml b/evals/narration/cases/narration-cht-skills-non-engineer.yaml
 --- a/evals/narration/cases/narration-cht-skills-non-engineer.yaml
 +++ b/evals/narration/cases/narration-cht-skills-non-engineer.yaml
 @@ -53,3 +53,8 @@
@@ -737,7 +736,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-claude-medic-aws-engineer.yaml b/evals/narration/cases/narration-claude-medic-aws-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-claude-medic-aws-engineer.yaml b/evals/narration/cases/narration-claude-medic-aws-engineer.yaml
 --- a/evals/narration/cases/narration-claude-medic-aws-engineer.yaml
 +++ b/evals/narration/cases/narration-claude-medic-aws-engineer.yaml
 @@ -55,3 +55,8 @@
@@ -749,7 +748,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml b/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml b/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
 --- a/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
 +++ b/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
 @@ -53,3 +53,8 @@
@@ -761,7 +760,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-cloud-data-centers-engineer.yaml b/evals/narration/cases/narration-cloud-data-centers-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cloud-data-centers-engineer.yaml b/evals/narration/cases/narration-cloud-data-centers-engineer.yaml
 --- a/evals/narration/cases/narration-cloud-data-centers-engineer.yaml
 +++ b/evals/narration/cases/narration-cloud-data-centers-engineer.yaml
 @@ -52,3 +52,8 @@
@@ -773,7 +772,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml b/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml b/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
 --- a/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
 +++ b/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
 @@ -50,3 +50,8 @@
@@ -785,7 +784,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-denver-local-ai-engineer.yaml b/evals/narration/cases/narration-denver-local-ai-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-denver-local-ai-engineer.yaml b/evals/narration/cases/narration-denver-local-ai-engineer.yaml
 --- a/evals/narration/cases/narration-denver-local-ai-engineer.yaml
 +++ b/evals/narration/cases/narration-denver-local-ai-engineer.yaml
 @@ -55,3 +55,8 @@
@@ -797,7 +796,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml b/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml b/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
 --- a/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
 +++ b/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
 @@ -53,3 +53,8 @@
@@ -809,7 +808,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-hareet-ai-engineer.yaml b/evals/narration/cases/narration-hareet-ai-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-hareet-ai-engineer.yaml b/evals/narration/cases/narration-hareet-ai-engineer.yaml
 --- a/evals/narration/cases/narration-hareet-ai-engineer.yaml
 +++ b/evals/narration/cases/narration-hareet-ai-engineer.yaml
 @@ -53,3 +53,8 @@
@@ -821,7 +820,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-hareet-ai-non-engineer.yaml b/evals/narration/cases/narration-hareet-ai-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-hareet-ai-non-engineer.yaml b/evals/narration/cases/narration-hareet-ai-non-engineer.yaml
 --- a/evals/narration/cases/narration-hareet-ai-non-engineer.yaml
 +++ b/evals/narration/cases/narration-hareet-ai-non-engineer.yaml
 @@ -53,3 +53,8 @@
@@ -833,7 +832,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-kenya-localization-engineer.yaml b/evals/narration/cases/narration-kenya-localization-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-kenya-localization-engineer.yaml b/evals/narration/cases/narration-kenya-localization-engineer.yaml
 --- a/evals/narration/cases/narration-kenya-localization-engineer.yaml
 +++ b/evals/narration/cases/narration-kenya-localization-engineer.yaml
 @@ -51,3 +51,8 @@
@@ -845,7 +844,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-kenya-localization-non-engineer.yaml b/evals/narration/cases/narration-kenya-localization-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-kenya-localization-non-engineer.yaml b/evals/narration/cases/narration-kenya-localization-non-engineer.yaml
 --- a/evals/narration/cases/narration-kenya-localization-non-engineer.yaml
 +++ b/evals/narration/cases/narration-kenya-localization-non-engineer.yaml
 @@ -52,3 +52,8 @@
@@ -857,7 +856,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-national-benchmarking-engineer.yaml b/evals/narration/cases/narration-national-benchmarking-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-national-benchmarking-engineer.yaml b/evals/narration/cases/narration-national-benchmarking-engineer.yaml
 --- a/evals/narration/cases/narration-national-benchmarking-engineer.yaml
 +++ b/evals/narration/cases/narration-national-benchmarking-engineer.yaml
 @@ -51,3 +51,8 @@
@@ -869,7 +868,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml b/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml b/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
 --- a/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
 +++ b/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
 @@ -51,3 +51,8 @@
@@ -881,7 +880,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-national-scale-engineer.yaml b/evals/narration/cases/narration-national-scale-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-national-scale-engineer.yaml b/evals/narration/cases/narration-national-scale-engineer.yaml
 --- a/evals/narration/cases/narration-national-scale-engineer.yaml
 +++ b/evals/narration/cases/narration-national-scale-engineer.yaml
 @@ -53,3 +53,8 @@
@@ -893,7 +892,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-national-scale-non-engineer.yaml b/evals/narration/cases/narration-national-scale-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-national-scale-non-engineer.yaml b/evals/narration/cases/narration-national-scale-non-engineer.yaml
 --- a/evals/narration/cases/narration-national-scale-non-engineer.yaml
 +++ b/evals/narration/cases/narration-national-scale-non-engineer.yaml
 @@ -52,3 +52,8 @@
@@ -905,7 +904,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-no-code-configuration-engineer.yaml b/evals/narration/cases/narration-no-code-configuration-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-no-code-configuration-engineer.yaml b/evals/narration/cases/narration-no-code-configuration-engineer.yaml
 --- a/evals/narration/cases/narration-no-code-configuration-engineer.yaml
 +++ b/evals/narration/cases/narration-no-code-configuration-engineer.yaml
 @@ -54,3 +54,8 @@
@@ -917,7 +916,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml b/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml b/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
 --- a/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
 +++ b/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
 @@ -52,3 +52,8 @@
@@ -929,7 +928,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-other-deployments-engineer.yaml b/evals/narration/cases/narration-other-deployments-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-other-deployments-engineer.yaml b/evals/narration/cases/narration-other-deployments-engineer.yaml
 --- a/evals/narration/cases/narration-other-deployments-engineer.yaml
 +++ b/evals/narration/cases/narration-other-deployments-engineer.yaml
 @@ -52,3 +52,8 @@
@@ -941,7 +940,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-other-deployments-non-engineer.yaml b/evals/narration/cases/narration-other-deployments-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-other-deployments-non-engineer.yaml b/evals/narration/cases/narration-other-deployments-non-engineer.yaml
 --- a/evals/narration/cases/narration-other-deployments-non-engineer.yaml
 +++ b/evals/narration/cases/narration-other-deployments-non-engineer.yaml
 @@ -51,3 +51,8 @@
@@ -953,7 +952,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-powersync-postgres-engineer.yaml b/evals/narration/cases/narration-powersync-postgres-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-powersync-postgres-engineer.yaml b/evals/narration/cases/narration-powersync-postgres-engineer.yaml
 --- a/evals/narration/cases/narration-powersync-postgres-engineer.yaml
 +++ b/evals/narration/cases/narration-powersync-postgres-engineer.yaml
 @@ -56,3 +56,8 @@
@@ -965,7 +964,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml b/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml b/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
 --- a/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
 +++ b/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
 @@ -52,3 +52,8 @@
@@ -977,7 +976,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml b/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml b/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
 --- a/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
 +++ b/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
 @@ -53,3 +53,8 @@
@@ -989,7 +988,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml b/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml b/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
 --- a/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
 +++ b/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
 @@ -52,3 +52,8 @@
@@ -1001,7 +1000,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-tools-engineer.yaml b/evals/narration/cases/narration-tools-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-tools-engineer.yaml b/evals/narration/cases/narration-tools-engineer.yaml
 --- a/evals/narration/cases/narration-tools-engineer.yaml
 +++ b/evals/narration/cases/narration-tools-engineer.yaml
 @@ -55,3 +55,8 @@
@@ -1013,7 +1012,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-tools-non-engineer.yaml b/evals/narration/cases/narration-tools-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-tools-non-engineer.yaml b/evals/narration/cases/narration-tools-non-engineer.yaml
 --- a/evals/narration/cases/narration-tools-non-engineer.yaml
 +++ b/evals/narration/cases/narration-tools-non-engineer.yaml
 @@ -50,3 +50,8 @@
@@ -1025,7 +1024,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-voice-for-cht-engineer.yaml b/evals/narration/cases/narration-voice-for-cht-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-voice-for-cht-engineer.yaml b/evals/narration/cases/narration-voice-for-cht-engineer.yaml
 --- a/evals/narration/cases/narration-voice-for-cht-engineer.yaml
 +++ b/evals/narration/cases/narration-voice-for-cht-engineer.yaml
 @@ -57,3 +57,8 @@
@@ -1037,7 +1036,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml b/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml b/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
 --- a/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
 +++ b/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
 @@ -53,3 +53,8 @@
@@ -1049,7 +1048,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/narration/cas
 +    - "the twin is a demo"
 +    - "the meter's figures are the cloud provider's bill"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-1-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-1-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-1-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-1-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-1-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-1-engineer.yaml
 @@ -3,13 +3,13 @@
@@ -1079,7 +1078,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
      - "where he was born"
 +    - "wrote the code alone"
    regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-1-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-1-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-1-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-1-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-1-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-1-non-engineer.yaml
 @@ -3,13 +3,13 @@
@@ -1109,7 +1108,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
      - "where he was born"
 +    - "wrote the code alone"
    regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-10-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-10-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-10-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-10-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-10-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-10-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1145,7 +1144,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-10-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-10-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-10-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-10-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-10-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-10-non-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1181,7 +1180,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-11-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-11-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-11-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-11-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-11-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-11-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1217,7 +1216,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-11-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-11-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-11-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-11-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-11-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-11-non-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1253,7 +1252,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-2-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-2-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-2-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-2-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-2-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-2-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1289,7 +1288,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-2-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-2-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-2-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-2-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-2-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-2-non-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1325,7 +1324,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-3-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-3-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-3-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-3-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-3-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-3-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1361,7 +1360,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-3-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-3-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-3-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-3-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-3-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-3-non-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1397,7 +1396,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-4-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-4-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-4-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-4-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-4-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-4-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1433,7 +1432,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-4-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-4-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-4-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-4-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-4-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-4-non-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1469,7 +1468,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-5-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-5-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-5-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-5-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-5-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-5-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1505,7 +1504,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-5-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-5-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-5-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-5-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-5-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-5-non-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1541,7 +1540,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-6-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-6-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-6-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-6-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-6-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-6-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1577,7 +1576,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-6-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-6-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-6-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-6-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-6-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-6-non-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1613,7 +1612,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-7-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-7-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-7-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-7-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-7-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-7-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1649,7 +1648,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-7-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-7-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-7-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-7-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-7-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-7-non-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1685,7 +1684,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-8-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-8-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-8-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-8-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-8-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-8-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1721,7 +1720,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-8-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-8-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-8-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-8-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-8-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-8-non-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1757,7 +1756,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-9-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-9-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-9-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-9-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-9-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-9-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1793,7 +1792,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-9-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-9-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-gap-9-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-gap-9-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-gap-9-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-gap-9-non-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1829,7 +1828,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "where he was born"
 +    - "wrote the code alone"
 +  regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q1-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q1-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q1-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q1-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q1-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q1-engineer.yaml
 @@ -26,4 +26,9 @@
@@ -1842,7 +1841,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
      - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q1-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q1-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q1-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q1-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q1-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q1-non-engineer.yaml
 @@ -26,4 +26,9 @@
@@ -1855,7 +1854,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
      - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q10-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q10-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q10-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q10-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q10-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q10-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1891,7 +1890,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
 +    - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q10-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q10-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q10-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q10-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q10-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q10-non-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1927,7 +1926,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
 +    - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q11-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q11-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q11-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q11-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q11-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q11-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1963,7 +1962,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
 +    - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q11-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q11-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q11-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q11-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q11-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q11-non-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -1999,7 +1998,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
 +    - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q12-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q12-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q12-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q12-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q12-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q12-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -2035,7 +2034,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
 +    - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q12-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q12-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q12-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q12-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q12-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q12-non-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -2071,7 +2070,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
 +    - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q13-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q13-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q13-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q13-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q13-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q13-engineer.yaml
 @@ -0,0 +1,34 @@
@@ -2109,7 +2108,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
 +    - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q13-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q13-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q13-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q13-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q13-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q13-non-engineer.yaml
 @@ -0,0 +1,34 @@
@@ -2147,7 +2146,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
 +    - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q14-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q14-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q14-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q14-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q14-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q14-engineer.yaml
 @@ -0,0 +1,34 @@
@@ -2185,7 +2184,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
 +    - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q14-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q14-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q14-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q14-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q14-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q14-non-engineer.yaml
 @@ -0,0 +1,34 @@
@@ -2223,7 +2222,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
 +    - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q15-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q15-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q15-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q15-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q15-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q15-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -2259,7 +2258,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
 +    - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q15-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q15-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q15-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q15-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q15-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q15-non-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -2295,7 +2294,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
 +    - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q16-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q16-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q16-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q16-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q16-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q16-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -2331,7 +2330,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
 +    - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q16-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q16-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q16-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q16-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q16-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q16-non-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -2367,7 +2366,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
 +    - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q17-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q17-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q17-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q17-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q17-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q17-engineer.yaml
 @@ -0,0 +1,33 @@
@@ -2404,7 +2403,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
 +    - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q17-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q17-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q17-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q17-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q17-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q17-non-engineer.yaml
 @@ -0,0 +1,33 @@
@@ -2441,7 +2440,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
 +    - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q2-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q2-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q2-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q2-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q2-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q2-engineer.yaml
 @@ -26,4 +26,9 @@
@@ -2454,7 +2453,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
      - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q2-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q2-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q2-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q2-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q2-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q2-non-engineer.yaml
 @@ -26,4 +26,9 @@
@@ -2467,7 +2466,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
      - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q3-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q3-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q3-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q3-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q3-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q3-engineer.yaml
 @@ -26,4 +26,9 @@
@@ -2480,7 +2479,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
      - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q3-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q3-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q3-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q3-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q3-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q3-non-engineer.yaml
 @@ -26,4 +26,9 @@
@@ -2493,7 +2492,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
      - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q4-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q4-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q4-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q4-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q4-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q4-engineer.yaml
 @@ -24,4 +24,9 @@
@@ -2506,7 +2505,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
      - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q4-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q4-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q4-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q4-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q4-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q4-non-engineer.yaml
 @@ -24,4 +24,9 @@
@@ -2519,7 +2518,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
      - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q5-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q5-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q5-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q5-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q5-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q5-engineer.yaml
 @@ -10,11 +10,12 @@
@@ -2546,7 +2545,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
      - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q5-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q5-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q5-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q5-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q5-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q5-non-engineer.yaml
 @@ -10,11 +10,12 @@
@@ -2573,7 +2572,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
      - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q6-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q6-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q6-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q6-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q6-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q6-engineer.yaml
 @@ -24,4 +24,9 @@
@@ -2586,7 +2585,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
      - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q6-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q6-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q6-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q6-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q6-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q6-non-engineer.yaml
 @@ -24,4 +24,9 @@
@@ -2599,7 +2598,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
      - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q7-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q7-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q7-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q7-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q7-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q7-engineer.yaml
 @@ -26,4 +26,9 @@
@@ -2612,7 +2611,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
      - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q7-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q7-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q7-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q7-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q7-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q7-non-engineer.yaml
 @@ -26,4 +26,9 @@
@@ -2625,7 +2624,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
      - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q8-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q8-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q8-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q8-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q8-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q8-engineer.yaml
 @@ -24,4 +24,9 @@
@@ -2638,7 +2637,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
      - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q8-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q8-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q8-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q8-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q8-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q8-non-engineer.yaml
 @@ -24,4 +24,9 @@
@@ -2651,7 +2650,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
      - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q9-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q9-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q9-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q9-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q9-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q9-engineer.yaml
 @@ -0,0 +1,32 @@
@@ -2687,7 +2686,7 @@ diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases
 +    - "this site keeps the conversations the paid fallback answers"
 +    - "where he was born"
 +    - "wrote the code alone"
-diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q9-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q9-non-engineer.yaml
+diff -ruN '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q9-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q9-non-engineer.yaml
 --- a/evals/product/cases/twin-08-hareet-ai-q9-non-engineer.yaml
 +++ b/evals/product/cases/twin-08-hareet-ai-q9-non-engineer.yaml
 @@ -0,0 +1,32 @@
