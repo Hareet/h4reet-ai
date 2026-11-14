@@ -15,7 +15,7 @@ import { BackSide, BufferAttribute, BufferGeometry, Color, Matrix4, Mesh, MeshBa
 import type { Material, Object3D } from "three";
 
 import type { RoomScene } from "../compose/bundle";
-import { facesOf, glowsOf, meshNameOf, setAside, split } from "./chunker";
+import { facesOf, glowsOf, matchedNameOf, setAside, split } from "./chunker";
 import type { ChunkInput, Primitive } from "./chunker";
 import { keepOutBoxes } from "./keepouts";
 import type { Meal, Point } from "./meal";
@@ -159,6 +159,8 @@ export function createEat3d(options: Eat3dOptions): Eat3d {
     root.traverse((node) => {
       if ((node as Partial<Mesh>).isMesh && node.userData.eat === undefined) sources.push(node as Mesh);
     });
+    // The names (a) and (d) match: a face's role or a glow's ID, on the mesh or a node above it (matchedNameOf).
+    const named = new Set([...Object.keys(piece.faces), ...glowsOf(piece).map((g) => g.id)]);
     // Each primitive in the piece's frame at scale 1: through the mesh's transform to the model's root, then 1 / scale.
     const primitives: Primitive[] = sources.map((mesh) => {
       const m = new Matrix4().multiplyMatrices(toRoot, mesh.matrixWorld);
@@ -173,7 +175,7 @@ export function createEat3d(options: Eat3dOptions): Eat3d {
       }
       const index = mesh.geometry.index;
       return {
-        mesh: meshNameOf(mesh),
+        mesh: matchedNameOf(mesh, named, root),
         positions,
         index: index ? (index.array instanceof Uint16Array ? index.array : Uint32Array.from(index.array)) : null,
       };

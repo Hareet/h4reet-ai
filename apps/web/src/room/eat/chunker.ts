@@ -89,6 +89,17 @@ export function meshNameOf(node: NamedNode): string {
   return node.name;
 }
 
+/**
+ * The name the set-aside rules (a) and (d) match a primitive by (rv-rework3-spec-024): the nearest node, the primitive's
+ * own or an ancestor's below `root`, whose name is in `named` (the piece's face roles and glow IDs), as
+ * scene/loader.ts's prepareModel hides every node named for a face's role, whatever lies under it; else its glTF mesh's
+ * name (`meshNameOf`).
+ */
+export function matchedNameOf(node: NamedNode, named: ReadonlySet<string>, root: NamedNode | null): string {
+  for (let n: NamedNode | null = node; n && n !== root; n = n.parent) if (named.has(n.name)) return n.name;
+  return meshNameOf(node);
+}
+
 type Piece = RoomScene["pieces"][string];
 
 /** A piece's live faces, from the bundle. */
