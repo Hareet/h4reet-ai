@@ -97,6 +97,8 @@ export function createChase(options: {
   const twin = make("twin", options.figures.twin, config.twin_run_mps);
   const dog = make("dog", options.figures.dog, config.dog_run_mps);
   const of = (id: ChaseFigureId): Figure | null => (id === "twin" ? twin : dog);
+  /** The figures the scene has, made once, so a frame makes no array (FR-029). */
+  const all: readonly Figure[] = [twin, dog].filter((f): f is Figure => f !== null);
 
   let present = false;
   /** Seconds since FR-001 stopped holding, while the run is on. */
@@ -148,14 +150,14 @@ export function createChase(options: {
       }
       if (resumed) {
         resumed = false;
-        for (const f of [twin, dog]) if (f) f.runner.last = Number.NaN;
+        for (const f of all) f.runner.last = Number.NaN;
       }
       // A figure that can't run is home: a cut where it was away (FR-014, FR-023).
-      for (const f of [twin, dog]) if (f && f.held && f.phase !== "home") putHome(f);
+      for (const f of all) if (f.held && f.phase !== "home") putHome(f);
       // Reduced motion or quality level 1 or more (FR-024): no figure moves; one away is cut home, and nothing is said,
       // since no figure can move (FR-025).
       if (!motion.animate || motion.level >= 1) {
-        for (const f of [twin, dog]) if (f && f.phase !== "home") putHome(f);
+        for (const f of all) if (f.phase !== "home") putHome(f);
         said = null;
         present = dino.present;
         on = false;
@@ -167,14 +169,14 @@ export function createChase(options: {
       if (present) {
         since = 0;
         // A return inside the delay comes with a jump (the walking view's entry puts the pose at its start): clause (a).
-        if (!was) for (const f of [twin, dog]) if (f) f.runner.last = Number.NaN;
+        if (!was) for (const f of all) f.runner.last = Number.NaN;
         if (!on) {
           on = true;
-          for (const f of [twin, dog]) if (f) f.runner.last = Number.NaN;
+          for (const f of all) f.runner.last = Number.NaN;
         }
       } else if (on) {
         since += dt;
-        if (was) for (const f of [twin, dog]) if (f) f.runner.last = Number.NaN;
+        if (was) for (const f of all) f.runner.last = Number.NaN;
         if (since >= config.flee_end_delay_s) on = false;
       }
       if (on) {

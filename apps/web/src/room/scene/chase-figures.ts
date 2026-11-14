@@ -111,14 +111,17 @@ export function createChaseFigures(options: {
     note: (n) => options.signal?.({ kind: "chase", state: n.state, who: n.who }),
   });
   const dino = { present: false, x: 0, z: 0 };
+  /** FR-001's three, written in place a frame (FR-029). */
+  const pursuer = { chosen: options.chosen as string, shows: false, walking: false };
   const has = { walk: false, run: false };
   let fleeing = false;
 
   return {
     chase,
     frame(dt, motion) {
-      const on = walking?.on ?? false;
-      dino.present = pursuerPresent({ chosen: options.chosen, shows: avatars.shows("visitor"), walking: on });
+      pursuer.shows = avatars.shows("visitor");
+      pursuer.walking = walking?.on ?? false;
+      dino.present = pursuerPresent(pursuer);
       if (walking) {
         dino.x = walking.pose.x;
         dino.z = walking.pose.z;

@@ -149,6 +149,17 @@ function score(
   return least - penalty(floor, qx, qz);
 }
 
+/** The figure stands this frame, its facing turned toward the dinosaur by at most `turn`; `now` its distance from it. */
+function stand(figure: Runner, dino: { readonly x: number; readonly z: number }, now: number, turn: number): void {
+  figure.speed = 0;
+  if (now > 1e-12) figure.facing = turnToward(figure.facing, headingOf(dino.x - figure.x, dino.z - figure.z), turn);
+  figure.last = now;
+}
+
+/** A point's distance from the other figure, or Infinity with none (FR-008). */
+const sepOf = (other: { readonly x: number; readonly z: number } | null, x: number, z: number): number =>
+  other ? Math.hypot(x - other.x, z - other.z) : Infinity;
+
 /**
  * One frame of a running figure (FR-004 to FR-009): its step on the chase floor at `run` metres a second, away from the
  * dinosaur at `dino`, written into `figure`. `other` is the figure it keeps `separation_m` from (the dog's twin), or
@@ -168,20 +179,14 @@ export function steer(
   const pz = figure.z;
   const now = Math.hypot(px - dino.x, pz - dino.z);
   const turn = config.turn_rate_rad_s * Math.max(0, dt);
-  const stand = (): void => {
-    figure.speed = 0;
-    if (now > 1e-12) figure.facing = turnToward(figure.facing, headingOf(dino.x - px, dino.z - pz), turn);
-    figure.last = now;
-  };
   if (!(dt > 0)) {
     figure.last = now;
     return;
   }
-  const sepOf = (x: number, z: number): number => (other ? Math.hypot(x - other.x, z - other.z) : Infinity);
-  const sepNow = sepOf(px, pz);
+  const sepNow = sepOf(other, px, pz);
   // Beyond flee_m it stands, unless it is under the separation, which it opens (FR-008).
   if (now >= config.flee_m && sepNow >= config.separation_m) {
-    stand();
+    stand(figure, dino, now, turn);
     return;
   }
   // FR-007: the least distance a step may end at, by the clause that holds.
@@ -214,7 +219,7 @@ export function steer(
     if (d < floorM) continue;
     const s = score(floor, qx, qz, ux, uz, run, dino, walk, config.lookahead_s);
     // FR-008, among the headings FR-007 allows: a step that keeps the separation, or opens the gap, goes first.
-    const sep = other === null || sepOf(qx, qz) >= config.separation_m || sepOf(qx, qz) > sepNow;
+    const sep = other === null || sepOf(other, qx, qz) >= config.separation_m || sepOf(other, qx, qz) > sepNow;
     if ((sep && !bestSep) || (sep === bestSep && s > bestScore)) {
       best = i;
       bestScore = s;
@@ -229,7 +234,7 @@ export function steer(
     const standSep = other === null || sepNow >= config.separation_m;
     const standScore = score(floor, px, pz, 0, 0, 0, dino, walk, config.lookahead_s);
     if (best < 0 || (standSep === bestSep && standScore + DEAD_BAND_MPS * dt >= bestScore) || (standSep && !bestSep)) {
-      stand();
+      stand(figure, dino, now, turn);
       return;
     }
   }

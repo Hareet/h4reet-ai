@@ -168,7 +168,7 @@ The implementer merges this branch first. Each file by its path; none is human-o
 | `chase-schema.test.ts` | R-09, FR-005's refine, each home against `floor.start` and `safe_m`, the dog's on the chase floor and apart from the twin's | likewise |
 | `dog-figure.test.ts`, `likeness-line-anywhere.test.ts` | R-10, FR-018 to FR-021, SC-007 | likewise |
 | `dog-first-visit.test.ts` | R-11, FR-022 | likewise |
-| `chase-bench.test.ts` | FR-029, SC-005 | likewise |
+| `chase-bench.test.ts` | FR-029, SC-005: the time through the shell on the room's floor, best of three seeded runs of 600 frames; no allocation a frame, read from the source of every function a frame runs, as `gait-frame-path.test.ts` reads the gait's (T016, as built: the scan found the director's `[twin, dog]` arrays, `steer`'s two closures, and the shell's FR-001 argument, each made once now) | likewise |
 | `deploy/scripts/test_dashboard.py`, `apps/web/test/disclosure.test.ts`, `evals/test_disclosure.py` | FR-026, FR-028 | `pytest deploy/scripts/test_dashboard.py evals/test_disclosure.py`; `vitest run apps/web/test/disclosure.test.ts` |
 
 Each task also runs the tests covering the files it changes (tasks.md names them). `make lint` after each task. The full `make check` runs once, at the end of the stack, by one task (the Author's rule 4), here T016.
