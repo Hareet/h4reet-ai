@@ -965,6 +965,98 @@ def test_a_glob_or_a_contradicting_file_outside_the_repository_fails(
     assert failing(problems, rule, needle), problems
 
 
+# rv-rework3-022's B-4 (page Q217, the recommended answer): R5 reads only carried and in-part rows' sources, never the
+# proposal being checked (by where its path resolves), and no file under films/, corpus/proposals/,
+# docs/merge-requests/, specs/, or intent/: the agents' own notes, drafts, and plans, not a source's text.
+NOTE_TEXT = "It caps at five dollars a day, the note says.\n"
+EXCLUDED_FILES = (
+    "docs/merge-requests/2026-11-14-night-stack.md",
+    "corpus/proposals/other-2026-11-14.md",
+    "specs/022-x/spec.md",
+    "intent/022-x.md",
+    "films/meter/notes.md",
+)
+IN_PART_ROW = (
+    "| The meter #1 | `src/sign.md` |",
+    "| The meter #1 | `src/sign.md`, `{source}` |",
+)
+
+
+@pytest.fixture
+def trees(repo: Path) -> Path:
+    """The fixture repository with the amount's sentence in a file under each excluded tree and in a plain file, and
+    links inside the root: to a spec, to the merge-request directory, and to the proposal."""
+    for rel in (*EXCLUDED_FILES, "docs/plain-notes.md"):
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text(NOTE_TEXT)
+    (repo / "docs/spec-link.md").symlink_to("../specs/022-x/spec.md")
+    (repo / "docs/mr-link").symlink_to("merge-requests", target_is_directory=True)
+    (repo / "docs/self-link.md").symlink_to("../proposal.md")
+    return repo
+
+
+@pytest.mark.parametrize(
+    ("row_old", "row_new"),
+    [CARRIED_ROW, IN_PART_ROW, LEFT_OUT_ROW],
+    ids=["carried", "in-part", "left-out"],
+)
+@pytest.mark.parametrize(
+    "source",
+    [
+        # The review's: the night stack note, and the proposal citing itself.
+        "docs/merge-requests/2026-11-14-night-stack.md",
+        "proposal.md",
+        # One per excluded tree.
+        "corpus/proposals/other-2026-11-14.md",
+        "specs/022-x/spec.md",
+        "intent/022-x.md",
+        "films/meter/notes.md",
+        # Siblings of other spellings: a leading ./, a climb back in, a link to a file in a tree, a link to a tree's
+        # directory, and the proposal by another spelling and through a link.
+        "./specs/022-x/spec.md",
+        "docs/adr/../../intent/022-x.md",
+        "docs/spec-link.md",
+        "docs/mr-link/2026-11-14-night-stack.md",
+        "./proposal.md",
+        "docs/../proposal.md",
+        "docs/self-link.md",
+    ],
+)
+def test_r5_reads_no_excluded_tree_and_not_the_proposal_itself(
+    trees: Path, row_old: str, row_new: str, source: str
+) -> None:
+    cites = changed(row_old, row_new.format(source=source))
+    assert run(trees, cites) == []
+    bad = changed(
+        "- `[?]` The daily summary of the CPU metrics.",
+        f'- `[?]` The daily summary of the CPU metrics. The note says "{OUTSIDE_QUOTE}"',
+        cites,
+    )
+    problems = run(trees, bad)
+    assert failing(problems, "R5", OUTSIDE_QUOTE[:20]), problems
+    assert failing(problems, "R4", "currency"), problems
+
+
+@pytest.mark.parametrize(
+    ("row_old", "row_new", "quotable"),
+    [(*CARRIED_ROW, True), (*IN_PART_ROW, True), (*LEFT_OUT_ROW, False)],
+    ids=["carried", "in-part", "left-out"],
+)
+def test_r5_reads_a_plain_file_only_from_a_carried_or_in_part_row(
+    trees: Path, row_old: str, row_new: str, quotable: bool
+) -> None:
+    # B-4: a left-out row's source backs no quote; a carried or in-part row's plain file still does.
+    cites = changed(row_old, row_new.format(source="docs/plain-notes.md"))
+    assert run(trees, cites) == []
+    quote = "the note says"
+    bad = changed(
+        "- `[?]` The daily summary of the CPU metrics.",
+        f'- `[?]` The daily summary of the CPU metrics. The note: "{quote}".',
+        cites,
+    )
+    assert failing(run(trees, bad), "R5", quote) is not quotable, run(trees, bad)
+
+
 # ---- R6: third-party text ----
 
 
