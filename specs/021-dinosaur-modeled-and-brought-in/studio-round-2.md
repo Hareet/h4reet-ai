@@ -1,4 +1,6 @@
-# Studio round 2: the dinosaur's brief (not live: the check can't pass yet)
+# Studio round 2: the dinosaur's brief (live since `brief-dino-r3`, 2026-11-14 about 16:30Z)
+
+**Live.** Task `brief-dino-r3` recorded round 1 as `fail` and put this brief at `/srv/studio/briefs/dinosaur/2.json`, byte for byte. `line.py brief` passes it. `studio-dino-r5` may run. See "Made live (`brief-dino-r3`)" below. The rest of this section, up to that one, is `brief-dino-r2`'s text, unchanged.
 
 Task `brief-dino-r2` (implementer, night of 2026-11-13, run on 2026-11-14 around 15:50Z) writes the brief half of the dinosaur's round 2, under the Author's rule 9 ("Round 2 for both", about 15:45Z). Under that rule, round 2 starts at step 3 from his concept, `/srv/studio/workflows/inbox/visitor-raptor-concept.png`.
 
@@ -78,6 +80,65 @@ The sandbox refused these Bash commands. I didn't respell any of them.
 ## Small tests (rule 4)
 
 This task changes no code and no test, and only adds this file under `specs/`. That folder is in `.prettierignore` (line 43), and none of `make lint`'s other tools (eslint, tsc, ruff, shellcheck) reads Markdown, so the `line.py` runs above are this task's only tests. The full suite runs once, for the stack (rule 4).
+
+## Made live (`brief-dino-r3`)
+
+Task `brief-dino-r3` (implementer, night of 2026-11-13, run on 2026-11-14 around 16:30Z). It followed Q197's answer, which was as recommended. `line.py` is this branch's copy, unchanged from the base `night/brief-dino-r2/brief-dino-r2` (blob `05d6057f`). The text above isn't changed, and the concept's source stays `{"type": "design", "id": "D-0003"}` (Q198, recommended; his to overturn).
+
+**Checks first, all as the supervisor expected:**
+- `/srv/studio/briefs/dinosaur/1.json` is SHA-256 `66ea6de2e7f790513d58a467f67a57f297ecf0e184751c082ddcc57c833dc95d`.
+- `/srv/studio/handoff/dinosaur/1/` holds only `note.md`, `note-2.md`, `note-3.md`, and `note-4.md`.
+- `/srv/studio/briefs/dinosaur/` held only `1.json`: no `1.result.json`, no `2.json`.
+- The brief block above (its 33 lines, with a trailing newline) is SHA-256 `eddfc1ff881722a4e6c3ece13514e20a70e350b34194690bc61abe7930431b61`.
+
+**Round 1 recorded:**
+
+```
+$ python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dinosaur/1 --brief /srv/studio/briefs/dinosaur/1.json --record; echo "exit $?"
+candidate.json: absent (limit: a file in the handoff folder)
+arrival-check: not run, since the candidate's files or its record's directory are missing
+line: 1 finding; round 1 fails
+exit 1
+```
+
+It wrote `/srv/studio/briefs/dinosaur/1.result.json` (SHA-256 `8c8f0e7aa650968c4d16ae7e7a9d26dd12f215b325a3c436b67c81047e41bbe4`):
+
+```json
+{
+  "schema": 1,
+  "asset": "dinosaur",
+  "round": 1,
+  "result": "fail",
+  "findings": [
+    "candidate.json: absent (limit: a file in the handoff folder)"
+  ]
+}
+```
+
+That is `fail` with one finding, the same as this brief's `findings` word for word. Exit 1 is how `line.py` reports a failing round. The record was written.
+
+**The brief.** I wrote it with the Write tool to `/srv/studio/briefs/dinosaur/2.json`. `cmp` against the block above returns 0.
+
+```
+$ sha256sum /srv/studio/briefs/dinosaur/1.json /srv/studio/briefs/dinosaur/1.result.json /srv/studio/briefs/dinosaur/2.json
+66ea6de2e7f790513d58a467f67a57f297ecf0e184751c082ddcc57c833dc95d  /srv/studio/briefs/dinosaur/1.json
+8c8f0e7aa650968c4d16ae7e7a9d26dd12f215b325a3c436b67c81047e41bbe4  /srv/studio/briefs/dinosaur/1.result.json
+eddfc1ff881722a4e6c3ece13514e20a70e350b34194690bc61abe7930431b61  /srv/studio/briefs/dinosaur/2.json
+```
+
+The text's block and the live `2.json` are the same, `eddfc1ff…31b61`. Round 1's brief is unchanged, `66ea6de2…3dc95d`.
+
+**The check:**
+
+```
+$ python3 -I -B scripts/studio/line.py brief /srv/studio/briefs/dinosaur/2.json --handoff /srv/studio/handoff; echo "exit $?"
+line: pass
+exit 0
+```
+
+**Interruptions (rule 5).** The sandbox refused one compound Bash command. It ran `git log`, `sha256sum` on the two files, and `ls` on the briefs folder, the handoff folder, and `/srv/studio/workflows/inbox/`. I split it into single commands and they ran, except the inbox listing, which I didn't try again. So this task, like `brief-dino-r2`, didn't confirm that the concept file exists. The brief has the studio stop before step 3 if it's missing.
+
+**Nothing else changed.** In the repository, only this file changed. Under `/srv/studio/`, only `briefs/dinosaur/1.result.json` (by `line.py --record`) and `briefs/dinosaur/2.json` were written. No studio work was done. Small tests (rule 4): the `line.py` runs above. The task changes no code and no test.
 
 ## The brief, verbatim
 
