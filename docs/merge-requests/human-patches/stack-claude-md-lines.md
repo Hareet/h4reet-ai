@@ -61,6 +61,16 @@ $ git diff --no-index … | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' | cut -c
 
 The patched file is byte-identical to the edited scratch copy (`cmp /tmp/claude-md-K7hi/CLAUDE.md.new /tmp/main-export-5ilW/CLAUDE.md`: no output, exit 0).
 
+This file was also applied as he will apply it, prose and all, on a second fresh export (`/tmp/main-apply-md-*`). Both runs exited 0, the result is byte-identical to the scratch copy, and no `.orig` or `.rej` was left:
+
+```text
+checking file CLAUDE.md
+md dry-run exit 0
+patching file CLAUDE.md
+md patch exit 0
+identical
+```
+
 The files under `evals/agent-config/` that name `CLAUDE.md`:
 
 ```text
@@ -104,9 +114,23 @@ No line was shortened here. The question is on the page as Q-patch-claude-md-1. 
 
 ### Lint
 
-The lint target, on this branch (documents only):
+The lint target, run on this branch with this file in its final form (documents only; the worktree had no `node_modules`, so the setup target ran first, exit 0):
 
-LINT_RESULT_PLACEHOLDER
+```text
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+811 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+make lint exit 0
+```
 
 ## The diff
 
