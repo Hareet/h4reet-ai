@@ -124,3 +124,21 @@ describe("RA9: a visitor's likeness without main's approval and line (FR-002, SC
     expect(where(compose(t, policyWith(null), STRICT).findings)).toEqual(["RA3 assets/visitors/man/man.glb:-"]);
   });
 });
+
+// T003 (FR-003; plan.md R-02, §4): the bundle's `avatars.<id>.line`, the approval's words, beside the files; absent for
+// an avatar that isn't a likeness, and for a likeness RA9 leaves out (no entry at all).
+describe("the bundle's line (FR-003)", () => {
+  it("rides with the dog's bundled model, and no other avatar's entry has one", () => {
+    const policy = policyWith([{ sha: sha256(dogModel), line: LINE }]);
+    const scene = compose(tree(), policy, LENIENT).scene;
+    expect(scene.avatars.dog?.line).toBe(LINE);
+    expect(scene.avatars.man).toBeDefined();
+    expect("line" in (scene.avatars.man ?? {})).toBe(false);
+  });
+
+  it("is absent where the dog isn't a likeness", () => {
+    const scene = compose(tree({ records: () => undefined }), policyWith(null), LENIENT).scene;
+    expect(scene.avatars.dog).toBeDefined();
+    expect("line" in (scene.avatars.dog ?? {})).toBe(false);
+  });
+});
