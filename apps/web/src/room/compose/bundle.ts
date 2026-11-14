@@ -271,6 +271,8 @@ export interface RoomScene {
     frame_box: Box;
     label: string | null;
     model: SceneModel | null;
+    /** Spec 024 (FR-002): the chunks the piece splits into for the dinosaur's bite; null where it isn't edible. */
+    edible: { chunks: number } | null;
   }[];
   switches: {
     id: string;
@@ -319,6 +321,8 @@ export interface RoomScene {
   scene_texture_bytes: number;
   /** Spec 008's walking data, resolved (Amendment M12). */
   walking: Walking;
+  /** Spec 024 (FR-011): the seconds a chunk takes to grow back. */
+  eating: { regrow_s: number };
   /** Spec 009's avatars (its FR-009, FR-023, FR-024; plan.md §3.2): only avatars whose model is bundled, by ID, each
    *  file's `url` `a/<stem>.<hash16>.glb`, `sha256` the plain file's, and `bytes` the served copy's length; a model's
    *  `texture_bytes` at texture_px, for the texture ledger. Spec 020 (FR-007; plan.md R-02): `line`, main's likeness

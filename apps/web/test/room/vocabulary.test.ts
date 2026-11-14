@@ -141,6 +141,9 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "walk.entered": [],
       "walk.left": [],
       "walk.target": ["name"],
+      // Spec 024's "Eat" tile and its polite line (its FR-010, FR-012).
+      "eat.button": [],
+      "eat.first_bite": ["name"],
       // Spec 009's stand-in line (FR-013, FR-039).
       "twin.stand_in": [],
       // Spec 005's HUD (its FR-023, FR-028, FR-065; plan.md §6.10): the conversation log's header button, and the larger
