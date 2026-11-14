@@ -299,12 +299,23 @@ def test_a_carried_source_that_doesnt_exist_fails(repo: Path) -> None:
     assert failing(run(repo, bad), "R1", "evals/missing.md")
 
 
-def test_a_kill_switch_source_materials_doesnt_list_fails(repo: Path) -> None:
-    bad = changed(
+def test_a_kill_switch_source_neither_materials_nor_scripts_md_lists_fails(
+    repo: Path,
+) -> None:
+    # A path SCRIPTS.md's notes give passes (plan §9's departure: a sentence materials.md has no row for); one that
+    # neither lists fails.
+    ok = changed(
         "| The kill switch #1; Golden Q&A #9 | `src/gateway.md` |",
         "| The kill switch #1; Golden Q&A #9 | `evals/run.md` |",
     )
-    assert failing(run(repo, bad), "R1", "kill-switch-b2 S3", "evals/run.md")
+    assert run(repo, ok) == []
+    bad = changed(
+        "| The kill switch #1; Golden Q&A #9 | `src/gateway.md` |",
+        "| The kill switch #1; Golden Q&A #9 | `docs/adr/0020-gateway.md` |",
+    )
+    assert failing(
+        run(repo, bad), "R1", "kill-switch-b2 S3", "docs/adr/0020-gateway.md"
+    )
 
 
 def test_an_unknown_script_fails(repo: Path) -> None:
@@ -486,8 +497,8 @@ def test_exempt_spans_read_no_number() -> None:
 def test_number_words_are_g1s() -> None:
     assert fc.numbers_in("one command and a first run") == []
     assert fc.numbers_in("twenty-one of twenty-four, a dozen, thousands") == [
-        "twenty",
-        "twenty",
+        "twenty",  # G1 reads "twenty-one" as twenty: its UNITS has no "one"
+        "twenty-four",
         "dozen",
         "thousands",
     ]
