@@ -631,6 +631,59 @@ def test_a_quoted_script_line_isnt_a_cited_files_text(
     assert failing(problems, "R4", "currency"), problems
 
 
+@pytest.mark.parametrize(
+    ("note", "quote"),
+    [
+        # rv-rework-022's F-3: a review note of SCRIPTS.md line 67's shape names the Author, but its quote is the
+        # review's, not his.
+        (
+            '   - Review of 2026-11-11: "every live run" was too strong (two runs in the Author\'s checkout failed).',
+            "every live run",
+        ),
+        # Siblings the review didn't name: the Author named with no date, and a quote before a his-words marker.
+        (
+            '   - Checked with the Author: "every route passed" is the committed history\'s.',
+            "every route passed",
+        ),
+        (
+            '   - "the cheaper model" was the draft\'s. In Hareet\'s words: "we chose it since the context is small."',
+            "the cheaper model",
+        ),
+    ],
+    ids=["review-note", "the-author-no-date", "a-quote-before-the-marker"],
+)
+def test_a_quote_is_his_only_when_a_his_words_marker_introduces_it(
+    repo: Path, note: str, quote: str
+) -> None:
+    anchor = '   - Its recorded run. The earlier "345" didn\'t hold up.\n'
+    scripts = SCRIPTS_MD.replace(anchor, anchor + note + "\n", 1)
+    assert scripts != SCRIPTS_MD
+    (repo / "films/SCRIPTS.md").write_text(scripts)
+    assert quote not in fc.read_context(repo).author_quotes
+    bad = changed(
+        "- `[?]` The daily summary of the CPU metrics.",
+        f'- `[?]` The daily summary of the CPU metrics. In his words, "{quote}".',
+    )
+    assert failing(run(repo, bad), "R5", quote), run(repo, bad)
+
+
+def test_the_his_words_markers_give_his_quotes_in_the_real_scripts() -> None:
+    # rv-rework-022's F-3: "In Hareet's words:" (line 18), "the Author's wording" (line 46), and "the Author,
+    # YYYY-MM-DD, …:" (line 121) introduce his words; line 67's review note quotes the review, not him.
+    quotes = fc.read_context(ROOT).author_quotes
+    assert any(
+        q.startswith("we chose haiku since our context base is small") for q in quotes
+    )
+    assert "up to 30 days" in quotes
+    assert any(
+        q.startswith("We will get a daily summary on cpu metrics") for q in quotes
+    )
+    assert "every live run" not in quotes
+    assert not any(
+        q in {"claims to be human", "locates the Author", "Hareet"} for q in quotes
+    )
+
+
 FILM_FILES = {
     "films/kill-switch-b2/captions.srt": (
         "1\n00:00:01,000 --> 00:00:04,000\nSo it has a ceiling: five dollars a day.\n"
