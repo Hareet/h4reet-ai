@@ -1,6 +1,6 @@
 # Studio round 2: the dinosaur's brief (live since `brief-dino-r3`, 2026-11-14 about 16:30Z)
 
-**Approved by the Author on 2026-11-14 (`intake-021`), and not yet recorded or taken in.** The record waits only for Q207's date. The intake is his. See "His look approval, and what follows it" below.
+**Approved by the Author on 2026-11-14 (`intake-021`), and not yet recorded or taken in.** His date is given (`2026-11-11`), but the handoff is read-only to implementers, so the record waits on his morning's steps, in order: the edit to the handoff's `records.json` (steps 1 and 2, his mesh review and his date, as one script), then the dry re-judge (step 3), then `--record` (step 4). His intake follows the record. See "Round 2's record, not made (`record-dino-r2`)" below, and "For his morning, in order".
 
 **Judged dry (`judge-dino-r2`): round 2's candidate passes `line.py`, and the round isn't recorded.** See "Round 2's candidate, judged dry" below.
 
