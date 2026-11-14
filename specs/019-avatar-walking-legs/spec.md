@@ -117,7 +117,7 @@ Terms: **the gait** is the code-driven leg layer of this spec; **the six leg bon
 
 - No clause of the constitution is deferred or dropped. Principle IV's cost and budget: none spent, none at risk.
 - Walking is spec 008's, unchanged; `Pose` already gives `speed` and `walking`.
-- The studio's rig names its bones `mixamorig:*` for both visitors (spec 009 R-08 reads `mixamorig:RightHand`); the plan's T003 confirms the six leg bones on the shipped models in a test, from the files.
+- The studio's rig names its bones `mixamorig:*` for both visitors (spec 009 R-08 reads `mixamorig:RightHand`); tasks.md's T004 confirms the six leg bones on the shipped models in a test, from the files.
 - The Author's look approval of the gait is his; the build doesn't gate on it, since it's code (his item is a behaviour, not an asset).
 
 ## Expected Cost Impact
