@@ -786,3 +786,85 @@ def test_real_scope_is_ninety_lines() -> None:
         "we chose haiku since our context base is small" in q for q in ctx.author_quotes
     )
     assert "up to 30 days, never for training" in ctx.f3
+
+
+# ---- T004 to T006: the real proposal ----
+
+PROPOSAL = ROOT / "corpus" / "proposals" / "film-scripts-2026-11-14.md"
+
+
+def test_the_real_proposal_passes_every_rule() -> None:
+    assert fc.check(PROPOSAL) == []
+
+
+def test_the_real_proposal_marks_the_four_lines_the_films_note_changed() -> None:
+    # docs/merge-requests/2026-11-11-feat-015-explainer-films.md, lines 41, 44, 47, and 48 (spec Q2).
+    rows, problems = fc.read_table(PROPOSAL.read_text())
+    assert problems == []
+    marked = {(r.script, r.line): r.mark for r in rows if r.mark not in fc.NONE}
+    assert marked == {
+        ("§3", "6"): "changed after his approval (note, line 41)",
+        ("§3", "8"): "changed after his approval (note, line 47)",
+        ("§5", "5"): "changed after his approval (note, line 48)",
+        ("§5", "9"): "changed after his approval (note, line 44)",
+    }
+
+
+def test_the_real_proposal_adds_one_slot_the_laptops_stack_count() -> None:
+    yaml = pytest.importorskip("yaml")
+    facts = fc.blocks(PROPOSAL.read_text())["facts"]
+    assert len(facts) == 1
+    (slot,) = yaml.safe_load(facts[0])
+    assert slot["id"] == "site.prod_containers"
+    assert (
+        slot["tag"] == "C"
+        and slot["public_safe"] is True
+        and "{value}" in slot["phrasing"]
+    )
+    for words in (
+        "laptop's production stack",
+        "ENV=prod",
+        "COMPOSE_PROFILES=gpu",
+        "as of 2026-11-13",
+    ):
+        assert words in slot["label"], words
+    compose = yaml.safe_load((ROOT / "deploy" / "compose.yaml").read_text())["services"]
+    gpu = [
+        n
+        for n, s in compose.items()
+        if s.get("profiles") is None or "gpu" in s["profiles"]
+    ]
+    assert slot["value"] == len(gpu)
+    assert [n for n in gpu if "egress" in (compose[n].get("networks") or {})] == [
+        "gateway"
+    ]
+
+
+def test_the_real_proposal_names_the_laptops_stack_with_the_count_and_the_road_out() -> (
+    None
+):
+    text = "\n".join(fc.blocks(PROPOSAL.read_text())["corpus-08"])
+    lines = [
+        line
+        for line in text.splitlines()
+        if "site.prod_containers" in line or "road out" in line
+    ]
+    assert lines
+    for line in lines:
+        assert "laptop" in line, line
+
+
+def test_a_number_outside_a_slot_is_a_reason(repo: Path) -> None:
+    # FR-003's rule as a left-out reason (plan §9): "thirty days", "six ports", "within seven days".
+    assert (
+        run(repo, changed("| a recorded run's result |", "| a number outside a slot |"))
+        == []
+    )
+
+
+def test_a_tag_needs_to_be_on_one_of_its_corpus_lines(repo: Path) -> None:
+    ok = changed(
+        "| The meter #2 | `src/sign.md` | `[A 2026-11-10]` |",
+        "| The meter #2; The tests #1 | `src/sign.md` | `[A 2026-11-10]` |",
+    )
+    assert run(repo, ok) == []
