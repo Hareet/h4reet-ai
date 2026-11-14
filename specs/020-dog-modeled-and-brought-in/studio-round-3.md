@@ -579,6 +579,26 @@ $ ls /srv/studio/handoff/dog/
 
 The SHA-256s: before, `0c0ecf8e9a71fd9ba0688c65da5173bd2dc0f6ad6d6e8b5a59961c884d6ca308` (brief-dog-r7's); now, `883e2cc5e633d4bec2a7e03bd64337b63886f2f5437580ad4b265362d5e6b47c`.
 
+### Lint
+
+This task changes this spec file only, and no code or test, so the lint target is its only test (rule 4). The first run stopped at `node_modules is missing: run make setup`. `make setup` then exited 0. Its git-hooks step said the hooks folder isn't writable from the sandbox and the Author runs `make git-hooks`. The second run, after the write-up above was committed:
+
+```text
+$ make lint; echo "exit=$?"
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+759 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit=0
+```
+
 ### Questions left on the page (`/night/io/out/questions.md`)
 
 1. The record keeps the composite mark through two hand steps: his review of round 2's mesh, and his choice of the reference photo. Neither is a review of this round's new concept, which runs on unreviewed. Keep both? Recommended: keep both. Others: keep only the review; drop both and mark `trainedAlgorithmicMedia`.
