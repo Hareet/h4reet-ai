@@ -219,7 +219,7 @@ describe("the models the gait doesn't fit", () => {
     ]);
   });
 
-  it("plays a loaded walk clip at the figure's speed, with no gait (FR-007)", async () => {
+  it("plays a loaded walk clip at its own speed, whatever the figure's, with no gait (FR-007; Q8)", async () => {
     const s = await setup(true, ["idle", "idle-holding", "take", "walk"]);
     const rest = quats(s.visitor, LEGS);
     const scale = (share: number): number => {
@@ -228,9 +228,9 @@ describe("the models the gait doesn't fit", () => {
       s.figures.update(16, true, 0);
       return s.figures.clipScale("visitor") as number;
     };
-    expect(scale(1)).toBeCloseTo(1, 9);
-    expect(scale(0.1)).toBeCloseTo(0.5, 9);
-    expect(scale(5)).toBeCloseTo(1.5, 9);
+    expect(scale(1)).toBe(1);
+    expect(scale(0.5)).toBe(1);
+    expect(scale(1.5)).toBe(1);
     expect(s.figures.playing("visitor")).toBe("walk");
     expect(apart(quats(s.visitor, LEGS), rest)).toBe(0);
   });
