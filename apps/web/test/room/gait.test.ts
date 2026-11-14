@@ -1,7 +1,16 @@
 // T002 (spec 019; FR-002 to FR-004, FR-010; SC-001, SC-003): the gait's pure part, in Node with no three import.
 import { describe, expect, it } from "vitest";
 
-import { ANKLE_GAIN, DT_MAX_S, EASE_S, HIP_MAX, KNEE_MAX, advance, cycleLength, legOffsets } from "../../src/room/scene/gait";
+import {
+  ANKLE_GAIN,
+  DT_MAX_S,
+  EASE_S,
+  HIP_MAX,
+  KNEE_MAX,
+  advance,
+  cycleLength,
+  legOffsets,
+} from "../../src/room/scene/gait";
 import type { GaitState } from "../../src/room/scene/gait";
 
 const START: GaitState = { phase: 0, amp: 0 };
@@ -74,7 +83,8 @@ describe("the legs' offsets", () => {
   it("is zero at amplitude 0", () => {
     for (const phase of [0, 0.1, 0.37, 0.5, 0.9]) {
       const { left, right } = legOffsets(phase, 0);
-      for (const v of [left.hip, left.knee, left.ankle, right.hip, right.knee, right.ankle]) expect(Math.abs(v)).toBe(0);
+      for (const v of [left.hip, left.knee, left.ankle, right.hip, right.knee, right.ankle])
+        expect(Math.abs(v)).toBe(0);
     }
   });
 });

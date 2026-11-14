@@ -1231,7 +1231,11 @@ export interface AvatarGlbOptions extends PackOptions {
 }
 
 /** The avatar's bones as the options give them. */
-function avatarBones(o: { readonly hands?: boolean; readonly fingers?: boolean; readonly legs?: boolean }): AvatarBone[] {
+function avatarBones(o: {
+  readonly hands?: boolean;
+  readonly fingers?: boolean;
+  readonly legs?: boolean;
+}): AvatarBone[] {
   const base = handBones(o);
   if (o.legs !== true) return base;
   for (const leg of LEG_BONES)

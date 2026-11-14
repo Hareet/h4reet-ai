@@ -56,7 +56,8 @@ describe.each(["man", "woman"])("the leg rig on the %s", (id) => {
     const rig = findLegRig(treeOf(path)) as LegRig;
     expect(rig).not.toBeNull();
     for (const side of [rig.left, rig.right])
-      for (const t of [side.hip, side.knee, side.ankle]) expect(t.node.name).toMatch(/^mixamorig(Left|Right)(UpLeg|Leg|Foot)$/);
+      for (const t of [side.hip, side.knee, side.ankle])
+        expect(t.node.name).toMatch(/^mixamorig(Left|Right)(UpLeg|Leg|Foot)$/);
   });
 
   it("swings the foot toward +z on a positive hip offset, and bends the shin backward on a positive knee offset (R-07)", () => {
