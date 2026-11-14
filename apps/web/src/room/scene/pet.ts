@@ -133,6 +133,13 @@ class Numbers implements ReachClock {
   pet_s = 0;
 }
 
+/** The aim `faceTwin` is asked for, a tagged field (null before the first petting), written only when the aim changes:
+ *  a number passed to a call V8 doesn't inline is boxed at the call unless it is boxed already, and the homes, so the
+ *  aim, stay the same from one petting to the next (FR-027; rework3-026, the page's Q284, measured). */
+class Asked {
+  heading: number | null = null;
+}
+
 /** `petAim`'s answer, written in place by `aimInto` (I-1). */
 class Aim {
   heading = 0;
@@ -212,6 +219,7 @@ export function createPet(options: {
   /** The director's numbers (I-1; B-3). */
   const n = new Numbers();
   const aim = new Aim();
+  const asked = new Asked();
   /** While the run's cut eases the arm and the spine out. */
   let fading = false;
 
@@ -330,7 +338,8 @@ export function createPet(options: {
       aimAt(twin, dog);
       phase = "turn";
       n.t = 0;
-      chase.faceTwin(n.aim);
+      if (asked.heading !== n.aim) asked.heading = n.aim;
+      chase.faceTwin(asked.heading);
       options.note?.();
       return true;
     },
