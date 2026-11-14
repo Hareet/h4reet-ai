@@ -138,6 +138,8 @@ REASONS = (
     "a statement about the Author that no corpus file holds",
     "a duplicate of",
     "contradicted by the repository",
+    # FR-003's own rule as a reason (plan §9): a number the new prose may not state outside a slot.
+    "a number outside a slot",
 )
 MARKERS = {
     "Not in the repository yet": "unbuilt",
@@ -641,9 +643,10 @@ def check(
                 targets.append((ref, target))
         if carrying:
             for tag in re.findall(r"\[[^\]]+\]", row.tag):
-                for ref, target in targets:
-                    if tag not in target:
-                        out["R1"].append(f"R1: {row.label}: tag {tag} isn't on {ref}")
+                if targets and not any(tag in target for _, target in targets):
+                    out["R1"].append(
+                        f"R1: {row.label}: tag {tag} isn't on {'; '.join(r for r, _ in targets)}"
+                    )
         if row.mark not in NONE and not MARK.match(row.mark):
             out["R1"].append(
                 f"R1: {row.label}: its mark isn't 'changed after his approval (note, line <n>)'"
