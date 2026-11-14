@@ -24,7 +24,7 @@ The order directs that the spec-writer "takes the recommended answer at clarify 
 
 ### Session 2026-11-14, the rework: his answers on the morning page
 
-Rule 6's Opus reviews of this spec (rv-spec-019) and of its code (review-019) found nothing blocking; three questions went to the morning page as Q61 to Q63. Each is recorded with its question, the recommended answer, and his answer, word for word from the page: "Answered: recommended, the Author 2026-11-13." Numbered on here as Q6 to Q8.
+Rule 6's Opus reviews of this spec (rv-spec-019) and of its code (review-019) found nothing blocking; three questions went to the morning page as Q61 to Q63. Each is recorded with its question and the recommended answer word for word from the page, and the page's record of his answer under each: "Answered: recommended, the Author 2026-11-13." Numbered on here as Q6 to Q8.
 
 - Q6 (page Q61): "Spec 019's FR-011 says a frame's gait allocates nothing, and the code allocates small objects per frame. Fix the code, or relax FR-011?" Recommended: "fix it: reuse two state and offset objects in gait.ts and avatars.ts, and add a small allocation-free test". Answered: recommended. → FR-011 stays; tasks.md T017 and T018 make the gait's frame allocation-free and test it.
 - Q7 (page Q62): "Spec 019's gait keeps the hips still, so at each step both feet lift about 7 cm off the floor and the avatar looks like it hovers. May the gait also lower the hips bone by exactly the standing leg's lift (no other body motion)?" Recommended: "yes; lower `mixamorig:Hips` by the standing leg's lift, from the same angles; arms, spine, head and the holding hand stay as the clip has them; FR-005 amended for this one exception, with a test that no standing foot rises more than 2 cm". Answered: recommended. → FR-005 amended, FR-015 and SC-006 added; Q4's "no body bob" now has this one exception.
@@ -129,7 +129,7 @@ Terms: **the gait** is the code-driven leg layer of this spec; **the six leg bon
 
 ## Assumptions
 
-- No clause of the constitution is deferred or dropped. Principle IV's cost and budget: none spent, none at risk.
+- No clause of the constitution is deferred or dropped. Principle V's cost and budget: none spent, none at risk.
 - Walking is spec 008's, unchanged; `Pose` already gives `speed` and `walking`.
 - The studio's rig names its bones `mixamorig:*` for both visitors (spec 009 R-08 reads `mixamorig:RightHand`); tasks.md's T004 confirms the six leg bones on the shipped models in a test, from the files.
 - The Author's look approval of the gait is his; the build doesn't gate on it, since it's code (his item is a behaviour, not an asset).
@@ -160,7 +160,7 @@ No endpoint, no model call. The frame log's signal for FR-008 is the telemetry t
 
 ## Constitution Check
 
-Principle I (degraded modes first): the table above, with the gait as an optional layer. II (tests first, deterministic): FR-010, SC-001. IV (cost): none. V/VIII (privacy and disclosure): no new data. Accessibility: FR-012. The human-only paths: none changes (docs/merge-requests/human-patches/019.md).
+Principle I (data-local; degraded modes first): no byte leaves the device, so no disclosure row; the table above, with the gait as an optional layer. II (production-grade: tests, telemetry, a cost estimate and measurement): FR-010, SC-001, SC-006, SC-007, the frame-log signal, and SC-004's measured size (T019). IV (least privilege): the implementer doesn't review (T011, T020). V (cost): none. Accessibility: FR-012. The human-only paths: none changes (docs/merge-requests/human-patches/019.md).
 
 ## Open Questions
 
