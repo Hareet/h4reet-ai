@@ -121,10 +121,11 @@ EXTRA = re.compile(
     re.IGNORECASE,
 )
 
-# G1's WORD: a tens word with an optional unit, a unit, or a scale with its plural; and its DIGITS.
+# G1's WORD, its groups non-capturing (a parity test holds it equal): a tens word with an optional unit, a unit, or a
+# scale with its plural; and its DIGITS.
 _SMALL = "|".join(u for u, v in UNITS.items() if v < 10)
 WORD = re.compile(
-    rf"\b(?:(?:{'|'.join(TENS)})(?:-(?:{_SMALL}))?|(?:{'|'.join(UNITS)})|(?:{'|'.join(SCALES)})s?)\b",
+    rf"\b(?:(?:{'|'.join(TENS)})(?:-(?:{_SMALL}))?|(?:{'|'.join(UNITS)})|(?:{'|'.join(SCALES)})(?:s?))\b",
     re.IGNORECASE,
 )
 DIGITS = re.compile(r"\d[\d,]*(?:\.\d+)?")
