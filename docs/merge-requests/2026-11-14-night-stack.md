@@ -1144,3 +1144,48 @@ cd <copy>/apps/web && npx vitest run test/disclosure.test.ts test/site.test.ts t
 ```
 
 With item 6's row V1 and the patch, the disclosure's tests pass, and `film-links.test.ts`'s case 11 still holds V1's Trigger.
+
+All of `apps/web`, at a60f66d9 (0ddfefe9 plus this section's first lines; 2325 s):
+
+```
+cd apps/web && npx vitest run
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ Test Files  3 failed | 187 passed (190)
+      Tests  6 failed | 3766 passed | 3 skipped (3775)
+   Duration  2324.98s (tests 73%, import 27%)
+```
+
+The six are exactly D-V2's, the same as verify-018's to verify-021's full runs, and they pass on the patched copy above. `test/room/twin-2d.test.ts` passed in this run, so it needed no rerun. Against verify-021's full run: one test file and thirteen tests more (`film-links.test.ts`'s 11 passing and 2 skipped).
+
+The lint target, exit 0 (shellcheck's file list left out), with this section's runs above already in the note:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+786 files already formatted
+```
+
+No Python changed, in item 6 or the merge, so no `pytest` folder run beyond the disclosure's and the docs' evals above.
+
+#### Fixed
+
+Nothing: no failure outside D-V2's six, so no code, test, or plan changed. This branch changes only this note: the merge's resolution, rv-impl-023's findings (above, not fixed, rule 6), and this section. The candidate stays a candidate (rule 2): `git diff --stat b3d043a2 HEAD -- apps/web/content/resume-author.pdf assets .claude tools/gates corpus CLAUDE.md REVIEW.md .specify/memory/constitution.md evals/agent-config redteam/forbidden-actions.sh` is empty, and `sha256sum apps/web/content/candidates/resume-author-links.pdf` gives `5de0e7eeaed34587d4d79e29f0cbfb7c577a224ce31616f1d75fcbe4e0ff21fb`, the table's `pdf_sha256`. Publishing it is still his: human patch 023, after the gate and the merge, then his approval entry.
+
+Item 6's "Open for others" line above is impl-023's, written before verify-021 was green. It now stands on the line after item 4 (verify-021: green, carrying D-V2's six).
+
+Commit hooks: each of this session's commits printed gitleaks' "no leaks found" and an `arrival-check: 0 findings in <n> file(s)` line (the merge: 14 files).
+
+Interruptions: none. No hook, bash-gate, or harness refusal in this session.
+
+verify-023: green, carrying D-V2's six (Q165)
