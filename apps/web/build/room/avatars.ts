@@ -22,7 +22,7 @@
 // folder. Spec 016's twin, at the end of this file, is read from assets/twin/ by its own reader.
 import { createHash } from "node:crypto";
 
-import { AVATARS, CLIP_ROLES } from "../../src/choice/avatars";
+import { AVATAR_SHAPES, AVATARS, CLIP_ROLES } from "../../src/choice/avatars";
 import type { AvatarId, ClipRole } from "../../src/choice/avatars";
 import { textureMemory } from "../../src/room/glb/fit";
 import { gzip9 } from "../../src/room/glb/gzip";
@@ -74,6 +74,28 @@ export const RIG_BONES: Readonly<Record<AvatarId, readonly string[] | null>> = {
  *  scripts/studio/line.py's has_bone reads it. */
 const hasBone = (nodes: readonly string[], bone: string): boolean =>
   nodes.some((n) => n === bone || n.endsWith(`:${bone}`));
+/** RA11's measures over the avatar table's box: each axis whose extent, scaled to the table's height, is over its
+ *  width with 5% slack; none where the height or an extent isn't known. */
+function boxOver(
+  id: AvatarId,
+  m: { readonly height: number | null; readonly extent_x: number | null; readonly extent_z: number | null } | null,
+): string[] {
+  const shape = AVATAR_SHAPES[id];
+  if (!m || m.height === null || !(m.height > 0)) return [];
+  const scale = shape.height / m.height;
+  const out: string[] = [];
+  for (const [axis, extent] of [
+    ["x", m.extent_x],
+    ["z", m.extent_z],
+  ] as const) {
+    if (extent === null) continue;
+    const scaled = extent * scale;
+    if (scaled > shape.width * 1.05)
+      out.push(`${axis} extent ${scaled.toFixed(2)} m at ${shape.height} m high, over ${shape.width} m (+5%)`);
+  }
+  return out;
+}
+
 /** The first three of a list, then how many more. */
 const firstFew = (names: readonly string[]): string =>
   names.length > 3 ? `${names.slice(0, 3).join(", ")}, and ${names.length - 3} more` : names.join(", ");
@@ -118,6 +140,10 @@ export interface AvatarFile {
     readonly decoded_bytes: number;
     /** The rest pose's height by the reader's bounds, in the file's units; null with no vertex. */
     readonly height: number | null;
+    /** Spec 021 (plan.md §4): the rest pose's extents along x and z by the same bounds, in the file's units; null with
+     *  no vertex. */
+    readonly extent_x: number | null;
+    readonly extent_z: number | null;
     readonly animations: number;
   } | null;
   readonly bundled: boolean;
@@ -260,6 +286,8 @@ function readFile(tree: Tree, avatar: AvatarId, dir: string, name: string, textu
         texture_bytes: own,
         decoded_bytes: decoded,
         height: bounds === null ? null : bounds.max[1] - bounds.min[1],
+        extent_x: bounds === null ? null : bounds.max[0] - bounds.min[0],
+        extent_z: bounds === null ? null : bounds.max[2] - bounds.min[2],
         animations: glb.json.animations?.length ?? 0,
       },
     },
@@ -378,6 +406,10 @@ export function readAvatars(tree: Tree, policy: RoomPolicy, scene: Scene | null)
         // RA10: each bone of the row among the model's raw node names (FR-005).
         const lacking = row.filter((bone) => !hasBone(r.nodes, bone));
         if (lacking.length > 0) refuse(r, "RA10", "-", `the ${id} rig lacks ${firstFew(lacking)}`);
+        // RA11: the rest pose's box, scaled uniformly to the table's height (spec 009's FR-016), within the table's
+        // width along x and z, with 5% slack (FR-004; plan.md R-03).
+        const over = boxOver(id, r.file.measures);
+        if (over.length > 0) refuse(r, "RA11", "-", over.join("; "));
       }
     }
     // The bundled set: RA3 aside, a finding on a file leaves it out.

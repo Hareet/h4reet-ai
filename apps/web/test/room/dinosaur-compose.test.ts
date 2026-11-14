@@ -178,12 +178,12 @@ describe("RA11: the body's box (FR-004)", () => {
       );
     expect(ruleFindings(cm(1.0), "RA11")).toEqual([]);
     expect(reasonsOf(cm(1.3), "RA11")).toEqual([box("z", 1.3)]);
-    // Half the height and half the length: the same body, scaled up to the table's height, passes; half the height
-    // and the same length is twice as long once scaled, and fails.
-    expect(ruleFindings(avatarsIn(tree({ model: { height: shape.height / 2, length: 0.5 } })), "RA11")).toEqual([]);
-    expect(reasonsOf(avatarsIn(tree({ model: { height: shape.height / 2, length: 1.0 } })), "RA11")).toEqual([
-      box("z", 2.0),
-    ]);
+    // Half the height, the length, and the width: the same body, scaled up to the table's height, passes; half the
+    // height and width with the same length is twice as long once scaled, and fails on z alone.
+    const half = (length: number): AvatarSet =>
+      avatarsIn(tree({ model: { height: shape.height / 2, width: 0.3, length } }));
+    expect(ruleFindings(half(0.5), "RA11")).toEqual([]);
+    expect(reasonsOf(half(1.0), "RA11")).toEqual([box("z", 2.0)]);
   });
 
   it("leaves the model and its clips out of a lenient build, and the dinosaur off the 3D part", () => {
