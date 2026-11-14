@@ -3,7 +3,8 @@
 // with the night's two folders, each file parsed by three's GLTFLoader from the GLBs test/helpers/glb.ts makes.
 // - T031, the avatar's driver (scene/figure.ts's FigureDriver, the controller's `driver`): over a seeded walk of 10,000
 //   steps, at the pose's place on the floor, turned to its heading, never mirrored, with no bob, the paper in its
-//   holding hand; "walk" while it walks where it has the clip, and "idle-holding", a slide, where it hasn't; no clip
+//   holding hand; "walk" while it walks where it has the clip, and "idle-holding", a slide, where it hasn't (spec 019:
+//   a slide of the feet only for a model without leg bones; with them the legs move, test/room/avatar-gait.test.ts); no clip
 //   motion while the motion store doesn't animate; rest() back at its place, facing its placement's turn, with the paper.
 // - T032, the driver by picture (figure.ts's figureDriverFor, the one driver walking.ts takes): the avatar's while the
 //   visitor's avatar shows, the cut-out's otherwise, the old one resting and the new one taking the pose on the same
@@ -153,7 +154,7 @@ describe("the avatar's driver (FR-028; R-16; SC-007)", () => {
     expect(hand.quaternion.angleTo(pose)).toBe(0);
   });
 
-  it("slides in idle-holding with no walk clip, and plays walk while it walks where it has one, back on rest", async () => {
+  it("slides in idle-holding with no walk clip and no leg bones (spec 019 amends FR-028), and plays walk while it walks where it has one, back on rest", async () => {
     const slide = setup("woman");
     await feed(slide, "woman");
     slide.figures.handoffEnded();
@@ -172,6 +173,24 @@ describe("the avatar's driver (FR-028; R-16; SC-007)", () => {
     walker.figures.driver.frame(frameOf({ ...(first as Pose), walking: true, speed: 0.6 }));
     walker.figures.driver.rest();
     expect(walker.figures.playing("visitor")).toBe("idle-holding");
+  });
+
+  it("moves the legs with no walk clip where the model has its leg bones, the clip still idle-holding (spec 019)", async () => {
+    const s = setup("woman");
+    expect(s.figures.model("woman", await parsed(avatarGlb({ legs: true }).bytes))).toBe(true);
+    for (const role of ["idle", "idle-holding", "take"] as const)
+      s.figures.clip("woman", role, await clipsOf(CLIPS[role].bytes));
+    s.figures.handoffEnded();
+    const bone = avatar(s).getObjectByName("mixamorigLeftUpLeg") as Object3D;
+    const rest = bone.quaternion.clone();
+    let most = 0;
+    for (const pose of poses(worldOf(node(s)), 60)) {
+      s.figures.driver.frame(frameOf({ ...pose, walking: true, speed: 0.6 }));
+      s.figures.update(16, true, 0);
+      expect(s.figures.playing("visitor")).toBe("idle-holding");
+      most = Math.max(most, bone.quaternion.angleTo(rest));
+    }
+    expect(most).toBeGreaterThan(0.05);
   });
 
   it("rests the avatar at its place, facing its placement's turn, with the paper in its hand", async () => {

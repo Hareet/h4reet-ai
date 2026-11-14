@@ -13,6 +13,9 @@
 // assets/twin/, by their kinds (`avatar`, `animation`, `still`); RA5 to a file there with no role; and RA6, the twin's
 // files without an approval in main's likeness approvals naming its model's current SHA-256 with a non-empty line,
 // which leaves every file of the twin out of a lenient build. avatars.ts's readTwin reads them once a compose.
+// Spec 020 (its FR-002; plan.md R-01): RA9, a visitor's model recorded as a likeness or from a photo (the stand-in aside,
+// RA3's) without an approval in main's likeness approvals naming its current SHA-256 with a non-empty line, which leaves
+// the avatar's files out of a lenient build, its figure on the cut-out. avatars.ts's readAvatars reads it.
 // RA7 (spec 016, FR-029, FR-030; contracts/twin-data.md §7; SC-017): the scene's lean, measured from the resolved
 // placements, in the twin placement's frame: the desk's origin `behind_m` behind the twin's root along its facing, within
 // 1 cm; the desk facing as the twin faces, within 1°; and the desk's top reaching at least `right_m` to the twin's right
