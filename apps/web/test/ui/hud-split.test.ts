@@ -691,3 +691,32 @@ describe("the portrait's speaker (T026; the brief's item d)", () => {
     expect(seen).toEqual(["twin", "dog"]);
   });
 });
+
+// ---- T028 (rv2-impl-018's B1; FR-006): the soft keyboard's inset ----
+
+import { splitBoxes } from "../../src/room/compose/hud";
+
+describe("the soft keyboard (T028; FR-006, B1)", () => {
+  const TABLET = { w: 1400, h: 1000 } as const;
+
+  it("keeps the rest row and the open panel's foot above the keyboard's inset, at a landscape tablet in the split layout", async () => {
+    expect(splitBoxes(TABLET)).not.toBeNull();
+    const { v, viewport } = await room(TABLET);
+    expect(root(v).getAttribute("data-split")).toBe("on");
+    viewport.set({ keyboard: 300 }, "keyboard");
+    expect(root(v).style.getPropertyValue("--keyboard")).toBe("300px");
+    expect(root(v).getAttribute("data-split")).toBe("on");
+    // The rest row's top and the open panel's foot both move up by the inset; the clear area and the frame don't.
+    expect(decl(`${ON} .talk[data-panel="bar"]`, "top")).toBe("calc(var(--split-rest-y) - var(--keyboard))");
+    expect(decl(`${ON} .talk[data-panel="open"]`, "top")).toBe("var(--split-frame-y)");
+    expect(decl(`${ON} .talk[data-panel="open"]`, "height")).toBe(
+      "max(0px, calc(var(--split-frame-h) - var(--keyboard)))",
+    );
+    // The text box keeps its text and the panel its state across the inset.
+    const text = v.doc.getElementById("talk-text") as HTMLInputElement;
+    text.value = "typing";
+    viewport.set({ keyboard: 0 }, "keyboard");
+    expect(text.value).toBe("typing");
+    expect(talk(v).getAttribute("data-panel")).toBe("bar");
+  });
+});

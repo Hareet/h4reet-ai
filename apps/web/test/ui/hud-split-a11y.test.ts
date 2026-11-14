@@ -136,3 +136,18 @@ describe("the title row's glass (T027)", () => {
     expect(body).toMatch(/grid-column:\s*1 \/ -1/);
   });
 });
+
+// T028 (B1; FR-006): as hud-a11y.test.ts pins the column's and the dock's foot to the keyboard's inset, the split
+// layout's rest row and its open panel's foot take it too.
+describe("the keyboard's inset in the split layout (T028)", () => {
+  it("lifts the rest row and the open panel's foot by the keyboard's inset", () => {
+    const css = readFileSync(fileURLToPath(new URL("../../src/room/hud/split.css", import.meta.url)), "utf8");
+    const body = (selector: string): string =>
+      new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
+    const ON = 'html[data-split="on"][data-hud="column"]';
+    expect(body(`${ON} .talk[data-panel="bar"]`)).toMatch(/top:\s*calc\(var\(--split-rest-y\) - var\(--keyboard\)\)/);
+    expect(body(`${ON} .talk[data-panel="open"]`)).toMatch(
+      /height:\s*max\(0px, calc\(var\(--split-frame-h\) - var\(--keyboard\)\)\)/,
+    );
+  });
+});
