@@ -205,4 +205,18 @@ The gate runs the suite in a `git archive` export with no `.git` (`tools/gates/g
 
 T011 is rv-impl-023's (the reviewer follows this branch). T012 isn't this task's: the stack's one `make check` is another task's (the supervisor's instruction). T013: item 6 of `docs/merge-requests/2026-11-14-night-stack.md` finished, with the small runs pasted there. verify-021 isn't merged: its stack note (68f1eced) doesn't end item 4 with "verify-021: green".
 
+T013's two small runs after the stack note's edit, at 47be1c2f (with `author-pdf.test.ts`, which shares the state), and the lint target:
+
+```
+$ (apps/web) npx vitest run test/content/film-links.test.ts test/content/author-pdf.test.ts
+ Test Files  2 passed (2)
+      Tests  39 passed | 2 skipped (41)
+$ python3 -I evals/docs_links.py
+docs links: 0 failed, 2434 relative links in 401 files
+$ make lint
+… All matched files use Prettier code style! · ruff: All checks passed! · 778 files already formatted (exit 0)
+```
+
+verify-021 checked again at the end: still 68f1eced, item 4 still ends with "Interruptions", so no merge.
+
 No question for the page: every question about spec 023 (Q25 to Q31, Q98) is answered, and this session raised none. No hook or bash-gate refusal.
