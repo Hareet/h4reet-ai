@@ -79,8 +79,11 @@ export interface Stage3D extends Stage {
    *  on a stand-in stage, nothing reads it. */
   twinActivity?(activity: TwinActivity): void;
   /** Spec 024 (FR-012): the dinosaur's eating, for a 3D dinosaur visit over a part with an edible placement: the "Eat"
-   *  tile's press, which takes the same gate as key B. Absent, the visit can't eat. */
-  readonly eat?: { press(): void };
+   *  tile's press, which takes the same gate as key B; and sync, which the room calls on each change of what
+   *  SceneOptions.eating.state() gives (the pause toggle, the page hidden or shown, the loader), so the meal pauses or
+   *  resumes at once, not at the next frame, which a hidden page never draws (FR-009; rv-rework-024's I-A). Absent, the
+   *  visit can't eat. */
+  readonly eat?: { press(): void; sync(): void };
 }
 
 /** A file the 3D stage will load (spec 012): its asset events' `asset`, and its bytes as served (C11). */

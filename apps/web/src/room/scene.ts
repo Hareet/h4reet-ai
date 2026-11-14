@@ -487,13 +487,20 @@ export function createScene(options: SceneOptions): Stage3D {
     if (piece !== null) eat3d.bite(piece);
   };
   let eatOffered = false;
+  /** FR-009: the eating's one pause, while the room is paused (the toggle, or the page hidden) or the loader shows; the
+   *  3D side reads it too. The room calls it on each change (eat.sync()), since a hidden page draws no frames while the
+   *  clock runs on (rv-rework-024's I-A); each frame reads it again, as a backstop. */
+  const eatSync = (): void => {
+    if (!meal) return;
+    const base = eatBase();
+    if (base.paused || base.loading) meal.pause();
+    else meal.resume();
+  };
   /** Each frame: the meal's pause, the flights and regrowths, and the tile's availability, told on a change. */
   const eatFrame = (): void => {
     if (!meal || !eat3d) return;
+    eatSync();
     const base = eatBase();
-    // FR-009: the eating's one pause, while the room is paused or the loader shows; the 3D side reads it too.
-    if (base.paused || base.loading) meal.pause();
-    else meal.resume();
     eat3d.frame();
     const pose = walking?.on ? walking.pose : null;
     const on = eatingAvailable(availabilityFor(base, eatReached(pose), meal, (id) => modelOf(id) !== null));
@@ -797,7 +804,7 @@ export function createScene(options: SceneOptions): Stage3D {
       leave: leaveWalk,
     },
     // Spec 024 (FR-012): the "Eat" tile's press, the key's gate; absent where the visit can't eat.
-    ...(eats ? { eat: { press: () => eatPress(walking?.on ? walking.pose : null) } } : {}),
+    ...(eats ? { eat: { press: () => eatPress(walking?.on ? walking.pose : null), sync: eatSync } } : {}),
     setQuality(next) {
       const before = settings.shadows;
       level = next;

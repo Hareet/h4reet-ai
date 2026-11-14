@@ -428,8 +428,19 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   function offerEat(): void {
     room?.setEatOffered(eatOffered && !motion.paused && visit.mode === "3d");
   }
+  /** Spec 024 (FR-009; rv-rework-024's I-A): tells the 3D stage's eating that what `eating.state()` gives has changed, so
+   *  the meal pauses or resumes now: a hidden page draws no frames, and the stage's own read is in its frame. */
+  function eatHeld(): void {
+    if (stage?.mode !== "3d") return;
+    try {
+      (stage as Stage3D).eat?.sync();
+    } catch {
+      // The stage's frame reads the state again, as a backstop.
+    }
+  }
   motion.subscribe((state) => {
     room?.setPaused(state.paused);
+    eatHeld();
     offerEat();
     copy?.setPausedAt(state.paused ? state.pausedAt : null);
   });
@@ -629,6 +640,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     let release: (() => void) | null = null;
     if (view) {
       layout.setLoading("on");
+      eatHeld();
       release = motion.hold();
       view.heading.focus();
     } else layout.heading.focus();
@@ -689,6 +701,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     queueMicrotask(sayEndLine);
     if (run.view) {
       layout.setLoading("leaving");
+      // The loader no longer holds the eating (FR-009): its state reads `on` only.
+      eatHeld();
       try {
         run.view.giveWay(() => layout.setLoading("off"));
       } catch {
