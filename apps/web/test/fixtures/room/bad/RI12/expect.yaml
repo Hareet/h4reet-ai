@@ -6,6 +6,7 @@ edits:
   - file: apps/web/room/scene.yaml
     at: [figures, leave]
     set:
+      takes: fx-desk
       meet: [0, 0]
       under_bicycle: [0, 0]
       carry: [0.3, 0.26, 0.05]

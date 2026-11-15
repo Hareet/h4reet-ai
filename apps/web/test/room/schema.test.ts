@@ -1311,6 +1311,7 @@ describe("a live face's surface and the print renderer (spec 016, T052)", () => 
 // Read whole when good; RD2 and RD3 refuse the rest. Its geometry against the floors is RI12's (dino-scene-data.test.ts).
 describe("the figures' leave block (spec 028, T-B03)", () => {
   const FULL = {
+    takes: "fx-desk",
     meet: [0.4, 0.35],
     under_bicycle: [0.8, 0.25],
     carry: [0.3, 0, 0.05],
@@ -1346,6 +1347,7 @@ describe("the figures' leave block (spec 028, T-B03)", () => {
     ["path", [[1.6, 0.9]], "RD3 figures.leave.path"],
     ["meet", [0.4], "RD3 figures.leave.meet"],
     ["carry", [0.3, 0], "RD3 figures.leave.carry"],
+    ["takes", 3, "RD3 figures.leave.takes"],
   ])("refuses %s %j", (key, value, expected) => {
     expect(judge("scene", withLeave({ ...FULL, [key]: value })).seen).toContain(expected);
   });

@@ -4,7 +4,8 @@
 //   bounds; then the shipped block itself: `meet` and `under_bicycle` walkable on the chase floor, the path's last
 //   point outside the shell, the speeds positive.
 // - The bundle carries the block resolved, each figure to 1e-6; absent, the bundle carries none.
-// - The build refuses (RI12) a last point inside the shell's floor, and a `meet` or `under_bicycle` off the chase floor
+// - The build refuses (RI12) a `takes` naming no placement, a last point inside the shell's floor, and a `meet` or
+//   `under_bicycle` off the chase floor
 //   (spec 025's, the visitor's walkable floor less the twin's obstacle); the schema (RD3) a speed or `take_s` not
 //   positive, a path of under two points; RD2 a key the block doesn't define.
 import { describe, expect, it } from "vitest";
@@ -61,6 +62,7 @@ function points(part: RoomScene) {
 /** A block placed by the composed points (plan.md R-B4's record: `under_bicycle` in front of the desk, short of the
  *  bicycle's obstacle), as the shipped one is; each test changes one thing of it. */
 const GOOD = {
+  takes: placementLabelled("Bicycle"),
   meet: [0.42, 0.45],
   under_bicycle: [0.74, 0.52],
   carry: [0.3, 0.26, 0.05],
@@ -100,8 +102,9 @@ describe("the shipped figures.leave (FR-021, FR-022)", () => {
   const { visitor, chase } = points(part);
   const leave = part.figures.leave;
 
-  it("is in the bundle, resolved", () => {
+  it("is in the bundle, resolved, naming the bicycle's placement as the one taken", () => {
     expect(leave).toBeDefined();
+    expect(leave?.takes).toBe(placementLabelled("Bicycle"));
   });
 
   it("puts meet and under_bicycle on the chase floor, and the path's last point outside the shell", () => {
@@ -139,6 +142,10 @@ describe("the build's refusals (FR-022; RI12, RD3, RD2)", () => {
   it("refuses a meet off the chase floor, and an under_bicycle off it", () => {
     expect(seen(withLeave({ ...GOOD, meet: [3, 0.2] }))).toContain("RI12 figures.leave.meet");
     expect(seen(withLeave({ ...GOOD, under_bicycle: [0.4, -3] }))).toContain("RI12 figures.leave.under_bicycle");
+  });
+
+  it("refuses a takes naming no placement of the scene", () => {
+    expect(seen(withLeave({ ...GOOD, takes: "no-such-piece" }))).toContain("RI12 figures.leave.takes");
   });
 
   it.each([
