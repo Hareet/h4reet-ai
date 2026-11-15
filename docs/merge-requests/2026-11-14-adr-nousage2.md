@@ -57,7 +57,7 @@ refs/heads/night/adr-nousage/adr-nousage: docs/adr/0055-no-usage-event-for-what-
 refs/heads/night/adr-nousage2/adr-nousage2: docs/adr/0055-no-usage-event-for-what-only-the-dinosaur-causes.md
 ```
 
-The scan covered 184 refs. The only 0055 files are this ADR's, on adr-nousage and this branch.
+The scan's count of refs wasn't pasted, so its number is dropped (merge-3, rv-docs4's N-1). The only 0055 files are this ADR's, on adr-nousage and this branch.
 
 **Quotes.** Every quote added comes from its source: Q149's answer from night 1's page `:685`; Q306's recommended answer from tonight's page `:80` ("in the same merge, with the stack, which is what Q149's answer already says ("waits for your hand on main with the stack")"); I-3's and N-1's words from the review's fixes (tonight's page, "rv-docs3's findings, its words"). No fact about the Author is stated. Where the Author's answers come up, they are given as the pages record them: recommended, taken provisionally.
 
@@ -72,7 +72,7 @@ The worktree had no `node_modules`; the setup target ran first (exit 0; its last
 44 passed in 2.24s
 ```
 
-(exit 0; an earlier run, before this note, read "44 passed in 1.59s".)
+(exit 0; an earlier run, before this note, read "44 passed in 1.59s" (not kept).)
 
 The lint target (the shellcheck lines, which list the repository's `.sh` files, left out here):
 
@@ -89,7 +89,7 @@ ruff format --check --no-cache --extend-exclude corpus .
 exit 0
 ```
 
-(An earlier run, before this note, read "828 files already formatted" and exit 0.) Both runs were repeated with this note's final text in the tree, before the last commit, and printed the same lines (the test's time aside).
+(An earlier run, before this note, read "828 files already formatted" and exit 0 (not kept).) Both runs were repeated with this note's final text in the tree, before the last commit, and printed the same lines (the test's time aside).
 
 The full check isn't run here (rule 4: once, at the end of the stack).
 
