@@ -281,7 +281,6 @@ function chaseOf(c: ChaseConfig): ChaseConfig {
     clip_thresholds: { walk_mps: m6(c.clip_thresholds.walk_mps), run_mps: m6(c.clip_thresholds.run_mps) },
   };
 }
-/** Spec 026's pet block (plan.md §3), each figure to 1e-6 and `stroke_n` whole. */
 /** Spec 028 (FR-022): the leave block, each figure to 1e-6. */
 function leaveOf(l: LeaveBlock): LeaveData {
   const p2 = (p: readonly [number, number]): [number, number] => [m6(p[0]), m6(p[1])];
@@ -297,6 +296,7 @@ function leaveOf(l: LeaveBlock): LeaveData {
   };
 }
 
+/** Spec 026's pet block (plan.md §3), each figure to 1e-6 and `stroke_n` whole. */
 function petOf(p: PetConfig): PetConfig {
   return {
     reach_m: m6(p.reach_m),
