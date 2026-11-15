@@ -287,10 +287,11 @@ describe("no allocation per frame (FR-027, SC-007; I-1)", () => {
             `\napplyReachLayer at weight ${w}: ${crouched.toFixed(2)} bytes a frame; legs off ${cut.toFixed(2)}; ` +
               `${ms.toFixed(4)} ms a frame; legs off ${msCut.toFixed(4)} ms\n`,
           );
-          expect(crouched, `weight ${w}`).toBeLessThan(MAX_BYTES_PER_FRAME);
-          expect(cut, `weight ${w}, legs off`).toBeLessThan(MAX_BYTES_PER_FRAME);
+          // The time before the bytes, so a byte failure doesn't hide it (rv-impl3-026's N-2).
           expect(ms, `weight ${w}, ms`).toBeLessThan(MAX_MS_PER_FRAME);
           expect(msCut, `weight ${w}, legs off, ms`).toBeLessThan(MAX_MS_PER_FRAME);
+          expect(crouched, `weight ${w}`).toBeLessThan(MAX_BYTES_PER_FRAME);
+          expect(cut, `weight ${w}, legs off`).toBeLessThan(MAX_BYTES_PER_FRAME);
         }
       },
       BENCH_TIMEOUT_MS,
@@ -379,8 +380,8 @@ describe("no allocation per frame (FR-027, SC-007; I-1)", () => {
             `and ${msOn.toFixed(4)} ms a frame; unlinked ${bytesOff.toFixed(2)} bytes and ${msOff.toFixed(4)} ms; ` +
             `the reach adds ${(bytesOn - bytesOff).toFixed(2)} bytes and ${(msOn - msOff).toFixed(4)} ms\n`,
         );
-        expect(bytesOn - bytesOff).toBeLessThan(MAX_BYTES_PER_FRAME);
         expect(msOn - msOff).toBeLessThan(MAX_MS_PER_FRAME);
+        expect(bytesOn - bytesOff).toBeLessThan(MAX_BYTES_PER_FRAME);
       },
       BENCH_TIMEOUT_MS,
     );

@@ -24,7 +24,14 @@ import type { PetMotion } from "../../src/room/scene/pet";
 import { createPetAdapters } from "../../src/room/scene/pet-adapters";
 import type { PetAvatars } from "../../src/room/scene/pet-adapters";
 import type { ReachRig } from "../../src/room/scene/pet-reach";
-import { BENCH_TIMEOUT_MS, bytesPerCall, MAX_BYTES_PER_PETTING, MAX_MS_PER_FRAME, msPerCall } from "../helpers/bench";
+import {
+  BENCH_TIMEOUT_MS,
+  bytesPerCall,
+  inlined,
+  MAX_BYTES_PER_PETTING,
+  MAX_MS_PER_FRAME,
+  msPerCall,
+} from "../helpers/bench";
 import type { Hot } from "../helpers/bench";
 
 const TWIN_HOME = { x: 0.66, z: 0.469 };
@@ -111,8 +118,10 @@ describe("no allocation per petting over the real adapters (FR-027, SC-007; Q284
         real.frame,
         adapters.twin,
         real.faceTwin,
-        adapters.chase.faceTwin,
-        adapters.chase.twinFacing,
+        // TurboFan inlines these two into the director's optimized code (V8's trace), so their own code stays at
+        // Maglev; `inlined` checks no call of them runs below TurboFan (../helpers/bench.ts).
+        inlined(adapters.chase.faceTwin),
+        inlined(adapters.chase.twinFacing),
       ];
       const perPetting = bytesPerCall(step, hot, 2_000);
       expect(seen[2], "selections refused").toBe(0);
