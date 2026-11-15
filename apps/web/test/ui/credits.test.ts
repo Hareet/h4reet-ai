@@ -46,11 +46,12 @@ describe("the credits page (FR-042, FR-043)", () => {
   });
 
   it.each(["release", "drafts"] as const)(
-    "is in the %s build at credits/index.html, rendered from the file",
+    "is in the %s build at credits/index.html, rendered from the file and the bundle's likeness lines (spec 028)",
     (kind) => {
       const path = join(builds[kind], "credits/index.html");
       expect(existsSync(path)).toBe(true);
-      expect(readFileSync(path, "utf8")).toBe(renderCredits(CREDITS));
+      // Spec 028 (T-A07, FR-013; plan.md §R-B8): with the AI-made figures' lines the room's bundle carries.
+      expect(readFileSync(path, "utf8")).toBe(renderCredits(CREDITS, likenessLines(repositoryBundle())));
     },
   );
 });
@@ -126,7 +127,7 @@ describe("the AI-made figures' lines (spec 028, T-A07; FR-013)", () => {
       index: { ui: { "credits.likeness": "The AI-made figures" }, twin: { line: "T" } },
       scene: { avatars: { dinosaur: { line: "D" }, dog: { line: "G" }, man: {}, woman: { line: "W" } } },
     };
-    expect(likenessLines(composed as never)).toEqual({ heading: "The AI-made figures", lines: ["T", "W", "G", "D"] });
+    expect(likenessLines(composed as never)).toEqual({ heading: "The AI-made figures", lines: ["T", "W", "D", "G"] });
     const twice = { ...composed, scene: { avatars: { woman: { line: "T" }, dog: { line: "G" } } } };
     expect(likenessLines(twice as never).lines).toEqual(["T", "G"]);
     const none = { index: { ui: { "credits.likeness": "H" }, twin: null }, scene: { avatars: {} } };

@@ -7,7 +7,7 @@ import { defineConfig } from "vite";
 
 import { draftsOn, roomDataFile } from "./build/approvals";
 import { resumePart } from "./build/content";
-import { creditsPage } from "./build/credits";
+import { creditsPage, likenessLines } from "./build/credits";
 import { degradedAnswer } from "./build/degraded";
 import { disclosurePage } from "./build/disclosure";
 import { resumeDownloadName } from "./build/download-name";
@@ -18,6 +18,12 @@ import { roomTextPart } from "./build/room/text";
 import { statusPage } from "./build/status";
 
 const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
+
+// The room's bundle, composed from apps/web/room/ under main's policy (spec 004, T096; its contracts/room-bundle.md §3,
+// §12): spec 002's fixed messages and the manifest, now Amendment B7's, with the index, in the entry; the 3D part in the
+// lazy 3D chunk; dist/room-manifest.json; and each set model's gzip copy under dist/a/. Named, since spec 028, so the
+// Credits page reads the likeness lines it carries.
+const room = roomBundle({ root: here("../.."), messages: here("content/messages.yaml") });
 
 export default defineConfig({
   root: here("."),
@@ -44,7 +50,8 @@ export default defineConfig({
     // Spec 001 (contracts/edge.md §4): the edge's own degraded answer, /_degraded/api.json, when it can't reach the relay.
     degradedAnswer(),
     // Spec 016 (FR-042, FR-043): the credits page from assets/CREDITS.md, which the toolbar's Credits link opens.
-    creditsPage({ source: here("../../assets/CREDITS.md") }),
+    // Spec 028 (FR-013): with the AI-made figures' lines the room's bundle carries, from main's approvals.
+    creditsPage({ source: here("../../assets/CREDITS.md"), likeness: () => likenessLines(room.api.composed()) }),
     // Spec 001 (contracts/public-view.md §3; T138): /status/, the public view, its script an entry of its own.
     statusPage({ entry: here("status/main.ts") }),
     // main's policy: the image's named context (ROOM_POLICY_DIR), or what a checkout's prebuild read from main.
@@ -60,9 +67,7 @@ export default defineConfig({
     // The PDF's download name, from main's resume-header.json in the same policy directory (build/download-name.ts;
     // spec 002's amendment of 2026-11-09): defined for the scripts, and written into index.html's plain link.
     resumeDownloadName({ policyDir: () => process.env.ROOM_POLICY_DIR || DEFAULT_POLICY_DIR }),
-    // The room's bundle, composed from apps/web/room/ under main's policy (spec 004, T096; its contracts/room-bundle.md
-    // §3, §12): spec 002's fixed messages and the manifest, now Amendment B7's, with the index, in the entry; the 3D
-    // part in the lazy 3D chunk; dist/room-manifest.json; and each set model's gzip copy under dist/a/.
-    roomBundle({ root: here("../.."), messages: here("content/messages.yaml") }),
+    // The room's bundle (above).
+    room,
   ],
 });
