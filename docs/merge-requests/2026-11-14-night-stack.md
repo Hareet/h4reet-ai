@@ -5469,6 +5469,38 @@ No `make test`, `make evals`, or full `make check`: rule 4, and the stack's last
 
 **Interruptions (patch3-026).** `npm ci --offline` failed (ENOTCACHED); `npm ci` from the registry succeeded. The harness refused a foreground `sleep 60` (a wait, not the bash gate); the wait used a background `until` loop instead. No hook or bash-gate refusal, and nothing was respelled.
 
+### amend-026 (`night/amend-026/amend-026`, from patch3-026's tip d185b67b, Opus 5.5, 2026-11-15)
+
+Written by the night-shift implementer amend-026, documents only, for rv-patch3-026's I-1, N-1, and N-4 (its findings on the page, "rv-patch3-026's findings, its words"). The page's Q304 is answered: recommended (the orders file's rule; his to confirm or overturn).
+
+- **I-1.** Spec FR-014 and the spec's RG6 assumption gain "As amended (Q297, Q304)". The same sentence goes into plan §7 after its Q297 amendment, into T019, into the proposal's "In the patch with it" line, and into `docs/merge-requests/human-patches/026.md` after the patch3-026 paragraph. It quotes `dog-sign-offset.md`'s words on the carve-out, its row's "16 / 240" in the "List-only" column, and what that column counts. It quotes the review's verify note 3 on where the counts come from: measure2-026's probe and floorrun-026's /tmp probe, and no re-run on patch3-026's export. Then it quotes Q304's recommended answer, in the review's words. My reading sits beside the quotes: the two numbers are in measure2-026's run 2 (`list-only (held) 3D 16 / 2D 240 · … of 7671`), and floorrun-026's /tmp probe ran spec 024's `eat-*` tests at this mount, not the count. Patch-026's RG6 bullet in the human-patch note is marked "Superseded for the right wall"; it was the floor mount's. Row 1 of that note's table says the same in a parenthesis.
+- **N-1.** The review's suggested wording, "the `eat-*` edits hold only with the sign off the desk; the `dog-*` edits hold on either scene", replaces "hold only beside" in plan §7, the proposal's "The patch", the human-patch note (its patch3-026 paragraph and row 1), `notes.md` (patch3-026), and this note's patch3-026 part. Each place is marked "wording corrected by amend-026".
+- **N-4.** The proposal's mount reads `{ on: room-shell, anchor: right-wall, offset: [-0.2, 0.4, 0.0375], estimated: true }`.
+- **Unchanged:** the patch file, its SHA-256, and every pasted run, as are every source, test, and scene file. The quoted spans were checked verbatim against their sources, whitespace normalized. The one exception: the review's verify note 3 has its first sentence in bold on the page, and the quotation drops the `**`.
+
+```
+$ sha256sum docs/merge-requests/2026-11-14-corpus-dog-intro.patch
+46ed5db73554ed90985b8859c4be7580c20269150db90582b4150ddd590d249f  docs/merge-requests/2026-11-14-corpus-dog-intro.patch
+```
+
+#### Backlog: rv-patch3-026's N-2 and N-3 (for his look; they change the patch or a studio piece)
+
+Nothing changes for these tonight: each would change the patch (and its SHA-256) or the catalog's studio piece. In the review's words, whole:
+
+> **N-2 · Nit · Room data: the studio documents tell the studio the wall-mounted sign stands "on the desk"**
+>
+> - The photo guide line in the patch (patch line 548; `docs/studio/photo-guide.md:71` once applied) reads "on the anchor `right-wall`, its origin (on the desk, below the centre of the sign's foot)".
+> - The work order (`docs/studio/work-orders/dog-sign.md:18`) still asks for "Where the sign stands on the desk, from the desk's front-left corner."
+> - Both come from the catalog piece, which the patch doesn't change. `notes.md` discloses the first, "for his look".
+> - What it adds up to: a standing desk sign with a foot, 0.4 m up a wall with nothing under it. Does it need a shelf or bracket for his look? Can the studio act on these two lines as written? Neither the patch nor the notes asks.
+> - No test fails on it.
+
+> **N-3 · Nit · Bugs (stale comment): `withDog`'s doc comment**
+>
+> - The comment reads "with the `dog` selectable added to its scene in memory, never on disk (FR-016)". It is in `apps/web/test/room/dog-pick.test.ts`, above `withDog`, about line 154 once patched.
+> - With the patch, the line *is* on disk, and the function now replaces it.
+> - The patch edits the function body but not this comment.
+
 ## Item 10: spec 027, when the twin's file context stops being enough (`night/impl-027/impl-027`)
 
 Spec: specs/027-corpus-retrieval-adr/ · Intent: intent/027-corpus-retrieval-adr.md (draft) · ADR: docs/adr/0054-when-file-context-stops-being-enough.md (proposed) · Written by: implementer (night shift, impl-027, Opus 5.5); the review is for a worker who didn't write the code (T006; the reviewer follows this task) · Date: 2026-11-14
