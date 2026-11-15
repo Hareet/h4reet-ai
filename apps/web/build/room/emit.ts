@@ -287,7 +287,7 @@ function leaveOf(l: LeaveBlock): LeaveData {
   return {
     takes: l.takes,
     meet: p2(l.meet),
-    under_bicycle: p2(l.under_bicycle),
+    take_at: p2(l.take_at),
     carry: [m6(l.carry[0]), m6(l.carry[1]), m6(l.carry[2])],
     path: l.path.map(p2),
     dog_mps: m6(l.dog_mps),

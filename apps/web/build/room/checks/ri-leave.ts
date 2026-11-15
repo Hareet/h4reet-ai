@@ -3,7 +3,7 @@
 // - `takes` SHALL name a placement of the scene (the bicycle's);
 // - the path's last point SHALL be outside the shell's floor (compose/floor.ts's `shell`: the side walls' inner faces,
 //   the back wall, the open front), so the figures leave the room before they are hidden;
-// - `meet` and `under_bicycle` SHALL be on spec 025's chase floor (the visitor's walkable floor with the twin's own
+// - `meet` and `take_at` SHALL be on spec 025's chase floor (the visitor's walkable floor with the twin's own
 //   obstacle left out), where the twin and the dog can stand.
 // One finding a point, at its path; no reason holds a value from the data. Without a geometry, a visitor, or a twin,
 // nothing is judged: RI8's or RG's finding is the one to fix.
@@ -47,7 +47,7 @@ export function leave(ctx: Context): void {
       ctx.path("figures", "leave", "path", last),
       "the path's last point is inside the shell's floor: the figures would be hidden in the room",
     );
-  for (const key of ["meet", "under_bicycle"] as const) {
+  for (const key of ["meet", "take_at"] as const) {
     const [x, z] = block[key];
     if (!isWalkable(chase, x, z))
       ri12(ctx.path("figures", "leave", key), "a point off the chase floor: past its bounds or inside an obstacle");

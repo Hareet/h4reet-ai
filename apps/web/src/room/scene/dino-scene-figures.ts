@@ -59,7 +59,7 @@ export function createDinoFigures(options: {
   readonly leave: LeaveData;
   readonly avatars: DinoAvatars;
   /** The taken placement's node (the bicycle's, by `leave.takes`), or null where the room has none. */
-  readonly bicycle: Object3D | null;
+  readonly takenNode: Object3D | null;
   /** Where the carrier goes: the room's scene. */
   readonly root: Object3D;
   readonly chosen: AvatarId;
@@ -76,7 +76,7 @@ export function createDinoFigures(options: {
   let dogMoves: "walk" | "run" = "walk";
   const scene = createDinoScene({
     leave,
-    twin: twin?.home ?? { x: leave.under_bicycle[0], z: leave.under_bicycle[1], heading: 0 },
+    twin: twin?.home ?? { x: leave.take_at[0], z: leave.take_at[1], heading: 0 },
     callSeconds: options.callSeconds,
     call: () => {
       avatars.twinWave();
@@ -125,7 +125,7 @@ export function createDinoFigures(options: {
    *  start. A model set after it (loader.ts's `showModel`) goes under the placement's node, on the wall, not into the
    *  carrier (rv-028b-1's B1-4, in impl-b.md's backlog; no real input reaches it before P9). */
   function take(): void {
-    const node = options.bicycle;
+    const node = options.takenNode;
     if (!node) return;
     for (const child of [...node.children]) {
       if (!TAKEN.has(child.name)) continue;
@@ -177,13 +177,13 @@ export function createDinoFigures(options: {
           take();
         }
         follow();
-        carrier.visible = scene.bicycle.visible;
-        if (!scene.bicycle.visible) {
+        carrier.visible = scene.carried.visible;
+        if (!scene.carried.visible) {
           // The cut, or the leave's end: the bicycle's pictures hidden with the twin, wherever they are.
           if (phase === "cut") for (const p of taken) p.node.visible = false;
           return;
         }
-        const u = scene.bicycle.taken;
+        const u = scene.carried.taken;
         for (const p of taken) {
           p.node.position.lerpVectors(p.from, carry, u);
           p.node.quaternion.slerpQuaternions(p.turn, STAND, u);

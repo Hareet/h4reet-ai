@@ -256,7 +256,7 @@ export interface LeaveData {
   /** The placement whose picture the twin takes: the bicycle's, by the scene's data. */
   takes: string;
   meet: [number, number];
-  under_bicycle: [number, number];
+  take_at: [number, number];
   carry: [number, number, number];
   path: [number, number][];
   dog_mps: number;

@@ -59,7 +59,7 @@ export interface DinoFigure {
 }
 
 /** The bicycle's state: whether it shows, and the take's progress, 0 on the wall to 1 beside the twin. */
-export interface DinoBicycle {
+export interface DinoCarried {
   visible: boolean;
   taken: number;
 }
@@ -68,7 +68,7 @@ export interface DinoScene {
   readonly phase: DinoPhase;
   readonly twin: Readonly<DinoFigure>;
   readonly dog: Readonly<DinoFigure>;
-  readonly bicycle: Readonly<DinoBicycle>;
+  readonly carried: Readonly<DinoCarried>;
   /** The dog takes part: decided at the call's end, from whether it shows with a walk or a run clip. */
   readonly withDog: boolean;
   /** One frame, `dt` the room's clock's seconds. */
@@ -152,11 +152,11 @@ export function createDinoScene(options: DinoSceneOptions): DinoScene {
   const reversed = [...path].reverse();
   // The routes, made once (FR-021): the dog's entry, the gather's two, and the leave's two.
   const enterRoute = route([...reversed, leave.meet]);
-  const gatherTwin = route([home, leave.under_bicycle]);
-  const gatherDog = route([leave.meet, leave.under_bicycle], DOG_STOP_M);
+  const gatherTwin = route([home, leave.take_at]);
+  const gatherDog = route([leave.meet, leave.take_at], DOG_STOP_M);
   const dogAt: DinoFigure = { x: 0, z: 0, facing: 0, visible: false, moving: false, speed: 0 };
   at(gatherDog, gatherDog.total, dogAt);
-  const leaveTwin = route([leave.under_bicycle, ...path]);
+  const leaveTwin = route([leave.take_at, ...path]);
   const leaveDog = route([[dogAt.x, dogAt.z], ...path]);
 
   const twin: DinoFigure = {
@@ -169,7 +169,7 @@ export function createDinoScene(options: DinoSceneOptions): DinoScene {
   };
   const dog: DinoFigure = { x: 0, z: 0, facing: 0, visible: false, moving: false, speed: 0 };
   at(enterRoute, 0, dog);
-  const bicycle: DinoBicycle = { visible: true, taken: 0 };
+  const carried: DinoCarried = { visible: true, taken: 0 };
   let phase: DinoPhase = "idle";
   /** Seconds in the phase. */
   let t = 0;
@@ -201,7 +201,7 @@ export function createDinoScene(options: DinoSceneOptions): DinoScene {
     dog.visible = false;
     dog.moving = false;
     dog.speed = 0;
-    bicycle.visible = false;
+    carried.visible = false;
     options.left(both ? "both" : "twin");
   }
 
@@ -243,13 +243,13 @@ export function createDinoScene(options: DinoSceneOptions): DinoScene {
           dog.moving = false;
           phase = "take";
           t = 0;
-          bicycle.taken = 0;
+          carried.taken = 0;
         }
         return;
       case "take":
-        bicycle.taken = Math.min(1, t / leave.take_s);
+        carried.taken = Math.min(1, t / leave.take_s);
         if (t >= leave.take_s) {
-          bicycle.taken = 1;
+          carried.taken = 1;
           phase = "leave";
           t = 0;
           sTwin = 0;
@@ -262,7 +262,7 @@ export function createDinoScene(options: DinoSceneOptions): DinoScene {
           if (sTwin >= leaveTwin.total) {
             twinOut = true;
             twin.visible = false;
-            bicycle.visible = false;
+            carried.visible = false;
           }
         }
         if (withDog && !dogOut) {
@@ -288,7 +288,7 @@ export function createDinoScene(options: DinoSceneOptions): DinoScene {
     },
     twin,
     dog,
-    bicycle,
+    carried,
     get withDog() {
       return withDog;
     },

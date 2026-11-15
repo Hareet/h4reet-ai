@@ -325,7 +325,7 @@ figures:
   leave:
     takes: bicycle # the placement whose picture the twin and the dog take out
     meet: [0.42, 0.45] # estimated: beside the twin, at the dog's home's side
-    under_bicycle: [0.74, 0.52] # estimated
+    take_at: [0.74, 0.52] # estimated
     carry: [0.3, 0.26, 0.05] # estimated
     path: [[0.8, 0.75], [1.3, 0.9], [1.7, 0.9]] # estimated
     dog_mps: 1.2 # estimated

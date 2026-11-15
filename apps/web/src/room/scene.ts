@@ -803,7 +803,7 @@ export function createScene(options: SceneOptions): Stage3D {
       dino = createDinoFigures({
         leave,
         avatars,
-        bicycle: room.placements.get(leave.takes) ?? null,
+        takenNode: room.placements.get(leave.takes) ?? null,
         root: room.scene,
         chosen: options.avatar,
         handedOff: () => handedOff,

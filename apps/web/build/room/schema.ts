@@ -645,7 +645,7 @@ const petBlock = z.strictObject({
 });
 
 /** `figures.leave` (spec 028, FR-021, FR-022; plan.md R-B4): the dinosaur's scene's data, each an estimate the Author's
- *  look places: `takes` the placement taken, `meet` and `under_bicycle` [x, z] on the floor plane, `carry` the bicycle's [x, y, z] offset in the
+ *  look places: `takes` the placement taken, `meet` and `take_at` [x, z] on the floor plane, `carry` the bicycle's [x, y, z] offset in the
  *  twin's picture's frame, `path` at least two [x, z] points out of the room, the dog's and the walkers' speeds, and
  *  the take's seconds, each above 0 and at most 10. Their geometry against the floors is RI12's. */
 const floorPoint = z.tuple([z.number(), z.number()]);
@@ -654,7 +654,7 @@ const leaveBlock = z.strictObject({
   // FR-007); RI12 holds it to a placement of the scene.
   takes: z.string(),
   meet: floorPoint,
-  under_bicycle: floorPoint,
+  take_at: floorPoint,
   carry: z.tuple([z.number(), z.number(), z.number()]),
   path: z.array(floorPoint).min(2),
   dog_mps: z.number().positive().max(10),
