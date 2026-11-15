@@ -8990,3 +8990,384 @@ This batch adds nothing new for his hand beyond what its items already carry: it
 No question for the Author, and no request to the runner. The D-V2 copy stays at `/tmp/merge3-dv2.DgMS` (a `git archive` export with the two proposed patches applied, nothing secret), as merge-2's did.
 
 merge-3: green, carrying D-V2's six (Q165); the line's tip is the commit that adds this section on `night/merge-3/merge-3`: 5b433036's merged code, with documents-only commits on top (spec 026's ADR pointer, Q308's clause, rv-docs4's N-1 to N-3, and this section)
+
+## Merge (rule 7, merge-4)
+
+Branch `night/merge-4/merge-4`, from the line's tip, `night/merge-3/merge-3` (4d823e1a), by a worker (Opus 5.5) that wrote none of the batch. Merge-3's section ends "merge-3: green", so the batch went ahead.
+
+**The batch, in his order:**
+
+- **Item 3, the dog's intake** (spec 020): `night/verify4-020/verify4-020`, ec40acbf. Its section ends "verify4-020: green, carrying `dog-intake.test.ts`'s tests 1 and 4, `data-only.test.ts`'s "a removal", and intake-020's 18 committed-tree tests in the gate's export ("waits on his merge of main (Q286)"; test 4 and the 18 also "wait on main's caps commit (Q288)"), all green on the export with main's `assets/policy/`; and D-V2's six (Q165)".
+- **ADR 0010 amended to main's caps** (Q307): `night/adr0010-020/adr0010-020`, 05e38d93. rv-adr0010-020 (Opus): not blocking, "No B- or I- findings", five nits.
+
+Each was still its branch's tip at the merge (`git rev-parse`: ec40acbf59ef, 05e38d939342).
+
+### The merges
+
+1. `git merge --no-ff refs/heads/night/verify4-020/verify4-020` merged with no conflict (b74df242). It brings the dog's folder (`assets/visitors/dog/`: `dog.glb`, `dog-idle.glb`, `dog-walk.glb`, `records.json`, `LICENSE.md`), `assets/CREDITS.md`'s 43 lines, `apps/web/test/room/dog-intake.test.ts`, `scripts/assets/test_credits_dog_intake.py`, and spec 020's and item 3's documents.
+2. `git merge --no-ff refs/heads/night/adr0010-020/adr0010-020` merged with no conflict (f9f42851), after verify4-020's, as rv-adr0010-020's "What merge-3 must know" 1 asks. It brings the ADR (22 lines), the index's row, and its note `docs/merge-requests/2026-11-15-adr0010.md`.
+
+No conflict, so no resolution and no test written for one.
+
+### Documents (the page's Q310, and rv-adr0010-020's findings and "What merge-3 must know")
+
+One commit, ed01a3cf, documents only.
+
+- **Q310** (answered: recommended). Spec 020's Assumptions, "Departures at the intake", now name spec 003's SC-006 (`specs/003-studio-assets/spec.md:361`) and FR-019 (`:267`) in the deviation beside spec 009 FR-038, in their own words: SC-006, "A first visit transfers at most 10 MB of assets in Phase 2 (the twin, the chosen avatar, and their animations), and at most 25 MB once the room's assets arrive in Phase 3"; FR-019, "SHALL refuse the asset if it exceeds its per-asset caps (ADR 0010's), or if it brings a first-visit total over the budget in SC-006". The numbers are the same: 26,000,000 is 1,000,000 bytes over SC-006's 25 MB, and the dog's 25,050,327 is 50,327 over it. The bullet's heading, SC-002 (`:132`), plan.md's Performance Goals and R-10 (answered) say "and spec 003's SC-006 and FR-019" too. tasks.md's T022 is verify4-020's record and stays as it was.
+- **Point 2, spec 020's ADR 0010 pointer.** The sentence that cited `:29` for `"phase3": 25000000` and called the ADR "the page's question" now reads that ADR 0010 gave 25,000,000, was amended in place at main's caps (adr0010-020, Q307 answered), its decision unchanged, and reads `"phase3": 26000000` at `:29`, with 25,000,000 kept as history (`:29`, `:33`) and SC-006's 25 MB named at `:58`. One more stale sentence in the same Assumptions, SC-002's bullet ("The answer is his (the page's question). Until he answers, this intake isn't merged, and the dog stays on the cut-out."), now reads in the past: "The answer was his (the page's Q288), and he gave it: the next item. Until then this intake wasn't merged, and the dog stayed on the cut-out." Item 3's section above, "ADR 0010 (accepted) gives the phase-3 budget as 25,000,000 …", keeps its words and gains a parenthesis: Q307 answered, the amendment merged here.
+- **Point 4, the ADR note's stale `:3` and `:7`.** `:3` keeps "Reviewer: none named in the brief" and adds that rv-adr0010-020 then reviewed it (not blocking, N-1 to N-5 done by merge-4), and that merge-4, not merge-3, folds it. `:7` keeps "Q307 itself isn't on the page's committed tip (978f23f1)" and adds that it is now (page tip `daa11d51`, line 83). The note's "For merge-3" and "Found, not changed" say what merge-4 did.
+- **rv-adr0010-020's N-1 to N-5.**
+  - N-1: the note's `:24` to `:31`, `:40`, and `:56` now read `:24` to `:33`, `:42`, and `:58`, which hold the cited text on this tip (the ADR's edits below change no line count). Q310 on the page is the supervisor's.
+  - N-2: the two unpasted scripts were re-run on this tip and pasted in the note with their output; each first run is marked "(not kept)". The figures are the same: the room's 21 files, 6,593,757 bytes at gzip level 9 on `refs/heads/main` and on `HEAD`; the three JSON snippets "equals main's". `git log -S`'s output (`ab4876f5 2026-11-14 policy(020): first visit's phase 3 to 26 MB`, `1ee99100 2026-10-26 Apply the guard patch (T003)`) and both greps' output (`60`; exit 1) are pasted. The note says its docs runs predate it ("444 files"), and points here for the re-run (2,502 links in 461 files, below).
+  - N-3: the note's "Why" names `docs/adr/README.md:3` ("immutable once accepted (supersede with a new ADR)"), the three precedents on `main` (`14d66bd5`, `436017b1`, `4c1625af`; `git merge-base --is-ancestor` true for each), and Q307's "Others", "a new ADR that supersedes 0010's budgets section".
+  - N-4: the ADR's Status line's "Spec:" list ends "020 (Assumptions, Q288's deviation)", and the index's row's Spec column reads "003, Phase 2, 004, 020".
+  - N-5: the ADR's `:3` dates ab4876f5 "2026-11-14, −0700", as the note's `:17` does. `:33` puts "B for the dog" at spec 020's Assumptions, "Departures at the intake", which hold his words, and `:58` names that section, with SC-006 and FR-019 beside FR-038 (Q288, Q310). The Q-numbers stay, as ADR 0054 cites them.
+- **Point 6** goes to the backlog below: it's a test file's comment, and no test file changed.
+
+### Backlog (rv-adr0010-020)
+
+> 6. **Carried, not this branch's:** `apps/web/test/helpers/room-avatars.ts:24` to `:28`. Its comment reads "Main's per_asset.avatar … as assets/policy/caps.json holds them", but `AVATAR_CAPS` holds 1f929db0's 6,000,000 / 90,000 / 33,554,432, not f21eff08's. I confirmed it. It's a test file, for a later test task. The values may be deliberate, so only the comment may need correcting.
+
+### The check
+
+```
+$ git diff refs/heads/night/merge-3/merge-3 HEAD --stat -- .claude CLAUDE.md REVIEW.md .specify/memory/constitution.md corpus tools/gates evals/agent-config redteam/forbidden-actions.sh assets/policy deploy/night-shift
+exit 0
+$ git diff refs/heads/night/merge-3/merge-3 HEAD --stat -- assets
+ assets/CREDITS.md                |  43 +++
+ assets/visitors/dog/LICENSE.md   |   5 +
+ assets/visitors/dog/dog-idle.glb | Bin 0 -> 34948 bytes
+ assets/visitors/dog/dog-walk.glb | Bin 0 -> 28552 bytes
+ assets/visitors/dog/dog.glb      | Bin 0 -> 9765184 bytes
+ assets/visitors/dog/records.json | 682 +++++++++++++++++++++++++++++++++++++++
+ 6 files changed, 730 insertions(+)
+exit 0
+```
+
+Nothing on rule 2's human-only paths, `assets/policy/`, or `deploy/night-shift/`. Under `assets/`, only the dog's folder and `assets/CREDITS.md`, the intake (rule 15).
+
+### Runs on the merged tip
+
+The worktree had no `node_modules`, so the setup target ran first (exit 0; its last line: "git hooks: /home/h4reet/h4reet-ai/h4reet-ai/.git/hooks isn't writable here (the agent sandbox); the Author runs make git-hooks"). `cat /sys/fs/cgroup/cpu.max` reads `400000 100000`, so `--maxWorkers=4`. The runs are on ed01a3cf, the merged code with the documents commit. The later commits are empty save points and this section.
+
+**`apps/web`'s whole suite**, started in the background with a 60-minute limit and pasted whole:
+
+```
+$ cd apps/web && (time npx vitest run --maxWorkers=4) > <log> 2>&1; echo "exit $?" >> <log>
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/merge-4/apps/web
+
+ ❯ test/room/report.test.ts (25 tests | 1 failed) 19962ms
+   ❯ the report's exempt faces and side-wall selectables (5)
+     × marks the counter face exempt on the phone, and the word face readable 224ms
+
+pet.select and pet.frame, a whole petting of 251 frames (turn 19, petting 211, return 20; 59 eased): 3.93 bytes a petting
+
+pet.select and pet.frame, a short petting of 9 frames: 0.72 bytes a petting
+
+pet.frame through a cut petting of 40 frames (fade 11): 0.24 bytes a cut petting
+
+applyReachLayer at weight 1: 0.46 bytes a frame; legs off 0.45; 0.0040 ms a frame; legs off 0.0031 ms
+
+applyReachLayer at weight 0.37: 0.45 bytes a frame; legs off 0.45; 0.0041 ms a frame; legs off 0.0033 ms
+ ❯ test/room/legibility.test.ts (20 tests | 3 failed) 1468ms
+   ❯ RG7's per-face exemption on the reference phone (6)
+     × exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it 19ms
+     × holds the same face to the floor on the desktop 311ms
+     × holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable 12ms
+
+the wired twin's frame (pet.frame, the run's shell, figures.update): linked 693.47 bytes and 0.0123 ms a frame; unlinked 688.77 bytes and 0.0048 ms; the reach adds 4.70 bytes and 0.0075 ms
+visitor floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; start (-0.7, 0.58)
+  obstacle work-desk: x [-0.87, 0.87], z [-0.73, 0.312]
+  obstacle desk-screen: x [-0.766, 0.458], z [-0.695, -0.169]
+  obstacle neon-sign: x [-0.942, 0.845], z [-0.637, -0.309]
+  obstacle laptop-stand: x [0.3, 0.8], z [-0.55, -0.07]
+  obstacle laptop: x [0.274, 0.826], z [-0.561, -0.08]
+  obstacle busy-sign: x [-0.839, -0.261], z [-0.431, -0.048]
+  obstacle dog-sign: x [0.025, 0.515], z [-0.428, -0.071]
+  obstacle chalkboard: x [-1.187, -0.887], z [-0.19, 0.765]
+  obstacle snowboard: x [-1.187, -0.749], z [-0.676, -0.124]
+  obstacle bicycle: x [0.769, 1.185], z [-0.407, 0.601]
+  obstacle wall-window: x [-1.12, 1.12], z [-0.73, -0.429]
+  obstacle window-view: x [-1.08, 1.08], z [-0.718, -0.47]
+  obstacle split-keyboard: x [-0.491, 0.209], z [-0.278, 0.25]
+  obstacle vertical-mouse: x [-0.007, 0.328], z [-0.162, 0.203]
+  obstacle notebook: x [-0.836, -0.239], z [-0.247, 0.282]
+  obstacle helmet: x [0.559, 1.149], z [-0.347, 0.191]
+  obstacle bag: x [-0.092, 0.71], z [-0.578, 0.075]
+  obstacle wall-outlet: x [0.902, 1.187], z [-0.556, -0.244]
+  obstacle twin-figure: x [0.17, 1.14], z [0.025, 0.789]
+chase floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; 18 obstacles (the visitor's less twin-figure)
+room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
+ ❯ test/disclosure.test.ts (11 tests | 2 failed) 339ms
+   ❯ the disclosure page (11)
+     × gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words 35ms
+     × names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6) 8ms
+chase bench: 600 frames, mean ms a frame per run 0.0108, 0.0430, 0.0100; best 0.0100
+
+pet.select and pet.frame over the real adapters, with chase.frame: 6.60 bytes a petting of 252 frames; 0.0001 ms a frame
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+AssertionError: V1: expected [ …(3) ] to deeply equal [ …(3) ]
+
+- Expected
++ Received
+
+  [
+-   "requests for the room's static assets, the narration's audio, and the PDF: the paths requested (which show which items a visitor plays), the IP address, the user agent, and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the twin's still in a visit that shows the 2D room; the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose",
++   "requests for the room's static assets, the narration's audio, and the PDF: the paths requested (which show which items a visitor plays), the IP address, the user agent, and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the room's dog's model and clips in every 3D visit above the floor where the bundle has them, the same for every visitor; the twin's still in a visit that shows the 2D room, or, in a 3D visit, once, when the conversation panel first opens in the split layout (spec 018); the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose",
+    "anything to a third-party host (FR-057)",
+    "the room, the resume, and the PDF are static assets; the twin and the credits are among them",
+  ]
+
+ ❯ test/disclosure.test.ts:119:36
+    117|       const carries = id === "V1" ? `${entry?.[2] ?? ""}, ${m17.carrie…
+    118|       const why = id === "V1" ? `${entry?.[4] ?? ""}; ${m17.why}` : en…
+    119|       expect(row?.slice(3, 6), id).toEqual([carries, entry?.[3], why]);
+       |                                    ^
+    120|     }
+    121|     expect(rows.get("V1")?.[2]).toContain(m17.trigger);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+AssertionError: expected 'requests for the room\'s static asset…' to contain 'and the avatar files now: the twin\'s…'
+
+Expected: "and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the twin's still in a visit that shows the 2D room; the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose"
+Received: "requests for the room's static assets, the narration's audio, and the PDF: the paths requested (which show which items a visitor plays), the IP address, the user agent, and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the room's dog's model and clips in every 3D visit above the floor where the bundle has them, the same for every visitor; the twin's still in a visit that shows the 2D room, or, in a 3D visit, once, when the conversation panel first opens in the split layout (spec 018); the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose"
+
+ ❯ test/disclosure.test.ts:180:33
+    178|       /^and the avatar files now: the twin's model and clips .*whose p…
+    179|     );
+    180|     expect(rows.get("V1")?.[3]).toContain(carries);
+       |                                 ^
+    181|     expect(rows.get("V1")?.[3]).not.toContain(v1);
+    182|     expect(v4).toBe("and a figure's avatar failing to load, once a vis…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+  [
+    {
+-     "desktop": 52,
++     "desktop": 52.7,
+      "face": "fx-neon.panel",
+      "phone": 16.8,
+      "phone_exempt": false,
+    },
+    {
+-     "desktop": 23.1,
++     "desktop": 23.4,
+      "face": "fx-neon.counters",
+      "phone": 7.4,
+      "phone_exempt": true,
+    },
+  ]
+
+ ❯ test/room/legibility.test.ts:262:79
+    260|     // At spec 005's reference stages, the clear areas (28.1 and 16.1,…
+    261|     // desktop's is its frame area (49.2 and 21.8 at the clear area), …
+    262|     expect(caps(countersTree()).filter((f) => f.face.startsWith("fx-ne…
+       |                                                                               ^
+    263|       { face: "fx-neon.panel", desktop: 52, phone: 16.8, phone_exempt:…
+    264|       { face: "fx-neon.counters", desktop: 23.1, phone: 7.4, phone_exe…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+AssertionError: expected [ …(5) ] to include 'placements[3].faces.counters: cap hei…'
+ ❯ test/room/legibility.test.ts:274:19
+    272|     // exempt there.
+    273|     const found = rg7(countersTree(), floorOf(24));
+    274|     expect(found).toContain(
+       |                   ^
+    275|       "placements[3].faces.counters: cap height 23.1 px on the desktop…
+    276|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+AssertionError: expected { face: 'fx-neon.counters', …(3) } to deeply equal { face: 'fx-neon.counters', …(3) }
+
+- Expected
++ Received
+
+  {
+-   "desktop": 23.1,
++   "desktop": 23.4,
+    "face": "fx-neon.counters",
+    "phone": 7.4,
+    "phone_exempt": false,
+  }
+
+ ❯ test/room/legibility.test.ts:307:28
+    305|   it("holds a face whose regions are all turn-cost to the floor on the…
+    306|     const t = counters({ readable: "readable: false" });
+    307|     expect(counterCaps(t)).toEqual({ face: "fx-neon.counters", desktop…
+       |                            ^
+    308|     expect(rg7(t)).toEqual([
+    309|       "placements[3].faces.counters: cap height 7.4 px on the phone st…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+AssertionError: expected [ '## Room report', '', …(71) ] to include '| `fx-neon.counters` | yes | 23.1 px …'
+ ❯ test/room/report.test.ts:351:18
+    349|     // At spec 005's reference stages (12.5 and 7.2, and 28.1 and 16.2…
+    350|     // Spec 014: the reference desktop is its frame area, so its caps …
+    351|     expect(rows).toContain(
+       |                  ^
+    352|       '| `fx-neon.counters` | yes | 23.1 px | 7.5 px | 9 | -1.5 px | e…
+    353|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  3 failed | 239 passed (242)
+      Tests  6 failed | 4386 passed | 3 skipped (4395)
+   Start at  03:49:15
+   Duration  1131.76s (tests 73%, import 27%)
+
+
+real	19m27.502s
+user	70m23.745s
+sys	1m42.827s
+exit 1
+```
+
+The six failures are exactly D-V2's six (Q165): `disclosure`'s two, `legibility`'s three, and `report`'s one. The six `FAIL` lines are the same as merge-3's (a `diff` of the two sorted lists prints nothing). The counts are merge-3's plus item 3's one file and five tests (`dog-intake.test.ts`): 242 files against 241, and 4,386 passed against 4,381. `test/room/twin-2d.test.ts` and `chunk.test.ts` passed, so neither needed a rerun. In this checkout, `dog-intake.test.ts`'s five pass, because the build reads main's `assets/policy/` through `.git` (`apps/web/build/room/policy.ts:395-401`, as verify4-020 found).
+
+**`services/gateway`**: the batch doesn't change it, so its suite isn't run. The diff stat prints nothing:
+
+```
+$ git diff refs/heads/night/merge-3/merge-3 HEAD --stat -- services/gateway
+exit 0
+```
+
+**Python.** The only Python folder the batch changes is `scripts/assets/` (`git diff --name-only 4d823e1a HEAD -- '*.py'`: `scripts/assets/test_credits_dog_intake.py`). The batch also changes ADR 0010, its index, and spec 020, so the docs checks ran too, with the one `adr_0010` test adr0010-020 ran:
+
+```
+$ python3 -m pytest -q -p no:cacheprovider scripts/assets/
+........................................................................ [ 72%]
+...........................                                              [100%]
+99 passed in 5.99s
+exit 0
+$ python3 -m pytest -q -p no:cacheprovider evals/test_docs_links.py evals/test_repository_docs.py
+.............................................................            [100%]
+61 passed in 0.98s
+exit 0
+$ python3 -I evals/docs_links.py
+PASS  every relative link resolves: 2502 links in 461 files
+PASS  README.md links the ADR index (docs/adr/)
+PASS  the ADR index links every ADR file: 52 of 52
+PASS  User Story 6's five decisions have their ADRs: 0001 (local-first routing), 0002 (one compose topology), 0003 (local-compose-first delivery), 0004 (Langfuse and Grafana), 0005 (Telegram alerting)
+docs links: 0 failed, 2502 relative links in 461 files
+exit 0
+$ python3 -I -m pytest -q -p no:cacheprovider "tools/gates/test/test_arrival_check.py::test_f1_an_avatar_before_adr_0010_is_accepted"
+.                                                                        [100%]
+1 passed in 0.47s
+exit 0
+```
+
+**Carried: item 3's export cases, on a `git archive` export with main's `assets/policy/`.** `git archive ed01a3cf` went into a fresh `mktemp -d` folder, `/tmp/merge4-main-policy.2f9B`, with no `.git`, as the gate's export reads it. Then `git archive refs/heads/main assets/policy` was laid over it, and the worktree's two `node_modules` folders were linked in. Every policy file in the copy has main's SHA-256:
+
+```
+$ for f in main's assets/policy/*: sha256sum <copy>/$f; git show refs/heads/main:$f | sha256sum
+cc5926ad14668d0a7b367bf79e391c834b5020ad878c62395b02d5a115c1a7d3 cc5926ad14668d0a7b367bf79e391c834b5020ad878c62395b02d5a115c1a7d3 assets/policy/approvals.json same
+181c38be9ce6724920c7f3713bc510fbf6325a2927c4325e514872bb1af12d20 181c38be9ce6724920c7f3713bc510fbf6325a2927c4325e514872bb1af12d20 assets/policy/caps.json same
+8ee97701d52ebf629444505ef7ca77243fc39b47de5423d84828dec171436bf1 8ee97701d52ebf629444505ef7ca77243fc39b47de5423d84828dec171436bf1 assets/policy/content-approvals.json same
+68120acc60fc647c7135e945925d113f4b4ed3c8bb5c020dc19a83ed34b03818 68120acc60fc647c7135e945925d113f4b4ed3c8bb5c020dc19a83ed34b03818 assets/policy/licenses.json same
+c02296e8a2093918d59f9ab1776bf16a2afa926e88e7b70f96772238b5fd76d2 c02296e8a2093918d59f9ab1776bf16a2afa926e88e7b70f96772238b5fd76d2 assets/policy/resume-header.json same
+34246a011a1f9a08ee66da9bdbcb61a62fa8563322066bf082450bb56ec3f0fd 34246a011a1f9a08ee66da9bdbcb61a62fa8563322066bf082450bb56ec3f0fd assets/policy/studio-tools.json same
+$ grep phase3 <copy>/assets/policy/caps.json
+    "phase3": 26000000
+$ grep -c A-20261114-dog <copy>/assets/policy/approvals.json
+3
+```
+
+`dog-intake.test.ts` and verify4-020's 13 committed-tree files (`test/room/avatars-compose.test.ts`, `compose.test.ts`, `data-only.test.ts`, `cli.test.ts`, `words.test.ts`, `generated.test.ts`, `lettering.test.ts`, `emblem-data.test.ts`, `test/manifest.test.ts`, `test/room/dist.test.ts`, `movement.test.ts`, `floor.test.ts`, `eat-checks.test.ts`), which hold every carried case, in one run:
+
+```
+$ cd <copy>/apps/web && npx vitest run --maxWorkers=4 test/room/dog-intake.test.ts <the 13 committed-tree files>
+ RUN  v5.0.3 /tmp/merge4-main-policy.2f9B/apps/web
+
+
+ Test Files  14 passed (14)
+      Tests  543 passed (543)
+   Start at  04:08:53
+   Duration  344.18s (tests 88%, import 12%)
+
+exit 0
+```
+
+543 is verify4-020's 5 and 538. So these cases are carried, as verify4-020 carried them, until his merge of main into the named stack:
+
+- `dog-intake.test.ts`'s test 1 ("are in the dog's folder, each with the SHA-256 his approval names") and `data-only.test.ts`'s "a removal": "waits on his merge of main (Q286)".
+- `dog-intake.test.ts`'s test 4 ("are read, capped, and counted with no RA or RK finding, and bundled with his line") and intake-020's 18 committed-tree tests (verify4-020's "Carried cases" table names each): "waits on his merge of main (Q286)" and "waits on main's caps commit (Q288)". The line's own `assets/policy/caps.json` still reads 25,000,000 (`git diff --stat` above: `assets/policy/` unchanged), so a run that reads it, such as the gate's export, refuses the first visit's 25,050,327.
+
+**D-V2's six, carried (Q165), on a second copy.** `git archive ed01a3cf` went into a fresh `mktemp -d` folder, `/tmp/merge4-dv2.0jRO` (the line's own `assets/policy/`), with the two `node_modules` folders linked in. There, his two proposed patches were checked and applied. Neither was applied on the line, and no test file was edited:
+
+```
+$ git apply --check 018-verify-test-amendments.patch && git apply --stat 018-verify-test-amendments.patch && git apply 018-verify-test-amendments.patch
+ 4 files changed, 43 insertions(+), 11 deletions(-)
+exit 0
+$ git apply --check 025-disclosure-test-amendments.patch && git apply --stat 025-disclosure-test-amendments.patch && git apply 025-disclosure-test-amendments.patch
+ 2 files changed, 28 insertions(+), 3 deletions(-)
+exit 0
+$ cd <B> && python3 -m pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+........................................................................ [ 90%]
+........                                                                 [100%]
+80 passed in 1.60s
+exit 0
+$ cd <B>/apps/web && npx vitest run --maxWorkers=4 test/disclosure.test.ts test/room/legibility.test.ts test/room/report.test.ts test/room/dog-disclosure.test.ts test/site.test.ts
+
+ RUN  v5.0.3 /tmp/merge4-dv2.0jRO/apps/web
+
+
+ Test Files  5 passed (5)
+      Tests  74 passed (74)
+   Start at  04:14:56
+   Duration  75.42s (tests 79%, import 16%, transform 5%)
+
+exit 0
+```
+
+With his two patches, the six pass on the merged code.
+
+**The lint target**, with this section in the tree. As in merge-1 to merge-3, shellcheck's echoed file list is left out:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+846 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- <the file list>
+exit 0
+```
+
+### What waits for him
+
+- **First, his merge of main into the named stack** (Q286's answer, by his hand; rule 16), then the gate. It brings `ab4876f5` (phase 3 at 26,000,000) and `b6985ad2` (the dog's three approvals), and the carried cases above go green in the gate's export.
+- **The deviation** (rule 16, Q310): phase 3's 26,000,000 departs from spec 009 FR-038's first-visit budget and from spec 003's SC-006 and FR-019 (25 MB), named in spec 020's Assumptions, "Departures at the intake", with his words, "B for the dog", and the numbers (25,050,327 bytes against 25,000,000).
+- **ADR 0010**, amended in place (Q307, recommended; his to confirm or overturn). It departs from the ADR index's "immutable once accepted" rule, as his three earlier commits on it did (the note's "Why").
+- D-V2's patches (Q165) are still waiting, and so are the items' earlier patches, as merge-3's section lists them.
+
+merge-4 changed nothing under a human-only path, `assets/policy/**`, or `/srv/studio/`. There was no merge of main or into main, and no push. The integration task (rule 12) is next, from this tip.
+
+**Interruptions (merge-4):** none. No hook, bash-gate, permission, or filesystem refusal; nothing respelled. This section was written with the Write tool and put in by a script that names no make target.
+
+No question for the Author, and no request to the runner. The two copies stay in `/tmp` (`git archive` exports, nothing secret), as merge-3's did. The two measuring scripts the ADR note pastes are in `/tmp/merge4-scripts/`.
+
+merge-4: green, carrying item 3's export cases ("waits on his merge of main (Q286)"; test 4 and the 18 also "wait on main's caps commit (Q288)") and D-V2's six (Q165); the line's tip is the commit that adds this section on `night/merge-4/merge-4`: f9f42851's merged code, with documents-only commits on top (ed01a3cf, and this section)
