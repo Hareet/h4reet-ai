@@ -1054,6 +1054,1304 @@ rv-intake-020's N-1, in its words (from the page's copy, "rv-intake-020's findin
 >   - The intake's `records.json` (24,123 bytes) and `LICENSE.md` (327 bytes) match the handoff listing's sizes.
 > - Next time, paste `sha256sum` of the brief and the handoff before and after.
 
+### Verification (rule 7, verify4-020)
+
+Branch `night/verify4-020/verify4-020`, from notes2-020's tip `864b9d5e`, by a worker (Opus 5.5) that wrote none of item 3. The verify runs under rule 7 and rule 16. rv-intake-020 blocked on I-1 (Q288) and I-2 (Q286) alone, and he has answered both: rule 16, "B for the dog". Main now holds `ab4876f5` (the caps) and `b6985ad2` (the approvals).
+
+#### The merge
+
+```
+$ git merge refs/heads/night/merge-2/merge-2
+Already up to date.
+```
+
+The line's tip, `ce3f6305`, was already in intake-020's base. Nothing else was merged, and main wasn't merged (Q286). `git merge-base --is-ancestor b6985ad2 HEAD` is false (exit 1): the line's own `assets/policy/` is still the line's. The diff from main is `approvals.json` (48 lines, the three dog entries) and `caps.json` (`phase3`, 25,000,000 against main's 26,000,000).
+
+#### Where the build reads its policy
+
+`apps/web/build/room/policy.ts:395-401` reads main's policy by `git cat-file blob refs/heads/main:<path>` where the repository's root holds a `.git`, and otherwise the tree's own copy. So a checkout already composes with main's 26,000,000 and main's approvals. The gate's export has no `.git`, so it reads the line's `assets/policy/`. The item's tests therefore ran four ways:
+
+1. in this checkout;
+2. on a `git archive` copy of this branch at `fb80ee59` (the code and tests are the same as at `864b9d5e`; only documents differ), with no `.git`, as the gate's export reads it;
+3. on that copy with `git archive refs/heads/main assets/policy` laid over it;
+4. on that copy with main's approvals and the line's own `caps.json`, to tell RK5's cases (Q288) from RA9's (Q286).
+
+The copy is in a scratch folder inside the worktree, with the worktree's two `node_modules` folders linked in. It was removed before this branch's last commit. `GIT_CEILING_DIRECTORIES` was set to the scratch folder, so git in the copy finds no repository (the "fatal" line below). `cat /sys/fs/cgroup/cpu.max` printed `400000 100000`, so `--maxWorkers=4`. The setup target ran first (no `node_modules`), exit 0.
+
+#### 1. In the checkout
+
+`dog-intake.test.ts`, all five cases. Test 4's tail runs, so N-5 is closed: the clips `idle` and `walk`, `dog.line` equal to his disclosure line, `avatars.dog` defined, and `bundledFiles` the three GLBs.
+
+```
+$ npx vitest run --maxWorkers=4 test/room/dog-intake.test.ts
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/verify4-020/apps/web
+
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  02:03:25
+   Duration  161.84s (tests 98%, transform 1%, import 1%)
+
+exit=0
+```
+
+The 13 committed-tree files (`test/room/avatars-compose.test.ts`, `compose.test.ts`, `data-only.test.ts`, `cli.test.ts`, `words.test.ts`, `generated.test.ts`, `lettering.test.ts`, `emblem-data.test.ts`, `test/manifest.test.ts`, `test/room/dist.test.ts`, `movement.test.ts`, `floor.test.ts`, `eat-checks.test.ts`). intake-020's run had 18 failures here, all RK5:
+
+```
+$ npx vitest run --maxWorkers=4 <the 13 committed-tree files>
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/verify4-020/apps/web
+
+
+ Test Files  13 passed (13)
+      Tests  538 passed (538)
+   Start at  02:06:12
+   Duration  463.96s (tests 87%, import 12%)
+
+exit=0
+```
+
+Spec 025's 22, with `dog-intake.test.ts`, in intake-020's 23-file list (`test/room/dog-intake.test.ts`, `likeness-visitor.test.ts`, `dog-avatar.test.ts`, `dog-line.test.ts`, `likeness-line-anywhere.test.ts`, `dog-run.test.ts`, `dog-report.test.ts`, `avatar-loader.test.ts`, `avatar-scene.test.ts`, `avatars.test.ts`, `dog-figure.test.ts`, `dog-first-visit.test.ts`, `chase-figures.test.ts`, `chase-stage.test.ts`, `chase-director.test.ts`, `chase-handoff.test.ts`, `chase-end-line.test.ts`, `chase-notes.test.ts`, `chase-schema.test.ts`, `chase-steer.test.ts`, `chase-degraded.test.ts`, `chase-bench.test.ts`, and `test/ui/text-copy.test.ts`):
+
+```
+$ npx vitest run --maxWorkers=4 <the 23-file list>
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/verify4-020/apps/web
+
+visitor floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; start (-0.7, 0.58)
+  obstacle work-desk: x [-0.87, 0.87], z [-0.73, 0.312]
+  obstacle desk-screen: x [-0.766, 0.458], z [-0.695, -0.169]
+  obstacle neon-sign: x [-0.942, 0.845], z [-0.637, -0.309]
+  obstacle laptop-stand: x [0.3, 0.8], z [-0.55, -0.07]
+  obstacle laptop: x [0.274, 0.826], z [-0.561, -0.08]
+  obstacle busy-sign: x [-0.839, -0.261], z [-0.431, -0.048]
+  obstacle dog-sign: x [0.025, 0.515], z [-0.428, -0.071]
+  obstacle chalkboard: x [-1.187, -0.887], z [-0.19, 0.765]
+  obstacle snowboard: x [-1.187, -0.749], z [-0.676, -0.124]
+  obstacle bicycle: x [0.769, 1.185], z [-0.407, 0.601]
+  obstacle wall-window: x [-1.12, 1.12], z [-0.73, -0.429]
+  obstacle window-view: x [-1.08, 1.08], z [-0.718, -0.47]
+  obstacle split-keyboard: x [-0.491, 0.209], z [-0.278, 0.25]
+  obstacle vertical-mouse: x [-0.007, 0.328], z [-0.162, 0.203]
+  obstacle notebook: x [-0.836, -0.239], z [-0.247, 0.282]
+  obstacle helmet: x [0.559, 1.149], z [-0.347, 0.191]
+  obstacle bag: x [-0.092, 0.71], z [-0.578, 0.075]
+  obstacle wall-outlet: x [0.902, 1.187], z [-0.556, -0.244]
+  obstacle twin-figure: x [0.17, 1.14], z [0.025, 0.789]
+chase floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; 18 obstacles (the visitor's less twin-figure)
+room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
+chase bench: 600 frames, mean ms a frame per run 0.0176, 0.0130, 0.0488; best 0.0130
+
+ Test Files  23 passed (23)
+      Tests  257 passed (257)
+   Start at  02:14:11
+   Duration  182.23s (tests 75%, import 25%, transform 1%)
+
+exit=0
+```
+
+`scripts/assets` changed (`test_credits_dog_intake.py`), so its whole folder runs. No other Python folder changed, and neither did `services/gateway` (`git diff --stat ce3f6305 HEAD -- services/ apps/ scripts/ evals/` names only `apps/web/test/room/dog-intake.test.ts` and `scripts/assets/test_credits_dog_intake.py`):
+
+```
+$ pytest -q -p no:cacheprovider --import-mode=importlib scripts/assets
+........................................................................ [ 72%]
+...........................                                              [100%]
+99 passed in 10.53s
+exit=0
+```
+
+**`apps/web`'s whole suite**, the whole log:
+
+```
+$ npx vitest run --maxWorkers=4
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/verify4-020/apps/web
+
+ ❯ test/room/report.test.ts (25 tests | 1 failed) 21249ms
+   ❯ the report's exempt faces and side-wall selectables (5)
+     × marks the counter face exempt on the phone, and the word face readable 375ms
+ ❯ test/room/legibility.test.ts (20 tests | 3 failed) 1544ms
+   ❯ RG7's per-face exemption on the reference phone (6)
+     × exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it 35ms
+     × holds the same face to the floor on the desktop 248ms
+     × holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable 30ms
+visitor floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; start (-0.7, 0.58)
+  obstacle work-desk: x [-0.87, 0.87], z [-0.73, 0.312]
+  obstacle desk-screen: x [-0.766, 0.458], z [-0.695, -0.169]
+  obstacle neon-sign: x [-0.942, 0.845], z [-0.637, -0.309]
+  obstacle laptop-stand: x [0.3, 0.8], z [-0.55, -0.07]
+  obstacle laptop: x [0.274, 0.826], z [-0.561, -0.08]
+  obstacle busy-sign: x [-0.839, -0.261], z [-0.431, -0.048]
+  obstacle dog-sign: x [0.025, 0.515], z [-0.428, -0.071]
+  obstacle chalkboard: x [-1.187, -0.887], z [-0.19, 0.765]
+  obstacle snowboard: x [-1.187, -0.749], z [-0.676, -0.124]
+  obstacle bicycle: x [0.769, 1.185], z [-0.407, 0.601]
+  obstacle wall-window: x [-1.12, 1.12], z [-0.73, -0.429]
+  obstacle window-view: x [-1.08, 1.08], z [-0.718, -0.47]
+  obstacle split-keyboard: x [-0.491, 0.209], z [-0.278, 0.25]
+  obstacle vertical-mouse: x [-0.007, 0.328], z [-0.162, 0.203]
+  obstacle notebook: x [-0.836, -0.239], z [-0.247, 0.282]
+  obstacle helmet: x [0.559, 1.149], z [-0.347, 0.191]
+  obstacle bag: x [-0.092, 0.71], z [-0.578, 0.075]
+  obstacle wall-outlet: x [0.902, 1.187], z [-0.556, -0.244]
+  obstacle twin-figure: x [0.17, 1.14], z [0.025, 0.789]
+chase floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; 18 obstacles (the visitor's less twin-figure)
+room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
+chase bench: 600 frames, mean ms a frame per run 0.0108, 0.0151, 0.0123; best 0.0108
+ ❯ test/disclosure.test.ts (11 tests | 2 failed) 350ms
+   ❯ the disclosure page (11)
+     × gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words 7ms
+     × names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6) 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+AssertionError: V1: expected [ …(3) ] to deeply equal [ …(3) ]
+
+- Expected
++ Received
+
+  [
+-   "requests for the room's static assets, the narration's audio, and the PDF: the paths requested (which show which items a visitor plays), the IP address, the user agent, and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the twin's still in a visit that shows the 2D room; the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose",
++   "requests for the room's static assets, the narration's audio, and the PDF: the paths requested (which show which items a visitor plays), the IP address, the user agent, and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the room's dog's model and clips in every 3D visit above the floor where the bundle has them, the same for every visitor; the twin's still in a visit that shows the 2D room, or, in a 3D visit, once, when the conversation panel first opens in the split layout (spec 018); the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose",
+    "anything to a third-party host (FR-057)",
+    "the room, the resume, and the PDF are static assets; the twin and the credits are among them",
+  ]
+
+ ❯ test/disclosure.test.ts:119:36
+    117|       const carries = id === "V1" ? `${entry?.[2] ?? ""}, ${m17.carrie…
+    118|       const why = id === "V1" ? `${entry?.[4] ?? ""}; ${m17.why}` : en…
+    119|       expect(row?.slice(3, 6), id).toEqual([carries, entry?.[3], why]);
+       |                                    ^
+    120|     }
+    121|     expect(rows.get("V1")?.[2]).toContain(m17.trigger);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+AssertionError: expected 'requests for the room\'s static asset…' to contain 'and the avatar files now: the twin\'s…'
+
+Expected: "and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the twin's still in a visit that shows the 2D room; the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose"
+Received: "requests for the room's static assets, the narration's audio, and the PDF: the paths requested (which show which items a visitor plays), the IP address, the user agent, and the avatar files now: the twin's model and clips in every 3D visit above the floor, the same for every visitor; the room's dog's model and clips in every 3D visit above the floor where the bundle has them, the same for every visitor; the twin's still in a visit that shows the 2D room, or, in a 3D visit, once, when the conversation panel first opens in the split layout (spec 018); the stand-in's files only where the twin's model failed or the visitor chose them; and the chosen avatar's where it has files, whose paths show which avatar the visitor chose"
+
+ ❯ test/disclosure.test.ts:180:33
+    178|       /^and the avatar files now: the twin's model and clips .*whose p…
+    179|     );
+    180|     expect(rows.get("V1")?.[3]).toContain(carries);
+       |                                 ^
+    181|     expect(rows.get("V1")?.[3]).not.toContain(v1);
+    182|     expect(v4).toBe("and a figure's avatar failing to load, once a vis…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+  [
+    {
+-     "desktop": 52,
++     "desktop": 52.7,
+      "face": "fx-neon.panel",
+      "phone": 16.8,
+      "phone_exempt": false,
+    },
+    {
+-     "desktop": 23.1,
++     "desktop": 23.4,
+      "face": "fx-neon.counters",
+      "phone": 7.4,
+      "phone_exempt": true,
+    },
+  ]
+
+ ❯ test/room/legibility.test.ts:262:79
+    260|     // At spec 005's reference stages, the clear areas (28.1 and 16.1,…
+    261|     // desktop's is its frame area (49.2 and 21.8 at the clear area), …
+    262|     expect(caps(countersTree()).filter((f) => f.face.startsWith("fx-ne…
+       |                                                                               ^
+    263|       { face: "fx-neon.panel", desktop: 52, phone: 16.8, phone_exempt:…
+    264|       { face: "fx-neon.counters", desktop: 23.1, phone: 7.4, phone_exe…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+AssertionError: expected [ …(5) ] to include 'placements[3].faces.counters: cap hei…'
+ ❯ test/room/legibility.test.ts:274:19
+    272|     // exempt there.
+    273|     const found = rg7(countersTree(), floorOf(24));
+    274|     expect(found).toContain(
+       |                   ^
+    275|       "placements[3].faces.counters: cap height 23.1 px on the desktop…
+    276|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+AssertionError: expected { face: 'fx-neon.counters', …(3) } to deeply equal { face: 'fx-neon.counters', …(3) }
+
+- Expected
++ Received
+
+  {
+-   "desktop": 23.1,
++   "desktop": 23.4,
+    "face": "fx-neon.counters",
+    "phone": 7.4,
+    "phone_exempt": false,
+  }
+
+ ❯ test/room/legibility.test.ts:307:28
+    305|   it("holds a face whose regions are all turn-cost to the floor on the…
+    306|     const t = counters({ readable: "readable: false" });
+    307|     expect(counterCaps(t)).toEqual({ face: "fx-neon.counters", desktop…
+       |                            ^
+    308|     expect(rg7(t)).toEqual([
+    309|       "placements[3].faces.counters: cap height 7.4 px on the phone st…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+AssertionError: expected [ '## Room report', '', …(71) ] to include '| `fx-neon.counters` | yes | 23.1 px …'
+ ❯ test/room/report.test.ts:351:18
+    349|     // At spec 005's reference stages (12.5 and 7.2, and 28.1 and 16.2…
+    350|     // Spec 014: the reference desktop is its frame area, so its caps …
+    351|     expect(rows).toContain(
+       |                  ^
+    352|       '| `fx-neon.counters` | yes | 23.1 px | 7.5 px | 9 | -1.5 px | e…
+    353|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  3 failed | 223 passed (226)
+      Tests  6 failed | 4154 passed | 3 skipped (4163)
+   Start at  02:53:53
+   Duration  1260.55s (tests 73%, import 27%)
+
+exit=1
+```
+
+The six failures are exactly D-V2's, as in verify-018's to merge-2's full runs (Q165). They're shown green on the patched copy below. `test/room/twin-2d.test.ts` passed in the full run, so it needed no rerun.
+
+#### 2. The gate's export: the line's own `assets/policy/`
+
+```
+$ npx vitest run --maxWorkers=4 test/room/dog-intake.test.ts
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/verify4-020/.verify4/copy/apps/web
+
+ ❯ test/room/dog-intake.test.ts (5 tests | 2 failed) 33580ms
+   ❯ the dog's files, taken in from round 4 (5)
+     × are in the dog's folder, each with the SHA-256 his approval names 21ms
+     × are read, capped, and counted with no RA or RK finding, and bundled with his line 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/room/dog-intake.test.ts > the dog's files, taken in from round 4 > are in the dog's folder, each with the SHA-256 his approval names
+AssertionError: A-20261114-dog: expected undefined to be 'd31c085cfa6dc92449f3ada3873417c829acd…' // Object.is equality
+
+- Expected:
+"d31c085cfa6dc92449f3ada3873417c829acd8e4989a3ae54c2bacc524842078"
+
++ Received:
+undefined
+
+ ❯ test/room/dog-intake.test.ts:57:72
+     55|       expect(bytes, name).not.toBeNull();
+     56|       expect(sha256(bytes as Uint8Array), name).toBe(want.sha256);
+     57|       expect(approvals.find((a) => a.id === want.id)?.sha256, want.id)…
+       |                                                                        ^
+     58|     }
+     59|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/room/dog-intake.test.ts > the dog's files, taken in from round 4 > are read, capped, and counted with no RA or RK finding, and bundled with his line
+TypeError: .toMatch() expects to receive a string, but got undefined
+ ❯ test/room/dog-intake.test.ts:88:44
+     86|
+     87|   it("are read, capped, and counted with no RA or RK finding, and bund…
+     88|     expect(modelApproval?.disclosure_line).toMatch(/\S/);
+       |                                            ^
+     89|     const result = compose(tree, policy, STRICT);
+     90|     expect(onDog(result.findings)).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 3 passed (5)
+   Start at  02:18:00
+   Duration  109.46s (tests 98%, transform 2%, import 1%)
+
+exit=1
+```
+
+```
+$ npx vitest run --maxWorkers=4 <the 13 committed-tree files>
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/verify4-020/.verify4/copy/apps/web
+
+ ❯ test/room/avatars-compose.test.ts (34 tests | 3 failed) 84782ms
+   ❯ the data-only proof set on the repository's own data (FR-037, SC-008) (4)
+     × the stand-in to woman: no finding, only the scene changed, only §1's paths read 30544ms
+     × texture_px to 512: no finding, only the scene changed, only §1's paths read 15990ms
+     × wait_ms to 0: no finding, only the scene changed, only §1's paths read 14256ms
+ ❯ test/room/compose.test.ts (259 tests | 2 failed) 245428ms
+   ❯ the committed tree (T094) (4)
+     × composes in strict mode with no finding (drafts true) 31092ms
+     × composes in strict mode with no finding (drafts false) 15308ms
+ ❯ test/room/emblem-data.test.ts (3 tests | 1 failed) 14ms
+   ❯ the emblem, named by the room's data (verify-018; FR-005, spec 002's FR-007) (3)
+     × composes the committed room with no finding 11ms
+ ❯ test/room/data-only.test.ts (31 tests | 13 failed) 841177ms
+   ❯ the committed data (R-68) (5)
+     × composes with no finding, reading only what contracts/room-data-files.md §1 lists: the ground every change stands on 11ms
+   ❯ the proof set, each change a data edit (FR-006, SC-001) (7)
+     × a move: the placement most others are mounted on moves, and everything on it moves with it, in 3D and 2D 80859ms
+     × an addition: a catalog entry, a placement, a selectable, and a topic become a labelled, selectable stand-in 21446ms
+     × a removal: a selectable and its members go, their IDs join retired[], and the selectable's ID can't come back 19687ms
+     × a regroup with its move: a member leaves the largest group, which moves until each core is exclusive (RG6) 523432ms
+     × a retarget: a selectable opens another topic, and keeps its ID and its event 15848ms
+     × a rewording: a selectable's name, a topic's phrase, and a label's word, the 3D part untouched 11611ms
+     × a new switch case for a value its signal already has, on a fixture switch whose piece claims nothing 11785ms
+   ❯ the proof set, spec 008's highlight (FR-057, SC-006) (2)
+     × a highlight colour: the band of the scene's look changes, and the 3D part and the index follow 11587ms
+     × a highlight width: the edge of the scene's look widens, and the 3D part and the index follow 11373ms
+   ❯ the proof set, spec 008's walking data (FR-056, SC-006) (3)
+     × the walking speed: a data edit, which the 3D part carries 11702ms
+     × a camera limit: a data edit, which the 3D part carries 11878ms
+     × the reach: a data edit, which the 3D part carries 11567ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 19 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/room/avatars-compose.test.ts > the data-only proof set on the repository's own data (FR-037, SC-008) > the stand-in to woman: no finding, only the scene changed, only §1's paths read
+ FAIL  test/room/avatars-compose.test.ts > the data-only proof set on the repository's own data (FR-037, SC-008) > texture_px to 512: no finding, only the scene changed, only §1's paths read
+ FAIL  test/room/avatars-compose.test.ts > the data-only proof set on the repository's own data (FR-037, SC-008) > wait_ms to 0: no finding, only the scene changed, only §1's paths read
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RA9 assets/visitors/dog/dog.glb:-: a likeness without main's approval naming its SHA-256 with a disclosure line (assets/policy/approvals.json)",
++ ]
+
+ ❯ test/room/avatars-compose.test.ts:487:58
+    485|     );
+    486|     const result = compose(tree, policy, STRICT);
+    487|     expect(result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    488|     expect(result.scene.figures).toMatchObject(expected);
+    489|     expect(tree.log.filter((path) => !READABLE.some((re) => re.test(pa…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/19]⎯
+
+ FAIL  test/room/compose.test.ts > the committed tree (T094) > composes in strict mode with no finding (drafts true)
+ FAIL  test/room/compose.test.ts > the committed tree (T094) > composes in strict mode with no finding (drafts false)
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RA9 assets/visitors/dog/dog.glb:-: a likeness without main's approval naming its SHA-256 with a disclosure line (assets/policy/approvals.json)",
++ ]
+
+ ❯ test/room/compose.test.ts:316:89
+    314|   it.each([true, false])("composes in strict mode with no finding (dra…
+    315|     const policy = readRoomPolicy({ env: process.env, root: ROOT });
+    316|     expect(lines(compose(fileTree(ROOT), policy, { mode: "strict", dra…
+       |                                                                                         ^
+    317|   });
+    318|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the committed data (R-68) > composes with no finding, reading only what contracts/room-data-files.md §1 lists: the ground every change stands on
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RA9 assets/visitors/dog/dog.glb:-: a likeness without main's approval naming its SHA-256 with a disclosure line (assets/policy/approvals.json)",
++ ]
+
+ ❯ test/room/data-only.test.ts:442:56
+    440| describe("the committed data (R-68)", () => {
+    441|   it("composes with no finding, reading only what contracts/room-data-…
+    442|     expect(base.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                        ^
+    443|     expect(base.index.selectables.length).toBeGreaterThan(0);
+    444|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, each change a data edit (FR-006, SC-001) > a move: the placement most others are mounted on moves, and everything on it moves with it, in 3D and 2D
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RA9 assets/visitors/dog/dog.glb:-: a likeness without main's approval naming its SHA-256 with a disclosure line (assets/policy/approvals.json)",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:530:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, each change a data edit (FR-006, SC-001) > an addition: a catalog entry, a placement, a selectable, and a topic become a labelled, selectable stand-in
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RA9 assets/visitors/dog/dog.glb:-: a likeness without main's approval naming its SHA-256 with a disclosure line (assets/policy/approvals.json)",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:548:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, each change a data edit (FR-006, SC-001) > a removal: a selectable and its members go, their IDs join retired[], and the selectable's ID can't come back
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RA9 assets/visitors/dog/dog.glb:-: a likeness without main's approval naming its SHA-256 with a disclosure line (assets/policy/approvals.json)",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:639:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, each change a data edit (FR-006, SC-001) > a regroup with its move: a member leaves the largest group, which moves until each core is exclusive (RG6)
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RA9 assets/visitors/dog/dog.glb:-: a likeness without main's approval naming its SHA-256 with a disclosure line (assets/policy/approvals.json)",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:686:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, each change a data edit (FR-006, SC-001) > a retarget: a selectable opens another topic, and keeps its ID and its event
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RA9 assets/visitors/dog/dog.glb:-: a likeness without main's approval naming its SHA-256 with a disclosure line (assets/policy/approvals.json)",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:713:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, each change a data edit (FR-006, SC-001) > a rewording: a selectable's name, a topic's phrase, and a label's word, the 3D part untouched
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RA9 assets/visitors/dog/dog.glb:-: a likeness without main's approval naming its SHA-256 with a disclosure line (assets/policy/approvals.json)",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:735:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, each change a data edit (FR-006, SC-001) > a new switch case for a value its signal already has, on a fixture switch whose piece claims nothing
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RA9 assets/visitors/dog/dog.glb:-: a likeness without main's approval naming its SHA-256 with a disclosure line (assets/policy/approvals.json)",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:769:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, spec 008's highlight (FR-057, SC-006) > a highlight colour: the band of the scene's look changes, and the 3D part and the index follow
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RA9 assets/visitors/dog/dog.glb:-: a likeness without main's approval naming its SHA-256 with a disclosure line (assets/policy/approvals.json)",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:953:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, spec 008's highlight (FR-057, SC-006) > a highlight width: the edge of the scene's look widens, and the 3D part and the index follow
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RA9 assets/visitors/dog/dog.glb:-: a likeness without main's approval naming its SHA-256 with a disclosure line (assets/policy/approvals.json)",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:967:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, spec 008's walking data (FR-056, SC-006) > the walking speed: a data edit, which the 3D part carries
+ FAIL  test/room/data-only.test.ts > the proof set, spec 008's walking data (FR-056, SC-006) > a camera limit: a data edit, which the 3D part carries
+ FAIL  test/room/data-only.test.ts > the proof set, spec 008's walking data (FR-056, SC-006) > the reach: a data edit, which the 3D part carries
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RA9 assets/visitors/dog/dog.glb:-: a likeness without main's approval naming its SHA-256 with a disclosure line (assets/policy/approvals.json)",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:1011:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/19]⎯
+
+ FAIL  test/room/emblem-data.test.ts > the emblem, named by the room's data (verify-018; FR-005, spec 002's FR-007) > composes the committed room with no finding
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RA9 assets/visitors/dog/dog.glb:-: a likeness without main's approval naming its SHA-256 with a disclosure line (assets/policy/approvals.json)",
++ ]
+
+ ❯ test/room/emblem-data.test.ts:18:56
+     16| describe("the emblem, named by the room's data (verify-018; FR-005, sp…
+     17|   it("composes the committed room with no finding", () => {
+     18|     expect(base.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                        ^
+     19|   });
+     20|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/19]⎯
+
+
+ Test Files  4 failed | 9 passed (13)
+      Tests  19 failed | 519 passed (538)
+   Start at  02:19:54
+   Duration  946.51s (tests 91%, import 9%)
+
+exit=1
+```
+
+```
+$ npx vitest run --maxWorkers=4 <the 23-file list>
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/verify4-020/.verify4/copy/apps/web
+
+visitor floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; start (-0.7, 0.58)
+  obstacle work-desk: x [-0.87, 0.87], z [-0.73, 0.312]
+  obstacle desk-screen: x [-0.766, 0.458], z [-0.695, -0.169]
+  obstacle neon-sign: x [-0.942, 0.845], z [-0.637, -0.309]
+  obstacle laptop-stand: x [0.3, 0.8], z [-0.55, -0.07]
+  obstacle laptop: x [0.274, 0.826], z [-0.561, -0.08]
+  obstacle busy-sign: x [-0.839, -0.261], z [-0.431, -0.048]
+  obstacle dog-sign: x [0.025, 0.515], z [-0.428, -0.071]
+  obstacle chalkboard: x [-1.187, -0.887], z [-0.19, 0.765]
+  obstacle snowboard: x [-1.187, -0.749], z [-0.676, -0.124]
+  obstacle bicycle: x [0.769, 1.185], z [-0.407, 0.601]
+  obstacle wall-window: x [-1.12, 1.12], z [-0.73, -0.429]
+  obstacle window-view: x [-1.08, 1.08], z [-0.718, -0.47]
+  obstacle split-keyboard: x [-0.491, 0.209], z [-0.278, 0.25]
+  obstacle vertical-mouse: x [-0.007, 0.328], z [-0.162, 0.203]
+  obstacle notebook: x [-0.836, -0.239], z [-0.247, 0.282]
+  obstacle helmet: x [0.559, 1.149], z [-0.347, 0.191]
+  obstacle bag: x [-0.092, 0.71], z [-0.578, 0.075]
+  obstacle wall-outlet: x [0.902, 1.187], z [-0.556, -0.244]
+  obstacle twin-figure: x [0.17, 1.14], z [0.025, 0.789]
+chase floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; 18 obstacles (the visitor's less twin-figure)
+room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
+ ❯ test/room/dog-intake.test.ts (5 tests | 2 failed) 44595ms
+   ❯ the dog's files, taken in from round 4 (5)
+     × are in the dog's folder, each with the SHA-256 his approval names 28ms
+     × are read, capped, and counted with no RA or RK finding, and bundled with his line 2ms
+chase bench: 600 frames, mean ms a frame per run 0.0277, 0.0593, 0.0162; best 0.0162
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/room/dog-intake.test.ts > the dog's files, taken in from round 4 > are in the dog's folder, each with the SHA-256 his approval names
+AssertionError: A-20261114-dog: expected undefined to be 'd31c085cfa6dc92449f3ada3873417c829acd…' // Object.is equality
+
+- Expected:
+"d31c085cfa6dc92449f3ada3873417c829acd8e4989a3ae54c2bacc524842078"
+
++ Received:
+undefined
+
+ ❯ test/room/dog-intake.test.ts:57:72
+     55|       expect(bytes, name).not.toBeNull();
+     56|       expect(sha256(bytes as Uint8Array), name).toBe(want.sha256);
+     57|       expect(approvals.find((a) => a.id === want.id)?.sha256, want.id)…
+       |                                                                        ^
+     58|     }
+     59|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/room/dog-intake.test.ts > the dog's files, taken in from round 4 > are read, capped, and counted with no RA or RK finding, and bundled with his line
+TypeError: .toMatch() expects to receive a string, but got undefined
+ ❯ test/room/dog-intake.test.ts:88:44
+     86|
+     87|   it("are read, capped, and counted with no RA or RK finding, and bund…
+     88|     expect(modelApproval?.disclosure_line).toMatch(/\S/);
+       |                                            ^
+     89|     const result = compose(tree, policy, STRICT);
+     90|     expect(onDog(result.findings)).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 22 passed (23)
+      Tests  2 failed | 255 passed (257)
+   Start at  02:36:09
+   Duration  192.04s (tests 73%, import 26%, transform 1%)
+
+exit=1
+```
+
+Every failure here meets one finding, `RA9 assets/visitors/dog/dog.glb:-` (no approval naming its SHA-256 in the tree's own `approvals.json`), or, in `dog-intake.test.ts`, the missing approval itself. RA9 leaves the dog out before RK5 counts it, so RK5 doesn't show here. Run 4 shows which of these RK5 also refuses.
+
+#### 3. The export with main's `assets/policy/` laid over it
+
+```
+$ diff -r <(git archive refs/heads/main assets/policy) <the copy>/assets/policy, before
+fatal: not a git repository (or any of the parent directories): .git
+$ grep phase3 <copy>/assets/policy/caps.json
+    "phase3": 26000000
+$ grep -c A-20261114-dog <copy>/assets/policy/approvals.json
+3
+$ sha256sum, the copy against refs/heads/main
+cc5926ad14668d0a7b367bf79e391c834b5020ad878c62395b02d5a115c1a7d3  /home/h4reet/h4reet-ai/night/2026-11-14/verify4-020/.verify4/copy/assets/policy/approvals.json
+181c38be9ce6724920c7f3713bc510fbf6325a2927c4325e514872bb1af12d20  /home/h4reet/h4reet-ai/night/2026-11-14/verify4-020/.verify4/copy/assets/policy/caps.json
+8ee97701d52ebf629444505ef7ca77243fc39b47de5423d84828dec171436bf1  /home/h4reet/h4reet-ai/night/2026-11-14/verify4-020/.verify4/copy/assets/policy/content-approvals.json
+68120acc60fc647c7135e945925d113f4b4ed3c8bb5c020dc19a83ed34b03818  /home/h4reet/h4reet-ai/night/2026-11-14/verify4-020/.verify4/copy/assets/policy/licenses.json
+c02296e8a2093918d59f9ab1776bf16a2afa926e88e7b70f96772238b5fd76d2  /home/h4reet/h4reet-ai/night/2026-11-14/verify4-020/.verify4/copy/assets/policy/resume-header.json
+34246a011a1f9a08ee66da9bdbcb61a62fa8563322066bf082450bb56ec3f0fd  /home/h4reet/h4reet-ai/night/2026-11-14/verify4-020/.verify4/copy/assets/policy/studio-tools.json
+cc5926ad14668d0a7b367bf79e391c834b5020ad878c62395b02d5a115c1a7d3  -  main:assets/policy/approvals.json
+181c38be9ce6724920c7f3713bc510fbf6325a2927c4325e514872bb1af12d20  -  main:assets/policy/caps.json
+8ee97701d52ebf629444505ef7ca77243fc39b47de5423d84828dec171436bf1  -  main:assets/policy/content-approvals.json
+68120acc60fc647c7135e945925d113f4b4ed3c8bb5c020dc19a83ed34b03818  -  main:assets/policy/licenses.json
+c02296e8a2093918d59f9ab1776bf16a2afa926e88e7b70f96772238b5fd76d2  -  main:assets/policy/resume-header.json
+34246a011a1f9a08ee66da9bdbcb61a62fa8563322066bf082450bb56ec3f0fd  -  main:assets/policy/studio-tools.json
+```
+
+The first two lines are the script's own: a `diff` it never ran, and git finding no repository in the copy. After them, every file in the copy's `assets/policy/` has the SHA-256 of main's.
+
+```
+$ npx vitest run --maxWorkers=4 test/room/dog-intake.test.ts
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/verify4-020/.verify4/copy/apps/web
+
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  02:39:28
+   Duration  125.57s (tests 98%, transform 1%, import 1%)
+
+exit=0
+```
+
+```
+$ npx vitest run --maxWorkers=4 <the 13 committed-tree files>
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/verify4-020/.verify4/copy/apps/web
+
+
+ Test Files  13 passed (13)
+      Tests  538 passed (538)
+   Start at  02:41:38
+   Duration  452.32s (tests 88%, import 12%)
+
+exit=0
+```
+
+```
+$ npx vitest run --maxWorkers=4 <the 23-file list>
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/verify4-020/.verify4/copy/apps/web
+
+visitor floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; start (-0.7, 0.58)
+  obstacle work-desk: x [-0.87, 0.87], z [-0.73, 0.312]
+  obstacle desk-screen: x [-0.766, 0.458], z [-0.695, -0.169]
+  obstacle neon-sign: x [-0.942, 0.845], z [-0.637, -0.309]
+  obstacle laptop-stand: x [0.3, 0.8], z [-0.55, -0.07]
+  obstacle laptop: x [0.274, 0.826], z [-0.561, -0.08]
+  obstacle busy-sign: x [-0.839, -0.261], z [-0.431, -0.048]
+  obstacle dog-sign: x [0.025, 0.515], z [-0.428, -0.071]
+  obstacle chalkboard: x [-1.187, -0.887], z [-0.19, 0.765]
+  obstacle snowboard: x [-1.187, -0.749], z [-0.676, -0.124]
+  obstacle bicycle: x [0.769, 1.185], z [-0.407, 0.601]
+  obstacle wall-window: x [-1.12, 1.12], z [-0.73, -0.429]
+  obstacle window-view: x [-1.08, 1.08], z [-0.718, -0.47]
+  obstacle split-keyboard: x [-0.491, 0.209], z [-0.278, 0.25]
+  obstacle vertical-mouse: x [-0.007, 0.328], z [-0.162, 0.203]
+  obstacle notebook: x [-0.836, -0.239], z [-0.247, 0.282]
+  obstacle helmet: x [0.559, 1.149], z [-0.347, 0.191]
+  obstacle bag: x [-0.092, 0.71], z [-0.578, 0.075]
+  obstacle wall-outlet: x [0.902, 1.187], z [-0.556, -0.244]
+  obstacle twin-figure: x [0.17, 1.14], z [0.025, 0.789]
+chase floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; 18 obstacles (the visitor's less twin-figure)
+room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
+chase bench: 600 frames, mean ms a frame per run 0.0182, 0.0162, 0.0576; best 0.0162
+
+ Test Files  23 passed (23)
+      Tests  257 passed (257)
+   Start at  02:49:25
+   Duration  168.18s (tests 75%, import 24%, transform 1%)
+
+exit=0
+```
+
+All green, test 4's tail included (N-5), in the gate's view of the tree. This is the review's "Do it in the gate's export as well as in a checkout".
+
+**D-V2's six, carried (Q165), on the same copy.** Then `docs/merge-requests/proposed/018-verify-test-amendments.patch` and `025-disclosure-test-amendments.patch` were applied there, with `patch -p1` after a dry run. Neither was applied on this branch, and no test file in the worktree changed (`git status --short` showed only the scratch folder):
+
+```
+$ patch -p1 --dry-run < docs/merge-requests/proposed/018-verify-test-amendments.patch
+checking file apps/web/test/disclosure.test.ts
+checking file apps/web/test/room/legibility.test.ts
+checking file apps/web/test/room/report.test.ts
+checking file evals/test_disclosure.py
+exit=0
+$ patch -p1 --dry-run < docs/merge-requests/proposed/025-disclosure-test-amendments.patch
+checking file apps/web/test/disclosure.test.ts
+checking file evals/test_disclosure.py
+exit=0
+```
+
+```
+$ pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+........................................................................ [ 90%]
+........                                                                 [100%]
+80 passed in 1.77s
+exit=0
+$ npx vitest run --maxWorkers=4 test/disclosure.test.ts test/room/legibility.test.ts test/room/report.test.ts test/room/dog-disclosure.test.ts test/site.test.ts
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/verify4-020/.verify4/copy/apps/web
+
+
+ Test Files  5 passed (5)
+      Tests  74 passed (74)
+   Start at  02:52:20
+   Duration  89.33s (tests 78%, import 16%, transform 6%)
+
+exit=0
+```
+
+#### 4. Main's approvals with the line's own `caps.json` (RK5 at 25,000,000)
+
+```
+$ grep phase3 <copy>/assets/policy/caps.json   # the line's own caps, main's approvals
+    "phase3": 25000000
+3
+```
+
+```
+$ npx vitest run --maxWorkers=4 test/room/dog-intake.test.ts <the 13 committed-tree files>
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/verify4-020/.verify4/copy/apps/web
+
+ ❯ test/room/avatars-compose.test.ts (34 tests | 3 failed) 55475ms
+   ❯ the data-only proof set on the repository's own data (FR-037, SC-008) (4)
+     × the stand-in to woman: no finding, only the scene changed, only §1's paths read 18337ms
+     × texture_px to 512: no finding, only the scene changed, only §1's paths read 8388ms
+     × wait_ms to 0: no finding, only the scene changed, only §1's paths read 9123ms
+ ❯ test/room/compose.test.ts (259 tests | 2 failed) 177471ms
+   ❯ the committed tree (T094) (4)
+     × composes in strict mode with no finding (drafts true) 18492ms
+     × composes in strict mode with no finding (drafts false) 9247ms
+ ❯ test/room/dog-intake.test.ts (5 tests | 1 failed) 36648ms
+   ❯ the dog's files, taken in from round 4 (5)
+     × are read, capped, and counted with no RA or RK finding, and bundled with his line 19346ms
+ ❯ test/room/emblem-data.test.ts (3 tests | 1 failed) 6ms
+   ❯ the emblem, named by the room's data (verify-018; FR-005, spec 002's FR-007) (3)
+     × composes the committed room with no finding 5ms
+ ❯ test/room/data-only.test.ts (31 tests | 12 failed) 597047ms
+   ❯ the committed data (R-68) (5)
+     × composes with no finding, reading only what contracts/room-data-files.md §1 lists: the ground every change stands on 6ms
+   ❯ the proof set, each change a data edit (FR-006, SC-001) (7)
+     × a move: the placement most others are mounted on moves, and everything on it moves with it, in 3D and 2D 49828ms
+     × an addition: a catalog entry, a placement, a selectable, and a topic become a labelled, selectable stand-in 14545ms
+     × a regroup with its move: a member leaves the largest group, which moves until each core is exclusive (RG6) 368070ms
+     × a retarget: a selectable opens another topic, and keeps its ID and its event 11409ms
+     × a rewording: a selectable's name, a topic's phrase, and a label's word, the 3D part untouched 7809ms
+     × a new switch case for a value its signal already has, on a fixture switch whose piece claims nothing 7785ms
+   ❯ the proof set, spec 008's highlight (FR-057, SC-006) (2)
+     × a highlight colour: the band of the scene's look changes, and the 3D part and the index follow 7884ms
+     × a highlight width: the edge of the scene's look widens, and the 3D part and the index follow 7916ms
+   ❯ the proof set, spec 008's walking data (FR-056, SC-006) (3)
+     × the walking speed: a data edit, which the 3D part carries 8025ms
+     × a camera limit: a data edit, which the 3D part carries 8016ms
+     × the reach: a data edit, which the 3D part carries 7895ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 19 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/room/avatars-compose.test.ts > the data-only proof set on the repository's own data (FR-037, SC-008) > the stand-in to woman: no finding, only the scene changed, only §1's paths read
+ FAIL  test/room/avatars-compose.test.ts > the data-only proof set on the repository's own data (FR-037, SC-008) > texture_px to 512: no finding, only the scene changed, only §1's paths read
+ FAIL  test/room/avatars-compose.test.ts > the data-only proof set on the repository's own data (FR-037, SC-008) > wait_ms to 0: no finding, only the scene changed, only §1's paths read
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RK5 apps/web/room/scene.yaml:-: 25,050,327 bytes in the first visit with both figures' files, over main's phase-3 budget of 25,000,000: 6,593,757 in the room's set models and cards, 8,734,538 in the twin's files, 0 in the stand-in's files, 6,474,745 in the room's dog's files, and 3,247,287 in the largest other visitor avatar's",
++ ]
+
+ ❯ test/room/avatars-compose.test.ts:487:58
+    485|     );
+    486|     const result = compose(tree, policy, STRICT);
+    487|     expect(result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    488|     expect(result.scene.figures).toMatchObject(expected);
+    489|     expect(tree.log.filter((path) => !READABLE.some((re) => re.test(pa…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/19]⎯
+
+ FAIL  test/room/compose.test.ts > the committed tree (T094) > composes in strict mode with no finding (drafts true)
+ FAIL  test/room/compose.test.ts > the committed tree (T094) > composes in strict mode with no finding (drafts false)
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RK5 apps/web/room/scene.yaml:-: 25,050,327 bytes in the first visit with both figures' files, over main's phase-3 budget of 25,000,000: 6,593,757 in the room's set models and cards, 8,734,538 in the twin's files, 0 in the stand-in's files, 6,474,745 in the room's dog's files, and 3,247,287 in the largest other visitor avatar's",
++ ]
+
+ ❯ test/room/compose.test.ts:316:89
+    314|   it.each([true, false])("composes in strict mode with no finding (dra…
+    315|     const policy = readRoomPolicy({ env: process.env, root: ROOT });
+    316|     expect(lines(compose(fileTree(ROOT), policy, { mode: "strict", dra…
+       |                                                                                         ^
+    317|   });
+    318|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the committed data (R-68) > composes with no finding, reading only what contracts/room-data-files.md §1 lists: the ground every change stands on
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RK5 apps/web/room/scene.yaml:-: 25,050,327 bytes in the first visit with both figures' files, over main's phase-3 budget of 25,000,000: 6,593,757 in the room's set models and cards, 8,734,538 in the twin's files, 0 in the stand-in's files, 6,474,745 in the room's dog's files, and 3,247,287 in the largest other visitor avatar's",
++ ]
+
+ ❯ test/room/data-only.test.ts:442:56
+    440| describe("the committed data (R-68)", () => {
+    441|   it("composes with no finding, reading only what contracts/room-data-…
+    442|     expect(base.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                        ^
+    443|     expect(base.index.selectables.length).toBeGreaterThan(0);
+    444|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, each change a data edit (FR-006, SC-001) > a move: the placement most others are mounted on moves, and everything on it moves with it, in 3D and 2D
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RK5 apps/web/room/scene.yaml:-: 25,050,327 bytes in the first visit with both figures' files, over main's phase-3 budget of 25,000,000: 6,593,757 in the room's set models and cards, 8,734,538 in the twin's files, 0 in the stand-in's files, 6,474,745 in the room's dog's files, and 3,247,287 in the largest other visitor avatar's",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:530:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, each change a data edit (FR-006, SC-001) > an addition: a catalog entry, a placement, a selectable, and a topic become a labelled, selectable stand-in
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RK5 apps/web/room/scene.yaml:-: 25,050,327 bytes in the first visit with both figures' files, over main's phase-3 budget of 25,000,000: 6,593,757 in the room's set models and cards, 8,734,538 in the twin's files, 0 in the stand-in's files, 6,474,745 in the room's dog's files, and 3,247,287 in the largest other visitor avatar's",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:548:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, each change a data edit (FR-006, SC-001) > a regroup with its move: a member leaves the largest group, which moves until each core is exclusive (RG6)
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RK5 apps/web/room/scene.yaml:-: 25,050,327 bytes in the first visit with both figures' files, over main's phase-3 budget of 25,000,000: 6,593,757 in the room's set models and cards, 8,734,538 in the twin's files, 0 in the stand-in's files, 6,474,745 in the room's dog's files, and 3,247,287 in the largest other visitor avatar's",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:686:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, each change a data edit (FR-006, SC-001) > a retarget: a selectable opens another topic, and keeps its ID and its event
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RK5 apps/web/room/scene.yaml:-: 25,050,327 bytes in the first visit with both figures' files, over main's phase-3 budget of 25,000,000: 6,593,757 in the room's set models and cards, 8,734,538 in the twin's files, 0 in the stand-in's files, 6,474,745 in the room's dog's files, and 3,247,287 in the largest other visitor avatar's",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:713:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, each change a data edit (FR-006, SC-001) > a rewording: a selectable's name, a topic's phrase, and a label's word, the 3D part untouched
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RK5 apps/web/room/scene.yaml:-: 25,050,327 bytes in the first visit with both figures' files, over main's phase-3 budget of 25,000,000: 6,593,757 in the room's set models and cards, 8,734,538 in the twin's files, 0 in the stand-in's files, 6,474,745 in the room's dog's files, and 3,247,287 in the largest other visitor avatar's",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:735:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, each change a data edit (FR-006, SC-001) > a new switch case for a value its signal already has, on a fixture switch whose piece claims nothing
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RK5 apps/web/room/scene.yaml:-: 25,050,327 bytes in the first visit with both figures' files, over main's phase-3 budget of 25,000,000: 6,593,757 in the room's set models and cards, 8,734,538 in the twin's files, 0 in the stand-in's files, 6,474,745 in the room's dog's files, and 3,247,287 in the largest other visitor avatar's",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:769:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, spec 008's highlight (FR-057, SC-006) > a highlight colour: the band of the scene's look changes, and the 3D part and the index follow
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RK5 apps/web/room/scene.yaml:-: 25,050,327 bytes in the first visit with both figures' files, over main's phase-3 budget of 25,000,000: 6,593,757 in the room's set models and cards, 8,734,538 in the twin's files, 0 in the stand-in's files, 6,474,745 in the room's dog's files, and 3,247,287 in the largest other visitor avatar's",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:953:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, spec 008's highlight (FR-057, SC-006) > a highlight width: the edge of the scene's look widens, and the 3D part and the index follow
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RK5 apps/web/room/scene.yaml:-: 25,050,327 bytes in the first visit with both figures' files, over main's phase-3 budget of 25,000,000: 6,593,757 in the room's set models and cards, 8,734,538 in the twin's files, 0 in the stand-in's files, 6,474,745 in the room's dog's files, and 3,247,287 in the largest other visitor avatar's",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:967:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/19]⎯
+
+ FAIL  test/room/data-only.test.ts > the proof set, spec 008's walking data (FR-056, SC-006) > the walking speed: a data edit, which the 3D part carries
+ FAIL  test/room/data-only.test.ts > the proof set, spec 008's walking data (FR-056, SC-006) > a camera limit: a data edit, which the 3D part carries
+ FAIL  test/room/data-only.test.ts > the proof set, spec 008's walking data (FR-056, SC-006) > the reach: a data edit, which the 3D part carries
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RK5 apps/web/room/scene.yaml:-: 25,050,327 bytes in the first visit with both figures' files, over main's phase-3 budget of 25,000,000: 6,593,757 in the room's set models and cards, 8,734,538 in the twin's files, 0 in the stand-in's files, 6,474,745 in the room's dog's files, and 3,247,287 in the largest other visitor avatar's",
++ ]
+
+ ❯ expectDataOnly test/room/data-only.test.ts:149:58
+    147| /** A data edit: no finding, only data changed, and only §1's paths re…
+    148| function expectDataOnly(c: Change): void {
+    149|   expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                          ^
+    150|   expect(c.changed.length).toBeGreaterThan(0);
+    151|   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+ ❯ test/room/data-only.test.ts:1011:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/19]⎯
+
+ FAIL  test/room/dog-intake.test.ts > the dog's files, taken in from round 4 > are read, capped, and counted with no RA or RK finding, and bundled with his line
+AssertionError: expected [ 'RK5 apps/web/room/scene.yaml' ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RK5 apps/web/room/scene.yaml",
++ ]
+
+ ❯ test/room/dog-intake.test.ts:91:102
+     89|     const result = compose(tree, policy, STRICT);
+     90|     expect(onDog(result.findings)).toEqual([]);
+     91|     expect(result.findings.filter((f) => /^(RA|RK)/.test(f.rule)).map(…
+       |                                                                                                      ^
+     92|     const dog = result.scene.avatars.dog;
+     93|     expect(dog).toBeDefined();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/19]⎯
+
+ FAIL  test/room/emblem-data.test.ts > the emblem, named by the room's data (verify-018; FR-005, spec 002's FR-007) > composes the committed room with no finding
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "RK5 apps/web/room/scene.yaml:-: 25,050,327 bytes in the first visit with both figures' files, over main's phase-3 budget of 25,000,000: 6,593,757 in the room's set models and cards, 8,734,538 in the twin's files, 0 in the stand-in's files, 6,474,745 in the room's dog's files, and 3,247,287 in the largest other visitor avatar's",
++ ]
+
+ ❯ test/room/emblem-data.test.ts:18:56
+     16| describe("the emblem, named by the room's data (verify-018; FR-005, sp…
+     17|   it("composes the committed room with no finding", () => {
+     18|     expect(base.findings.map((f) => formatFinding(f))).toEqual([]);
+       |                                                        ^
+     19|   });
+     20|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/19]⎯
+
+
+ Test Files  5 failed | 9 passed (14)
+      Tests  19 failed | 524 passed (543)
+   Start at  03:15:40
+   Duration  684.47s (tests 91%, import 9%)
+
+exit=1
+```
+
+The finding is RK5 on `apps/web/room/scene.yaml`, the first visit at 25,050,327 bytes against the line's 25,000,000. The log names it 15 times and RA9 never. The other failures' messages print only `[ Array(1) ]`, and these are the same 18 committed-tree tests intake-020's checkout run found failing on RK5 alone.
+
+#### Carried cases
+
+Each case below fails only because the line's own `assets/policy/` isn't main's. Each passes in the checkout (run 1) and in the export with main's `assets/policy/` (run 3). His merge of main into the named stack, the hand-over's first step (rule 16), brings both of main's commits. After it, the gate's export reads 26,000,000 and his approvals.
+
+| Case | In the gate's export (run 2) | With his approvals and the line's caps (run 4) | Carried as |
+|---|---|---|---|
+| `dog-intake.test.ts` > "are in the dog's folder, each with the SHA-256 his approval names" | fails: no A-20261114-dog | passes | waits on his merge of main (Q286) |
+| `data-only.test.ts` > "the proof set, each change a data edit (FR-006, SC-001) > a removal: a selectable and its members go, their IDs join retired[], and the selectable's ID can't come back" | fails: RA9 | passes (the removal brings the first visit under 25,000,000) | waits on his merge of main (Q286) |
+| `dog-intake.test.ts` > "are read, capped, and counted with no RA or RK finding, and bundled with his line" | fails: no disclosure line | fails: RK5 | waits on his merge of main (Q286) and on main's caps commit (Q288) |
+| intake-020's 18 committed-tree tests: `avatars-compose.test.ts` 3 ("the stand-in to woman", "texture_px to 512", "wait_ms to 0"), `compose.test.ts` 2 (T094, drafts true and false), `data-only.test.ts` 12 (the committed data, R-68; the proof set's "a move", "an addition", "a regroup with its move", "a retarget", "a rewording", "a new switch case"; spec 008's highlight "a highlight colour", "a highlight width"; spec 008's walking data "the walking speed", "a camera limit", "the reach"), `emblem-data.test.ts` 1 ("composes the committed room with no finding") | fail: RA9 | fail: RK5 | waits on his merge of main (Q286) and on main's caps commit (Q288) |
+| D-V2's six (`disclosure.test.ts` 2, `legibility.test.ts` 3, `report.test.ts` 1) | not run | not run | D-V2, his two proposed patches (Q165), as before |
+
+#### The lint target
+
+At `1aa736f3` (before the scratch folder existed), and again at this branch's last code-free tip after the scratch folder was removed (below). Exit 0. The shellcheck file list is left out, as in merge-2:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+830 files already formatted
+```
+
+#### Fixed
+
+Nothing: no failure outside the carried cases above, so no code, test, or asset changed. The documents: rule 16's deviation (spec 020's Assumptions, SC-002, plan R-10 and Performance Goals, tasks.md T022, and "Q288 answered" above), and N-1 in the Backlog above, in the review's words. N-3 and N-4 stay as notes2-020 left them. N-5 is closed by runs 1 and 3. ADR 0010's text still gives 25,000,000 for phase 3, so there's a question on the page with a recommended answer (a docs-role amendment to main's `caps.json` figures).
+
+**Interruptions (verify4-020):** none. No hook, bash-gate, or filesystem refusal.
+
 ---
 
 ## Item 4: spec 021, the dinosaur modeled and brought in (`night/impl2-021/impl2-021`)
