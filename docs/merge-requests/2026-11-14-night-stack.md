@@ -1041,6 +1041,19 @@ His answer to Q288, rule 16 of his orders (2026-11-15, about 01:20Z), in his wor
 - **What the line still reads.** The line can't merge main (Q286: `assets/policy/` is read-only to the night). So its own `caps.json` reads 25,000,000, and its `approvals.json` lacks `b6985ad2`'s three dog entries. Item 3's verify (verify4-020, below) shows the cases that read them green on a copy with main's `assets/policy/`. It carries them by name as "waits on main's caps commit (Q288)" or "waits on his merge of main (Q286)".
 - **The hand-over's merge order starts with his merge of main** into the named stack, by hand (Q286's answer, rule 16), and then the gate.
 
+### Backlog (rv-intake-020)
+
+rv-intake-020's N-1, in its words (from the page's copy, "rv-intake-020's findings, its words", Q291). It isn't fixed here: round 4's record is written, and nothing can show now what the handoff folder and the brief held before it.
+
+> ###### N-1 · Compliance · Nit: "nothing in the handoff folder or the brief changed" isn't shown by a pasted run
+> - Where: `specs/020-dog-modeled-and-brought-in/studio-round-4.md:382`.
+> - The record pastes the handoff GLBs' hashes before `--record`. It pastes no hash of `/srv/studio/briefs/dog/4.json`, and no hash or listing of the handoff after `--record`.
+> - The claim holds on other evidence:
+>   - `scripts/studio/line.py:1302-1311` writes only `<round>.result.json`; the rest goes to a temp scratch.
+>   - The intake's GLBs, copied after the record, carry the same SHA-256s.
+>   - The intake's `records.json` (24,123 bytes) and `LICENSE.md` (327 bytes) match the handoff listing's sizes.
+> - Next time, paste `sha256sum` of the brief and the handoff before and after.
+
 ---
 
 ## Item 4: spec 021, the dinosaur modeled and brought in (`night/impl2-021/impl2-021`)
