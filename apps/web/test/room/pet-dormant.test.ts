@@ -185,7 +185,7 @@ function listButton(v: Visit, id: string): HTMLButtonElement {
 
 describe("the dog selectable opens its conversation as any piece (FR-028; Q17)", () => {
   it.each(["woman", "man", "dog", "dinosaur"] as const)(
-    "the %s chosen: object_selected dog once, and its topic's message in the log, as for the laptop",
+    "the %s chosen: object_selected dog once, and its topic's message in the log, as for any other piece",
     async (avatar) => {
       const v = start({ webgl: true, room: indexWithDog() });
       await enter(v, "non-engineer", avatar);

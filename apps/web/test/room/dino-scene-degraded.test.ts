@@ -17,7 +17,7 @@ function cutAtCallEnd(over: Partial<DinoInputs>): void {
   expect(runTo(t.scene, "cut", i)).toEqual(["idle", "call", "cut"]);
   expect(t.calls).toHaveLength(1);
   expect(t.left).toHaveLength(1);
-  expect(t.scene.twin.visible || t.scene.dog.visible || t.scene.bicycle.visible).toBe(false);
+  expect(t.scene.twin.visible || t.scene.dog.visible || t.scene.carried.visible).toBe(false);
 }
 
 describe("cut at the call's end (FR-026)", () => {
@@ -57,7 +57,7 @@ describe("cut at once mid-scene (FR-026)", () => {
     expect(t.scene.phase).toBe("gather");
     t.scene.frame(DT, inputs(over));
     expect(t.scene.phase).toBe("cut");
-    expect(t.scene.twin.visible || t.scene.dog.visible || t.scene.bicycle.visible).toBe(false);
+    expect(t.scene.twin.visible || t.scene.dog.visible || t.scene.carried.visible).toBe(false);
     expect(t.left).toEqual(["both"]);
     // Nothing after it: the cut is the end.
     runTo(t.scene, null, inputs(), 600);
@@ -74,7 +74,7 @@ describe("cut at once mid-scene (FR-026)", () => {
 });
 
 describe("the dog not shown (FR-026)", () => {
-  it("leaves the twin alone with the bicycle: no enter, the dog never shown, the left line the twin's", () => {
+  it("leaves the twin alone with the taken piece: no enter, the dog never shown, the left line the twin's", () => {
     const t = made();
     const i = inputs({ dogShown: false });
     expect(runTo(t.scene, "gone", i)).toEqual(["idle", "call", "gather", "take", "leave", "gone"]);

@@ -1306,14 +1306,14 @@ describe("a live face's surface and the print renderer (spec 016, T052)", () => 
 });
 
 // T-B03 (spec 028; FR-022; plan.md R-B4): the scene's figures block's optional `leave` block, the dinosaur's scene's
-// data: `meet` and `under_bicycle` [x, z] in metres, `carry` [x, y, z], `path` at least two [x, z] points, `dog_mps`,
+// data: `meet` and `take_at` [x, z] in metres, `carry` [x, y, z], `path` at least two [x, z] points, `dog_mps`,
 // `walk_mps`, and `take_s` above 0 (at most 10). Every key required within the block; the block itself optional.
 // Read whole when good; RD2 and RD3 refuse the rest. Its geometry against the floors is RI12's (dino-scene-data.test.ts).
 describe("the figures' leave block (spec 028, T-B03)", () => {
   const FULL = {
     takes: "fx-desk",
     meet: [0.4, 0.35],
-    under_bicycle: [0.8, 0.25],
+    take_at: [0.8, 0.25],
     carry: [0.3, 0, 0.05],
     path: [
       [0.8, 0.5],

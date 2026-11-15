@@ -229,14 +229,18 @@ describe("the room's live region (FR-020, FR-021)", () => {
     expect(textOf(announcer(v.doc))).toBe("There is a dinosaur in the room!");
     signal(v, { kind: "dino-left", who: "both" });
     await flush();
-    expect(textOf(announcer(v.doc))).toBe("The twin and the dog took the bicycle and left.");
+    // The left lines name the taken piece, a room ID (spec 004's FR-007), so they are read from the room's words.
+    const { ui } = repositoryBundle().index;
+    expect(ui["figures.left_both"]).toMatch(/^The twin and the dog took the .+ and left\.$/);
+    expect(ui["figures.left_twin"]).toMatch(/^The twin took the .+ and left\.$/);
+    expect(textOf(announcer(v.doc))).toBe(ui["figures.left_both"]);
     signal(v, { kind: "dino-left", who: "twin" });
     await flush();
-    expect(textOf(announcer(v.doc))).toBe("The twin took the bicycle and left.");
+    expect(textOf(announcer(v.doc))).toBe(ui["figures.left_twin"]);
   });
 });
 
-describe("the bicycle's highlight once it is taken (R-2)", () => {
+describe("the taken piece's highlight once it is taken (R-2)", () => {
   it("draws none of its pictures once they ride in the carrier", () => {
     const root = new Object3D();
     const twinNode = new Object3D();
@@ -266,7 +270,7 @@ describe("the bicycle's highlight once it is taken (R-2)", () => {
     const figures = createDinoFigures({
       leave: LEAVE,
       avatars,
-      bicycle,
+      takenNode: bicycle,
       root,
       chosen: "dinosaur",
       handedOff: () => true,

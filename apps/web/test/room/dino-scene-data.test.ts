@@ -1,11 +1,11 @@
 // T-B03 (spec 028; FR-021, FR-022; Q13; plan.md R-B4): the dinosaur's scene's data, `figures.leave`.
 // - The composed points the block is placed against, printed for plan §R-B4's record: the twin's home, the bicycle's
 //   place and its floor point (its frame box's foot, on the floor plane), the shell's floor, and the chase floor's
-//   bounds; then the shipped block itself: `meet` and `under_bicycle` walkable on the chase floor, the path's last
+//   bounds; then the shipped block itself: `meet` and `take_at` walkable on the chase floor, the path's last
 //   point outside the shell, the speeds positive.
 // - The bundle carries the block resolved, each figure to 1e-6; absent, the bundle carries none.
 // - The build refuses (RI12) a `takes` naming no placement, a last point inside the shell's floor, and a `meet` or
-//   `under_bicycle` off the chase floor
+//   `take_at` off the chase floor
 //   (spec 025's, the visitor's walkable floor less the twin's obstacle); the schema (RD3) a speed or `take_s` not
 //   positive, a path of under two points; RD2 a key the block doesn't define.
 import { describe, expect, it } from "vitest";
@@ -51,20 +51,20 @@ const seen = (r: ComposeResult): string[] =>
 function points(part: RoomScene) {
   const world = resolveMounts(part.placements, part.pieces).world;
   const twinAt = origin(world.get(part.figures.twin)!);
-  const bicycleId = placementLabelled("Bicycle");
-  const bicycle = part.placements.find((p) => p.id === bicycleId)!;
-  const bicycleAt = origin(world.get(bicycleId)!);
+  const takenId = placementLabelled("Bicycle");
+  const taken = part.placements.find((p) => p.id === takenId)!;
+  const takenAt = origin(world.get(takenId)!);
   const visitor = floorOfPart(part, part.walking.radius_m)!;
   const chase = chaseFloor(visitor, part.figures.twin);
-  return { twinAt, bicycle, bicycleAt, visitor, chase };
+  return { twinAt, taken, takenAt, visitor, chase };
 }
 
-/** A block placed by the composed points (plan.md R-B4's record: `under_bicycle` in front of the desk, short of the
+/** A block placed by the composed points (plan.md R-B4's record: `take_at` in front of the desk, short of the
  *  bicycle's obstacle), as the shipped one is; each test changes one thing of it. */
 const GOOD = {
   takes: placementLabelled("Bicycle"),
   meet: [0.42, 0.45],
-  under_bicycle: [0.74, 0.52],
+  take_at: [0.74, 0.52],
   carry: [0.3, 0.26, 0.05],
   path: [
     [0.8, 0.75],
@@ -77,14 +77,14 @@ const GOOD = {
 };
 
 describe("the composed points (plan.md R-B4's record)", () => {
-  it("prints the twin's home, the bicycle's place and floor point, the shell's floor, and the chase floor", () => {
+  it("prints the twin's home, the taken placement's place and floor point, the shell's floor, and the chase floor", () => {
     const part = repositoryBundle().scene;
-    const { twinAt, bicycle, bicycleAt, visitor, chase } = points(part);
-    const box = bicycle.frame_box;
+    const { twinAt, taken, takenAt, visitor, chase } = points(part);
+    const box = taken.frame_box;
     const record = {
       twin_home: [r3(twinAt[0]), r3(twinAt[2])],
-      bicycle_origin: bicycleAt.map(r3),
-      bicycle_box_floor: { x: [r3(box.min[0]), r3(box.max[0])], z: [r3(box.min[2]), r3(box.max[2])] },
+      taken_origin: takenAt.map(r3),
+      taken_box_floor: { x: [r3(box.min[0]), r3(box.max[0])], z: [r3(box.min[2]), r3(box.max[2])] },
       shell_floor: visitor.shell,
       chase_bounds: chase.bounds,
       chase_obstacles: chase.obstacles.map((o) => o.rect),
@@ -93,7 +93,7 @@ describe("the composed points (plan.md R-B4's record)", () => {
     };
     process.stdout.write(`T-B03 composed points: ${JSON.stringify(record)}\n`);
     expect(twinAt.every(Number.isFinite)).toBe(true);
-    expect(bicycleAt.every(Number.isFinite)).toBe(true);
+    expect(takenAt.every(Number.isFinite)).toBe(true);
   });
 });
 
@@ -102,15 +102,15 @@ describe("the shipped figures.leave (FR-021, FR-022)", () => {
   const { visitor, chase } = points(part);
   const leave = part.figures.leave;
 
-  it("is in the bundle, resolved, naming the bicycle's placement as the one taken", () => {
+  it("is in the bundle, resolved, naming the placement labelled Bicycle as the one taken", () => {
     expect(leave).toBeDefined();
     expect(leave?.takes).toBe(placementLabelled("Bicycle"));
   });
 
-  it("puts meet and under_bicycle on the chase floor, and the path's last point outside the shell", () => {
+  it("puts meet and take_at on the chase floor, and the path's last point outside the shell", () => {
     if (!leave) throw new Error("no leave block");
     expect(isWalkable(chase, leave.meet[0], leave.meet[1])).toBe(true);
-    expect(isWalkable(chase, leave.under_bicycle[0], leave.under_bicycle[1])).toBe(true);
+    expect(isWalkable(chase, leave.take_at[0], leave.take_at[1])).toBe(true);
     const last = leave.path.at(-1)!;
     const s = visitor.shell;
     const inside = last[0] >= s.x0 && last[0] <= s.x1 && last[1] >= s.z0 && last[1] <= s.z1;
@@ -120,7 +120,7 @@ describe("the shipped figures.leave (FR-021, FR-022)", () => {
     expect(leave.take_s).toBeGreaterThan(0);
   });
 
-  it("leaves the twin's and the bicycle's placements as they are (FR-023)", () => {
+  it("leaves the twin's and the taken placements as they are (FR-023)", () => {
     const without = withLeave(null).scene;
     expect(without.placements).toEqual(part.placements);
     expect(without.figures.leave).toBeUndefined();
@@ -139,9 +139,9 @@ describe("the build's refusals (FR-022; RI12, RD3, RD2)", () => {
     expect(seen(r)).toContain("RI12 figures.leave.path[1]");
   });
 
-  it("refuses a meet off the chase floor, and an under_bicycle off it", () => {
+  it("refuses a meet off the chase floor, and an take_at off it", () => {
     expect(seen(withLeave({ ...GOOD, meet: [3, 0.2] }))).toContain("RI12 figures.leave.meet");
-    expect(seen(withLeave({ ...GOOD, under_bicycle: [0.4, -3] }))).toContain("RI12 figures.leave.under_bicycle");
+    expect(seen(withLeave({ ...GOOD, take_at: [0.4, -3] }))).toContain("RI12 figures.leave.take_at");
   });
 
   it("refuses a takes naming no placement of the scene", () => {

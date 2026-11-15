@@ -29,7 +29,7 @@ describe("by arc length, facing each segment (FR-021)", () => {
       steps += 1;
     }
     // The frames it took are the route's arc length over the step: from below the bicycle along the path.
-    const route = [LEAVE.under_bicycle, ...LEAVE.path];
+    const route = [LEAVE.take_at, ...LEAVE.path];
     const arc = route.slice(1).reduce((n, p, k) => n + Math.hypot(p[0] - route[k]![0], p[1] - route[k]![1]), 0);
     expect(steps).toBe(Math.ceil(arc / (LEAVE.walk_mps * DT) - 1e-9));
   });
@@ -102,10 +102,10 @@ function room(clips: readonly string[] = ["walk", "idle"]) {
     stride: () => void (calls.strides += 1),
     twinWave: () => void (calls.wave += 1),
   };
-  return { root, twinNode, twin, dog, bicycle, standin, label, avatars, calls };
+  return { root, twinNode, twin, dog, takenNode: bicycle, standin, label, avatars, calls };
 }
 
-describe("the adapter: the pictures, the bicycle's carry, and the controller (FR-021, FR-023; R-B3)", () => {
+describe("the adapter: the pictures, the taken piece's carry, and the controller (FR-021, FR-023; R-B3)", () => {
   const MOTION = { animate: true, paused: false, level: 0, reduced: false };
   const told: string[] = [];
   function setup(clips?: readonly string[]) {
@@ -113,7 +113,7 @@ describe("the adapter: the pictures, the bicycle's carry, and the controller (FR
     const figures = createDinoFigures({
       leave: LEAVE,
       avatars: r.avatars,
-      bicycle: r.bicycle,
+      takenNode: r.takenNode,
       root: r.root,
       chosen: "dinosaur",
       handedOff: () => true,
@@ -127,20 +127,20 @@ describe("the adapter: the pictures, the bicycle's carry, and the controller (FR
     for (let k = 0; k < max && s.figures.scene.phase !== phase; k += 1) s.figures.frame(DT, MOTION);
   };
 
-  it("keeps the twin's placement's node and the bicycle's label where they were; moves only the pictures", () => {
+  it("keeps the twin's placement's node and the taken piece's label where they were; moves only the pictures", () => {
     const s = setup();
     const node = s.twinNode.position.clone();
     const labelAt = s.label.getWorldPosition(new Vector3());
     until(s, "leave");
     for (let k = 0; k < 30; k += 1) s.figures.frame(DT, MOTION);
     expect(s.twinNode.position.equals(node)).toBe(true);
-    expect(s.label.parent).toBe(s.bicycle);
+    expect(s.label.parent).toBe(s.takenNode);
     expect(s.label.getWorldPosition(new Vector3()).distanceTo(labelAt)).toBeLessThan(1e-9);
-    expect(s.standin.parent).not.toBe(s.bicycle);
+    expect(s.standin.parent).not.toBe(s.takenNode);
     expect(s.twin.getWorldPosition(new Vector3()).distanceTo(new Vector3(0.66, 0, 0.469))).toBeGreaterThan(0.05);
   });
 
-  it("stands the bicycle at carry in the twin's picture's frame on every frame of the leave", () => {
+  it("stands the taken piece at carry in the twin's picture's frame on every frame of the leave", () => {
     const s = setup();
     until(s, "leave");
     const yaw = new Quaternion();

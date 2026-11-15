@@ -6,9 +6,9 @@ import { createDinoScene } from "../../src/room/scene/dino-scene";
 import type { DinoInputs, DinoPhase, DinoScene } from "../../src/room/scene/dino-scene";
 
 export const LEAVE: LeaveData = {
-  takes: "bicycle-fixture",
+  takes: "fx-taken",
   meet: [0.42, 0.45],
-  under_bicycle: [0.74, 0.52],
+  take_at: [0.74, 0.52],
   carry: [0.3, 0.26, 0.05],
   path: [
     [0.8, 0.75],

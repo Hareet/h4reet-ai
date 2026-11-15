@@ -12,12 +12,14 @@ import { noPolicy } from "../../build/room/policy";
 import { overlay } from "../helpers/room-fixtures";
 import { repositoryBundle } from "../helpers/room";
 
-const FACTS = "corpus/facts/hobbies-and-travel.yaml";
+// The build reads every `corpus/facts/*.yaml` by its slot's ID, never by the file's name, and the known-good tree holds
+// no corpus, so the fixture's file and topic take the reserved prefix (spec 004's FR-007 keeps room IDs out of code).
+const FACTS = "corpus/facts/fx-dog-intro.yaml";
 const LINE = "A made-up sentence for the tests, never the Author's.";
 
 function facts(slot: Record<string, unknown> | null): string {
   const list = slot === null ? [] : [{ id: "hobbies.dog_visitor_intro", label: "The fixture's slot", ...slot }];
-  return stringify({ topic: "04-hobbies-and-travel", facts: list });
+  return stringify({ topic: "fx-dog-intro", facts: list });
 }
 const introOf = (text: string | null): string | null => {
   const tree = overlay(text === null ? {} : { [FACTS]: text });

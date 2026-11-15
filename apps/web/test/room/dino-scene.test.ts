@@ -32,7 +32,7 @@ describe("its start (FR-019)", () => {
     expect(t.left).toEqual([]);
     expect(t.scene.twin.visible).toBe(true);
     expect(t.scene.dog.visible).toBe(false);
-    expect(t.scene.bicycle.visible).toBe(true);
+    expect(t.scene.carried.visible).toBe(true);
   });
 
   it("starts at the first frame all hold, whether the model arrived late or not", () => {
@@ -79,13 +79,13 @@ describe("its phases (FR-020 to FR-023; SC-004)", () => {
     );
   });
 
-  it("brings the twin to under_bicycle and the dog within DOG_STOP_M of it, then takes the bicycle over take_s", () => {
+  it("brings the twin to take_at and the dog within DOG_STOP_M of it, then takes the piece over take_s", () => {
     const t = made();
     runTo(t.scene, "take");
-    const [ux, uz] = LEAVE.under_bicycle;
+    const [ux, uz] = LEAVE.take_at;
     expect(Math.hypot(t.scene.twin.x - ux, t.scene.twin.z - uz)).toBeLessThan(1e-6);
     expect(Math.hypot(t.scene.dog.x - ux, t.scene.dog.z - uz)).toBeCloseTo(DOG_STOP_M, 6);
-    expect(t.scene.bicycle.taken).toBeLessThanOrEqual(DT / LEAVE.take_s + 1e-9);
+    expect(t.scene.carried.taken).toBeLessThanOrEqual(DT / LEAVE.take_s + 1e-9);
     let s = 0;
     while (t.scene.phase === "take") {
       t.scene.frame(DT, inputs());
@@ -93,19 +93,19 @@ describe("its phases (FR-020 to FR-023; SC-004)", () => {
     }
     expect(s).toBeGreaterThanOrEqual(LEAVE.take_s - 1e-9);
     expect(s).toBeLessThan(LEAVE.take_s + 2 * DT);
-    expect(t.scene.bicycle.taken).toBe(1);
+    expect(t.scene.carried.taken).toBe(1);
   });
 
   it("goes out along the path and hides the three at its end", () => {
     const t = made();
     runTo(t.scene, "leave");
-    expect(t.scene.twin.visible && t.scene.dog.visible && t.scene.bicycle.visible).toBe(true);
+    expect(t.scene.twin.visible && t.scene.dog.visible && t.scene.carried.visible).toBe(true);
     runTo(t.scene, "gone");
     const last = LEAVE.path.at(-1)!;
     expect(Math.hypot(t.scene.twin.x - last[0], t.scene.twin.z - last[1])).toBeLessThan(1e-6);
     expect(t.scene.twin.visible).toBe(false);
     expect(t.scene.dog.visible).toBe(false);
-    expect(t.scene.bicycle.visible).toBe(false);
+    expect(t.scene.carried.visible).toBe(false);
   });
 
   it("moves the twin only in gather and leave, and the dog in enter, gather, and leave", () => {
@@ -130,8 +130,8 @@ describe("its phases (FR-020 to FR-023; SC-004)", () => {
     }
     const home: [number, number] = [HOME.x, HOME.z];
     const enter = length([...[...LEAVE.path].reverse(), LEAVE.meet]) / LEAVE.dog_mps;
-    const gather = length([home, LEAVE.under_bicycle]) / LEAVE.walk_mps;
-    const leave = length([LEAVE.under_bicycle, ...LEAVE.path]) / LEAVE.walk_mps;
+    const gather = length([home, LEAVE.take_at]) / LEAVE.walk_mps;
+    const leave = length([LEAVE.take_at, ...LEAVE.path]) / LEAVE.walk_mps;
     expect(t.scene.phase).toBe("gone");
     expect(s).toBeLessThan(CALL_S + enter + gather + LEAVE.take_s + leave + 2);
   });
@@ -143,6 +143,6 @@ describe("its phases (FR-020 to FR-023; SC-004)", () => {
     expect(t.scene.phase).toBe("gone");
     expect(t.calls).toHaveLength(1);
     expect(t.left).toHaveLength(1);
-    expect(t.scene.twin.visible || t.scene.dog.visible || t.scene.bicycle.visible).toBe(false);
+    expect(t.scene.twin.visible || t.scene.dog.visible || t.scene.carried.visible).toBe(false);
   });
 });
