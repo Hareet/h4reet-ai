@@ -644,6 +644,25 @@ const petBlock = z.strictObject({
   elbow_deg: z.number().min(0).max(180).default(P.elbow_deg),
 });
 
+/** `figures.leave` (spec 028, FR-021, FR-022; plan.md R-B4): the dinosaur's scene's data, each an estimate the Author's
+ *  look places: `takes` the placement taken, `meet` and `take_at` [x, z] on the floor plane, `carry` the bicycle's [x, y, z] offset in the
+ *  twin's picture's frame, `path` at least two [x, z] points out of the room, the dog's and the walkers' speeds, and
+ *  the take's seconds, each above 0 and at most 10. Their geometry against the floors is RI12's. */
+const floorPoint = z.tuple([z.number(), z.number()]);
+const leaveBlock = z.strictObject({
+  // The placement whose picture the twin takes (the bicycle), by its ID, so no room ID stands in the code (spec 004's
+  // FR-007); RI12 holds it to a placement of the scene.
+  takes: z.string(),
+  meet: floorPoint,
+  take_at: floorPoint,
+  carry: z.tuple([z.number(), z.number(), z.number()]),
+  path: z.array(floorPoint).min(2),
+  dog_mps: z.number().positive().max(10),
+  walk_mps: z.number().positive().max(10),
+  take_s: z.number().positive().max(10),
+});
+export type LeaveBlock = z.infer<typeof leaveBlock>;
+
 /** `figures` (spec 009, FR-037; plan.md §3.1): `twin_stand_in` an avatar of the room's table, which RI8 holds to it,
  *  absent for none; `texture_px` "a power of two from 256 to 4,096", 1,024 by default; `wait_ms` "an integer from 0 to
  *  3,000", 1,500 by default. */
@@ -667,6 +686,8 @@ const figures = z
     chase: chaseBlock.optional(),
     // Spec 026 (plan.md §3): the petting's block, optional; absent, the pet director takes PET_DEFAULTS.
     pet: petBlock.optional(),
+    // Spec 028 (FR-022): the dinosaur's scene's block, optional; absent, no scene (the eating offered at once).
+    leave: leaveBlock.optional(),
   })
   .default(() => ({ ...FIGURES_DEFAULTS }));
 

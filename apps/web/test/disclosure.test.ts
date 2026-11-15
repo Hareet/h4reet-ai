@@ -94,6 +94,18 @@ function amendment025(carries: string): string {
   return carries.replace(twin, `${twin}${dog}; `);
 }
 
+/** Spec 028's FR-030 (plan.md R-B9; its T-B07): the sentence spec 025's FR-028 gave V1's Carries for the room's dog
+ *  becomes the plan's words, its files only in a dinosaur visit, their paths showing the choice. */
+function amendment028(carries: string): string {
+  const run = readFileSync(resolve(WEB, "../../specs/025-twin-and-dog-run-from-dino/spec.md"), "utf8");
+  const was = /among the avatar files fetched, (the room's dog's .*?, the same for every visitor);/.exec(run)?.[1];
+  const plan = readFileSync(resolve(WEB, "../../specs/028-room-after-review/plan.md"), "utf8");
+  const now = /becomes: "(the room's dog's [^"]*)"/.exec(plan)?.[1];
+  if (was === undefined || now === undefined) throw new Error("spec 025's FR-028 or spec 028's R-B9 doesn't read so");
+  if (carries.split(was).length !== 2) throw new Error("spec 025's FR-028 isn't in V1's Carries once");
+  return carries.replace(was, now);
+}
+
 function htmlTables(html: string): string[][][] {
   const doc = new JSDOM(html).window.document;
   return [...doc.querySelectorAll("table")].map((table) =>
@@ -134,13 +146,14 @@ describe("the disclosure page", () => {
     );
     // Spec 016's M17 replaces M6's avatar files in V1's Carries, and adds to its Trigger and Why, in its own words
     // (changed with T073, plan.md R-18); spec 018's H-11 adds the still in a 3D visit to its Carries, and spec 025's
-    // FR-028 the room's dog's model and clips.
+    // FR-028 the room's dog's model and clips, which spec 028's FR-030 (plan.md R-B9) puts in a dinosaur visit only.
     const m17 = amendmentM17();
     for (const id of ["V1", "V4"]) {
       const entry = entries.get(id);
       const row = rows.get(id);
       expect(entry, id).toBeDefined();
-      const carries = id === "V1" ? `${entry?.[2] ?? ""}, ${amendment025(amendmentH11(m17.carries))}` : entry?.[2];
+      const carries =
+        id === "V1" ? `${entry?.[2] ?? ""}, ${amendment028(amendment025(amendmentH11(m17.carries)))}` : entry?.[2];
       const why = id === "V1" ? `${entry?.[4] ?? ""}; ${m17.why}` : entry?.[4];
       expect(row?.slice(3, 6), id).toEqual([carries, entry?.[3], why]);
     }
@@ -203,7 +216,8 @@ describe("the disclosure page", () => {
     expect(carries).toMatch(
       /^and the avatar files now: the twin's model and clips .*whose paths show which avatar the visitor chose$/,
     );
-    expect(rows.get("V1")?.[3]).toContain(amendment025(amendmentH11(carries)));
+    // Spec 028's FR-030 (T-B07): the room's dog's sentence as its plan R-B9 words it.
+    expect(rows.get("V1")?.[3]).toContain(amendment028(amendment025(amendmentH11(carries))));
     expect(rows.get("V1")?.[3]).not.toContain(v1);
     expect(v4).toBe("and a figure's avatar failing to load, once a visit");
     expect(rows.get("V4")?.[2]?.endsWith(`, ${v4}`)).toBe(true);

@@ -41,6 +41,7 @@ import { isAvatarId } from "../../src/choice/avatars";
 import type { AvatarId } from "../../src/choice/avatars";
 import type {
   Highlight,
+  LeaveData,
   Look,
   Matrix2D,
   Prim,
@@ -96,6 +97,7 @@ import { EATING_DEFAULTS, HEX, HIGHLIGHT_DEFAULTS, WALKING_DEFAULTS } from "./sc
 import type {
   CatalogEntry,
   DrawingPrimitive,
+  LeaveBlock,
   LookFile,
   Placement,
   Pose,
@@ -106,6 +108,7 @@ import type {
 } from "./schema";
 import { compareBytewise } from "./source";
 import type { Tree } from "./source";
+import { factsIn } from "../content";
 import type { Typeface } from "./typefaces";
 
 /** A fixture, typed by the signals: `virtual:room-fixtures` (§3.3). */
@@ -278,6 +281,21 @@ function chaseOf(c: ChaseConfig): ChaseConfig {
     clip_thresholds: { walk_mps: m6(c.clip_thresholds.walk_mps), run_mps: m6(c.clip_thresholds.run_mps) },
   };
 }
+/** Spec 028 (FR-022): the leave block, each figure to 1e-6. */
+function leaveOf(l: LeaveBlock): LeaveData {
+  const p2 = (p: readonly [number, number]): [number, number] => [m6(p[0]), m6(p[1])];
+  return {
+    takes: l.takes,
+    meet: p2(l.meet),
+    take_at: p2(l.take_at),
+    carry: [m6(l.carry[0]), m6(l.carry[1]), m6(l.carry[2])],
+    path: l.path.map(p2),
+    dog_mps: m6(l.dog_mps),
+    walk_mps: m6(l.walk_mps),
+    take_s: m6(l.take_s),
+  };
+}
+
 /** Spec 026's pet block (plan.md §3), each figure to 1e-6 and `stroke_n` whole. */
 function petOf(p: PetConfig): PetConfig {
   return {
@@ -1186,7 +1204,29 @@ function indexBody(c: Composed, placeholders: boolean, models: readonly string[]
       c.options.readiness?.freeTalk ?? false,
     ),
     twin: twinIndexOf(c, flat),
+    dog_visitor_intro: dogVisitorIntro(c.reader.tree),
   };
+}
+
+/** Spec 028 (FR-027; plan.md R-B7): a dog visitor's introduction, the Author's words from the corpus slot
+ *  `hobbies.dog_visitor_intro` (`corpus/facts/*.yaml`, read as the twin's pack reads a slot, build/content.ts's
+ *  `factsIn`): its value only where it is a string and `public_safe` is true; null otherwise. Nothing else fills it. */
+export const DOG_VISITOR_INTRO = "hobbies.dog_visitor_intro";
+function dogVisitorIntro(tree: Tree): string | null {
+  for (const name of tree.list("corpus/facts")) {
+    if (!name.endsWith(".yaml")) continue;
+    const data = tree.read(`corpus/facts/${name}`);
+    if (data === null) continue;
+    let facts: ReturnType<typeof factsIn>;
+    try {
+      facts = factsIn(new TextDecoder().decode(data), name);
+    } catch {
+      continue;
+    }
+    const slot = facts.find((f) => f.id === DOG_VISITOR_INTRO);
+    if (slot) return slot.public_safe === true && typeof slot.value === "string" ? slot.value : null;
+  }
+  return null;
 }
 
 // ---- Spec 016's twin (its FR-014, FR-015, FR-034, FR-044, FR-048, FR-054; contracts/twin-data.md §1, §4) ----
@@ -1507,6 +1547,8 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
       ...(scene?.figures.chase === undefined ? {} : { chase: chaseOf(scene.figures.chase) }),
       // Spec 026 (plan.md §3): the petting's block, resolved, as the scene gives it.
       ...(scene?.figures.pet === undefined ? {} : { pet: petOf(scene.figures.pet) }),
+      // Spec 028 (FR-022; plan.md R-B4): the dinosaur's scene's block, each figure to 1e-6, as the scene gives it.
+      ...(scene?.figures.leave === undefined ? {} : { leave: leaveOf(scene.figures.leave) }),
     },
     handoff: {
       from: { placement: scene?.handoff.from.placement ?? "", anchor: scene?.handoff.from.anchor ?? "" },
