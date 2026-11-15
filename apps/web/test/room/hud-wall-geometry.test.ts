@@ -19,6 +19,7 @@ import {
   fitsHud,
   hudBoxes,
   layoutFor,
+  notesReserve,
   splitBoxes,
   wallArea,
   wallBoxes,
@@ -55,6 +56,7 @@ function oracle(
   m: HudMetrics = DEFAULT_METRICS,
   protect: Protect = PROTECT,
   eat = false,
+  notes = false,
 ): Expected | null {
   const T = HUD_PLACEMENTS;
   const t = T.wall;
@@ -82,7 +84,10 @@ function oracle(
   // The protector judges the area as it judges an ease step: a refusal keeps the column layout.
   if (protect.boxes(area, bands.clear) === null) return null;
   const px = Math.max(safe.left + edge, wall.x - gap - t.panel.maxRem * rem);
-  const panel: Box = { x: px, y: wall.y, w: wall.x - gap - px, h: wall.h };
+  // FR-004, SC-001 as reworked (rv-spec-028's N-4; rv-028a-1's A1-2): the panel's top is the wall box's top while no
+  // note shows, and below the notes' reserve while one does; its foot is the wall box's foot either way.
+  const py = wall.y + (notes ? notesReserve(bands.clear, rem) : 0);
+  const panel: Box = { x: px, y: py, w: wall.x - gap - px, h: wall.y + wall.h - py };
   const cx = wall.x + wall.w + gap;
   const column: Box = {
     x: cx,
@@ -239,7 +244,7 @@ describe("FR-009's rule and the boxes (FR-004, FR-006 to FR-008)", () => {
 
 describe("SC-001 at the table's windows", () => {
   for (const s of TABLE) {
-    it(`at ${s.w} x ${s.h}: each column 1rem off the wall box, as tall as it, 1rem inside the window, apart`, () => {
+    it(`at ${s.w} x ${s.h}: each column 1rem off the wall box, 1rem inside the window, apart; the column's top and foot and the panel's foot the wall box's, the panel's top the wall box's with no note (SC-001 as reworked)`, () => {
       const w = wallBoxes(s, OPENING, DEFAULT_METRICS, { wall: PROTECT });
       if (!w) {
         // Today's layouts, box for box (FR-009): the compact boxes with the wall are those without it.
@@ -249,9 +254,13 @@ describe("SC-001 at the table's windows", () => {
       const rem = 16;
       expect(w.panel.x + w.panel.w).toBeCloseTo(w.wall.x - rem, 6);
       expect(w.column.x).toBeCloseTo(w.wall.x + w.wall.w + rem, 6);
+      // No note shows: the panel's top is the wall box's; the column's top and foot and the panel's foot are the wall
+      // box's (SC-001 as reworked after rv-spec-028's N-4).
+      expect(w.panel.y).toBeCloseTo(w.wall.y, 6);
+      expect(w.panel.y + w.panel.h).toBeCloseTo(w.wall.y + w.wall.h, 6);
+      expect(w.column.y).toBeCloseTo(w.wall.y, 6);
+      expect(w.column.y + w.column.h).toBeCloseTo(w.wall.y + w.wall.h, 6);
       for (const part of [w.panel, w.column]) {
-        expect(part.y).toBeCloseTo(w.wall.y, 6);
-        expect(part.h).toBeCloseTo(w.wall.h, 6);
         expect(part.x).toBeGreaterThanOrEqual(rem - 1e-9);
         expect(part.x + part.w).toBeLessThanOrEqual(s.w - rem + 1e-9);
         expect(part.y).toBeGreaterThanOrEqual(rem - 1e-9);
@@ -272,6 +281,28 @@ describe("SC-001 at the table's windows", () => {
       expect(w.tiles.y + w.tiles.h).toBeCloseTo(w.column.y + w.column.h, 6);
     });
   }
+
+  it("pushes the panel's top below the notes' reserve while a note shows, its foot and the column the wall box's (FR-004, FR-014; SC-001 as reworked, N-4)", () => {
+    let seen = 0;
+    for (const s of TABLE) {
+      const bare = wallBoxes(s, OPENING, DEFAULT_METRICS, { wall: PROTECT });
+      const noted = wallBoxes(s, OPENING, DEFAULT_METRICS, { wall: PROTECT, notes: true });
+      expect(noted === null, `${s.w}x${s.h}`).toBe(bare === null);
+      if (!bare || !noted) continue;
+      seen += 1;
+      const reserve = notesReserve(hudBoxes(s).clear, DEFAULT_METRICS.rem);
+      expect(reserve).toBeGreaterThan(0);
+      expect(noted.panel.y).toBeCloseTo(bare.wall.y + reserve, 6);
+      expect(noted.panel.y + noted.panel.h).toBeCloseTo(bare.wall.y + bare.wall.h, 6);
+      expect(noted.panel.x).toBeCloseTo(bare.panel.x, 6);
+      expect(noted.panel.w).toBeCloseTo(bare.panel.w, 6);
+      expect(noted.title.y).toBeCloseTo(noted.panel.y, 6);
+      expect(noted.frame).toEqual(noted.panel);
+      for (const k of ["area", "wall", "column", "list", "tiles", "walk"] as const) expect(noted[k]).toEqual(bare[k]);
+      expect(close(noted.panel, oracle(s, DEFAULT_METRICS, PROTECT, false, true)?.panel ?? null)).toBe(true);
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
 
   it("keeps the panel and the column off the wall box and apart at every split window of the sweep", () => {
     const failures: string[] = [];
