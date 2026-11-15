@@ -1,19 +1,21 @@
 diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p6-*' a/apps/web/room/scene.yaml b/apps/web/room/scene.yaml
 --- a/apps/web/room/scene.yaml
 +++ b/apps/web/room/scene.yaml
-@@ -91,7 +91,10 @@
+@@ -91,7 +91,12 @@
      edible: { chunks: 4 }
    - id: dog-sign
      piece: dog-sign
 -    mount: { on: work-desk, anchor: top, offset: [0.27, 0, -0.04], turn: { y: -10 }, estimated: true }
 +    # Spec 026 (T019; as amended, the page's Q297, answered: recommended, his to confirm or overturn): on the right
 +    # wall, no turn, where RG6 passes (specs/026-twin-pets-dog/dog-sign-offset.md, "Off the desk"); Q287's floor
-+    # mount put the sign under the "Eat" tile's box for a 3D dinosaur visit.
-+    mount: { on: room-shell, anchor: right-wall, offset: [-0.2, 0.4, 0.0375], estimated: true }
++    # mount put the sign under the "Eat" tile's box for a 3D dinosaur visit. Rebuilt as r3 (patch6-026): 0.1 m further
++    # toward the front and 6 cm higher than r2's [-0.2, 0.4, 0.0375], where the walking control's box and the "Eat"
++    # tile's hold it at no stage, and its box on the floor leaves the bicycle reachable in the walking view.
++    mount: { on: room-shell, anchor: right-wall, offset: [-0.1, 0.46, 0.0375], estimated: true }
      frame: true
      label: label.dog-sign
    - id: chalkboard
-@@ -227,6 +230,16 @@
+@@ -227,6 +232,16 @@
      emblem: slate
      members: [chalkboard]
      action: { talk: { topic: mission } }
@@ -233,7 +235,7 @@ diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p6-*' a
    - "bicycle"
    - "laptop"
    - "chalkboard"
-+  - "dog"
++  - "dog-sign"
  items:
    - "ai-strategy"
    - "change-management"
@@ -244,7 +246,7 @@ diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p6-*' a
      corpus:
        - "corpus/05-mission.md"
      lead: null
-+  - id: "dog"
++  - id: "dog-sign"
 +    topic: "hobbies-and-travel"
 +    corpus:
 +      - "corpus/04-hobbies-and-travel.md"
@@ -633,7 +635,7 @@ diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p6-*' a
  On the shell, at its anchors:
  
  - [ ] Desk: on the anchor `back-wall`, offset x 0, y 0, z 0.4 (estimated)
-+- [ ] Desk sign, dog: on the anchor `right-wall`, its origin (on the desk, below the centre of the sign's foot) 0.4096 from the back wall and 0.4 above the floor, 0.0375 out from the wall (estimated)
++- [ ] Desk sign, dog: on the anchor `right-wall`, its origin (on the desk, below the centre of the sign's foot) 0.5096 from the back wall and 0.46 above the floor, 0.0375 out from the wall (estimated)
  - [ ] Chalkboard: on the anchor `left-wall`, its origin (the centre of the board's back, against the wall) 0.8972 from the back wall and 1.65 above the floor, 0 out from the wall (estimated)
  - [ ] Snowboard: on the anchor `left-wall`, its origin (the centre of the board, midway along its length and across its width, in the middle of its thickness) 0.2096 from the back wall and 0.775 above the floor, 0.035 out from the wall (estimated)
  - [ ] Bicycle: on the anchor `right-wall`, its origin (midway between the two wheels' hubs) 0.8317 from the back wall and 1.49 above the floor, 0.09 out from the wall (estimated)
@@ -645,7 +647,7 @@ diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p6-*' a
  - Where the sign stands on the desk, from the desk's front-left corner.
  - Measure: the size, now estimated at 0.16 × 0.12 × 0.05 m (w × h × d).
 -- Measure: where `dog-sign` sits, now estimated: on `work-desk`'s anchor `top`, offset (0.27, 0, -0.04) m.
-+- Measure: where `dog-sign` sits, now estimated: on `room-shell`'s anchor `right-wall`, offset (-0.2, 0.4, 0.0375) m.
++- Measure: where `dog-sign` sits, now estimated: on `room-shell`'s anchor `right-wall`, offset (-0.1, 0.46, 0.0375) m.
  
  ## Size, origin, and bounds
  
