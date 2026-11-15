@@ -11,12 +11,12 @@ His review, the words this plan carries out, is quoted whole in [spec.md](spec.m
 Two groups of work, beside each other, from this branch's tip:
 
 - **Group A, the layout and words** (`impl-028a`): the split layout placed beside the room's walls (a new pure wall box, a frame area for it, the panel and the column filling the grey bands, scaling with them); the portrait gone and the still no longer fetched in 3D; the list's key cap in its own slot; the three top-left labels off the screen, the likeness lines on the Credits page; "Around the room" visually hidden but in the stacked layout.
-- **Group B, the behaviour** (`impl-028b`): the room's dog only in a dinosaur visit; the dinosaur's scene (call, enter, gather, take, leave) replacing spec 025's run; the eating with the stand-in and only after the scene; a dog visitor's introduction line from a corpus slot (a proposal and patch for his hand); spec 026's petting dormant; RK5 and V1 following the dog's files; the two probes' findings merged and acted on.
+- **Group B, the behaviour** (`impl-028b`): the room's dog only in a dinosaur visit; the dinosaur's scene (call, enter, gather, take, leave) replacing spec 025's run, on the dinosaur's model alone (his Q247 condition, Q11); the eating only after the scene; a dog visitor's introduction line from a corpus slot (a proposal and patch for his hand); spec 026's petting dormant; RK5 and V1 following the dog's files; the two probes' findings merged and acted on.
 - **Integration** (the last task): merges A then B, resolves the shared files as §6 says, edits V1's still sentence, runs the one full `make check`, and writes the stack's note.
 
 ## 2. Technical Context
 
-TypeScript 5 (strict), Vite, three.js in the lazy 3D chunk, vitest with jsdom; Python only where spec 023's PDF writer and checks are (`films/`, `scripts/`), if the PDF probe finds a fix is needed. No new dependency. No cloud, no gateway, no model call. Performance: the scene's director allocates nothing per frame and costs under 0.2 ms a frame (spec 025's FR-029 bench pattern); the wall box is computed once per re-fit, not per frame.
+TypeScript 5 (strict), Vite, three.js in the lazy 3D chunk, vitest with jsdom; no Python change but the disclosure's eval test (the PDF probe found no fix needed, FR-031). No new dependency. No cloud, no gateway, no model call. Performance: the scene's director allocates nothing per frame and costs under 0.2 ms a frame (spec 025's FR-029 bench pattern); the wall box is computed once per re-fit, not per frame.
 
 ## 3. Constitution Check
 
@@ -77,11 +77,11 @@ A rule `[data-hud]:not([data-hud="stacked"]) .room-around` applying the `.visual
 
 ### R-B1. The room's dog only in a dinosaur visit (`scene/avatars.ts`, `scene/loader.ts`)
 
-`createAvatarFigures`: `dogWants = dogHome && options.chosen === "dinosaur" ? bundled("dog") : null` (`avatars.ts:347` on `main`); `loader.ts`'s `roomDog(taken)` adds `&& chosen === "dinosaur"`. The dog's group starts hidden and is shown by the scene (R-B2) at its entry; `tryShow` keeps the hand-off's two figures (spec 009) and doesn't show the dog. `scene.yaml`'s `figures.dog.home` stays (spec 025's schema needs it) and is the dog's point inside the room only as `meet`'s default if `figures.leave.meet` is absent.
+`createAvatarFigures`: `dogWants = dogHome && options.chosen === "dinosaur" && bundled("dinosaur") ? bundled("dog") : null` (`avatars.ts:347` on `main`); `loader.ts`'s `roomDog(taken)` adds the same two conditions (Q11: with the cut-out, no scene and no room's dog). The dog's group starts hidden and is shown by the scene (R-B2) at its entry; `tryShow` keeps the hand-off's two figures (spec 009) and doesn't show the dog. `scene.yaml`'s `figures.dog.home` stays (spec 025's schema needs it) and is the dog's point inside the room only as `meet`'s default if `figures.leave.meet` is absent.
 
 ### R-B2. The scene's director (`src/room/scene/dino-scene.ts`, new, pure)
 
-Phases `call → enter → gather → take → leave → gone`, or `cut`, from the inputs `{ chosen, handedOff, view3d, motion, quality, twinCanWalk, dogShown, dogHasWalk, paused, dt }`; each frame writes into reused records `{ twin, dog, bicycle }` of `{ x, z, heading, visible, clip }` and a `{ phase, said }` record. Durations: `call` the twin's speaking time for `figures.dino_call` (spec 016's `speak_wpm` within `speak_s`), at least the greeting clip's length; `enter` the path's length over `dog_mps`; `gather` the walk to `under_bicycle` by `walk_mps`; `take` `take_s`; `leave` the path's length over `walk_mps`. Movement along the path is by arc length, written into reused vectors (no allocation per frame), with spec 019's gait advanced by the distance for the twin (`scene/gait.ts`'s pure part, as spec 025's R-05 uses it). The cut (spec FR-026): the director goes straight from `call` to `cut` (all three hidden) when its inputs say so at the start, or at once when reduced motion or quality ≥ 1 begins.
+Phases `idle → call → enter → gather → take → leave → gone`, or `cut`, from the inputs `{ chosen, handedOff, modelShown, view3d, motion, quality, twinCanWalk, dogShown, dogHasWalk, paused, dt }` (it leaves `idle` at the first frame with `chosen === "dinosaur"`, `handedOff`, and `modelShown`; FR-019); each frame writes into reused records `{ twin, dog, bicycle }` of `{ x, z, heading, visible, clip }` and a `{ phase, said }` record. Durations: `call` the twin's speaking time for `figures.dino_call` (spec 016's `speak_wpm` within `speak_s`), at least the greeting clip's length; `enter` the path's length over `dog_mps`; `gather` the walk to `under_bicycle` by `walk_mps`; `take` `take_s`; `leave` the path's length over `walk_mps`. Movement along the path is by arc length, written into reused vectors (no allocation per frame), with spec 019's gait advanced by the distance for the twin (`scene/gait.ts`'s pure part, as spec 025's R-05 uses it). The cut (spec FR-026): the director goes straight from `call` to `cut` (all three hidden) when its inputs say so at the start, or at once when reduced motion or quality ≥ 1 begins.
 
 ### R-B3. Its adapter (`src/room/scene/dino-scene-figures.ts`, new)
 
@@ -107,9 +107,9 @@ The estimates are this plan's, from the shell's bounds (`room-shell.yaml`: x ±1
 
 `createBubble(doc, stageEl)`: one `div.room-bubble[aria-hidden="true"]` in the stage, absolutely placed at a point the 3D stage gives each frame while it shows (`stage3d.twinHead()`: the twin's placement's top projected by the room's camera, clamped inside the wall box), with `show(text, seconds)` and `hide()`. Its CSS: the room's type, a tail toward the point, a contrast of at least 4.5:1, no animation under reduced motion. The live region gets the same words through `app.ts`'s `announcer.say`.
 
-### R-B6. The eating (`src/room/scene.ts`, `src/room/eat/available.ts`)
+### R-B6. The eating after the scene (`src/room/scene.ts`, `src/room/eat/available.ts`)
 
-`scene.ts:471-472` on `main`: `eats = options.avatar === EATER && part.placements.some((p) => p.edible !== null)` (no `bundled(EATER)`); `available.ts`'s `figureModel` becomes `figureShown` (the model or the cut-out), and a new input `sceneDone` (the director's `gone` or `cut`, or no `figures.leave`) joins its conditions. `eat/mouth.ts`'s estimate covers the cut-out's head from `AVATAR_SHAPES.dinosaur`. Then `probe-eat-028`'s finding (T-B06's first step) may add a cause; spec FR-032.
+The model gates stay as his Q247 answer set them (`scene.ts:472`'s `bundled(EATER)`, `available.ts:33`'s `figureModel`, `rg.ts`'s `dinosaurVisit`, `report.ts`'s dinosaur lines; Q11). One input joins `eatingAvailable`'s conditions: `sceneDone`, true once the director is `gone` or `cut`, or where the scene has no `figures.leave` (spec FR-025). The Eat box stays reserved for the visit from its start (spec 024's FR-012, Q150), so the framing doesn't move when the tile appears. `probe-eat-028`'s finding is T-B06's input: it names no cause beyond the model gates.
 
 ### R-B7. The introduction (`build/room/`, `src/room/app.ts`, the proposal)
 
@@ -125,14 +125,13 @@ The estimates are this plan's, from the shell's bounds (`room-shell.yaml`: x ±1
 - `test/room/dog-figure.test.ts`: "is wanted and shows for a visitor who chose the {woman, man, dog, dinosaur}" becomes: wanted only for the dinosaur, hidden until the scene's entry; "shows two dogs where the visitor chose the dog" becomes one dog.
 - `test/room/pet-shell.test.ts` and `test/room/chase-stage.test.ts`: the shell is never made.
 - `test/room/dog-first-visit.test.ts`, `dog-disclosure.test.ts`, `dog-report.test.ts`: RK5 and V1 as FR-029, FR-030.
-- `test/room/eat-model.test.ts` (its case "reserves no Eat box and gives no eating to a dinosaur visit whose bundle has no dinosaur's model"), `eat-available.test.ts`, `eat-scene.test.ts`: the cut-out eats, after the scene.
 - Group A's own: `test/ui/hud-split.test.ts` (the portrait cases, the rest row), `hud-split-rest-row.test.ts`, `hud-split-model.test.ts`, `test/room/hud-split-geometry.test.ts`, `test/ui/a11y.test.ts` ("Around the room" not hidden), `test/ui/text-copy.test.ts` (its heading not hidden), `test/ui/hud.test.ts` ("what never hides": the stand-in line), `test/ui/avatars.test.ts` (the twin's line in the note), `test/room/dog-line.test.ts`, `test/room/likeness-line-anywhere.test.ts`, `test/room/likeness-visitor.test.ts` (the line in the room's note), `test/ui/notes-causes.test.ts`, `test/ui/hud-notes.test.ts`, `test/ui/loading-notes.test.ts`, `test/ui/hud-look.test.ts`, `test/room/stages.test.ts` (pins `room.css` values).
 
 Each rewrite keeps every other case of its file unchanged and is listed in the task's notes with the case's old and new name.
 
 ### R-B9. RK5, V1, the dashboard
 
-`build/room/checks/rk.ts`: the room's dog's files join the dinosaur's set as one visitor set ("dinosaur + room's dog") for the largest-visitor term, and leave the always-counted terms (FR-029). `docs/data-flow-disclosure.md` row V1: the sentence spec 025's FR-028 added ("the room's dog's model and clips in every 3D visit above the floor … the same for every visitor") becomes: "the room's dog's model and clips only in a 3D visit whose visitor chose the dinosaur, so, like the chosen avatar's files, their paths show that choice". `deploy/grafana/dashboards/h4-runtime.json`'s "Visits whose avatar failed" description: the room's dog's files "in dinosaur visits".
+`build/room/checks/rk.ts`: the room's dog's files join the dinosaur's set as one visitor set ("dinosaur + room's dog") for the largest-visitor term, only where the bundle carries the dinosaur's model, and leave the always-counted terms (FR-029). `docs/data-flow-disclosure.md` row V1: the sentence spec 025's FR-028 added ("the room's dog's model and clips in every 3D visit above the floor … the same for every visitor") becomes: "the room's dog's model and clips only in a 3D visit whose visitor chose the dinosaur, so, like the chosen avatar's files, their paths show that choice". `deploy/grafana/dashboards/h4-runtime.json`'s "Visits whose avatar failed" description: the room's dog's files "in dinosaur visits".
 
 ## 6. Shared files, and who edits first
 
@@ -145,12 +144,12 @@ Each group edits only the files its tasks list. Where both touch a file:
 | `docs/data-flow-disclosure.md` | **B** (T-B07: the dog's files, V1) | **integration** (T-INT: the still's sentence, FR-002) | so V1 changes once per group's code, and never conflicts |
 | `test/room/stages.test.ts`, `compose/hud.ts` (`EAT_CONTROL`'s box) | **A** (T-A02, T-A05) | B doesn't edit them; B's Eat condition is in `scene.ts` (`eats`) | — |
 
-Group A owns: `compose/wall.ts`, `compose/hud.ts`, `compose/frame.ts`, `compose/stages.ts`, `layout.ts`, `hud/split.ts`, `hud/split.css`, `room.css`, `text-copy.ts`, `a11y.ts`, `build/credits.ts`, `talk/talk.ts` (if the toggle needs it). Group B owns: `scene.ts`, `scene/avatars.ts`, `scene/loader.ts`, `scene/dino-scene*.ts`, `scene/twin-states.ts`, `eat/*`, `bubble.ts`, `bubble.css`, `room/scene.yaml`, `build/room/schema.ts`, `build/room/checks/*`, `build/room/emit.ts` (the slot), `h4-runtime.json`, the corpus proposal and patch, and the PDF writer if the probe finds a fix.
+Group A owns: `compose/wall.ts`, `compose/hud.ts`, `compose/frame.ts`, `compose/stages.ts`, `layout.ts`, `hud/split.ts`, `hud/split.css`, `room.css`, `text-copy.ts`, `a11y.ts`, `build/credits.ts`, `talk/talk.ts` (if the toggle needs it). Group B owns: `scene.ts`, `scene/avatars.ts`, `scene/loader.ts`, `scene/dino-scene*.ts`, `scene/twin-states.ts`, `eat/*`, `bubble.ts`, `bubble.css`, `room/scene.yaml`, `build/room/schema.ts`, `build/room/checks/*`, `build/room/emit.ts` (the slot), `h4-runtime.json`, the corpus proposal and patch, and the PDF's note (no code: `probe-pdf-028` found the annotations in place; FR-031).
 
 ## 7. What waits for his hand
 
 - The corpus slot (FR-027): the proposal and the patch; he fills the slot in his own words, regenerates, and evaluates (human-patch note `docs/merge-requests/human-patches/028.md`, written by T-B08).
-- The candidate PDF's publishing (human patch 023, P8); the dinosaur's model (human patch 021, P9). Spec 028 adds no step to either; its note points to them.
+- The candidate PDF's publishing (human patch 023, P8; `probe-pdf-028`: its four links already sit on the four claims), and his answer to that probe's question; the dinosaur's model (human patch 021, P9), which turns on the scene and then the eating (Q11). Spec 028 adds no step to either; its notes point to them.
 - His look: the columns beside the walls, the scene's path and timing, the bubble.
 - ADR 0055's amendment (spec 028's two cases) is the docs role's, in the stack, his to accept with it.
 
