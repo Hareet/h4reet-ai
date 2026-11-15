@@ -340,11 +340,16 @@ export function createAvatarFigures(
   const fallbackOf = (group: Object3D): Object3D[] =>
     group.children.filter((c) => c !== room.paper.kept && c.name !== AVATAR_NODE);
   /** Spec 025 (FR-018, FR-019; plan.md R-10): the room's dog, where the scene has `figures.dog` and the bundle the dog:
-   *  a picture group of its own at its home on the floor, turned by its heading, with no fallback to show. */
+   *  a picture group of its own at its home on the floor, turned by its heading, with no fallback to show. Since spec
+   *  028 (FR-018), in a dinosaur visit alone, and hidden until its scene shows it. */
   const dogHome = part.figures.dog;
   const dogGroup = new Group();
   dogGroup.name = DOG_NODE;
-  const dogWants = dogHome ? bundled("dog") : null;
+  // Spec 028 (FR-017, FR-018; Q9, Q11; plan.md R-B1): only in a dinosaur visit whose bundle carries the dinosaur's
+  // model, never beside a woman, a man, or a dog visitor; its picture hidden until the dinosaur's scene shows it at its
+  // entry (FR-021), so it is never at a home.
+  const dogWants = dogHome && options.chosen === "dinosaur" && bundled("dinosaur") !== null ? bundled("dog") : null;
+  dogGroup.visible = false;
   if (dogHome && dogWants !== null) {
     const feet = new Vector3();
     const node = room.placements.get(part.figures.visitor);

@@ -129,6 +129,12 @@ The model gates stay as his Q247 answer set them (`scene.ts:472`'s `bundled(EATE
 
 Each rewrite keeps every other case of its file unchanged and is listed in the task's notes with the case's old and new name.
 
+**As built (T-B02, `impl-028b`), departures from the lines above:**
+
+- `test/room/pet-shell.test.ts` is **not** rewritten: it tests `shellDue`'s truth table and the shell and pet director built by hand, which stay as they are (FR-028: "its modules and tests stay"); it stays green unchanged. The stage's "never made" is pinned by `test/room/chase-stage.test.ts` (rewritten) and `test/room/pet-dormant.test.ts` (new), which count `createChaseFigures` and `createPet` on the real stage.
+- In `dog-figure.test.ts`, the cases that set up a woman or a man visitor only to have a room's dog (the approval's line, `dogPlays`, a failed model, the hand-off's wait, the loader's order, `reset`, the hand-off's retry, `update`) now set up a dinosaur visit with the dinosaur's model bundled; their names are unchanged.
+- `scene.ts` no longer makes the run's shell or the pet director, so the stage no longer offers `pet(id)`: `app.ts`'s selection hook (`walker(stage)?.pet?.(id)`) stays wired and calls nothing. The highlight's and the picker's dog parts (spec 026's R-09, read through the pet adapters, which are no longer made) go with them: no room dog stands at home to border or pick.
+
 ### R-B9. RK5, V1, the dashboard
 
 `build/room/checks/rk.ts`: the room's dog's files join the dinosaur's set as one visitor set ("dinosaur + room's dog") for the largest-visitor term, only where the bundle carries the dinosaur's model, and leave the always-counted terms (FR-029). `docs/data-flow-disclosure.md` row V1: the sentence spec 025's FR-028 added ("the room's dog's model and clips in every 3D visit above the floor … the same for every visitor") becomes: "the room's dog's model and clips only in a 3D visit whose visitor chose the dinosaur, so, like the chosen avatar's files, their paths show that choice". `deploy/grafana/dashboards/h4-runtime.json`'s "Visits whose avatar failed" description: the room's dog's files "in dinosaur visits".

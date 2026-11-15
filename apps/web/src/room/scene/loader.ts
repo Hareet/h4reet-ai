@@ -268,9 +268,14 @@ export function figureEntries(
   base = "",
 ): FigureEntry[] {
   // Spec 025 (FR-021; plan.md R-10): the room's dog's files, after the twin's and the visitor's, where the scene has
-  // `figures.dog` and the bundle the dog; once, where the visitor's own files are the dog's already.
+  // `figures.dog` and the bundle the dog; once, where the visitor's own files are the dog's already. Since spec 028
+  // (FR-017, FR-018; Q11; plan.md R-B1): only in a dinosaur visit whose bundle carries the dinosaur's model.
   const roomDog = (taken: readonly AvatarId[]): FigureEntry[] =>
-    part.figures.dog !== undefined && part.avatars.dog !== undefined && !taken.includes("dog")
+    chosen === "dinosaur" &&
+    part.avatars.dinosaur !== undefined &&
+    part.figures.dog !== undefined &&
+    part.avatars.dog !== undefined &&
+    !taken.includes("dog")
       ? avatarEntries(part, ["dog"], base)
       : [];
   if (part.twin) {
