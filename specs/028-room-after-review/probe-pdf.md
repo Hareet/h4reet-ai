@@ -355,6 +355,24 @@ Blocks: spec 028 (item 3; probe-pdf-028) · Recommended: Yes; that row, publish 
 - No command was refused by the bash gate or a permission rule.
 - One hook finding, not a refusal: the PostToolUse lint hook (`post-edit-check.sh`) reported ruff findings on my scratch reader `/tmp/probe-pdf-028-tools/pdfprobe.py`, which is outside the repository (I001, SIM115, FURB167 ×3, B023). I fixed them in that file. Nothing in the repository was involved.
 
+- `make lint` didn't run to the end, so this is **not** a passing lint. It stops at its first step because this worktree has no `node_modules`. Its own fix is `make setup` (`npm ci --ignore-scripts`), which downloads the locked packages from the registry. I didn't run it, because the brief says "install nothing new from the network". This file is the branch's only change, and no `make lint` step reads it: `specs/` is in `.prettierignore` (line 43), and ESLint, tsc, ruff, and shellcheck don't read Markdown. The supervisor can run `make lint` on this branch where `node_modules` exists.
+
 ## make lint
 
-(pasted below after the run)
+```text
+$ make lint
+node_modules is missing: run make setup
+make: *** [Makefile:227: lint] Error 1
+exit: 2
+```
+
+The two lint steps that run without `node_modules` (run by hand; not a substitute for the full target):
+
+```text
+$ ruff check .
+All checks passed!
+exit: 0
+$ ruff format --check --no-cache --extend-exclude corpus .
+849 files already formatted
+exit: 0
+```
