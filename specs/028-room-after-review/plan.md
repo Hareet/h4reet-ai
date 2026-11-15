@@ -30,7 +30,15 @@ See spec.md's table. Gate: passes, with one named deviation (Principle II and De
 
 ### R-A2. The split layout's frame area (`compose/frame.ts`, `compose/hud.ts`)
 
-`HUD_PLACEMENTS.wall` (new, in `compose/hud.ts`): `{ gapRem: 1, edgeRem: 1, panel: { minRem: 20, maxRem: 44 }, column: { minRem: 18, maxRem: 32 }, minHeightRem: 14, scaleMax: 1.375 }`.
+`HUD_PLACEMENTS.wall` (new, in `compose/hud.ts`): `{ gapRem: 1, edgeRem: 1, panel: { minRem: 20, maxRem: 44 }, column: { minRem: 18, maxRem: 32 }, minHeightRem: 14, scaleMax: 1.375, tiles: { rows: 2, perRow: 3, gapRem: 0.25, padRem: 0.25 } }` (the `tiles` row added by T-A02, below).
+
+**As built (T-A02, impl-028a; departures from the text below, each this plan's reading):**
+
+- **Where the wall comes from.** `wallBoxes` takes the wall through its option, `{ eat, wall }`, where `wall` is the frame area's protector (`compose/frame.ts`'s `Protect`, which gains `wall?(area): Box | null`), not a `part` argument: the protector is already what the room (`scene.ts`, unchanged), lookdev, and the compositor share for the frame area, so the wall box reaches all three by one path and `wallBoxes` keeps `splitBoxes`'s signature. `protectSceneOf` adds the `shell` (the one placement mounted on nothing, as `compose/floor.ts` finds it) to the protector's input; `protectorFor`'s `wall` is `compose/wall.ts`'s `wallBox` on it. Without a wall source (no protector, a protector without `shell`), there is no split layout: `splitBoxes(screen)` alone is null, and the window takes the column layout (spec 018's rest-row split is gone everywhere).
+- **The 2D room.** The 2D drawing's protector (`flatProtectorFor`) gives as its wall the drawing's view box as placed in the area (`flatPlacement`, contain, centred): the room as the 2D drawing shows it. Before any stage draws, `app.ts` uses the 2D protector's wall (T-A03), so the first re-fit already takes the split layout.
+- **The tiles' block.** The column's foot holds the toolbar's tiles in `tiles.rows` rows of `tiles.perRow`, `bar.tileRem` × the right scale tall, then the walking control (`WALK_CONTROL` × the scale) and the "Eat" tile beside it on its right; `tilesH = 2 × padRem + rows × (tile + gapRem) + walk`; the list is the column above it, `gapRem` apart. The panel's `title` is `split.panel.titleRem` × the left scale; `frame` is the panel (no rest row).
+- **The panel's top** is the wall box's top (SC-001: "as tall as it"); the notes that still show (FR-014) are placed by CSS at the panel's top in the split layout (T-A06), not by the kernel's `notesH`.
+- **The area's foot** is the window's less the bottom safe area, as FR-006 says (no edge); at plan §R-A3's windows the wall box's foot is still at least 1rem above it (SC-001, tested).
 
 `wallArea(screen, metrics)`: the window less the strip's row at the top (`stripLines` × its line height, as the column layout's strip), less `panel.minRem + gapRem + edgeRem` at the left and `column.minRem + gapRem + edgeRem` at the right, less the safe areas. The room is framed into it (contain, 6% margin) and the wall box computed (R-A1).
 
@@ -47,9 +55,20 @@ The scale: `scaleLeft = 1 + (scaleMax − 1) × (panel.w − minW) / (maxW − m
 
 FR-009's windows are computed by the geometry test, which prints each window's layout, wall box, and the two columns' widths, and T-A01 records them here before T-A02. Expected from the rule (this plan's reading, to be replaced by the printed numbers): 1920 × 1080, 2560 × 1440, 1920 × 1200, 1680 × 1050 take the split layout; 1280 × 720 and 1366 × 768 depend on the wall box's width at the framing and are recorded as printed; 844 × 390, 768 × 1024, 700 × 500, 320 × 568 keep today's layouts.
 
+Printed by `test/room/hud-wall-geometry.test.ts`'s first case (T-A01) on the room's own bundle at the compositor's metrics (16-pixel root, no safe areas), after T-A02's code (the table can't print before the function exists). The wall box is `x, y, w × h` in CSS pixels; the shell's opening is square (2.13 m × 2.13 m).
+
 | Window | Layout | Wall box | Panel w | Column w |
 |---|---|---|---|---|
-| (T-A01 fills this table from its printed run) | | | | |
+| 1920 × 1080 | split | 524.6, 137.5, 902.9 × 902.9 | 492.6 | 460.6 |
+| 2560 × 1440 | split | 690.2, 175.2, 1211.7 × 1211.7 | 658.2 | 512 |
+| 1920 × 1200 | split | 473.1, 150.1, 1005.8 × 1005.8 | 441.1 | 409.1 |
+| 1680 × 1050 | split | 449.6, 164.1, 812.7 × 812.7 | 417.6 | 385.6 |
+| 1280 × 720 | split | 410.9, 147.8, 490.1 × 490.1 | 378.9 | 346.9 |
+| 1366 × 768 | split | 419.2, 139.8, 559.5 × 559.5 | 387.2 | 355.2 |
+| 844 × 390 | column | — | — | — |
+| 768 × 1024 | dock | — | — | — |
+| 700 × 500 | column | — | — | — |
+| 320 × 568 | dock | — | — | — |
 
 ### R-A4. The DOM and CSS (`src/room/layout.ts`, `hud/split.ts`, `hud/split.css`)
 
@@ -126,6 +145,8 @@ The model gates stay as his Q247 answer set them (`scene.ts:472`'s `bundled(EATE
 - `test/room/pet-shell.test.ts` and `test/room/chase-stage.test.ts`: the shell is never made.
 - `test/room/dog-first-visit.test.ts`, `dog-disclosure.test.ts`, `dog-report.test.ts`: RK5 and V1 as FR-029, FR-030.
 - Group A's own: `test/ui/hud-split.test.ts` (the portrait cases, the rest row), `hud-split-rest-row.test.ts`, `hud-split-model.test.ts`, `test/room/hud-split-geometry.test.ts`, `test/ui/a11y.test.ts` ("Around the room" not hidden), `test/ui/text-copy.test.ts` (its heading not hidden), `test/ui/hud.test.ts` ("what never hides": the stand-in line), `test/ui/avatars.test.ts` (the twin's line in the note), `test/room/dog-line.test.ts`, `test/room/likeness-line-anywhere.test.ts`, `test/room/likeness-visitor.test.ts` (the line in the room's note), `test/ui/notes-causes.test.ts`, `test/ui/hud-notes.test.ts`, `test/ui/loading-notes.test.ts`, `test/ui/hud-look.test.ts`, `test/room/stages.test.ts` (pins `room.css` values).
+
+- **Found by T-A02 (impl-028a), beyond the list above**, each pinning spec 018's rest-row split, which a window without a wall source no longer takes: `test/room/eat-box.test.ts` (spec 024: `today()`'s `rest` field; "lies inside its band or the clear area, …" restricted to the layouts outside the split; "ends the split layout's list above it …" and "takes the split layout with the option exactly where it does without" rewritten for the tiles' block and the absent cover rule; its snapshot rewritten, the 20 windows where spec 018's split was taken now the column layout); `test/room/frame.test.ts` (spec 014: `UNDER` and the "7.9 pixels" case read the column's compact box, not the split's list); `test/room/protect.test.ts` (spec 014: its snapshot's `compact` part, the column layout's boxes at 1920 × 1200 without a wall).
 
 Each rewrite keeps every other case of its file unchanged and is listed in the task's notes with the case's old and new name.
 

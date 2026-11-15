@@ -83,9 +83,17 @@ for (const [name, part] of [
       }
     });
 
-    it("lies inside the frame area it is framed into", () => {
-      const scene = wallSceneOf(part());
+    it("lies inside the frame area it is framed into, where the shell is framed", () => {
+      const p = part();
+      const scene = wallSceneOf(p);
       if (!scene) throw new Error("no wall scene");
+      // The known-good fixture's shell is unframed and larger than the view (its near face in front of the camera), so
+      // its opening can't lie inside the area: the split layout's band rule (FR-009 (c)) then refuses it. The room's own
+      // shell is framed (scene.yaml's room-shell, frame: true).
+      if (!p.placements.find((q) => q.mount === null)?.framed) {
+        expect(name).toBe("the known-good fixture");
+        return;
+      }
       for (const area of AREAS) {
         const w = must(wallBox(scene, area));
         expect(w.x).toBeGreaterThanOrEqual(area.x - 1e-6);

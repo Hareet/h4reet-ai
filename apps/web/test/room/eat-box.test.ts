@@ -5,6 +5,10 @@
 // left at its height, else above it), inside its band or the clear area, apart from every other box, and listed after
 // it; the split layout is taken exactly where it is with the option off; and the protector built with it keeps the
 // protected cores clear of the box and holds a side-wall selectable whose core lies under it at spec 005's frame.
+// Spec 028's T-A02 (its FR-006, FR-007, FR-009; plan.md §R-B8) rewrote four cases for the split layout beside the
+// room's walls, which a wall source (the protector) selects and which has no rest row and no cover rule (e); the
+// snapshot was rewritten with them, its windows where spec 018's split was taken now giving the column layout without
+// a wall.
 import { describe, expect, it } from "vitest";
 
 import { frameArea, MARGIN_REM } from "../../src/room/compose/frame";
@@ -16,7 +20,6 @@ import {
   EAT_CONTROL,
   eatControlBox,
   fitsHud,
-  HUD_PLACEMENTS,
   hudBoxes,
   notesBox,
   OPENING,
@@ -29,12 +32,18 @@ import {
 import type { Box, CompactBoxes, HudMetrics, HudState } from "../../src/room/compose/hud";
 import { CORE_PX, memberRect, pickAreas } from "../../src/room/compose/pick";
 import type { Rect } from "../../src/room/compose/pick";
-import { protectorFor } from "../../src/room/compose/protect";
+import { protectSceneOf, protectorFor } from "../../src/room/compose/protect";
 import type { ProtectScene } from "../../src/room/compose/protect";
 import { stageFor, sweepScreens } from "../../src/room/compose/stages";
 import { PROTECT_SCENE } from "../fixtures/room/protect-scene";
+import { repositoryBundle } from "../helpers/room";
 
 const SCENE = PROTECT_SCENE as unknown as ProtectScene;
+/** Spec 028: the room's own protector, whose wall selects the split layout beside the walls. */
+const WALL = ((): ReturnType<typeof protectorFor> => {
+  const { scene, index } = repositoryBundle();
+  return protectorFor(protectSceneOf(scene, index));
+})();
 const COLLAPSED: HudState = { list: "collapsed" };
 const STATES: readonly HudState[] = [OPENING, COLLAPSED];
 const METRICS: readonly HudMetrics[] = [
@@ -77,7 +86,6 @@ function today(c: CompactBoxes) {
   const s = split && {
     panel: split.panel,
     title: split.title,
-    rest: split.rest,
     frame: split.frame,
     list: split.list,
     walk: split.walk,
@@ -168,15 +176,15 @@ describe("the option on: the Eat box (Q-R2a)", () => {
     expect(places.left).toBeGreaterThan(0);
   });
 
-  it("lies inside its band or the clear area, apart from every other box of `all`, listed right after `walk`", () => {
+  it("lies inside its band or the clear area, apart from every other box of `all`, listed right after `walk`, outside the split layout", () => {
     const seen = new Set<string>();
     const wrong: string[] = [];
     for (const [s, st, m] of cases()) {
       const c = compactBoxes(s, st, m, { eat: true });
       const b = hudBoxes(s, st, m);
       const eat = c.eat as Box;
-      const where = c.split ? "split" : c.walkPlace;
-      seen.add(where);
+      const where = c.walkPlace;
+      seen.add(c.split ? "split" : where);
       const within = where === "stage" ? b.clear : (b.column as Box);
       if (!inside(eat, within))
         wrong.push(`${name(s, st, m)}: outside its ${where === "stage" ? "clear area" : "band"}`);
@@ -187,23 +195,30 @@ describe("the option on: the Eat box (Q-R2a)", () => {
       expect(c.all.length).toBe(compactBoxes(s, st, m).all.length + 1);
     }
     expect(wrong.slice(0, 5)).toEqual([]);
-    for (const where of ["stage", "column", "split"]) expect(seen.has(where), where).toBe(true);
+    // Spec 028: without a wall source no window takes the split layout; its Eat box, in the column's tiles' block, is
+    // the next case's.
+    for (const where of ["stage", "column"]) expect(seen.has(where), where).toBe(true);
+    expect(seen.has("split")).toBe(false);
   });
 
-  it("ends the split layout's list above it where it sits above `walk`, its height still positive", () => {
-    for (const [s, st, m] of cases()) {
-      const on = splitBoxes(s, st, m, { eat: true });
-      const off = splitBoxes(s, st, m);
-      if (!on || !off) continue;
-      const eat = on.eat as Box;
-      expect(on.list.h).toBeGreaterThan(0);
-      if (eat.y < on.walk.y) {
-        expect(on.list.y + on.list.h, name(s, st, m)).toBeLessThanOrEqual(
-          eat.y - HUD_PLACEMENTS.split.walkGapRem * m.rem + 1e-9,
-        );
-      } else expect(on.list).toEqual(off.list);
-      for (const k of ["panel", "title", "rest", "frame", "walk"] as const) expect(on[k]).toEqual(off[k]);
-    }
+  it("sits beside `walk` in the split layout's tiles' block, the list and every other box unchanged (spec 028)", () => {
+    let seen = 0;
+    for (const m of METRICS)
+      for (const s of WINDOWS)
+        for (const st of STATES) {
+          const on = splitBoxes(s, st, m, { eat: true, wall: WALL });
+          const off = splitBoxes(s, st, m, { wall: WALL });
+          if (!on || !off) continue;
+          seen += 1;
+          const eat = on.eat as Box;
+          expect(on.list.h).toBeGreaterThan(0);
+          expect(inside(eat, on.tiles), name(s, st, m)).toBe(true);
+          expect([eat.y, eat.w, eat.h]).toEqual([on.walk.y, on.walk.w, on.walk.h]);
+          expect(overlaps(eat, on.walk)).toBe(false);
+          for (const k of ["panel", "title", "frame", "list", "tiles", "column", "walk"] as const)
+            expect(on[k]).toEqual(off[k]);
+        }
+    expect(seen).toBeGreaterThan(0);
   });
 
   it("puts the stage's corner box where eatControlBox does, at every supported clear area", () => {
@@ -234,23 +249,19 @@ describe("the option on: the Eat box (Q-R2a)", () => {
 });
 
 describe("the option on: the cover rule (e) doesn't count the Eat box (RV-2, Q-R3b)", () => {
-  it("takes the split layout with the option exactly where it does without", () => {
-    let near = 0;
+  it("takes the split layout with the option exactly where it does without (spec 028: no cover rule)", () => {
     const wrong: string[] = [];
-    for (const [s, st, m] of cases()) {
-      const off = splitBoxes(s, st, m);
-      if ((splitBoxes(s, st, m, { eat: true }) === null) !== (off === null)) wrong.push(name(s, st, m));
-      if (!off) continue;
-      const b = hudBoxes(s, st, m);
-      const c = compactBoxes(s, st, m);
-      const cover = unionArea([c.strip, c.bar, off.rest, off.list, off.walk, notesBox(b.clear, m.rem)]) / (s.w * s.h);
-      const eatArea = EAT_CONTROL.widthRem * EAT_CONTROL.heightRem * m.rem * m.rem;
-      if (cover <= HUD_PLACEMENTS.split.coverMax && cover + eatArea / (s.w * s.h) > HUD_PLACEMENTS.split.coverMax)
-        near += 1;
-    }
+    let taken = 0;
+    for (const m of METRICS)
+      for (const s of [...WINDOWS, ...sweepScreens().filter((_, k) => k % 11 === 0)])
+        for (const st of STATES) {
+          if (!fitsHud(s, st, m)) continue;
+          const off = splitBoxes(s, st, m, { wall: WALL });
+          if ((splitBoxes(s, st, m, { eat: true, wall: WALL }) === null) !== (off === null)) wrong.push(name(s, st, m));
+          if (off) taken += 1;
+        }
     expect(wrong.slice(0, 5)).toEqual([]);
-    // Windows whose cover lies within one Eat box's area under coverMax: where counting it would have moved the choice.
-    expect(near).toBeGreaterThan(0);
+    expect(taken).toBeGreaterThan(0);
   });
 
   it("leaves alwaysOnCoverage as the option-off boxes give it", () => {
