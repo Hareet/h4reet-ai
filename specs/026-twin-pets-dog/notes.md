@@ -69,7 +69,7 @@ room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
         Tests  1 failed | 5 passed (6)
   ```
 
-  I ran it a second time, with V8's `--trace-deopt` set at the real case's start. The case failed the same way. Its deoptimizations were on closures that the fakes' cases and the wired twin had made earlier, from the same literal sites. They deoptimized when the real case's new instances arrived. The adapters' `twin`, `running`, and `phaseOf` (`pet-adapters.ts`) gave "wrong feedback cell". Spec 025's `phase` and `runner` (`chase.ts`) and the director's `frame` and `broken` gave "wrong map". In the trace's words:
+  I ran it a second time, with V8's `--trace-deopt` set at the real case's start. The case failed the same way. Its deoptimizations were, in my reading (the trace lines below elide each function's address, so the paste doesn't show which instance deoptimized: verify-026, rv-rework5-026's N-5), on closures that the fakes' cases and the wired twin had made earlier, from the same literal sites. They deoptimized when the real case's new instances arrived. The adapters' `twin`, `running`, and `phaseOf` (`pet-adapters.ts`) gave "wrong feedback cell". Spec 025's `phase` and `runner` (`chase.ts`) and the director's `frame` and `broken` gave "wrong map". In the trace's words:
 
   ```
   [bailout (kind: deopt-eager, reason: wrong feedback cell): begin. deoptimizing … <JSFunction twin …>, … <Code TURBOFAN_JS>
@@ -83,14 +83,14 @@ room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
   [bailout (kind: deopt-eager, reason: wrong feedback cell): begin. deoptimizing … <JSFunction phaseOf …>, … <Code TURBOFAN_JS>
   ```
 
-  My reading, not a measure: this shows Q289's mechanism. Code that TurboFan optimized for one process's earlier closures, made at the same literal sites, is thrown away when another director's closures arrive. Here `real.faceTwin` then stays below TurboFan. The run shows that the case fails behind the fakes' cases and passes in its own file. It doesn't show rework3-026's specific "embedded weak objects cleared" deoptimization during the measure: in this run the case stops at the earlier check. The same case in its own file, in the runs below: 6.60 bytes a petting, every `hot` function TurboFan's before and after the measure.
+  My reading, not a measure: this shows Q289's mechanism. Code that TurboFan optimized for one process's earlier closures, made at the same literal sites, is thrown away when another director's closures arrive. Here `real.faceTwin` then stays below TurboFan. The run shows that the case fails behind the fakes' cases and passes in its own file. It doesn't show rework3-026's specific "embedded weak objects cleared" deoptimization during the measure: in this run the case stops at the earlier check. The same case in its own file, in the runs below: 6.60 bytes a petting, every `hot` function TurboFan's before and after the measure. (verify-026, rv-rework5-026's N-2, as the check enforces it: every plain `hot` function TurboFan's (`pet.frame`, `real.frame`, `adapters.twin`, `real.faceTwin`); `pet.select` or the step that calls it TurboFan's; the two inlined ones (`adapters.chase.faceTwin`, `adapters.chase.twinFacing`) TurboFan's or marked, `test/helpers/bench.ts:62`.)
 - **N-3 (`pet-reach.test.ts`, `reachAt`).** The loop now also takes t = 0, 0.5, `pet_s` − 0.5, `pet_s`, and NaN exactly, beside the sweep. `weightAt` and `reachAt` agree to the bit at each of those values: 26 passed (below).
 - **N-4 (`pet.ts`, `Asked`).** The doc now says "written only when the aim changes as a number (−0 = 0, as `!==` has it …)". It is harmless, since `faceTwin` clamps a difference. This is a doc change only.
 
 **Small runs (rule 4), from `apps/web`; every number beside its run:**
 
 - B-1's RED (step 1): `npx vitest run test/room/chase-stage.test.ts`: Test Files 1 failed (1), Tests 3 failed | 2 passed (5).
-- B-1's GREEN (step 2): `npx vitest run test/room/chase-stage.test.ts`: Test Files 1 passed (1), Tests 8 passed (8). Run twice, 8 passed both times.
+- B-1's GREEN (step 2): `npx vitest run test/room/chase-stage.test.ts`: Test Files 1 passed (1), Tests 8 passed (8). Run twice, 8 passed both times (one summary pasted; verify-026's two runs are in item 9's Verification).
 - The 12 chase files (above): Test Files 12 passed (12), Tests 152 passed (152).
 - Item 9's files, every `pet-*` file (they cover `pet.ts`, `pet-reach.ts`, and `shellDue`):
   ```
@@ -133,7 +133,7 @@ No full `make check` was run: the stack's last task runs it once (rule 4).
 
 Written by the night-shift implementer rework4-026 on 2026-11-15, from about 00:25Z to 01:00Z. It answers rv-impl3-026's Opus review of impl3-026's tip 5057ee19 ("Verdict: blocking"): B-1, I-1, N-2 to N-5, and spec 025 whole. rv-rework3-026 reviews rework3-026 and this branch together, and item 9's verify follows. This branch merges nothing.
 
-**B-1 (FR-027 over the real path): met with every function the review named in TurboFan's code. No source change was needed, and Q285 was not used.**
+**B-1 (FR-027 over the real path): met with every function the review named in TurboFan's code. No source change was needed, and Q285 was not used.** (verify-026, rv-rework5-026's N-2: the check holds `adapters.twin` and `real.faceTwin` TurboFan's, and the two `inlined(…)` entries TurboFan's or marked.)
 
 - RED (1c502ecd): `pet-bench-real.test.ts`'s `hot` list names `adapters.twin`, `real.faceTwin`, `adapters.chase.faceTwin`, and `adapters.chase.twinFacing`. Since rework3-026 the director reads `twinFacing` in `twinHeading`'s place. The case counts `twinHeading`'s calls, and checks the time before the bytes (N-2). It failed with "hot function 5 optimized before the measure": `adapters.chase.faceTwin` stayed at Maglev through 100 passes.
 - Why, from V8's status and `--trace-turbo-inlining` (in a scratch copy, since deleted):
@@ -150,7 +150,7 @@ Written by the night-shift implementer rework4-026 on 2026-11-15, from about 00:
   - The case alone (`-t "whole pettings"`): 6.60.
   - With `pet-bench.test.ts` in the same run: 6.60.
   - The bar is 12 bytes a petting, under one object. rework3-026 measured 6.49, 6.49, and 6.60 without waiting for the four. The same numbers with the four waited for show that they weren't adding bytes from a lower tier then either.
-- Q285's amendment (R-07: `Runner`'s fields) applied only "if the warm-up shows the bytes are in V8's optimized code". Nothing over the bar is left in optimized code, so the runner stays spec 025's literal and no spec 025 test was edited.
+- Q285's amendment (R-07: `Runner`'s fields) applied only "if the warm-up shows the bytes are in V8's optimized code". Nothing over the bar is left in optimized code, so the runner stays spec 025's literal and no spec 025 test was edited. (verify-026, rv-rework5-026's N-1: none was edited for Q285. T006's closed-list pin had already changed `chase-states.test.ts:23-24`, e2c88b81, under plan R-05, and rework5-026 later rewrote `chase-stage.test.ts`'s third case under R-07's departure. Two spec 025 test files differ from the line.)
 - The real case is a plain `it`, not `it.fails`, as rework3-026 left it.
 
 **I-1: the shell's rule as a pure function.**

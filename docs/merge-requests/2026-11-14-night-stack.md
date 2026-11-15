@@ -4135,6 +4135,10 @@ The spec's last review, rv-rework2-spec-026 (I-1, I-2, Nit-1 to Nit-3), was fixe
 
 `docs/merge-requests/human-patches/026.md`: the corpus patch (item 1, built by T019 after your approval of the dog's model, and applied **back to back with spec 022's**, Q141, since each closes the three ready topics); the proposal (item 2, written); the studio clip, its approval, and your evaluations (items 3 to 5). Also yours: **the one ADR** for the "no usage event" deviation of specs 024, 025, and 026 (Q161), the docs role's draft merged by you on `main`; the slot `hobbies.room_dog_name` and Golden Q&A 9, in your own words only; the page's answers, Q212 (the crouch) among them.
 
+**For his hand, a CLAUDE.md line** (rv-rework5-026's feedback, word for word; the page's Q298, answered as recommended; a proposal, not written by any worker), under "Things Claude gets wrong":
+
+> Stating more in a note than the pasted run's assertion checks (e.g. "optimized" where the check also accepts "marked"): say exactly what the check enforces.
+
 ### Small runs (rule 4), on this branch's tip with verify-021 merged
 
 `pet-reach`, `pet-director`, `pet-degraded`, `pet-notes`, `vocabulary`, `words`, `live`, `builds`, `pet-reach-measure`: `Test Files 9 passed (9) · Tests 235 passed (235)`. `scripts/corpus/test_dog_intro_proposal.py`: 18 passed. The docs links: 0 failed. `make lint`: exit 0. The output is in full in the feature's note. D-V2's six (Q165) weren't hit.
@@ -4410,7 +4414,7 @@ No full `make check`: the stack's last task runs it once (rule 4).
 
 Written by the night-shift implementer rework4-026 on 2026-11-15, from about 00:25Z to 01:00Z. It answers rv-impl3-026's Opus review of impl3-026's tip 5057ee19 ("Verdict: blocking"): B-1, I-1, N-2 to N-5, and spec 025 whole. rv-rework3-026 reviews rework3-026 and this branch together, and item 9's verify follows. This branch merges nothing.
 
-**B-1 (FR-027 over the real path): met with every function the review named in TurboFan's code. No source change was needed, and Q285 was not used.**
+**B-1 (FR-027 over the real path): met with every function the review named in TurboFan's code. No source change was needed, and Q285 was not used.** (verify-026, rv-rework5-026's N-2: the check holds `adapters.twin` and `real.faceTwin` TurboFan's, and the two `inlined(…)` entries TurboFan's or marked.)
 
 - RED (1c502ecd): `pet-bench-real.test.ts`'s `hot` list names `adapters.twin`, `real.faceTwin`, `adapters.chase.faceTwin`, and `adapters.chase.twinFacing`. Since rework3-026 the director reads `twinFacing` in `twinHeading`'s place. The case counts `twinHeading`'s calls, and checks the time before the bytes (N-2). It failed with "hot function 5 optimized before the measure": `adapters.chase.faceTwin` stayed at Maglev through 100 passes.
 - Why, from V8's status and `--trace-turbo-inlining` (in a scratch copy, since deleted):
@@ -4582,7 +4586,7 @@ room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
         Tests  1 failed | 5 passed (6)
   ```
 
-  I ran it a second time, with V8's `--trace-deopt` set at the real case's start. The case failed the same way. Its deoptimizations were on closures that the fakes' cases and the wired twin had made earlier, from the same literal sites. They deoptimized when the real case's new instances arrived. The adapters' `twin`, `running`, and `phaseOf` (`pet-adapters.ts`) gave "wrong feedback cell". Spec 025's `phase` and `runner` (`chase.ts`) and the director's `frame` and `broken` gave "wrong map". In the trace's words:
+  I ran it a second time, with V8's `--trace-deopt` set at the real case's start. The case failed the same way. Its deoptimizations were, in my reading (the trace lines below elide each function's address, so the paste doesn't show which instance deoptimized: verify-026, rv-rework5-026's N-5), on closures that the fakes' cases and the wired twin had made earlier, from the same literal sites. They deoptimized when the real case's new instances arrived. The adapters' `twin`, `running`, and `phaseOf` (`pet-adapters.ts`) gave "wrong feedback cell". Spec 025's `phase` and `runner` (`chase.ts`) and the director's `frame` and `broken` gave "wrong map". In the trace's words:
 
   ```
   [bailout (kind: deopt-eager, reason: wrong feedback cell): begin. deoptimizing … <JSFunction twin …>, … <Code TURBOFAN_JS>
@@ -4596,14 +4600,14 @@ room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
   [bailout (kind: deopt-eager, reason: wrong feedback cell): begin. deoptimizing … <JSFunction phaseOf …>, … <Code TURBOFAN_JS>
   ```
 
-  My reading, not a measure: this shows Q289's mechanism. Code that TurboFan optimized for one process's earlier closures, made at the same literal sites, is thrown away when another director's closures arrive. Here `real.faceTwin` then stays below TurboFan. The run shows that the case fails behind the fakes' cases and passes in its own file. It doesn't show rework3-026's specific "embedded weak objects cleared" deoptimization during the measure: in this run the case stops at the earlier check. The same case in its own file, in the runs below: 6.60 bytes a petting, every `hot` function TurboFan's before and after the measure.
+  My reading, not a measure: this shows Q289's mechanism. Code that TurboFan optimized for one process's earlier closures, made at the same literal sites, is thrown away when another director's closures arrive. Here `real.faceTwin` then stays below TurboFan. The run shows that the case fails behind the fakes' cases and passes in its own file. It doesn't show rework3-026's specific "embedded weak objects cleared" deoptimization during the measure: in this run the case stops at the earlier check. The same case in its own file, in the runs below: 6.60 bytes a petting, every `hot` function TurboFan's before and after the measure. (verify-026, rv-rework5-026's N-2, as the check enforces it: every plain `hot` function TurboFan's (`pet.frame`, `real.frame`, `adapters.twin`, `real.faceTwin`); `pet.select` or the step that calls it TurboFan's; the two inlined ones (`adapters.chase.faceTwin`, `adapters.chase.twinFacing`) TurboFan's or marked, `test/helpers/bench.ts:62`.)
 - **N-3 (`pet-reach.test.ts`, `reachAt`).** The loop now also takes t = 0, 0.5, `pet_s` − 0.5, `pet_s`, and NaN exactly, beside the sweep. `weightAt` and `reachAt` agree to the bit at each of those values: 26 passed (below).
 - **N-4 (`pet.ts`, `Asked`).** The doc now says "written only when the aim changes as a number (−0 = 0, as `!==` has it …)". It is harmless, since `faceTwin` clamps a difference. This is a doc change only.
 
 **Small runs (rule 4), from `apps/web`; every number beside its run:**
 
 - B-1's RED (step 1): `npx vitest run test/room/chase-stage.test.ts`: Test Files 1 failed (1), Tests 3 failed | 2 passed (5).
-- B-1's GREEN (step 2): `npx vitest run test/room/chase-stage.test.ts`: Test Files 1 passed (1), Tests 8 passed (8). Run twice, 8 passed both times.
+- B-1's GREEN (step 2): `npx vitest run test/room/chase-stage.test.ts`: Test Files 1 passed (1), Tests 8 passed (8). Run twice, 8 passed both times (one summary pasted; verify-026's two runs are in item 9's Verification).
 - The 12 chase files (above): Test Files 12 passed (12), Tests 152 passed (152).
 - Item 9's files, every `pet-*` file (they cover `pet.ts`, `pet-reach.ts`, and `shellDue`):
   ```
@@ -4641,6 +4645,16 @@ No full `make check` was run: the stack's last task runs it once (rule 4).
 **What waits for him.** Q296 (this edit to spec 025's test), beside Q282. If he overturns Q282, this case goes back to the line's version, with `shellDue`, its tests, and `pet-shell.test.ts`'s wired case reverted. N-1's run is now evidence for his confirmation of Q289, with the difference above: the case stopped before the measure, not after it.
 
 **Interruptions (rework5-026).** No hook or bash-gate refusal, and nothing was respelled. `make setup` installed `node_modules` (the worktree had none) and said the git hooks directory isn't writable in the sandbox. No new question.
+
+### Backlog (rv-rework5-026)
+
+N-3 and N-4 touch tests, so verify-026 leaves them here for a later task, in the review's words:
+
+> - **N-3 · Bugs (test strength): `apps/web/test/room/chase-stage.test.ts:175` shows "no run" (FR-001) only as "no `chase` signal".**
+>   - `chase.ts:230-240` says `started` only once a figure *moves*, so a run that is on, with no figure moved yet in 60 frames, would pass.
+>   - By reading, no run can be on: `pursuerPresent` needs the dinosaur (`chase-figures.ts:128-137`). `pet-shell.test.ts` also checks that no run starts on the wired twin.
+>   - Optional: also assert the shell's `chase` reports the twin's and the dog's phase `home` after the 60 frames.
+> - **N-4 · Compliance (docs):** `plan.md:58` says the departure's swap is "as `eat-scene.test.ts` does it". That's accurate (`eat-scene.test.ts:52-59`). But the swapped part keeps the original `digest` field, which is why `buildRoom` accepts it. One clause in the test's comment (`chase-stage.test.ts:35`) would stop a later reader from "fixing" the digest and breaking the case.
 
 ### Verification (rule 7, verify-026)
 
@@ -4688,6 +4702,28 @@ passed  test/ui/eat-reduced.test.ts  4/4 passed
 ```
 
 The same 26 files had passed once before this run, with the same totals (26 and 606), before the JSON reporter was added. So the auto-merge is now tested, and I-1 is closed.
+
+#### The review's nits: documents only
+
+No source or test file changed in this step.
+
+- **N-1:** two spec 025 test files differ from the line, and the documents now say so:
+  - `chase-stage.test.ts`, R-07's departure (Q282, Q296);
+  - `chase-states.test.ts:23-24`, T006's closed-list pin (e2c88b81, under R-05).
+
+  Where it's written:
+  - spec 026's `plan.md`: R-06 has an "As built (verify-026)" sentence, and R-07's departure says "two spec 025 test files differ from the line", with the pin named;
+  - `notes.md`: rework4-026's "no spec 025 test was edited" is now qualified as "none for Q285", with both files named;
+  - spec 025's own `plan.md`, its §6 line for `scene.ts` ("As built (T014): only where the visitor chose the dinosaur"): a pointer to spec 026's R-07 departure.
+- **N-2:** each "TurboFan's" claim now says what the check enforces (`test/helpers/bench.ts:62`):
+  - every plain `hot` function is TurboFan's;
+  - `pet.select`, or the step that calls it, is TurboFan's;
+  - the two `inlined(…)` entries are TurboFan's or marked.
+
+  The claims fixed: `notes.md`'s N-1 paragraph and its copy in rework5-026's section above, rework4-026's B-1 headline (in `notes.md` and above), and plan R-04's rework4 line. Each correction is added in brackets after the original words, which stay as written. "Run twice, 8 passed both times" now says one summary was pasted. My two runs are under "Runs", below.
+- **N-5:** in `notes.md` and above, the trace paragraph now labels "closures that the fakes' cases and the wired twin had made earlier" as the writer's reading, since the paste elides the addresses. The next paragraph's "My reading, not a measure" label is unchanged. The page is the supervisor's: when it quotes this for Q289, the label goes with it.
+- **N-3 and N-4** touch tests. They're in item 9's Backlog (rv-rework5-026), above, in the review's words.
+- **Q298** (answered as recommended): the review's CLAUDE.md line, word for word, is in item 9's For the Author as a proposal for his hand. No worker writes CLAUDE.md.
 
 ## Item 10: spec 027, when the twin's file context stops being enough (`night/impl-027/impl-027`)
 
