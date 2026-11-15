@@ -436,6 +436,21 @@ def test_the_rooms_rows_are_in_its_own_section_with_the_specs_words() -> None:
     assert now, "spec 028's plan R-B9 doesn't read as this test reads it"
     assert files_now.count(dog.group(1)) == 1
     files_now = files_now.replace(dog.group(1), now.group(1))
+    # Spec 028's FR-002 (with FR-030; its T-INT): the room no longer fetches the twin's still in a 3D visit for the
+    # panel, so H-11's sentence goes, and M17's words for the still stand alone again.
+    after = (REPO / "specs" / "028-room-after-review" / "spec.md").read_text(
+        encoding="utf-8"
+    )
+    assert (
+        "Disclosure row V1's sentence that spec 018 added for it SHALL be removed in the stack (FR-030)."
+        in after
+    ), "spec 028's FR-002 doesn't read as this test reads it"
+    h11 = (
+        ", or, in a 3D visit, once, when the conversation panel first opens"
+        " in the split layout (spec 018)"
+    )
+    assert files_now.count(h11) == 1
+    files_now = files_now.replace(h11, "")
     _from_to, row_trigger, row_carries, row_never, row_why, *_ = rows()["V1"]
     assert (row_carries, row_never, row_why) == (
         f"{carries}, and {files_now}",

@@ -106,6 +106,17 @@ function amendment028(carries: string): string {
   return carries.replace(was, now);
 }
 
+/** Spec 028's FR-002 (with FR-030; its T-INT): the room no longer fetches the twin's still in a 3D visit for the panel,
+ *  so the sentence spec 018's H-11 added to V1's Carries goes, and M17's words for the still stand alone again. */
+function amendment028Still(carries: string): string {
+  const spec = readFileSync(resolve(WEB, "../../specs/028-room-after-review/spec.md"), "utf8");
+  if (!spec.includes("Disclosure row V1's sentence that spec 018 added for it SHALL be removed in the stack (FR-030)."))
+    throw new Error("spec 028's FR-002 doesn't read as this test reads it");
+  const h11 = ", or, in a 3D visit, once, when the conversation panel first opens in the split layout (spec 018)";
+  if (carries.split(h11).length !== 2) throw new Error("spec 018's H-11 isn't in V1's Carries once");
+  return carries.replace(h11, "");
+}
+
 function htmlTables(html: string): string[][][] {
   const doc = new JSDOM(html).window.document;
   return [...doc.querySelectorAll("table")].map((table) =>
@@ -146,14 +157,17 @@ describe("the disclosure page", () => {
     );
     // Spec 016's M17 replaces M6's avatar files in V1's Carries, and adds to its Trigger and Why, in its own words
     // (changed with T073, plan.md R-18); spec 018's H-11 adds the still in a 3D visit to its Carries, and spec 025's
-    // FR-028 the room's dog's model and clips, which spec 028's FR-030 (plan.md R-B9) puts in a dinosaur visit only.
+    // FR-028 the room's dog's model and clips, which spec 028's FR-030 (plan.md R-B9) puts in a dinosaur visit only;
+    // spec 028's FR-002 takes H-11's still in a 3D visit out again.
     const m17 = amendmentM17();
     for (const id of ["V1", "V4"]) {
       const entry = entries.get(id);
       const row = rows.get(id);
       expect(entry, id).toBeDefined();
       const carries =
-        id === "V1" ? `${entry?.[2] ?? ""}, ${amendment028(amendment025(amendmentH11(m17.carries)))}` : entry?.[2];
+        id === "V1"
+          ? `${entry?.[2] ?? ""}, ${amendment028Still(amendment028(amendment025(amendmentH11(m17.carries))))}`
+          : entry?.[2];
       const why = id === "V1" ? `${entry?.[4] ?? ""}; ${m17.why}` : entry?.[4];
       expect(row?.slice(3, 6), id).toEqual([carries, entry?.[3], why]);
     }
@@ -216,8 +230,9 @@ describe("the disclosure page", () => {
     expect(carries).toMatch(
       /^and the avatar files now: the twin's model and clips .*whose paths show which avatar the visitor chose$/,
     );
-    // Spec 028's FR-030 (T-B07): the room's dog's sentence as its plan R-B9 words it.
-    expect(rows.get("V1")?.[3]).toContain(amendment028(amendment025(amendmentH11(carries))));
+    // Spec 028's FR-030 (T-B07): the room's dog's sentence as its plan R-B9 words it; its FR-002 (T-INT): the still
+    // only where the 2D room shows.
+    expect(rows.get("V1")?.[3]).toContain(amendment028Still(amendment028(amendment025(amendmentH11(carries)))));
     expect(rows.get("V1")?.[3]).not.toContain(v1);
     expect(v4).toBe("and a figure's avatar failing to load, once a visit");
     expect(rows.get("V4")?.[2]?.endsWith(`, ${v4}`)).toBe(true);
