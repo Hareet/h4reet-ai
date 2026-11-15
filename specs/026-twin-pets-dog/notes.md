@@ -1,5 +1,134 @@
 # Notes: spec-026 and its reworks (2026-11-14)
 
+## rework5-026 (`night/rework5-026/rework5-026`, from rework4-026's tip b6e2166a, Opus 5.5)
+
+Written by the night-shift implementer rework5-026 on 2026-11-15, from about 01:00Z to 01:25Z. It answers rv-rework3-026's Opus review ("Verdict: blocking", B-1 alone, four nits) under the page's Q296 (answered: recommended, his to confirm or overturn beside Q282). rv-rework5-026 (another worker) reviews it, and item 9's verify follows.
+
+**Step 1: the line's tip merged (9fa7d34b).** `refs/heads/night/merge-2/merge-2` (ce3f6305). `chase-figures.test.ts` and `chase-handoff.test.ts` took the line's `fx-twin-figure` in git's own merge, with no conflict. Four files conflicted:
+
+- `build/room/checks/rg.ts`: both sides' imports (the line's `DEFAULT_METRICS`, this branch's `AVATAR_SHAPES` and `dogBoxAt`).
+- `src/room/stage.ts`: both members of `Stage3D`, spec 026's `pet?` and spec 024's `eat?`.
+- `test/room/vocabulary.test.ts`: 86 keys. That is the line's 85 (the base's 83 plus spec 024's `eat.button` and `eat.first_bite`) plus this branch's `figures.pet_note`.
+- This stack note: the line's version, with this branch's item 9 section put back before item 10. The 16 lines of this branch's copy that the result drops are the line's own older text, which the line had already replaced (item 5's "not yet copied" table and item 8's earlier wording).
+
+B-1's RED, the line's `chase-stage.test.ts` over this branch's `shellDue`, from `apps/web`:
+
+```
+$ npx vitest run test/room/chase-stage.test.ts
+ FAIL  … > never makes it for the dog, the hand-off ended
+AssertionError: expected [ 'dog' ] to deeply equal []
+ (the same for the woman, [ 'woman' ], and the man, [ 'man' ])
+ Test Files  1 failed (1)
+      Tests  3 failed | 2 passed (5)
+```
+
+**Step 2: B-1, as Q296 says (515c2336).** `chase-stage.test.ts`'s third case is rewritten to Q282's rule. No other spec 025 case is edited, and no source changed. The case is now two `it.each` over the woman, the man, and the dog:
+
+- With the scene's dog (asserted present in the repository's part), the shell is never made while the hand-off is pending, with the walking view on for 30 frames. It is made once when the hand-off ends, and it is still made once 60 frames later. No `chase` signal is sent, so no run starts (FR-001).
+- Without `figures.dog`, with the part swapped by a `virtual:room-scene` mock as `eat-scene.test.ts` does it, the shell is never made once the hand-off has ended, even walking for 30 frames, and no `chase` signal is sent.
+
+The rewritten case passed on its first run, since `shellDue` already holds Q282's rule (rework4-026). So that the case is shown to catch both failures, I ran two scratch changes to `shellDue`'s body, each reverted with `git checkout`:
+
+```
+$ npx vitest run test/room/chase-stage.test.ts                      # as committed
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+# scratch: shellDue = chaseDue(chosen, handedOff) (the line's rule, hasDog ignored)
+     × with the scene's dog, makes it once for the woman … (and the man, and the dog)
+      Tests  3 failed | 5 passed (8)
+# scratch: shellDue = chaseDue(chosen, handedOff) || handedOff (hasDog ignored the other way)
+     × without figures.dog, never makes it for the woman, the hand-off ended (and the man, and the dog)
+      Tests  3 failed | 5 passed (8)
+```
+
+Plan R-07 now names the departure: "one spec 025 test is edited", citing Q282, Q296, and B-1. It also carries N-2's pointer: `turnTwin` takes no argument, `Face.step` is new, and the details are in R-04's "As reworked (rework3-026)", point (4). §6's changed-code line for `chase.ts` says the same. tasks.md's T014 line records the stage-level test.
+
+**The 12 chase test files.** On the line, `test/room/chase-*.test.ts` holds 11 files, all spec 025's. This branch adds spec 026's `chase-face.test.ts` (R-07), which makes 12. The review's "on the line, spec 025 has 12 chase test files" counts that one file too. All 12 pass:
+
+```
+$ npx vitest run test/room/chase-bench.test.ts test/room/chase-degraded.test.ts test/room/chase-director.test.ts test/room/chase-end-line.test.ts test/room/chase-face.test.ts test/room/chase-figures.test.ts test/room/chase-handoff.test.ts test/room/chase-notes.test.ts test/room/chase-schema.test.ts test/room/chase-stage.test.ts test/room/chase-states.test.ts test/room/chase-steer.test.ts
+chase bench: 600 frames, mean ms a frame per run 0.0107, 0.0096, 0.0104; best 0.0096
+room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
+ Test Files  12 passed (12)
+      Tests  152 passed (152)
+```
+
+**Step 3: the nits (cb7c3792).**
+
+- **N-1 (Q289's reason, one pasted run).** In a scratch copy of `pet-bench.test.ts` (`test/room/scratch-q289-pet-bench.test.ts`, since deleted), I put `pet-bench-real.test.ts`'s case back where impl3-026 had it, behind the fakes' cases in the same `describe`. The copy also took the real case's imports and its twin's home. It fails, but **at `checkHot`'s check before the measure, not after it as the review expected.** Hot function 4 is spec 025's `real.faceTwin`. It doesn't reach TurboFan's code in the warm-up's 100 passes of 2,000 pettings, though it does in the case's own file:
+
+  ```
+  $ npx vitest run test/room/scratch-q289-pet-bench.test.ts
+  pet.select and pet.frame, a whole petting of 251 frames (…): 4.03 bytes a petting
+  …
+   ❯ test/room/scratch-q289-pet-bench.test.ts (6 tests | 1 failed) 37720ms
+       × over the real adapters and spec 025's real director: whole pettings, and the frame's time 6606ms
+  AssertionError: hot function 4 optimized before the measure: expected false to be true
+   ❯ checkHot test/helpers/bench.ts:68:7
+   ❯ bytesPerCall test/helpers/bench.ts:100:3
+        Tests  1 failed | 5 passed (6)
+  ```
+
+  I ran it a second time, with V8's `--trace-deopt` set at the real case's start. The case failed the same way. Its deoptimizations were on closures that the fakes' cases and the wired twin had made earlier, from the same literal sites. They deoptimized when the real case's new instances arrived. The adapters' `twin`, `running`, and `phaseOf` (`pet-adapters.ts`) gave "wrong feedback cell". Spec 025's `phase` and `runner` (`chase.ts`) and the director's `frame` and `broken` gave "wrong map". In the trace's words:
+
+  ```
+  [bailout (kind: deopt-eager, reason: wrong feedback cell): begin. deoptimizing … <JSFunction twin …>, … <Code TURBOFAN_JS>
+  [marking dependent code … (<SharedFunctionInfo frame>) … for deoptimization, reason: dependent field type changed]
+  [marking dependent code … (<SharedFunctionInfo turnTwin>) … for deoptimization, reason: dependent field type changed]
+  [bailout (kind: deopt-eager, reason: wrong map): begin. deoptimizing … <JSFunction phase …>, … <Code TURBOFAN_JS>
+  [bailout (kind: deopt-eager, reason: wrong feedback cell): begin. deoptimizing … <JSFunction running …>, … <Code TURBOFAN_JS>
+  [bailout (kind: deopt-eager, reason: wrong map): begin. deoptimizing … <JSFunction frame …>, … <Code TURBOFAN_JS>
+  [bailout (kind: deopt-eager, reason: wrong map): begin. deoptimizing … <JSFunction broken …>, … <Code TURBOFAN_JS>
+  [bailout (kind: deopt-eager, reason: wrong map): begin. deoptimizing … <JSFunction runner …>, … <Code TURBOFAN_JS>
+  [bailout (kind: deopt-eager, reason: wrong feedback cell): begin. deoptimizing … <JSFunction phaseOf …>, … <Code TURBOFAN_JS>
+  ```
+
+  My reading, not a measure: this shows Q289's mechanism. Code that TurboFan optimized for one process's earlier closures, made at the same literal sites, is thrown away when another director's closures arrive. Here `real.faceTwin` then stays below TurboFan. The run shows that the case fails behind the fakes' cases and passes in its own file. It doesn't show rework3-026's specific "embedded weak objects cleared" deoptimization during the measure: in this run the case stops at the earlier check. The same case in its own file, in the runs below: 6.60 bytes a petting, every `hot` function TurboFan's before and after the measure.
+- **N-3 (`pet-reach.test.ts`, `reachAt`).** The loop now also takes t = 0, 0.5, `pet_s` − 0.5, `pet_s`, and NaN exactly, beside the sweep. `weightAt` and `reachAt` agree to the bit at each of those values: 26 passed (below).
+- **N-4 (`pet.ts`, `Asked`).** The doc now says "written only when the aim changes as a number (−0 = 0, as `!==` has it …)". It is harmless, since `faceTwin` clamps a difference. This is a doc change only.
+
+**Small runs (rule 4), from `apps/web`; every number beside its run:**
+
+- B-1's RED (step 1): `npx vitest run test/room/chase-stage.test.ts`: Test Files 1 failed (1), Tests 3 failed | 2 passed (5).
+- B-1's GREEN (step 2): `npx vitest run test/room/chase-stage.test.ts`: Test Files 1 passed (1), Tests 8 passed (8). Run twice, 8 passed both times.
+- The 12 chase files (above): Test Files 12 passed (12), Tests 152 passed (152).
+- Item 9's files, every `pet-*` file (they cover `pet.ts`, `pet-reach.ts`, and `shellDue`):
+  ```
+  $ npx vitest run test/room/pet-*.test.ts
+  pet.select and pet.frame, a whole petting of 251 frames (turn 19, petting 211, return 20; 59 eased): 4.12 bytes a petting
+  pet.select and pet.frame, a short petting of 9 frames: 0.72 bytes a petting
+  pet.frame through a cut petting of 40 frames (fade 11): 0.24 bytes a cut petting
+  applyReachLayer at weight 1: 0.46 bytes a frame; legs off 0.45; 0.0044 ms a frame; legs off 0.0032 ms
+  applyReachLayer at weight 0.37: 0.45 bytes a frame; legs off 0.45; 0.0040 ms a frame; legs off 0.0033 ms
+  pet.select and pet.frame over the real adapters, with chase.frame: 6.60 bytes a petting of 252 frames; 0.0001 ms a frame
+  the wired twin's frame (pet.frame, the run's shell, figures.update): linked 694.72 bytes and 0.0149 ms a frame; unlinked 688.88 bytes and 0.0060 ms; the reach adds 5.84 bytes and 0.0089 ms
+   Test Files  13 passed (13)
+        Tests  188 passed (188)
+  ```
+- `pet-bench-real.test.ts` alone: `npx vitest run test/room/pet-bench-real.test.ts`: "6.60 bytes a petting of 252 frames; 0.0001 ms a frame", Test Files 1 passed (1), Tests 1 passed (1). The bar is 12.
+- N-3: `npx vitest run test/room/pet-reach.test.ts`: Test Files 1 passed (1), Tests 26 passed (26).
+- The merge's conflicted files: `npx vitest run test/room/vocabulary.test.ts test/room/dog-pick.test.ts` (`dog-pick` covers `rg.ts`'s dog box): Test Files 2 passed (2), Tests 28 passed (28).
+- The lint target, from the root, on cb7c3792 with these notes not yet written, exit 0. Shellcheck's echoed file list is left out:
+  ```
+  make lint
+  node_modules/.bin/eslint --max-warnings 0 .
+  for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+  node_modules/.bin/prettier --check .
+  Checking formatting...
+  All matched files use Prettier code style!
+  ruff check .
+  All checks passed!
+  ruff format --check --no-cache --extend-exclude corpus .
+  835 files already formatted
+  # then shellcheck over the repository's scripts: no finding; make exited 0
+  ```
+
+No full `make check` was run: the stack's last task runs it once (rule 4).
+
+**What waits for him.** Q296 (this edit to spec 025's test), beside Q282. If he overturns Q282, this case goes back to the line's version, with `shellDue`, its tests, and `pet-shell.test.ts`'s wired case reverted. N-1's run is now evidence for his confirmation of Q289, with the difference above: the case stopped before the measure, not after it.
+
+**Interruptions (rework5-026).** No hook or bash-gate refusal, and nothing was respelled. `make setup` installed `node_modules` (the worktree had none) and said the git hooks directory isn't writable in the sandbox. No new question.
+
 ## rework4-026 (`night/rework4-026/rework3-026`, from rework3-026's tip 6758395f, Opus 5.5)
 
 Written by the night-shift implementer rework4-026 on 2026-11-15, from about 00:25Z to 01:00Z. It answers rv-impl3-026's Opus review of impl3-026's tip 5057ee19 ("Verdict: blocking"): B-1, I-1, N-2 to N-5, and spec 025 whole. rv-rework3-026 reviews rework3-026 and this branch together, and item 9's verify follows. This branch merges nothing.
