@@ -18,9 +18,10 @@ Read-only, deterministic, standard library only. Two modes:
   "end", in any case (Recommended, as recommended, recomended, reccommended, the recommendation); other misspellings
   (recommeded, recommanded), a hyphen or an invisible character inside the word, and look-alike letters of other
   scripts or fullwidth forms aren't caught, a deviation the stack note's Backlog holds (FR-020; Q143; rule 11); any
-  numbered item the patch adds to ``04`` that isn't Golden Q&A 9 in its one form; a digit the patch adds to ``04`` outside a ``{{slot:…}}``, a claim tag's date, Golden Q&A 9's leading
-  ``9``, or a quotation that is the dog's approval's ``disclosure_line`` whole or lies inside his consent's own sentence
-  in main's spec 017, line 48 (N-2; rv-impl-026's B-1); and the patch while the approval isn't there (FR-019).
+  numbered item the patch adds to ``04`` that isn't Golden Q&A 9 in its one form; a digit the patch adds to ``04``
+  outside a ``{{slot:…}}``, a claim tag's date, Golden Q&A 9's leading ``9``, or a quotation that is the dog's
+  approval's ``disclosure_line`` whole or lies inside his consent's own sentence in main's spec 017, line 48 (N-2;
+  rv-impl-026's B-1); and the patch while the approval isn't there (FR-019).
 
 In proposal mode too, a span named from ``approvals.json`` is looked up in the dog's approval's line only, and one named
 from main's spec 017 in his consent's own sentence only: the rest of either file isn't his words for this proposal.
