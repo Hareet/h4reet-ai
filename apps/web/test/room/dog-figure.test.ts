@@ -186,15 +186,17 @@ describe("the room's dog at its home (FR-018, FR-019)", () => {
 });
 
 describe("no room dog (FR-018)", () => {
+  // Spec 028 (rv-028b-1's B1-3, rework-028b): these two stage a dinosaur visit, the only one that wants the room's dog
+  // (FR-017, FR-018); with the man they passed for spec 028's reason, not their own. Names kept.
   it("with no figures.dog: wants.dog null, nothing at its home, no signal", () => {
-    const { figures, room, signals } = setup("man", { block: false });
+    const { figures, room, signals } = setup("dinosaur", { block: false });
     expect(figures.wants.dog).toBeNull();
     expect(dogInstance(room)).toBeUndefined();
     expect(dogPictures(signals)).toEqual([]);
   });
 
   it("with no bundled dog: wants.dog null, nothing at its home", () => {
-    const { figures, room } = setup("man", { dog: false });
+    const { figures, room } = setup("dinosaur", { dog: false });
     expect(figures.wants.dog).toBeNull();
     expect(dogInstance(room)).toBeUndefined();
   });
