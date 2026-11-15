@@ -63,7 +63,7 @@ RED `02015c64`, `3d982821` (RI12's catalogue pin), GREEN `c333ad0a`, `91bf2d81` 
 RED, before the code: `dino-scene-data.test.ts` and the schema's leave cases, `Tests  18 failed | 258 passed (276)`; the catalogue's pin, `× holds every rule of spec 004's nine families …`. The printed points, recorded in plan §R-B4 (the obstacles cut here):
 
 ```
-T-B03 composed points: {"twin_home":[0.66,0.469],"bicycle_origin":[0.977,1.49,0.222],"bicycle_box_floor":{"x":[0.889,1.065],"z":[-0.287,0.481]},"shell_floor":{"x0":-1.0668,"x1":1.0668,"z0":-0.6096,"z1":0.6096},"chase_bounds":{"x0":-0.9468,"x1":0.9468,"z0":-0.48960000000000004,"z1":0.5846}, … ,"start":{"x":-0.7,"z":0.58},"dog_home":[0.3,0.45]}
+T-B03 composed points (printed so at T-B03; since `rework2-028b` the test prints `bicycle_origin` and `bicycle_box_floor` as `taken_origin` and `taken_box_floor`, values unchanged; marked by T-INT, rv-rework2-028b's B4-5): {"twin_home":[0.66,0.469],"bicycle_origin":[0.977,1.49,0.222],"bicycle_box_floor":{"x":[0.889,1.065],"z":[-0.287,0.481]},"shell_floor":{"x0":-1.0668,"x1":1.0668,"z0":-0.6096,"z1":0.6096},"chase_bounds":{"x0":-0.9468,"x1":0.9468,"z0":-0.48960000000000004,"z1":0.5846}, … ,"start":{"x":-0.7,"z":0.58},"dog_home":[0.3,0.45]}
 ```
 
 The plan's estimate `under_bicycle` (0.8, 0.25) lies inside the desk's and the bicycle's obstacles; the shipped block is placed by the printed points (plan §R-B4, as built). The check's code: **RI12** (`build/room/checks/ri-leave.ts`, run last in the RI family).
@@ -351,9 +351,9 @@ dino scene: mean ms a frame per run 0.0002, 0.0001, 0.0001
 - **B2-N3**: `bubble.ts`'s clamp misses the 0.5rem tail.
 - **B2-N4**: `rk.ts:336` could use `carriesModel`.
 - **B2-N5**: `scene.ts`'s call seconds computed twice (`callSeconds` and `call`).
-- **B3-N1** (a documents fix for T-INT): FR-027 says "in the 2D room when the room first shows" and `readFacts`, against US5 AS2's "When the hand-off ends" and the build's `factsIn` (plan §R-B7's "As built (T-B08)" records the build).
+- **B3-N1** (a documents fix for T-INT; **done by `docfix2-028`**, "B3-N1 and A2-2 fixed as asked" in rv-docfix2-028's words; marked by T-INT, rv-impl-028b's BR-4): FR-027 says "in the 2D room when the room first shows" and `readFacts`, against US5 AS2's "When the hand-off ends" and the build's `factsIn` (plan §R-B7's "As built (T-B08)" records the build).
 - **B3-N2**: `dog-intro-line.test.ts`: the 2D case doesn't assert the network spy empty (SC-006); no case shows the line kept out of a later turn's history; none for the dog's model failed or the twin's stand-in.
-- **B3-N3**: `build/room/emit.ts`'s `dogVisitorIntro` returns the raw `value` and ignores the slot's `phrasing`; a facts file that fails to parse is skipped with no finding.
+- **B3-N3** (its `phrasing` half read by rv-docfix2-028's N4 as settled by FR-027 as `docfix2-028` worded it; the unparsed facts file stays backlog; marked by T-INT, rv-impl-028b's BR-4): `build/room/emit.ts`'s `dogVisitorIntro` returns the raw `value` and ignores the slot's `phrasing`; a facts file that fails to parse is skipped with no finding.
 - **B3-N4**: `16559c3c` edits its RED test inside the GREEN commit (the second time, after B1-N5). rv-028b-3's proposed line for CLAUDE.md, for his hand, in its words: "Fixing a RED test's own mistake inside its GREEN commit: commit the corrected test alone, seen failing, before the code, and name it in the notes."
 
 ### Refusals and departures
