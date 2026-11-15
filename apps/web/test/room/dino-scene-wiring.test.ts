@@ -5,6 +5,10 @@
 //   figure signal.
 // - The room (app.ts's figure signal) says `figures.dino_call` at `dino-call`, and `figures.left_both` or
 //   `figures.left_twin` at `dino-left`, in its polite live region.
+// - FR-020 (US4 AS1; rv-028b-2's B2-1, added by rework-028b): with the canvas in the room's `#view`, the stage's call
+//   shows one `.room-bubble[aria-hidden="true"]` there with the call's words, placed inside the frame area the room
+//   gives, and hides it once max(the twin's speaking time for the words, the greeting clip's length) has passed on the
+//   room's clock.
 // - R-2: once the bicycle's pictures ride in the carrier, the highlight's draws for its placement hold none of them
 //   (bundle3d.ts's memberDraws reads the placement's own pictures), so nothing borders a bicycle that has left.
 import { JSDOM } from "jsdom";
@@ -17,7 +21,8 @@ import { memberDraws } from "../../src/room/scene/bundle3d";
 import type { Room3D } from "../../src/room/scene/bundle3d";
 import { createDinoFigures } from "../../src/room/scene/dino-scene-figures";
 import type { DinoAvatars } from "../../src/room/scene/dino-scene-figures";
-import type { FigureSignal } from "../../src/room/stage";
+import { SPEAK_DEFAULTS, speakingSeconds } from "../../src/room/bubble";
+import type { FigureSignal, FrameGiven } from "../../src/room/stage";
 import { announcer, FakeClock, flush, intoRoom, repositoryBundle, start, textOf } from "../helpers/room";
 import type { TestWindow, Visit } from "../helpers/room";
 import { DT, LEAVE } from "../helpers/dino-scene";
@@ -51,7 +56,7 @@ afterEach(() => {
   made.scenes = [];
 });
 
-function staged(avatar: AvatarId) {
+function staged(avatar: AvatarId, o: { readonly inView?: boolean; readonly frame?: FrameGiven } = {}) {
   const { index } = repositoryBundle();
   made.renderer = () => ({
     autoClear: true,
@@ -92,7 +97,9 @@ function staged(avatar: AvatarId) {
     floor: true,
     onFigure: (s) => signals.push(s),
     handoff,
+    ...(o.frame ? { frame: () => o.frame ?? null } : {}),
   });
+  if (o.inView) win.document.getElementById("view")?.append(stage.canvas);
   Object.defineProperty(stage.canvas, "clientWidth", { configurable: true, get: () => 960 });
   Object.defineProperty(stage.canvas, "clientHeight", { configurable: true, get: () => 600 });
   const frames = async (n: number): Promise<void> => {
@@ -111,7 +118,7 @@ function staged(avatar: AvatarId) {
     );
     await frames(5);
   };
-  return { stage, signals, frames, ready, end };
+  return { stage, signals, frames, ready, end, win, clock };
 }
 
 describe("the stage makes the scene (FR-019)", () => {
@@ -156,6 +163,53 @@ describe("the stage makes the scene (FR-019)", () => {
       { kind: "dino-left", who: "both" },
       { kind: "dino-left", who: "twin" },
     ]);
+    r.stage.dispose();
+  }, 60_000);
+});
+
+describe("the stage's speech bubble at the call (FR-020, US4 AS1; plan.md R-B5)", () => {
+  const AREA: FrameGiven = {
+    window: { w: 960, h: 600 },
+    area: { x: 240, y: 40, w: 560, h: 520 },
+    ease: 1,
+    hud: [],
+    clear: { x: 240, y: 40, w: 560, h: 520 },
+  };
+  const WORDS = "There is a dinosaur in the room!";
+
+  it("shows one aria-hidden bubble in #view with the call's words, inside the frame area, for max(speaking, greeting)", async () => {
+    const r = staged("dinosaur", { inView: true, frame: AREA });
+    r.end();
+    await r.ready();
+    await r.frames(5);
+    const view = r.win.document.getElementById("view");
+    if (!view) throw new Error("no #view");
+    expect(view.querySelectorAll(".room-bubble")).toHaveLength(0);
+    const scene = made.scenes[0];
+    if (!scene) throw new Error("no scene");
+    // The models never load here (the fetch never settles): no greeting clip, so the speaking time alone, in the
+    // twin block's figures (room/scene.yaml's speak_wpm 150 and speak_s [3, 20], spec 016's defaults).
+    const seconds = speakingSeconds(WORDS, SPEAK_DEFAULTS.speak_wpm, SPEAK_DEFAULTS.speak_s);
+    const from = r.clock.now();
+    scene.call();
+    await r.frames(1);
+    const bubbles = view.querySelectorAll<HTMLElement>('.room-bubble[aria-hidden="true"]');
+    expect(bubbles).toHaveLength(1);
+    const bubble = bubbles[0] as HTMLElement;
+    expect(bubble.textContent).toBe(WORDS);
+    expect(bubble.hidden).toBe(false);
+    const left = Number.parseFloat(bubble.style.left);
+    const top = Number.parseFloat(bubble.style.top);
+    expect(left).toBeGreaterThanOrEqual(AREA.area.x);
+    expect(left).toBeLessThanOrEqual(AREA.area.x + AREA.area.w);
+    expect(top).toBeGreaterThanOrEqual(AREA.area.y);
+    expect(top).toBeLessThanOrEqual(AREA.area.y + AREA.area.h);
+    // Still shown a frame before its time; hidden at the first frame after it.
+    while (r.clock.now() + 16 < from + seconds * 1000) await r.frames(1);
+    expect(bubble.hidden).toBe(false);
+    await r.frames(2);
+    expect(bubble.hidden).toBe(true);
+    expect(view.querySelectorAll(".room-bubble")).toHaveLength(1);
     r.stage.dispose();
   }, 60_000);
 });
