@@ -912,6 +912,99 @@ What each Important finding waits for. Both are the Author's, not a worker's; no
 
 The nits: N-2, N-3, and N-4 are done by notes2-020 (below, "Notes (notes2-020)"). N-1 and N-5 can't be shown now, and are on item 3's verify-to-do there.
 
+### Notes (notes2-020)
+
+Documents only, on this branch (`night/notes2-020/notes2-020`, from intake-020's tip `eee66786`), which stays held off the line. notes-020 stopped because rv-intake-020's review file isn't mounted (Q291); notes2-020 does its steps from the page's copy. No asset, test, source, or scene changed, nothing under `assets/policy/**`, and `refs/heads/main` isn't merged (I-1 and I-2 are the Author's: Q288, Q286).
+
+- **The review**, above, in its words.
+- **N-2:** `specs/020-dog-modeled-and-brought-in/tasks.md` takes "the intake of `assets/visitors/dog/**`" out of "Not tasks (waits for him)" into Phase 7: T020 (RED, `b8b52425`, naming `apps/web/test/room/dog-intake.test.ts` and `scripts/assets/test_credits_dog_intake.py`) and T021 (GREEN, `8fd4522a`), done by intake-020 under rule 15, quoted, with SC-002's hold (Q288) beside it.
+- **N-3:** beside step 3's "(Done for round 4 …)" in "For the Author" above, and in `docs/merge-requests/human-patches/020.md` item 3's last column, a marker now says it was done with the breed line on main (Q280), quoted from `git show b6985ad2:assets/policy/approvals.json` (entry A-20261114-dog). The old draft's quote is left as it was. `020.md`'s item 3 row had no "done" marker of its own (its item 4 row has intake-020's), so the one there is new and carries the breed line.
+- **N-4:** main's arrival check re-run, pasted whole below.
+
+#### Main's arrival check, re-run (N-4)
+
+Main's arrival check, the main working tree's copy, as the `arrival` target runs it (`$(PY_HOST)`, `python3 -I -B -X pycache_prefix=/dev/null`). That copy's SHA-256 equals `refs/heads/main:tools/gates/arrival_check.py`'s (`9296fc692054e6a7ec42423a4d4cfa776fd3f152c076181bff80aa78023bb781`, main at `b6985ad2`). Run at `93210d61` (notes2-020's third save point), whose `assets/` tree is `8fd4522a`'s (`git diff --stat 8fd4522a HEAD -- assets/` is empty).
+
+Over the range, exit 0. It counts 622 commits: intake-020's run counted 618, at `8fd4522a`. The four more are `eee66786` and notes2-020's three save points, all documents.
+
+```
+$ python3 -I -B -X pycache_prefix=/dev/null <main tree>/tools/gates/arrival_check.py --repo . --range refs/heads/main..HEAD
+file                                          bytes     gzip      vertices  triangles  texture
+assets/room/bag.glb                           1175616   739437    19485     24264      11184810
+assets/room/bicycle.glb                       3157008   946913    78480     88896      6990506
+assets/room/busy-sign.glb                     37040     11158     868       1014       0
+assets/room/chalkboard.glb                    431364    162939    9519      6034       5592405
+assets/room/charger.glb                       150152    46681     3522      5280       0
+assets/room/desk-screen.glb                   285384    95401     6546      10922      0
+assets/room/dog-sign.glb                      177900    147759    1030      1330       11184810
+assets/room/helmet.glb                        582856    364529    14038     21302      0
+assets/room/laptop-stand.glb                  360560    129243    8471      13800      0
+assets/room/laptop.glb                        1050656   225577    26638     31016      0
+assets/room/neon-sign.glb                     373360    120876    9268      10836      0
+assets/room/notebook.glb                      241788    59266     5647      7220       5592405
+assets/room/room-shell.glb                    1041372   1038264   16        8          55924051
+assets/room/snowboard.glb                     1748652   998405    35920     59752      22369620
+assets/room/split-keyboard.glb                494040    116589    17742     10232      0
+assets/room/vertical-mouse.glb                272664    198355    7516      14884      0
+assets/room/wall-art.glb                      532096    293465    8388      4206       11184810
+assets/room/wall-outlet.glb                   81880     17624     2218      1260       0
+assets/room/wall-window.glb                   654476    179770    17353     10836      5592405
+assets/room/window-view.glb                   505164    188152    10358     5826       11184810
+assets/room/work-desk.glb                     1202408   513354    22674     37796      11184810
+assets/twin/desk-lean.glb                     76884     23643     0         0          0
+assets/twin/greeting.glb                      64480     16153     0         0          0
+assets/twin/idle.glb                          74992     28487     0         0          0
+assets/twin/listening.glb                     73536     24764     0         0          0
+assets/twin/still.png                         239472    239517    -         -          -
+assets/twin/talking.glb                       87988     39384     0         0          0
+assets/twin/twin.glb                          20133164  8602107   146616    172804     44739242
+assets/visitors/dog/dog-idle.glb              34948     14414     0         0          0
+assets/visitors/dog/dog-walk.glb              28552     11958     0         0          0
+assets/visitors/dog/dog.glb                   9765184   6448373   100172    150000     22369621
+assets/visitors/man/man-idle-holding.glb      77504     29665     0         0          0
+assets/visitors/man/man-idle.glb              77632     29674     0         0          0
+assets/visitors/man/man-take.glb              102716    35148     0         0          0
+assets/visitors/man/man.glb                   4753808   3005159   65853     85482      27962026
+assets/visitors/woman/woman-idle-holding.glb  78024     29797     0         0          0
+assets/visitors/woman/woman-idle.glb          78152     29766     0         0          0
+assets/visitors/woman/woman-take.glb          102688    35001     0         0          0
+assets/visitors/woman/woman.glb               4825204   3152723   65680     87723      27962026
+first visit (phase 3): 21,803,040 of 25,000,000 bytes · history: 56,401,376 of 500,000,000 bytes
+arrival-check: 0 findings in 1154 files (622 commits)
+```
+
+On the intake commit `8fd4522a`'s eleven files (the files its pre-commit hook checked; the four documents among them are at this branch's tip), exit 0:
+
+```
+$ python3 -I -B -X pycache_prefix=/dev/null <main tree>/tools/gates/arrival_check.py --repo . -- apps/web/test/room/dog-intake.test.ts assets/CREDITS.md assets/visitors/dog/LICENSE.md assets/visitors/dog/dog-idle.glb assets/visitors/dog/dog-walk.glb assets/visitors/dog/dog.glb assets/visitors/dog/records.json docs/merge-requests/2026-11-14-night-stack.md docs/merge-requests/human-patches/020.md specs/020-dog-modeled-and-brought-in/plan.md specs/020-dog-modeled-and-brought-in/spec.md
+file                                bytes     gzip      vertices  triangles  texture
+assets/visitors/dog/dog-idle.glb    34948     14414     0         0          0
+assets/visitors/dog/dog-walk.glb    28552     11958     0         0          0
+assets/visitors/dog/dog.glb         9765184   6448373   100172    150000     22369621
+arrival-check: 0 findings in 11 files
+```
+
+On the dog's five files, exit 0; then the credits' check, the `arrival` target's second line, exit 0:
+
+```
+$ python3 -I -B -X pycache_prefix=/dev/null <main tree>/tools/gates/arrival_check.py --repo . assets/visitors/dog/dog.glb assets/visitors/dog/dog-idle.glb assets/visitors/dog/dog-walk.glb assets/visitors/dog/records.json assets/visitors/dog/LICENSE.md
+file                                bytes     gzip      vertices  triangles  texture
+assets/visitors/dog/dog-idle.glb    34948     14414     0         0          0
+assets/visitors/dog/dog-walk.glb    28552     11958     0         0          0
+assets/visitors/dog/dog.glb         9765184   6448373   100172    150000     22369621
+arrival-check: 0 findings in 5 files
+$ python3 -I -B -X pycache_prefix=/dev/null scripts/assets/credits.py --check
+credits: OK: the renderings and the records' form
+```
+
+The range run's first visit, 21,803,040 of 25,000,000, is main's arrival check's F3 view, which counts the largest visitor folder alone. It isn't the compositor's RK5, which counts spec 025's room dog too and gives 25,050,327 (I-1; Q288). These runs pass, and the hold stands.
+
+#### Item 3's verify-to-do (after the Author answers Q288 and Q286)
+
+- **N-1** (can't be shown now; round 4's record is written): "nothing in the handoff folder or the brief changed" stays shown only by the review's other evidence. Item 3's verify pastes `sha256sum` of `/srv/studio/briefs/dog/4.json` and of `/srv/studio/handoff/dog/4/*` beside the record's figures (the GLBs' SHA-256s above; `records.json` 24,123 bytes, `LICENSE.md` 327 bytes).
+- **N-5** (can't be shown now; test 4's tail waits for Q288): re-run `apps/web` `npx vitest run test/room/dog-intake.test.ts`, all five cases, so test 4's four bundle assertions run (the clips `idle` and `walk`; `dog.line === disclosure_line`; `avatars.dog` defined; `bundledFiles` the three GLBs).
+- The review's "What item 3's verify must know", points 1 to 5, quoted above, as written.
+
 ---
 
 ## Item 4: spec 021, the dinosaur modeled and brought in (`night/impl2-021/impl2-021`)
