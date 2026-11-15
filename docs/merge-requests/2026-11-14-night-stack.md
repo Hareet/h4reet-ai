@@ -2352,6 +2352,16 @@ Nothing: no failure outside the carried cases above, so no code, test, or asset 
 
 **Interruptions (verify4-020):** none. No hook, bash-gate, or filesystem refusal.
 
+The docs tests that read the files this task changed, from the repository's root, at `c460dd94` with the scratch folder removed. The lint target above ran again there, exit 0, with the same lines:
+
+```
+$ pytest -q -p no:cacheprovider --import-mode=importlib evals/test_docs_links.py evals/test_repository_docs.py
+.............................................................            [100%]
+61 passed in 1.21s
+```
+
+verify4-020: green, carrying `dog-intake.test.ts`'s tests 1 and 4, `data-only.test.ts`'s "a removal", and intake-020's 18 committed-tree tests in the gate's export ("waits on his merge of main (Q286)"; test 4 and the 18 also "wait on main's caps commit (Q288)"), all green on the export with main's `assets/policy/`; and D-V2's six (Q165)
+
 ---
 
 ## Item 4: spec 021, the dinosaur modeled and brought in (`night/impl2-021/impl2-021`)
