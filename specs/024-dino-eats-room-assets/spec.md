@@ -186,6 +186,7 @@ See User Story 3 and FR-001, FR-009, FR-010, FR-012. With the feature failing in
 - **A6**: the constitution's principles are met as follows: I, Data-Local by Default: the eaten state stays in the browser's memory (FR-016), and no byte leaves for the eating (FR-014); II, Production-Grade or Not Shipped: the degraded modes (US3), small tests, the budgets (FR-015), its production telemetry a named deviation (A5); V cost $0; VIII the twin says nothing of the eating (FR-017). Development Workflow 7 is the other named deviation (A5).
 - **A7**: item h of the Author's list ("twin and dog running from dino") builds on the dinosaur's own figure and may later want an eaten-state signal; this spec exposes none and leaves it to that spec.
 - **A9 (page Q300)**: ADR 0055 (proposed) records this deviation (A5): [`docs/adr/0055-no-usage-event-for-what-only-the-dinosaur-causes.md`](../../docs/adr/0055-no-usage-event-for-what-only-the-dinosaur-causes.md), one ADR for specs 024, 025, and 026 (page Q149, Q161).
+- On main with the stack, in the same merge (Q306), as amended
 
 ## Revision, 2026-11-13 (analysis)
 
