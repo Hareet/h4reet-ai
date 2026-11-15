@@ -343,7 +343,7 @@ describe('"Around the room" hidden from view, kept for readers (spec 028, T-A08;
   it("shows when it has focus there, at the window's foot, over the room", () => {
     for (const hud of ["column", "dock"]) {
       const got = declared(`html[data-hud="${hud}"] .room-around:focus`);
-      expect(got.get("position"), hud).toBe("fixed");
+      expect(got.get("position"), hud).toBe("absolute");
       expect(got.get("clip-path"), hud).toBe("none");
       expect(got.get("bottom"), hud).toBe("1rem");
       expect(got.get("overflow-y"), hud).toBe("auto");

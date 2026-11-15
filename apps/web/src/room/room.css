@@ -1015,10 +1015,11 @@ html[data-hud="dock"] .room-around:not(:focus) {
 }
 
 /* Focused, it shows (WCAG 2.4.7, 2.4.11: focus must be seen): over the room at the window's foot, on the glass, its own
-   scroll; its ring the room's. */
+   scroll; its ring the room's. Absolute, not fixed (spec 005's FR-044: no fixed part but the strip): the room block is
+   the window, and out of the page's flow nothing follows it, so the page's foot is the window's. */
 html[data-hud="column"] .room-around:focus,
 html[data-hud="dock"] .room-around:focus {
-  position: fixed;
+  position: absolute;
   left: 1rem;
   right: 1rem;
   bottom: 1rem;
