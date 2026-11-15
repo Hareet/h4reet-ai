@@ -1,5 +1,7 @@
 # Studio round 2: the dinosaur's brief (live since `brief-dino-r3`, 2026-11-14 about 16:30Z)
 
+**Recorded (`record2-dino-r2`, 2026-11-15): round 2 is `pass`, with 0 findings (`/srv/studio/briefs/dinosaur/2.result.json`, `6b3de703…2347a`), and the intake into `assets/visitors/dinosaur/` waits for his hand.** See "Round 2's record (`record2-dino-r2`)" at the end. *(The status lines below are the earlier tasks', kept as they were.)*
+
 **Approved by the Author on 2026-11-14 (`intake-021`), and not yet recorded or taken in.** His date is given (`2026-11-11`), but the handoff is read-only to implementers, so the record waits on his morning's steps, in order: the edit to the handoff's `records.json` (steps 1 and 2, his mesh review and his date, as one script), then the dry re-judge (step 3), then `--record` (step 4). His intake follows the record. See "Round 2's record, not made (`record-dino-r2`)" below, and "For his morning, in order".
 
 **Judged dry (`judge-dino-r2`): round 2's candidate passes `line.py`, and the round isn't recorded.** See "Round 2's candidate, judged dry" below. *(Still not recorded: the record and his intake wait for his morning's steps 1 to 4, in order, as the status above says.)*
@@ -504,3 +506,110 @@ One refusal. The filesystem, not the bash gate, refused the write to `/srv/studi
   "notes": "ROUND 2 OF THE DINOSAUR (spec 021-dinosaur-modeled-and-brought-in; contracts/dinosaur-brief.md and contracts/dinosaur-rig.md). Written by the night-shift implementer task brief-dino-r2 on 2026-11-14, from round 1's brief (/srv/studio/briefs/dinosaur/1.json, left unchanged), changing only what the Author's order of about 15:40Z to 15:45Z changes: this round starts at step 3, from his concept. The studio has no repository: everything it needs is here.\n\nROUND 1. Round 1 built nothing that could be judged. Its runs' notes are in /srv/studio/handoff/dinosaur/1/ (note.md to note-4.md): the runner's ComfyUI didn't come up, and on the fourth run step 3 stopped because Pixal3D's attention failed in xformers on this GPU. Its step 1 made twelve concepts from the prompt P-0024 (seeds 1 to 12, in /srv/studio/outputs/dinosaur/): they were made and not chosen. None of them is this round's concept, and neither they nor P-0024 go into this round's record. Round 1's recorded finding is this brief's 'findings', verbatim. Round 1's notes hold the runner tool (tools/comfy_night.py) and the plan for the build; use them where they help, and where they differ from this brief, the brief wins.\n\nTHE AUTHOR'S WORDS. His item: '4. e) \"dinosaur modeled and brought in\"'. His words on the tools: \"It's the same license that we've used for all the other avatars adn motions, so copy it from there\". His words on the concept (about 15:40Z): \"We have a dinosaur concept already existing in /srv/studio/workflows/inbox/visitor-raptor-conept.png\", then \"typo, it's /srv/studio/workflows/inbox/visitor-raptor-concept.png\". They replace an earlier answer that the concept would come from a new recorded prompt.\n\nWHAT IT IS. The visitor's fourth avatar choice, 'a generic dinosaur', today a flat green cut-out, made into a textured, rigged 3D figure with three clips. It is only the visitor's avatar: it does not roam, bite, or chase anything in this round.\n\nTHE CONCEPT AND REFERENCES. The concept is /srv/studio/workflows/inbox/visitor-raptor-concept.png. It is the Author's, he has reviewed it, and it shows no likeness. 'references' stays empty because it holds only repository paths and the concept isn't in the repository: that path is this round's one reference. No photo is used. Read the concept from that path, and upload it to ComfyUI's input for step 3. Don't change it, and don't copy it into the handoff folder. IF THAT FILE ISN'T THERE, or isn't a readable image, STOP BEFORE STEP 3 and say so in the run's note. Don't make a concept, don't fall back to P-0024 or its seeds, and don't start ComfyUI.\n\nTHE LOOK. The concept sets the look; build to it. Where it doesn't show something, round 1's direction holds: an original, friendly theropod in stylized illustrative realism (soft, slightly simplified forms, painterly textures, not photoreal, not a cartoon with big eyes), matching the room's man and woman; body green near #4f8a3c, with a lighter belly and darker back markings; it must not be, or resemble, any film's, game's, toy's, or franchise's dinosaur or creature; mouth closed or gently closed in the rest pose (teeth may show slightly; nothing menacing). The files hold no text, no logo, no lettering, no marks, no clothing, and no props.\n\nSIZE AND REST POSE. These come from the room, so they hold even where the concept's pose differs: the build in step 5 poses the rig's rest pose to fit them. Facing +z, +y up, metres, origin on the floor between the feet, both feet flat on the floor. The tail low and behind (toward -z, near or touching the floor is fine), the head forward and level, the head's top the highest point. The room scales the model uniformly by its rest pose's height to 1.2 m. Once scaled to 1.2 m high, the whole rest-pose body, tail included, must measure at most 1.1 m along x (side to side) and at most 1.1 m along z (nose to tail tip); the room refuses it otherwise (rule RA9, 5% slack). So the tail must curve down or to the side rather than stretch straight back: plan the proportions for a box 1.2 m high by 1.1 m by 1.1 m.\n\nSTEPS (as the man's and woman's were made; their records show the shape). This round starts at step 3.\n1. Concept from a prompt: NOT RUN in this round. The concept is the Author's file above. Run no prompt and no FLUX.2 [klein] model.\n2. The Author's review of the concept, by hand: done. His words above are that review.\n3. Mesh and base-colour texture, from his concept: in ComfyUI 0.42.5, Pixal3D int8 with DINOv3 ViT-L patch 16 with NAF, MoGe-2 ViT-L with normals, BiRefNet, TRELLIS.2 shape VAE and texture VAE.\n4. The Author's review of the mesh, by hand.\n5. The build, by the studio agent's script in Blender 5.2.3: clean, decimate, and scale the mesh; resize the texture; rig and skin to the skeleton below; key the three clips; export each file with the glTF exporter bundled with Blender (numpy bundled with Blender where a script needs it).\n6. Scrub (no EXIF, no path, no machine or user name in any file) and write the record.\nIf any step needs a tool or model not in this brief's 'tools', STOP the round and hand back a note saying which and why: a new tool is the Author's to add. Install no node and download no weight. Never use Qwen-Image, FLUX.1 [dev], PuLID, TripoSR, GGUF, ComfyUI-Manager, or any node marked UNREVIEWED.\n\nCOMFYUI'S FLAGS. When you ask the runner to start ComfyUI for step 3, ask for all three of these flags in the one start request, as its params: \"--fp32-text-enc\", \"--use-pytorch-cross-attention\", \"--disable-pinned-memory\". Pixal3D needs --use-pytorch-cross-attention on this GPU: round 1's fourth run stopped without it. Never ask for --birefnet. If the runner refuses any of the three, or ComfyUI isn't ready, STOP before step 3 and say which in the note. Don't run step 3 without all three.\n\nRIG ('dinosaur' skeleton; contracts/dinosaur-rig.md). One skeleton, skinned to one mesh or a few. Bone names exactly as limits.bones_required lists them, dots included (no prefix, or one 'prefix:' before each), with these parents: Hips the root of the deform bones; Spine under Hips; Chest under Spine; Neck under Chest; Head under Neck; Jaw under Head (weighted to the lower jaw; it needs no keys now: a later item will add a bite); Tail1 under Hips, Tail2 under Tail1, Tail3 under Tail2, Tail4 under Tail3; Arm.L and Arm.R under Chest; Leg.L and Leg.R under Hips; Shin.L under Leg.L and Shin.R under Leg.R; Foot.L under Shin.L and Foot.R under Shin.R. More bones below these are fine (toes, fingers, a tail tip, eyelids); none listed may be missing. Name NO bone LeftHand or RightHand (with or without a prefix): the room treats those as hands, and the dinosaur holds nothing (the paper stays at its anchor, spec 021 Q2). No Mixamo names are needed. No morph targets.\n\nCLIPS (contracts/dinosaur-rig.md). Each clip on the same skeleton, its one animation named exactly the role, root in place (the room moves and turns the figure; no forward travel in a clip), moving only the bones above or their children.\n- idle: a loop of a few seconds: a breath, a slow tail sway, a small head turn. Its first frame is the rest pose and reads well alone (reduced motion shows only that frame).\n- walk: a loop: a two-legged walk cycle at an easy pace, feet not sliding against the gait, the tail counter-swaying, the head steady.\n- take: plays once (about 1.5 to 2.5 s): the head dips forward and down toward a paper held out in front of it at about chest height, pauses, and returns to the idle's first-frame pose. No hand or arm grabs anything.\n\nFILES AND LIMITS. Four GLB files, glTF 2.0 binary, everything embedded:\n- dinosaur.glb (kind avatar): the textured, rigged model at rest; no clips required in it.\n- dinosaur-idle.glb, dinosaur-walk.glb, dinosaur-take.glb (kind animation): each one clip on the same skeleton.\nThis brief's limits, every file: at most 3000000 bytes; at most 30000 triangles; images at most 1024 px a side, embedded PNG, JPEG, or WebP; at most 11184810 texture bytes (width times height times 4, times 4/3, rounded down: two 1024 by 1024 maps, a base colour and one more, or one). Each clip file at most 300000 bytes (the judge holds this; main's cap for an animation is 1000000). Main's avatar caps (21000000 bytes, 180000 triangles, 46000000 texture bytes) are higher; aim at this brief's. Each GLB carries the IPTC digital source type mark in KHR_xmp_json_ld, as the man's files do: extensions.KHR_xmp_json_ld.packets[0] = {\"@context\": {\"Iptc4xmpExt\": \"http://iptc.org/std/Iptc4xmpExt/2008-02-29/\"}, \"Iptc4xmpExt:DigitalSourceType\": \"http://cv.iptc.org/newscodes/digitalsourcetype/compositeWithTrainedAlgorithmicMedia\"}, referenced from asset.extensions.KHR_xmp_json_ld.packet 0, and KHR_xmp_json_ld in extensionsUsed. Optional for the Author's look review: front.png and side.png renders of dinosaur.glb at rest, left in the handoff folder but NOT listed in candidate.json's files and NOT in the record.\n\nLICENSE.md. Hand back a LICENSE.md, a copy of the shipped avatars' (his answer), these five lines exactly, ending with a newline:\nCopyright (c) 2026 Hareet. All rights reserved.\n\nThe files in this directory are not covered by this repository's MIT license. You are welcome to view them and to link to them. Any other use needs the copyright holder's written permission.\n\nEach file's provenance is in records.json, and in CREDITS.md at the root of its tree.\n\nCANDIDATE (hand back to /srv/studio/handoff/dinosaur/2/). candidate.json: {\"schema\": 1, \"asset\": \"dinosaur\", \"round\": 2, \"files\": [\"dinosaur.glb\", \"dinosaur-idle.glb\", \"dinosaur-walk.glb\", \"dinosaur-take.glb\"], \"tools\": [{\"id\": \"<an ID from this brief>\", \"version\": \"<its version on main's list>\"}, ...], \"records\": \"records.json\"}, every listed file a regular file in that folder (no links); records.json and LICENSE.md beside them and never listed in files. The run's note goes in that folder as note.md (a later run of this round writes note-2.md, and so on), never listed in files; a run that stops still writes its note there. The versions on main's list: comfyui 0.42.5; pixal3d-int8 and dinov3-vit-l-patch-16-with-naf f37641be; moge-2-vit-l-with-normals 14849852; birefnet e2bf8e44; trellis.2-shape-vae and trellis.2-texture-vae 430a9d09; blender 5.2.3; gltf-exporter-bundled-with-blender 5.2.41; numpy-bundled-with-blender 2.3.4; claude-opus-5.5 claude-opus-5-5. The files arrive in the repository at assets/visitors/dinosaur/ (the record's 'directory'), by the Author's intake, after his look approval; the studio writes nothing in the repository.\n\nRECORD FORMAT (records.json; spec 003's contracts/asset-record.md and the arrival check, as assets/visitors/man/records.json is). Top level, in this order: \"schema\": 1, \"directory\": \"assets/visitors/dinosaur\", \"license\": \"all-rights-reserved-2026\", \"entries\" (sorted by file; two-space indent; trailing newline; no other key at any level). One entry per GLB (four entries), keys in this order: \"file\"; \"sha256\" (64 lower-case hex of the file's bytes); \"kind\" (\"avatar\" for dinosaur.glb, \"animation\" for the clips); \"made\" (YYYY-MM-DD); \"source\": {\"type\": \"design\", \"id\": \"D-0003\"} (the Author's concept, an original design of his, spec 004's Amendment C2; D-0003 is its opaque ID: never put the concept's file name or path in the record); \"likeness\": false; \"steps\"; \"media_license\": \"all-rights-reserved-2026\". Leave out \"approval\": the look approval is the Author's, after the round. Each step: \"name\" (what was done, in words, no path), \"by\" (\"model\" or \"hand\"). For a model step: \"models\" (each: name, repository, revision, role \"primary\" or \"auxiliary\", license, license_version), \"tools\" (each: name, version, license, license_version), \"models_checked\" (a date), \"workflow_sha256\" (64 hex of the workflow or script that ran). Every entry's steps begin with two steps by hand: {\"name\": \"the concept, the Author's own design\", \"by\": \"hand\"} and {\"name\": \"the Author's review of the concept\", \"by\": \"hand\"}. No step names FLUX.2 [klein], Qwen3-4B, or the FLUX.2 VAE, and no step names P-0024. Name the models and tools as the man's record does: \"Pixal3D, int8\" (primary, Comfy-Org/Pixal3D, f37641be, mit 1), \"DINOv3 ViT-L, patch 16, with NAF\" (Comfy-Org/Pixal3D, f37641be, dinov3 2026-10-26), \"MoGe-2 ViT-L with normals\" (Comfy-Org/MoGe, 14849852, mit 1), \"BiRefNet\" (ZhengPeng7/BiRefNet, e2bf8e44, mit 1), \"TRELLIS.2 shape VAE\" and \"TRELLIS.2 texture VAE\" (Comfy-Org/TRELLIS.2, 430a9d09, mit 1), all but Pixal3D auxiliary; tools \"ComfyUI\" 0.42.5 gpl-3.0 3, \"Blender\" 5.2.3 gpl-3.0-or-later 3, \"glTF exporter, bundled with Blender\" 5.2.41 apache-2.0 2.0, \"numpy, bundled with Blender\" 2.3.4 bsd-3-clause 1. A step by the studio agent's script names the model \"Claude Opus 5.5\" (primary, repository anthropic/claude-opus-5-5, revision claude-opus-5-5, license anthropic-consumer-terms, license_version 2025-10-08) and also carries \"service\": {\"name\": \"Claude Code\", \"license\": \"anthropic-consumer-terms\", \"license_version\": \"2025-10-08\", \"disclosure_row\": \"D4\"}. The Author's reviews are steps by \"hand\" with no models or tools. Every model and tool a step names must be in this brief's 'tools' (a name lower-cased, each run of other characters a hyphen, is its ID: \"Blender\" is blender, \"Claude Opus 5.5\" is claude-opus-5.5). Each clip's entry repeats the model's steps, then its own clip step (\"the walk, keyed on the build's skeleton and exported alone, by the studio's agent's script run in Blender\").\n\nJUDGING. An implementer runs python3 -I -B scripts/studio/line.py candidate on the handoff folder against this brief (it also runs main's arrival check) and records the round. A pass goes to the Author's look judgement; only his word brings the dinosaur into the room. Three failed rounds put it on his decision page, and the room keeps the flat cut-out."
 }
 ```
+
+## Round 2's record (`record2-dino-r2`)
+
+Task `record2-dino-r2` (night of 2026-11-15, implementer, Opus 5.5), after the studio task `studio-dino-rec`, which made steps 1 and 2 under "For his morning, in order" (his mesh review and his date, `2026-11-11`) in the handoff's `records.json`. It ran from this branch's checkout, based on main at `a36f98ec`, with `scripts/studio/line.py` at blob `6350a746f431`. That `line.py` is main's: since intake-021's `fc89bcd1` it has gained `4b9daf6d` and `b65643dd` (four rounds, and a round after a pass). Neither change touches a round 2 judged after round 1's recorded failure. I couldn't read `studio-dino-rec`'s `progress.md`, because only this task's own `in` and `out` folders are mounted under `/night/io/`.
+
+### Checks first
+
+All of them held.
+
+```
+$ sha256sum records.json dinosaur.glb dinosaur-idle.glb dinosaur-walk.glb dinosaur-take.glb candidate.json LICENSE.md   # in /srv/studio/handoff/dinosaur/2
+39b89e14bf309fdfdc367d8b0a45f1943363014eb9cdcf4e405367fde7cad4df  records.json
+1aa8075bf5cc9ebfd226cd8e5492295cee23b790a3bb61a7caf68e46cf62fae8  dinosaur.glb
+dc2f84a64f03ee2e58f53845c33edf38ede46ca303a2e11c8198acdd59e7ce31  dinosaur-idle.glb
+d895b608773e0ad39a05dda325f409afea4441e26187abd8400432bb57a213b8  dinosaur-walk.glb
+3bca518b1706f58e41108fa00689bdd2343dbc3651e78480356d0fd5f658a046  dinosaur-take.glb
+9b1a09b2b5075270aeeb0d15ee478dbde42f5bdb58568a9173fbb773156b68a9  candidate.json
+f7118869586e0928e06f39b689cdbdd0817fb0fc5540d37e0ca7d1cc2cfa9159  LICENSE.md
+$ ls /srv/studio/briefs/dinosaur/
+1.json  1.result.json  2.json
+$ sha256sum /srv/studio/briefs/dinosaur/*
+66ea6de2e7f790513d58a467f67a57f297ecf0e184751c082ddcc57c833dc95d  /srv/studio/briefs/dinosaur/1.json
+8c8f0e7aa650968c4d16ae7e7a9d26dd12f215b325a3c436b67c81047e41bbe4  /srv/studio/briefs/dinosaur/1.result.json
+eddfc1ff881722a4e6c3ece13514e20a70e350b34194690bc61abe7930431b61  /srv/studio/briefs/dinosaur/2.json
+```
+
+`records.json` is `39b89e14…d4df`, the file "Steps 1 and 2 as one script" makes. The four GLBs, `candidate.json`, and `LICENSE.md` match record-dino-r2's "Checks first". There's no `2.result.json`, and `2.json` is `eddfc1ff…31b61`.
+
+### Step 3: the dry re-judge, on the handoff folder
+
+```
+$ python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dinosaur/2 --brief /srv/studio/briefs/dinosaur/2.json; echo "exit $?"
+arrival-check: main's copy, at a36f98ec568f, on a scratch copy under assets/visitors/dinosaur/
+WARN assets/visitors/dinosaur/dinosaur-idle.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dinosaur/dinosaur-take.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dinosaur/dinosaur-walk.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dinosaur/dinosaur.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+file                                        bytes     gzip      vertices  triangles  texture
+assets/visitors/dinosaur/dinosaur-idle.glb  47908     22309     0         0          0
+assets/visitors/dinosaur/dinosaur-take.glb  35904     10963     0         0          0
+assets/visitors/dinosaur/dinosaur-walk.glb  37716     14707     0         0          0
+assets/visitors/dinosaur/dinosaur.glb       2248336   1236931   32645     27997      5592405
+arrival-check: 0 findings in 6 files, 4 warnings
+line: pass; round 2
+exit 0
+$ ls /srv/studio/briefs/dinosaur/
+1.json  1.result.json  2.json
+```
+
+It passes, with 0 findings, the same output as record-dino-r2's scratch preview apart from main's commit (`a36f98ec568f`, not `3c0e4cd06861`). The four WARNs are C1's expected line, as before. Nothing was written.
+
+### Step 4: `--record`, run once
+
+```
+$ python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dinosaur/2 --brief /srv/studio/briefs/dinosaur/2.json --record; echo "exit $?"
+arrival-check: main's copy, at a36f98ec568f, on a scratch copy under assets/visitors/dinosaur/
+WARN assets/visitors/dinosaur/dinosaur-idle.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dinosaur/dinosaur-take.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dinosaur/dinosaur-walk.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dinosaur/dinosaur.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+file                                        bytes     gzip      vertices  triangles  texture
+assets/visitors/dinosaur/dinosaur-idle.glb  47908     22309     0         0          0
+assets/visitors/dinosaur/dinosaur-take.glb  35904     10963     0         0          0
+assets/visitors/dinosaur/dinosaur-walk.glb  37716     14707     0         0          0
+assets/visitors/dinosaur/dinosaur.glb       2248336   1236931   32645     27997      5592405
+arrival-check: 0 findings in 6 files, 4 warnings
+line: pass; round 2
+exit 0
+```
+
+It wrote `/srv/studio/briefs/dinosaur/2.result.json`:
+
+```
+$ ls /srv/studio/briefs/dinosaur/
+1.json  1.result.json  2.json  2.result.json
+$ cat /srv/studio/briefs/dinosaur/2.result.json
+{
+  "schema": 1,
+  "asset": "dinosaur",
+  "round": 2,
+  "result": "pass",
+  "findings": []
+}
+$ sha256sum /srv/studio/briefs/dinosaur/2.result.json
+6b3de7033916cdb4c770e8fc11e4c6f4ea43820ba41e27c585ab4ed39942347a  /srv/studio/briefs/dinosaur/2.result.json
+```
+
+`--record` ran once and won't run again. The handoff, read afterwards, hasn't changed: it's the hashes under "Checks first" above, plus `front.png` `18b17bea…7aa1`, `side.png` `a05c2dec…e56e4`, and `note.md` `9332ab73…c26a`, the same as "What it judged". The line's own read of the asset:
+
+```
+$ python3 -I -B scripts/studio/line.py round dinosaur; echo "exit $?"
+passed 2
+exit 0
+```
+
+### What waits for him
+
+- **His intake** into `assets/visitors/dinosaur/` (FR-015; human patch 021, P9 in night 2's hand-over). Its steps and the files' SHA-256s are in item 4's section of `docs/merge-requests/2026-11-14-night-stack.md`, under "The intake (intake-021)". The four GLBs it takes are the ones recorded here, and `records.json` is now `39b89e14…d4df`, with his mesh review and his date.
+- Nothing else for this round: his look approval (2026-11-14), his date, and his mesh review are given. Q198 (the concept's source, `design`, D-0003) stays open, and his to overturn.
+
+### Small tests (rule 4)
+
+This task changes no code or test. It adds only this section and the status line at the top of the file, under `specs/`. Its tests are the `line.py` runs above, plus `make lint`, which is in this branch's merge-request note (`docs/merge-requests/2026-11-15-night-record2-dino-r2-record2-dino-r2.md`).
+
+### Interruptions (rule 5)
+
+None. No hook, bash gate, or filesystem refused anything. Nothing under `assets/**` or `/srv/studio/handoff/` was written. The only write under `/srv/studio/` is `2.result.json`, by `line.py --record`. I didn't open, view, copy, or list the inbox, the dog's photos, or `front.png` and `side.png` (I hashed them only).
