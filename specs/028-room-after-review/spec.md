@@ -255,7 +255,7 @@ Terms: **the split layout**: spec 018's, placed by this spec beside the walls (F
 - **SC-002**: For every entry of the room's list, selected and not, the words' box and the cap slot don't intersect at any window of the table.
 - **SC-003**: No twin's line, stand-in line, visitor's line, or placeholder note is on screen in any layout; the Credits page holds each bundled model's line verbatim; "Around the room" holds the same lines as on `main`.
 - **SC-004**: In scripted runs, the scene goes call → enter → gather → take → leave → gone in order, ends within `figures.leave`'s path length over its speeds plus the call's time, plus 2 s; under each degraded setting it cuts; eating is never available before `gone` or `cut`.
-- **SC-005**: A woman, man, or dog visit fetches no room's dog file; a dinosaur visit fetches them once; RK5 counts them as FR-029 says.
+- **SC-005**: A woman, man, or dog visit, and a dinosaur visit without the dinosaur's model, fetch no room's dog file; a dinosaur visit with it fetches them once; RK5 counts them as FR-029 says.
 - **SC-006**: With the slot filled in a fixture, a dog visit shows the line once and sends nothing; with it null, nothing.
 - **SC-007**: The PDF's and the eating's findings are quoted in the stack's note with what was done about each.
 - **SC-008**: The Author's look: the columns beside the walls and their size, the scene's timing and path, the bubble (his, in the morning).
