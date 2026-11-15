@@ -39,7 +39,7 @@ import type { AvatarFile } from "./avatars";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import { framing } from "../../src/room/compose/framing";
 import type { Box as WorldBox } from "../../src/room/compose/framing";
-import { EAT_CONTROL, layoutFor } from "../../src/room/compose/hud";
+import { DEFAULT_METRICS, EAT_CONTROL, layoutFor, wallBoxes } from "../../src/room/compose/hud";
 import { EATER } from "../../src/room/eat/available";
 import { memberRect } from "../../src/room/compose/pick";
 import {
@@ -55,7 +55,7 @@ import type { FloorEdge } from "../../src/room/compose/floor";
 import type { Composed, RoomReport } from "./emit";
 import { formatPath } from "./checks/family";
 import { faceCaps, pickSweep, poseSeparations, sideWallPicks, stagesPhrase } from "./checks/rg";
-import type { FaceCaps } from "./checks/rg";
+import type { FaceCaps, Geometry } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
 import { contrastText, figureStart, highlightContrasts } from "./checks/rw";
 import { leanMeasure } from "./checks/ra";
@@ -232,7 +232,7 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
   lines.push(stagesLine(), "");
 
   // Spec 014's frame areas (its FR-060, FR-061): the stages RG5 to RG7 run at since, each screen's ease, and the growth.
-  lines.push(...frameLines(c), "");
+  lines.push(...frameLines(c.geometry), "");
 
   // Spec 024's dinosaur visit (Q150, Q-R3a): its frame areas with the "Eat" tile's box, and what that box holds; only
   // where the bundle carries the dinosaur's model, without which no such visit happens (page Q247).
@@ -570,26 +570,36 @@ function roomHeight(framed: readonly WorldBox[], stage: { readonly w: number; re
 
 /** Spec 014's frame lines (FR-060, FR-061; plan.md §11): the frame areas' count with their reserved boxes; each screen
  *  class's eases, at 0, between, and at 1, with the median; and the reference stages' ease, frame area, and the room's
- *  growth on screen over spec 005's frame. */
-function frameLines(c: Composed): string[] {
-  const g = c.geometry;
-  const head = "Frame (spec 014, FR-060, FR-061)";
+ *  growth on screen over spec 005's frame. Spec 028 (FR-006, FR-010; rv-028a-2's A2-1): the split layout's screens,
+ *  chosen as the room chooses them (`wallBoxes` with the stage's protector), are a class of their own, framed in the
+ *  wall area with no ease; the column and dock classes hold the rest. */
+export function frameLines(g: Pick<Geometry, "protect" | "framed"> | null): string[] {
+  const head = "Frame (spec 014, FR-060, FR-061; spec 028, FR-006)";
   if (!g) return [`${head}: none, the scene having no geometry to frame.`];
   const made = framedStages(g.protect);
   const n = (x: number): string => x.toLocaleString("en-US");
   const sixteenths = (e: number): string => (e === 0 ? "0" : e === 1 ? "1" : `${Math.round(e * 16)}/16`);
-  const classes: readonly [string, (s: { readonly w: number; readonly h: number }) => boolean][] = [
-    ["the dock layout", (s) => layoutFor(s) === "dock"],
-    ["the column layout under 1280 × 720", (s) => layoutFor(s) === "column" && (s.w < 1280 || s.h < 720)],
-    ["the column layout from 1280 × 720", (s) => layoutFor(s) === "column" && s.w >= 1280 && s.h >= 720],
-  ];
+  const classes = [
+    "the split layout (spec 028)",
+    "the dock layout",
+    "the column layout under 1280 × 720",
+    "the column layout from 1280 × 720 (no split)",
+  ] as const;
+  /** A screen's class: the split layout where the room takes it, else its layout's, by its size. */
+  const classOf = (x: (typeof made.screens)[number]): (typeof classes)[number] => {
+    if (wallBoxes(x.screen, x.state, DEFAULT_METRICS, { wall: g.protect }) !== null) return classes[0];
+    if (layoutFor(x.screen) === "dock") return classes[1];
+    return x.screen.w < 1280 || x.screen.h < 720 ? classes[2] : classes[3];
+  };
+  const of = made.screens.map((x) => ({ x, name: classOf(x) }));
   const out = [
-    `${head}: the frame areas over the same screens, eased from the window toward each clear area only as far as ` +
-      `keeps every pressable selectable's core and both figures 0.5rem clear of the HUD's compact boxes; ` +
+    `${head}: the frame areas over the same screens: in the split layout (spec 028, FR-006), the wall area beside ` +
+      `the room's walls, with no ease; elsewhere eased from the window toward each clear area only as far as keeps ` +
+      `every pressable selectable's core and both figures 0.5rem clear of the HUD's compact boxes; ` +
       `${n(made.stages.length)} stages, each with the HUD boxes over it reserved.`,
   ];
-  for (const [name, holds] of classes) {
-    const eases = made.screens.filter((x) => holds(x.screen)).map((x) => x.stage.ease ?? 1);
+  for (const name of classes) {
+    const eases = of.filter((c) => c.name === name).map((c) => c.x.stage.ease ?? 1);
     if (eases.length === 0) continue;
     const sorted = [...eases].sort((a, b) => a - b);
     const median = sorted[Math.floor((sorted.length - 1) / 2)] ?? 1;
