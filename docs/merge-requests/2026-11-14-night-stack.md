@@ -1032,6 +1032,15 @@ Interruptions: none. No hook, bash-gate, permission, or filesystem refusal in th
 
 notes2-020: rv-intake-020's review in item 3's note in its words (from the page, Q291); N-2, N-3, N-4 done; N-1 and N-5 on item 3's verify-to-do; held on Q288 and Q286
 
+### Q288 answered: the budget raised (rule 16), a named deviation
+
+His answer to Q288, rule 16 of his orders (2026-11-15, about 01:20Z), in his words: "B for the dog". That is Q288's second option, in its words: "raise `first_visit_bytes.phase3` in main's `assets/policy/caps.json` (your one-line policy patch, e.g. to 26,000,000), named as a deviation from spec 009's FR-038 budget, and merge intake-020 as it is".
+
+- **The deviation, from spec 009 FR-038's first-visit budget.** FR-038's RK5 refuses, in a strict build, "the first visit with both figures' files … over `main`'s phase-3 budget". That budget was 25,000,000 bytes. The dog puts the first visit at **25,050,327** bytes, 50,327 over. His commit on main, `ab4876f5` ("policy(020): first visit's phase 3 to 26 MB"), changes `first_visit_bytes.phase3` from **25,000,000 to 26,000,000**. So 25,050,327 is 949,673 under the new budget. The dog's files don't change, and neither does RK5's rule. No control is deferred or dropped. Spec 020's Assumptions ("Departures at the intake"), SC-002, plan R-10, and tasks.md (T022) say the same.
+- **ADR 0010** (accepted) gives the phase-3 budget as 25,000,000 in its text (`docs/adr/0010-real-time-avatar-rig-and-art-direction.md:29`). How it should follow his commit is a question on the page (verify4-020's), with a recommended answer: a docs-role amendment of its figures to main's `caps.json`, not a new ADR.
+- **What the line still reads.** The line can't merge main (Q286: `assets/policy/` is read-only to the night). So its own `caps.json` reads 25,000,000, and its `approvals.json` lacks `b6985ad2`'s three dog entries. Item 3's verify (verify4-020, below) shows the cases that read them green on a copy with main's `assets/policy/`. It carries them by name as "waits on main's caps commit (Q288)" or "waits on his merge of main (Q286)".
+- **The hand-over's merge order starts with his merge of main** into the named stack, by hand (Q286's answer, rule 16), and then the gate.
+
 ---
 
 ## Item 4: spec 021, the dinosaur modeled and brought in (`night/impl2-021/impl2-021`)
