@@ -39,7 +39,9 @@ PW2 = MERGE_REQUESTS / "2026-11-13-feat-001-pw2-switch-on.patch"
 PI5B = MERGE_REQUESTS / "2026-11-13-feat-001-pi5b-edge.patch"
 W1_PATCHES = (PI3, PI7, PI4, PI5, PI6)
 W2_PATCHES = (PW2, PI5B)
-PATCHES = W1_PATCHES + W2_PATCHES
+# W1's are in the tree since W1's -p branch merged into main (the Author applied them there), so only W2's
+# are pending on this branch: the tests read the tree as it will be once P-W2 and P-I5b are on.
+PATCHES = W2_PATCHES
 
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 
