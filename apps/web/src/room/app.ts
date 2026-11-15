@@ -1232,11 +1232,24 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     emit({ kind: "mode_2d" });
   }
 
+  /** Spec 028 (FR-027; plan.md R-B7): a dog visitor's introduction, the Author's words from the index, said once a
+   *  visit at the hand-off's end: in the 3D stage's bubble over the twin and in the polite live region, in the 2D room
+   *  in the live region. No turn: nothing in the conversation's log or history, no request. */
+  let introduced = false;
+  function introduceDogVisitor(): void {
+    const line = deps.room.dog_visitor_intro;
+    if (introduced || line === null || visit.avatar !== "dog") return;
+    introduced = true;
+    announcer.say(line);
+    if (stage?.mode === "3d") (stage as Stage3D).say?.(line);
+  }
+
   function offerResume(): void {
     handoffEnded();
     const layout = room;
     if (!layout) return;
     visit.stage = "room";
+    introduceDogVisitor();
     offering = true;
     const settle = (): void => {
       offering = false;

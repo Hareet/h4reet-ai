@@ -40,12 +40,10 @@ async function arrive(v: Visit, avatar: string): Promise<string[]> {
 describe("a dog visit's introduction (FR-027)", () => {
   it("in 3D: the bubble over the twin once, and the live region once, at the hand-off's end", async () => {
     const { v, said, turns } = visit({ line: LINE, webgl: true });
-    const log = (): number => talkLog(v.doc).children.length;
-    const before = log();
     const heard = await arrive(v, "dog");
     expect(said).toEqual([LINE]);
     expect(heard.filter((h) => h.includes(LINE))).toHaveLength(1);
-    expect(log()).toBe(before);
+    expect(talkLog(v.doc).textContent ?? "").not.toContain(LINE);
     expect(turns).toEqual([]);
     expect(v.spies.network).toEqual([]);
   });

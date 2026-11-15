@@ -108,6 +108,7 @@ import type {
 } from "./schema";
 import { compareBytewise } from "./source";
 import type { Tree } from "./source";
+import { factsIn } from "../content";
 import type { Typeface } from "./typefaces";
 
 /** A fixture, typed by the signals: `virtual:room-fixtures` (§3.3). */
@@ -1203,7 +1204,29 @@ function indexBody(c: Composed, placeholders: boolean, models: readonly string[]
       c.options.readiness?.freeTalk ?? false,
     ),
     twin: twinIndexOf(c, flat),
+    dog_visitor_intro: dogVisitorIntro(c.reader.tree),
   };
+}
+
+/** Spec 028 (FR-027; plan.md R-B7): a dog visitor's introduction, the Author's words from the corpus slot
+ *  `hobbies.dog_visitor_intro` (`corpus/facts/*.yaml`, read as the twin's pack reads a slot, build/content.ts's
+ *  `factsIn`): its value only where it is a string and `public_safe` is true; null otherwise. Nothing else fills it. */
+export const DOG_VISITOR_INTRO = "hobbies.dog_visitor_intro";
+function dogVisitorIntro(tree: Tree): string | null {
+  for (const name of tree.list("corpus/facts")) {
+    if (!name.endsWith(".yaml")) continue;
+    const data = tree.read(`corpus/facts/${name}`);
+    if (data === null) continue;
+    let facts: ReturnType<typeof factsIn>;
+    try {
+      facts = factsIn(new TextDecoder().decode(data), name);
+    } catch {
+      continue;
+    }
+    const slot = facts.find((f) => f.id === DOG_VISITOR_INTRO);
+    if (slot) return slot.public_safe === true && typeof slot.value === "string" ? slot.value : null;
+  }
+  return null;
 }
 
 // ---- Spec 016's twin (its FR-014, FR-015, FR-034, FR-044, FR-048, FR-054; contracts/twin-data.md §1, §4) ----

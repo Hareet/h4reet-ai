@@ -209,6 +209,10 @@ export interface RoomIndex {
       placement: string;
     } | null;
   } | null;
+  /** Spec 028 (FR-027; plan.md R-B7): a dog visitor's introduction, the Author's words from the corpus slot
+   *  `hobbies.dog_visitor_intro`, only where it is filled and public-safe; null otherwise. The 3D and the 2D room show
+   *  it once a dog visit, at the hand-off's end. */
+  dog_visitor_intro: string | null;
 }
 
 /** Spec 016's twin block, resolved (contracts/twin-data.md §4): each state's clip role, the timings, the lean (null

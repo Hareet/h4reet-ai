@@ -865,7 +865,7 @@ export function createScene(options: SceneOptions): Stage3D {
     expected,
     // Spec 028 (FR-027; plan.md R-B5, R-B7): a line in the bubble over the twin, for its seconds.
     say(text, seconds) {
-      say(text, seconds);
+      say(text, seconds ?? speaking(text));
     },
     // Spec 016 (FR-022): the conversation's activity, to the twin's states; nothing before the figures' chunk loads.
     twinActivity(activity) {

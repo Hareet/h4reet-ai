@@ -82,9 +82,10 @@ export interface Stage3D extends Stage {
   /** Spec 026 (FR-001, FR-013; plan.md R-02): a selection, which the pet director takes: the `dog` selectable starts a
    *  petting where its conditions hold; any other does nothing. Absent on a stand-in stage. */
   pet?(id: string): void;
-  /** Spec 028 (FR-020, FR-027; plan.md R-B5): a line shown in the speech bubble over the twin's figure for `seconds`
-   *  (the live region says it; the room calls `say` for a dog visitor's introduction). Absent on a stand-in stage. */
-  say?(text: string, seconds: number): void;
+  /** Spec 028 (FR-020, FR-027; plan.md R-B5): a line shown in the speech bubble over the twin's figure for `seconds`,
+   *  or the twin's speaking time for it (spec 016's speak_wpm within speak_s) where none is given (the live region says
+   *  it; the room calls `say` for a dog visitor's introduction). Absent on a stand-in stage. */
+  say?(text: string, seconds?: number): void;
   /** Spec 024 (FR-012): the dinosaur's eating, for a 3D dinosaur visit over a part with an edible placement and the
    *  dinosaur's model (page Q247): the "Eat" tile's press, which takes the same gate as key B; and sync, which the room calls on each change of what
    *  SceneOptions.eating.state() gives (the pause toggle, the page hidden or shown, the loader), so the meal pauses or
