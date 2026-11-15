@@ -134,8 +134,8 @@ describe("the wall box through the frame area's protector (FR-005, FR-010)", () 
 
   it("is none where the bundle has no shell: the protector of an older scene input gives no wall", () => {
     const { scene, index } = repositoryBundle();
-    const { shell: _shell, ...older } = protectSceneOf(scene, index);
-    const protect = protectorFor(older);
+    const full = protectSceneOf(scene, index);
+    const protect = protectorFor({ framed: full.framed, selectables: full.selectables, figures: full.figures });
     expect(protect.wall?.({ x: 0, y: 0, w: 800, h: 600 }) ?? null).toBeNull();
   });
 

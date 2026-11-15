@@ -32,8 +32,8 @@ import { repositoryBundle } from "../helpers/room";
  *  protector, or the compositor's before it reads the shell. */
 const { scene, index } = repositoryBundle();
 const PROTECT: Protect = protectorFor(protectSceneOf(scene, index));
-const { shell: _shell, ...sceneWithoutShell } = protectSceneOf(scene, index);
-const NO_WALL: Protect = protectorFor(sceneWithoutShell);
+const full = protectSceneOf(scene, index);
+const NO_WALL: Protect = protectorFor({ framed: full.framed, selectables: full.selectables, figures: full.figures });
 
 interface Expected {
   readonly area: Box;
