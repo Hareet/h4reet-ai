@@ -4418,7 +4418,7 @@ No full `make check`: the stack's last task runs it once (rule 4).
 
 ### floorrun-026 (`night/floorrun-026/floorrun-026`, from patch2-026's tip b433978c, Opus 5.5, 2026-11-15)
 
-Written by the night-shift implementer floorrun-026, about 00:53Z to 01:35Z. Runs and documents only: no code, test, scene, asset, or patch changed. It runs what rv-patch2-026's I-1 found missing, in the review's words as the brief quotes them: "Q287's own follow-up was never run. Nobody ran the walking-view and chase tests on the room with the sign on the floor." The page's "rv-patch2-026's findings, its words", which the brief names, is on no ref this session can read (the supervisor's branch at 1a9de133 has no such heading), so I-1 and N-1 to N-5 here are the brief's account of them.
+Written by the night-shift implementer floorrun-026, about 00:53Z to 01:20Z. Runs and documents only: no code, test, scene, asset, or patch changed. It runs what rv-patch2-026's I-1 found missing, in the review's words as the brief quotes them: "Q287's own follow-up was never run. Nobody ran the walking-view and chase tests on the room with the sign on the floor." The page's "rv-patch2-026's findings, its words", which the brief names, is on no ref this session can read (the supervisor's branch at 1a9de133 has no such heading), so I-1 and N-1 to N-5 here are the brief's account of them.
 
 **Result: a failure on the patched export alone, so nothing is changed and the question is on the page (below).** Plain export (patch2-026's tip and `main`): 18 files, 260 passed. Patched export (the same, then spec 022's patch, then spec 026's): 5 files failed, 9 tests failed, 251 passed. The walking-view and chase tests the brief names (`chase-steer`, `floor`, `movement`, `chase-schema`, `pet-director`) pass on both. The floor sign is a new floor obstacle, `dog-sign: x [-0.24, 0.24], z [0.142, 0.458]` (on the desk, `x [0.025, 0.515], z [-0.428, -0.071]`), and the room floor's 201 starts × 600 frames keep a least distance of 0.223 m (0.141 m on the plain export), with 0 violations. The nine failures are in spec 026's `dog-pick` and `dog-selectable` and spec 024's `eat-chunker`, `eat-3d`, and `eat-checks`.
 
@@ -4911,6 +4911,34 @@ AssertionError: expected [ { …(2) }, …(7) ] to have a length of 9 but got 8
 ```
 
 **What waits.** The page's question below (the sign's place is his look). Until it's answered, the patch, the proposal, and SHA-256 `8bd70563…1c6ead` stay as they are, and T019 stays unchecked (see step 3). Whatever the place, the patch must also carry what causes 1 and 2 need (`dog-pick`'s and `dog-selectable`'s fixtures read a scene that may already hold `dog`; spec 024's desk count follows the sign), or the gate's `make check` fails on his branch.
+
+**Step 3 (0962b270), documents only.** N-1: spec FR-019 (the "## Arya" line ends after the approval's quotation, with no slot), FR-020 (Golden Q&A 9 shown with no suggestion; his own words only, Q143), and plan §7 (no slot to fill; he writes Golden Q&A 9 if he wishes, then regenerates and evaluates once) are each brought to Q292's amendment, marked "As amended (Q292)". N-3: item 1's row in `docs/merge-requests/human-patches/026.md` now names the sign's mount in `scene.yaml` (Q287) and the two files `room:generate` rewrites for it, `docs/studio/photo-guide.md` and `docs/studio/work-orders/dog-sign.md`. Both are in the patch's `+++` lines. **T019 is left unchecked** although the brief asked to check it, because its patch fails 9 of the brief's tests on the patched export (above). T019's entry in `tasks.md` says so. The patch, the proposal, and SHA-256 `8bd70563…1c6ead` are unchanged (`sha256sum` after the edits: `8bd705636a1847de6846bdba132ddb16511fdac103f2387477a700a1161c6ead`; `git diff` of the patch and `corpus/` is empty). N-2, N-5, and B-1 are for item 9's verify to copy into the note.
+
+**Step 4, the lint target** (at 0962b270, exit 0), and the docs tests:
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+836 files already formatted
+# then shellcheck over the repository's scripts (the target's `xargs -0 -t shellcheck` line): no finding; make exited 0
+$ python3 -m pytest -q evals/test_docs_links.py evals/test_repository_docs.py
+61 passed in 0.97s
+$ python3 -I evals/docs_links.py
+docs links: 0 failed, 2498 relative links in 453 files
+```
+
+No `make test`, `make evals`, or full `make check`: the brief asks for the lint target, and the stack's last task runs `make check` once (rule 4). Item 9's verify merges this tip.
+
+**Copies left under `/tmp`** (not committed; the bash gate refuses this session's recursive delete there, so they stay, and `/tmp`, a 2 GB tmpfs, is about 98% full): `/tmp/floorrun-026/plain` (tip and `main`), `/tmp/floorrun-026/patched` (the same, 022's patch and then 026's applied), `/tmp/floorrun-026/probe-desk`, `probe-rwA`, and `probe-rwB` (the patched export with the sign's mount changed: the desk, and the right wall's two points); the logs `/tmp/floorrun-026/patch-022.log`, `patch-026.log`, `vitest-plain.log`, `vitest-patched.log`, `probe-desk.log`, `probe-rwA.log`, `probe-rwB.log`, `probe-rwB-enospc.log` (the run that ran out of space), and `lint.log`; `/tmp/floorrun-026-npmci.log` and `/tmp/floorrun-026-npmci2.log`; and `/tmp/floorrun-026-tools/` (`section.py`, which wrote this section from the logs, and its outputs).
+
+**Interruptions (floorrun-026).** The bash gate refused `rm -rf /tmp/floorrun-026/probe-desk` ("recursive delete outside workspace. Route: delete only inside the repo"). It wasn't respelled. The probe's re-run used `TMPDIR` set to a scratch folder inside the worktree, which was deleted afterwards. `npm ci --offline` failed (ENOTCACHED), and `npm ci` from the registry succeeded. The page's "rv-patch2-026's findings, its words" wasn't on any readable ref (above). All three are in `/night/io/out/questions.md`, under Interruptions, with the question.
 
 ## Item 10: spec 027, when the twin's file context stops being enough (`night/impl-027/impl-027`)
 
