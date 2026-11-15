@@ -4,6 +4,8 @@
 // RoomIndex and §3.2's RoomScene: the compositor writes them field by field in this order (§11), and the room, the
 // lookdev page, and the tests read them. Types only, so nothing here reaches a chunk.
 import type { AvatarId, ClipRole } from "../../choice/avatars";
+import type { ChaseConfig } from "../scene/chase-steer";
+import type { PetConfig } from "../scene/pet-config";
 import type { TwinClipRole, TwinState } from "../scene/twin-states";
 import type { Box } from "./framing";
 import type { Turn, Vec3 } from "./math";
@@ -99,6 +101,12 @@ export interface RoomIndex {
     name: string;
     members: string[];
     action: { kind: "talk"; topic: string } | { kind: "resume" };
+    /** The conversation panel's emblem, a name hud/icons.ts draws (spec 018, FR-005; D-V3); absent where the data
+     *  names none, which has the speech glyph. */
+    emblem?: string;
+    /** Spec 026 (FR-013, FR-014; plan.md R-09): the room figure the selectable also picks, front-only, at its home;
+     *  absent for none. */
+    figure?: "dog";
     /** Every member hangs directly on the shell's side-wall anchors: FR-064's carve-out (see listOnly) may leave it
      *  to the "In the room" list at any stage where its core can't fit. */
     side_wall: boolean;
@@ -166,8 +174,18 @@ export interface RoomIndex {
     highlight: Highlight;
   };
   /** The text copy's order. Spec 016 (FR-014; contracts/twin-data.md §4): `{twin_line: true}`, first, is the line slot,
-   *  which the room resolves to `twin.line` while the twin's own picture shows and to the stand-in line otherwise. */
-  copy: ({ face: string } | { switch: string } | { figures: true } | { line: string } | { twin_line: true })[];
+   *  which the room resolves to `twin.line` while the twin's own picture shows and to the stand-in line otherwise.
+   *  Spec 020 (FR-007; plan.md R-02): `{visitor_line: true}`, after it, the likeness line of any visitor-avatar model
+   *  the room shows, which the room fills, once, from the 3D part's `avatars.<id>.line` while any figure but the twin's
+   *  shows that model (the visitor's, or a room figure's: spec 025's dog), and leaves out otherwise. The name stays. */
+  copy: (
+    | { face: string }
+    | { switch: string }
+    | { figures: true }
+    | { line: string }
+    | { twin_line: true }
+    | { visitor_line: true }
+  )[];
   typefaces: { use: TypefaceUse; family: string; weight: number; cap_ratio: number; fallback: string }[];
   /** Each set model the room's loader loads (a GLB), by its asset events' `asset`, in load_order, once a piece: what a
    *  room in 2D records as skipped, since the entry has no 3D part (FR-071; an addition to §3.1, plan.md §10). */
@@ -258,6 +276,8 @@ export interface RoomScene {
     frame_box: Box;
     label: string | null;
     model: SceneModel | null;
+    /** Spec 024 (FR-002): the chunks the piece splits into for the dinosaur's bite; null where it isn't edible. */
+    edible: { chunks: number } | null;
   }[];
   switches: {
     id: string;
@@ -297,6 +317,13 @@ export interface RoomScene {
     /** Spec 014 (FR-039; W16): each avatar's grip per hand, from the scene's figures block, in the hand bone's frame
      *  (metres at the room's scale, degrees); an absent avatar or hand takes the computed default (scene/grip.ts). */
     grips?: Partial<Record<AvatarId, Partial<Record<"right" | "left", { at: Vec3; turn: Turn }>>>>;
+    /** Spec 025 (FR-018; plan.md R-09, R-10): the room's dog's home on the floor, `at` [x, z] in metres and its turn
+     *  `heading_deg` (spec 008's heading: 0 faces into the room, −z), and its footprint; absent, no room dog. */
+    dog?: { home: { at: [number, number]; heading_deg: number }; footprint_m: number } | undefined;
+    /** Spec 025 (FR-005; plan.md R-09, §3): the run's block, resolved; absent, the run takes CHASE_DEFAULTS. */
+    chase?: ChaseConfig | undefined;
+    /** Spec 026 (plan.md §3): the petting's block, resolved; absent, the pet director takes PET_DEFAULTS. */
+    pet?: PetConfig | undefined;
   };
   handoff: { from: { placement: string; anchor: string }; to: { placement: string; anchor: string } };
   /** Placement IDs with a set model, a switch's pose named `<switch>.<pose>` (plan.md §10). */
@@ -306,15 +333,19 @@ export interface RoomScene {
   scene_texture_bytes: number;
   /** Spec 008's walking data, resolved (Amendment M12). */
   walking: Walking;
+  /** Spec 024 (FR-011): the seconds a chunk takes to grow back. */
+  eating: { regrow_s: number };
   /** Spec 009's avatars (its FR-009, FR-023, FR-024; plan.md §3.2): only avatars whose model is bundled, by ID, each
    *  file's `url` `a/<stem>.<hash16>.glb`, `sha256` the plain file's, and `bytes` the served copy's length; a model's
-   *  `texture_bytes` at texture_px, for the texture ledger. */
+   *  `texture_bytes` at texture_px, for the texture ledger. Spec 020 (FR-007; plan.md R-02): `line`, main's likeness
+   *  approval's disclosure line, only on an avatar recorded as a likeness or from a photo (RA9 bundles none without). */
   avatars: Partial<
     Record<
       AvatarId,
       {
         model: { url: string; sha256: string; bytes: number; texture_bytes: number };
         clips: Partial<Record<ClipRole, { url: string; sha256: string; bytes: number }>>;
+        line?: string;
       }
     >
   >;

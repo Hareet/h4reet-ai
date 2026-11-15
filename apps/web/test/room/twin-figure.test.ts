@@ -99,8 +99,8 @@ const yaw = (o: Object3D): number => {
 
 describe("the twin's own figure (FR-008, FR-010; SC-001)", () => {
   it("wants the twin's own model for the twin's figure, and the chosen avatar for the visitor's", () => {
-    expect(setup("woman").figures.wants).toEqual({ twin: "twin", visitor: "woman" });
-    expect(setup("man").figures.wants).toEqual({ twin: "twin", visitor: "man" });
+    expect(setup("woman").figures.wants).toEqual({ twin: "twin", visitor: "woman", dog: null });
+    expect(setup("man").figures.wants).toEqual({ twin: "twin", visitor: "man", dog: null });
   });
 
   it("shows the model only once its model and its idle have ended, its signal `own`", async () => {

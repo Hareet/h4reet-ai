@@ -360,9 +360,11 @@ describe("the index (contracts/room-bundle.md §3.1)", () => {
   it("lists the text copy by reference: the twin's line slot, the bound faces, the switches, the figures, the fixed lines", () => {
     // Spec 016 (FR-014; contracts/twin-data.md §4, twin-states.md §4): one slot, first, which the room resolves to the
     // twin's line while the twin's own picture shows and to spec 009's stand-in line otherwise. Changed with T017, the
-    // stand-in line's place before (spec 009, its FR-013, R-13; plan.md R-18).
+    // stand-in line's place before (spec 009, its FR-013, R-13; plan.md R-18). Spec 020's visitor line slot after it
+    // (its FR-003; changed with its T007, its plan's R-04).
     expect(good().index.copy).toEqual([
       { twin_line: true },
+      { visitor_line: true },
       { face: "fx-monitor.screen" },
       { face: "fx-neon.panel" },
       { face: "fx-board.slate" },
@@ -734,6 +736,8 @@ describe("the 3D part (contracts/room-bundle.md §3.2)", () => {
       "scene_texture_bytes",
       // Spec 008's Amendment M12: the walking block, resolved.
       "walking",
+      // Spec 024's eating block, resolved (its FR-011; plan.md §5.1).
+      "eating",
       // Spec 009's avatars (its plan.md §3.2).
       "avatars",
       // Spec 016's twin, last (contracts/twin-data.md §4).
@@ -749,6 +753,8 @@ describe("the 3D part (contracts/room-bundle.md §3.2)", () => {
       "frame_box",
       "label",
       "model",
+      // Spec 024 (its FR-002): the chunks, or null.
+      "edible",
     ]);
     expect(Object.keys(scene.switches[0] ?? {})).toEqual(["id", "piece", "poses", "cable", "model"]);
   });
@@ -1400,7 +1406,10 @@ describe("the twin in the bundle (spec 016, T010)", () => {
     );
     expect(result.scene.twin?.block).toEqual({
       clips: {
+        fleeing: "idle",
         arriving: "greeting",
+        // Spec 026 (FR-009): the emitted map gains petting's default.
+        petting: "petting",
         answering: "talking",
         listening: "listening",
         resting: "desk-lean",

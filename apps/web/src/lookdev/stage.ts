@@ -584,7 +584,11 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     handsAsked = true;
     const avatars = [...handsFiles.keys()];
     const entries = avatars.flatMap((avatar) =>
-      figureEntries({ figures: { ...part.figures, stand_in: null }, avatars: part.avatars }, avatar, "../"),
+      figureEntries(
+        { figures: { ...part.figures, stand_in: null, dog: undefined }, avatars: part.avatars },
+        avatar,
+        "../",
+      ),
     );
     for (const avatar of avatars)
       if (!part.avatars[avatar]) {

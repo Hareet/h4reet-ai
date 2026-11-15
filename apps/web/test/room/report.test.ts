@@ -348,10 +348,11 @@ describe("the report's exempt faces and side-wall selectables", () => {
     const rows = lines(compose(countersTree(), noPolicy(), { mode: "strict", drafts: true }));
     // At spec 005's reference stages (12.5 and 7.2, and 28.1 and 16.2, before it).
     // Spec 014: the reference desktop is its frame area, so its caps grow; the phone's is its clear area, at ease 1.
+    // Spec 018 (H-6): the frame area eases against the split layout's boxes at rest there (23.1 and 52.1 before it).
     expect(rows).toContain(
-      '| `fx-neon.counters` | yes | 23.1 px | 7.5 px | 9 | -1.5 px | exempt on the phone, carried by the text copy\'s "Around the room" |',
+      '| `fx-neon.counters` | yes | 23.4 px | 7.5 px | 9 | -1.5 px | exempt on the phone, carried by the text copy\'s "Around the room" |',
     );
-    expect(rows).toContain("| `fx-neon.panel` | yes | 52.1 px | 16.9 px | 9 | 7.9 px | readable |");
+    expect(rows).toContain("| `fx-neon.panel` | yes | 52.7 px | 16.9 px | 9 | 7.9 px | readable |");
   });
 
   it("names each list-only side-wall selectable, its wall, and its 3D and 2D stages, after the legibility table", () => {

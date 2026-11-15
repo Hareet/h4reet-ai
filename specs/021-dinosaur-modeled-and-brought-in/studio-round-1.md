@@ -1,0 +1,85 @@
+# Studio round 1: the dinosaur's brief
+
+Task `brief-dino-r1` (implementer, night of 2026-11-13), the first half of the dinosaur's studio round (the Author's order of 2026-11-13, rule 3: "A studio round is two tasks"). The studio task runs next, after this one; an implementer judges its candidate with `line.py candidate --record`.
+
+- Brief: `/srv/studio/briefs/dinosaur/1.json`, written 2026-11-14T06:25Z, SHA-256 `66ea6de2e7f790513d58a467f67a57f297ecf0e184751c082ddcc57c833dc95d`.
+- Based on `contracts/dinosaur-brief.md` and `contracts/dinosaur-rig.md` at `ee2ecdf2`; policy read from `refs/heads/main` at `3c0e4cd0` (`assets/policy/caps.json`, `assets/policy/studio-tools.json`, `assets/visitors/{man,woman}/records.json`).
+- Nothing outside this file changes in the repository. No studio work, no `assets/**` write.
+
+## The check
+
+```
+$ python3 -I -B scripts/studio/line.py brief /srv/studio/briefs/dinosaur/1.json; echo "exit $?"
+line: pass
+exit 0
+```
+
+Small tests (the Author's rule 4): this task changes no code and no test, so the only test it runs is `make lint` (after `make setup`, since `node_modules` was missing):
+
+```
+$ make lint; echo "exit $?"
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+759 files already formatted
+… shellcheck over the repository's shell scripts, no finding
+exit 0
+```
+
+## Where the brief departs from the contract, and why
+
+1. **Tool IDs: the shipped records' IDs, not the contract's list.** `contracts/dinosaur-brief.md` lists `blender-5.2.3` and `comfyui-core` and leaves out `dinov3-vit-l-patch-16-with-naf` and `claude-opus-5.5`. But `line.py candidate` checks every model and tool a record step names by `norm(name)` (lower case, other runs a hyphen; `scripts/studio/line.py:129`, `:842`) against the brief's `tools`. The shipped avatars' records (`assets/visitors/{man,woman}/records.json` on main) name "Blender" (`blender`), "ComfyUI" (`comfyui`), "DINOv3 ViT-L, patch 16, with NAF" (Pixal3D's auxiliary, in both mesh steps), and "Claude Opus 5.5" (every step by the studio agent's script, with the Claude Code service, row D4). A record made the way they were made would fail against the contract's list on four names. The contract's own reading says the brief "is cut to those if the list is wider than they are" and the Author's answer is "copy it from there", so the brief names exactly the fourteen IDs those records use, all on main's list with `outputs_ship: true`. None of them is Qwen-Image-2.1, FLUX [dev], or an `UNREVIEWED` node. The contract's line "`claude-opus-5.5` is not listed: it isn't a model the studio's pipeline uses for geometry" doesn't hold for the build step the records show. The contract should be brought in line by a spec-writer task. This task commits only this note, so that change is a question on the morning page (`/night/io/out/questions.md`), not an edit here.
+2. **Renders.** front.png and side.png renders are optional and stay out of `candidate.json`'s `files` and the record, so the four GLBs are the only files the arrival check judges. The contract doesn't mention renders.
+
+## Non-blocking findings for the item's merge-request note
+
+- Spec 021's Q5 and the contract's "Reading of the limits" give main's avatar caps as 6,000,000 bytes, 90,000 triangles, and 33,554,432 texture bytes. `refs/heads/main:assets/policy/caps.json` at `3c0e4cd0` has 21,000,000, 180,000, and 46,000,000. The brief's limits (3,000,000; 30,000; 11,184,810) are under both, so the brief stands. The spec's figures for main's caps are wrong and should be fixed.
+- `limits.clips` lists `take`, as the contract does, so `line.py candidate` will fail a candidate without it. Spec 021's Q3 allows the intake to go without `take`, but the studio round asks for it.
+- `bytes` in the brief applies to every file. The 300,000-byte limit on each clip has no brief field, so the brief's notes state it and the judging task must check it by hand.
+- `texture_bytes` 11,184,810 is exactly two 1,024-pixel maps by line.py's measure (`1024 * 1024 * 4 * 4 // 3` = 5,592,405 each), so there is no slack beyond two maps.
+
+## The brief, verbatim
+
+```json
+{
+  "schema": 1,
+  "asset": "dinosaur",
+  "kind": "avatar",
+  "spec": "021-dinosaur-modeled-and-brought-in",
+  "round": 1,
+  "limits": {
+    "bytes": 3000000,
+    "triangles": 30000,
+    "texture_bytes": 11184810,
+    "texture_px": 1024,
+    "skeleton": "dinosaur",
+    "bones_required": ["Hips", "Spine", "Chest", "Neck", "Head", "Jaw", "Tail1", "Tail2", "Tail3", "Tail4",
+                       "Arm.L", "Arm.R", "Leg.L", "Leg.R", "Shin.L", "Shin.R", "Foot.L", "Foot.R"],
+    "clips": ["idle", "walk", "take"]
+  },
+  "tools": [
+    "comfyui",
+    "flux.2-klein-4b-base",
+    "qwen3-4b-its-text-encoder",
+    "flux.2-vae",
+    "pixal3d-int8",
+    "dinov3-vit-l-patch-16-with-naf",
+    "moge-2-vit-l-with-normals",
+    "birefnet",
+    "trellis.2-shape-vae",
+    "trellis.2-texture-vae",
+    "blender",
+    "gltf-exporter-bundled-with-blender",
+    "numpy-bundled-with-blender",
+    "claude-opus-5.5"
+  ],
+  "references": [],
+  "findings": [],
+  "notes": "ROUND 1 OF THE DINOSAUR (spec 021-dinosaur-modeled-and-brought-in; contracts/dinosaur-brief.md and contracts/dinosaur-rig.md). Written by the night-shift implementer task brief-dino-r1 on 2026-11-14. The studio has no repository: everything it needs is here.\n\nTHE AUTHOR'S WORDS. His item: '4. e) \"dinosaur modeled and brought in\"'. His words on the tools: \"It's the same license that we've used for all the other avatars adn motions, so copy it from there\". No sentence of his gives the dinosaur's look, size, or colour; what follows comes from the flat cut-out already in the room and the room's art direction, and the look is his to judge after the round.\n\nWHAT IT IS. The visitor's fourth avatar choice, 'a generic dinosaur', today a flat green cut-out, made into a textured, rigged 3D figure with three clips. It is only the visitor's avatar: it does not roam, bite, or chase anything in this round.\n\nREFERENCES. None. 'references' is empty on purpose: no photo, no image, and no likeness are used. The source is a prompt, as the shipped man's and woman's were.\n\nTHE LOOK (spec 021 Q4, FR-004, FR-007). An original, friendly, upright-posed theropod (a two-legged dinosaur standing on its hind legs, small arms), in stylized illustrative realism: soft, slightly simplified forms, painterly textures, not photoreal, not a cartoon with big eyes, matching the room's man and woman. Body green, near #4f8a3c (the cut-out's colour); a lighter belly and darker back markings are fine. It must not be, or resemble, any film's, game's, toy's, or franchise's dinosaur or creature. No text, no logo, no lettering, no marks, no clothing, no props. Mouth closed or gently closed in the rest pose (teeth may show slightly; nothing menacing).\n\nSIZE AND REST POSE. Facing +z, +y up, metres, origin on the floor between the feet, both feet flat on the floor. The tail low and behind (toward -z, near or touching the floor is fine), the head forward and level, the head's top the highest point. The room scales the model uniformly by its rest pose's height to 1.2 m. Once scaled to 1.2 m high, the whole rest-pose body, tail included, must measure at most 1.1 m along x (side to side) and at most 1.1 m along z (nose to tail tip); the room refuses it otherwise (rule RA9, 5% slack). So the tail must curve down or to the side rather than stretch straight back: plan the proportions for a box 1.2 m high by 1.1 m by 1.1 m.\n\nSTEPS (as the man's and woman's were made; their records show the shape).\n1. Concept, from a prompt: in ComfyUI 0.42.5 (core nodes only), FLUX.2 [klein] 4B base with its Qwen3-4B text encoder and the FLUX.2 VAE. One front three-quarter view of the dinosaur alone, standing in the rest pose above, whole body and tail in frame, plain light background, no text. Give the prompt an opaque ID (for example P-0024; 3 to 40 of A-Z a-z 0-9 and hyphen).\n2. The Author's review of the concept, by hand.\n3. Mesh and base-colour texture, from the reviewed concept: in ComfyUI 0.42.5, Pixal3D int8 with DINOv3 ViT-L patch 16 with NAF, MoGe-2 ViT-L with normals, BiRefNet, TRELLIS.2 shape VAE and texture VAE.\n4. The Author's review of the mesh, by hand.\n5. The build, by the studio agent's script in Blender 5.2.3: clean, decimate, and scale the mesh; resize the texture; rig and skin to the skeleton below; key the three clips; export each file with the glTF exporter bundled with Blender (numpy bundled with Blender where a script needs it).\n6. Scrub (no EXIF, no path, no machine or user name in any file) and write the record.\nIf any step needs a tool or model not in this brief's 'tools', STOP the round and hand back a note saying which and why: a new tool is the Author's to add. Install no node and download no weight. Never use Qwen-Image, FLUX.1 [dev], PuLID, TripoSR, GGUF, ComfyUI-Manager, or any node marked UNREVIEWED.\n\nRIG ('dinosaur' skeleton; contracts/dinosaur-rig.md). One skeleton, skinned to one mesh or a few. Bone names exactly as limits.bones_required lists them, dots included (no prefix, or one 'prefix:' before each), with these parents: Hips the root of the deform bones; Spine under Hips; Chest under Spine; Neck under Chest; Head under Neck; Jaw under Head (weighted to the lower jaw; it needs no keys now: a later item will add a bite); Tail1 under Hips, Tail2 under Tail1, Tail3 under Tail2, Tail4 under Tail3; Arm.L and Arm.R under Chest; Leg.L and Leg.R under Hips; Shin.L under Leg.L and Shin.R under Leg.R; Foot.L under Shin.L and Foot.R under Shin.R. More bones below these are fine (toes, fingers, a tail tip, eyelids); none listed may be missing. Name NO bone LeftHand or RightHand (with or without a prefix): the room treats those as hands, and the dinosaur holds nothing (the paper stays at its anchor, spec 021 Q2). No Mixamo names are needed. No morph targets.\n\nCLIPS (contracts/dinosaur-rig.md). Each clip on the same skeleton, its one animation named exactly the role, root in place (the room moves and turns the figure; no forward travel in a clip), moving only the bones above or their children.\n- idle: a loop of a few seconds: a breath, a slow tail sway, a small head turn. Its first frame is the rest pose and reads well alone (reduced motion shows only that frame).\n- walk: a loop: a two-legged walk cycle at an easy pace, feet not sliding against the gait, the tail counter-swaying, the head steady.\n- take: plays once (about 1.5 to 2.5 s): the head dips forward and down toward a paper held out in front of it at about chest height, pauses, and returns to the idle's first-frame pose. No hand or arm grabs anything.\n\nFILES AND LIMITS. Four GLB files, glTF 2.0 binary, everything embedded:\n- dinosaur.glb (kind avatar): the textured, rigged model at rest; no clips required in it.\n- dinosaur-idle.glb, dinosaur-walk.glb, dinosaur-take.glb (kind animation): each one clip on the same skeleton.\nThis brief's limits, every file: at most 3000000 bytes; at most 30000 triangles; images at most 1024 px a side, embedded PNG, JPEG, or WebP; at most 11184810 texture bytes (width times height times 4, times 4/3, rounded down: two 1024 by 1024 maps, a base colour and one more, or one). Each clip file at most 300000 bytes (the judge holds this; main's cap for an animation is 1000000). Main's avatar caps (21000000 bytes, 180000 triangles, 46000000 texture bytes) are higher; aim at this brief's. Each GLB carries the IPTC digital source type mark in KHR_xmp_json_ld, as the man's files do: extensions.KHR_xmp_json_ld.packets[0] = {\"@context\": {\"Iptc4xmpExt\": \"http://iptc.org/std/Iptc4xmpExt/2008-02-29/\"}, \"Iptc4xmpExt:DigitalSourceType\": \"http://cv.iptc.org/newscodes/digitalsourcetype/compositeWithTrainedAlgorithmicMedia\"}, referenced from asset.extensions.KHR_xmp_json_ld.packet 0, and KHR_xmp_json_ld in extensionsUsed. Optional for the Author's look review: front.png and side.png renders of dinosaur.glb at rest, left in the handoff folder but NOT listed in candidate.json's files and NOT in the record.\n\nLICENSE.md. Hand back a LICENSE.md, a copy of the shipped avatars' (his answer), these five lines exactly, ending with a newline:\nCopyright (c) 2026 Hareet. All rights reserved.\n\nThe files in this directory are not covered by this repository's MIT license. You are welcome to view them and to link to them. Any other use needs the copyright holder's written permission.\n\nEach file's provenance is in records.json, and in CREDITS.md at the root of its tree.\n\nCANDIDATE (hand back to /srv/studio/handoff/dinosaur/1/). candidate.json: {\"schema\": 1, \"asset\": \"dinosaur\", \"round\": 1, \"files\": [\"dinosaur.glb\", \"dinosaur-idle.glb\", \"dinosaur-walk.glb\", \"dinosaur-take.glb\"], \"tools\": [{\"id\": \"<an ID from this brief>\", \"version\": \"<its version on main's list>\"}, ...], \"records\": \"records.json\"}, every listed file a regular file in that folder (no links); records.json and LICENSE.md beside them and never listed in files. The versions on main's list: comfyui 0.42.5; flux.2-klein-4b-base, qwen3-4b-its-text-encoder, flux.2-vae 533c4cbc; pixal3d-int8 and dinov3-vit-l-patch-16-with-naf f37641be; moge-2-vit-l-with-normals 14849852; birefnet e2bf8e44; trellis.2-shape-vae and trellis.2-texture-vae 430a9d09; blender 5.2.3; gltf-exporter-bundled-with-blender 5.2.41; numpy-bundled-with-blender 2.3.4; claude-opus-5.5 claude-opus-5-5. The files arrive in the repository at assets/visitors/dinosaur/ (the record's 'directory'), by the Author's intake, after his look approval; the studio writes nothing in the repository.\n\nRECORD FORMAT (records.json; spec 003's contracts/asset-record.md and the arrival check, as assets/visitors/man/records.json is). Top level, in this order: \"schema\": 1, \"directory\": \"assets/visitors/dinosaur\", \"license\": \"all-rights-reserved-2026\", \"entries\" (sorted by file; two-space indent; trailing newline; no other key at any level). One entry per GLB (four entries), keys in this order: \"file\"; \"sha256\" (64 lower-case hex of the file's bytes); \"kind\" (\"avatar\" for dinosaur.glb, \"animation\" for the clips); \"made\" (YYYY-MM-DD); \"source\": {\"type\": \"prompt\", \"id\": \"<the prompt's opaque ID>\"}; \"likeness\": false; \"steps\"; \"media_license\": \"all-rights-reserved-2026\". Leave out \"approval\": the look approval is the Author's, after the round. Each step: \"name\" (what was done, in words, no path), \"by\" (\"model\" or \"hand\"). For a model step: \"models\" (each: name, repository, revision, role \"primary\" or \"auxiliary\", license, license_version), \"tools\" (each: name, version, license, license_version), \"models_checked\" (a date), \"workflow_sha256\" (64 hex of the workflow or script that ran). Name them as the man's record does: models \"FLUX.2 [klein] 4B base\" (primary), \"Qwen3-4B, its text encoder\", \"FLUX.2 VAE\" (auxiliary), all repository Comfy-Org/Flux-2-Klein-4B, revision 533c4cbc, apache-2.0 2.0; \"Pixal3D, int8\" (primary, Comfy-Org/Pixal3D, f37641be, mit 1), \"DINOv3 ViT-L, patch 16, with NAF\" (Comfy-Org/Pixal3D, f37641be, dinov3 2026-10-26), \"MoGe-2 ViT-L with normals\" (Comfy-Org/MoGe, 14849852, mit 1), \"BiRefNet\" (ZhengPeng7/BiRefNet, e2bf8e44, mit 1), \"TRELLIS.2 shape VAE\" and \"TRELLIS.2 texture VAE\" (Comfy-Org/TRELLIS.2, 430a9d09, mit 1); tools \"ComfyUI\" 0.42.5 gpl-3.0 3, \"Blender\" 5.2.3 gpl-3.0-or-later 3, \"glTF exporter, bundled with Blender\" 5.2.41 apache-2.0 2.0, \"numpy, bundled with Blender\" 2.3.4 bsd-3-clause 1. A step by the studio agent's script names the model \"Claude Opus 5.5\" (primary, repository anthropic/claude-opus-5-5, revision claude-opus-5-5, license anthropic-consumer-terms, license_version 2025-10-08) and also carries \"service\": {\"name\": \"Claude Code\", \"license\": \"anthropic-consumer-terms\", \"license_version\": \"2025-10-08\", \"disclosure_row\": \"D4\"}. The Author's reviews are steps by \"hand\" with no models or tools. Every model and tool a step names must be in this brief's 'tools' (a name lower-cased, each run of other characters a hyphen, is its ID: \"Blender\" is blender, \"Claude Opus 5.5\" is claude-opus-5.5). Each clip's entry repeats the model's steps, then its own clip step (\"the walk, keyed on the build's skeleton and exported alone, by the studio's agent's script run in Blender\").\n\nJUDGING. An implementer runs python3 -I -B scripts/studio/line.py candidate on the handoff folder against this brief (it also runs main's arrival check) and records the round. A pass goes to the Author's look judgement; only his word brings the dinosaur into the room. Three failed rounds put it on his decision page, and the room keeps the flat cut-out."
+}
+```

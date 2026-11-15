@@ -141,8 +141,13 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "walk.entered": [],
       "walk.left": [],
       "walk.target": ["name"],
+      // Spec 024's "Eat" tile and its polite line (its FR-010, FR-012).
+      "eat.button": [],
+      "eat.first_bite": ["name"],
       // Spec 009's stand-in line (FR-013, FR-039).
       "twin.stand_in": [],
+      // Spec 026 (FR-024): the petting's line.
+      "figures.pet_note": [],
       // Spec 005's HUD (its FR-023, FR-028, FR-065; plan.md §6.10): the conversation log's header button, and the larger
       // view's two words.
       "hud.log_toggle": [],
@@ -167,8 +172,31 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "hints.play": [],
       "hints.previous": [],
       "hints.next": [],
+      "hud.select": [],
+      "hud.back": [],
+      "hud.close": [],
+      "key.esc": [],
+      "key.enter": [],
+      "stat.serving": [],
+      "stat.call": [],
+      "stat.visit": [],
+      "stat.unknown": [],
+      "stat.tier.local": [],
+      "stat.tier.cloud": [],
+      "stat.tier.resting": [],
+      "stat.tier.budget": [],
+      "stat.tier.unavailable": [],
+      "stat.tier.unknown": [],
+      // Spec 025 (FR-025): the run's start and end.
+      "chase.started_both": [],
+      "chase.started_twin": [],
+      "chase.started_dog": [],
+      "chase.ended_both": [],
+      "chase.ended_twin": [],
+      "chase.ended_dog": [],
     });
-    expect(Object.keys(UI_KEYS)).toHaveLength(62);
+    // Merged (patch-026): 83 on the base, spec 026's one, and spec 024's two.
+    expect(Object.keys(UI_KEYS)).toHaveLength(86);
   });
 
   // T013 (spec 012; FR-051; D8): the loader's twelve words join the closed list, two with their live counts' slots, and

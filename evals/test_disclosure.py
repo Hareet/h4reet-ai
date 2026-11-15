@@ -399,9 +399,37 @@ def test_the_rooms_rows_are_in_its_own_section_with_the_specs_words() -> None:
     assert trigger and files and reason, (
         "spec 016's M17 doesn't read as this test reads it"
     )
+    # Spec 018's Amendment H-11 (its FR-003): the twin's still is also fetched in a 3D visit, once, when the split
+    # layout's conversation panel first opens, and V1's Carries says so right after M17's words for the still (its
+    # T029; specs/018-better-hud-and-load-screen/plan.md §13).
+    hud = (REPO / "specs" / "018-better-hud-and-load-screen" / "spec.md").read_text(
+        encoding="utf-8"
+    )
+    assert "| H-11 | Data-flow disclosure, row V1 |" in hud
+    assert "in a 3D visit, when the panel first opens in the split layout" in hud
+    still = "the twin's still in a visit that shows the 2D room"
+    assert files.group(1).count(still) == 1
+    files_now = files.group(1).replace(
+        still,
+        f"{still}, or, in a 3D visit, once, when the conversation panel first opens"
+        " in the split layout (spec 018)",
+    )
+    # Spec 025's FR-028: the room's dog's model and clips among the avatar files fetched, in the requirement's own
+    # words, right after M17's words for the twin's model and clips (its T015; plan.md R-12).
+    run = (REPO / "specs" / "025-twin-and-dog-run-from-dino" / "spec.md").read_text(
+        encoding="utf-8"
+    )
+    dog = re.search(
+        r"among the avatar files fetched, (the room's dog's .*?, the same for every visitor);",
+        run,
+    )
+    assert dog, "spec 025's FR-028 doesn't read as this test reads it"
+    twin = "the twin's model and clips in every 3D visit above the floor, the same for every visitor; "
+    assert files_now.count(twin) == 1
+    files_now = files_now.replace(twin, f"{twin}{dog.group(1)}; ")
     _from_to, row_trigger, row_carries, row_never, row_why, *_ = rows()["V1"]
     assert (row_carries, row_never, row_why) == (
-        f"{carries}, and {files.group(1)}",
+        f"{carries}, and {files_now}",
         never,
         f"{why}; {reason.group(1)}",
     )

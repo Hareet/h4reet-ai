@@ -75,6 +75,8 @@ import type { FigureBlock, TwinFileRole, TwinSet } from "./avatars";
 import type { AvatarSet, FileRole } from "./avatars";
 import { TWIN_DEFAULTS } from "./schema";
 import { isTwinClipRole, TWIN_CLIPS_DEFAULT, TWIN_STATES } from "../../src/room/scene/twin-states";
+import type { ChaseConfig } from "../../src/room/scene/chase-steer";
+import type { PetConfig } from "../../src/room/scene/pet-config";
 import type { TwinClipRole, TwinState } from "../../src/room/scene/twin-states";
 import type { TwinBlock } from "../../src/room/compose/bundle";
 import { RULE_IDS } from "./checks/family";
@@ -90,7 +92,7 @@ import { PHOTO_GUIDE, photoGuide, workOrder, WORK_ORDERS_DIR } from "./orders";
 import { capsOf } from "./policy";
 import type { CapsSource, RoomCaps, RoomPolicy } from "./policy";
 import { roomReport } from "./report";
-import { HEX, HIGHLIGHT_DEFAULTS, WALKING_DEFAULTS } from "./schema";
+import { EATING_DEFAULTS, HEX, HIGHLIGHT_DEFAULTS, WALKING_DEFAULTS } from "./schema";
 import type {
   CatalogEntry,
   DrawingPrimitive,
@@ -260,6 +262,36 @@ const m6 = (n: number): number => quantize(n, 1e6);
 /** View-box units and CSS pixels: to 1e-4. */
 const u4 = (n: number): number => quantize(n, 1e4);
 const vec = (v: readonly number[]): [number, number, number] => [m6(v[0] ?? 0), m6(v[1] ?? 0), m6(v[2] ?? 0)];
+/** Spec 025's run block (plan.md R-09), each figure to 1e-6 and `headings` whole. */
+function chaseOf(c: ChaseConfig): ChaseConfig {
+  return {
+    flee_end_delay_s: m6(c.flee_end_delay_s),
+    flee_m: m6(c.flee_m),
+    safe_m: m6(c.safe_m),
+    separation_m: m6(c.separation_m),
+    twin_run_mps: m6(c.twin_run_mps),
+    dog_run_mps: m6(c.dog_run_mps),
+    speed_margin_mps: m6(c.speed_margin_mps),
+    turn_rate_rad_s: m6(c.turn_rate_rad_s),
+    lookahead_s: m6(c.lookahead_s),
+    headings: c.headings,
+    clip_thresholds: { walk_mps: m6(c.clip_thresholds.walk_mps), run_mps: m6(c.clip_thresholds.run_mps) },
+  };
+}
+/** Spec 026's pet block (plan.md §3), each figure to 1e-6 and `stroke_n` whole. */
+function petOf(p: PetConfig): PetConfig {
+  return {
+    reach_m: m6(p.reach_m),
+    cooldown_s: m6(p.cooldown_s),
+    turn_max_deg: m6(p.turn_max_deg),
+    crouch_max_m: m6(p.crouch_max_m),
+    lean_max_deg: m6(p.lean_max_deg),
+    stroke_m: m6(p.stroke_m),
+    stroke_n: p.stroke_n,
+    pet_s: m6(p.pet_s),
+    elbow_deg: m6(p.elbow_deg),
+  };
+}
 const turnOf = (t: Turn | undefined): Turn => ({ x: m6(t?.x ?? 0), y: m6(t?.y ?? 0), z: m6(t?.z ?? 0) });
 const boxOf = (b: Box): Box => ({ min: vec(b.min), max: vec(b.max) });
 const point = (p: readonly [number, number]): [number, number] => [u4(p[0]), u4(p[1])];
@@ -1048,12 +1080,15 @@ function claimsOf(piece: CatalogEntry | undefined): { claims?: { local: string; 
 
 /** The text copy's order (§3.1): the twin's line slot, the bound faces, the switches, the sign's figures, and the
  *  fixed lines. Spec 016 (FR-014; contracts/twin-data.md §4): the slot, first, which the room resolves to the twin's
- *  line while its own picture shows and to spec 009's stand-in line otherwise (spec 009's FR-013, as M9 amends it). */
+ *  line while its own picture shows and to spec 009's stand-in line otherwise (spec 009's FR-013, as M9 amends it).
+ *  Spec 020 (FR-007): the likeness line slot after it. */
 function copyOf(faces: RoomIndex["faces"], switches: RoomIndex["switches"]): RoomIndex["copy"] {
   const regions = faces.flatMap((f) => f.regions);
   const has = (test: (r: IndexRegion) => boolean): boolean => regions.some(test);
   return [
     { twin_line: true as const },
+    // Spec 020 (FR-007; plan.md R-02): the likeness line slot, which the room fills only while a figure shows one.
+    { visitor_line: true as const },
     ...faces.map((f) => ({ face: f.id })),
     ...switches.map((s) => ({ switch: s.id })),
     ...(has((r) => "signal" in r.source) ? [{ figures: true as const }] : []),
@@ -1121,6 +1156,9 @@ function indexBody(c: Composed, placeholders: boolean, models: readonly string[]
       name: x.name,
       members: [...x.members],
       action: x.action.talk ? { kind: "talk" as const, topic: x.action.talk.topic } : { kind: "resume" as const },
+      ...(x.emblem !== undefined ? { emblem: x.emblem } : {}),
+      // Spec 026 (R-09): the figure it also picks, as the scene gives it.
+      ...(x.figure !== undefined ? { figure: x.figure } : {}),
       side_wall: sideWall[k] ?? false,
     })),
     // Ready only as the twin's readiness says, by FR-030's rule (spec 007, FR-037); nothing without it.
@@ -1414,6 +1452,8 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
       frame_box: boxOf(c.frames.get(p.id) ?? ZERO_BOX),
       label: p.label ?? null,
       model: modelOf(c, p),
+      // Spec 024 (FR-002): the chunks a piece splits into for the dinosaur's bite, or null.
+      edible: p.edible ? { chunks: p.edible.chunks } : null,
     })),
     switches: (scene?.switches ?? []).map((sw) => ({
       id: sw.id,
@@ -1451,6 +1491,22 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
       twin_height: m6((twin && c.pieces.get(twin.piece)?.value.size.h) ?? 0),
       // Spec 014 (FR-039): the grips, each avatar of the table's and each hand's, as the scene gives them.
       ...(c.avatars.figures.grips === undefined ? {} : { grips: gripsOf(c.avatars.figures.grips) }),
+      // Spec 025 (FR-018; plan.md R-09): the room's dog's block, as the scene gives it.
+      ...(scene?.figures.dog === undefined
+        ? {}
+        : {
+            dog: {
+              home: {
+                at: [m6(scene.figures.dog.home.at[0]), m6(scene.figures.dog.home.at[1])] as [number, number],
+                heading_deg: m6(scene.figures.dog.home.heading_deg),
+              },
+              footprint_m: m6(scene.figures.dog.footprint_m),
+            },
+          }),
+      // Spec 025 (FR-005; plan.md R-09): the run's block, resolved, as the scene gives it.
+      ...(scene?.figures.chase === undefined ? {} : { chase: chaseOf(scene.figures.chase) }),
+      // Spec 026 (plan.md §3): the petting's block, resolved, as the scene gives it.
+      ...(scene?.figures.pet === undefined ? {} : { pet: petOf(scene.figures.pet) }),
     },
     handoff: {
       from: { placement: scene?.handoff.from.placement ?? "", anchor: scene?.handoff.from.anchor ?? "" },
@@ -1459,6 +1515,8 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
     load_order: loadOrder(entries),
     scene_texture_bytes: c.caps.scene_texture_bytes,
     walking: walkingOf(scene),
+    // Spec 024 (FR-011): the regrowth's seconds, the scene's or the default.
+    eating: { regrow_s: scene?.eating.regrow_s ?? EATING_DEFAULTS.regrow_s },
     avatars: avatarsPart(c),
     twin: twinPartOf(c),
   };
@@ -1504,6 +1562,8 @@ function avatarsPart(c: Composed): RoomScene["avatars"] {
         texture_bytes: model.measures?.decoded_bytes ?? 0,
       },
       clips,
+      // Spec 020 (FR-007): a likeness's line, where main's approval gives one; absent for every other avatar.
+      ...(avatar.line === null ? {} : { line: avatar.line }),
     };
   }
   return out;

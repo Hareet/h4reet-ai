@@ -9,6 +9,11 @@
 // selectable the stage leaves to the "In the room" list (`listOnly`, FR-064's carve-out) is held: it has no area there.
 // Spec 008 (FR-021, FR-058; plan.md §3.5): the spacing check and the carve-out take reserved rectangles, the walking
 // control's box in 3D, under which no core may lie; a side-wall selectable's core under one is held there instead.
+// Spec 026 (FR-014, M4; plan.md R-09; Q160): a selectable's `front` rectangles, a room figure's at its home, are
+// front-only members: out of its union and its core, which stay its members'; `pick`'s first rule (the frontmost
+// member rectangle under the point) takes them as members, its second never sees them; and `pickProblems`' member check
+// (another's core over a member) takes them, its other checks don't. So a point outside one, or inside it where another
+// member is in front, picks exactly what it picks without it.
 import type { Box } from "./framing";
 import { projector, toStage } from "./project";
 import type { Camera } from "./project";
@@ -27,6 +32,8 @@ export interface MemberRect {
 export interface PickInput {
   readonly id: string;
   readonly members: readonly MemberRect[];
+  /** Spec 026 (R-09): front-only rectangles, out of the union and the core; absent for none. */
+  readonly front?: readonly MemberRect[];
 }
 
 export interface PickArea extends PickInput {
@@ -63,12 +70,14 @@ export function unionOf(rects: readonly Rect[]): Rect | null {
 
 /** Each selectable's union and core, in the order given, which is the scene's. */
 export function pickAreas(selectables: readonly PickInput[], core: number = CORE_PX): PickArea[] {
-  return selectables.map(({ id, members }) => {
+  return selectables.map(({ id, members, front }) => {
     const union = unionOf(members.map((m) => m.rect));
     const centred: Rect | null = union
       ? [union[0] + union[2] / 2 - core / 2, union[1] + union[3] / 2 - core / 2, core, core]
       : null;
-    return { id, members, union, core: centred };
+    return front && front.length > 0
+      ? { id, members, front, union, core: centred }
+      : { id, members, union, core: centred };
   });
 }
 
@@ -102,6 +111,9 @@ export function pick(
   let front: { id: string; depth: number } | null = null;
   for (const area of areas) {
     for (const m of area.members) {
+      if (contains(m.rect, point) && (front === null || m.depth < front.depth)) front = { id: area.id, depth: m.depth };
+    }
+    for (const m of area.front ?? []) {
       if (contains(m.rect, point) && (front === null || m.depth < front.depth)) front = { id: area.id, depth: m.depth };
     }
   }
@@ -168,7 +180,10 @@ export function pickProblems(
         out.push({ selectable: area.id, problem: "core", other: other.id });
     }
     for (const other of areas) {
-      if (other !== area && other.members.some((m) => overlaps(core, m.rect)))
+      if (
+        other !== area &&
+        (other.members.some((m) => overlaps(core, m.rect)) || (other.front ?? []).some((m) => overlaps(core, m.rect)))
+      )
         out.push({ selectable: area.id, problem: "member", other: other.id });
     }
     for (const other of areas) {

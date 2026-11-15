@@ -70,7 +70,7 @@ Questions this spec raised beyond his answers are on one page with a recommended
 - The probe scripts (the nono probe, done, and the container probe).
 - The container specs and their images, the internal networks, the egress proxy's night allowlist, the engine forwarder, the example copy and its check, and the plan-only IAM role in `infra/`.
 - The runner, the supervisor's prompt, the queue, the locks, save points, the weekly resume, stopping waiting workers, and the decision page.
-- The studio line's schemas and checks, its folders, the three-round rule, and the weights and nodes list.
+- The studio line's schemas and checks, its folders, the round rule (three rounds, four since the Author's words of 2026-11-14; FR-028), and the weights and nodes list.
 - Red-team rows proving each refusal.
 - The patches for the Author's hand, and the install-and-rehearse script with `--undo`.
 
@@ -138,7 +138,7 @@ The Author queues tasks and starts the supervisor. Through the night, the superv
 
 ### User Story 4 - Repo agents and the studio agent finish an asset together (Priority: P2)
 
-A repo agent writes a brief. The studio agent drives headless Blender and ComfyUI's local API and writes a candidate to the handoff folder. The repo agent runs the intake's checks on a copy, and sends the exact failures back as the next round. After three rounds without a pass, the asset goes on the decision page. A passing candidate comes in through the intake on a branch, with its record, for the Author's look approval.
+A repo agent writes a brief. The studio agent drives headless Blender and ComfyUI's local API and writes a candidate to the handoff folder. The repo agent runs the intake's checks on a copy, and sends the exact failures back as the next round. After four rounds without a pass, the asset goes on the decision page (three until the Author's words, 2026-11-14, about 21:00Z: "Let's go with the approval of the SHA and use the actual image /srv/studio/workflows/inbox/duck-toller.jpg"). A passing candidate comes in through the intake on a branch, with its record, for the Author's look approval.
 
 **Why this priority**: the Creatures stream depends on it ("i want the repo agents to be able to talk to the studio agents and complete the asset pipeline along with the code"), but the pilot (Resume) does not.
 
@@ -263,7 +263,7 @@ Once the rehearsal passes, the first queue is the Author's ordered list of 2026-
 
 - **FR-026**: THE repository SHALL hold a brief schema and a candidate schema, with the intake's checks as tests.
 - **FR-027**: Repo agents SHALL write briefs only to `/srv/studio/briefs/`, and read candidates only from `/srv/studio/handoff/<asset>/<round>/`; THE studio agent SHALL read only the briefs, `/srv/studio/workflows`, and `/srv/studio/outputs`, and write only the handoff folder and `/srv/studio/outputs`, its working folder; repo agents SHALL NOT read `/srv/studio/outputs`. THE first install SHALL refuse while `/srv/studio/outputs` holds any file, since the Author moves its current files out first.
-- **FR-028**: WHEN a candidate fails its checks for the third round, THE line SHALL write no further brief and SHALL put the asset on the decision page.
+- **FR-028**: WHEN a candidate fails its checks for the fourth round, THE line SHALL write no further brief and SHALL put the asset on the decision page. (The third round until the Author's words, 2026-11-14, about 21:00Z: "Let's go with the approval of the SHA and use the actual image /srv/studio/workflows/inbox/duck-toller.jpg".)
 - **FR-029**: THE intake SHALL refuse any candidate whose record names a weight or custom node missing from the weights and nodes list, or one whose licence the list doesn't mark as shippable, and SHALL refuse every Qwen-Image-2.1 and FLUX [dev] output.
 - **FR-030**: THE studio agent SHALL install no custom node and download no weight; a request for one SHALL go on the decision page.
 - **FR-031**: A GPU job SHALL start only under the GPU lock, and every task only after the disk and memory preflight passes (every task since 2026-11-12, after the first install: a night that starts above the floor mustn't run C: down to zero).
@@ -330,7 +330,7 @@ Once the rehearsal passes, the first queue is the Author's ordered list of 2026-
 - **SC-003**: `--undo` leaves no file the install added.
 - **SC-004**: On the pilot night, the Author is needed only for decisions and merges, and every other interruption is counted with its cause.
 - **SC-005**: No more than ten workers ever run at once, and no two holders of the same lock ever overlap.
-- **SC-006**: No asset reaches intake after a third failed round without the Author's decision.
+- **SC-006**: No asset reaches intake after a fourth failed round without the Author's decision. (A third until the Author's words, 2026-11-14, about 21:00Z: "Let's go with the approval of the SHA and use the actual image /srv/studio/workflows/inbox/duck-toller.jpg".)
 
 ## Assumptions
 

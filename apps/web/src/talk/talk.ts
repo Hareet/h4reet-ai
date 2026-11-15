@@ -72,6 +72,14 @@ export interface TalkPanel {
    *  line; its header buttons hide with that empty sheet, so no stop of the Tab order is out of view (the review of
    *  60b51de4, finding 1). */
   setDocked(on: boolean): void;
+  /** Spec 018: ends the larger view, as its toggle does, without moving focus. */
+  closeLarger(): void;
+  /** Spec 018: whether a turn is out, which Escape stops before it closes the panel. */
+  turnOut(): boolean;
+  /** Spec 026 (R-02): the active conversation's feature (a piece's ID, or free talk), or null: read only, so the room's
+   *  selection pets the dog unless its piece's conversation is already the active one, as `topicSelected` sends nothing
+   *  then. */
+  readonly active: string | null;
   /** A selectable whose action is talk was selected (FR-023; spec 004, FR-037, FR-038; spec 007, FR-032): an unready
    *  topic shows the fixed message naming it by its own phrase, from the bundle's index; a ready one opens its
    *  conversation, unless it is the active conversation's own. */
@@ -125,6 +133,12 @@ export function renderTalk(
      *  else: whether the text box holds unsent text, a turn's going and ending, the twin's answer's words, and a
      *  piece's selection. No activity carries a word, a topic, a feature, a cost, or a time. */
     onActivity?(activity: TalkActivity): void;
+    /** Spec 018 (FR-006): a conversation begins (the piece's ID, or free talk) or a line appears in the log, which the split layout's
+     *  panel opens for. Nothing they carry is a word of the visitor's. */
+    onConversation?(feature: string): void;
+    onLine?(): void;
+    /** The larger view turned on or off, by its toggle or Escape: the split layout's panel opens and closes with it. */
+    onLarger?(on: boolean): void;
   },
 ): TalkPanel {
   const activity = (a: TalkActivity): void => options.onActivity?.(a);
@@ -223,6 +237,7 @@ export function renderTalk(
     log.append(node);
     while (log.children.length > LOG_LIMIT) log.firstElementChild?.remove();
     element.setAttribute("data-log", "lines");
+    options.onLine?.();
     showHead();
     tabbable();
     // The newest line stays in view (spec 007, FR-042; spec 005, FR-028).
@@ -319,6 +334,7 @@ export function renderTalk(
     if (sender === undefined || path === null) return;
     const f: Flight = { controller: new AbortController(), feature, visitor, stopped: false };
     flight = f;
+    options.onConversation?.(feature);
     waiting(true);
     activity({ kind: "turn", out: true });
     let reported = false;
@@ -376,13 +392,16 @@ export function renderTalk(
     }
   });
 
-  logToggle.addEventListener("click", () => {
-    collapsed = !collapsed;
+  const setCollapsed = (on: boolean): void => {
+    collapsed = on;
     if (collapsed && log.contains(doc.activeElement)) logToggle.focus();
     log.classList.toggle("visually-hidden", collapsed);
     tabbable();
     logToggle.setAttribute("aria-expanded", String(!collapsed));
     options.onPanel?.("log", collapsed ? "collapsed" : "open");
+  };
+  logToggle.addEventListener("click", () => {
+    setCollapsed(!collapsed);
   });
   let larger = false;
   const setLarger = (on: boolean): void => {
@@ -391,6 +410,7 @@ export function renderTalk(
     largerWords.textContent = on ? words.smaller : words.larger;
     element.setAttribute("data-larger", on ? "on" : "off");
     options.onPanel?.("larger", on ? "open" : "collapsed");
+    options.onLarger?.(on);
   };
   largerToggle.addEventListener("click", () => setLarger(!larger));
   // Escape closes the larger view, focus back on its toggle, unless the form's Escape stopped a turn first.
@@ -448,6 +468,13 @@ export function renderTalk(
   return {
     element,
     textBox,
+    turnOut: () => flight !== null && !flight.stopped,
+    get active() {
+      return conversation;
+    },
+    closeLarger() {
+      if (larger) setLarger(false);
+    },
     setDocked(on) {
       docked = on;
       showHead();

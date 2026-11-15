@@ -267,21 +267,29 @@ export function figureEntries(
   chosen: AvatarId,
   base = "",
 ): FigureEntry[] {
+  // Spec 025 (FR-021; plan.md R-10): the room's dog's files, after the twin's and the visitor's, where the scene has
+  // `figures.dog` and the bundle the dog; once, where the visitor's own files are the dog's already.
+  const roomDog = (taken: readonly AvatarId[]): FigureEntry[] =>
+    part.figures.dog !== undefined && part.avatars.dog !== undefined && !taken.includes("dog")
+      ? avatarEntries(part, ["dog"], base)
+      : [];
   if (part.twin) {
     const twin = twinEntries({ twin: part.twin }, base);
-    const own = avatarEntries(part, part.avatars[chosen] ? [chosen] : [], base);
+    const mine: AvatarId[] = part.avatars[chosen] ? [chosen] : [];
+    const own = avatarEntries(part, mine, base);
     const isModel = (e: FigureEntry): boolean => e.figure.role === null;
     return [
       ...twin.filter(isModel),
       ...own.filter(isModel),
       ...twin.filter((e) => !isModel(e)),
       ...own.filter((e) => !isModel(e)),
+      ...roomDog(mine),
     ];
   }
   const ids = [...new Set([part.figures.stand_in, chosen])].filter(
     (id): id is AvatarId => id !== null && part.avatars[id] !== undefined,
   );
-  return avatarEntries(part, ids, base);
+  return [...avatarEntries(part, ids, base), ...roomDog(ids)];
 }
 
 /** The avatars' files, models first, then clips in the closed list's order. */

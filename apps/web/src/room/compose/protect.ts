@@ -12,8 +12,8 @@ import type { RoomIndex, RoomScene } from "./bundle";
 import type { Protect } from "./frame";
 import { framing } from "./framing";
 import type { Box as WorldBox } from "./framing";
-import { DEFAULT_METRICS, walkControlBox } from "./hud";
-import type { Box } from "./hud";
+import { DEFAULT_METRICS, reservedBoxes } from "./hud";
+import type { Box, EatOption } from "./hud";
 import { CORE_PX, flatCore, listOnly, memberRect, pickAreas } from "./pick";
 import type { PickInput, Rect } from "./pick";
 import { FLAT_VIEW, flatPlacement } from "./stages";
@@ -43,8 +43,10 @@ function inputsAt(scene: ProtectScene, stage: { readonly w: number; readonly h: 
 }
 
 /** The 3D protector over a scene, at a root font size (the walking control's box, reserved where pressability is
- *  judged, is in rem). */
-export function protectorFor(scene: ProtectScene, rem: number = DEFAULT_METRICS.rem): Protect {
+ *  judged, is in rem). Spec 024 (Q150): with `{ eat: true }`, a 3D dinosaur visit's, the "Eat" tile's box is reserved
+ *  with it there and among the compact boxes, and the key says so; without, the protector is as before. */
+export function protectorFor(scene: ProtectScene, rem: number = DEFAULT_METRICS.rem, option: EatOption = {}): Protect {
+  const eat = option.eat === true;
   const sideWall = new Set(scene.selectables.filter((s) => s.sideWall).map((s) => s.id));
   let known: { readonly key: string; readonly held: ReadonlySet<string> } | null = null;
   /** The side-wall selectables list-only at spec 005's frame: computed once per clear area. */
@@ -52,12 +54,13 @@ export function protectorFor(scene: ProtectScene, rem: number = DEFAULT_METRICS.
     const key = `${clear.w}x${clear.h}`;
     if (known?.key === key) return known.held;
     const areas = pickAreas(inputsAt(scene, clear));
-    const held = listOnly(areas, [0, 0, clear.w, clear.h], sideWall, [walkControlBox(clear, rem)]);
+    const held = listOnly(areas, [0, 0, clear.w, clear.h], sideWall, reservedBoxes(clear, rem, { eat }));
     known = { key, held };
     return held;
   };
   return {
-    key: `3d:${rem}:${JSON.stringify(scene)}`,
+    key: `3d:${rem}${eat ? ":eat" : ""}:${JSON.stringify(scene)}`,
+    ...(eat ? { eat: true } : {}),
     boxes(area, clear) {
       const held = heldAt(clear);
       const stage = { w: area.w, h: area.h };

@@ -2,7 +2,7 @@
 
 `scripts/studio/line.py` runs as `python3 -I -B scripts/studio/line.py brief|candidate|round ...`, and every case
 here runs it that way, as a subprocess:
-- briefs (T040): a valid brief passes; a round outside 1 to 3, a limit above main's caps.json for the kind, a tool
+- briefs (T040): a valid brief passes; a round outside 1 to 4, a limit above main's caps.json for the kind, a tool
   whose list entry isn't `outputs_ship: true`, a tool named Qwen-Image or FLUX [dev] whatever the list says, and a
   missing field each fail with one line naming the field;
 - the policy: caps.json and studio-tools.json come from refs/heads/main only, never a path the caller names, a tag
@@ -11,8 +11,10 @@ here runs it that way, as a subprocess:
   embedded PNG, JPEG, and WebP headers; malformed accessors and modes; the required bones from the skins' joints and
   the clips from the animations; a tool outside the brief or the list; a record step naming Qwen-Image-2.1 or FLUX
   [dev], refused even if listed; a file named but absent; the brief re-checked in full;
-- rounds (T042): `line.py round` prints `decide` after three failed rounds, and `line.py brief` refuses a round 4;
-  rounds are counted from the handoff folders, which only the studio writes, so deleting or forging a result in the
+- rounds (T042): `line.py round` prints `decide` after four failed rounds, and `line.py brief` takes a round 4 after
+  round 3's recorded failure and refuses a round 5 (four rounds since the Author's words of 2026-11-14, about 21:00Z:
+  "Let's go with the approval of the SHA and use the actual image /srv/studio/workflows/inbox/duck-toller.jpg"); a
+  round after a recorded pass holds no findings, and opens only while that pass re-checks clean; rounds are counted from the handoff folders, which only the studio writes, so deleting or forging a result in the
   briefs folder resets nothing and passes nothing (review G3, blocker 2);
 - the arrival check's step (T044): main's copy, read from refs/heads/main of a repository built here, whose
   tools/gates/arrival_check.py is a stand-in, so nothing depends on the real one. A tag named main and the working
@@ -521,8 +523,8 @@ def test_a_valid_brief_passes(tmp_path: Path, repo: Path) -> None:
     assert done.returncode == 0, done.stdout + done.stderr
 
 
-@pytest.mark.parametrize("value", [0, 4, -1, "1", True, 1.0])
-def test_a_round_outside_one_to_three_fails(
+@pytest.mark.parametrize("value", [0, 5, -1, "1", True, 1.0])
+def test_a_round_outside_one_to_four_fails(
     tmp_path: Path, repo: Path, value: object
 ) -> None:
     done = brief(write_brief(tmp_path, brief_doc(round=value), name="1.json"), repo)
@@ -1296,15 +1298,16 @@ def test_an_open_round_and_a_passed_round(
     assert state(tmp_path, repo) == "passed 1"
 
 
-def test_three_failed_rounds_mean_decide_and_no_round_4(
+def test_four_failed_rounds_mean_decide_and_no_round_5(
     tmp_path: Path, repo: Path
 ) -> None:
     findings: list[str] = []
-    for n in (1, 2, 3):
+    for n in (1, 2, 3, 4):
+        # fail_round asserts that round n's brief passes, so round 4 follows round 3's recorded failure.
         findings = fail_round(tmp_path, repo, n, findings)
         assert any(line.startswith("triangles dog.glb") for line in findings)
-        assert state(tmp_path, repo) == ("decide" if n == 3 else str(n + 1))
-    done = brief(write_brief(tmp_path, brief_doc(round=4, findings=findings)), repo)
+        assert state(tmp_path, repo) == ("decide" if n == 4 else str(n + 1))
+    done = brief(write_brief(tmp_path, brief_doc(round=5, findings=findings)), repo)
     assert done.returncode == 1
     assert starting(done, "round"), done.stdout
 
@@ -1313,7 +1316,7 @@ def test_deleting_the_results_and_briefs_resets_nothing(
     tmp_path: Path, repo: Path
 ) -> None:
     findings: list[str] = []
-    for n in (1, 2, 3):
+    for n in (1, 2, 3, 4):
         findings = fail_round(tmp_path, repo, n, findings)
     folder = tmp_path / "briefs" / "dog"
     for result in folder.glob("*.result.json"):
@@ -1376,9 +1379,138 @@ def test_round_two_carries_round_ones_findings_verbatim(
     assert starting(done, "findings"), done.stdout
 
 
-def test_round_two_needs_round_one_to_have_failed(tmp_path: Path, repo: Path) -> None:
+def test_round_two_needs_round_ones_result(tmp_path: Path, repo: Path) -> None:
     write_brief(tmp_path, brief_doc())
     done = brief(write_brief(tmp_path, brief_doc(round=2, findings=["x"])), repo)
+    assert done.returncode == 1
+    assert starting(done, "round"), done.stdout
+
+
+def pass_round(tmp_path: Path, repo: Path, n: int, findings: list[str]) -> Path:
+    """Write round n's brief (with round n-1's findings), a candidate within its limits, and record the pass."""
+    path = write_brief(tmp_path, brief_doc(round=n, findings=findings))
+    checked = brief(path, repo)
+    assert checked.returncode == 0, checked.stdout
+    folder = write_candidate(tmp_path, round_=n)
+    done = candidate(folder, path, repo, "--record")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert (
+        json.loads((path.parent / f"{n}.result.json").read_text())["result"] == "pass"
+    )
+    return path
+
+
+def test_a_round_after_a_recorded_pass_holds_no_findings(
+    tmp_path: Path, repo: Path
+) -> None:
+    pass_round(tmp_path, repo, 1, [])
+    assert state(tmp_path, repo) == "passed 1"
+    done = brief(write_brief(tmp_path, brief_doc(round=2, findings=["x"])), repo)
+    assert done.returncode == 1
+    assert starting(done, "findings"), done.stdout
+    done = brief(write_brief(tmp_path, brief_doc(round=2)), repo)
+    assert done.returncode == 0, done.stdout + done.stderr
+    # Round 2's brief, waiting for the studio, is the open round (Q267): round 1's pass isn't taken by itself.
+    assert state(tmp_path, repo) == "open 2"
+
+
+def test_the_latest_pass_is_the_one_round_prints(tmp_path: Path, repo: Path) -> None:
+    pass_round(tmp_path, repo, 1, [])
+    pass_round(tmp_path, repo, 2, [])
+    assert state(tmp_path, repo) == "passed 2"
+
+
+def test_a_fourth_round_after_a_pass_in_round_three(tmp_path: Path, repo: Path) -> None:
+    findings = fail_round(tmp_path, repo, 1, [])
+    findings = fail_round(tmp_path, repo, 2, findings)
+    pass_round(tmp_path, repo, 3, findings)
+    assert state(tmp_path, repo) == "passed 3"
+    # Round 4's brief, as /srv/studio/briefs/dog/4.json will be: no findings, and `line.py brief` takes it.
+    path = write_brief(tmp_path, brief_doc(round=4))
+    checked = brief(path, repo)
+    assert checked.returncode == 0, checked.stdout + checked.stderr
+    assert state(tmp_path, repo) == "open 4"
+    folder = write_candidate(tmp_path, round_=4)
+    assert state(tmp_path, repo) == "open 4"
+    for child in folder.iterdir():
+        child.unlink()
+    folder.rmdir()
+    (path.parent / "4.json").unlink()
+    fail_round(tmp_path, repo, 4, [])
+    # Round 4 failed: the Author decides, with round 3's pass named as one option; the line never picks it itself.
+    assert state(tmp_path, repo) == "decide (round 3 passed)"
+    done = brief(write_brief(tmp_path, brief_doc(round=5)), repo)
+    assert done.returncode == 1
+    assert starting(done, "round"), done.stdout
+
+
+def test_a_round_after_a_pass_that_passes_is_the_one_round_prints(
+    tmp_path: Path, repo: Path
+) -> None:
+    findings = fail_round(tmp_path, repo, 1, [])
+    findings = fail_round(tmp_path, repo, 2, findings)
+    pass_round(tmp_path, repo, 3, findings)
+    pass_round(tmp_path, repo, 4, [])
+    assert state(tmp_path, repo) == "passed 4"
+
+
+def test_a_failure_after_a_pass_goes_to_the_author_before_round_four(
+    tmp_path: Path, repo: Path
+) -> None:
+    pass_round(tmp_path, repo, 1, [])
+    findings = fail_round(tmp_path, repo, 2, [])
+    # Within ROUNDS too: after a pass, a failure goes to the decision page, and no brief follows it.
+    assert state(tmp_path, repo) == "decide (round 1 passed)"
+    done = brief(write_brief(tmp_path, brief_doc(round=3, findings=findings)), repo)
+    assert done.returncode == 1
+    assert starting(done, "round"), done.stdout
+
+
+def fail_below_cap(
+    tmp_path: Path, repo: Path, n: int, findings: list[str]
+) -> list[str]:
+    """Round n's brief with a triangle limit below main's cap (150000 of 180000), a candidate of 160000 (over the
+    brief's, under the cap), and its recorded failure."""
+    limits = dict(brief_doc()["limits"], triangles=150000)
+    path = write_brief(tmp_path, brief_doc(round=n, findings=findings, limits=limits))
+    checked = brief(path, repo)
+    assert checked.returncode == 0, checked.stdout
+    folder = write_candidate(
+        tmp_path, model=glb(triangles=160000), round_=n, doc=cand_doc(round=n)
+    )
+    done = candidate(folder, path, repo, "--record")
+    assert done.returncode == 1, done.stdout + done.stderr
+    return json.loads((path.parent / f"{n}.result.json").read_text())["findings"]
+
+
+def test_a_rewritten_early_pass_behind_later_failures_is_no_pass(
+    tmp_path: Path, repo: Path
+) -> None:
+    """rv-rounds4-020's I-2: rounds 1 to 3 fail on the brief's limit, below main's cap. Round 1's brief is rewritten
+    to the cap and its result to a pass, so its candidate re-checks clean against the rewritten brief. Round 2's
+    brief holds round 1's findings, so round 1 was never followed as a pass: the re-check keeps main's refusal."""
+    findings: list[str] = []
+    for n in (1, 2, 3):
+        findings = fail_below_cap(tmp_path, repo, n, findings)
+    folder = tmp_path / "briefs" / "dog"
+    first = json.loads((folder / "1.json").read_text())
+    first["limits"]["triangles"] = 180000
+    (folder / "1.json").write_text(json.dumps(first))
+    result = json.loads((folder / "1.result.json").read_text())
+    result.update({"result": "pass", "findings": []})
+    (folder / "1.result.json").write_text(json.dumps(result))
+    done = rounds(tmp_path, repo)
+    assert "passed 1" not in done.stdout, done.stdout
+    assert "round 1 passed" not in done.stdout, done.stdout
+
+
+def test_a_forged_pass_opens_no_round(tmp_path: Path, repo: Path) -> None:
+    fail_round(tmp_path, repo, 1, [])
+    result = tmp_path / "briefs" / "dog" / "1.result.json"
+    forged = json.loads(result.read_text())
+    forged.update({"result": "pass", "findings": []})
+    result.write_text(json.dumps(forged))
+    done = brief(write_brief(tmp_path, brief_doc(round=2)), repo)
     assert done.returncode == 1
     assert starting(done, "round"), done.stdout
 
@@ -1458,3 +1590,70 @@ def test_round_refuses_an_asset_that_isnt_an_id(
             repo,
         )
     )
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 021 (T008; FR-007, FR-013, SC-004; plan.md R-06): the dinosaur's brief, the first ```json block of
+# specs/021-dinosaur-modeled-and-brought-in/contracts/dinosaur-brief.md, through `line.py brief` on a fixture
+# repository whose main holds the repository's own studio-tools.json and caps.json (read as files here only).
+# --------------------------------------------------------------------------------------------------
+REPO_ROOT = HERE.parents[1]
+DINOSAUR_BRIEF = (
+    REPO_ROOT / "specs/021-dinosaur-modeled-and-brought-in/contracts/dinosaur-brief.md"
+)
+
+
+def dinosaur_brief() -> dict:
+    text = DINOSAUR_BRIEF.read_text(encoding="utf-8")
+    start = text.index("```json\n") + len("```json\n")
+    return json.loads(text[start : text.index("\n```", start)])
+
+
+def real_policy() -> tuple[dict, dict]:
+    tools = json.loads((REPO_ROOT / TOOLS_PATH).read_text(encoding="utf-8"))
+    caps = json.loads((REPO_ROOT / CAPS_PATH).read_text(encoding="utf-8"))
+    return tools, caps
+
+
+def write_dinosaur(root: Path, doc: dict) -> Path:
+    folder = root / "briefs" / "dinosaur"
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "1.json"
+    path.write_text(json.dumps(doc))
+    return path
+
+
+def test_the_dinosaurs_brief_passes_on_the_repositorys_tools_and_caps(
+    tmp_path: Path,
+) -> None:
+    tools, caps = real_policy()
+    repo = make_repo(tmp_path, tools=tools, caps=caps)
+    doc = dinosaur_brief()
+    assert doc["asset"] == "dinosaur" and doc["round"] == 1
+    done = brief(write_dinosaur(tmp_path, doc), repo)
+    assert done.returncode == 0, done.stdout + done.stderr
+
+
+def test_the_dinosaurs_brief_fails_with_one_of_its_tools_not_shippable(
+    tmp_path: Path,
+) -> None:
+    tools, caps = real_policy()
+    doc = dinosaur_brief()
+    named = doc["tools"][0]
+    for entry in tools["tools"]:
+        if entry["id"] == named:
+            entry["outputs_ship"] = False
+    repo = make_repo(tmp_path, tools=tools, caps=caps)
+    done = brief(write_dinosaur(tmp_path, doc), repo)
+    assert done.returncode == 1, done.stdout + done.stderr
+    found = starting(done, "tools")
+    assert len(found) == 1 and named in found[0], done.stdout
+
+
+def test_the_dinosaurs_brief_names_shippable_tools_and_no_franchise() -> None:
+    tools, _ = real_policy()
+    doc = dinosaur_brief()
+    ship = {t["id"]: t.get("outputs_ship") is True for t in tools["tools"]}
+    assert doc["tools"] and all(ship.get(t) is True for t in doc["tools"]), doc["tools"]
+    notes = doc["notes"] if isinstance(doc["notes"], str) else " ".join(doc["notes"])
+    assert "no film or franchise creature" in notes

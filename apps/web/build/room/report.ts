@@ -34,11 +34,13 @@ import { AVATAR_SHAPES } from "../../src/choice/avatars";
 import { TIER_VALUES } from "../../src/room/compose/vocabulary";
 import { gzipBytes } from "../../src/room/glb/gzip";
 import { count, fixed } from "../../src/room/glb/rules";
+import { carriesModel } from "./avatars";
 import type { AvatarFile } from "./avatars";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import { framing } from "../../src/room/compose/framing";
 import type { Box as WorldBox } from "../../src/room/compose/framing";
-import { layoutFor } from "../../src/room/compose/hud";
+import { EAT_CONTROL, layoutFor } from "../../src/room/compose/hud";
+import { EATER } from "../../src/room/eat/available";
 import { memberRect } from "../../src/room/compose/pick";
 import {
   REFERENCE_DESKTOP,
@@ -232,6 +234,10 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
   // Spec 014's frame areas (its FR-060, FR-061): the stages RG5 to RG7 run at since, each screen's ease, and the growth.
   lines.push(...frameLines(c), "");
 
+  // Spec 024's dinosaur visit (Q150, Q-R3a): its frame areas with the "Eat" tile's box, and what that box holds; only
+  // where the bundle carries the dinosaur's model, without which no such visit happens (page Q247).
+  if (carriesModel(c.avatars, EATER)) lines.push(...dinosaurLines(c), "");
+
   // The switches: their cases, and their poses' separation (RG8).
   lines.push(...switches(c), "");
 
@@ -308,6 +314,16 @@ function avatars(c: Composed, memory: SceneTextureMemory, share: number, f3: num
   else if (named !== undefined && c.reader.printable(named))
     out.push(`The twin shows its capsule: RA3 or RI8 refuses its stand-in \`${named}\`.`);
   else out.push("The twin shows its capsule: the scene names no stand-in.");
+  // Spec 020 (FR-002, FR-003): a visitor's likeness, whether main's approval holds (its line) or RA9 leaves it out.
+  for (const a of set.avatars) {
+    if (a.line !== null)
+      out.push(`Likeness \`${a.id}\`: main's approval holds for its model, with the line "${a.line}"`);
+    else if (a.model && c.findings.some((f) => f.rule === "RA9" && f.file === a.model?.path))
+      out.push(
+        `Likeness \`${a.id}\`: no approval on main names its model's SHA-256 with a line (RA9), so none of its files ` +
+          "is bundled and its figure shows the cut-out.",
+      );
+  }
   for (const a of set.avatars)
     for (const f of a.others)
       out.push(`RA5: \`${f.path}\` has no role: reported, never refused, never bundled or fetched.`);
@@ -323,7 +339,7 @@ function avatars(c: Composed, memory: SceneTextureMemory, share: number, f3: num
       `${stand === null ? "" : "other "}visitor avatar at ${px} px.`,
   );
   // RK5's sum, and spec 003's F3, which counts the largest visitor folder alone (arrival-check.md §3; M13).
-  const visit = figuresVisit(set, c.twin);
+  const visit = figuresVisit(set, c.twin, c.scene?.figures.dog !== undefined);
   const tree = c.reader.tree;
   const glbsUnder = (dir: string): number =>
     filesUnder(tree, dir)
@@ -332,11 +348,12 @@ function avatars(c: Composed, memory: SceneTextureMemory, share: number, f3: num
   const largestFolder = Math.max(0, ...tree.list(VISITORS_DIR).map((name) => glbsUnder(`${VISITORS_DIR}/${name}`)));
   // assets/animations/ aside, which the compositor never reads (contracts/room-data-files.md §1).
   const f3View = f3 + glbsUnder(TWIN_DIR) + largestFolder;
-  const total = share + visit.twin + visit.stand_in + visit.other;
+  const total = share + visit.twin + visit.stand_in + visit.dog + visit.other;
   const twinShare = visit.twin > 0 ? `${count(visit.twin)} of the twin's own files, ` : "";
+  const dogShare = visit.dog > 0 ? `${count(visit.dog)} of the room's dog's files, ` : "";
   out.push(
     `First visit with both figures' files (RK5): ${count(total)} gzip-9 bytes, ${count(share)} of the room's placed ` +
-      `models and cards, ${twinShare}${count(visit.stand_in)} of the stand-in's files, and ${count(visit.other)} of ` +
+      `models and cards, ${twinShare}${count(visit.stand_in)} of the stand-in's files, ${dogShare}and ${count(visit.other)} of ` +
       `the largest ${visit.twin > 0 ? "" : "other "}visitor avatar's${visit.other_id === null ? "" : ` (\`${visit.other_id}\`)`}, against the phase-3 ` +
       `budget of ${count(c.policy.phase3_bytes)}; spec 003's F3 view, which counts one visitor folder (assets/animations/ ` +
       `aside): ${count(f3View)}.`,
@@ -593,6 +610,51 @@ function frameLines(c: Composed): string[] {
         `${plainSize(framed.stage.w)} × ${plainSize(framed.stage.h)} over spec 005's ${plainSize(r.stage.w)} × ` +
         `${plainSize(r.stage.h)}, the room ${(growth * 100).toFixed(1)}% larger on screen.`,
     );
+  }
+  return out;
+}
+
+/** Spec 024's dinosaur visit (FR-012; plan.md §5.5; Q150, Q-R3a): the variant sweep's stage count and eases, each
+ *  reference stage's ease, and the side-wall selectables the "Eat" tile's box leaves to the list, as the reserved-box
+ *  line names the walking control's. The plain visit's lines above are unchanged; the bundle is the plain visit's. */
+function dinosaurLines(c: Composed): string[] {
+  const g = c.geometry;
+  const head = "A 3D dinosaur visit (spec 024, Q150)";
+  if (!g) return [`${head}: none, the scene having no geometry to frame.`];
+  const made = framedStages(g.protectEat);
+  const n = (x: number): string => x.toLocaleString("en-US");
+  const sixteenths = (e: number): string => (e === 0 ? "0" : e === 1 ? "1" : `${Math.round(e * 16)}/16`);
+  const eases = made.screens.map((x) => x.stage.ease ?? 1);
+  const at0 = eases.filter((e) => e === 0).length;
+  const at1 = eases.filter((e) => e === 1).length;
+  const out = [
+    `${head}: the "Eat" tile's box, ${EAT_CONTROL.widthRem}rem × ${EAT_CONTROL.heightRem}rem beside the walking ` +
+      `control, reserved for the whole visit; ${n(made.stages.length)} stages over the same screens, checked by RG6 and ` +
+      `RG7 and not emitted; ${n(eases.length)} screens and states, ${n(at0)} at ease 0, ` +
+      `${n(eases.length - at0 - at1)} between, ${n(at1)} at ease 1.`,
+  ];
+  for (const r of g.referenceEat) {
+    const screen = r.name === "desktop" ? REFERENCE_DESKTOP.screen : REFERENCE_PHONE.screen;
+    const framed = made.screens.find((x) => x.screen === screen);
+    if (!framed) continue;
+    out.push(
+      `- The reference ${r.name} (${screen.w} × ${screen.h}): ease ${sixteenths(framed.stage.ease ?? 1)}, a frame ` +
+        `area of ${plainSize(r.stage.w)} × ${plainSize(r.stage.h)}.`,
+    );
+  }
+  const { boxHolds } = pickSweep(g).dinosaur;
+  const plain = new Set(pickSweep(g).boxHolds.map((h) => h.index));
+  const own = boxHolds.filter((h) => !plain.has(h.index));
+  if (own.length === 0)
+    out.push("- The \"Eat\" tile's box holds no side-wall selectable the walking control's doesn't.");
+  else {
+    const named = own.flatMap((h) => {
+      const [first] = h.stages;
+      if (!first) return [];
+      const name = c.reader.printable(h.id) ? `\`${h.id}\`` : `selectables[${h.index}]`;
+      return [`${name} at ${stagesPhrase(first, h.stages.length - 1)}`];
+    });
+    out.push(`- The "Eat" tile's box leaves to the list ${named.join("; ")}, FR-064's carve-out.`);
   }
   return out;
 }

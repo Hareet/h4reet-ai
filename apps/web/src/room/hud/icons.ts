@@ -6,7 +6,7 @@ const SVG = "http://www.w3.org/2000/svg";
 
 /** The icons, by what they show. */
 export type IconName =
-  "resume" | "flat" | "pause" | "fullscreen" | "fullscreen-exit" | "data" | "credits" | "walk" | "chevron";
+  "resume" | "flat" | "pause" | "fullscreen" | "fullscreen-exit" | "data" | "credits" | "walk" | "chevron" | "eat";
 
 /** Each icon's path, on a 24 × 24 grid. */
 export const ICON_PATHS: Readonly<Record<IconName, string>> = {
@@ -27,6 +27,8 @@ export const ICON_PATHS: Readonly<Record<IconName, string>> = {
   walk: "M13 4.5a1.5 1.5 0 1 1-3 0a1.5 1.5 0 1 1 3 0 M11.5 8v6 M11.5 14l-3 6 M11.5 14l3 6 M8 11l3.5-3 3.5 3",
   // A chevron, for a header button: down while open; the CSS turns it while collapsed.
   chevron: "M6 9l6 6 6-6",
+  // Spec 024 (FR-012): a round with a bite out of its top right, the dinosaur's "Eat".
+  eat: "M20 12a8 8 0 1 1-8-8 M12 4a2.5 2.5 0 0 0 3 3 M15 7a2.5 2.5 0 0 0 2 3 M17 10a2.5 2.5 0 0 0 3 2",
 };
 
 /** An icon's SVG element. */
@@ -51,4 +53,32 @@ export function icon(doc: Document, name: IconName): SVGSVGElement {
     path.setAttribute(k, v);
   svg.append(path);
   return svg;
+}
+
+// Spec 018 (FR-005; Q60, R6; verify-018's D-V3): the conversation panel's emblem, by the name the room's data gives
+// the selectable (`emblem` in room/scene.yaml): one stroked path on the same 24-unit grid for each shape, and the speech
+// glyph for free talk and for any piece without one, or with a name drawn nowhere here. Keyed by shape, not by the
+// selectable's ID, which only the room's data defines (spec 002's FR-007). hud/split.ts draws them, stroked in the accent
+// colour by hud/split.css.
+
+/** Each emblem's path, by the name a selectable's `emblem` gives. */
+export const EMBLEM_ICONS: Readonly<Record<string, string>> = {
+  // A board on its edge, its two bindings across it.
+  board: "M4.5 17.5L17.5 4.5a2.1 2.1 0 0 1 3 3L7.5 20.5a2.1 2.1 0 0 1-3-3z M9 12l3 3 M12 9l3 3",
+  // Two wheels, the frame between them, the saddle and the bars.
+  wheels:
+    "M2.5 16a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0z M14.5 16a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0z M6 16l4-7h6l2 7 M10 9l2.5 7H6 M9 6h3 M16 9l-1-3h2",
+  // A screen over a keyboard's deck.
+  screen: "M5 5h14v9H5z M3 17h18l-1.5 2h-15z",
+  // A board on two legs, two lines of chalk.
+  slate: "M3 4h18v12H3z M8 16l-2 4 M16 16l2 4 M6 8h6 M6 11h9",
+};
+
+/** The speech glyph: a speech bubble, for free talk and a piece with no emblem of its own. */
+export const SPEECH_ICON = "M4 5h16v10h-9l-4 4v-4H4z";
+
+/** The emblem by its name: its icon, or the speech glyph for none or a name drawn nowhere here. */
+export function emblemIcon(name: string | null | undefined): { readonly name: string; readonly d: string } {
+  const d = name && Object.hasOwn(EMBLEM_ICONS, name) ? EMBLEM_ICONS[name] : undefined;
+  return name && d !== undefined ? { name, d } : { name: "speech", d: SPEECH_ICON };
 }

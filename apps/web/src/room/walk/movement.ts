@@ -87,6 +87,20 @@ export function slide(floor: WalkableFloor, x: number, z: number, dx: number, dz
   return [nx, nz];
 }
 
+/** The slide written into `out`, so a caller that slides many times a frame allocates nothing (spec 025, FR-029). */
+export function slideInto(
+  floor: WalkableFloor,
+  x: number,
+  z: number,
+  dx: number,
+  dz: number,
+  out: { x: number; z: number },
+): void {
+  const nx = clampAxis(floor, x, z, "x", dx);
+  out.z = clampAxis(floor, nx, z, "z", dz);
+  out.x = nx;
+}
+
 /** A distance moved over dt, cut into steps of at most STEP_S, each along a unit direction. */
 function travel(floor: WalkableFloor, x: number, z: number, ux: number, uz: number, distance: number, dt: number) {
   const steps = Math.max(1, Math.ceil(dt / STEP_S));

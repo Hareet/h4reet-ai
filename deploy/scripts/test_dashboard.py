@@ -1132,6 +1132,14 @@ def test_the_avatar_failure_panel_is_the_twins_graph_too() -> None:
         assert words in panel["description"], words
 
 
+def test_the_avatar_failure_panel_names_the_rooms_dog() -> None:
+    # Spec 025's FR-026: the same panel, no new one, its reading naming the room's dog figure's files among those it
+    # counts; the run itself has no panel (its Q10, a named deviation).
+    panel = by_title()["Visits whose avatar failed"]
+    for words in ("the room's dog's model", "spec 025"):
+        assert words in panel["description"], words
+
+
 # Spec 010 (FR-036; its plan §9): the paid adapter's month beside its cap and its warning, in the Spend row, and the
 # adapters' months as the store holds them, beside the store-state panel.
 ADAPTER_MONTH_PANEL = "Paid adapter's month against its cap"

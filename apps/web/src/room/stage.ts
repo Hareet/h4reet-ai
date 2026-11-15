@@ -3,6 +3,7 @@
 // quality controller, a lost context, or the visitor asks; never back.
 import type { AssetEvent } from "../asset-events";
 import type { AvatarId, ClipRole } from "../choice/avatars";
+import type { PetRecord } from "./scene/pet";
 import type { TwinActivity, TwinClipRole, TwinState } from "./scene/twin-states";
 import type { Mode } from "../choice/visit";
 import type { Clock } from "./clock";
@@ -78,6 +79,15 @@ export interface Stage3D extends Stage {
   /** Spec 016 (FR-022; contracts/twin-states.md §1): the conversation's activity, for the twin's own states; absent, as
    *  on a stand-in stage, nothing reads it. */
   twinActivity?(activity: TwinActivity): void;
+  /** Spec 026 (FR-001, FR-013; plan.md R-02): a selection, which the pet director takes: the `dog` selectable starts a
+   *  petting where its conditions hold; any other does nothing. Absent on a stand-in stage. */
+  pet?(id: string): void;
+  /** Spec 024 (FR-012): the dinosaur's eating, for a 3D dinosaur visit over a part with an edible placement and the
+   *  dinosaur's model (page Q247): the "Eat" tile's press, which takes the same gate as key B; and sync, which the room calls on each change of what
+   *  SceneOptions.eating.state() gives (the pause toggle, the page hidden or shown, the loader), so the meal pauses or
+   *  resumes at once, not at the next frame, which a hidden page never draws (FR-009; rv-rework-024's I-A). Absent, the
+   *  visit can't eat. */
+  readonly eat?: { press(): void; sync(): void };
 }
 
 /** A file the 3D stage will load (spec 012): its asset events' `asset`, and its bytes as served (C11). */
@@ -122,6 +132,16 @@ export interface SceneOptions {
   /** Spec 014 (FR-064): the walking view's hold at entry, `hold`, and its hand-over, `follow` with its cause (a turn,
    *  a tilt, a zoom, or the edge), for a drafts build's frame log. Absent, nothing is reported. */
   walkHeld?(state: "hold" | "follow", cause: "turn" | "tilt" | "zoom" | "edge" | null): void;
+  /** Spec 024 (FR-001, FR-009, FR-010, FR-012): the dinosaur's eating's link to the room. `state`, read each frame and
+   *  at each `eat.sync()` (Stage3D's `eat`, above): the room paused (or its page hidden) and the loader showing.
+   *  `available`, told on each change: whether the "Eat" tile shows. `said`, a piece's first bite of the visit, for the
+   *  polite line, with its placement's label word's key. Absent, nothing pauses or holds the eating but the stage's own
+   *  state, and nothing is told. */
+  eating?: {
+    state(): { readonly paused: boolean; readonly loading: boolean };
+    available?(on: boolean): void;
+    said?(placement: string, label: string | null): void;
+  };
   // What the room's loader takes from the room (spec 004, T134; R-28): absent, models load at once, unheld, at full
   // size, and their events go nowhere.
   /** Whether studio models may load here: ADR 0010's floor, which the room reads once, behind the choice, with spec
@@ -172,7 +192,8 @@ export interface ClearArea {
 }
 
 /** One of the room's two figures (spec 009). */
-export type FigureId = "twin" | "visitor";
+/** The room's figures: the twin's, the visitor's, and spec 025's room dog (its FR-019). */
+export type FigureId = "twin" | "visitor" | "dog";
 
 /** Why a figure shows its fallback (spec 009, plan.md §3.4): its avatar has no file in the bundle; a file failed after
  *  its retry, or was skipped (the ledger, a stop); the device is below the floor; the room went to 2D; the avatar
@@ -189,9 +210,18 @@ export type FigureSignal =
       readonly figure: FigureId;
       readonly shows: "avatar" | "fallback" | "own" | "still" | "drawing";
       readonly why: FigureWhy | null;
+      /** Spec 020 (FR-007; plan.md R-02): the bundle's `avatars.<id>.line`, only while an avatar with one shows. */
+      readonly line?: string;
     }
   | { readonly kind: "clip"; readonly figure: FigureId; readonly role: ClipRole | TwinClipRole }
+  | { readonly kind: "gait"; readonly figure: FigureId; readonly state: "unavailable" }
   | { readonly kind: "twin-state"; readonly state: TwinState; readonly role: TwinClipRole }
+  /** Spec 025 (FR-025; plan.md R-07): the run's start and end, once each, by the figures that move. */
+  | { readonly kind: "chase"; readonly state: "started" | "ended"; readonly who: "both" | "twin" | "dog" }
+  /** Spec 026 (FR-024): a petting has started: its line, said once in the polite live region. */
+  | { readonly kind: "pet-note" }
+  /** Spec 026 (FR-026; R-11): one frame-log record a petting, done, cut, or skipped; no payload. */
+  | { readonly kind: "twin-pet"; readonly record: PetRecord }
   | { readonly kind: "failed" };
 
 /** The 3D chunk's interface, which the room imports only after the WebGL 2 check. */

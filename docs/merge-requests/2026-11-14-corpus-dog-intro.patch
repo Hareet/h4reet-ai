@@ -1,0 +1,1191 @@
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/apps/web/room/scene.yaml b/apps/web/room/scene.yaml
+--- a/apps/web/room/scene.yaml
++++ b/apps/web/room/scene.yaml
+@@ -91,7 +91,10 @@
+     edible: { chunks: 4 }
+   - id: dog-sign
+     piece: dog-sign
+-    mount: { on: work-desk, anchor: top, offset: [0.27, 0, -0.04], turn: { y: -10 }, estimated: true }
++    # Spec 026 (T019; as amended, the page's Q297, answered: recommended, his to confirm or overturn): on the right
++    # wall, no turn, where RG6 passes (specs/026-twin-pets-dog/dog-sign-offset.md, "Off the desk"); Q287's floor
++    # mount put the sign under the "Eat" tile's box for a 3D dinosaur visit.
++    mount: { on: room-shell, anchor: right-wall, offset: [-0.2, 0.4, 0.0375], estimated: true }
+     frame: true
+     label: label.dog-sign
+   - id: chalkboard
+@@ -227,6 +230,12 @@
+     emblem: slate
+     members: [chalkboard]
+     action: { talk: { topic: mission } }
++  # Spec 026 (FR-016): the dog's sign, and the room's dog figure in 3D while it stands at home (FR-014).
++  - id: dog
++    name: Dog
++    members: [dog-sign]
++    figure: dog
++    action: { talk: { topic: hobbies-and-travel, lead: The dog first. } }
+ # Spec 024 (FR-011): the seconds an eaten chunk takes to grow back.
+ eating: { regrow_s: 20 }
+ handoff: { from: { placement: twin-figure, anchor: hand }, to: { placement: visitor-figure, anchor: hand } }
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/apps/web/test/room/dog-pick.test.ts b/apps/web/test/room/dog-pick.test.ts
+--- a/apps/web/test/room/dog-pick.test.ts
++++ b/apps/web/test/room/dog-pick.test.ts
+@@ -46,6 +46,10 @@
+   figure: "dog",
+   action: { talk: { topic: "hobbies-and-travel", lead: "The dog first." } },
+ };
++/** The scene's selectables without a `dog` (spec 026's human patch, T019, puts one in scene.yaml; Q297), so a test
++ *  that adds its own works whether or not the shipped scene holds it. */
++const lessDog = (selectables: unknown[]): unknown[] =>
++  selectables.filter((s) => (s as { id?: unknown }).id !== DOG_SELECTABLE.id);
+ 
+ const corners = (dog: { home: { at: [number, number]; heading_deg: number }; footprint_m: number }) => {
+   const h = (dog.home.heading_deg * Math.PI) / 180;
+@@ -153,7 +157,7 @@
+   const base = fileTree(REPO);
+   const text = new TextDecoder().decode(base.read(SCENE_PATH) ?? new Uint8Array());
+   const doc = parse(text) as { selectables: unknown[] };
+-  doc.selectables = [...doc.selectables, DOG_SELECTABLE];
++  doc.selectables = [...lessDog(doc.selectables), DOG_SELECTABLE];
+   const tree = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]]));
+   const policy = readRoomPolicy({ env: {}, root: REPO });
+   shipped = { tree, result: compose(tree, policy, STRICT) };
+@@ -291,10 +295,14 @@
+ 
+   it("gives no front without the selectable's figure, or without figures.dog", () => {
+     const base = fileTree(REPO);
+-    expect(figureFronts(geometryWith(base), { w: 1280, h: 800 }).size).toBe(0);
+     const text = new TextDecoder().decode(base.read(SCENE_PATH) ?? new Uint8Array());
++    // The scene without a `dog` selectable: no front.
++    const bare = parse(text) as { selectables: unknown[] };
++    bare.selectables = lessDog(bare.selectables);
++    const withoutDog = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(bare))]]));
++    expect(figureFronts(geometryWith(withoutDog), { w: 1280, h: 800 }).size).toBe(0);
+     const doc = parse(text) as { selectables: unknown[]; figures: Record<string, unknown> };
+-    doc.selectables = [...doc.selectables, DOG_SELECTABLE];
++    doc.selectables = [...lessDog(doc.selectables), DOG_SELECTABLE];
+     delete doc.figures.dog;
+     const tree = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]]));
+     expect(figureFronts(geometryWith(tree), { w: 1280, h: 800 }).size).toBe(0);
+@@ -312,7 +320,7 @@
+     const doc = parse(text) as { selectables: unknown[] };
+     const { figure: dropped, ...signOnly } = DOG_SELECTABLE;
+     void dropped;
+-    doc.selectables = [...doc.selectables, signOnly];
++    doc.selectables = [...lessDog(doc.selectables), signOnly];
+     const bare = geometryWith(overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]])));
+     const withoutFigure = pickSweep(bare).problems.map(key).sort();
+     console.log(
+@@ -338,7 +346,11 @@
+       const { figure: dropped, ...signOnly } = DOG_SELECTABLE;
+       void dropped;
+       // The dog piece's member the bicycle, on the side wall, away from the desk.
+-      d.selectables = [...d.selectables, { ...(figure ? DOG_SELECTABLE : signOnly), members: ["bicycle"] }, FIXTURE];
++      d.selectables = [
++        ...lessDog(d.selectables),
++        { ...(figure ? DOG_SELECTABLE : signOnly), members: ["bicycle"] },
++        FIXTURE,
++      ];
+       if (home) d.figures.dog.home.at = home;
+       return overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(d))]]));
+     };
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/apps/web/test/room/dog-selectable.test.ts b/apps/web/test/room/dog-selectable.test.ts
+--- a/apps/web/test/room/dog-selectable.test.ts
++++ b/apps/web/test/room/dog-selectable.test.ts
+@@ -43,14 +43,18 @@
+   if (composed) return composed;
+   const base = fileTree(REPO);
+   const text = new TextDecoder().decode(base.read(SCENE_PATH) ?? new Uint8Array());
++  // The scene's selectables without a `dog` (spec 026's human patch, T019, puts one in scene.yaml; Q297), so the
++  // comparison holds whether or not the shipped scene holds it.
+   const doc = parse(text) as { selectables: unknown[] };
++  doc.selectables = doc.selectables.filter((s) => (s as { id?: unknown }).id !== DOG_SELECTABLE.id);
++  const less = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]]));
+   doc.selectables = [...doc.selectables, DOG_SELECTABLE];
+   const tree = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]]));
+   const policy = readRoomPolicy({ env: {}, root: REPO });
+   const options = { mode: "strict" as const, drafts: false };
+   composed = {
+     with: compose(tree, policy, { ...options }),
+-    without: compose(base, policy, { ...options }),
++    without: compose(less, policy, { ...options }),
+   };
+   return composed;
+ }
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/apps/web/test/room/eat-3d.test.ts b/apps/web/test/room/eat-3d.test.ts
+--- a/apps/web/test/room/eat-3d.test.ts
++++ b/apps/web/test/room/eat-3d.test.ts
+@@ -492,7 +492,7 @@
+ 
+   it(`${DESK}: no placement or switch pose mounted on it loses the top under it`, () => {
+     const boxes = keepOutBoxes(scene, DESK);
+-    expect(boxes).toHaveLength(9);
++    expect(boxes).toHaveLength(8); // 9 until spec 026's human patch (T019, Q297) moved the dog sign off the desk
+     const prims = standing(DESK);
+     for (const box of boxes) {
+       const centre: V3 = [(box.min[0] + box.max[0]) / 2, 2, (box.min[2] + box.max[2]) / 2];
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/apps/web/test/room/eat-chunker.test.ts b/apps/web/test/room/eat-chunker.test.ts
+--- a/apps/web/test/room/eat-chunker.test.ts
++++ b/apps/web/test/room/eat-chunker.test.ts
+@@ -506,9 +506,9 @@
+     expect(asideCount(r, holder)).toBeGreaterThan(0);
+   });
+ 
+-  it(`${DESK}: sets aside the top under each of its 9 mounts (7 placements and the ${CHARGER}'s two desk poses)`, () => {
++  it(`${DESK}: sets aside the top under each of its 8 mounts (6 placements and the ${CHARGER}'s two desk poses)`, () => {
+     const r = of(DESK);
+-    expect(r.input.keepOuts).toHaveLength(9);
++    expect(r.input.keepOuts).toHaveLength(8); // 9 until spec 026's human patch (T019, Q297) moved the dog sign off the desk
+     for (const box of r.input.keepOuts) {
+       const centre: V3 = [(box.min[0] + box.max[0]) / 2, 2, (box.min[2] + box.max[2]) / 2];
+       const hit = firstHit(r.input.primitives, centre, [0, -1, 0]);
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/config/room-events.yaml b/config/room-events.yaml
+--- a/config/room-events.yaml
++++ b/config/room-events.yaml
+@@ -21,6 +21,7 @@
+   - "bicycle"
+   - "laptop"
+   - "chalkboard"
++  - "dog"
+ items:
+   - "ai-strategy"
+   - "change-management"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/config/room-topics.yaml b/config/room-topics.yaml
+--- a/config/room-topics.yaml
++++ b/config/room-topics.yaml
+@@ -23,3 +23,8 @@
+     corpus:
+       - "corpus/05-mission.md"
+     lead: null
++  - id: "dog"
++    topic: "hobbies-and-travel"
++    corpus:
++      - "corpus/04-hobbies-and-travel.md"
++    lead: "The dog first."
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/config/twin/corpus.json b/config/twin/corpus.json
+--- a/config/twin/corpus.json
++++ b/config/twin/corpus.json
+@@ -153,6 +153,10 @@
+         "text": "That Hareet won anything personally; Medic won on his pitch and design."
+       },
+       {
++        "file": "corpus/04-hobbies-and-travel.md",
++        "text": "That the dog in the room is a real dog: it is an AI-made likeness, not a photo or a recording."
++      },
++      {
+         "file": "corpus/05-mission.md",
+         "text": "That he personally won the AWS Imagine Momentum to Modernize Award (2025). Medic won it; he was the author and creator of the project Medic pitched and built for it."
+       },
+@@ -1176,13 +1180,13 @@
+       "text": "- `[A 2026-11-06]` The riding he does, in his words: \"Commuter riding around the city. I ride to my parents' house to have lunch weekly, I also ride a one-wheel and love exploring the extended city neighborhoods on a bicycle.\"\n- `[A 2026-11-06]` What he loves about getting around the city by bike, in his words: \"The weather is usually sunny and gorgeous, and biking allows you to take more of the outside in. I don't like driving at all, and only drive if I'm going hiking in the mountains and taking my dog. I even enjoy winter biking and layering up in clothes to keep warm and enjoying the crisp air.\""
+     },
+     {
+-      "chars": 1272,
++      "chars": 1555,
+       "file": "corpus/04-hobbies-and-travel.md",
+       "golden": null,
+       "heading": "Arya",
+       "id": "04-hobbies-and-travel#3",
+       "kind": "section",
+-      "text": "- `[A 2026-11-06]` His dog, in his words: \"Arya is a Nova Scotia Duck Tolling Retriever, known as a Duck Toller. When I used to stay in Minneapolis, one of my colleagues invited me up to a cabin at Lake of the Woods, which is a State Park at the border of Minnesota and Canada. My first time going up to a cabin, I thought we were camping outside in the cold and brought a ton of appropriate equipment. Instead, the cabin was essentially a second home, full of furnishings, isolated deep in Lake of the Woods. One of the neighbors during that stay was on a hunting trip, and had 3 duck tollers with him. I ended up playing with the dogs for the entire time we were there, that my friend offered me the keys to the cabin and told me I should come back and grab a dog or puppy from the neighbor. Within weeks, I had brought Arya back home and my life forever changed. She has kept me outside, active, walking, and playing when most of my hobbies and work life revolved around computers or tinkering with hardware. She introduced me to most of my friends, and especially my wife. Arya is now 13 years old, and has went camping across the country and across Canada several times with me. She's always up for an adventure, but certainly enjoys a snooze in her senior years. <3\""
++      "text": "- `[A 2026-11-06]` His dog, in his words: \"Arya is a Nova Scotia Duck Tolling Retriever, known as a Duck Toller. When I used to stay in Minneapolis, one of my colleagues invited me up to a cabin at Lake of the Woods, which is a State Park at the border of Minnesota and Canada. My first time going up to a cabin, I thought we were camping outside in the cold and brought a ton of appropriate equipment. Instead, the cabin was essentially a second home, full of furnishings, isolated deep in Lake of the Woods. One of the neighbors during that stay was on a hunting trip, and had 3 duck tollers with him. I ended up playing with the dogs for the entire time we were there, that my friend offered me the keys to the cabin and told me I should come back and grab a dog or puppy from the neighbor. Within weeks, I had brought Arya back home and my life forever changed. She has kept me outside, active, walking, and playing when most of my hobbies and work life revolved around computers or tinkering with hardware. She introduced me to most of my friends, and especially my wife. Arya is now 13 years old, and has went camping across the country and across Canada several times with me. She's always up for an adventure, but certainly enjoys a snooze in her senior years. <3\"\n- `[A 2026-11-13]` The dog in the room, in his words: \"it's okay that we use the likeness of my dog\". `[A 2026-11-14]` In his words: \"The dog is an AI-made, stylized Nova Scotia Duck Tolling Retriever, a dog of the breed and not a likeness of the Author's dog, shown by his choice.\""
+     },
+     {
+       "chars": 1007,
+@@ -2299,30 +2303,38 @@
+       "id": "chalkboard",
+       "lead": null,
+       "topic": "mission"
++    },
++    {
++      "files": [
++        "corpus/04-hobbies-and-travel.md"
++      ],
++      "id": "dog",
++      "lead": "The dog first.",
++      "topic": "hobbies-and-travel"
+     }
+   ],
+-  "sha256": "a2a1655d4b2da434c7eeb71a5cd36194003df52f8767349d500eada86cfe0251",
++  "sha256": "08a231e5185c741fdf8ff824bb77bccd76643640265c96c0917eac63c53d215b",
+   "topics": [
+     {
+       "files": [
+         "corpus/04-hobbies-and-travel.md"
+       ],
+       "id": "hobbies-and-travel",
+-      "sha256": "2d340b13a793674d88496615b7a25981270e82f07813ee145da3cd408c1777c5"
++      "sha256": "fbf21c2f06bd8d81a370937f29a967409981df103a5c95bb0c4c0aeecb81051f"
+     },
+     {
+       "files": [
+         "corpus/05-mission.md"
+       ],
+       "id": "mission",
+-      "sha256": "30d25e4aa1997f8201c671561c5dce8a17acebdd4e59ebd6ca01ee0e97940d32"
++      "sha256": "c028c92d9303beebeae8b32bdd8213dd112a057ea238886638ae39cc22a568ad"
+     },
+     {
+       "files": [
+         "corpus/06-work-projects.md"
+       ],
+       "id": "work-projects",
+-      "sha256": "037bae3cb62c565dd5d81658c2fa4b415493e798b15891de3e005652a832dbde"
++      "sha256": "6fdd269b9dd0b207511fa36113f95c596d3de86c659ce71bbaf0abbb8395aadc"
+     }
+   ]
+ }
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/corpus/04-hobbies-and-travel.md b/corpus/04-hobbies-and-travel.md
+--- a/corpus/04-hobbies-and-travel.md
++++ b/corpus/04-hobbies-and-travel.md
+@@ -1,7 +1,7 @@
+ # Hobbies and travel
+ Priority: none yet (his to set) · Status: draft from his interview of 2026-11-06, for Hareet's final read · Last verified: 2026-11-06
+ 
+-Tags as defined in `01-ai-strategy-and-cht.md`. His interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`. The document is filed as he pasted it in `intake/interview-2026-11-06-hobbies-mission-work.md`, and he approved each Golden Q&A below. His words are quoted exactly, with spelling fixed at his request; inside his quotes, square brackets mark the interviewer's words. Untagged lines are pointers to other files. The numbers are in `facts/hobbies-and-travel.yaml`. In the room, the snowboard and the bicycle open this topic, and the snowboard leads with winter.
++Tags as defined in `01-ai-strategy-and-cht.md`. His interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`; the line about the room's dog carries his order's date and his approval's. The document is filed as he pasted it in `intake/interview-2026-11-06-hobbies-mission-work.md`, and he approved each Golden Q&A below. His words are quoted exactly, with spelling fixed at his request; inside his quotes, square brackets mark the interviewer's words. Untagged lines are pointers to other files. The numbers are in `facts/hobbies-and-travel.yaml`. In the room, the snowboard, the bicycle, and the dog (its desk sign, and the room's dog figure) open this topic, and the snowboard leads with winter.
+ 
+ ## Snowboarding
+ 
+@@ -17,6 +17,7 @@
+ ## Arya
+ 
+ - `[A 2026-11-06]` His dog, in his words: "Arya is a Nova Scotia Duck Tolling Retriever, known as a Duck Toller. When I used to stay in Minneapolis, one of my colleagues invited me up to a cabin at Lake of the Woods, which is a State Park at the border of Minnesota and Canada. My first time going up to a cabin, I thought we were camping outside in the cold and brought a ton of appropriate equipment. Instead, the cabin was essentially a second home, full of furnishings, isolated deep in Lake of the Woods. One of the neighbors during that stay was on a hunting trip, and had {{slot:hobbies.cabin_tollers}} duck tollers with him. I ended up playing with the dogs for the entire time we were there, that my friend offered me the keys to the cabin and told me I should come back and grab a dog or puppy from the neighbor. Within weeks, I had brought Arya back home and my life forever changed. She has kept me outside, active, walking, and playing when most of my hobbies and work life revolved around computers or tinkering with hardware. She introduced me to most of my friends, and especially my wife. Arya is now {{slot:hobbies.arya_age}} years old, and has went camping across the country and across Canada several times with me. She's always up for an adventure, but certainly enjoys a snooze in her senior years. <3"
++- `[A 2026-11-13]` The dog in the room, in his words: "it's okay that we use the likeness of my dog". `[A 2026-11-14]` In his words: "The dog is an AI-made, stylized Nova Scotia Duck Tolling Retriever, a dog of the breed and not a likeness of the Author's dog, shown by his choice."
+ 
+ ## Travel
+ 
+@@ -30,7 +31,9 @@
+ 
+ ## Do not claim
+ 
+-None named for this topic: asked whether there was anything about his hobbies, travel, or Arya the twin should refuse to say or claim, he said "No" `[A 2026-11-06]`. The list in `00-profile.md` still holds here, its location line among them.
++None named by him for this topic: asked whether there was anything about his hobbies, travel, or Arya the twin should refuse to say or claim, he said "No" `[A 2026-11-06]`. The list in `00-profile.md` still holds here, its location line among them.
++
++- That the dog in the room is a real dog: it is an AI-made likeness, not a photo or a recording.
+ 
+ ## Golden Q&A
+ 
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/docs/corpus-size.json b/docs/corpus-size.json
+--- a/docs/corpus-size.json
++++ b/docs/corpus-size.json
+@@ -6,21 +6,21 @@
+   "files": {
+     "topic": {
+       "files": 9,
+-      "bytes": 96567,
+-      "words": 15089,
+-      "chars": 96128
++      "bytes": 114831,
++      "words": 17666,
++      "chars": 114260
+     },
+     "facts": {
+       "files": 11,
+-      "bytes": 17556,
+-      "words": 2312,
+-      "chars": 17544
++      "bytes": 18005,
++      "words": 2358,
++      "chars": 17992
+     },
+     "total": {
+       "files": 20,
+-      "bytes": 114123,
+-      "words": 17401,
+-      "chars": 113672
++      "bytes": 132836,
++      "words": 20024,
++      "chars": 132252
+     },
+     "by_file": [
+       {
+@@ -49,9 +49,9 @@
+       },
+       {
+         "path": "corpus/04-hobbies-and-travel.md",
+-        "bytes": 9822,
+-        "words": 1727,
+-        "chars": 9804
++        "bytes": 10338,
++        "words": 1828,
++        "chars": 10320
+       },
+       {
+         "path": "corpus/05-mission.md",
+@@ -73,9 +73,9 @@
+       },
+       {
+         "path": "corpus/08-hareet-ai.md",
+-        "bytes": 5299,
+-        "words": 927,
+-        "chars": 5279
++        "bytes": 23047,
++        "words": 3403,
++        "chars": 22895
+       },
+       {
+         "path": "corpus/facts/awards.yaml",
+@@ -103,9 +103,9 @@
+       },
+       {
+         "path": "corpus/facts/hareet-ai.yaml",
+-        "bytes": 467,
+-        "words": 55,
+-        "chars": 467
++        "bytes": 916,
++        "words": 101,
++        "chars": 915
+       },
+       {
+         "path": "corpus/facts/hobbies-and-travel.yaml",
+@@ -159,9 +159,9 @@
+     "room": 21182
+   },
+   "base": {
+-    "rules": 5833,
++    "rules": 6198,
+     "profile": 6189,
+-    "base": 12022
++    "base": 12387
+   },
+   "topics": [
+     {
+@@ -169,12 +169,12 @@
+       "files": [
+         "corpus/04-hobbies-and-travel.md"
+       ],
+-      "rendered": 8894,
+-      "grounding": 20916,
+-      "share": 0.9874,
+-      "margin": 266,
++      "rendered": 9177,
++      "grounding": 21564,
++      "share": 1.018,
++      "margin": -382,
+       "lead": 41,
+-      "margin_after_lead": 225
++      "margin_after_lead": -423
+     },
+     {
+       "id": "mission",
+@@ -182,11 +182,11 @@
+         "corpus/05-mission.md"
+       ],
+       "rendered": 9023,
+-      "grounding": 21045,
+-      "share": 0.9935,
+-      "margin": 137,
++      "grounding": 21410,
++      "share": 1.0108,
++      "margin": -228,
+       "lead": 0,
+-      "margin_after_lead": 137
++      "margin_after_lead": -228
+     },
+     {
+       "id": "work-projects",
+@@ -194,44 +194,44 @@
+         "corpus/06-work-projects.md"
+       ],
+       "rendered": 7621,
+-      "grounding": 19643,
+-      "share": 0.9273,
+-      "margin": 1539,
++      "grounding": 20008,
++      "share": 0.9446,
++      "margin": 1174,
+       "lead": 0,
+-      "margin_after_lead": 1539
++      "margin_after_lead": 1174
+     }
+   ],
+   "by_file": [
+     {
+       "file": "corpus/01-ai-strategy-and-cht.md",
+       "rendered": 30059,
+-      "grounding": 42081,
+-      "share": 1.9866,
+-      "margin": -20899,
++      "grounding": 42446,
++      "share": 2.0039,
++      "margin": -21264,
+       "in_topics": []
+     },
+     {
+       "file": "corpus/02-production-infrastructure-national-scale.md",
+       "rendered": 7456,
+-      "grounding": 19478,
+-      "share": 0.9196,
+-      "margin": 1704,
++      "grounding": 19843,
++      "share": 0.9368,
++      "margin": 1339,
+       "in_topics": []
+     },
+     {
+       "file": "corpus/03-grants-and-credits.md",
+       "rendered": 2049,
+-      "grounding": 14071,
+-      "share": 0.6643,
+-      "margin": 7111,
++      "grounding": 14436,
++      "share": 0.6815,
++      "margin": 6746,
+       "in_topics": []
+     },
+     {
+       "file": "corpus/04-hobbies-and-travel.md",
+-      "rendered": 8894,
+-      "grounding": 20916,
+-      "share": 0.9874,
+-      "margin": 266,
++      "rendered": 9177,
++      "grounding": 21564,
++      "share": 1.018,
++      "margin": -382,
+       "in_topics": [
+         "hobbies-and-travel"
+       ]
+@@ -239,9 +239,9 @@
+     {
+       "file": "corpus/05-mission.md",
+       "rendered": 9023,
+-      "grounding": 21045,
+-      "share": 0.9935,
+-      "margin": 137,
++      "grounding": 21410,
++      "share": 1.0108,
++      "margin": -228,
+       "in_topics": [
+         "mission"
+       ]
+@@ -249,9 +249,9 @@
+     {
+       "file": "corpus/06-work-projects.md",
+       "rendered": 7621,
+-      "grounding": 19643,
+-      "share": 0.9273,
+-      "margin": 1539,
++      "grounding": 20008,
++      "share": 0.9446,
++      "margin": 1174,
+       "in_topics": [
+         "work-projects"
+       ]
+@@ -259,29 +259,29 @@
+     {
+       "file": "corpus/07-denver-local-ai.md",
+       "rendered": 8797,
+-      "grounding": 20819,
+-      "share": 0.9829,
+-      "margin": 363,
++      "grounding": 21184,
++      "share": 1.0001,
++      "margin": -2,
+       "in_topics": []
+     },
+     {
+       "file": "corpus/08-hareet-ai.md",
+-      "rendered": 4303,
+-      "grounding": 16325,
+-      "share": 0.7707,
+-      "margin": 4857,
++      "rendered": 21711,
++      "grounding": 34098,
++      "share": 1.6098,
++      "margin": -12916,
+       "in_topics": []
+     }
+   ],
+   "free_talk": {
+-    "room": 9160,
+-    "rankable": 78202,
+-    "share": 0.1171
++    "room": 8795,
++    "rankable": 95893,
++    "share": 0.0917
+   },
+   "pack": {
+-    "sections": 131,
+-    "bytes": 153697,
+-    "rendered": 84391,
++    "sections": 150,
++    "bytes": 179431,
++    "rendered": 102082,
+     "longest_section": 3140
+   },
+   "thresholds": {
+@@ -293,10 +293,10 @@
+     "t3_band": 0.5
+   },
+   "stage": {
+-    "stage": 0,
+-    "crossed": [],
+-    "band": [
++    "stage": 1,
++    "crossed": [
+       "T1"
+-    ]
++    ],
++    "band": []
+   }
+ }
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/docs/studio/photo-guide.md b/docs/studio/photo-guide.md
+--- a/docs/studio/photo-guide.md
++++ b/docs/studio/photo-guide.md
+@@ -61,7 +61,6 @@
+ - [ ] Laptop stand: x 1.3, y 0, z -0.5 (estimated)
+ - [ ] Laptop: x 1.3, y 0.12, z -0.5 (estimated)
+ - [ ] Desk sign, busy: x 0.2, y 0, z -0.43 (estimated)
+-- [ ] Desk sign, dog: x 1.02, y 0, z -0.44 (estimated)
+ - [ ] `split-keyboard`: x 0.61, y 0, z -0.19 (estimated)
+ - [ ] `vertical-mouse`: x 0.91, y 0, z -0.17 (estimated)
+ - [ ] `notebook`: x 0.28, y 0, z -0.19 (estimated)
+@@ -69,6 +68,7 @@
+ On the shell, at its anchors:
+ 
+ - [ ] Desk: on the anchor `back-wall`, offset x 0, y 0, z 0.4 (estimated)
++- [ ] Desk sign, dog: on the anchor `right-wall`, its origin (on the desk, below the centre of the sign's foot) 0.4096 from the back wall and 0.4 above the floor, 0.0375 out from the wall (estimated)
+ - [ ] Chalkboard: on the anchor `left-wall`, its origin (the centre of the board's back, against the wall) 0.8972 from the back wall and 1.65 above the floor, 0 out from the wall (estimated)
+ - [ ] Snowboard: on the anchor `left-wall`, its origin (the centre of the board, midway along its length and across its width, in the middle of its thickness) 0.2096 from the back wall and 0.775 above the floor, 0.035 out from the wall (estimated)
+ - [ ] Bicycle: on the anchor `right-wall`, its origin (midway between the two wheels' hubs) 0.8317 from the back wall and 1.49 above the floor, 0.09 out from the wall (estimated)
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/docs/studio/work-orders/dog-sign.md b/docs/studio/work-orders/dog-sign.md
+--- a/docs/studio/work-orders/dog-sign.md
++++ b/docs/studio/work-orders/dog-sign.md
+@@ -17,7 +17,7 @@
+ - The lettering area's width and height, and its position on the face.
+ - Where the sign stands on the desk, from the desk's front-left corner.
+ - Measure: the size, now estimated at 0.16 × 0.12 × 0.05 m (w × h × d).
+-- Measure: where `dog-sign` sits, now estimated: on `work-desk`'s anchor `top`, offset (0.27, 0, -0.04) m.
++- Measure: where `dog-sign` sits, now estimated: on `room-shell`'s anchor `right-wall`, offset (-0.2, 0.4, 0.0375) m.
+ 
+ ## Size, origin, and bounds
+ 
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-agent-orchestrator-engineer.yaml b/evals/narration/cases/narration-agent-orchestrator-engineer.yaml
+--- a/evals/narration/cases/narration-agent-orchestrator-engineer.yaml
++++ b/evals/narration/cases/narration-agent-orchestrator-engineer.yaml
+@@ -42,6 +42,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml b/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
+--- a/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
++++ b/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
+@@ -39,6 +39,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-agent-watchdog-engineer.yaml b/evals/narration/cases/narration-agent-watchdog-engineer.yaml
+--- a/evals/narration/cases/narration-agent-watchdog-engineer.yaml
++++ b/evals/narration/cases/narration-agent-watchdog-engineer.yaml
+@@ -43,6 +43,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml b/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
+--- a/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
++++ b/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-ai-strategy-engineer.yaml b/evals/narration/cases/narration-ai-strategy-engineer.yaml
+--- a/evals/narration/cases/narration-ai-strategy-engineer.yaml
++++ b/evals/narration/cases/narration-ai-strategy-engineer.yaml
+@@ -44,6 +44,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-ai-strategy-non-engineer.yaml b/evals/narration/cases/narration-ai-strategy-non-engineer.yaml
+--- a/evals/narration/cases/narration-ai-strategy-non-engineer.yaml
++++ b/evals/narration/cases/narration-ai-strategy-non-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-change-management-engineer.yaml b/evals/narration/cases/narration-change-management-engineer.yaml
+--- a/evals/narration/cases/narration-change-management-engineer.yaml
++++ b/evals/narration/cases/narration-change-management-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-change-management-non-engineer.yaml b/evals/narration/cases/narration-change-management-non-engineer.yaml
+--- a/evals/narration/cases/narration-change-management-non-engineer.yaml
++++ b/evals/narration/cases/narration-change-management-non-engineer.yaml
+@@ -39,6 +39,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml b/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
+--- a/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
++++ b/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
+@@ -42,6 +42,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml b/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
+--- a/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
+@@ -39,6 +39,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-cht-agent-engineer.yaml b/evals/narration/cases/narration-cht-agent-engineer.yaml
+--- a/evals/narration/cases/narration-cht-agent-engineer.yaml
++++ b/evals/narration/cases/narration-cht-agent-engineer.yaml
+@@ -46,6 +46,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-cht-agent-non-engineer.yaml b/evals/narration/cases/narration-cht-agent-non-engineer.yaml
+--- a/evals/narration/cases/narration-cht-agent-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-agent-non-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-cht-codebase-engineer.yaml b/evals/narration/cases/narration-cht-codebase-engineer.yaml
+--- a/evals/narration/cases/narration-cht-codebase-engineer.yaml
++++ b/evals/narration/cases/narration-cht-codebase-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-cht-codebase-non-engineer.yaml b/evals/narration/cases/narration-cht-codebase-non-engineer.yaml
+--- a/evals/narration/cases/narration-cht-codebase-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-codebase-non-engineer.yaml
+@@ -38,6 +38,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml b/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
+--- a/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
++++ b/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
+@@ -39,6 +39,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml b/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
+--- a/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
+@@ -39,6 +39,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-cht-skills-engineer.yaml b/evals/narration/cases/narration-cht-skills-engineer.yaml
+--- a/evals/narration/cases/narration-cht-skills-engineer.yaml
++++ b/evals/narration/cases/narration-cht-skills-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-cht-skills-non-engineer.yaml b/evals/narration/cases/narration-cht-skills-non-engineer.yaml
+--- a/evals/narration/cases/narration-cht-skills-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-skills-non-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-claude-medic-aws-engineer.yaml b/evals/narration/cases/narration-claude-medic-aws-engineer.yaml
+--- a/evals/narration/cases/narration-claude-medic-aws-engineer.yaml
++++ b/evals/narration/cases/narration-claude-medic-aws-engineer.yaml
+@@ -43,6 +43,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml b/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
+--- a/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
++++ b/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-cloud-data-centers-engineer.yaml b/evals/narration/cases/narration-cloud-data-centers-engineer.yaml
+--- a/evals/narration/cases/narration-cloud-data-centers-engineer.yaml
++++ b/evals/narration/cases/narration-cloud-data-centers-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml b/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
+--- a/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
++++ b/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
+@@ -38,6 +38,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-denver-local-ai-engineer.yaml b/evals/narration/cases/narration-denver-local-ai-engineer.yaml
+--- a/evals/narration/cases/narration-denver-local-ai-engineer.yaml
++++ b/evals/narration/cases/narration-denver-local-ai-engineer.yaml
+@@ -43,6 +43,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml b/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
+--- a/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
++++ b/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-hareet-ai-engineer.yaml b/evals/narration/cases/narration-hareet-ai-engineer.yaml
+--- a/evals/narration/cases/narration-hareet-ai-engineer.yaml
++++ b/evals/narration/cases/narration-hareet-ai-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-hareet-ai-non-engineer.yaml b/evals/narration/cases/narration-hareet-ai-non-engineer.yaml
+--- a/evals/narration/cases/narration-hareet-ai-non-engineer.yaml
++++ b/evals/narration/cases/narration-hareet-ai-non-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-kenya-localization-engineer.yaml b/evals/narration/cases/narration-kenya-localization-engineer.yaml
+--- a/evals/narration/cases/narration-kenya-localization-engineer.yaml
++++ b/evals/narration/cases/narration-kenya-localization-engineer.yaml
+@@ -39,6 +39,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-kenya-localization-non-engineer.yaml b/evals/narration/cases/narration-kenya-localization-non-engineer.yaml
+--- a/evals/narration/cases/narration-kenya-localization-non-engineer.yaml
++++ b/evals/narration/cases/narration-kenya-localization-non-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-national-benchmarking-engineer.yaml b/evals/narration/cases/narration-national-benchmarking-engineer.yaml
+--- a/evals/narration/cases/narration-national-benchmarking-engineer.yaml
++++ b/evals/narration/cases/narration-national-benchmarking-engineer.yaml
+@@ -39,6 +39,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml b/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
+--- a/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
++++ b/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
+@@ -39,6 +39,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-national-scale-engineer.yaml b/evals/narration/cases/narration-national-scale-engineer.yaml
+--- a/evals/narration/cases/narration-national-scale-engineer.yaml
++++ b/evals/narration/cases/narration-national-scale-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-national-scale-non-engineer.yaml b/evals/narration/cases/narration-national-scale-non-engineer.yaml
+--- a/evals/narration/cases/narration-national-scale-non-engineer.yaml
++++ b/evals/narration/cases/narration-national-scale-non-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-no-code-configuration-engineer.yaml b/evals/narration/cases/narration-no-code-configuration-engineer.yaml
+--- a/evals/narration/cases/narration-no-code-configuration-engineer.yaml
++++ b/evals/narration/cases/narration-no-code-configuration-engineer.yaml
+@@ -42,6 +42,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml b/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
+--- a/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
++++ b/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-other-deployments-engineer.yaml b/evals/narration/cases/narration-other-deployments-engineer.yaml
+--- a/evals/narration/cases/narration-other-deployments-engineer.yaml
++++ b/evals/narration/cases/narration-other-deployments-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-other-deployments-non-engineer.yaml b/evals/narration/cases/narration-other-deployments-non-engineer.yaml
+--- a/evals/narration/cases/narration-other-deployments-non-engineer.yaml
++++ b/evals/narration/cases/narration-other-deployments-non-engineer.yaml
+@@ -39,6 +39,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-powersync-postgres-engineer.yaml b/evals/narration/cases/narration-powersync-postgres-engineer.yaml
+--- a/evals/narration/cases/narration-powersync-postgres-engineer.yaml
++++ b/evals/narration/cases/narration-powersync-postgres-engineer.yaml
+@@ -44,6 +44,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml b/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
+--- a/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
++++ b/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml b/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
+--- a/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
++++ b/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml b/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
+--- a/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
++++ b/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-tools-engineer.yaml b/evals/narration/cases/narration-tools-engineer.yaml
+--- a/evals/narration/cases/narration-tools-engineer.yaml
++++ b/evals/narration/cases/narration-tools-engineer.yaml
+@@ -43,6 +43,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-tools-non-engineer.yaml b/evals/narration/cases/narration-tools-non-engineer.yaml
+--- a/evals/narration/cases/narration-tools-non-engineer.yaml
++++ b/evals/narration/cases/narration-tools-non-engineer.yaml
+@@ -38,6 +38,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-voice-for-cht-engineer.yaml b/evals/narration/cases/narration-voice-for-cht-engineer.yaml
+--- a/evals/narration/cases/narration-voice-for-cht-engineer.yaml
++++ b/evals/narration/cases/narration-voice-for-cht-engineer.yaml
+@@ -45,6 +45,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml b/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
+--- a/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
++++ b/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/product/cases/twin-04-hobbies-and-travel-q1-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q1-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q1-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q1-engineer.yaml
+@@ -25,4 +25,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/product/cases/twin-04-hobbies-and-travel-q1-non-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q1-non-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q1-non-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q1-non-engineer.yaml
+@@ -25,4 +25,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/product/cases/twin-04-hobbies-and-travel-q2-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q2-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q2-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q2-engineer.yaml
+@@ -24,4 +24,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/product/cases/twin-04-hobbies-and-travel-q2-non-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q2-non-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q2-non-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q2-non-engineer.yaml
+@@ -24,4 +24,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/product/cases/twin-04-hobbies-and-travel-q3-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q3-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q3-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q3-engineer.yaml
+@@ -23,4 +23,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/product/cases/twin-04-hobbies-and-travel-q3-non-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q3-non-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q3-non-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q3-non-engineer.yaml
+@@ -23,4 +23,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/product/cases/twin-04-hobbies-and-travel-q4-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q4-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q4-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q4-engineer.yaml
+@@ -23,4 +23,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/product/cases/twin-04-hobbies-and-travel-q4-non-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q4-non-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q4-non-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q4-non-engineer.yaml
+@@ -23,4 +23,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/product/cases/twin-04-hobbies-and-travel-q5-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q5-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q5-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q5-engineer.yaml
+@@ -25,4 +25,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/product/cases/twin-04-hobbies-and-travel-q5-non-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q5-non-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q5-non-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q5-non-engineer.yaml
+@@ -25,4 +25,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/product/cases/twin-04-hobbies-and-travel-q6-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q6-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q6-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q6-engineer.yaml
+@@ -25,4 +25,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/product/cases/twin-04-hobbies-and-travel-q6-non-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q6-non-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q6-non-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q6-non-engineer.yaml
+@@ -25,4 +25,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/product/cases/twin-04-hobbies-and-travel-q7-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q7-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q7-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q7-engineer.yaml
+@@ -25,4 +25,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/product/cases/twin-04-hobbies-and-travel-q7-non-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q7-non-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q7-non-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q7-non-engineer.yaml
+@@ -25,4 +25,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/product/cases/twin-04-hobbies-and-travel-q8-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q8-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q8-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q8-engineer.yaml
+@@ -23,4 +23,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/evals/product/cases/twin-04-hobbies-and-travel-q8-non-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q8-non-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q8-non-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q8-non-engineer.yaml
+@@ -23,4 +23,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"

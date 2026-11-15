@@ -54,8 +54,9 @@ describe("the text copy (renderTextCopy)", () => {
   it("heads a section with around.heading, listing each switch's state and the fixed lines in copy[]'s order", () => {
     const { index } = fixture();
     // The fixture's copy[] holds every kind of entry: its faces, its switch, the sign's figures, and the fixed lines.
+    // Spec 020's visitor line slot too, which shows nothing until a line is given (changed with its T007, R-04).
     expect(new Set(index.copy.map((e) => Object.keys(e)[0]))).toEqual(
-      new Set(["twin_line", "face", "switch", "figures", "line"]),
+      new Set(["twin_line", "visitor_line", "face", "switch", "figures", "line"]),
     );
     const copy = renderTextCopy(page(), index);
     const section = copy.element;

@@ -976,12 +976,14 @@ describe("the proof set, spec 008's highlight (FR-057, SC-006)", () => {
 describe("the proof set, spec 008's walking data (FR-056, SC-006)", () => {
   it.each([
     [
+      // Spec 025 (FR-005; T013): 1.4, not 1.5, since the shipped `figures.chase` runs the twin at 2.0 m/s, and FR-005
+      // refuses a run speed not above the walking speed + 0.5; a faster walk is a data edit with the run's speeds.
       "the walking speed",
       (w: Record<string, unknown>): void => {
-        w.speed_mps = 1.5;
+        w.speed_mps = 1.4;
       },
       (s: RoomScene): number => s.walking.speed_mps,
-      1.5,
+      1.4,
     ],
     [
       "a camera limit",
