@@ -1,5 +1,81 @@
 # Notes: spec-026 and its reworks (2026-11-14)
 
+## rework3-026 (`night/rework3-026/rework3-026`, from impl3-026's tip 245df0eb, Opus 5.5)
+
+Written by the night-shift implementer rework3-026, 2026-11-14 about 23:45Z to 2026-11-15 about 00:30Z, for the page's Q284 (FR-027 over the real adapters and spec 025's real director). rv-rework3-026 reviews it; item 9's verify follows. This branch merges nothing.
+
+**Test first.** `pet-bench.test.ts`'s `it.fails` case became `it`, with its bar of 12 bytes a petting (130a656a). RED: 20.82 bytes a petting with the case run alone. Then each fix had its own RED and GREEN (below).
+
+**What allocated, measured.** I used V8's sampling heap profiler in a scratch test, since deleted. The adapters' views allocate nothing: each frame they write strings and booleans, and no number. The bytes came from fractions crossing calls V8 doesn't inline. With the real adapters in the director's frame, TurboFan's inlining budget runs out before it reaches `weightAt`, `strokeShare`, and `strokeTarget`. Then `n.t`, the share, and the dog's heading are boxed at each call, and the weight at each return. The same happens once a petting for `faceTwin(n.aim)`, and in each turn and return frame for `twinHeading()`'s return. Raising the budget (`--max-inlined-bytecode-size-cumulative=20000`, in the scratch test only) took the same run from 17.83 to 1.83 bytes a petting, the test's own call.
+
+**The fix: no fraction on those calls** (plan R-04's "As reworked (rework3-026)"; §4's adapter line):
+
+1. `reachAt(clock, head, cfg, out)` (`pet-reach.ts`) is the director's per-frame call. It takes objects only, writes out the three formulas in its body, and gives the same numbers to the bit. A new `pet-reach.test.ts` case checks that over four petting lengths, three headings, and the ease's edges (RED 26346b24, GREEN 317c90b2).
+2. `PetChase.twinFacing?()` is optional: an object whose `facing` is the twin's heading. The adapter gives spec 025's runner itself, or a `HomeFacing` instance where there's no run shell. `atAim` and `atHome` read it where it's given, else `twinHeading()` (the fakes). RED 34aae710: the director's turn ran to its 1 s limit, 59 frames, on a `twinHeading` of NaN. The adapter's two cases failed with no such method. GREEN c178b290.
+3. `faceTwin` is asked with the aim held in a tagged field, written only when the aim changes. A comparison of two unboxed numbers tells when it changes. A first try compared the tagged field with the number directly; that comparison is generic once it has seen null, and it boxed one number a petting (16.25 bytes in the short and cut cases). That try was replaced in c178b290.
+4. Spec 025's `turnTwin` takes no argument. `turnToward`'s arithmetic is written out in it, and the frame's step is in a `Face` field, so the numbers are the same. `turnToward` is unchanged for `steer` and `walkHome`. The runner stays spec 025's literal. `chase-figures.ts` is unchanged and remains the twin heading's one writer (R-07). `turnTwin` writes only the runner's `facing`, at home, as before, so item 8's B-1 stays out (Q282).
+
+**Departures, on the page.**
+
+- **(a) The views stay as built.** Q284's recommended answer said to take them out of the per-frame path. Measured, they make nothing.
+- **(b) The case is in a file of its own, `pet-bench-real.test.ts`, with the measure moved unchanged to `test/helpers/bench.ts`.** In `pet-bench.test.ts` the fakes' directors run first. All the closures `createPet` makes share V8's feedback, so their call targets were inlined into the real director's code. The measure's `gc()` collected them, and V8 deoptimized `frame`, `select`, `atAim`, and `atHome` partway through the measure ("embedded weak objects cleared", `--trace-deopt`); `select` stayed unoptimized afterward. With (1) to (4) in, the five runs read 2,325.91, 994.52, 2,203.27, 466.51, and 466.51 bytes a petting; the case alone read 4.82. That measures a page with many directors, and the page has one. In a file of its own the case runs in a process of its own, so the warm-up optimizes what the page runs (Q259's premise). RED in the new file on impl3-026's four source files (a scratch restore of `pet.ts`, `pet-reach.ts`, `pet-adapters.ts`, and `chase.ts` from 245df0eb, then put back): 130.57 bytes a petting. The `FIX_TASK` hook doesn't apply to this task, so moving the case was allowed, and I did it in the open. The page asks him to confirm it.
+
+**Small runs (rule 4), from `apps/web` unless said; every number beside its run:**
+
+```
+RED   pet-bench -t "real adapters" (130a656a)    Tests 1 failed | 5 skipped (6)
+        pet.select and pet.frame over the real adapters, with chase.frame: 20.82 bytes a petting of 252 frames;
+        0.0001 ms a frame                         (expected 20.816 to be less than 12)
+RED   pet-reach (26346b24)                       Tests 1 failed | 25 passed (26); reachAt is not a function
+GREEN pet-reach (317c90b2)                       Tests 26 passed (26)
+RED   pet-director, pet-adapters (34aae710)      Tests 3 failed | 29 passed (32); the turn 59 frames, expected < 30
+GREEN pet-director, pet-adapters (c178b290)      Tests 32 passed (32)
+RED   pet-bench-real on 245df0eb's source        Tests 1 failed (1)
+        pet.select and pet.frame over the real adapters, with chase.frame: 130.57 bytes a petting of 252 frames;
+        0.0001 ms a frame
+GREEN pet-bench-real, three runs                 Tests 1 passed (1), each
+        pet.select and pet.frame over the real adapters, with chase.frame: 6.49 bytes a petting of 252 frames;
+        0.0001 ms a frame
+        ... 6.49 bytes a petting ...; ... 6.60 bytes a petting ...
+GREEN pet-bench                                  Tests 5 passed (5) · Duration 72.18s
+        pet.select and pet.frame, a whole petting of 251 frames (turn 19, petting 211, return 20; 59 eased): 3.96
+          bytes a petting
+        pet.select and pet.frame, a short petting of 9 frames: 0.25 bytes a petting
+        pet.frame through a cut petting of 40 frames (fade 11): 0.25 bytes a cut petting
+        applyReachLayer at weight 1: 0.25 bytes a frame; legs off 0.25; 0.0047 ms a frame; legs off 0.0033 ms
+        applyReachLayer at weight 0.37: 0.25 bytes a frame; legs off 0.25; 0.0041 ms a frame; legs off 0.0033 ms
+        the wired twin's frame (pet.frame, the run's shell, figures.update): linked 685.28 bytes and 0.0115 ms a
+          frame; unlinked 685.23 bytes and 0.0047 ms; the reach adds 0.04 bytes and 0.0068 ms
+spec 025's chase tests: chase-bench, chase-degraded, chase-director, chase-end-line, chase-face, chase-figures,
+        chase-handoff, chase-notes, chase-schema, chase-states, chase-steer: Test Files 11 passed (11) · Tests 144
+        passed (144)
+the files covering what changed (pet.ts, pet-reach.ts, pet-adapters.ts): dog-selectable, pet-adapters, pet-degraded,
+        pet-director, pet-homes, pet-notes, pet-reach-measure, pet-reach-rig, pet-reach, pet-wiring: Test Files 10
+        passed (10) · Tests 158 passed (158)
+```
+
+The lint target, from the root, at ba752ec0, exit 0:
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+821 files already formatted
+# then shellcheck over the repository's scripts: no finding; make exited 0
+```
+
+No full `make check`: the stack's last task runs it once (rule 4).
+
+**What isn't measured.** The page's own once-a-petting functions in V8's lower tiers (a petting comes at most once in `cooldown_s`), as in rework2-026's note. Also the clip's path and the draft build's frame log. The `dt` the page passes to `pet.frame` and `chase.frame`: the bench passes a constant.
+
+**Interruptions (rework3-026).** No hook or bash-gate refusal; nothing was respelled. `make setup` installed `node_modules` (the worktree had none) and said the git hooks directory isn't writable in the sandbox.
+
 ## impl3-026 (`night/impl3-026/impl3-026`, from rework2-026's tip 82e3508b, Opus 5.5)
 
 Written by the night-shift implementer impl3-026, 2026-11-14, about 21:30Z to 23:45Z. The review is for a worker who didn't write the code (T022, rule 6).
