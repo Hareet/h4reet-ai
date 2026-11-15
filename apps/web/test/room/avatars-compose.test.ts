@@ -462,10 +462,12 @@ describe("the data-only proof set on the repository's own data (FR-037, SC-008)"
     expect(committed.figures).toMatchObject({ twin_stand_in: "man", texture_px: 1024, wait_ms: 1500 });
     // Spec 016 (FR-054; changed with T042, plan.md R-18): the twin's own block beside spec 009's and spec 014's keys.
     // Spec 025 (FR-018; T011): the room's dog's block beside them; and (FR-005; T013) the run's.
+    // Spec 026 (plan §3; T012, its closed-list pin taken by verify-026): the petting's block.
     expect(Object.keys(committed.figures ?? {}).sort()).toEqual([
       "chase",
       "dog",
       "grips",
+      "pet",
       "texture_px",
       "twin",
       "twin_stand_in",

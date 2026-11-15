@@ -4,11 +4,15 @@
 // - With the dinosaur chosen and `options.handoff` pending, the stage makes no shell and signals no `chase`, its
 //   walking view on, however many frames run.
 // - Once the promise resolves, the shell is made, once.
-// - Another chosen avatar never makes it, the hand-off ended.
+// - Spec 026 (Q282; the page's Q296, rv-rework3-026's B-1; spec 026's plan.md R-07 names this edit as its departure):
+//   with the scene's dog, the shell is made once for each non-dinosaur visitor after the hand-off ends, never while it
+//   is pending, and it signals no `chase` and starts no run (FR-001). With a scene without `figures.dog`, another
+//   chosen avatar never makes it, the hand-off ended.
 import { JSDOM } from "jsdom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AvatarId } from "../../src/choice/avatars";
+import type { RoomScene } from "../../src/room/compose/bundle";
 import { createScene } from "../../src/room/scene";
 import type { FigureSignal } from "../../src/room/stage";
 import { FakeClock, flush, repositoryBundle } from "../helpers/room";
@@ -17,6 +21,7 @@ import type { TestWindow } from "../helpers/room";
 const swapped = vi.hoisted(() => ({
   renderer: null as ((parameters: unknown) => unknown) | null,
   made: [] as string[],
+  part: null as RoomScene | null,
 }));
 
 vi.mock("three", async (importOriginal) => {
@@ -25,6 +30,16 @@ vi.mock("three", async (importOriginal) => {
     return swapped.renderer ? swapped.renderer(parameters) : new three.WebGLRenderer(parameters as never);
   }
   return { ...three, WebGLRenderer };
+});
+
+// The repository's 3D part, or a copy of it (spec 026, Q296: without `figures.dog`).
+vi.mock("virtual:room-scene", async (importOriginal) => {
+  const own = await importOriginal<{ default: RoomScene }>();
+  return {
+    get default() {
+      return swapped.part ?? own.default;
+    },
+  };
 });
 
 // The real shell, counted as the stage makes it.
@@ -42,6 +57,7 @@ vi.mock("../../src/room/scene/chase-figures", async (importOriginal) => {
 afterEach(() => {
   swapped.renderer = null;
   swapped.made = [];
+  swapped.part = null;
 });
 
 function staged(avatar: AvatarId) {
@@ -139,12 +155,43 @@ describe("the stage's use of chaseDue (rv-rework-025's Nit-3; B-1 (b); FR-001)",
     r.stage.dispose();
   });
 
-  it.each(["woman", "man", "dog"] as const)("never makes it for the %s, the hand-off ended", async (avatar) => {
-    const r = staged(avatar);
-    r.end();
-    await r.ready();
-    await r.frames(10);
-    expect(swapped.made).toEqual([]);
-    r.stage.dispose();
-  });
+  // Spec 026 (Q282, Q296; rv-rework3-026's B-1): the departure from this case's earlier "never makes it", named in
+  // spec 026's plan.md R-07.
+  it.each(["woman", "man", "dog"] as const)(
+    "with the scene's dog, makes it once for the %s after the hand-off ends, never while it's pending, and signals no chase",
+    async (avatar) => {
+      expect(repositoryBundle().scene.figures.dog).toBeDefined();
+      const r = staged(avatar);
+      await r.ready();
+      r.stage.walk.enter(r.view);
+      await r.frames(30);
+      expect(swapped.made).toEqual([]);
+      r.end();
+      await flush();
+      await r.frames(1);
+      expect(swapped.made).toEqual([avatar]);
+      await r.frames(60);
+      expect(swapped.made).toEqual([avatar]);
+      expect(chased(r.signals)).toEqual([]);
+      r.stage.dispose();
+    },
+  );
+
+  it.each(["woman", "man", "dog"] as const)(
+    "without figures.dog, never makes it for the %s, the hand-off ended",
+    async (avatar) => {
+      const scene = repositoryBundle().scene;
+      const withoutDog = { ...scene.figures };
+      delete withoutDog.dog;
+      swapped.part = { ...scene, figures: withoutDog };
+      const r = staged(avatar);
+      r.end();
+      await r.ready();
+      r.stage.walk.enter(r.view);
+      await r.frames(30);
+      expect(swapped.made).toEqual([]);
+      expect(chased(r.signals)).toEqual([]);
+      r.stage.dispose();
+    },
+  );
 });

@@ -20,7 +20,8 @@ describe("fleeing in the build's readers (FR-011)", () => {
   it("the played roles don't change: fleeing's idle is played already", () => {
     const all = new Set<TwinClipRole>(TWIN_CLIP_ROLES);
     const scene = { figures: { twin: { clips: { resting: "idle" }, lean: null } } } as unknown as Scene;
-    expect(playedRoles(scene, all)).toEqual(["idle", "talking", "listening", "greeting"]);
+    // Spec 026 (FR-009): with every role bundled, petting's own clip plays too.
+    expect(playedRoles(scene, all)).toEqual(["idle", "talking", "listening", "greeting", "petting"]);
     expect(playedRoles(null, new Set<TwinClipRole>(["idle", "talking"]))).toEqual(["idle", "talking"]);
   });
 });

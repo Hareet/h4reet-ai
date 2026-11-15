@@ -64,6 +64,8 @@ import { gripCentre, gripMatrix } from "./grip";
 import type { GripData } from "./grip";
 import { advance, applyGait, clearGait, cycleLength, findLegRig, legOffsets, standingLift } from "./gait";
 import type { GaitOffsets, GaitStateOut, LegRig } from "./gait";
+import { applyReachLayer, clearReach, clearReachLegs, findReachRig } from "./pet-reach";
+import type { ReachConfig, ReachLayer, ReachRig, ReachSide } from "./pet-reach";
 import { disposeModel } from "./loader";
 import type { FigureRole, FigureSource } from "./loader";
 import { createTwinStates } from "./twin-states";
@@ -86,6 +88,15 @@ const HANDS = {
 } as const;
 /** Two hands' movements this close are a tie, which the right hand takes. */
 const TIE = 1e-6;
+
+/** Spec 026 (T014): what the twin's controller reads of the pet director. */
+export interface PetLink {
+  /** The reach layer this frame (the director's `reach`, written in place), or null: none. */
+  reach(): (ReachLayer & { readonly side: ReachSide }) | null;
+  /** The petting clip has finished playing. */
+  finished(): void;
+  readonly config: ReachConfig;
+}
 
 export interface AvatarFiguresOptions {
   /** The visitor's chosen avatar. */
@@ -157,6 +168,13 @@ export interface AvatarFigures {
   close(): void;
   /** Spec 016 (FR-022; contracts/twin-states.md §1): the conversation's activity, for the twin's own states. */
   twinActivity(activity: TwinActivity): void;
+  /** Spec 026 (plan.md §4; A016): spec 016's state of the twin's own model, or null where it doesn't show. */
+  twinState(): TwinState | null;
+  /** Spec 026 (R-04): the reach rig of the twin's shown avatar on a side, or null without its bones. */
+  reachRigOf(side: ReachSide): ReachRig | null;
+  /** Spec 026 (R-05, T014): the pet director's link: its reach layer each frame, applied after the legs, and the
+   *  petting clip's end; null unlinks it and clears the reach. */
+  pet(link: PetLink | null): void;
   /** Spec 025 (FR-010; plan.md R-06): the room's dog's clip by role, its idle for a role it hasn't loaded. */
   dogPlays(role: "idle" | "walk" | "run"): void;
   /** Spec 016 (FR-036): the faces' words have come: the twin's own instance, if it shows, is dressed again. */
@@ -213,6 +231,8 @@ interface Figure {
   hand: Object3D | null;
   /** Spec 019: the six leg bones, where the model has them. */
   legs: LegRig | null;
+  /** Spec 026 (R-04): the twin's reach rig on each side, where its shown avatar has the bones; null otherwise. */
+  reach: { readonly right: ReachRig | null; readonly left: ReachRig | null } | null;
   /** Which hand holds, for its grip (spec 014). */
   side: "right" | "left" | null;
   shown: boolean;
@@ -307,6 +327,9 @@ export function createAvatarFigures(
   const now = options.clock ?? ((): number => 0);
   const twinStates = part.twin ? createTwinStates(part.twin.block) : null;
   let twinState: TwinState | null = null;
+  /** Spec 026 (T014): the pet director's link, and the reach rig the layer was last laid on. */
+  let petLink: PetLink | null = null;
+  let reachOn: ReachRig | null = null;
   /** The twin's own model has shown in this visit: its first show after the hand-off is its arrival. */
   let twinArrived = false;
   /** The arrival is due, waiting for the greeting's file to end, loaded or not, so it plays its whole length. */
@@ -350,6 +373,7 @@ export function createAvatarFigures(
       playing: null,
       hand: null,
       legs: null,
+      reach: null,
       side: null,
       shown: false,
       gone: false,
@@ -368,6 +392,7 @@ export function createAvatarFigures(
       playing: null,
       hand: null,
       legs: null,
+      reach: null,
       side: null,
       shown: false,
       gone: false,
@@ -386,6 +411,7 @@ export function createAvatarFigures(
       playing: null,
       hand: null,
       legs: null,
+      reach: null,
       side: null,
       shown: false,
       gone: false,
@@ -627,7 +653,8 @@ export function createAvatarFigures(
     if (role === "take") {
       action.setLoop(LoopOnce, 1);
       action.clampWhenFinished = true;
-    } else if (role === "greeting") {
+    } else if (role === "greeting" || role === "petting") {
+      // Spec 026 (R-05): the petting's clip, too, plays once; its end ends the petting early.
       action.setLoop(LoopOnce, 1);
       action.clampWhenFinished = false;
     } else action.setLoop(LoopRepeat, Infinity);
@@ -727,6 +754,7 @@ export function createAvatarFigures(
       playing: null,
       hand: null,
       legs: null,
+      reach: null,
       side: null,
       shown: false,
       gone: why !== null,
@@ -849,6 +877,29 @@ export function createAvatarFigures(
     } else clearGait(f.legs);
   }
 
+  /** Spec 026 (FR-007, FR-008, FR-011; plan.md R-04, R-05; Q226): after the mixer and the twin's leg layer, the
+   *  petting's reach over the twin's shown avatar, on the side and with the weight, target, and `legs` the pet director
+   *  writes in place (its `reach`), applied by `applyReachLayer`, which reads them from the layer's fields and makes no
+   *  object; cleared, the clip's own pose back, when the director gives none, or at quality 1 or more. */
+  function settleReach(): void {
+    if (reachOn === null) return;
+    // Before the twin's leg layer reads its base (Q226), every frame the reach is laid: the legs and the hips given back
+    // to the clip, so the run's gait never takes the crouch for the clip's pose. three's mixer writes a bone only when
+    // its sampled value changes, so a constant track (the idle's left knee) leaves the reach's write on the bone, and
+    // on the run's first frame, before the director has seen the run, the gait read it as its base. The reach lays
+    // the crouch again after the gait (`stepReach`), over it.
+    clearReachLegs(reachOn);
+  }
+
+  function stepReach(level: number): void {
+    const f = figures.twin;
+    const layer = petLink?.reach() ?? null;
+    const rig = layer !== null && f.shown && level === 0 ? (f.reach?.[layer.side] ?? null) : null;
+    if (rig !== reachOn && reachOn !== null) clearReach(reachOn);
+    reachOn = rig;
+    if (rig !== null && layer !== null && petLink) applyReachLayer(rig, layer, petLink.config);
+  }
+
   /** Spec 016 (FR-019): the twin's arrival, once a visit, for one play of its greeting; the greeting's end ends it. */
   function arriveTwin(): void {
     const f = figures.twin;
@@ -888,7 +939,14 @@ export function createAvatarFigures(
       if (f.id === "visitor") {
         f.legs = findLegRig(instance as Object3D);
         if (f.legs === null) signal({ kind: "gait", figure: f.id, state: "unavailable" });
-      } else if (f.id === "twin") f.legs = findLegRig(instance as Object3D);
+      } else if (f.id === "twin") {
+        f.legs = findLegRig(instance as Object3D);
+        // Spec 026 (R-04): the reach's bones on both sides, found once, for the petting's reach layer.
+        f.reach = {
+          right: findReachRig(instance as Object3D, "right"),
+          left: findReachRig(instance as Object3D, "left"),
+        };
+      }
       for (const [role, clip] of source.clips) addAction(f, role, clip);
       // The greeting's end ends the twin's arrival at once (contracts/twin-states.md §3).
       if (f.id === "twin" && avatar === "twin")
@@ -897,6 +955,8 @@ export function createAvatarFigures(
             twinStates?.arrived(now());
             play(f);
           }
+          // Spec 026 (FR-006): the petting's clip has played: the pet director ends the petting at once.
+          if (event.action.getClip() === sourceOf("twin").clips.get("petting")) petLink?.finished();
         });
     }
     for (const { f } of placed) tryShow(f);
@@ -1012,12 +1072,29 @@ export function createAvatarFigures(
           f.mixer.update(dtMs / 1000);
         }
       stepGait(figures.visitor, gait, dtMs / 1000, moving, level);
+      settleReach();
       stepGait(figures.twin, twinGait, dtMs / 1000, moving, level);
+      stepReach(level);
       holdSheet();
     },
     redress() {
       const f = figures.twin;
       if (!disposed && f.shown && f.wants === "twin" && f.instance) options.dress?.(f.instance);
+    },
+    twinState() {
+      const f = figures.twin;
+      return twinStates && f.shown && f.wants === "twin" ? twinStates.state : null;
+    },
+    reachRigOf(side) {
+      const f = figures.twin;
+      return f.shown ? (f.reach?.[side] ?? null) : null;
+    },
+    pet(link) {
+      if (link === null && reachOn !== null) {
+        clearReach(reachOn);
+        reachOn = null;
+      }
+      petLink = link;
     },
     dogPlays(role) {
       if (disposed || role === dogRole) return;

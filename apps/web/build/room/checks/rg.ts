@@ -51,6 +51,8 @@ import { anchorWorld, modelOf, mountWorld, resolveMounts } from "../../../src/ro
 import type { MountAnchor, MountPlacement, Resolved } from "../../../src/room/compose/mount";
 import type { Protect } from "../../../src/room/compose/frame";
 import { DEFAULT_METRICS, reservedBoxes } from "../../../src/room/compose/hud";
+import { AVATAR_SHAPES } from "../../../src/choice/avatars";
+import { dogBoxAt } from "../../../src/room/compose/dog-box";
 import { flatCore, listOnly, memberRect, pickAreas, pickProblems } from "../../../src/room/compose/pick";
 import type { MemberRect, PickArea, PickProblem, Rect } from "../../../src/room/compose/pick";
 import { projector, toStage } from "../../../src/room/compose/project";
@@ -449,6 +451,28 @@ function inView(ctx: Context, g: Geometry): void {
  *  boxes over it reserved (FR-060), made once for its protector. */
 const allStages = (g: Geometry): readonly Stage[] => supportedStages(g.protect);
 
+/** The stages RG6 sweeps for a compose: the supported stages (spec 026's tests read them). */
+export const sweptStages = allStages;
+
+/** Spec 026 (FR-014; plan.md R-09; Q160): each selectable with `figure: dog`, where the scene has `figures.dog`, by its
+ *  index in scene.yaml's selectables: the dog's box at its home (`dogBoxAt`) and its rectangle at the stage's production
+ *  framing, null where a corner isn't before the camera (then the dog is unmeasured there, which spec 026's tests
+ *  refuse on the shipped scene). */
+export function figureFronts(
+  g: Geometry,
+  stage: Stage,
+): ReadonlyMap<string, { readonly box: Box; readonly rect: MemberRect | null }> {
+  const s = g.scene.value;
+  const out = new Map<string, { readonly box: Box; readonly rect: MemberRect | null }>();
+  if (!s.figures.dog) return out;
+  const box = dogBoxAt(s.figures.dog, AVATAR_SHAPES.dog);
+  const { camera } = cameraAt(g, stage.w / stage.h);
+  s.selectables.forEach((x, k) => {
+    if (x.figure === "dog") out.set(String(k), { box, rect: memberRect(box, camera, stage) });
+  });
+  return out;
+}
+
 /** A stage's size, as a reason and the report's Side-wall section print it. */
 export const stageSize = (s: Stage): string => `${Number(s.w.toFixed(1))} × ${Number(s.h.toFixed(1))}`;
 
@@ -672,14 +696,17 @@ export function pickSweep(g: Geometry, at?: readonly Stage[]): PickSweep {
     holdsInto: ReturnType<typeof holdsMap>,
   ): void => {
     const { camera } = cameraAt(g, stage.w / stage.h);
+    // Spec 026 (R-09; Q160): the dog piece's figure, its box at its home, a front-only rectangle; no twin box.
+    const fronts = figureFronts(g, stage);
     const areas = pickAreas(
-      selectables.map(({ id, boxes }) => ({
-        id,
-        members: boxes.flatMap((box) => {
+      selectables.map(({ id, boxes }) => {
+        const members = boxes.flatMap((box) => {
           const rect = memberRect(box, camera, stage);
           return rect ? [rect] : [];
-        }),
-      })),
+        });
+        const front = fronts.get(id)?.rect;
+        return front ? { id, members, front: [front] } : { id, members };
+      }),
     );
     const view: Rect = [0, 0, stage.w, stage.h];
     // Spec 008 (FR-021, FR-058): the walking control's box, in the stage's bottom-right corner in 3D, is reserved; since

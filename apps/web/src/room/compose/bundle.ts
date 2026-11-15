@@ -5,6 +5,7 @@
 // lookdev page, and the tests read them. Types only, so nothing here reaches a chunk.
 import type { AvatarId, ClipRole } from "../../choice/avatars";
 import type { ChaseConfig } from "../scene/chase-steer";
+import type { PetConfig } from "../scene/pet-config";
 import type { TwinClipRole, TwinState } from "../scene/twin-states";
 import type { Box } from "./framing";
 import type { Turn, Vec3 } from "./math";
@@ -103,6 +104,9 @@ export interface RoomIndex {
     /** The conversation panel's emblem, a name hud/icons.ts draws (spec 018, FR-005; D-V3); absent where the data
      *  names none, which has the speech glyph. */
     emblem?: string;
+    /** Spec 026 (FR-013, FR-014; plan.md R-09): the room figure the selectable also picks, front-only, at its home;
+     *  absent for none. */
+    figure?: "dog";
     /** Every member hangs directly on the shell's side-wall anchors: FR-064's carve-out (see listOnly) may leave it
      *  to the "In the room" list at any stage where its core can't fit. */
     side_wall: boolean;
@@ -318,6 +322,8 @@ export interface RoomScene {
     dog?: { home: { at: [number, number]; heading_deg: number }; footprint_m: number } | undefined;
     /** Spec 025 (FR-005; plan.md R-09, §3): the run's block, resolved; absent, the run takes CHASE_DEFAULTS. */
     chase?: ChaseConfig | undefined;
+    /** Spec 026 (plan.md §3): the petting's block, resolved; absent, the pet director takes PET_DEFAULTS. */
+    pet?: PetConfig | undefined;
   };
   handoff: { from: { placement: string; anchor: string }; to: { placement: string; anchor: string } };
   /** Placement IDs with a set model, a switch's pose named `<switch>.<pose>` (plan.md §10). */

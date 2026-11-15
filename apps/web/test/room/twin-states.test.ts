@@ -138,7 +138,7 @@ describe("fleeing, the run's state (spec 025, FR-011)", () => {
   it("is first in the order and the map's default plays the idle", () => {
     expect(TWIN_STATES[0]).toBe("fleeing");
     expect(TWIN_CLIPS_DEFAULT.fleeing).toBe("idle");
-    expect([...TWIN_CLIP_ROLES]).toEqual(["idle", "talking", "listening", "greeting", "desk-lean"]);
+    expect([...TWIN_CLIP_ROLES]).toEqual(["idle", "talking", "listening", "greeting", "desk-lean", "petting"]);
   });
 
   it("outranks arriving, answering, listening, and resting while it's on, and ends with its signal", () => {
@@ -169,5 +169,33 @@ describe("fleeing, the run's state (spec 025, FR-011)", () => {
     expect(t.tick(25 * S)).toBe("fleeing");
     t.signal({ kind: "flee", on: false }, 25 * S);
     expect(t.tick(25 * S)).toBe("resting");
+  });
+});
+
+// T005 (spec 026; FR-009; plan.md R-05; SC-004): `petting`, after fleeing and arriving and before answering, set by
+// `{ kind: "pet", on }`; the order table above, with the pet input added, and every earlier state's case unchanged.
+describe("petting, the twin's petting of the dog (spec 026, FR-009)", () => {
+  it("orders petting after fleeing and arriving, before answering, listening, and resting", () => {
+    const t = createTwinStates(BLOCK);
+    const steps: [number, Parameters<typeof t.signal>[0] | "arrive" | null, TwinState][] = [
+      [0, "arrive", "arriving"],
+      [500, { kind: "pet", on: true }, "arriving"],
+      [2600, null, "petting"],
+      [2700, { kind: "answer", words: 5 }, "petting"],
+      [2800, { kind: "draft", holds: true }, "petting"],
+      [2900, { kind: "flee", on: true }, "fleeing"],
+      [3000, { kind: "flee", on: false }, "petting"],
+      [3100, { kind: "pet", on: false }, "answering"],
+      [5800, null, "listening"],
+      [5900, { kind: "draft", holds: false }, "present"],
+      [25_950, null, "resting"],
+      [26_000, { kind: "pet", on: true }, "petting"],
+      [27_000, { kind: "pet", on: false }, "resting"],
+    ];
+    for (const [at, activity, state] of steps) {
+      if (activity === "arrive") t.arrive(at, 2.47);
+      else if (activity) t.signal(activity, at);
+      expect(t.tick(at), `at ${at}`).toBe(state);
+    }
   });
 });

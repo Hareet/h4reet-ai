@@ -146,6 +146,8 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "eat.first_bite": ["name"],
       // Spec 009's stand-in line (FR-013, FR-039).
       "twin.stand_in": [],
+      // Spec 026 (FR-024): the petting's line.
+      "figures.pet_note": [],
       // Spec 005's HUD (its FR-023, FR-028, FR-065; plan.md §6.10): the conversation log's header button, and the larger
       // view's two words.
       "hud.log_toggle": [],
@@ -193,7 +195,7 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "chase.ended_twin": [],
       "chase.ended_dog": [],
     });
-    expect(Object.keys(UI_KEYS)).toHaveLength(85);
+    expect(Object.keys(UI_KEYS)).toHaveLength(86);
   });
 
   // T013 (spec 012; FR-051; D8): the loader's twelve words join the closed list, two with their live counts' slots, and
