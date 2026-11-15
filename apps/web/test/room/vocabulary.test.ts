@@ -195,6 +195,7 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "chase.ended_twin": [],
       "chase.ended_dog": [],
     });
+    // Merged (patch-026): 83 on the base, spec 026's one, and spec 024's two.
     expect(Object.keys(UI_KEYS)).toHaveLength(86);
   });
 
