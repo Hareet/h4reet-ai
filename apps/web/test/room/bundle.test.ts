@@ -130,8 +130,10 @@ describe("the index (contracts/room-bundle.md §3.1)", () => {
       "models",
       // Spec 012's loader hints (its Amendment L7).
       "hints",
-      // Spec 016's twin, last (contracts/twin-data.md §4).
+      // Spec 016's twin (contracts/twin-data.md §4).
       "twin",
+      // Spec 028's dog visitor's introduction, last (FR-027; T-B08).
+      "dog_visitor_intro",
     ]);
     expect(Object.keys(index.build)).toEqual(["kind", "placeholders"]);
     expect(Object.keys(index.live)).toEqual(["source", "turn", "asset_events", "poll_ms", "freshness_ms"]);
