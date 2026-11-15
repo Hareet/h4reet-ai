@@ -9,6 +9,10 @@
 // makes, were inlined into this director's code; the measure's `gc()` collected them, V8 deoptimized `frame` and
 // `select` mid-measure ("embedded weak objects cleared"), and `select` stayed unoptimized (466 to 2,326 bytes a
 // petting a run, measured). The page has one director: a file of its own runs in a process of its own, as the page's.
+// rework4-026 (rv-impl3-026's B-1, step 1): the warm-up also waits for the functions the review's scratch breakdown
+// named, `adapters.twin`, `adapters.chase.faceTwin`, and spec 025's `real.faceTwin`, with `adapters.chase.twinFacing`,
+// which the director reads in `twinHeading`'s place since rework3-026; `twinHeading` is counted, and isn't called on
+// this path. The frame's time is checked before the bytes, so a byte failure doesn't hide it (N-2).
 import { Group } from "three";
 import { describe, expect, it } from "vitest";
 
@@ -68,6 +72,15 @@ describe("no allocation per petting over the real adapters (FR-027, SC-007; Q284
         figures: { twin: { x: twinHome.x, z: twinHome.z, heading: twinHome.heading }, dog: { ...dogHome } },
       });
       chase = real;
+      // twinHeading, counted: the director reads twinFacing where the adapter gives it (rework3-026), so it's off this
+      // path; a call would be a fraction returned across a call.
+      const headingCalls = new Int32Array(1);
+      const twinHeading = adapters.chase.twinHeading.bind(adapters.chase);
+      adapters.chase.twinHeading = () => {
+        headingCalls[0] = (headingCalls[0] as number) + 1;
+        return twinHeading();
+      };
+      if (!adapters.chase.twinFacing) throw new Error("the adapter gives no twinFacing");
       const ms = new Float64Array(1);
       const pet = createPet({
         config: { cooldown_s: 0 },
@@ -92,7 +105,15 @@ describe("no allocation per petting over the real adapters (FR-027, SC-007; Q284
         seen[3] = (seen[3] as number) + 1;
         for (let i = 0; i < 1000 && pet.phase !== "idle"; i += 1) frame();
       };
-      const hot: Hot[] = [pet.frame, [pet.select, step], real.frame];
+      const hot: Hot[] = [
+        pet.frame,
+        [pet.select, step],
+        real.frame,
+        adapters.twin,
+        real.faceTwin,
+        adapters.chase.faceTwin,
+        adapters.chase.twinFacing,
+      ];
       const perPetting = bytesPerCall(step, hot, 2_000);
       expect(seen[2], "selections refused").toBe(0);
       const msPetting = msPerCall(step, hot, 200);
@@ -102,8 +123,9 @@ describe("no allocation per petting over the real adapters (FR-027, SC-007; Q284
         `\npet.select and pet.frame over the real adapters, with chase.frame: ${perPetting.toFixed(2)} bytes a ` +
           `petting of ${framesPerPetting.toFixed(0)} frames; ${msFrame.toFixed(4)} ms a frame\n`,
       );
-      expect(perPetting).toBeLessThan(MAX_BYTES_PER_PETTING);
+      expect(headingCalls[0], "twinHeading's calls on the real path").toBe(0);
       expect(msFrame).toBeLessThan(MAX_MS_PER_FRAME);
+      expect(perPetting).toBeLessThan(MAX_BYTES_PER_PETTING);
     },
     BENCH_TIMEOUT_MS,
   );
