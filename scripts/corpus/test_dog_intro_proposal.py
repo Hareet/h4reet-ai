@@ -1,13 +1,14 @@
 """Tests for scripts/corpus/dog_intro_proposal.py (spec 026, FR-017 to FR-023, SC-005's first half; plan.md R-13;
-tasks.md T017).
+tasks.md T017; as amended (Q292), patch2-026).
 
 The checker reads the dog-intro proposal and its patch, read-only, and refuses: a quoted span not found verbatim in its
 named source (his consent read from main's spec 017, here a fixture copy, refused when it differs by a character); the
-slot `hobbies.room_dog_name` with a filled field; a `<his answer>` or `<his disclosure line>` placeholder in the patch; a
+slot `hobbies.room_dog_name` in any form, in the patch or proposed in the proposal (dropped, Q292); a `<his answer>` or
+`<his disclosure line>` placeholder in the patch; a
 Golden answer not found verbatim inside a quotation on an "Answered:" line of the page's entry, or found only on its
 "Recommended:" line or on an "Answered: recommended" line (Q143); a digit the patch adds outside a slot, a claim tag's
 date, a Golden item's leading number, or a quoted span found verbatim in its named source (N-2); a touched human-only
-path or `corpus/` file other than `04` and its facts; and a patch reported buildable with no approval of the dog's
+path or `corpus/` file other than `04` (its facts file too, since Q292); and a patch reported buildable with no approval of the dog's
 model carrying a line (FR-019). Every file here is made up at run time in a temporary directory.
 """
 
@@ -213,11 +214,15 @@ def test_never_reads_the_private_intake(tmp_path: Path) -> None:
 
 # The patch ------------------------------------------------------------------------------------------------------------
 
-ARYA_ADD = (
-    f'+- `[A 2026-11-13]` The dog in the room, in his words: "{CONSENT}". `[A 2026-11-15]` In his words: "{LINE}".'
-    "{{slot:hobbies.room_dog_name}}\n"
-)
-SLOT = """+  - id: hobbies.room_dog_name
+ARYA_ADD = f'+- `[A 2026-11-13]` The dog in the room, in his words: "{CONSENT}". `[A 2026-11-15]` In his words: "{LINE}".\n'
+#: The slot as impl-026 to patch-026 built it, null; the rework drops it (Q292), so the patch refuses it in any form.
+SLOT_REF = "{{slot:hobbies.room_dog_name}}"
+FACTS_DIFF = """diff --git a/corpus/facts/hobbies-and-travel.yaml b/corpus/facts/hobbies-and-travel.yaml
+--- a/corpus/facts/hobbies-and-travel.yaml
++++ b/corpus/facts/hobbies-and-travel.yaml
+@@ -8,1 +8,8 @@
+     phrasing: "{{value}}"
++  - id: hobbies.room_dog_name
 +    label: The name of his dog that the room's dog is a likeness of
 +    value: {value}
 +    tag: null
@@ -230,7 +235,6 @@ SLOT = """+  - id: hobbies.room_dog_name
 def patch_text(
     arya: str = ARYA_ADD,
     golden: str | None = None,
-    slot_value: str = "null",
     lead_new: str = "the snowboard, the bicycle, and the dog (its desk sign, and the room's dog figure) open this topic",
     extra: str = "",
 ) -> str:
@@ -260,12 +264,6 @@ def patch_text(
         " \n"
         " 1. *Where do you snowboard?* — We live in a city house in Denver. [A]\n"
         f"{gold}"
-        "diff --git a/corpus/facts/hobbies-and-travel.yaml b/corpus/facts/hobbies-and-travel.yaml\n"
-        "--- a/corpus/facts/hobbies-and-travel.yaml\n"
-        "+++ b/corpus/facts/hobbies-and-travel.yaml\n"
-        "@@ -8,1 +8,8 @@\n"
-        '     phrasing: "{value}"\n'
-        f"{SLOT.format(value=slot_value)}"
         f"{extra}"
     )
 
@@ -282,27 +280,37 @@ def patch(tmp: Path, text: str, *more: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_patch_passes_with_the_slot_null_and_no_golden_answer(tmp_path: Path) -> None:
+def test_patch_passes_with_no_slot_and_no_golden_answer(tmp_path: Path) -> None:
+    # As amended (Q292): the patch touches `04` only, with no slot and no facts file.
     make_root(tmp_path)
     r = patch(tmp_path, patch_text())
     assert r.returncode == 0, r.stdout + r.stderr
     assert "buildable: yes" in r.stdout
 
 
-def test_patch_refuses_a_filled_slot(tmp_path: Path) -> None:
+def test_patch_refuses_the_dropped_slot_in_any_form(tmp_path: Path) -> None:
+    # Q292: the slot `hobbies.room_dog_name` is dropped. Null or filled in the facts file, or referenced in `04`, the
+    # patch is refused, and the refusal names it.
     make_root(tmp_path)
-    r = patch(tmp_path, patch_text(slot_value='"Arya"'))
-    assert r.returncode == 1
-    assert "hobbies.room_dog_name" in r.stdout
+    for text in (
+        patch_text(extra=FACTS_DIFF.format(value="null")),
+        patch_text(extra=FACTS_DIFF.format(value='"Arya"')),
+        patch_text(arya=ARYA_ADD.replace(".\n", f".{SLOT_REF}\n")),
+    ):
+        r = patch(tmp_path, text)
+        assert r.returncode == 1, text
+        assert "hobbies.room_dog_name" in r.stdout
+        assert "Q292" in r.stdout
 
 
-def test_patch_refuses_a_missing_slot(tmp_path: Path) -> None:
+def test_patch_refuses_touching_the_facts_file(tmp_path: Path) -> None:
+    # Q292: with the slot dropped, the patch has no reason to touch `04`'s facts file.
     make_root(tmp_path)
-    text = patch_text()
-    text = text[: text.index("diff --git a/corpus/facts")]
-    r = patch(tmp_path, text)
+    path = "corpus/facts/hobbies-and-travel.yaml"
+    extra = f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n@@ -1,1 +1,1 @@\n-a\n+b\n"
+    r = patch(tmp_path, patch_text(extra=extra))
     assert r.returncode == 1
-    assert "hobbies.room_dog_name" in r.stdout
+    assert path in r.stdout
 
 
 def test_patch_refuses_each_placeholder(tmp_path: Path) -> None:
@@ -352,7 +360,7 @@ def test_patch_refuses_a_golden_answer_with_no_page_entry(tmp_path: Path) -> Non
 
 def test_patch_digit_rule_accepts_its_exemptions(tmp_path: Path) -> None:
     # The approval's line holds a digit ("4 photos"), quoted and found verbatim in approvals.json; the tags' dates; the
-    # slot; the Golden item's leading number; and the line's old digits (`01-…`, 2026-11-06), which the patch doesn't add.
+    # Golden item's leading number; and the line's old digits (`01-…`, 2026-11-06), which the patch doesn't add.
     make_root(tmp_path)
     golden = "9. *Who's the dog in the room?* — She's my dog Arya, as the studio made her. [A]"
     r = patch(tmp_path, patch_text(golden=golden), "--entry", "Q172")
@@ -428,8 +436,8 @@ def test_patch_refuses_to_report_buildable_without_the_dogs_approval(
 
 def test_is_deterministic(tmp_path: Path) -> None:
     make_root(tmp_path)
-    one = patch(tmp_path, patch_text(slot_value='"x"'))
-    two = patch(tmp_path, patch_text(slot_value='"x"'))
+    one = patch(tmp_path, patch_text(extra=FACTS_DIFF.format(value='"x"')))
+    two = patch(tmp_path, patch_text(extra=FACTS_DIFF.format(value='"x"')))
     assert one.stdout == two.stdout
 
 
@@ -464,9 +472,7 @@ def more_017(tmp: Path) -> None:
 
 def with_quote(quote: str) -> str:
     """The new "## Arya" line with one more quoted span, sourced as his words."""
-    return ARYA_ADD.replace(
-        "{{slot:", f' In his words, the count: "{quote}".{{{{slot:', 1
-    )
+    return ARYA_ADD.removesuffix("\n") + f' In his words, the count: "{quote}".\n'
 
 
 def test_b1_a_quote_from_another_approvals_line_exempts_no_digit(
@@ -598,3 +604,26 @@ def test_b1_the_proposal_takes_spec_017_spans_from_his_consent_only(
     )
     assert r.returncode == 1, r.stdout
     assert "main:specs/017-the-night-shift/spec.md" in r.stdout
+
+
+# Q292: the slot is dropped from the proposal too ---------------------------------------------------------------------
+
+
+def test_proposal_refuses_proposing_the_dropped_slot(tmp_path: Path) -> None:
+    # The slot's facts entry, or its reference in a proposed line, is refused (Q292); the proposal may still name the
+    # slot in prose, to say it was dropped.
+    make_root(tmp_path)
+    base = proposal(tmp_path).read_text()
+    for block in (
+        "```yaml\n  - id: hobbies.room_dog_name\n    value: null\n```\n",
+        f'```markdown\n- The dog in the room: "{CONSENT}".{SLOT_REF}\n```\n',
+    ):
+        path = tmp_path / "proposal.md"
+        path.write_text(base + "\n" + block)
+        r = run(tmp_path, "proposal", str(path))
+        assert r.returncode == 1, (block, r.stdout)
+        assert "hobbies.room_dog_name" in r.stdout
+        assert "Q292" in r.stdout
+    path.write_text(base + "\nThe slot `hobbies.room_dog_name` is dropped (Q292).\n")
+    r = run(tmp_path, "proposal", str(path))
+    assert r.returncode == 0, r.stdout
