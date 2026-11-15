@@ -155,7 +155,10 @@ export const HUD_PLACEMENTS = {
      *  screen had before spec 005 (spec 005's FR-054; test/room/stages-floor.test.ts). In CSS pixels, as that floor. */
     minAreaWidthPx: 686.4,
     scaleMax: 1.375,
-    tiles: { rows: 2, perRow: 3, gapRem: 0.25, padRem: 0.25 },
+    /** `tileRem`: a row's height at scale 1, an icon over two lines of words (rv-028a-1's A1-3: in a third of the
+     *  column "Pause the room" wraps): room.css's .hud-tile, 1.25rem icon + 0.125rem gap + 2 × 1.2 × 0.8125rem words
+     *  + 2 × 0.125rem padding + its 2-pixel border, 3.575rem and 2px, under 3.75rem at every scale. */
+    tiles: { rows: 2, perRow: 3, gapRem: 0.25, padRem: 0.25, tileRem: 3.75 },
   },
   /** The dock, across the foot above the bar: its padding around the list's strip and the text box's row. */
   dock: { padRem: 0.25 },
@@ -621,6 +624,9 @@ export interface WallBoxes {
   readonly column: Box;
   readonly list: Box;
   readonly tiles: Box;
+  /** The toolbar's bar in the tiles' block: its tile rows only, at the block's top, so it never lies over `walk` or
+   *  `eat` below it (rv-028a-1's A1-1: the bar's glass takes the pointer). */
+  readonly bar: Box;
   readonly walk: Box;
   /** Spec 024: with the `eat` option, the "Eat" tile's box beside `walk` in the tiles' block; else null. */
   readonly eat: Box | null;
@@ -698,18 +704,21 @@ export function wallBoxes(
   };
   const scaleLeft = sideScale(panel.w, t.panel.minRem, t.panel.maxRem, rem);
   const scaleRight = sideScale(column.w, t.column.minRem, t.column.maxRem, rem);
-  // The tiles' block at the column's foot: the toolbar's tiles in rows, then the walking control and the "Eat" tile.
-  const tileH = T.bar.tileRem * scaleRight * rem;
+  // The tiles' block at the column's foot: the bar, the toolbar's tiles in rows each tall enough for an icon over two
+  // lines of words (A1-3); a gap below it and outside it, the walking control and the "Eat" tile (A1-1).
+  const tileH = t.tiles.tileRem * scaleRight * rem;
   const [walkW, walkH] = [WALK_CONTROL.widthRem * scaleRight * rem, WALK_CONTROL.heightRem * scaleRight * rem];
   const pad = t.tiles.padRem * rem;
   const tgap = t.tiles.gapRem * rem;
-  const tilesH = 2 * pad + t.tiles.rows * (tileH + tgap) + walkH;
+  const barH = 2 * pad + t.tiles.rows * tileH + (t.tiles.rows - 1) * tgap;
+  const tilesH = barH + tgap + walkH + pad;
   const tiles: Box = { x: column.x, y: column.y + column.h - tilesH, w: column.w, h: tilesH };
-  const walk: Box = { x: tiles.x + pad, y: tiles.y + tiles.h - pad - walkH, w: walkW, h: walkH };
+  const bar: Box = { x: tiles.x, y: tiles.y, w: tiles.w, h: barH };
+  const walk: Box = { x: tiles.x + pad, y: bar.y + barH + tgap, w: walkW, h: walkH };
   const eat: Box | null = option.eat ? { x: walk.x + walk.w + tgap, y: walk.y, w: walkW, h: walkH } : null;
   const list: Box = { x: column.x, y: column.y, w: column.w, h: column.h - tilesH - tgap };
   const title: Box = { x: panel.x, y: panel.y, w: panel.w, h: T.split.panel.titleRem * scaleLeft * rem };
-  return { area, wall, panel, title, frame: panel, column, list, tiles, walk, eat, scaleLeft, scaleRight };
+  return { area, wall, panel, title, frame: panel, column, list, tiles, bar, walk, eat, scaleLeft, scaleRight };
 }
 
 /** Spec 018's name for the split layout's boxes, kept for its callers: since spec 028, the boxes beside the walls. */

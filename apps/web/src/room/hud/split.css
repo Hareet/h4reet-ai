@@ -413,19 +413,21 @@ html[data-split="on"][data-hud="column"] .split-stat dd {
 }
 
 /* ---- The column's tiles' block (spec 028; FR-007, FR-008; plan.md §R-A4): the toolbar's tiles, three to a row, at
-   the column's foot; the walking control and the "Eat" tile below them, at compact.walk's and compact.eat's places
-   (--walk-x/-y, --eat-x/-y, room.css). By CSS alone: the toolbar stays the same element, first in the Tab order. ---- */
+   the column's foot, in the bar's box (--wall-bar-*), its tile rows only; the walking control and the "Eat" tile below
+   it and outside it, at compact.walk's and compact.eat's places (--walk-x/-y, --eat-x/-y, room.css), so the bar's
+   glass never takes their presses (rv-028a-1's A1-1). Each row holds an icon over two lines of words (A1-3:
+   HUD_PLACEMENTS.wall.tiles.tileRem). By CSS alone: the toolbar stays the same element, first in the Tab order. ---- */
 
 html[data-split="on"][data-hud="column"] .hud-bar {
-  left: var(--wall-tiles-x);
-  top: var(--wall-tiles-y);
+  left: var(--wall-bar-x);
+  top: var(--wall-bar-y);
   right: auto;
   bottom: auto;
-  width: var(--wall-tiles-w);
-  height: var(--wall-tiles-h);
+  width: var(--wall-bar-w);
+  height: var(--wall-bar-h);
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: calc(2.75rem * var(--wall-scale-right));
+  grid-auto-rows: calc(3.75rem * var(--wall-scale-right));
   align-content: start;
   gap: 0.25rem;
   padding: 0.25rem;
@@ -435,7 +437,7 @@ html[data-split="on"][data-hud="column"] .hud-bar {
 
 html[data-split="on"][data-hud="column"] .hud-bar .hud-tile {
   min-width: 0;
-  min-height: calc(2.75rem * var(--wall-scale-right));
+  min-height: calc(3.75rem * var(--wall-scale-right));
   font-size: calc(0.8125rem * var(--wall-scale-right));
   white-space: normal;
   text-align: center;

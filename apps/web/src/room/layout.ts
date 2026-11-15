@@ -127,7 +127,7 @@ export interface RoomLayout {
 
 /** Spec 028: every --wall-* property applyHud sets in the split layout, each taken away outside it. */
 const WALL_PROPERTIES: readonly string[] = [
-  ...["panel", "column", "list", "tiles"].flatMap((p) => ["x", "y", "w", "h"].map((k) => `--wall-${p}-${k}`)),
+  ...["panel", "column", "list", "tiles", "bar"].flatMap((p) => ["x", "y", "w", "h"].map((k) => `--wall-${p}-${k}`)),
   "--wall-title-h",
   "--wall-scale-left",
   "--wall-scale-right",
@@ -396,7 +396,7 @@ export function renderRoom(
         ["--frame-h", applied.frame.h],
       ];
       // Spec 018's split layout, placed beside the room's walls by spec 028 (FR-004 to FR-008; plan.md §R-A4): the panel's,
-      // the title row's, the column's, the list's, and the tiles' block's boxes for hud/split.css as --wall-*, and the
+      // the title row's, the column's, the list's, the tiles' block's, and the bar's boxes for hud/split.css as --wall-*, and the
       // two sides' scales, unitless; data-split beside data-hud. The walking control's and the Eat tile's places are
       // compact.walk's and compact.eat's, above, in the tiles' block. Outside the split layout none is set.
       const sp = applied.layout === "column" ? (applied.split ?? null) : null;
@@ -408,6 +408,8 @@ export function renderRoom(
           ["column", sp.column],
           ["list", sp.list],
           ["tiles", sp.tiles],
+          // rv-028a-1's A1-1: the toolbar's bar, its tile rows only, above the walking control and the Eat tile.
+          ["bar", sp.bar],
         ];
         for (const [part, b] of boxes)
           sizes.push(
