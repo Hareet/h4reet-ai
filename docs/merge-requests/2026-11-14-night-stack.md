@@ -761,7 +761,7 @@ $ python3 -I -B -X pycache_prefix=/dev/null scripts/assets/credits.py --check
 credits: OK: the renderings and the records' form
 ```
 
-The pre-commit hook's arrival check on the intake's commit gave `arrival-check: 0 findings in 6 files`.
+The pre-commit hook's arrival check on the intake's commit, `8fd4522a`, gave `arrival-check: 0 findings in 11 files`. Its earlier save point, with only the six asset files, gave `0 findings in 6 files`.
 
 The compose's RA and RK lines (SC-002), from a strict compose of the committed tree (`drafts: false`) with the approvals the build reads (`source: "main"`, from `refs/heads/main`). These are the report's dog lines:
 
