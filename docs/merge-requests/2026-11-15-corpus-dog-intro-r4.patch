@@ -91,6 +91,35 @@ diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a
  };
  
  /** The speech glyph: a speech bubble, for free talk and a piece with no emblem of its own. */
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/apps/web/test/room/__snapshots__/protect.test.ts.snap b/apps/web/test/room/__snapshots__/protect.test.ts.snap
+--- a/apps/web/test/room/__snapshots__/protect.test.ts.snap
++++ b/apps/web/test/room/__snapshots__/protect.test.ts.snap
+@@ -28,6 +28,12 @@
+       44,
+     ],
+     [
++      1089.9,
++      786.5,
++      44,
++      44,
++    ],
++    [
+       849.1,
+       279.8,
+       355.7,
+@@ -91,6 +97,12 @@
+       44,
+       44,
+     ],
++    [
++      1340.6,
++      814.4,
++      44,
++      44,
++    ],
+     [
+       1081.2,
+       270.2,
 diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/apps/web/test/room/dog-pick.test.ts b/apps/web/test/room/dog-pick.test.ts
 --- a/apps/web/test/room/dog-pick.test.ts
 +++ b/apps/web/test/room/dog-pick.test.ts
@@ -326,7 +355,7 @@ diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a
 +  return out;
 +}
 +
-+describe('the split list holds "Dog" (spec 026\'s human patch, r4; spec 028\'s FR-007)', () => {
++describe("the split list holds \"Dog\" (spec 026's human patch, r4; spec 028's FR-007)", () => {
 +  it('has the five entries, "Dog" last, and the model is spec 018\'s at scale 1', () => {
 +    expect(WORDS.names).toEqual(["Snowboard", "Bicycle", "Laptop and screen", "Chalkboard", "Dog"]);
 +    for (const rem of [16, 20])
