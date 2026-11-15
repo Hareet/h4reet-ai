@@ -4,7 +4,22 @@ description: "Task list for spec 028, the room after the Author's review"
 
 # Tasks: The Room After the Author's Review
 
-**Approved provisionally by the Author's order of 2026-11-15**, in his words (2026-11-15, about 00:40 his time): "And we want you to use the night shift agent set up to accomplish all of these items. I'm going to bed for the night". His rule for it, word for word: "**Approval, given ahead.** The spec-writer takes the recommended answer at clarify and at the plan, as for nights 1 and 2, and records at the top of `plan.md` and `tasks.md`: "Approved provisionally by the Author's order of 2026-11-15", with his words above. Each question still goes on the morning page with its recommended answer; an answer he overturns is reworked before he merges." His review is quoted whole in [spec.md](spec.md).
+**Approved provisionally by the Author's order of 2026-11-15**, in his words (2026-11-15, about 00:40 his time): "And we want you to use the night shift agent set up to accomplish all of these items. I'm going to bed for the night". His rule for it, word for word: "**Approval, given ahead.** The spec-writer takes the recommended answer at clarify and at the plan, as for nights 1 and 2, and records at the top of `plan.md` and `tasks.md`: "Approved provisionally by the Author's order of 2026-11-15", with his words above. Each question still goes on the morning page with its recommended answer; an answer he overturns is reworked before he merges." 
+
+His review of `main` (`make up ENV=prod`), 2026-11-15, verbatim (quoted here under the line, rv-spec-028's N-1):
+
+> 1. The Conversation UI is good, in that convo panel on the left side of the page, let's remove the thumbnail icon view, and let's make that conversation panel UI the length of the left side of the page, so it should be the same length as the room wall. 2) The dinosaur doesn't load the model, or do any of the eating of assets. 3) When I view the resume and download the PDF, the downloaded PDF doesn't have links to the films where the category text is listed in the sub headlines. 4) The dog isn't supposed to show all the time, or when a different visitor is selected. Only when someone selects the dog, does it come in the room, or if someone selects the dinosaur, then the twin should wave, scream that there is a dinosaur in the room, then the dog enters the room and the twin adn the dog grab the bicycle and leave, and the dinosaur can then eat the assets. If the dog was selected, then the twin has one introduction sentence about how much they love Arya, and all the adventures we've had of course, i'll show her all the work i've been doing, and then the dog selected visitor is the same concept as the woman or man visitor, they will just engage with the twin or the room assets. 4) Delete the warning labels in the top left corner "This is an AI Twin." "The AI dog is a nova scotia ... ", and delete the bottom panel below the room "Around the room listing". 5) The UI on the right side lays over itself, when hovering over the snowboard, you can see the UI highlight snowboard and the enter button is covering up some of it, making it not legible.
+
+> And align the UI elements so they are next the room wall, and take up all of the grey space, i.e. make the bigger, and responsive so that they are not all teh way to the corners as seen in teh screen shot
+
+His answers to two questions (2026-11-15), as his orders record them:
+
+- The top-left labels: "Keep top banner (Recommended)": delete the three top-left labels (the twin's likeness line, the dog's line, the placeholder note); keep the top-centre banner "You're talking with an AI representation of the Author, not the Author" (the constitution's disclosure principle); move the likeness lines to the Credits page.
+- "Around the room": "Hide, keep for readers (Recommended)": no panel below the room on screen; screen readers and the phone layout still get the text.
+
+His answers to the page's Q2 and Q3 (his orders' rule 14, 2026-11-15, about 01:20 his time), verbatim: "q2) I mean't when i downloaded the pdf, there was no link on those sub headlines "LOCAL MODELS FIRST". I figured that would have existed as we know what the link on the repo will be. q3) keep it as waiting for model intake p9". Recorded in spec Q19 and Q11.
+
+The same words are in [spec.md](spec.md) ("Source: The Author's Words").
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md).
 
