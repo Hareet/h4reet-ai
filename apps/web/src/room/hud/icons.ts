@@ -6,7 +6,7 @@ const SVG = "http://www.w3.org/2000/svg";
 
 /** The icons, by what they show. */
 export type IconName =
-  "resume" | "flat" | "pause" | "fullscreen" | "fullscreen-exit" | "data" | "credits" | "walk" | "chevron";
+  "resume" | "flat" | "pause" | "fullscreen" | "fullscreen-exit" | "data" | "credits" | "walk" | "chevron" | "eat";
 
 /** Each icon's path, on a 24 × 24 grid. */
 export const ICON_PATHS: Readonly<Record<IconName, string>> = {
@@ -27,6 +27,8 @@ export const ICON_PATHS: Readonly<Record<IconName, string>> = {
   walk: "M13 4.5a1.5 1.5 0 1 1-3 0a1.5 1.5 0 1 1 3 0 M11.5 8v6 M11.5 14l-3 6 M11.5 14l3 6 M8 11l3.5-3 3.5 3",
   // A chevron, for a header button: down while open; the CSS turns it while collapsed.
   chevron: "M6 9l6 6 6-6",
+  // Spec 024 (FR-012): a round with a bite out of its top right, the dinosaur's "Eat".
+  eat: "M20 12a8 8 0 1 1-8-8 M12 4a2.5 2.5 0 0 0 3 3 M15 7a2.5 2.5 0 0 0 2 3 M17 10a2.5 2.5 0 0 0 3 2",
 };
 
 /** An icon's SVG element. */

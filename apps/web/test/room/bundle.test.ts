@@ -736,6 +736,8 @@ describe("the 3D part (contracts/room-bundle.md §3.2)", () => {
       "scene_texture_bytes",
       // Spec 008's Amendment M12: the walking block, resolved.
       "walking",
+      // Spec 024's eating block, resolved (its FR-011; plan.md §5.1).
+      "eating",
       // Spec 009's avatars (its plan.md §3.2).
       "avatars",
       // Spec 016's twin, last (contracts/twin-data.md §4).
@@ -751,6 +753,8 @@ describe("the 3D part (contracts/room-bundle.md §3.2)", () => {
       "frame_box",
       "label",
       "model",
+      // Spec 024 (its FR-002): the chunks, or null.
+      "edible",
     ]);
     expect(Object.keys(scene.switches[0] ?? {})).toEqual(["id", "piece", "poses", "cable", "model"]);
   });

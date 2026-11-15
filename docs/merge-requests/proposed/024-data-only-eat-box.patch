@@ -1,0 +1,15 @@
+--- a/apps/web/test/room/data-only.test.ts
++++ b/apps/web/test/room/data-only.test.ts
+@@ -316,8 +316,10 @@
+   const out: View[] = supportedStages().map((stage) => {
+     const camera = framing(stage.w / stage.h, framed);
+     const others = pickAreasOn(base.scene, base.index, camera, stage);
+-    // Every HUD control over the clear area, as RG6 reserves them (spec 005, FR-055).
+-    const reserved = reservedBoxes(stage);
++    // Every HUD control over the clear area, as RG6 reserves them (spec 005, FR-055); since spec 024 (Q150), with the
++    // "Eat" tile's box a 3D dinosaur visit's sweep reserves beside the walking control's, so the added spot is a data
++    // edit for every visit.
++    const reserved = reservedBoxes(stage, undefined, { eat: true });
+     const held = listOnly(others, [0, 0, stage.w, stage.h], sideWall, reserved);
+     return { camera, stage, others, core: CORE_PX, grid: false, held, reserved };
+   });

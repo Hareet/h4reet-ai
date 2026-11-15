@@ -31,6 +31,8 @@ import type { Box, HudLayout, HudMetrics, HudState, SplitBoxes } from "./compose
 import { h } from "./dom";
 import { icon } from "./hud/icons";
 import type { IconName } from "./hud/icons";
+import { keycap } from "./hud/keycap";
+import { attempt } from "./hud/split";
 
 /** The layout the room applies: the HUD's boxes in their layout, or the stacked layout. */
 export interface HudApplied {
@@ -55,6 +57,9 @@ export interface HudApplied {
     /** T053 (W19): the walking control's box, and where it sits. */
     readonly walk: Box;
     readonly walkPlace: "column" | "stage";
+    /** Spec 024 (FR-012; plan.md §5.5): the "Eat" tile's box, compactBoxes's `eat`, for a 3D dinosaur visit; absent or
+     *  null, none. */
+    readonly eat?: Box | null;
   };
   readonly logRest: number;
   /** The stage's notes' reserve at the clear area's top, which no sheet reaches into (compose/hud.ts's notesReserve). */
@@ -102,6 +107,11 @@ export interface RoomLayout {
   readonly walkButton: HTMLButtonElement;
   /** Offers the walking control, in 3D after the hand-off's offer, or takes it away, in 2D. */
   setWalkOffered(on: boolean): void;
+  /** Spec 024's "Eat" tile (FR-001, FR-012; plan.md §5.5): after the walking control in the clear box, its name
+   *  "{eat.button}, B", hidden until offered. */
+  readonly eatButton: HTMLButtonElement;
+  /** Offers the "Eat" tile, while the 3D side says the eating is available, or takes it away. */
+  setEatOffered(on: boolean): void;
   /** The walking view on or off: the control's words, and the view's name, role, and focus while walking (R-13). */
   setWalking(on: boolean): void;
   /** The clear box, over the stage at the clear area (spec 005): the notes, the offer, and the walking control. */
@@ -173,6 +183,9 @@ export function renderRoom(
     /** Spec 005's full-screen control's words, fullscreen.enter and fullscreen.leave, where the browser offers full
      *  screen; absent, no control. */
     fullscreen?: { readonly enter: string; readonly leave: string };
+    /** Spec 024's "Eat" tile: its words, eat.button, and the key cap's drawer (hud/keycap.ts's by default; a test's
+     *  may throw, and the tile keeps its icon, words, and name, NB-1). Absent, the tile has no words and never shows. */
+    eat?: { readonly button: string; readonly keycap?: (doc: Document, name: string) => HTMLElement };
   },
 ): RoomLayout {
   const heading = h(doc, "h1", { class: "visually-hidden", tabindex: -1 }, "The Author's work area");
@@ -230,11 +243,34 @@ export function renderRoom(
   const walkLabel = walkButton.querySelector(".hud-tile-words") as HTMLElement;
   // The walking keys' instructions, read only while walking: hidden otherwise, which aria-describedby still reads.
   const walkHelp = h(doc, "p", { id: "room-walk-help", class: "visually-hidden", hidden: true }, walkWords.help);
+  // Spec 024 (FR-012; NB-1): the "Eat" tile, a tile with the "B" key cap drawn through attempt, as split.ts's labelled
+  // draws its caps, so a throw leaves it its icon and words; its name is "{eat.button}, B" either way.
+  const eatWords = parts.eat?.button ?? "";
+  const eatButton = tile(
+    doc,
+    "button",
+    {
+      type: "button",
+      class: "room-eat hud-glass",
+      hidden: true,
+      "aria-label": `${eatWords}, B`,
+      "aria-keyshortcuts": "B",
+    },
+    "eat",
+    eatWords,
+  );
+  const eatCap = attempt(() => (parts.eat?.keycap ?? keycap)(doc, "B"));
+  if (eatCap) eatButton.append(eatCap);
+  // rework-024 (nit 2): a held Enter or Space is one press, as a held B is (walk/input.ts): a repeat's keydown is
+  // prevented, so the browser makes no click of it.
+  eatButton.addEventListener("keydown", (e) => {
+    if (e.repeat && (e.key === "Enter" || e.key === " ")) e.preventDefault();
+  });
   const standIn = h(doc, "p", { class: "room-note room-stand-in", hidden: !parts.standIn }, parts.standIn ?? "");
   const notes = h(doc, "div", { class: "room-notes" }, note, standIn);
   /** Spec 020's visitor line, in the notes after the line slot's while it has words. */
   let visitorLine: HTMLElement | null = null;
-  const clear = h(doc, "div", { class: "room-clear" }, notes, walkButton, walkHelp);
+  const clear = h(doc, "div", { class: "room-clear" }, notes, walkButton, walkHelp, eatButton);
   const stage = h(doc, "div", { class: "room-stage" }, view, clear);
   const panels = h(doc, "div", { class: "hud-panels hud-glass" }, parts.list, parts.talk);
   const resumeHeading = h(doc, "h2", { id: "resume-heading", tabindex: -1 }, "The resume");
@@ -250,7 +286,17 @@ export function renderRoom(
   const element = h(doc, "div", { class: "room" }, block, parts.around, resumePanel);
   const loadingLine = view.querySelector(".room-loading");
   const root = doc.documentElement;
-  const controls = [toolbar, view, walkButton, parts.list, parts.talk, resumePanel];
+  const controls = [toolbar, view, walkButton, eatButton, parts.list, parts.talk, resumePanel];
+  /** Whether the 3D side offers the tile (setEatOffered). */
+  let eatWanted = false;
+  /** rework-024 (B-2): the tile shows where it is offered and a room.css rule places it, read from the attributes those
+   *  rules read: the stacked layout (or none applied yet), beside the walking control; a HUD layout only with its Eat
+   *  box (data-eat-place="on"), never where --eat-x/-y are unset. */
+  const showEat = (): void => {
+    const hud = root.getAttribute("data-hud");
+    const placed = (hud !== "column" && hud !== "dock") || root.getAttribute("data-eat-place") === "on";
+    eatButton.hidden = !eatWanted || eatWords === "" || !placed;
+  };
 
   return {
     element,
@@ -314,6 +360,11 @@ export function renderRoom(
       walkButton.hidden = !on || walkWords.enter === "";
       root.setAttribute("data-walk", walkButton.hidden ? "off" : "on");
     },
+    eatButton,
+    setEatOffered(on) {
+      eatWanted = on;
+      showEat();
+    },
     setWalking(on) {
       walkLabel.textContent = on ? walkWords.leave : walkWords.enter;
       walkHelp.hidden = !on;
@@ -332,6 +383,19 @@ export function renderRoom(
       root.setAttribute("data-list", applied.state.list);
       // Spec 014, T053 (W19): where the walking control sits, which room.css's column layout reads with --walk-x/-y.
       root.setAttribute("data-walk-place", applied.compact.walkPlace);
+      // Spec 024 (plan.md §5.5): the "Eat" tile's box, for a 3D dinosaur visit only, which room.css reads.
+      // rework-024 (B-2): "on" only in a HUD layout, the only ones whose rule reads --eat-x/-y (room.css); the stacked
+      // layout places the tile beside the walking control by its own rule.
+      const eat = applied.layout === "stacked" ? null : (applied.compact.eat ?? null);
+      root.setAttribute("data-eat-place", eat ? "on" : "off");
+      if (eat) {
+        root.style.setProperty("--eat-x", `${eat.x}px`);
+        root.style.setProperty("--eat-y", `${eat.y}px`);
+      } else {
+        root.style.removeProperty("--eat-x");
+        root.style.removeProperty("--eat-y");
+      }
+      showEat();
       const px = (n: number): string => `${n}px`;
       const { safe } = applied.metrics;
       const sizes: [string, number][] = [

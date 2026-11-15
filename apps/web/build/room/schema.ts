@@ -355,16 +355,35 @@ const faceBinding = z
       ctx.addIssue({ code: "custom", message: "RD3: max_chars is required with atmosphere", path: ["max_chars"] });
   });
 
-/** A placement: `frame` "default false"; `label` a `label.<name>` key; `role` twin or visitor; `faces`. */
-const placement = z.strictObject({
-  id: name("a placement's ID"),
-  piece: z.string(),
-  mount: mount.optional(),
-  frame: z.boolean().default(false),
-  label: labelKey.optional(),
-  role: z.enum(ROLES).optional(),
-  faces: z.record(z.string(), faceBinding).optional(),
-});
+/** Spec 024 (FR-002; plan.md §5.1): `edible`, the chunks a piece's model splits into for the dinosaur's bite, an
+ *  integer from 2 to 12. */
+const edible = z.strictObject({ chunks: z.number().int().min(2).max(12) });
+
+/** A placement: `frame` "default false"; `label` a `label.<name>` key; `role` twin or visitor; `faces`; since spec
+ *  024, `edible`, never on the root placement (the room's shell, which has no mount) or a figure (a `role`, whose
+ *  model is an avatar's, no piece's to eat). */
+const placement = z
+  .strictObject({
+    id: name("a placement's ID"),
+    piece: z.string(),
+    mount: mount.optional(),
+    frame: z.boolean().default(false),
+    label: labelKey.optional(),
+    role: z.enum(ROLES).optional(),
+    faces: z.record(z.string(), faceBinding).optional(),
+    edible: edible.optional(),
+  })
+  .superRefine((p, ctx) => {
+    if (p.edible === undefined) return;
+    if (p.mount === undefined)
+      ctx.addIssue({
+        code: "custom",
+        message: "RD3: edible on the root placement, the room's shell",
+        path: ["edible"],
+      });
+    else if (p.role !== undefined)
+      ctx.addIssue({ code: "custom", message: "RD3: edible on a figure, which has no piece to eat", path: ["edible"] });
+  });
 
 /** A pose: its mount, and the glow levels it sets on other placements. */
 const pose = z.strictObject({
@@ -575,6 +594,9 @@ const twinBlock = z.strictObject({
     .optional(),
 });
 
+/** Spec 024 (FR-011): the eating block's default, the regrowth's 20 s. */
+export const EATING_DEFAULTS = { regrow_s: 20 } as const;
+
 /** `figures.dog` (spec 025, FR-018; plan.md R-09): the room's dog's home, `at` two finite numbers [x, z] in metres
  *  and `heading_deg` within ±360, and `footprint_m` above 0. */
 const dogBlock = z.strictObject({
@@ -665,6 +687,8 @@ export const sceneSchema = z
     survey: z.strictObject({ desk_corner: anchorRef }),
     retired: z.array(retired).default(() => []),
     figures,
+    // Spec 024 (FR-011): the seconds a chunk takes to grow back, an integer from 5 to 120, 20 by default.
+    eating: z.strictObject({ regrow_s: z.number().int().min(5).max(120) }).default(() => ({ ...EATING_DEFAULTS })),
   })
   .superRefine((s, ctx) => {
     // Spec 026's R-08: spec 025's R-09 keeps the dog's home at least `separation_m` from the twin's, so a `reach_m`
