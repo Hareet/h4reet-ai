@@ -1,6 +1,6 @@
 # night/record2-dino-r2/record2-dino-r2
 
-Spec: specs/021-dinosaur-modeled-and-brought-in/ · Intent: none (the Author's night-3 item 2) · Written by: implementer (night shift, Opus 5.5) · Date: 2026-11-15
+Spec: specs/021-dinosaur-modeled-and-brought-in/ · Intent: `intent/021-dinosaur-modeled-and-brought-in.md` (the Author's night-3 item 2; corrected by `docfix-028`, rv-record2-dino-r2's N3: first "Intent: none") · Written by: implementer (night shift, Opus 5.5) · Date: 2026-11-15
 Session: /home/h4reet/h4reet-ai/night/2026-11-15/record2-dino-r2 · Repo hooks active: yes (`.claude/audit/hooks.log`, e.g. `2026-11-15T07:50:18Z	bash	ALLOW	ls /srv/studio/briefs/dinosaur/; cat /srv/studio/briefs/dinosaur/2.result.json; …`)
 Authorized by: the Author's order for night 3, item 2 ("The dinosaur doesn't load the model, or do any of the eating of assets."), steps 3 and 4 of `studio-round-2.md`'s "For his morning, in order", and the supervisor's task `record2-dino-r2`, after the studio task `studio-dino-rec`
 
@@ -15,7 +15,7 @@ No code, no test, nothing under `assets/**`, nothing under `/srv/studio/handoff/
 
 ## Acceptance criteria
 
-Spec 021's round record before the intake (FR-015 follows with his intake). There are no new FR or SC IDs.
+Spec 021's round record before the intake (FR-015 follows with his intake). There are no new FR or SC IDs. The criteria it serves (added by `docfix-028`, rv-record2-dino-r2's N4): US3 ("The studio makes it, and the intake checks it"), FR-015 ("THE AUTHOR'S LOOK APPROVAL SHALL come last and be his"; the intake stays his), FR-016 (its small tests: the `line.py` runs and `make lint`, no full suite), and SC-006 (no agent change under `.claude/**`, `tools/gates/**`, `corpus/**`, `assets/**`, or `assets/policy/**`).
 
 ## Constitution check
 
@@ -69,6 +69,6 @@ None. There are no model calls and no paid routes, and nothing leaves the machin
 
 ## For the Author
 
-1. **Your intake** of `assets/visitors/dinosaur/**` (P9, `docs/merge-requests/human-patches/021.md`), once the stack is on main. The six files' table under "The intake (intake-021)" in `docs/merge-requests/2026-11-14-night-stack.md` already names the recorded `records.json`, `39b89e14…d4df`. The four GLBs are unchanged since your look approval. The question is on the page, with the recommendation "yes, apply P9 as written".
-2. **Q198** (the concept's source, `design` D-0003) stays open, and is yours to overturn.
+1. **Your intake** of `assets/visitors/dinosaur/**` (P9, `docs/merge-requests/human-patches/021.md`): night 2's stack is on `main` since `a36f98ec` (both `human-patches/021.md` and `docs/merge-requests/2026-11-14-night-stack.md` are there), so it waits on nothing else; the night-3 page asks it as Q1 (corrected by `docfix-028`, rv-record2-dino-r2's N2: first "once the stack is on main", with no Q number). The six files' table under "The intake (intake-021)" in `docs/merge-requests/2026-11-14-night-stack.md` already names the recorded `records.json`, `39b89e14…d4df`. The four GLBs are unchanged since your look approval. The question is on the page, with the recommendation "yes, apply P9 as written".
+2. **Q198** (the concept's source, `design` D-0003) stays open, and is yours to overturn; beside it, night 1's page **Q223** ("Is the dinosaur's concept (D-0003) your own design, so its record's source is `design` rather than a prompt as spec 021's FR-007 says …?", `docs/night-shift/2026-11-13.md:1063` on `night/supervisor/2026-11-13`), taken on its recommended answer, `design`, D-0003: "Answered: recommended, the Author 2026-11-13 (the orders file's rule; yours to confirm or overturn here)." And **Q222** (`:1058`), whether your "dinosaur is approved" stands as your review of the mesh, taken the same way: "Answered: recommended, the Author 2026-11-13 (the orders file's rule; yours to confirm or overturn here)." (Added by `docfix-028`, rv-record2-dino-r2's N1, in part: the two questions named; your night-3 words on the mesh review aren't quoted, since this task can read only item 1 of your night-3 orders.)
 3. **Interruptions (rule 5):** none. I couldn't read `studio-dino-rec`'s `progress.md`: only this task's own `/night/io/in` and `/night/io/out` are mounted.
