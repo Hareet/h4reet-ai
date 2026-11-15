@@ -4826,6 +4826,118 @@ $ pytest -q -p no:cacheprovider --import-mode=importlib scripts/corpus
 382 passed in 8.61s
 ```
 
+#### All of `apps/web`, second run (ff88ed75, the fix in; 1449 s)
+
+```
+$ cd apps/web && npx vitest run --maxWorkers=4
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ Test Files  3 failed | 238 passed (241)
+      Tests  6 failed | 4381 passed | 3 skipped (4390)
+   Start at  02:20:38
+   Duration  1448.58s (tests 71%, import 28%)
+```
+
+- **The six failures** are exactly D-V2's six, shown passing on the patched copy above.
+- **`twin-2d.test.ts`** passed in both whole runs, so it needed no rerun alone.
+- **`chunk.test.ts`** passed in this run (14 cases), so the first run's two failures didn't come back.
+
+#### `chunk.test.ts` on main's tip (rule 7: a test item 9 doesn't touch)
+
+- **The copy.** main is ab4876f5. `git archive main` went into `/tmp/verify026-main.2Hd3`, with the worktree's `node_modules` linked in.
+- **The two manifest cases.** The two cases that failed in the first run, "is compose()'s manifest, its build_kind …", pass there.
+- **Two other cases fail on the copy:** "keeps zod, fontkit, pako, … out of what the room loads", `chunk.test.ts:169`. It wants a `node_modules/three/` module in the chunks. With `node_modules` linked from outside the copy, vite names `three`'s modules by their real path, outside the copy.
+- **That is the copy's limit, not main's.** The same two fail the same way on a copy of this branch's tip, `/tmp/verify026-dv2b.kVUw`. They pass in the worktree, alone (14 passed) and in the second whole run.
+
+```
+$ cd <main's copy>/apps/web && npx vitest run --maxWorkers=4 test/room/chunk.test.ts
+ FAIL  … > the release build > the room's bundle (FR-011) > keeps zod, fontkit, pako, the TypeScript parser, and the GLB reader out of what the room loads
+ FAIL  … > the drafts build > the room's bundle (FR-011) > keeps zod, fontkit, pako, the TypeScript parser, and the GLB reader out of what the room loads
+ Test Files  1 failed (1)
+      Tests  2 failed | 12 passed (14)
+$ cd <this branch's copy, ff88ed75>/apps/web && npx vitest run --maxWorkers=4 test/room/chunk.test.ts
+ (the same two FAIL lines)
+ Test Files  1 failed (1)
+      Tests  2 failed | 12 passed (14)
+```
+
+#### `chase-stage.test.ts`, twice (N-2's "Run twice")
+
+```
+$ cd apps/web && npx vitest run --maxWorkers=4 test/room/chase-stage.test.ts   # first
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+$ cd apps/web && npx vitest run --maxWorkers=4 test/room/chase-stage.test.ts   # second
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+```
+
+#### The lint target
+
+From the root, on 62bfe9cb (this note's runs not yet pasted), exit 0. Shellcheck's echoed file list is left out:
+
+```
+make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+835 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- …
+exit 0
+```
+
+It ran again on this section's commit, below.
+
+#### The hooks
+
+Every commit on this branch printed gitleaks' "no leaks found" and the arrival check's "0 findings": the step 1 save point (0 files), f470bf1e (1), 4b0ff194 (4), 14492524 (0), ff88ed75 (11), 62bfe9cb (1), and this section's. The setup target installed `node_modules` (the worktree had none). It said the git hooks directory isn't writable in the sandbox, as it did for rework5-026, but the hooks ran on every commit.
+
+#### The review's verify points, carried
+
+1. **B-1 under Q296**, his to confirm or overturn beside Q282.
+   - If he overturns Q282, `chase-stage.test.ts`'s third case goes back to the line's version, and `shellDue`, its tests, and `pet-shell.test.ts`'s wired case are reverted (plan R-07).
+   - The count to give him is now three earlier specs' test files. Two are spec 025's: `chase-stage.test.ts` (the departure) and `chase-states.test.ts` (T006's pin). The third is `avatars-compose.test.ts`'s `figures` pin (spec 009's file; verify-026, above).
+2. **I-1: closed** (above): the 26 files, 606 passed, by name.
+3. **The 12 chase files:** each passed in both whole runs, and `chase-face.test.ts` passed again in the fix's run (15).
+4. **FR-027 over the real path:** "6.60 bytes a petting" alone (bar 12). `pet-bench-real.test.ts` passed in both whole runs. Q289's evidence is N-1's scratch run, with N-5's label kept. Still standing from rv-rework3-026, items 3 to 5:
+   - the once-a-petting functions' lower tiers (R-04's limit, Q259);
+   - the stage's computed `dt`;
+   - a page that mounts 3D twice.
+5. **Carried:**
+   - T019's patch is off this branch: patch3-026 and its review (Q297), and merge-3 takes it.
+   - The dog's picture-level checks are vacuous until intake-020 is on the line (Q288).
+   - D-V2's six (Q165), shown passing on the patched copy.
+   - No full `make check` was run (rule 4: the stack's last task runs it).
+6. **N-3 and N-4:** in item 9's Backlog (rv-rework5-026), above, in the review's words. Not done here: they touch tests the review marked optional.
+
+#### What waits for him
+
+- Q296 beside Q282.
+- Q298's CLAUDE.md line (For the Author, above).
+- Everything item 9's earlier sections list: T019's patch, the proposal, the studio clip and his look, the one ADR (Q161), and the slot and Golden Q&A 9 in his words.
+
+Nothing under `corpus/`, `assets/**`, `/srv/studio/`, or a human-only path changed on this branch. There was no merge into main and no push.
+
+#### Interruptions (verify-026)
+
+Two bash-gate refusals, both on the page under Interruptions (`/night/io/out/questions.md`), neither respelled:
+
+- **A recursive delete of a stray `/tmp` export** ("recursive delete outside workspace"). The folder stays, and a fresh `mktemp -d` export was used.
+- **"an Author-only make target".** A false match: the lint target's output filter listed a folder whose name is the same word as the Author's toolchain target. The lint target was then run alone into a log, with no filter.
+
+No new question.
+
+verify-026: green, carrying D-V2's six (Q165). Two of item 9's test failures, found in `apps/web`'s whole suite (spec 004's source scan over item 9's tests, and T012's missed `figures` pin), were fixed test-first at ff88ed75.
+
 ## Item 10: spec 027, when the twin's file context stops being enough (`night/impl-027/impl-027`)
 
 Spec: specs/027-corpus-retrieval-adr/ · Intent: intent/027-corpus-retrieval-adr.md (draft) · ADR: docs/adr/0054-when-file-context-stops-being-enough.md (proposed) · Written by: implementer (night shift, impl-027, Opus 5.5); the review is for a worker who didn't write the code (T006; the reviewer follows this task) · Date: 2026-11-14

@@ -1,5 +1,17 @@
 # Notes: spec-026 and its reworks (2026-11-14)
 
+## verify-026 (`night/verify-026/verify-026`, from rework5-026's tip 215b4eea, Opus 5.5)
+
+Rule 7's verification of item 9, by a worker that wrote none of it. Its runs and fixes are in the stack note (`docs/merge-requests/2026-11-14-night-stack.md`), item 9's "Verification (rule 7, verify-026)":
+
+- The line's tip (ce3f6305) was already merged.
+- I-1's files passed: 26 files, 606 tests.
+- The review's nits N-1, N-2, and N-5 are in this file, `plan.md`, and spec 025's `plan.md`. N-3 and N-4 are in item 9's Backlog.
+- `apps/web`'s whole suite found two failures of item 9's, both fixed test-first at ff88ed75:
+  - spec 004's source scan (FR-007): 37 room IDs in item 9's own test files, now found by their words (`test/helpers/room-ids.ts`) or written as `fx-` IDs on fakes;
+  - T012's missed closed-list pin in `avatars-compose.test.ts` (plan R-05's "As built (verify-026)").
+- The second whole run failed only D-V2's six (Q165).
+
 ## rework5-026 (`night/rework5-026/rework5-026`, from rework4-026's tip b6e2166a, Opus 5.5)
 
 Written by the night-shift implementer rework5-026 on 2026-11-15, from about 01:00Z to 01:25Z. It answers rv-rework3-026's Opus review ("Verdict: blocking", B-1 alone, four nits) under the page's Q296 (answered: recommended, his to confirm or overturn beside Q282). rv-rework5-026 (another worker) reviews it, and item 9's verify follows.
