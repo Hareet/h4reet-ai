@@ -245,6 +245,19 @@ export interface Walking {
   camera: { yaw_deg: number; pitch_deg: [number, number]; min_distance_m: number; focus_height_m: number };
 }
 
+/** Spec 028 (FR-021, FR-022; plan.md R-B4): the dinosaur's scene's data: where the dog meets the twin, the floor below
+ *  the bicycle, the bicycle's offset in the twin's picture's frame, the path out of the room as [x, z] points, the
+ *  dog's and the walkers' speeds in metres a second, and the take's seconds. */
+export interface LeaveData {
+  meet: [number, number];
+  under_bicycle: [number, number];
+  carry: [number, number, number];
+  path: [number, number][];
+  dog_mps: number;
+  walk_mps: number;
+  take_s: number;
+}
+
 /** The 3D part, in the lazy 3D chunk (contracts/room-bundle.md §3.2). */
 export interface RoomScene {
   schema: 1;
@@ -324,6 +337,8 @@ export interface RoomScene {
     chase?: ChaseConfig | undefined;
     /** Spec 026 (plan.md §3): the petting's block, resolved; absent, the pet director takes PET_DEFAULTS. */
     pet?: PetConfig | undefined;
+    /** Spec 028 (FR-021, FR-022; plan.md R-B4): the dinosaur's scene's data, each figure to 1e-6; absent, no scene. */
+    leave?: LeaveData | undefined;
   };
   handoff: { from: { placement: string; anchor: string }; to: { placement: string; anchor: string } };
   /** Placement IDs with a set model, a switch's pose named `<switch>.<pose>` (plan.md §10). */

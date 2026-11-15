@@ -58,15 +58,16 @@ function points(part: RoomScene) {
   return { twinAt, bicycle, bicycleAt, visitor, chase };
 }
 
-/** A block placed by the composed points, as the shipped one is; each test changes one thing of it. */
+/** A block placed by the composed points (plan.md R-B4's record: `under_bicycle` in front of the desk, short of the
+ *  bicycle's obstacle), as the shipped one is; each test changes one thing of it. */
 const GOOD = {
-  meet: [0.4, 0.35],
-  under_bicycle: [0.8, 0.25],
-  carry: [0.3, 0, 0.05],
+  meet: [0.42, 0.45],
+  under_bicycle: [0.74, 0.52],
+  carry: [0.3, 0.26, 0.05],
   path: [
-    [0.8, 0.5],
-    [1.0, 0.75],
-    [1.6, 0.9],
+    [0.8, 0.75],
+    [1.3, 0.9],
+    [1.7, 0.9],
   ],
   dog_mps: 1.2,
   walk_mps: 1.0,

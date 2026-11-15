@@ -101,6 +101,21 @@ Reuses `chase-figures.ts`'s `place` for the twin's and the dog's pictures (only 
     take_s: 0.8
 ```
 
+**As built (T-B03), the printed points** (`test/room/dino-scene-data.test.ts`'s first case, the repository's room): the twin's home (0.66, 0.469); the bicycle's origin (0.977, 1.49, 0.222), its frame box on the floor x 0.889 to 1.065, z −0.287 to 0.481; the shell's floor x ±1.0668, z ±0.6096; the chase floor's bounds x ±0.9468, z −0.4896 to 0.5846, with the work desk's obstacle x ±0.87, z to 0.3124 and the bicycle's x 0.769 to 1.185, z −0.407 to 0.601; the dog's home (0.3, 0.45); the visitor's start (−0.7, 0.58). The estimates above put `under_bicycle` (0.8, 0.25) inside both the desk's and the bicycle's obstacles, and `meet` (0.4, 0.35) just in front of the desk; the shipped block is placed by the printed points instead:
+
+```yaml
+  leave:
+    meet: [0.42, 0.45]
+    under_bicycle: [0.74, 0.52]   # in front of the desk, short of the bicycle's obstacle
+    carry: [0.3, 0.26, 0.05]      # the bicycle's origin, midway between its hubs, 0.259 m up (its catalog bounds)
+    path: [[0.8, 0.75], [1.3, 0.9], [1.7, 0.9]]
+    dog_mps: 1.2
+    walk_mps: 1.0
+    take_s: 0.8
+```
+
+`carry` is in the twin's picture's frame (its heading); the bicycle stands on its wheels with its length along the twin's heading (its catalog's x along the carrier's z). The check is **RI12** (`build/room/checks/ri-leave.ts`, run last in the RI family), and `test/room/compose.test.ts`'s rule catalogue pin counts it (RI 11 → 12), as specs 014 to 021 each did for theirs. The schema requires every key within the block (each is the scene's, no default) and refuses a path of under two points.
+
 The estimates are this plan's, from the shell's bounds (`room-shell.yaml`: x ±1.0668, z ±0.6096) and the twin's and the bicycle's mounts; T-B03 prints the composed points (the bicycle's floor point from its mount) and records them here before its GREEN step. The schema adds the block (optional; absent, no scene: the room is as with a cut, the eating offered at once). A new check in `build/room/checks/` (the next free code of the family that holds the figures' checks, `RI` or `RD`, the task names it) refuses FR-022's cases.
 
 ### R-B5. The speech bubble (`src/room/bubble.ts`, `src/room/bubble.css`, new)

@@ -41,6 +41,7 @@ import { isAvatarId } from "../../src/choice/avatars";
 import type { AvatarId } from "../../src/choice/avatars";
 import type {
   Highlight,
+  LeaveData,
   Look,
   Matrix2D,
   Prim,
@@ -96,6 +97,7 @@ import { EATING_DEFAULTS, HEX, HIGHLIGHT_DEFAULTS, WALKING_DEFAULTS } from "./sc
 import type {
   CatalogEntry,
   DrawingPrimitive,
+  LeaveBlock,
   LookFile,
   Placement,
   Pose,
@@ -279,6 +281,20 @@ function chaseOf(c: ChaseConfig): ChaseConfig {
   };
 }
 /** Spec 026's pet block (plan.md §3), each figure to 1e-6 and `stroke_n` whole. */
+/** Spec 028 (FR-022): the leave block, each figure to 1e-6. */
+function leaveOf(l: LeaveBlock): LeaveData {
+  const p2 = (p: readonly [number, number]): [number, number] => [m6(p[0]), m6(p[1])];
+  return {
+    meet: p2(l.meet),
+    under_bicycle: p2(l.under_bicycle),
+    carry: [m6(l.carry[0]), m6(l.carry[1]), m6(l.carry[2])],
+    path: l.path.map(p2),
+    dog_mps: m6(l.dog_mps),
+    walk_mps: m6(l.walk_mps),
+    take_s: m6(l.take_s),
+  };
+}
+
 function petOf(p: PetConfig): PetConfig {
   return {
     reach_m: m6(p.reach_m),
@@ -1507,6 +1523,8 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
       ...(scene?.figures.chase === undefined ? {} : { chase: chaseOf(scene.figures.chase) }),
       // Spec 026 (plan.md §3): the petting's block, resolved, as the scene gives it.
       ...(scene?.figures.pet === undefined ? {} : { pet: petOf(scene.figures.pet) }),
+      // Spec 028 (FR-022; plan.md R-B4): the dinosaur's scene's block, each figure to 1e-6, as the scene gives it.
+      ...(scene?.figures.leave === undefined ? {} : { leave: leaveOf(scene.figures.leave) }),
     },
     handoff: {
       from: { placement: scene?.handoff.from.placement ?? "", anchor: scene?.handoff.from.anchor ?? "" },
