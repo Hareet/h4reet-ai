@@ -492,7 +492,7 @@ describe('"Around the room" (FR-063; User Story 7 scenarios 2 and 5)', () => {
     ["3D", true],
     ["2D", false],
   ] as const)(
-    "is visible in %s after the conversation panel, outside the stage, open with nothing to expand, with the tier's sentence",
+    "is in %s after the conversation panel, outside the stage, open to a screen reader with nothing to expand, with the tier's sentence (spec 028: visually hidden in the HUD's layouts)",
     async (_, webgl) => {
       const v = start({ webgl });
       await intoRoom(v);
@@ -510,7 +510,9 @@ describe('"Around the room" (FR-063; User Story 7 scenarios 2 and 5)', () => {
       expect(block?.lastElementChild?.lastElementChild?.classList.contains("talk")).toBe(true);
       expect(parts[at + 1]?.classList.contains("resume-panel")).toBe(true);
       expect(around.closest(".room-stage")).toBeNull();
-      // Open to every visitor: never hidden, inert, visually hidden, or folded, and nothing in it to expand.
+      // Open to every visitor's screen reader: never hidden, inert, or folded, and nothing in it to expand. Spec 028
+      // (T-A08, FR-016; plan.md §R-B8): in the HUD's layouts room.css hides it from view, not from the reading order
+      // (test/ui/around.test.ts), so it carries no .visually-hidden class of its own either.
       expect(around.closest("[hidden], [inert], [aria-hidden='true'], .visually-hidden, details")).toBeNull();
       expect(
         around.querySelectorAll("details, summary, [aria-expanded], [aria-controls], [hidden], .visually-hidden"),

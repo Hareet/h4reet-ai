@@ -68,7 +68,8 @@ describe("the text copy (renderTextCopy)", () => {
     const heading = section.querySelector("h2");
     expect(textOf(heading)).toBe(index.ui["around.heading"]);
     expect(section.getAttribute("aria-labelledby")).toBe(heading?.id);
-    // Visible to every visitor: not a visually hidden heading, and nothing to expand.
+    // Read by every visitor: not a visually hidden heading of its own, and nothing to expand. Spec 028 (T-A08, FR-016):
+    // in the HUD's layouts room.css hides the whole section from view, never from the reading order.
     expect(heading?.getAttribute("class") ?? "").not.toContain("visually-hidden");
     expect(section.querySelectorAll("details, [hidden], [aria-expanded], button")).toHaveLength(0);
     expect(linesOf(section)).toEqual(expectedLines(index, "not-live"));

@@ -8,6 +8,9 @@
 // channel. In every reading of a run of turns through the twin's sender, each counter's entry equals its face's word
 // list from the channel's state and the 2D drawing's words; "est." is marked up as an abbreviation of "estimated"; a
 // badge is in brackets; nothing is in a live region, in the talk panel's log, or announced.
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { JSDOM } from "jsdom";
 import { Object3D } from "three";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -28,9 +31,12 @@ import {
   announcer,
   flush,
   intoRoom,
+  parseCss,
   repositoryBundle,
   roomIndex,
   start,
+  stubViewport,
+  tabOrder,
   talkLog,
   textOf,
 } from "../helpers/room";
@@ -308,4 +314,66 @@ describe("the counters' readings (T264; contracts/turn-cost.md §8)", () => {
     // No other entry carries one.
     expect(v.doc.querySelectorAll(".room-around abbr")).toHaveLength(2);
   });
+});
+
+// T-A08 (spec 028; FR-016; Q7; the Author's answer "Hide, keep for readers (Recommended)": "no panel below the room on
+// screen; screen readers and the phone layout still get the text"): in the split, column, and dock layouts "Around the
+// room" takes the room's visually hidden declarations, so it takes no space on screen and a screen reader still reads
+// it in its place, the last Tab stop; focused, it shows, since a keyboard user must see where focus is (WCAG 2.4.7,
+// 2.4.11; plan.md §R-A6); in the stacked layout, the phone's, it shows as before.
+describe('"Around the room" hidden from view, kept for readers (spec 028, T-A08; FR-016)', () => {
+  const CSS = parseCss(readFileSync(fileURLToPath(new URL("../../src/room/room.css", import.meta.url)), "utf8"));
+  const rules = [...CSS.rules, ...CSS.atRules.flatMap((a) => parseCss(a.body).rules)];
+  const declared = (selector: string): Map<string, string> => {
+    const out = new Map<string, string>();
+    for (const r of rules)
+      if (r.selector.split(",").some((p) => p.trim() === selector)) for (const [k, v] of r.declarations) out.set(k, v);
+    return out;
+  };
+  const HIDDEN = declared(".visually-hidden");
+
+  it("takes the room's visually hidden declarations in the column and dock layouts (the split layout's among them)", () => {
+    expect(HIDDEN.get("clip-path")).toBe("inset(50%)");
+    for (const hud of ["column", "dock"]) {
+      const got = declared(`html[data-hud="${hud}"] .room-around:not(:focus)`);
+      for (const [k, v] of HIDDEN) expect(got.get(k), `${hud}: ${k}`).toBe(v);
+    }
+  });
+
+  it("shows when it has focus there, at the window's foot, over the room", () => {
+    for (const hud of ["column", "dock"]) {
+      const got = declared(`html[data-hud="${hud}"] .room-around:focus`);
+      expect(got.get("position"), hud).toBe("fixed");
+      expect(got.get("clip-path"), hud).toBe("none");
+      expect(got.get("bottom"), hud).toBe("1rem");
+      expect(got.get("overflow-y"), hud).toBe("auto");
+    }
+  });
+
+  it("shows in the stacked layout: no rule there hides it", () => {
+    for (const r of rules.filter((x) => /data-hud="stacked"\] \.room-around/.test(x.selector))) {
+      expect(r.declarations.get("clip-path") ?? "none").toBe("none");
+      expect(r.declarations.get("position") ?? "static").not.toBe("absolute");
+    }
+  });
+
+  for (const [name, screen] of [
+    ["split", { w: 1920, h: 1080 }],
+    ["column", { w: 844, h: 390 }],
+    ["dock", { w: 390, h: 844 }],
+  ] as const)
+    it(`is the room's last Tab stop in the ${name} layout, in the accessibility tree, its lines whole`, async () => {
+      const view = stubViewport(screen);
+      const v = start({ webgl: true, viewport: view.factory });
+      await intoRoom(v);
+      const around = v.doc.querySelector<HTMLElement>(".room-around");
+      if (!around) throw new Error('no "Around the room"');
+      expect(v.doc.documentElement.getAttribute("data-split")).toBe(name === "split" ? "on" : "off");
+      const stops = tabOrder(v.doc).filter(
+        (el) => el.closest(".room") !== null && el.closest(".resume-panel") === null,
+      );
+      expect(stops.at(-1)).toBe(around);
+      expect(around.closest("[hidden], [inert], [aria-hidden='true']")).toBeNull();
+      expect(around.querySelectorAll("li").length).toBeGreaterThan(0);
+    });
 });
