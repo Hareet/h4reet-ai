@@ -113,7 +113,7 @@ describe("a selectable's figure (R-09)", () => {
     name: "Dog",
     members: ["fx-desk"],
     figure,
-    action: { talk: { topic: "hobbies-and-travel", lead: "The dog first." } },
+    action: { talk: { topic: "fx-work", lead: "The dog first." } },
   });
 
   it("takes dog, the one value allowed now", () => {

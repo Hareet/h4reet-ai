@@ -221,7 +221,7 @@ describe("chase-figures.ts writes the turn (R-07)", () => {
   const DOG_AT: [number, number] = [0.3, 0.45];
   const part = {
     figures: {
-      twin: "twin-figure",
+      twin: "fx-twin-figure",
       dog: { home: { at: DOG_AT, heading_deg: 180 }, footprint_m: 0.3 },
       chase: CHASE_DEFAULTS,
     },

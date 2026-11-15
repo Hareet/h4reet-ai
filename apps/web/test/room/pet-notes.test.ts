@@ -96,7 +96,7 @@ describe("the frame log's twin-pet record (FR-026)", () => {
 
   it("logs nothing for another piece's selection", () => {
     const w = told();
-    w.pet.select("snowboard");
+    w.pet.select("fx-snowboard");
     expect(w.out.records).toEqual([]);
   });
 

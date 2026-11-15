@@ -164,7 +164,9 @@ describe("the pet director (R-01, R-07; FR-001, FR-002, FR-005, FR-006, FR-010)"
 
   it("starts nothing on another piece's selection", () => {
     const w = world();
-    for (const id of ["dog-sign", "snowboard", "laptop", "twin", "visitor"]) expect(w.pet.select(id)).toBe(false);
+    // Fixture IDs (`fx-`): spec 004's FR-007 lets no room ID stand in a test.
+    for (const id of ["fx-dog-sign", "fx-snowboard", "fx-laptop", "twin", "visitor"])
+      expect(w.pet.select(id)).toBe(false);
     expect(w.pet.phase).toBe("idle");
     expect(w.calls).toEqual([]);
   });
@@ -311,7 +313,7 @@ describe("the pet director (R-01, R-07; FR-001, FR-002, FR-005, FR-006, FR-010)"
     const w = world();
     const keys = Object.keys(w.pet).sort();
     expect(keys).toEqual(["activity", "finished", "frame", "path", "phase", "reach", "select"]);
-    w.pet.select("visitor-figure");
+    w.pet.select("fx-visitor-figure");
     expect(w.calls).toEqual([]);
   });
 

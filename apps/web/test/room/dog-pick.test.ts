@@ -36,15 +36,18 @@ import type { Stage } from "../../src/room/compose/stages";
 import { framedBoxes, pickAreasOn, selectablePicker } from "../../src/room/scene/bundle3d";
 import { reservedBoxes } from "../../src/room/compose/hud";
 import { REPO } from "../helpers/room";
+import { placementLabelled, selectableNamed, topicPhrased, twinFigure } from "../helpers/room-ids";
 
 const SCENE_PATH = "apps/web/room/scene.yaml";
 const STRICT: ComposeOptions = { mode: "strict", drafts: false };
+// Spec 004's FR-007: no room ID stands in a test, so the dog sign and the hobbies topic are found by their words
+// (../helpers/room-ids.ts).
 const DOG_SELECTABLE = {
   id: "dog",
   name: "Dog",
-  members: ["dog-sign"],
+  members: [placementLabelled("Desk sign, dog")],
   figure: "dog",
-  action: { talk: { topic: "hobbies-and-travel", lead: "The dog first." } },
+  action: { talk: { topic: topicPhrased("hobbies and travel adventures"), lead: "The dog first." } },
 };
 
 const corners = (dog: { home: { at: [number, number]; heading_deg: number }; footprint_m: number }) => {
@@ -170,9 +173,9 @@ describe("the scene's real selectables plus the dog piece, on a grid (R-09; Q160
   it("carries the selectable's figure into the index, and the twin has no pick area", () => {
     const { result } = withDog();
     const ids = result.index.selectables.map((s) => s.id);
-    expect(ids).toEqual(["snowboard", "bicycle", "laptop", "chalkboard", "dog"]);
+    expect(ids).toEqual([...["Snowboard", "Bicycle", "Laptop and screen", "Chalkboard"].map(selectableNamed), "dog"]);
     expect(result.index.selectables.find((s) => s.id === "dog")?.figure).toBe("dog");
-    expect(ids).not.toContain("twin-figure");
+    expect(ids).not.toContain(twinFigure());
     // The floor the dog's box stands on: the twin's placement's, at y 0.
     const twin = resolveMounts(result.scene.placements, result.scene.pieces).world.get(result.scene.figures.twin);
     expect(twin && origin(twin)[1]).toBeCloseTo(0, 9);
@@ -330,7 +333,12 @@ describe("RG6 measures the dog's box at its home (R-09; Q160)", () => {
     // A fixture selectable whose member is the work desk (no shipped selectable is), its core centred on the desk, and
     // the dog's home moved, on a grid, to where its rectangle holds that core's centre.
     const stage: Stage = { w: 1280, h: 800 };
-    const FIXTURE = { id: "fixture-desk", name: "Fixture", members: ["work-desk"], action: { resume: {} } };
+    const FIXTURE = {
+      id: "fixture-desk",
+      name: "Fixture",
+      members: [placementLabelled("Desk")],
+      action: { resume: {} },
+    };
     const treeOf = (figure: boolean, home: [number, number] | null): Tree => {
       const base = fileTree(REPO);
       const text = new TextDecoder().decode(base.read(SCENE_PATH) ?? new Uint8Array());
@@ -338,7 +346,11 @@ describe("RG6 measures the dog's box at its home (R-09; Q160)", () => {
       const { figure: dropped, ...signOnly } = DOG_SELECTABLE;
       void dropped;
       // The dog piece's member the bicycle, on the side wall, away from the desk.
-      d.selectables = [...d.selectables, { ...(figure ? DOG_SELECTABLE : signOnly), members: ["bicycle"] }, FIXTURE];
+      d.selectables = [
+        ...d.selectables,
+        { ...(figure ? DOG_SELECTABLE : signOnly), members: [placementLabelled("Bicycle")] },
+        FIXTURE,
+      ];
       if (home) d.figures.dog.home.at = home;
       return overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(d))]]));
     };

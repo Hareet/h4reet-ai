@@ -43,12 +43,12 @@ const floor: WalkableFloor = {
   height: 1.7,
   shell: OPEN,
   bounds: OPEN,
-  obstacles: [{ id: "twin-figure", rect: { x0: 0.17, x1: 1.14, z0: 0.025, z1: 0.789 } }],
+  obstacles: [{ id: "fx-twin-figure", rect: { x0: 0.17, x1: 1.14, z0: 0.025, z1: 0.789 } }],
   start: { x: -0.7, z: 0.58 },
 };
 const part = {
   figures: {
-    twin: "twin-figure",
+    twin: "fx-twin-figure",
     dog: { home: { at: DOG_AT, heading_deg: 180 }, footprint_m: 0.3 },
     chase: CHASE_DEFAULTS,
   },

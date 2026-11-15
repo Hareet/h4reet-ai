@@ -108,7 +108,9 @@ describe("a pause, and another piece's selection", () => {
 
   it("leaves a petting be on another piece's selection", () => {
     const w = petting();
-    for (const id of ["snowboard", "bicycle", "laptop", "chalkboard", "dog-sign"]) expect(w.pet.select(id)).toBe(false);
+    // Fixture IDs (`fx-`): spec 004's FR-007 lets no room ID stand in a test.
+    for (const id of ["fx-snowboard", "fx-bicycle", "fx-laptop", "fx-chalkboard", "fx-dog-sign"])
+      expect(w.pet.select(id)).toBe(false);
     expect(w.pet.phase).toBe("petting");
     expect(w.calls).toHaveLength(1);
   });

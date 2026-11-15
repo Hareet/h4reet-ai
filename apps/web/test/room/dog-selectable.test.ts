@@ -28,14 +28,20 @@ import type { TurnResult } from "../../src/room/signals/turn-cost";
 import type { TurnRequest } from "../../src/talk/talk";
 import { REPO, button, enter, flush, start, talkLog } from "../helpers/room";
 import type { Visit } from "../helpers/room";
+import { placementLabelled, selectableNamed, topicPhrased } from "../helpers/room-ids";
 
 const SCENE_PATH = "apps/web/room/scene.yaml";
+// Spec 004's FR-007: no room ID stands in a test, so the dog sign, the hobbies topic, and the laptop are found by
+// their words (../helpers/room-ids.ts).
+const SIGN = placementLabelled("Desk sign, dog");
+const HOBBIES = topicPhrased("hobbies and travel adventures");
+const LAPTOP = selectableNamed("Laptop and screen");
 const DOG_SELECTABLE = {
   id: "dog",
   name: "Dog",
-  members: ["dog-sign"],
+  members: [SIGN],
   figure: "dog",
-  action: { talk: { topic: "hobbies-and-travel", lead: "The dog first." } },
+  action: { talk: { topic: HOBBIES, lead: "The dog first." } },
 };
 
 let composed: { with: ComposeResult; without: ComposeResult } | null = null;
@@ -59,7 +65,7 @@ function bundles(): { with: ComposeResult; without: ComposeResult } {
  *  turn route on. */
 function indexWithDog(ready = false): RoomIndex {
   const index = bundles().with.index;
-  const topics = index.topics.map((t) => ({ ...t, ready: ready && t.id === "hobbies-and-travel" }));
+  const topics = index.topics.map((t) => ({ ...t, ready: ready && t.id === HOBBIES }));
   return { ...index, topics, live: { ...index.live, turn: ready ? "site" : index.live.turn } };
 }
 
@@ -125,7 +131,7 @@ describe("the selectable adds nothing of a placement for the figure (M5)", () =>
     const { with: w, without } = bundles();
     expect(w.scene.placements).toEqual(without.scene.placements);
     expect(w.index.selectables.slice(0, -1)).toEqual(without.index.selectables);
-    expect(w.index.selectables.at(-1)).toMatchObject({ id: "dog", members: ["dog-sign"], figure: "dog" });
+    expect(w.index.selectables.at(-1)).toMatchObject({ id: "dog", members: [SIGN], figure: "dog" });
     expect(without.index.selectables.some((s) => s.figure !== undefined)).toBe(false);
   });
 });
@@ -145,10 +151,10 @@ describe("the highlight on the figure's meshes (R-09)", () => {
     const head = mesh();
     dog.add(body);
     body.add(head);
-    const room = { placements: new Map([["dog-sign", sign]]) } as unknown as Room3D;
-    expect(memberDraws(room, ["dog-sign"])).toEqual([signMesh]);
-    expect(memberDraws(room, ["dog-sign"], [dog])).toEqual([signMesh, body, head]);
-    expect(memberDraws(room, ["dog-sign"], [])).toEqual([signMesh]);
+    const room = { placements: new Map([[SIGN, sign]]) } as unknown as Room3D;
+    expect(memberDraws(room, [SIGN])).toEqual([signMesh]);
+    expect(memberDraws(room, [SIGN], [dog])).toEqual([signMesh, body, head]);
+    expect(memberDraws(room, [SIGN], [])).toEqual([signMesh]);
   });
 
   it("the highlight borders the figure's meshes with the sign's, for the dog selectable only", () => {
@@ -164,11 +170,11 @@ describe("the highlight on the figure's meshes (R-09)", () => {
     const body = mesh();
     dog.add(body);
     scene.add(dog);
-    const room = { scene, placements: new Map([["dog-sign", sign]]) } as unknown as Room3D;
+    const room = { scene, placements: new Map([[SIGN, sign]]) } as unknown as Room3D;
     const highlight = createHighlight({
       room,
       style: bundles().with.scene.look.highlight,
-      members: (id) => (id === "dog" || id === "other" ? ["dog-sign"] : []),
+      members: (id) => (id === "dog" || id === "other" ? [SIGN] : []),
       figures: (id) => (id === "dog" ? [dog] : []),
     });
     highlight.setTarget("dog");
@@ -191,8 +197,8 @@ describe("the one selection path (R-02; User Story 3)", () => {
     // The unready topic's fixed message, as for any piece: the panel's behaviour is unchanged.
     expect(talkLog(v.doc).lastElementChild?.textContent ?? "").toMatch(/./);
     // Another piece: the stage is asked too, and the director answers only the dog.
-    listButton(v, "laptop").click();
-    expect(pets).toEqual(["dog", "laptop"]);
+    listButton(v, LAPTOP).click();
+    expect(pets).toEqual(["dog", LAPTOP]);
   });
 
   it("doesn't ask the stage to pet for the active conversation's own piece, which sends nothing either", async () => {
@@ -216,7 +222,7 @@ describe("the one selection path (R-02; User Story 3)", () => {
     expect(pets).toEqual(["dog"]);
     expect(sent).toHaveLength(1);
     // Another piece is no longer the active one's: the stage is asked.
-    listButton(v, "laptop").click();
-    expect(pets).toEqual(["dog", "laptop"]);
+    listButton(v, LAPTOP).click();
+    expect(pets).toEqual(["dog", LAPTOP]);
   });
 });
