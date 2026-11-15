@@ -116,16 +116,34 @@ describe("each entry is a row of two cells (FR-011; Q5)", () => {
 });
 
 describe("room.css's inset ring leaves the split list alone (FR-011)", () => {
-  it("excludes the split list's buttons from every hover and aria-current rule of the panels", () => {
+  /** A selector's specificity as [ids, classes and attributes and pseudo-classes, types]: enough for these selectors. */
+  const specificity = (selector: string): [number, number, number] => {
+    const ids = (selector.match(/#[\w-]+/g) ?? []).length;
+    const classes = (selector.match(/\.[\w-]+|\[[^\]]*\]|:(?!:)[\w-]+/g) ?? []).length;
+    const types = (selector.replace(/\[[^\]]*\]|\.[\w-]+|:[\w-]+/g, " ").match(/(^|[\s>+~])[a-z][\w-]*/g) ?? []).length;
+    return [ids, classes, types];
+  };
+  const outranks = (a: [number, number, number], b: [number, number, number]): boolean =>
+    a[0] !== b[0] ? a[0] > b[0] : a[1] !== b[1] ? a[1] > b[1] : a[2] > b[2];
+
+  it("resets every hover and aria-current ring of the panels on the split list's buttons, by a rule that outranks it", () => {
     const all = [...ROOM.rules, ...ROOM.atRules.flatMap((a) => parseCss(a.body).rules)];
     const ringed = all
       .flatMap((r) => r.selector.split(",").map((x) => ({ selector: x.trim(), r })))
       .filter(
         ({ selector, r }) =>
-          /\.hud-panels button(\[aria-current="true"\]|:hover)/.test(selector) &&
+          /\.hud-panels button(\[aria-current="true"\]|:hover)$/.test(selector) &&
           /inset/.test(r.declarations.get("box-shadow") ?? ""),
       );
     expect(ringed.length).toBeGreaterThan(0);
-    for (const { selector } of ringed) expect(selector).toContain(':not([data-split="on"] .room-list button)');
+    for (const [state, reset] of [
+      [":hover", `${ON} .room-list li button:hover`],
+      ['[aria-current="true"]', `${ON} .room-list li button[aria-current="true"]`],
+    ] as const) {
+      expect(decl(reset, "box-shadow"), reset).toBe("none");
+      expect(decl(reset, "border-color"), reset).toBe("transparent");
+      for (const { selector } of ringed.filter((x) => x.selector.endsWith(state)))
+        expect(outranks(specificity(reset), specificity(selector)), `${reset} over ${selector}`).toBe(true);
+    }
   });
 });

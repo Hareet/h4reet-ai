@@ -85,6 +85,9 @@ html[data-split="on"][data-hud="column"][data-blur="on"] .hud-bar {
 /* ---- The list: right-aligned on one edge (FR-007, FR-008) ---- */
 
 html[data-split="on"][data-hud="column"] .room-list {
+  /* Spec 028 (FR-011): the cap slot, at least "Enter"'s key cap wide at every scale (hud/keycap.ts's keycapWidthRem:
+     3.125rem), in the list's em, so it grows with the column. */
+  --cap-slot: 3.25em;
   left: var(--wall-list-x);
   top: var(--wall-list-y);
   width: var(--wall-list-w);
@@ -123,23 +126,30 @@ html[data-split="on"][data-hud="column"] .room-list ul {
   width: 100%;
   min-height: 0;
   margin: 0;
-  padding: 0 2.5rem 0 0;
+  padding: 0;
   overflow-y: auto;
   list-style: none;
 }
 
-/* Each row keeps one size, so no entry moves when the selection does: the selected rule changes type and colour only. */
+/* Each row keeps one size, so no entry moves when the selection does: the selected rule changes type and colour only.
+   Spec 028 (FR-011; Q5): a grid of two cells, the words right-aligned in the first and the cap slot the second, which
+   holds the selected entry's "Enter" cap and is empty for the others; the words never reach into it. */
 html[data-split="on"][data-hud="column"] .room-list li {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--cap-slot);
   align-items: center;
-  justify-content: flex-end;
+  column-gap: 0.25em;
   box-sizing: border-box;
   height: 3.25em;
   margin: 0;
 }
 
 html[data-split="on"][data-hud="column"] .room-list li button {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: end;
+  max-width: 100%;
   min-width: 0;
   padding: 0 0.5rem;
   font:
@@ -152,6 +162,16 @@ html[data-split="on"][data-hud="column"] .room-list li button {
   border: 0;
 }
 
+/* Spec 028 (FR-011): room.css's hover and aria-current inset ring, the column's selection look, doesn't apply to the
+   split list's entries, whose selection is the look below; this rule outranks room.css's (two attributes on the root,
+   and the list's own classes). */
+html[data-split="on"][data-hud="column"] .room-list li button:hover,
+html[data-split="on"][data-hud="column"] .room-list li button[aria-current="true"] {
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+}
+
 html[data-split="on"][data-hud="column"] .room-list li[data-selected] button,
 html[data-split="on"][data-hud="column"] .room-list li button[data-selected] {
   font-family: var(--heading-font);
@@ -160,18 +180,18 @@ html[data-split="on"][data-hud="column"] .room-list li button[data-selected] {
 }
 
 html[data-split="on"][data-hud="column"] .split-confirm {
-  position: absolute;
+  position: static;
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: start;
   pointer-events: none;
-  right: -2.25rem;
-  top: 50%;
-  margin-top: -0.75rem;
 }
 
 html[data-split="on"][data-hud="column"] .split-stroke {
   position: absolute;
   left: 15%;
-  right: 0;
-  width: 85%;
+  right: calc(var(--cap-slot) + 0.25em);
+  width: auto;
   height: 0.5rem;
   pointer-events: none;
 }
