@@ -70,117 +70,126 @@ const DT = 1 / 60;
 const MOVE: ChaseMotion = { animate: true, paused: false, level: 0 };
 const pose = (o: Object3D): number[][] => [o.position.toArray(), o.rotation.toArray().slice(0, 3) as number[]];
 
-describe("a non-dinosaur visitor, wired as scene.ts wires it (I-1)", () => {
-  it("writes nothing to the twin's picture at home, turns it for a petting, and leaves it at its post-hand-off pose", async () => {
-    const chosen: AvatarId = "woman";
-    const model = (await parsed("assets/twin/twin.glb")).root;
-    const bundle = repositoryBundle();
-    const part = bundle.scene;
-    expect(part.figures.dog).toBeDefined();
-    const room = buildRoom(part, { avatar: chosen, label: () => new Group(), index: bundle.index });
-    const t = { now: 0 };
-    const figures = createAvatarFigures(room, part, { chosen, clock: () => t.now });
-    expect(figures.model("twin", model)).toBe(true);
-    figures.clip("twin", "idle", idleClips);
-    const twin = figures.pictureOf("twin");
-    if (!twin) throw new Error("no twin picture");
+// Every visitor the shell reaches who isn't the dinosaur (Q282): spec 025's B-1 stays out for each.
+const VISITORS = AVATARS.map((a) => a.id).filter((id): id is Exclude<AvatarId, "dinosaur"> => id !== "dinosaur");
 
-    // The hand-off, through the real controller: the stage makes no shell before it ends.
-    let handedOff = false;
-    const hasDog = part.figures.dog !== undefined;
-    let turned = 0;
-    for (const p of [0, 0.1, 0.2, 0.3, 0.5, 0.7, 0.9, 1]) {
-      figures.showHandoff(p, false);
-      turned = Math.max(turned, Math.abs(twin.rotation.y));
-      expect(shellDue(chosen, handedOff, hasDog)).toBe(false);
-    }
-    expect(turned).toBeGreaterThan(0.4);
-    figures.handoffEnded();
-    handedOff = true;
-    const afterHandoff = pose(twin);
+describe("a non-dinosaur visitor, wired as scene.ts wires it (I-1; Q282)", () => {
+  it("names every non-dinosaur visitor", () => {
+    expect(VISITORS.length).toBe(AVATARS.length - 1);
+  });
+  it.each(VISITORS)(
+    "the %s chosen: nothing writes the twin at home, a petting turns it, then its post-hand-off pose",
+    async (chosen) => {
+      const model = (await parsed("assets/twin/twin.glb")).root;
+      const bundle = repositoryBundle();
+      const part = bundle.scene;
+      expect(part.figures.dog).toBeDefined();
+      const room = buildRoom(part, { avatar: chosen, label: () => new Group(), index: bundle.index });
+      const t = { now: 0 };
+      const figures = createAvatarFigures(room, part, { chosen, clock: () => t.now });
+      expect(figures.model("twin", model)).toBe(true);
+      figures.clip("twin", "idle", idleClips);
+      const twin = figures.pictureOf("twin");
+      if (!twin) throw new Error("no twin picture");
 
-    // The stage's rule, then the shell and the director as scene.ts makes them.
-    expect(shellDue(chosen, handedOff, hasDog)).toBe(true);
-    const floor = floorOfPart(part, part.walking.radius_m);
-    if (!floor) throw new Error("no floor");
-    const avatars: ChaseAvatars = {
-      shows: (id) => figures.shows(id),
-      pictureOf: (id) => figures.pictureOf(id),
-      legsOf: (id) => figures.legsOf(id),
-      clipOf: (a, r) => figures.clipOf(a, r),
-      dogPlays: (r) => figures.dogPlays(r),
-      twinActivity: (a) => figures.twinActivity(a),
-      stride: (f, x, z, s, m) => figures.stride(f, x, z, s, m),
-    };
-    const walking = { on: false, pose: { x: -0.7, z: 0.58 } };
-    const shell = createChaseFigures({ floor, part, avatars, walking, chosen });
-    const adapters = createPetAdapters({ avatars: figures, chase: () => shell.chase, hasDog });
-    // The dog's view at the scene's dog home: its model isn't on the line (rv-impl3-026's N-1).
-    const dogHome = part.figures.dog?.home.at ?? [0.3, 0.45];
-    const dogView: PetDog = {
-      home: { x: dogHome[0], z: dogHome[1], heading: Math.PI },
-      phase: "home",
-      headPoint(out) {
-        out.x = dogHome[0];
-        out.y = 0.9 * 0.62;
-        out.z = dogHome[1] + 0.35 * 0.62;
-        return out;
-      },
-    };
-    const pet = createPet({
-      config: part.figures.pet ?? null,
-      clock: { now: () => t.now },
-      motion: () => ({ animate: true, paused: false, level: 0, live: true }),
-      twin: adapters.twin,
-      dog: () => dogView,
-      chase: adapters.chase,
-      signal: (a) => figures.twinActivity(a),
-    });
-    figures.pet({ reach: () => pet.reach, finished: () => pet.finished(), config: part.figures.pet ?? PET_DEFAULTS });
-
-    const writes = [
-      vi.spyOn(twin.position, "copy"),
-      vi.spyOn(twin.position, "set"),
-      vi.spyOn(twin.rotation, "copy"),
-      vi.spyOn(twin.rotation, "set"),
-    ];
-    const written = (): number => writes.reduce((n, w) => n + w.mock.calls.length, 0);
-    const frame = (n: number): void => {
-      for (let i = 0; i < n; i += 1) {
-        t.now += DT * 1000;
-        pet.frame(DT);
-        shell.frame(DT, MOVE);
-        figures.update(DT * 1000, true, 0);
-        // No run starts: the visitor isn't the pursuer (FR-001).
-        expect(shell.chase.phase("twin")).toBe("home");
-        expect(shell.chase.phase("dog")).toBe("home");
+      // The hand-off, through the real controller: the stage makes no shell before it ends.
+      let handedOff = false;
+      const hasDog = part.figures.dog !== undefined;
+      let turned = 0;
+      for (const p of [0, 0.1, 0.2, 0.3, 0.5, 0.7, 0.9, 1]) {
+        figures.showHandoff(p, false);
+        turned = Math.max(turned, Math.abs(twin.rotation.y));
+        expect(shellDue(chosen, handedOff, hasDog)).toBe(false);
       }
-    };
+      expect(turned).toBeGreaterThan(0.4);
+      figures.handoffEnded();
+      handedOff = true;
+      const afterHandoff = pose(twin);
 
-    // At home, no petting: nothing writes the twin's picture.
-    frame(120);
-    expect(written()).toBe(0);
-    expect(pose(twin)).toEqual(afterHandoff);
+      // The stage's rule, then the shell and the director as scene.ts makes them.
+      expect(shellDue(chosen, handedOff, hasDog)).toBe(true);
+      const floor = floorOfPart(part, part.walking.radius_m);
+      if (!floor) throw new Error("no floor");
+      const avatars: ChaseAvatars = {
+        shows: (id) => figures.shows(id),
+        pictureOf: (id) => figures.pictureOf(id),
+        legsOf: (id) => figures.legsOf(id),
+        clipOf: (a, r) => figures.clipOf(a, r),
+        dogPlays: (r) => figures.dogPlays(r),
+        twinActivity: (a) => figures.twinActivity(a),
+        stride: (f, x, z, s, m) => figures.stride(f, x, z, s, m),
+      };
+      const walking = { on: false, pose: { x: -0.7, z: 0.58 } };
+      const shell = createChaseFigures({ floor, part, avatars, walking, chosen });
+      const adapters = createPetAdapters({ avatars: figures, chase: () => shell.chase, hasDog });
+      // The dog's view at the scene's dog home: its model isn't on the line (rv-impl3-026's N-1).
+      const dogHome = part.figures.dog?.home.at ?? [0.3, 0.45];
+      const dogView: PetDog = {
+        home: { x: dogHome[0], z: dogHome[1], heading: Math.PI },
+        phase: "home",
+        headPoint(out) {
+          out.x = dogHome[0];
+          out.y = 0.9 * 0.62;
+          out.z = dogHome[1] + 0.35 * 0.62;
+          return out;
+        },
+      };
+      const pet = createPet({
+        config: part.figures.pet ?? null,
+        clock: { now: () => t.now },
+        motion: () => ({ animate: true, paused: false, level: 0, live: true }),
+        twin: adapters.twin,
+        dog: () => dogView,
+        chase: adapters.chase,
+        signal: (a) => figures.twinActivity(a),
+      });
+      figures.pet({ reach: () => pet.reach, finished: () => pet.finished(), config: part.figures.pet ?? PET_DEFAULTS });
 
-    // A petting: the twin turns through the shell, its one writer.
-    expect(pet.select("dog")).toBe(true);
-    let frames = 0;
-    let away = false;
-    while (pet.phase !== "idle" && frames < 60 * 8) {
-      frame(1);
-      frames += 1;
-      if (twin.rotation.y !== afterHandoff[1]?.[1]) away = true;
-    }
-    expect(pet.phase).toBe("idle");
-    expect(away).toBe(true);
-    expect(written()).toBeGreaterThan(0);
+      const writes = [
+        vi.spyOn(twin.position, "copy"),
+        vi.spyOn(twin.position, "set"),
+        vi.spyOn(twin.rotation, "copy"),
+        vi.spyOn(twin.rotation, "set"),
+      ];
+      const written = (): number => writes.reduce((n, w) => n + w.mock.calls.length, 0);
+      const frame = (n: number): void => {
+        for (let i = 0; i < n; i += 1) {
+          t.now += DT * 1000;
+          pet.frame(DT);
+          shell.frame(DT, MOVE);
+          figures.update(DT * 1000, true, 0);
+          // No run starts: the visitor isn't the pursuer (FR-001).
+          expect(shell.chase.phase("twin")).toBe("home");
+          expect(shell.chase.phase("dog")).toBe("home");
+        }
+      };
 
-    // After it: exactly the post-hand-off pose, and nothing written again at home.
-    frame(2);
-    expect(pose(twin)).toEqual(afterHandoff);
-    const after = written();
-    frame(120);
-    expect(written()).toBe(after);
-    expect(pose(twin)).toEqual(afterHandoff);
-  }, 180_000);
+      // At home, no petting: nothing writes the twin's picture.
+      frame(120);
+      expect(written()).toBe(0);
+      expect(pose(twin)).toEqual(afterHandoff);
+
+      // A petting: the twin turns through the shell, its one writer.
+      expect(pet.select("dog")).toBe(true);
+      let frames = 0;
+      let away = false;
+      while (pet.phase !== "idle" && frames < 60 * 8) {
+        frame(1);
+        frames += 1;
+        if (twin.rotation.y !== afterHandoff[1]?.[1]) away = true;
+      }
+      expect(pet.phase).toBe("idle");
+      expect(away).toBe(true);
+      expect(written()).toBeGreaterThan(0);
+
+      // After it: exactly the post-hand-off pose, and nothing written again at home.
+      frame(2);
+      expect(pose(twin)).toEqual(afterHandoff);
+      const after = written();
+      frame(120);
+      expect(written()).toBe(after);
+      expect(pose(twin)).toEqual(afterHandoff);
+    },
+    180_000,
+  );
 });
