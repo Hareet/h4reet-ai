@@ -1,5 +1,91 @@
 # Notes: spec-026 and its reworks (2026-11-14)
 
+## patch2-026 (`night/patch2-026/patch2-026`, from patch-026's tip 6c2b20e2, Opus 5.5, 2026-11-15)
+
+Written by the night-shift implementer patch2-026, about 00:37Z to 00:50Z. It does the rework the page's Q292 recommends (answered: recommended, the Author's to confirm or overturn): the slot `hobbies.room_dog_name` and the Golden Q&A 9 suggestion that "fits only if you fill the slot with Arya" are dropped, and T019's patch is rebuilt without them. His approval of the dog's model (`A-20261114-dog`) says the room's dog is "a dog of the breed and not a likeness of the Author's dog". The "## Arya" line keeps his consent and the approval's line, verbatim. The review is rv-patch2-026's, a worker that didn't write this.
+
+**A gap in patch-026's record.** patch-026's human-patch paragraph and the proposal say its runs are "pasted in `specs/026-twin-pets-dog/notes.md` and the stack note's item 9". Neither file holds a patch-026 section at 6c2b20e2, and its commits' messages hold no runs either. The procedure here is rebuilt from its human-patch paragraph, plan §6's as-built line, and the brief. The runs below are this task's own.
+
+**Step 1, test-first (the checker).** RED 0a6b1a96, `scripts/corpus/test_dog_intro_proposal.py` only: the fixtures lose the slot (the "## Arya" line ends after the approval's quotation, and the patch has no facts diff). New cases: `test_patch_passes_with_no_slot_and_no_golden_answer`, `test_patch_refuses_the_dropped_slot_in_any_form` (null, filled, or its `{{slot:…}}` in `04`; the refusal names the slot and Q292), `test_patch_refuses_touching_the_facts_file`, and `test_proposal_refuses_proposing_the_dropped_slot` (its facts entry or its reference in a proposed line; the prose may still name it). `test_patch_refuses_a_filled_slot` and `test_patch_refuses_a_missing_slot` go, since the slot is no longer expected. The result was 8 failed, 21 passed. GREEN 82c4e77d: `dog_intro_proposal.py` refuses `DROPPED_SLOT` (the slot's `- id:` line, or its `{{slot:…}}`) in any file's added lines and in the proposal's lines; of `corpus/`, the patch touches `04` only (`CORPUS_ALLOWED`); `slot_problems` is rewritten, and `SLOT_FIELDS` and `FACTS_04` are gone. The digit rule's `{{slot:…}}` exemption stays, now unused. In the same commit: the proposal (the slot's section, its source-table row, the "## Arya" line's slot, the Golden Q&A 9 suggestion and its source-table row, the "fill the slot" words), spec FR-018 and FR-023, a Clarifications entry for Q292, plan R-13, §3's data, §6 and §7, and tasks T019, each marked "As amended (Q292, patch2-026, 2026-11-15)". Run on the real proposal, the checker refused it before the proposal's edit ("the proposal still proposes the slot hobbies.room_dog_name, which the rework drops (Q292)") and passes after it.
+
+```
+$ python3 -m pytest -q scripts/corpus/test_dog_intro_proposal.py      # RED, 0a6b1a96
+FAILED …::test_patch_passes_with_no_slot_and_no_golden_answer
+FAILED …::test_patch_refuses_the_dropped_slot_in_any_form
+FAILED …::test_patch_accepts_a_golden_answer_in_his_own_words
+FAILED …::test_patch_digit_rule_accepts_its_exemptions
+FAILED …::test_patch_refuses_touching_a_human_only_path_or_another_corpus_file
+FAILED …::test_b1_the_dogs_whole_line_and_his_consent_still_exempt
+FAILED …::test_b1_his_own_answered_line_still_fills_it
+FAILED …::test_proposal_refuses_proposing_the_dropped_slot
+8 failed, 21 passed in 3.39s
+$ python3 -m pytest -q scripts/corpus/test_dog_intro_proposal.py      # GREEN, 82c4e77d
+29 passed in 2.25s
+$ ruff format --check scripts/corpus/
+4 files already formatted
+$ ruff check scripts/corpus/dog_intro_proposal.py scripts/corpus/test_dog_intro_proposal.py
+All checks passed!
+```
+
+**Step 2, the patch rebuilt (ebb23226).** No checkout or merge of `main` (Q286). The worktree had no `node_modules`, so `npm ci` ran in it first: 431 packages from the lockfile, and the lockfile is unchanged. Where commands run (`export1/b` and the second export), the worktree's four `node_modules` are symlinked in (root, `apps/web`, `services/gateway`, `services/relay`).
+
+1. The first export: `git merge-tree --write-tree HEAD refs/heads/main` at 82c4e77d gave tree `27e688745e58d1808e178d3678a964c126cdd120`, exit 0, no conflict, with main at b6985ad2. It was `git archive`d into `/tmp/patch2-026/export1/a`. Spec 022's patch was applied there first (`patch -p1`; Q293, plan §7), with no offset, fuzz, or reject. Then `a` was copied to `b`.
+2. In `b`, the hand-written lines: patch-026's hunks for `apps/web/room/scene.yaml` (the sign on the floor, Q287, and the `dog` selectable) and `corpus/04-hobbies-and-travel.md`, taken from its patch, with `{{slot:hobbies.room_dog_name}}` removed from the "## Arya" line (`/tmp/patch2-026/hand.patch`). No facts change.
+3. In `b`, by their commands: `npm run room:generate -w apps/web` ("room: 4 written, 0 removed, 22 unchanged": `config/room-events.yaml`, `config/room-topics.yaml`, `docs/studio/photo-guide.md`, `docs/studio/work-orders/dog-sign.md`); `npm run twin:pack -w apps/web` ("150 sections, 3 topics; 224 cases"; "wrote docs/corpus-size.json: stage 1; hobbies-and-travel 21,564 of 21,182", mission 21,410, the same record as patch-026's); `npm run content:lock -w apps/web` ("C1–C9 and N1–N5 passed for the resume and 44 scripts (denylist missing); wrote apps/web/content/resume.lock.json and 44 eval cases").
+4. `diff -ruN --exclude=__pycache__ --exclude=node_modules a b`, then the `---`/`+++` lines' timestamps stripped (`sed`; none left). The result: 57,377 bytes, 68 files, SHA-256 `8bd705636a1847de6846bdba132ddb16511fdac103f2387477a700a1161c6ead`. Against patch-026's 71 files, the only paths gone are `corpus/facts/hobbies-and-travel.yaml` and the slot's two gap cases, `evals/product/cases/twin-04-hobbies-and-travel-gap-1-engineer.yaml` and `-non-engineer.yaml`. The content's other differences are the "## Arya" line without the slot and `config/twin/corpus.json`'s byte, word, and character counts for the shorter section; there is no `room_dog_name` anywhere in the patch.
+
+**The checks, on a second fresh export.** `git merge-tree --write-tree HEAD refs/heads/main` at ebb23226 gave tree `2625384ace4854651f093fab8f93f476be9b5d37`, archived into `/tmp/patch2-026/export2/t`. Main's spec 017 was archived for the checker's `--main-dir` into `/tmp/patch2-026/main`.
+
+```
+022 dry-run: no offset, fuzz, reject, or failure · 022 apply: 104 files patched, none
+026 dry-run: 68 files checked, none · 026 apply: 68 files patched, none · no .orig or .rej
+$ python3 -I corpus/tools/check_corpus.py
+corpus-check: OK — 45 slots, 27 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems   (exit 0)
+$ npm run content:check -w apps/web
+content: C1–C9 and N1–N5 passed for the resume and 44 scripts (denylist missing); the lock and the eval cases are current   (exit 0)
+$ npm run room:check -w apps/web
+room: 0 findings in 0 files   (exit 0)
+$ npm run room:report -w apps/web
+Findings: none.
+$ python3 -I scripts/corpus/dog_intro_proposal.py --root <export2> --main-dir /tmp/patch2-026/main patch docs/merge-requests/2026-11-14-corpus-dog-intro.patch
+OK: patch 2026-11-14-corpus-dog-intro.patch
+buildable: yes (his approval of the dog's model, with its line, is in approvals.json)   (exit 0)
+$ (apps/web) npx vitest run test/twin-pack.test.ts test/content/narration.test.ts
+ Test Files  2 passed (2)
+      Tests  80 passed (80)   (exit 0)
+```
+
+Proposal mode needs the tree before 026's patch, since its source table quotes `04`'s lines as they are now. On the patched export it refuses two spans, "In the room, the snowboard and the bicycle open this topic" and "None named for this topic:", both of which the patch replaces, as expected. On the first export's `a` (main and the line, 022 applied): `OK: proposal dog-intro-2026-11-14.md` / `buildable: yes`. On the line's tree (no approval): `OK` / `buildable: no (FR-019: …)`.
+
+**Step 3 (d1c06256).** The new size, file count, and SHA-256 are in the proposal's "The patch" section (patch-026's figures kept beside them as replaced) and in `docs/merge-requests/human-patches/026.md`: a patch2-026 paragraph ahead of patch-026's, and item 1's row without the slot and its "fill the slot" words. Then the small runs after the edits:
+
+```
+$ python3 -m pytest -q scripts/corpus/test_dog_intro_proposal.py
+29 passed in 3.41s
+$ python3 -m pytest -q evals/test_docs_links.py evals/test_repository_docs.py
+61 passed in 1.01s
+$ python3 -I evals/docs_links.py
+docs links: 0 failed, 2498 relative links in 453 files
+$ make lint      (at d1c06256, exit 0)
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+836 files already formatted
+# then shellcheck over the repository's scripts: no finding; make exited 0
+```
+
+No full `make check`: the stack's last task runs it once (rule 4).
+
+**Copies left under `/tmp`** (not committed; the next worker may delete them): `/tmp/patch2-026/export1/a` (tip and main, 022 applied), `/tmp/patch2-026/export1/b` (the same, with 026's lines and the regenerated files), `/tmp/patch2-026/export2/t` (the second export, 022 and 026 applied), `/tmp/patch2-026/main` (main's spec 017 only), `/tmp/patch2-026/hand.patch`, `/tmp/patch2-026/raw.patch` (with timestamps), `/tmp/patch2-026/new.patch` (the committed patch), and `/tmp/patch2-026/export1-022.log` and `e2-*.log` (the `patch` runs).
+
+**What waits for him.** Q292 and Q293, as the page has them, are his to confirm or overturn. If he overturns Q292 toward keeping the slot, the patch goes back to patch-026's build (d0ab9204…391ea) and the checker's Q292 cases are reverted. There is one new question, about the "Do not claim" line's word "likeness" (on the page). Applying the patch, 022 first, his evaluations, and readiness are unchanged from the human-patch note.
+
+**Interruptions (patch2-026).** No hook or bash-gate refusal. `npm ci --offline` failed (ENOTCACHED, the cache held no tarballs), and `npm ci` from the registry succeeded. Nothing was respelled.
+
 ## impl3-026 (`night/impl3-026/impl3-026`, from rework2-026's tip 82e3508b, Opus 5.5)
 
 Written by the night-shift implementer impl3-026, 2026-11-14, about 21:30Z to 23:45Z. The review is for a worker who didn't write the code (T022, rule 6).
