@@ -104,7 +104,7 @@ describe("the dog's files, taken in from round 4", () => {
       likeness: { source: policy.likeness!.source, approvals: approvals.filter((a) => a.id !== "A-20261114-dog") },
     };
     expect(onDog(compose(tree, without, STRICT).findings).filter((w) => w.startsWith("RA9 "))).toEqual([
-      `RA9 ${DIR}/dog.glb:`,
+      `RA9 ${DIR}/dog.glb:-`,
     ]);
     const lenient = compose(tree, without, LENIENT);
     expect(lenient.scene.avatars.dog).toBeUndefined();

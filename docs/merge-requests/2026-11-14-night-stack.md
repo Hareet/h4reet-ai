@@ -711,6 +711,125 @@ Interruptions: one filesystem refusal (the main merge, above), not retried anoth
 
 record-dog-r4: round 4 recorded, pass
 
+### The intake (intake-020)
+
+Branch `night/intake-020/intake-020`, from the line's tip `ce3f6305`, with `night/record-dog-r4/record-dog-r4` merged first (a fast-forward to `4d6afbc6`). This is under rule 15 of his orders: "then take the dog in (spec 020's intake into `assets/visitors/dog/`), reviewed by another worker and verified like any item, and merged into the line before the integration task". `/srv/studio/briefs/dog/4.result.json` says `"result": "pass"`, round 4, with no findings.
+
+**Held: don't merge this branch into the line until the page's question is answered.** As approved, the dog takes the first visit 50,327 bytes over main's phase-3 budget (RK5, below). The site still builds, because RK5 is lenient. But the strict room check and 18 committed-tree tests refuse it, and so does this item's own `dog-intake.test.ts`. The page's question recommends a Blender-only round 5 with a lighter `dog.glb`. Until he answers, the line goes on without this branch, and the dog stays on the cut-out.
+
+#### The files
+
+Copied byte for byte from `/srv/studio/handoff/dog/4/` into `assets/visitors/dog/`. Each GLB's SHA-256 equals the entry on main (`b6985ad2`):
+
+| File | SHA-256 | His approval on main |
+|---|---|---|
+| `dog.glb` (avatar, 9,765,184 bytes) | `d31c085cfa6dc92449f3ada3873417c829acd8e4989a3ae54c2bacc524842078` | A-20261114-dog |
+| `dog-idle.glb` (animation, 34,948 bytes) | `1bd5ee9454ed654700dbbec6279ec54861419d8ae47ffc61d243aa8107e9ff25` | A-20261114-dog-idle |
+| `dog-walk.glb` (animation, 28,552 bytes) | `f35b742a6b8070faddf9f184fc1ac94d4560e1d4c501e2bee9a2c1ad3e53e306` | A-20261114-dog-walk |
+| `records.json` (the round's, unchanged; already canonical) | `c833d3a9d152e3ae09d6253bd5cb5e75917a751379203e5e24428f6c2a7be203` | n/a |
+| `LICENSE.md` (byte for byte `assets/visitors/man/LICENSE.md`) | `f7118869586e0928e06f39b689cdbdd0817fb0fc5540d37e0ca7d1cc2cfa9159` | n/a |
+
+`assets/CREDITS.md` was rendered by `scripts/assets/credits.py`. The diff is 43 added lines and no removed ones: the section ``## `assets/visitors/dog` `` with the three files, each reading "- Source: a photo" and "- A likeness of the Author's dog: no". `assets/visitors/records.json` holds no entries and lists no folder, so it's unchanged. Not copied: `candidate.json`, `note.md`, `concept.png`, `front.png`, `side.png` (an asset directory admits only GLBs, images, `records.json`, and `LICENSE.md`, and the renders are review-only). Nothing is under `assets/policy/**`.
+
+His consent, from his order: "it's okay that we use the likeness of my dog". On this model, rule 13 says: "It isn't his dog, and the photo is his to use".
+
+#### Departures (spec 020's Assumptions, "Departures at the intake"; plan §5, "Departures at step 5")
+
+- **Who takes it in:** D5, plan §5 step 5, and `human-patches/020.md` item 4 make the intake his hand. Rule 15 makes it this task's.
+- **The records:** FR-014, Q6, and plan R-08 expect `likeness: true` and "a likeness of the Author's dog". Round 4's records say `likeness: false` for all three files, from a photo source (`PH-0002`), each with its approval. That follows rule 13: "It isn't his dog". The credit and the room's line follow the record and his disclosure line on main (Q280): "The dog is an AI-made, stylized Nova Scotia Duck Tolling Retriever, a dog of the breed and not a likeness of the Author's dog, shown by his choice." Neither says it's the Author's dog. `credits.py` is unchanged; its existing rule renders the "…: no". RA9 still gates the model by its photo source.
+- **No `dog-run.glb`:** the run clip is rule 12's "Next: studio assets". The bundle holds `idle` and `walk`. Spec 025's room dog keeps its code's fallback for the run, and FR-004 says so beside it.
+- **SC-002 fails as taken in:** see RK5 below.
+
+#### The runs
+
+Tests first. `b8b52425` committed the RED tests: `dog-intake.test.ts` failed 5 of 5 (no folder yet), and `test_credits_dog_intake.py` failed 1 and passed 1. One correction since then, in this item's own new test: RA9's finding path is `-`, not empty. That's the rule's real output, and the case passes.
+
+Main's arrival check, the main working tree's copy (identical to `refs/heads/main:tools/gates/arrival_check.py`), as the `arrival` target runs it, then on the dog's files:
+
+```
+$ python3 -I -B -X pycache_prefix=/dev/null <main tree>/tools/gates/arrival_check.py --repo . --range refs/heads/main..HEAD
+...
+assets/visitors/dog/dog-idle.glb              34948     14414     0         0          0
+assets/visitors/dog/dog-walk.glb              28552     11958     0         0          0
+assets/visitors/dog/dog.glb                   9765184   6448373   100172    150000     22369621
+...
+first visit (phase 3): 21,803,040 of 25,000,000 bytes · history: 56,401,376 of 500,000,000 bytes
+arrival-check: 0 findings in 1144 files (618 commits)
+$ python3 ... arrival_check.py --repo . assets/visitors/dog/{dog.glb,dog-idle.glb,dog-walk.glb,records.json,LICENSE.md}
+arrival-check: 0 findings in 5 files
+$ python3 -I -B -X pycache_prefix=/dev/null scripts/assets/credits.py --check
+credits: OK: the renderings and the records' form
+```
+
+The pre-commit hook's arrival check on the intake's commit gave `arrival-check: 0 findings in 6 files`.
+
+The compose's RA and RK lines (SC-002), from a strict compose of the committed tree (`drafts: false`) with the approvals the build reads (`source: "main"`, from `refs/heads/main`). These are the report's dog lines:
+
+```
+| `assets/visitors/dog/dog.glb` | model | 9,765,184 | 6,448,373 | 150,000 | 22,369,621 | 5,592,405 | yes |
+| `assets/visitors/dog/dog-idle.glb` | idle | 34,948 | 14,414 | 0 | 0 | 0 | yes |
+| `assets/visitors/dog/dog-walk.glb` | walk | 28,552 | 11,958 | 0 | 0 | 0 | yes |
+Scale its reader's bounds imply for `dog`: 1.000× for the visitor's 0.62 m.
+Likeness `dog`: main's approval holds for its model, with the line "The dog is an AI-made, stylized Nova Scotia Duck Tolling Retriever, a dog of the breed and not a likeness of the Author's dog, shown by his choice."
+First visit with both figures' files (RK5): 25,050,327 gzip-9 bytes, 6,593,757 of the room's placed models and cards, 8,734,538 of the twin's own files, 0 of the stand-in's files, 6,474,745 of the room's dog's files, and 3,247,287 of the largest visitor avatar's (`woman`), against the phase-3 budget of 25,000,000; spec 003's F3 view, which counts one visitor folder (assets/animations/ aside): 21,807,849.
+RK5 apps/web/room/scene.yaml:-: 25,050,327 bytes in the first visit with both figures' files, over main's phase-3 budget of 25,000,000: ...
+```
+
+The bundle's `avatars.dog` holds the model (`a/dog.d31c085cfa6dc924.glb`), `idle`, and `walk`, with the line above. The compose has no RA finding: the per-file caps hold (9,765,184 against the avatar cap of 21,000,000, 150,000 triangles against 180,000, 22,369,621 bytes of texture against 46,000,000, and each clip under 1,000,000). **RK5 is the one finding.** The first visit was 18,575,582 bytes before the dog (intake-021's figure). Spec 025's room dog adds 6,474,745, which comes to 25,050,327, 50,327 over. RK5 is lenient: the site's own build (lenient) warns and builds, and the strict compose refuses.
+
+The dog's test files: spec 020's, spec 025's that read the dog's figure, and `text-copy.test.ts`. There's no spec 026 on this line. From `apps/web`:
+
+```
+$ npx vitest run test/room/dog-intake.test.ts test/room/likeness-visitor.test.ts test/room/dog-avatar.test.ts test/room/dog-line.test.ts test/room/likeness-line-anywhere.test.ts test/room/dog-run.test.ts test/room/dog-report.test.ts test/room/avatar-loader.test.ts test/room/avatar-scene.test.ts test/room/avatars.test.ts test/room/dog-figure.test.ts test/room/dog-first-visit.test.ts test/room/chase-figures.test.ts test/room/chase-stage.test.ts test/room/chase-director.test.ts test/room/chase-handoff.test.ts test/room/chase-end-line.test.ts test/room/chase-notes.test.ts test/room/chase-schema.test.ts test/room/chase-steer.test.ts test/room/chase-degraded.test.ts test/room/chase-bench.test.ts test/ui/text-copy.test.ts
+ FAIL  test/room/dog-intake.test.ts > the dog's files, taken in from round 4 > are read, capped, and counted with no RA or RK finding, and bundled with his line
+AssertionError: expected [ 'RK5 apps/web/room/scene.yaml' ] to deeply equal []
+ Test Files  1 failed | 22 passed (23)
+      Tests  1 failed | 256 passed (257)
+```
+
+The committed-tree tests, the ones that read the files this item changes:
+
+```
+$ npx vitest run test/room/avatars-compose.test.ts test/room/compose.test.ts test/room/data-only.test.ts test/room/cli.test.ts test/room/words.test.ts test/room/generated.test.ts test/room/lettering.test.ts test/room/emblem-data.test.ts test/manifest.test.ts test/room/dist.test.ts test/room/movement.test.ts test/room/floor.test.ts test/room/eat-checks.test.ts
+ Test Files  4 failed | 9 passed (13)
+      Tests  18 failed | 520 passed (538)
+```
+
+All 18 failures are the same single finding, `RK5 apps/web/room/scene.yaml:-: 25,050,327 bytes …`, where each test expects no finding on the committed tree. They are: 3 in `avatars-compose.test.ts` (the data-only proof set), 2 in `compose.test.ts` (T094, drafts false and true), 12 in `data-only.test.ts`, and 1 in `emblem-data.test.ts`. No test was edited to pass. These are correct refusals of SC-002, and the page's question decides them.
+
+The credit, from the repository's root:
+
+```
+$ pytest -q -p no:cacheprovider --import-mode=importlib scripts/assets/test_credits_dog_intake.py scripts/assets/test_credits_likeness.py scripts/assets/test_credits.py
+17 passed
+$ pytest -q -p no:cacheprovider --import-mode=importlib evals/test_docs_links.py evals/test_repository_docs.py
+61 passed in 0.93s
+```
+
+#### What's left, and what waits for him
+
+- **The page's question (RK5):** a Blender-only round 5 with a lighter `dog.glb`, then his look and one new approval (recommended); or his one-line raise of `first_visit_bytes.phase3`; or a spec 025 rework that loads the room's dog after the first visit. If round 5 is taken, the clips stay as approved, and this branch's model is replaced by the new one in the same way.
+- **Main's `b6985ad2` in the line** (rule 15: "The line merges main's `b6985ad2` too"). Rule 15 still needs this; record-dog-r4 couldn't do it (read-only policy mount). This checkout's build reads the approvals from `refs/heads/main`. The gate's export has no `.git`, and its policy directory holds no `approvals.json`, so it reads the tree's own copy, which lacks the dog's three entries until the line merges `b6985ad2`. Without that merge, the gate's strict compose also finds RA9 on `dog.glb`.
+- **Stand-ins left:** the run clip (spec 025's room dog falls back as its code has it), until a studio round makes `dog-run.glb` (rule 12's "Next: studio assets"). Until this branch is merged, the visitor's dog and the room's dog both show the cut-out.
+
+`make lint`, exit 0 (shellcheck's file list left out):
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+830 files already formatted
+```
+
+Interruptions: none. No hook, bash-gate, or filesystem refusal in this session.
+
+intake-020: files in and checked (SHA-256s equal main's; arrival 0 findings; credits OK); held on RK5 (first visit 25,050,327 of 25,000,000), the page's question
+
 ---
 
 ## Item 4: spec 021, the dinosaur modeled and brought in (`night/impl2-021/impl2-021`)
