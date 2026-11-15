@@ -41,9 +41,9 @@ const records = (e: RecordEntry[]): void => {
   }
 };
 
-function files(block: boolean, dino = true): Record<string, Uint8Array | string> {
+function files(block: boolean, dino = false): Record<string, Uint8Array | string> {
   return {
-    // Spec 028 (FR-029): the dinosaur's folder, whose model the room's dog's share needs; `dino` false leaves it out.
+    // Spec 028 (FR-029): the dinosaur's folder, whose model the room's dog's share needs; `dino` adds it.
     ...(dino ? dinosaurFolder() : {}),
     [SCENE]: sceneWith({
       twin_stand_in: "man",
@@ -81,7 +81,7 @@ describe("RK5's first visit with the room's dog (FR-022)", () => {
   // Spec 028 (FR-029): was "counts the room's dog's files once, and the largest other avatar's leaves the dog's folder
   // out".
   it("counts the room's dog's files with the dinosaur's, as one visitor set, where it is the largest (spec 028, FR-029)", () => {
-    const all = files(true);
+    const all = files(true, true);
     const visit = visitOf(overlay(all), policy(), true);
     const dino = folderBytes(all, "dinosaur");
     const dog = folderBytes(all, "dog");
@@ -92,7 +92,7 @@ describe("RK5's first visit with the room's dog (FR-022)", () => {
   });
 
   it("counts no room's dog share where the bundle lacks the dinosaur's model; the dog visitor's folder competes alone (spec 028, FR-029)", () => {
-    const all = files(true, false);
+    const all = files(true);
     const visit = visitOf(overlay(all), policy(), true);
     expect(visit.dog).toBe(0);
     expect(visit.other).toBe(Math.max(folderBytes(all, "woman"), folderBytes(all, "dog")));
@@ -109,7 +109,7 @@ describe("RK5's first visit with the room's dog (FR-022)", () => {
   // Spec 028 (FR-029): the case's subject kept; the room's dog's share now rides with the dinosaur's, the set the largest.
   it("counts the dog's files once where the scene names the dog the stand-in, which RA3 refuses (no hands)", () => {
     const all = {
-      ...files(true),
+      ...files(true, true),
       [SCENE]: sceneWith({ twin_stand_in: "dog", dog: { home: { at: [0.3, 0.45] }, footprint_m: 0.3 } }),
     };
     const visit = visitOf(overlay(all), policy(), true);
@@ -118,8 +118,9 @@ describe("RK5's first visit with the room's dog (FR-022)", () => {
     expect(visit.other_id).toBe("dinosaur");
   });
 
+  // Spec 028 (FR-029): the case's name kept; its room carries the dinosaur's model, which the room's dog's share needs.
   it("refuses over phase 3 with the room's dog's bytes named, and passes at it", () => {
-    const all = files(true);
+    const all = files(true, true);
     const visit = visitOf(overlay(all), policy(), true);
     const total = visit.twin + visit.stand_in + visit.other + visit.dog;
     expect(rk5(compose(overlay(all), policy(total), STRICT))).toEqual([]);
@@ -130,12 +131,12 @@ describe("RK5's first visit with the room's dog (FR-022)", () => {
 
   // Spec 028 (FR-029): was "the report's first-visit line names the room's dog's bytes, and only with figures.dog".
   it("the report's first-visit line names the room's dog's bytes, only with figures.dog and the dinosaur's model (spec 028, FR-029)", () => {
-    const withDog = compose(overlay(files(true)), policy(), STRICT).report.markdown;
-    const visit = visitOf(overlay(files(true)), policy(), true);
+    const withDog = compose(overlay(files(true, true)), policy(), STRICT).report.markdown;
+    const visit = visitOf(overlay(files(true, true)), policy(), true);
     expect(withDog).toContain(`${visit.dog.toLocaleString("en-US")} of the room's dog's files`);
     const without = compose(overlay(files(false)), policy(), STRICT).report.markdown;
     expect(without).not.toContain("room's dog's files");
-    const noDino = compose(overlay(files(true, false)), policy(), STRICT).report.markdown;
+    const noDino = compose(overlay(files(true)), policy(), STRICT).report.markdown;
     expect(noDino).not.toContain("room's dog's files");
   });
 });
