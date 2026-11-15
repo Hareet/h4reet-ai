@@ -18,6 +18,8 @@ The option labels in quotes are his choices; the text after each colon is how th
 
 His screenshot (`resume/Screenshot 2026-11-15 002519.png`, in his checkout, untracked) was out of this session's reach. The orders describe it, in their words, not his: "the conversation panel and its twin thumbnail sit small at the far top-left corner, the piece list and its controls at the far top-right, the bottom-right buttons in the far corner, all with wide grey bands between them and the room; the dinosaur visitor shows as the flat green stand-in with the white placeholder rectangle; the dog stands in the room although the dinosaur was chosen; on the right list, "Snowboard"'s highlight and the Enter hint overlap."
 
+His answers to the morning page's Q2 (the PDF's links) and Q3 (the dinosaur's eating), in his orders' rule 14 (2026-11-15, about 01:20 his time), verbatim: "q2) I mean't when i downloaded the pdf, there was no link on those sub headlines "LOCAL MODELS FIRST". I figured that would have existed as we know what the link on the repo will be. q3) keep it as waiting for model intake p9". Added by the spec's rework (`rework-spec-028`); spec 028's Q19 and Q11 carry them, with readings beside.
+
 He asked, in his words (2026-11-15, about 00:40 his time): "And we want you to use the night shift agent set up to accomplish all of these items. I'm going to bed for the night"
 
 ## Proposed outcome
@@ -42,4 +44,4 @@ None new expected.
 
 ## Open questions
 
-The dog visitor's introduction line (whose words, and whether it must be corpus), what the twin's "scream" is (a speech bubble, a sound, or both), where the twin and the dog leave to with the bicycle, whether the four film links of the published-by-hand candidate PDF sit on the sub-headlines he means, and why the dinosaur's eating didn't happen in his review: carried to the spec's clarifications, each with a recommended answer.
+The dog visitor's introduction line (whose words, and whether it must be corpus), what the twin's "scream" is (a speech bubble, a sound, or both), where the twin and the dog leave to with the bicycle, whether the four film links of the published-by-hand candidate PDF sit on the sub-headlines he means, and why the dinosaur's eating didn't happen in his review: carried to the spec's clarifications, each with a recommended answer. His Q2 and Q3 words above answer the last two.
