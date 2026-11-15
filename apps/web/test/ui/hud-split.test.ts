@@ -1,4 +1,7 @@
 // Spec 018's split HUD, the panel and the list (T003 starts it: the key cap; T008 to T012, T010 add the rest).
+// Spec 028's T-A03 (its FR-001 to FR-003; plan.md §R-B8) rewrote the portrait's cases and the rest row's (the bar
+// state): the panel stands open in the split layout at rest and in a conversation, with no portrait; `split.open` is
+// whether a conversation is open, which the hint, "Back", and Escape close, the panel standing.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -74,18 +77,20 @@ const key = (v: Visit, el: Element, name: string): void => {
 };
 
 describe("the panel (T008; FR-005, FR-006, FR-009)", () => {
-  it("opens as the bar: the title, the text box row, Send, and talk; no frame, stats, or portrait", async () => {
+  it("stands open at rest (spec 028): the title, the frame, the emblem and stats, the text box row; no portrait, no hint shown", async () => {
     const { v } = await room();
     expect(root(v).getAttribute("data-split")).toBe("on");
     expect(root(v).getAttribute("data-hud")).toBe("column");
-    expect(talk(v).getAttribute("data-panel")).toBe("bar");
+    expect(talk(v).getAttribute("data-panel")).toBe("open");
     expect(v.doc.querySelector(".talk-log-toggle")?.textContent).toContain("Conversation");
     expect(v.doc.querySelector("#talk-text")).not.toBeNull();
-    for (const part of [".split-frame", ".split-stats", ".split-portrait", ".split-hint", ".split-emblem"])
-      expect(v.doc.querySelector(part), part).toBeNull();
+    for (const part of [".split-frame", ".split-stats", ".split-emblem"])
+      expect(v.doc.querySelector(part), part).not.toBeNull();
+    expect(v.doc.querySelector(".split-portrait")).toBeNull();
+    expect((v.doc.querySelector(".split-hint") as HTMLElement).hidden).toBe(true);
   });
 
-  it("opens the panel when a conversation starts: the hint with its key cap, the emblem, the three stats, the portrait slot", async () => {
+  it("shows the hint with its key cap when a conversation starts, beside the emblem and the three stats; no portrait (spec 028)", async () => {
     const { v } = await room();
     talkingPiece(v).click();
     await flush();
@@ -99,24 +104,27 @@ describe("the panel (T008; FR-005, FR-006, FR-009)", () => {
     expect(v.doc.querySelectorAll(".split-stats dd")).toHaveLength(3);
     expect(v.doc.querySelector(".split-frame")?.getAttribute("aria-hidden")).toBe("true");
     expect(v.doc.querySelector(".split-frame path")?.getAttribute("d")).toMatch(/^M[0-9.,\-LZ\s]+$/);
-    expect(v.doc.querySelector(".split-portrait")?.getAttribute("aria-hidden")).toBe("true");
+    expect((hint as HTMLElement).hidden).toBe(false);
+    expect(v.doc.querySelector(".split-portrait")).toBeNull();
     // The log is the body, between the stats and the text box row.
     const order = [".split-stats", "#talk-log", "#talk-text"].map((s) => v.doc.querySelector(s) as Element);
     expect(order[0]?.compareDocumentPosition(order[1] as Node)).toBe(4);
     expect(order[1]?.compareDocumentPosition(order[2] as Node)).toBe(4);
   });
 
-  it("opens from the bar by the larger toggle, and the hint closes it, ending the larger view", async () => {
+  it("the hint closes the open conversation, ending the larger view, the panel standing (spec 028)", async () => {
     const { v } = await room();
     const larger = v.doc.querySelector(".talk-larger") as HTMLButtonElement;
+    expect(larger.hidden).toBe(true);
     larger.click();
     expect(talk(v).getAttribute("data-panel")).toBe("open");
     (v.doc.querySelector(".split-hint") as HTMLButtonElement).click();
-    expect(talk(v).getAttribute("data-panel")).toBe("bar");
+    expect(talk(v).getAttribute("data-panel")).toBe("open");
+    expect((v.doc.querySelector(".split-hint") as HTMLElement).hidden).toBe(true);
     expect(larger.getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("with a turn out, Escape stops the turn first; then Escape closes to the bar and focuses the selected entry", async () => {
+  it("with a turn out, Escape stops the turn first; then Escape closes the conversation, the panel standing, and focuses the selected entry", async () => {
     const { v, sent } = await room();
     const piece = talkingPiece(v);
     piece.click();
@@ -128,19 +136,20 @@ describe("the panel (T008; FR-005, FR-006, FR-009)", () => {
     expect(sent[0]?.signal?.aborted).toBe(true);
     expect(talk(v).getAttribute("data-panel")).toBe("open");
     key(v, text, "Escape");
-    expect(talk(v).getAttribute("data-panel")).toBe("bar");
+    expect(talk(v).getAttribute("data-panel")).toBe("open");
+    expect(v.doc.querySelector<HTMLButtonElement>(".split-back")?.hidden).toBe(true);
     expect(v.doc.activeElement).toBe(piece);
-    expect(v.doc.querySelector(".split-frame")).toBeNull();
+    expect(v.doc.querySelector(".split-frame")).not.toBeNull();
   });
 
-  it("keeps the log and the typed text across a resize to 1280 x 720, which takes no split, and back", async () => {
+  it("keeps the log and the typed text across a resize to 844 x 390, which takes no split, and back", async () => {
     const { v, viewport } = await room();
     talkingPiece(v).click();
     await flush();
     const text = v.doc.getElementById("talk-text") as HTMLInputElement;
     text.value = "hello";
     const lines = v.doc.querySelectorAll("#talk-log > *").length;
-    viewport.set({ w: 1280, h: 720 });
+    viewport.set({ w: 844, h: 390 });
     expect(root(v).getAttribute("data-split")).toBe("off");
     expect(v.doc.querySelectorAll("#talk-log > *").length).toBe(lines);
     expect((v.doc.getElementById("talk-text") as HTMLInputElement).value).toBe("hello");
@@ -166,7 +175,7 @@ import { createSplit } from "../../src/room/hud/split";
 import { fetchStill } from "../../src/room/flat";
 import type { Still } from "../../src/room/flat";
 
-const split = (portrait?: () => Promise<string | null>) => {
+const split = () => {
   const dom = new JSDOM(
     '<body><div class="room-list"><h2 class="room-list-heading"></h2><ul><li><button data-object-id="a">A</button></li></ul></div>' +
       '<section class="talk"><div class="talk-sheet"><div class="talk-head"><button class="talk-log-toggle"><span>Conversation</span></button></div><div class="talk-log"></div></div></section></body>',
@@ -179,42 +188,36 @@ const split = (portrait?: () => Promise<string | null>) => {
     stats: () => [],
     turnOut: () => false,
     walking: () => false,
-    ...(portrait ? { portrait } : {}),
   });
   s.setActive(true);
-  return { doc, s };
+  return { dom, doc, s };
 };
 const settle = async (): Promise<void> => {
   for (let i = 0; i < 3; i += 1) await new Promise((r) => setImmediate(r));
 };
 
-describe("the portrait (T010)", () => {
-  it("shows the still where the fetch gives one, the silhouette until then and where it fails", async () => {
-    const ok = split(() => Promise.resolve("data:image/png;base64,AAAA"));
-    ok.s.openPanel();
-    expect(ok.doc.querySelector(".split-silhouette")).not.toBeNull();
+describe("the portrait (T010; spec 028's FR-001, FR-002)", () => {
+  it("shows no portrait, still or silhouette, at rest, open, or closed (spec 028)", async () => {
+    const t = split();
+    expect(t.doc.querySelector(".split-portrait, .split-silhouette, .split-still")).toBeNull();
+    t.s.openPanel();
     await settle();
-    expect(ok.doc.querySelector(".split-still")?.getAttribute("src")).toBe("data:image/png;base64,AAAA");
-    for (const give of [() => Promise.resolve(null), () => Promise.reject(new Error("no"))]) {
-      const bad = split(give);
-      bad.s.openPanel();
-      await settle();
-      expect(bad.doc.querySelector(".split-silhouette")).not.toBeNull();
-      expect(bad.doc.querySelector(".split-still")).toBeNull();
-    }
+    expect(t.doc.querySelector(".split-portrait, .split-silhouette, .split-still")).toBeNull();
+    t.s.closePanel();
+    expect(t.doc.querySelector(".split-portrait, .split-silhouette, .split-still")).toBeNull();
   });
-  it("fetches once, at the first opening, never while a bar", async () => {
+  it("fetches nothing at any opening (spec 028)", async () => {
+    const t = split();
     let calls = 0;
-    const t = split(() => {
-      calls += 1;
-      return Promise.resolve(null);
+    Object.defineProperty(t.dom.window, "fetch", {
+      configurable: true,
+      value: () => ((calls += 1), Promise.reject(new Error("no"))),
     });
-    await settle();
-    expect(calls).toBe(0);
     t.s.openPanel();
     t.s.closePanel();
     t.s.openPanel();
-    expect(calls).toBe(1);
+    await settle();
+    expect(calls).toBe(0);
   });
   it("is spec 016's verified fetch: same-origin, with integrity, refusing bytes that aren't the index's", async () => {
     const bytes = new Uint8Array([1, 2, 3, 4]);
@@ -246,7 +249,7 @@ const entries = (v: Visit): HTMLButtonElement[] => [
 ];
 
 describe("the list (T011; FR-007, FR-008)", () => {
-  it("has the label, and Back only while the panel is open, named with its key", async () => {
+  it("has the label, and Back only while a conversation is open, named with its key; Back leaves the panel standing (spec 028)", async () => {
     const { v } = await room();
     expect(v.doc.querySelector(".split-label")?.textContent).toBe("Select a piece");
     const back = v.doc.querySelector<HTMLButtonElement>(".split-back");
@@ -257,7 +260,7 @@ describe("the list (T011; FR-007, FR-008)", () => {
     expect(back?.hidden).toBe(false);
     expect(back?.querySelector(".hud-keycap")?.textContent).toBe("Esc");
     back?.click();
-    expect(talk(v).getAttribute("data-panel")).toBe("bar");
+    expect(talk(v).getAttribute("data-panel")).toBe("open");
     expect(back?.hidden).toBe(true);
   });
 
@@ -311,20 +314,23 @@ describe("the list (T011; FR-007, FR-008)", () => {
 // ---- T018's findings: the review's (a worker that did not write the code) ----
 
 describe("after review (T018)", () => {
-  it("Escape outside the conversation closes the panel and ends the larger view (finding 1)", async () => {
+  it("Escape outside the conversation closes the open conversation and ends the larger view, the panel standing (finding 1; spec 028)", async () => {
     const { v } = await room();
     (v.doc.querySelector(".talk-larger") as HTMLButtonElement).click();
     expect(talk(v).getAttribute("data-panel")).toBe("open");
     const piece = entries(v)[0] as HTMLButtonElement;
     piece.focus();
     key(v, piece, "Escape");
-    expect(talk(v).getAttribute("data-panel")).toBe("bar");
+    expect(talk(v).getAttribute("data-panel")).toBe("open");
+    expect((v.doc.querySelector(".split-hint") as HTMLElement).hidden).toBe(true);
     expect((v.doc.querySelector(".talk-larger") as HTMLButtonElement).getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("a part that throws midway leaves no stray part behind, and the next opening builds one set (finding 2)", () => {
+  it("a part that throws midway leaves no stray part behind, and one set stands, its hint hidden once closed (finding 2; spec 028)", () => {
     let calls = 0;
     const t = split();
+    // Since spec 028 a split builds its parts as it becomes active: the first leaves the page before the second comes.
+    t.s.setActive(false);
     const again = createSplit(t.doc, {
       talk: t.doc.querySelector(".talk") as HTMLElement,
       list: t.doc.querySelector(".room-list") as HTMLElement,
@@ -343,7 +349,9 @@ describe("after review (T018)", () => {
     again.openPanel();
     expect(t.doc.querySelectorAll(".split-hint")).toHaveLength(1);
     again.closePanel();
-    expect(t.doc.querySelector(".split-hint, .split-top, .split-portrait")).toBeNull();
+    expect(t.doc.querySelectorAll(".split-hint")).toHaveLength(1);
+    expect((t.doc.querySelector(".split-hint") as HTMLElement).hidden).toBe(true);
+    expect(t.doc.querySelector(".split-portrait")).toBeNull();
   });
 
   it("leaves aria-current to the target alone once the split layout goes (finding 3)", async () => {
@@ -355,26 +363,29 @@ describe("after review (T018)", () => {
     expect(v.doc.querySelectorAll(".room-list [aria-current]")).toHaveLength(0);
   });
 
-  it("keeps the focus and the portrait when the window changes size while the panel is open (finding 5)", async () => {
+  it("keeps the focus and the panel's parts when the window changes size while a conversation is open (finding 5; spec 028)", async () => {
     const { v, viewport } = await room();
     (v.doc.querySelector(".talk-larger") as HTMLButtonElement).click();
     const hint = v.doc.querySelector(".split-hint");
-    const slot = v.doc.querySelector(".split-portrait");
+    const slot = v.doc.querySelector(".split-top");
+    expect(slot).not.toBeNull();
     expect(v.doc.activeElement).toBe(hint);
     const before = v.doc.querySelector(".split-frame path")?.getAttribute("d");
     viewport.set({ w: 1400, h: 800 });
     expect(v.doc.querySelector(".split-hint")).toBe(hint);
-    expect(v.doc.querySelector(".split-portrait")).toBe(slot);
+    expect(v.doc.querySelector(".split-top")).toBe(slot);
     expect(v.doc.activeElement).toBe(hint);
     expect(v.doc.querySelector(".split-frame path")?.getAttribute("d")).not.toBe(before);
   });
 
-  it("does not open for a conversation in a window the split layout doesn't take (finding 6)", async () => {
+  it("opens no conversation's parts for a conversation in a window the split layout doesn't take (finding 6; spec 028)", async () => {
     const { v, viewport } = await room({ w: 700, h: 400 });
     talkingPiece(v).click();
     await flush();
     viewport.set(WIDE);
-    expect(talk(v).getAttribute("data-panel")).toBe("bar");
+    expect(talk(v).getAttribute("data-panel")).toBe("open");
+    expect((v.doc.querySelector(".split-hint") as HTMLElement).hidden).toBe(true);
+    expect(v.doc.querySelector<HTMLButtonElement>(".split-back")?.hidden).toBe(true);
   });
 });
 
@@ -431,33 +442,27 @@ const unit = (
   return { dom, doc, s, escape, q };
 };
 
-describe("the rest row (T024; FR-004, R-2)", () => {
-  it("is in the bar's band at its left, at --split-rest-*, holding the head and the text box row", async () => {
+describe("the rest row (T024; FR-004, R-2), gone since spec 028", () => {
+  it("is gone: the panel holds the head and the text box row, at --wall-panel-* (spec 028)", async () => {
     const { v } = await room();
     const style = root(v).style;
-    expect(
-      ["--split-rest-x", "--split-rest-y", "--split-rest-w", "--split-rest-h"].map((n) => style.getPropertyValue(n)),
-    ).toEqual(["0px", "1028px", "640px", "52px"]);
-    expect(style.getPropertyValue("--split-bar-y")).toBe("");
-    const rest = `${ON} .talk[data-panel="bar"]`;
-    expect(decl(rest, "left")).toBe("var(--split-rest-x)");
-    expect(decl(rest, "top") ?? "").toContain("var(--split-rest-y)");
-    expect(decl(rest, "width")).toBe("var(--split-rest-w)");
-    expect(decl(rest, "height")).toBe("var(--split-rest-h)");
-    // Its contents: the title toggle, "Larger conversation", the label, the text box, Send, and the talk button.
+    for (const n of ["--split-rest-x", "--split-rest-y", "--split-rest-w", "--split-rest-h"])
+      expect(style.getPropertyValue(n), n).toBe("");
+    for (const n of ["--wall-panel-x", "--wall-panel-y", "--wall-panel-w", "--wall-panel-h"])
+      expect(style.getPropertyValue(n), n).toMatch(/px$/);
+    // Its contents: the title toggle, the label, the text box, Send, and the talk button.
     const t = talk(v);
-    expect(t.getAttribute("data-panel")).toBe("bar");
-    for (const part of [".talk-log-toggle", ".talk-larger", 'label[for="talk-text"]', "#talk-text", ".talk-voice"])
+    expect(t.getAttribute("data-panel")).toBe("open");
+    for (const part of [".talk-log-toggle", 'label[for="talk-text"]', "#talk-text", ".talk-voice"])
       expect(t.querySelector(part), part).not.toBeNull();
     expect(button(v.doc, "Send")).toBeTruthy();
   });
 
-  it("opens the panel round the frame's box, its title row at --split-title-h, the frame below it", () => {
-    const open = `${ON} .talk[data-panel="open"]`;
-    expect(decl(open, "top")).toBe("var(--split-frame-y)");
-    expect(decl(open, "height") ?? "").toContain("var(--split-frame-h)");
-    expect(decl(`${ON} .split-frame`, "top")).toBe("var(--split-title-h)");
-    expect(decl(`${ON} .talk-head`, "min-height")).toBe("var(--split-title-h)");
+  it("stands at the panel's box, its title row at --wall-title-h, the frame below it (spec 028)", () => {
+    expect(decl(`${ON} .talk`, "top")).toBe("var(--wall-panel-y)");
+    expect(decl(`${ON} .talk`, "height") ?? "").toContain("var(--wall-panel-h)");
+    expect(decl(`${ON} .split-frame`, "top")).toBe("var(--wall-title-h)");
+    expect(decl(`${ON} .talk-head`, "min-height")).toBe("var(--wall-title-h)");
   });
 
   it("draws the frame below the title row the kernel gives, never a fixed 44 px", () => {
@@ -471,9 +476,10 @@ describe("the rest row (T024; FR-004, R-2)", () => {
 });
 
 describe("the openings (T024; FR-006)", () => {
-  it("opens the panel for a sent turn with no piece open, free talk included", async () => {
+  it("opens the conversation for a sent turn with no piece open, free talk included (spec 028: the panel stands open)", async () => {
     const { v, sent } = await room(WIDE, { freeTalk: true });
-    expect(talk(v).getAttribute("data-panel")).toBe("bar");
+    expect(talk(v).getAttribute("data-panel")).toBe("open");
+    expect((v.doc.querySelector(".split-hint") as HTMLElement).hidden).toBe(true);
     const text = v.doc.getElementById("talk-text") as HTMLInputElement;
     text.value = "Hello";
     button(v.doc, "Send").click();
@@ -481,6 +487,7 @@ describe("the openings (T024; FR-006)", () => {
     expect(sent).toHaveLength(1);
     expect(sent[0]?.request.feature).toBe("free_talk");
     expect(talk(v).getAttribute("data-panel")).toBe("open");
+    expect((v.doc.querySelector(".split-hint") as HTMLElement).hidden).toBe(false);
   });
 });
 
@@ -556,16 +563,17 @@ describe("focus after closing (T024; FR-009, spec 005's FR-045)", () => {
     expect(v.doc.activeElement).toBe(piece);
   });
 
-  it("goes back to Larger conversation where that opened it", async () => {
+  it("goes back to Larger conversation where that opened it, the panel standing (spec 028)", async () => {
     const { v } = await room();
     const larger = v.doc.querySelector(".talk-larger") as HTMLButtonElement;
     larger.click();
     key(v, v.doc.querySelector(".split-hint") as Element, "Escape");
-    expect(talk(v).getAttribute("data-panel")).toBe("bar");
+    expect(talk(v).getAttribute("data-panel")).toBe("open");
+    expect((v.doc.querySelector(".split-hint") as HTMLElement).hidden).toBe(true);
     expect(v.doc.activeElement).toBe(larger);
   });
 
-  it("goes back to the text box where a sent turn opened it", async () => {
+  it("goes back to the text box where a sent turn opened it, the panel standing (spec 028)", async () => {
     const { v } = await room(WIDE, { freeTalk: true });
     const text = v.doc.getElementById("talk-text") as HTMLInputElement;
     text.value = "Hello";
@@ -576,7 +584,8 @@ describe("focus after closing (T024; FR-009, spec 005's FR-045)", () => {
     // A turn is out: the first Escape is the turn's (from the form), the second the panel's.
     key(v, text, "Escape");
     key(v, entry, "Escape");
-    expect(talk(v).getAttribute("data-panel")).toBe("bar");
+    expect(talk(v).getAttribute("data-panel")).toBe("open");
+    expect((v.doc.querySelector(".split-hint") as HTMLElement).hidden).toBe(true);
     expect(v.doc.activeElement).toBe(text);
   });
 
@@ -665,10 +674,8 @@ describe("the emblem (T026; FR-005, Q60; named by the room's data, D-V3)", () =>
   });
 });
 
-describe("the portrait's speaker (T026; the brief's item d)", () => {
-  it("draws and fetches the speaker's portrait, the twin's by default", async () => {
-    const seen: string[] = [];
-    const drawn: string[] = [];
+describe("the portrait's speaker (T026; the brief's item d), gone since spec 028", () => {
+  it("draws no portrait for any speaker, the twin's or another (spec 028, FR-001)", async () => {
     const make = (speaker?: () => string) => {
       const dom = new JSDOM('<body><div class="room-list"><ul></ul></div><section class="talk"></section></body>');
       const doc = dom.window.document;
@@ -679,16 +686,6 @@ describe("the portrait's speaker (T026; the brief's item d)", () => {
         stats: () => [],
         turnOut: () => false,
         walking: () => false,
-        portrait: (who) => {
-          seen.push(who);
-          return Promise.resolve(null);
-        },
-        draw: {
-          portrait: (d, who) => {
-            drawn.push(who);
-            return d.createElement("span");
-          },
-        },
         ...(speaker ? { speaker } : {}),
       });
       s.setActive(true);
@@ -696,40 +693,36 @@ describe("the portrait's speaker (T026; the brief's item d)", () => {
       return doc;
     };
     const twin = make();
-    expect(twin.querySelector(".split-portrait")?.getAttribute("data-speaker")).toBe("twin");
     const dog = make(() => "dog");
-    expect(dog.querySelector(".split-portrait")?.getAttribute("data-speaker")).toBe("dog");
     await settle();
-    expect(drawn).toEqual(["twin", "dog"]);
-    expect(seen).toEqual(["twin", "dog"]);
+    for (const doc of [twin, dog])
+      expect(doc.querySelector(".split-portrait, .split-silhouette, .split-still")).toBeNull();
   });
 });
 
 // ---- T028 (rv2-impl-018's B1; FR-006): the soft keyboard's inset ----
 
 import { splitBoxes } from "../../src/room/compose/hud";
+import { flatProtectorFor } from "../../src/room/compose/protect";
 
 describe("the soft keyboard (T028; FR-006, B1)", () => {
   const TABLET = { w: 1400, h: 1000 } as const;
 
-  it("keeps the rest row and the open panel's foot above the keyboard's inset, at a landscape tablet in the split layout", async () => {
-    expect(splitBoxes(TABLET)).not.toBeNull();
+  it("keeps the panel's foot above the keyboard's inset, at a landscape tablet in the split layout (spec 028: no rest row)", async () => {
+    expect(splitBoxes(TABLET, undefined, undefined, { wall: flatProtectorFor(ready()) })).not.toBeNull();
     const { v, viewport } = await room(TABLET);
     expect(root(v).getAttribute("data-split")).toBe("on");
     viewport.set({ keyboard: 300 }, "keyboard");
     expect(root(v).style.getPropertyValue("--keyboard")).toBe("300px");
     expect(root(v).getAttribute("data-split")).toBe("on");
-    // The rest row's top and the open panel's foot both move up by the inset; the clear area and the frame don't.
-    expect(decl(`${ON} .talk[data-panel="bar"]`, "top")).toBe("calc(var(--split-rest-y) - var(--keyboard))");
-    expect(decl(`${ON} .talk[data-panel="open"]`, "top")).toBe("var(--split-frame-y)");
-    expect(decl(`${ON} .talk[data-panel="open"]`, "height")).toBe(
-      "max(0px, calc(var(--split-frame-h) - var(--keyboard)))",
-    );
+    // The panel's foot moves up by the inset; its top, the clear area, and the frame don't.
+    expect(decl(`${ON} .talk`, "top")).toBe("var(--wall-panel-y)");
+    expect(decl(`${ON} .talk`, "height")).toBe("max(0px, calc(var(--wall-panel-h) - var(--keyboard)))");
     // The text box keeps its text and the panel its state across the inset.
     const text = v.doc.getElementById("talk-text") as HTMLInputElement;
     text.value = "typing";
     viewport.set({ keyboard: 0 }, "keyboard");
     expect(text.value).toBe("typing");
-    expect(talk(v).getAttribute("data-panel")).toBe("bar");
+    expect(talk(v).getAttribute("data-panel")).toBe("open");
   });
 });

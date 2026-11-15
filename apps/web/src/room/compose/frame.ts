@@ -7,7 +7,7 @@
 // room is never smaller than under spec 005. A protector that throws or gives a box that isn't finite falls back to the
 // clear area at once, and the room logs it in a drafts build. Pure: no DOM, no three.js, no clock; the same inputs give
 // the same result in Node and the browser.
-import { compactBoxes, hudBoxes } from "./hud";
+import { compactBoxes, hudBoxes, wallBoxes } from "./hud";
 import type { Box, HudMetrics, HudState } from "./hud";
 import type { Rect } from "./pick";
 
@@ -29,6 +29,9 @@ export interface Protect {
   /** Spec 024 (FR-012; plan.md §5.5, Q150): a 3D dinosaur visit's protector, whose compact boxes hold the "Eat" tile's
    *  box (compose/hud.ts's `eat` option), so the frame area, the stages, and the pressable set agree on it. */
   readonly eat?: boolean;
+  /** Spec 028 (FR-005; plan.md §R-A1): the wall box, the shell's opening as the room shows when framed into `area`, in
+   *  the window's pixels (compose/wall.ts), which the split layout stands beside; absent or null, no split layout. */
+  wall?(area: Box): Box | null;
 }
 
 export interface FrameArea {
@@ -72,7 +75,13 @@ export function frameArea(
   const fallback: FrameArea = { area: clear, ease: 1, fellBack: true };
   try {
     if (!finite(clear) || !(screen.w > 0) || !(screen.h > 0)) return fallback;
-    const hud = compactBoxes(screen, state, metrics, { eat: protect.eat }).all;
+    // Spec 028 (FR-006; plan.md §R-A2): where the window takes the split layout, the room is framed into the wall area
+    // with no ease: the panel and the column stand beside the wall box and cover none of the room. The protector
+    // judged the area there; where it refuses it, the window keeps the column layout and the ease below.
+    const option = { eat: protect.eat, wall: protect };
+    const split = wallBoxes(screen, state, metrics, option);
+    if (split) return finite(split.area) ? { area: split.area, ease: 0, fellBack: false } : fallback;
+    const hud = compactBoxes(screen, state, metrics, option).all;
     const margin = MARGIN_REM * metrics.rem;
     for (let k = 0; k < EASE_STEPS; k += 1) {
       const area = areaAt(k / EASE_STEPS, screen, clear);

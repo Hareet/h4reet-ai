@@ -8,10 +8,10 @@
 // "around" spans both columns before the resume; below a portrait width of 35rem, where five controls (spec 003's
 // "Credits" among them once it lands) wrap to two rows, the stage gives up one toolbar row, and below 25rem the
 // toolbar's type drops to 0.875rem, so the text box and the talk button stay on screen, a 320 × 568 one included
-// (FR-047, FR-065; R-40; the review of T171, B1). The stage's placeholder note, the UI word standin.note, shows only
-// while stand-ins are in use. Spec 009's stand-in line, the UI word twin.stand_in, is a paragraph of its own beside it
-// (its FR-013; plan.md R-13), in 3D and 2D alike, since the note sits in the stage beside the view: the two stack at the
-// stage's top left, over the view, taking no room in the layout and letting a pointer or a touch through to the scene.
+// (FR-047, FR-065; R-40; the review of T171, B1). Spec 028 (FR-012; the Author's answer "Keep top banner"): the stage's
+// notes at its top left, the placeholder note (standin.note, standin.avatar), spec 009's stand-in line or spec 016's
+// twin's line, and spec 020's visitor line, are no longer drawn; their words are "Around the room"'s lines
+// (text-copy.ts), and the notes' box stays, empty, letting a pointer or a touch through to the scene.
 // "Pause the room" (spec 004, FR-060, FR-065; Amendment B8; R-34), the UI word pause.button, is a toggle whose state
 // is in aria-pressed; the room's motion store holds what it sets (motion.ts).
 // Spec 005 (FR-008, FR-019 to FR-022; plan.md §2.3, §5.4, §6.1): the room's block fills the window, and the interface
@@ -90,17 +90,6 @@ export interface RoomLayout {
   offer(now: () => void, later: () => void): () => void;
   /** The room is in 2D for the rest of the visit: "2D view" stays, marked unavailable. */
   markFlat(): void;
-  /** Shows the placeholder note while stand-ins are in use: from the bundle, or once a piece's load falls back. Since
-   *  spec 014 (its FR-053, FR-054; PD-18) it says what is missing: the room's pieces (standin.note), the visitor's
-   *  figure in 3D (standin.avatar), or both in one note, the pieces' first; hidden where nothing is. */
-  setPlaceholders(on: { readonly pieces: boolean; readonly figure: boolean }): void;
-  /** Spec 016 (FR-014; contracts/twin-states.md §4): the line slot's words, in place: the twin's line while its own
-   *  picture shows, the stand-in line otherwise. The paragraph isn't a live region, so nothing is announced. */
-  setLine(words: string): void;
-  /** Spec 020 (FR-007; plan.md R-02): the likeness line of a visitor-avatar model any figure shows, a note of its own
-   *  after the line slot's, only while it has words: "" takes the paragraph away, so the layout holds no empty line.
-   *  Not a live region. */
-  setVisitorLine(words: string): void;
   /** Shows whether the room is paused, in "Pause the room"'s aria-pressed. */
   setPaused(on: boolean): void;
   /** Spec 008's walking control (FR-020, FR-021; R-09): in the stage's bottom-right corner, inert with the rest. */
@@ -136,6 +125,14 @@ export interface RoomLayout {
   insertLoader(card: HTMLElement): void;
 }
 
+/** Spec 028: every --wall-* property applyHud sets in the split layout, each taken away outside it. */
+const WALL_PROPERTIES: readonly string[] = [
+  ...["panel", "column", "list", "tiles", "bar"].flatMap((p) => ["x", "y", "w", "h"].map((k) => `--wall-${p}-${k}`)),
+  "--wall-title-h",
+  "--wall-scale-left",
+  "--wall-scale-right",
+];
+
 /** A HUD tile (spec 005, FR-026; plan.md §6.2): an icon over its words, the words its name. */
 function tile<K extends "button" | "a">(
   doc: Document,
@@ -161,12 +158,6 @@ export function renderRoom(
     talk: HTMLElement;
     /** "Around the room", after the conversation panel and outside the stage (spec 004, FR-063). */
     around: HTMLElement;
-    /** The placeholder note's words: the UI word standin.note. */
-    note: string;
-    /** Spec 014 (FR-054): the visitor's figure's placeholder words, the UI word standin.avatar; empty for none. */
-    noteAvatar?: string;
-    /** Spec 009's stand-in line: the UI word twin.stand_in while the index's copy holds it; empty for none. */
-    standIn?: string;
     /** "Pause the room": the UI word pause.button. */
     pause: string;
     /** Spec 016 (FR-042): the toolbar's credits link, the UI word toolbar.credits. */
@@ -231,7 +222,6 @@ export function renderRoom(
     { class: "room-stage-view", "data-stage": "loading" },
     h(doc, "p", { class: "room-loading" }, "Loading the room…"),
   );
-  const note = h(doc, "p", { class: "room-note", hidden: true }, parts.note);
   const walkWords: NonNullable<typeof parts.walk> = parts.walk ?? { enter: "", leave: "", region: "", help: "" };
   const walkButton = tile(
     doc,
@@ -266,10 +256,8 @@ export function renderRoom(
   eatButton.addEventListener("keydown", (e) => {
     if (e.repeat && (e.key === "Enter" || e.key === " ")) e.preventDefault();
   });
-  const standIn = h(doc, "p", { class: "room-note room-stand-in", hidden: !parts.standIn }, parts.standIn ?? "");
-  const notes = h(doc, "div", { class: "room-notes" }, note, standIn);
-  /** Spec 020's visitor line, in the notes after the line slot's while it has words. */
-  let visitorLine: HTMLElement | null = null;
+  // Spec 028 (FR-012): the notes' box, empty: no note is drawn over the stage.
+  const notes = h(doc, "div", { class: "room-notes" });
   const clear = h(doc, "div", { class: "room-clear" }, notes, walkButton, walkHelp, eatButton);
   const stage = h(doc, "div", { class: "room-stage" }, view, clear);
   const panels = h(doc, "div", { class: "hud-panels hud-glass" }, parts.list, parts.talk);
@@ -330,27 +318,6 @@ export function renderRoom(
     },
     markFlat() {
       flatButton.setAttribute("aria-disabled", "true");
-    },
-    setLine(words) {
-      if (standIn.textContent !== words) standIn.textContent = words;
-      standIn.hidden = words === "";
-    },
-    setVisitorLine(words) {
-      if (words === "") {
-        visitorLine?.remove();
-        visitorLine = null;
-      } else if (visitorLine) {
-        if (visitorLine.textContent !== words) visitorLine.textContent = words;
-      } else {
-        visitorLine = h(doc, "p", { class: "room-note room-visitor-line" }, words);
-        standIn.after(visitorLine);
-      }
-    },
-    setPlaceholders(on) {
-      const words = [on.pieces ? parts.note : "", on.figure ? (parts.noteAvatar ?? "") : ""].filter((w) => w !== "");
-      // One note (FR-055): the two joined, the first ending in a stop where its words don't.
-      note.textContent = words.map((w, k) => (k < words.length - 1 && !/[.!?]$/.test(w) ? `${w}.` : w)).join(" ");
-      note.hidden = words.length === 0;
     },
     setPaused(on) {
       pauseButton.setAttribute("aria-pressed", String(on));
@@ -428,29 +395,33 @@ export function renderRoom(
         ["--frame-w", applied.frame.w],
         ["--frame-h", applied.frame.h],
       ];
-      // Spec 018: the split layout's boxes for hud/split.css, and data-split beside data-hud. The walking control's
-      // place is compact.walk's, above (R-3); the rest row is in the bar's band (R-2), and the open panel's frame is the
-      // panel with the rest row below it, its title row at its top.
+      // Spec 018's split layout, placed beside the room's walls by spec 028 (FR-004 to FR-008; plan.md §R-A4): the panel's,
+      // the title row's, the column's, the list's, the tiles' block's, and the bar's boxes for hud/split.css as --wall-*, and the
+      // two sides' scales, unitless; data-split beside data-hud. The walking control's and the Eat tile's places are
+      // compact.walk's and compact.eat's, above, in the tiles' block. Outside the split layout none is set.
       const sp = applied.layout === "column" ? (applied.split ?? null) : null;
       root.setAttribute("data-split", sp ? "on" : "off");
-      if (sp)
-        sizes.push(
-          ["--split-panel-x", sp.panel.x],
-          ["--split-panel-y", sp.panel.y],
-          ["--split-panel-w", sp.panel.w],
-          ["--split-panel-h", sp.panel.h],
-          ["--split-title-h", sp.title.h],
-          ["--split-frame-y", sp.frame.y],
-          ["--split-frame-h", sp.frame.h],
-          ["--split-rest-x", sp.rest.x],
-          ["--split-rest-y", sp.rest.y],
-          ["--split-rest-w", sp.rest.w],
-          ["--split-rest-h", sp.rest.h],
-          ["--split-list-x", sp.list.x],
-          ["--split-list-y", sp.list.y],
-          ["--split-list-w", sp.list.w],
-          ["--split-list-h", sp.list.h],
-        );
+      for (const name of WALL_PROPERTIES) root.style.removeProperty(name);
+      if (sp) {
+        const boxes: [string, Box][] = [
+          ["panel", sp.panel],
+          ["column", sp.column],
+          ["list", sp.list],
+          ["tiles", sp.tiles],
+          // rv-028a-1's A1-1: the toolbar's bar, its tile rows only, above the walking control and the Eat tile.
+          ["bar", sp.bar],
+        ];
+        for (const [part, b] of boxes)
+          sizes.push(
+            [`--wall-${part}-x`, b.x],
+            [`--wall-${part}-y`, b.y],
+            [`--wall-${part}-w`, b.w],
+            [`--wall-${part}-h`, b.h],
+          );
+        sizes.push(["--wall-title-h", sp.title.h]);
+        root.style.setProperty("--wall-scale-left", String(sp.scaleLeft));
+        root.style.setProperty("--wall-scale-right", String(sp.scaleRight));
+      }
       for (const [name, value] of sizes) root.style.setProperty(name, px(value));
       // The stacked layout's header is sticky in the page's flow, its own height: the scroll padding takes its 4rem
       // fallback there, as before spec 005.

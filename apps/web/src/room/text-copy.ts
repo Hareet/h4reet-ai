@@ -52,6 +52,10 @@ export interface TextCopy {
   /** Spec 020 (FR-007; plan.md R-02): the likeness line of any visitor-avatar model the room shows, once, in the
    *  slot's place after the twin's line; null takes the entry away. */
   setVisitorLine(line: string | null): void;
+  /** Spec 028 (FR-012, FR-015, Q23; plan.md §R-A5): the placeholder words, which the stage's note no longer shows, one
+   *  item right after the visitor's line (its slot where no line shows), main's stage-note join of what applies
+   *  (`placeholderWords`); neither applying takes it away. Not a live region. */
+  setPlaceholders(on: { readonly pieces: boolean; readonly figure: boolean }): void;
 }
 
 /** The tier the room shows until its signal applies another: not-live's case is the one the 3D and 2D rooms draw. */
@@ -65,6 +69,20 @@ const ESTIMATED = "estimated";
 
 /** Whether a face holds one of the neon sign's counters: a region that reads the turn's cost. */
 const isCounter = (face: RoomIndex["faces"][number]): boolean => face.regions.some((r) => "signal" in r.source);
+
+/** The placeholder words (spec 014's FR-053 to FR-055, moved by spec 028's FR-015): the room's pieces' (standin.note)
+ *  and the visitor's figure's (standin.avatar) where each applies, in one line, the first ending in a stop where its
+ *  words don't; "" where nothing is a placeholder. */
+export function placeholderWords(
+  ui: RoomIndex["ui"],
+  on: { readonly pieces: boolean; readonly figure: boolean },
+): string {
+  const words = [
+    on.pieces ? (uiWord(ui, "standin.note") ?? "") : "",
+    on.figure ? (uiWord(ui, "standin.avatar") ?? "") : "",
+  ].filter((w) => w !== "");
+  return words.map((w, k) => (k < words.length - 1 && !/[.!?]$/.test(w) ? `${w}.` : w)).join(" ");
+}
 
 export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
   const sentence = (value: TierValue): string => uiWord(room.ui, `tier.${value}`) ?? "";
@@ -81,6 +99,8 @@ export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
   /** Spec 020's visitor line slot: a marker where its entry goes, and the entry while a line shows. */
   let visitorMarker: Comment | null = null;
   let visitorItem: HTMLElement | null = null;
+  /** Spec 028's placeholder words' line, while there are any. */
+  let placeholderItem: HTMLElement | null = null;
   for (const entry of room.copy) {
     if ("face" in entry) {
       const face = room.faces.find((f) => f.id === entry.face);
@@ -106,7 +126,7 @@ export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
       if (words !== null) list.append(h(doc, "li", {}, words));
     } else if ("twin_line" in entry) {
       // Spec 016's line slot (FR-014): spec 009's stand-in line until the twin's own picture shows (setTwinOwn).
-      lineSlot = h(doc, "li", {}, uiWord(room.ui, STAND_IN) ?? "");
+      lineSlot = h(doc, "li", { "data-line": "twin" }, uiWord(room.ui, STAND_IN) ?? "");
       list.append(lineSlot);
     } else if ("visitor_line" in entry) {
       // Spec 020's slot (FR-007): nothing until a figure shows a model with a line (setVisitorLine).
@@ -187,9 +207,26 @@ export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
       } else if (visitorItem) {
         if (visitorItem.textContent !== line) visitorItem.textContent = line;
       } else {
-        visitorItem = h(doc, "li", {}, line);
+        visitorItem = h(doc, "li", { "data-line": "visitor" }, line);
         visitorMarker.after(visitorItem);
       }
+    },
+    setPlaceholders(on) {
+      const words = placeholderWords(room.ui, on);
+      if (words === "") {
+        placeholderItem?.remove();
+        placeholderItem = null;
+        return;
+      }
+      if (placeholderItem) {
+        if (placeholderItem.textContent !== words) placeholderItem.textContent = words;
+        return;
+      }
+      placeholderItem = h(doc, "li", { "data-line": "placeholders" }, words);
+      // After the line slots: the visitor's line where it shows, else its place, else the twin's line, else first.
+      const after = visitorItem ?? visitorMarker ?? lineSlot;
+      if (after) after.after(placeholderItem);
+      else list.prepend(placeholderItem);
     },
     setPausedAt(time) {
       const words = time === null || pausedAfter === null ? null : pausedAtWords(room.ui, time);

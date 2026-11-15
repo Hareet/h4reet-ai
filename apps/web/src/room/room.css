@@ -998,6 +998,43 @@ html[data-hud="dock"] .room-around {
   padding: 1rem;
 }
 
+/* Spec 028 (FR-016; Q7 as reworked after rv-spec-028's B-1; the Author's answer "Hide, keep for readers
+   (Recommended)"): in the split and column layouts (data-hud="column", the split being that layout with data-split
+   on), no panel below the room on screen: "Around the room" takes .visually-hidden's declarations, so a screen reader
+   reads it in its place, the last Tab stop. In the dock and stacked layouts, where phones are (390 × 844 and 320 × 568
+   take the dock), it shows below the room as before ("the phone layout still get the text"). */
+html[data-hud="column"] .room-around:not(:focus-within) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* While it holds focus there it shows (Q22; WCAG 2.4.7, 2.4.11: focus must be seen): over the room at the window's
+   foot centre, at most 48rem wide, on the glass, its own scroll; its ring the room's; still out of the layout's flow,
+   so it takes no space. Absolute, not fixed (spec 005's FR-044: no fixed part but the strip): the room block is the
+   window, and out of the page's flow nothing follows it, so the page's foot is the window's. */
+html[data-hud="column"] .room-around:focus-within {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 6;
+  max-width: 48rem;
+  max-height: 50vh;
+  margin: 0 auto;
+  overflow-y: auto;
+  clip-path: none;
+  color: var(--hud-text);
+  background: rgb(var(--glass) / var(--split-glass-alpha, 0.9));
+  border-radius: 0.75rem;
+}
+
 .resume-panel {
   padding: 0.5rem 0.75rem;
   border: 1px solid #555555;

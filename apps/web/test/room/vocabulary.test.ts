@@ -194,9 +194,14 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "chase.ended_both": [],
       "chase.ended_twin": [],
       "chase.ended_dog": [],
+      // Spec 028 (FR-013, FR-020, FR-021; T-B01): the dinosaur's call, the left lines, and the Credits page's heading.
+      "figures.dino_call": [],
+      "figures.left_both": [],
+      "figures.left_twin": [],
+      "credits.likeness": [],
     });
-    // Merged (patch-026): 83 on the base, spec 026's one, and spec 024's two.
-    expect(Object.keys(UI_KEYS)).toHaveLength(86);
+    // Merged (patch-026): 83 on the base, spec 026's one, and spec 024's two; spec 028's four.
+    expect(Object.keys(UI_KEYS)).toHaveLength(90);
   });
 
   // T013 (spec 012; FR-051; D8): the loader's twelve words join the closed list, two with their live counts' slots, and

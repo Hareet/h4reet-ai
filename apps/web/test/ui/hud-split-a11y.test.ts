@@ -12,12 +12,15 @@ import type { ComposeResult } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import { HUD_PLACEMENTS, splitBoxes } from "../../src/room/compose/hud";
+import { protectSceneOf, protectorFor } from "../../src/room/compose/protect";
 import {
   axeViolations,
   button,
   enter,
   flush,
   nameOf,
+  parseCss,
+  repositoryBundle,
   stubViewport,
   start,
   tabOrder,
@@ -97,16 +100,26 @@ describe("motion, zoom, and spacing (FR-017, FR-018)", () => {
     expect(outside).not.toMatch(/animation:/);
     expect(css).not.toMatch(/translate|@keyframes[^{]*\{[^}]*transform/);
   });
-  it("sizes in rem, so 200% text takes twice the window, and falls back to today's layouts where the half is too small", () => {
+  it("sizes in rem, so 200% text takes twice the window, and falls back to today's layouts where the half is too small (spec 028)", () => {
     expect(css).not.toMatch(/font-size:\s*[\d.]+px/);
-    // At 16px per rem a 200% zoom halves the window in CSS pixels: 1920 × 1080 at 200% is 960 × 540, where FR-001's
-    // rule takes no split, so today's column layout reflows it.
-    expect(splitBoxes({ w: 1920, h: 1080 })).not.toBeNull();
-    expect(splitBoxes({ w: 960, h: 540 })).toBeNull();
-    // The table is in rem, so a 32-pixel root at 1920 × 1080 is the same as 960 × 540 at 16.
-    expect(
-      splitBoxes({ w: 1920, h: 1080 }, undefined, { rem: 32, safe: { top: 0, right: 0, bottom: 0, left: 0 } }),
-    ).toBeNull();
+    // Spec 028 (T-A03; plan.md §R-B8): the split layout beside the walls, its wall from the room's own protector. At 16px
+    // per rem a 200% zoom halves the window in CSS pixels: 1920 × 1080 at 200% is 960 × 540, where its FR-009's rule
+    // takes no split, so today's column layout reflows it (spec 028's Edge Cases).
+    const { scene, index } = repositoryBundle();
+    const wall = { wall: protectorFor(protectSceneOf(scene, index)) };
+    expect(splitBoxes({ w: 1920, h: 1080 }, undefined, undefined, wall)).not.toBeNull();
+    expect(splitBoxes({ w: 960, h: 540 }, undefined, undefined, wall)).toBeNull();
+    // The table is in rem: at a 32-pixel root, any split's panel and column are at least their least widths in it.
+    const big = splitBoxes(
+      { w: 1920, h: 1080 },
+      undefined,
+      { rem: 32, safe: { top: 0, right: 0, bottom: 0, left: 0 } },
+      wall,
+    );
+    if (big) {
+      expect(big.panel.w).toBeGreaterThanOrEqual(HUD_PLACEMENTS.wall.panel.minRem * 32);
+      expect(big.column.w).toBeGreaterThanOrEqual(HUD_PLACEMENTS.wall.column.minRem * 32);
+    }
     expect(HUD_PLACEMENTS.split.panel.titleRem).toBeGreaterThan(0);
   });
   it("lets the text spacing grow without a fixed height on any text: the rows' heights are minimums or table values", () => {
@@ -138,16 +151,21 @@ describe("the title row's glass (T027)", () => {
 });
 
 // T028 (B1; FR-006): as hud-a11y.test.ts pins the column's and the dock's foot to the keyboard's inset, the split
-// layout's rest row and its open panel's foot take it too.
+// layout's rest row and its open panel's foot take it too. Spec 028 (T-A03; plan.md §R-B8): the rest row is gone; the
+// panel, standing open beside the wall, keeps its foot above the inset.
 describe("the keyboard's inset in the split layout (T028)", () => {
-  it("lifts the rest row and the open panel's foot by the keyboard's inset", () => {
-    const css = readFileSync(fileURLToPath(new URL("../../src/room/hud/split.css", import.meta.url)), "utf8");
-    const body = (selector: string): string =>
-      new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
+  it("lifts the panel's foot by the keyboard's inset, its top where the kernel puts it (spec 028)", () => {
+    const rules = parseCss(
+      readFileSync(fileURLToPath(new URL("../../src/room/hud/split.css", import.meta.url)), "utf8"),
+    ).rules;
     const ON = 'html[data-split="on"][data-hud="column"]';
-    expect(body(`${ON} .talk[data-panel="bar"]`)).toMatch(/top:\s*calc\(var\(--split-rest-y\) - var\(--keyboard\)\)/);
-    expect(body(`${ON} .talk[data-panel="open"]`)).toMatch(
-      /height:\s*max\(0px, calc\(var\(--split-frame-h\) - var\(--keyboard\)\)\)/,
-    );
+    const last = (selector: string, property: string): string | undefined =>
+      rules
+        .filter((r) => r.selector.trim() === selector && r.declarations.has(property))
+        .at(-1)
+        ?.declarations.get(property);
+    expect(last(`${ON} .talk`, "height")).toBe("max(0px, calc(var(--wall-panel-h) - var(--keyboard)))");
+    expect(last(`${ON} .talk`, "top")).toBe("var(--wall-panel-y)");
+    expect(rules.some((r) => r.selector.includes('data-panel="bar"'))).toBe(false);
   });
 });

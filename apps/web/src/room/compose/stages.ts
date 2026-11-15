@@ -65,7 +65,10 @@ export function stageFor(screen: Screen, protect?: Protect, state: HudState = OP
     return { w: clear.w, h: clear.h };
   }
   const f = frameArea(screen, state, DEFAULT_METRICS, protect);
-  return framedStage(f.area, f.ease, compactBoxes(screen, state, DEFAULT_METRICS, { eat: protect.eat }).all);
+  // Spec 028 (FR-010; plan.md §R-A7): the protector's wall gives the split layout's boxes where the screen takes it, so
+  // its stage is the split's area with the strip, the panel, and the column over it reserved.
+  const hud = compactBoxes(screen, state, DEFAULT_METRICS, { eat: protect.eat, wall: protect }).all;
+  return framedStage(f.area, f.ease, hud);
 }
 
 /** A frame area as a stage: its size, its reserved boxes, and its ease. */

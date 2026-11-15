@@ -4,7 +4,7 @@
 // smallest. The first screen that fails is named, with both stages.
 import { describe, expect, it } from "vitest";
 
-import { clearArea } from "../../src/room/compose/hud";
+import { DEFAULT_METRICS, OPENING, clearArea, wallBoxes } from "../../src/room/compose/hud";
 import { protectSceneOf, protectorFor } from "../../src/room/compose/protect";
 import { REFERENCE_DESKTOP, REFERENCE_PHONE, SMALLEST, stageFor } from "../../src/room/compose/stages";
 import { repositoryBundle } from "../helpers/room";
@@ -47,13 +47,16 @@ describe("the floor at the frame areas (spec 014, T009)", () => {
   const { scene, index } = repositoryBundle();
   const protect = protectorFor(protectSceneOf(scene, index));
 
-  it("holds every screen of spec 004's sweep to its old stage at its frame area, in width and in height", () => {
+  it("holds every screen of spec 004's sweep to its old stage at its frame area, in width and in height; outside the split layout, to its clear area (spec 028)", () => {
     const failures: string[] = [];
     for (const screen of legacy.sweepScreens()) {
       const before = legacy.stageFor(screen);
       const clear = clearArea(screen);
       const after = stageFor(screen, protect);
-      if (after.w + 1e-9 < clear.w || after.h + 1e-9 < clear.h)
+      // Spec 028 (T-A05; plan.md §R-B8): the split layout frames the room into its own area, narrower than the column
+      // layout's clear area, with no box of the HUD over it; the floor below holds it to spec 004's stage.
+      const split = wallBoxes(screen, OPENING, DEFAULT_METRICS, { wall: protect }) !== null;
+      if (!split && (after.w + 1e-9 < clear.w || after.h + 1e-9 < clear.h))
         failures.push(`${screen.w} × ${screen.h}: ${after.w} × ${after.h} under its clear area`);
       if (after.w + 1e-9 < before.w || after.h + 1e-9 < before.h)
         failures.push(`${screen.w} × ${screen.h}: ${after.w} × ${after.h} under ${before.w} × ${before.h}`);
@@ -73,5 +76,29 @@ describe("the floor at the frame areas (spec 014, T009)", () => {
       expect(now.w).toBeGreaterThanOrEqual(then.w);
       expect(now.h).toBeGreaterThanOrEqual(then.h);
     }
+  });
+});
+
+// T-A05 (spec 028; FR-010; plan.md §R-A7): every stage the split layout gives is at least spec 005's floor, 304 × 196,
+// and its screen's stage before spec 005; no window's split layout is taken where that would fail.
+describe("the floor at the split layout's stages (spec 028, T-A05)", () => {
+  const { scene, index } = repositoryBundle();
+  const protect = protectorFor(protectSceneOf(scene, index));
+
+  it("holds every split stage of the sweep to spec 005's floor and to spec 004's stage", () => {
+    const failures: string[] = [];
+    let seen = 0;
+    for (const screen of legacy.sweepScreens()) {
+      if (wallBoxes(screen, OPENING, DEFAULT_METRICS, { wall: protect }) === null) continue;
+      seen += 1;
+      const before = legacy.stageFor(screen);
+      const after = stageFor(screen, protect);
+      if (after.w < 304 || after.h < 196)
+        failures.push(`${screen.w} × ${screen.h}: ${after.w} × ${after.h} under 304 × 196`);
+      if (after.w + 1e-9 < before.w || after.h + 1e-9 < before.h)
+        failures.push(`${screen.w} × ${screen.h}: ${after.w} × ${after.h} under ${before.w} × ${before.h}`);
+    }
+    expect(seen).toBeGreaterThan(0);
+    expect(failures.slice(0, 1), `${failures.length} split stages under the floor; the first`).toEqual([]);
   });
 });

@@ -49,6 +49,10 @@ function expectedLines(index: RoomIndex, tier: string): string[] {
 }
 
 const linesOf = (section: Element): string[] => [...section.querySelectorAll("li")].map((li) => textOf(li));
+/** Spec 028 (T-A06, FR-015; plan.md §R-A5, §R-B8): in the room, the placeholder words are a line of their own after
+ *  the line slots while the bundle's pieces are placeholders. */
+const inRoom = (index: RoomIndex, lines: string[]): string[] =>
+  index.build.placeholders ? [...lines.slice(0, 1), index.ui["standin.note"] ?? "", ...lines.slice(1)] : lines;
 
 describe("the text copy (renderTextCopy)", () => {
   it("heads a section with around.heading, listing each switch's state and the fixed lines in copy[]'s order", () => {
@@ -64,7 +68,8 @@ describe("the text copy (renderTextCopy)", () => {
     const heading = section.querySelector("h2");
     expect(textOf(heading)).toBe(index.ui["around.heading"]);
     expect(section.getAttribute("aria-labelledby")).toBe(heading?.id);
-    // Visible to every visitor: not a visually hidden heading, and nothing to expand.
+    // Read by every visitor: not a visually hidden heading of its own, and nothing to expand. Spec 028 (T-A08, FR-016):
+    // in the split and column layouts room.css hides the whole section from view, never from the reading order.
     expect(heading?.getAttribute("class") ?? "").not.toContain("visually-hidden");
     expect(section.querySelectorAll("details, [hidden], [aria-expanded], button")).toHaveLength(0);
     expect(linesOf(section)).toEqual(expectedLines(index, "not-live"));
@@ -107,6 +112,40 @@ describe("the text copy (renderTextCopy)", () => {
     }
   });
 
+  // rework-028a (spec 028; FR-015, Q23; plan.md §R-A5 as reworked after rv-spec-028's I-1): "Around the room" holds the
+  // placeholder words main's stage note held, made at runtime from what applies, the copy's entries unchanged.
+  it("keeps the placeholder words one item right after the visitor's line, main's stage-note join, removed when neither applies (spec 028, FR-015, Q23)", () => {
+    const { index } = fixture();
+    const copy = renderTextCopy(page(), index);
+    const NOTE = index.ui["standin.note"] ?? "";
+    const AVATAR = index.ui["standin.avatar"] ?? "";
+    expect(NOTE).not.toBe("");
+    expect(AVATAR).not.toBe("");
+    const items = (): Element[] => [...copy.element.querySelectorAll("li")];
+    const where = (line: string): number => items().findIndex((li) => li.getAttribute("data-line") === line);
+    const placeholders = (): Element[] => items().filter((li) => li.getAttribute("data-line") === "placeholders");
+    expect(placeholders()).toHaveLength(0);
+    // The pieces only: their words, right after the visitor's slot, which follows the twin's line (copy[]'s order).
+    copy.setPlaceholders({ pieces: true, figure: false });
+    expect(placeholders().map((li) => textOf(li))).toEqual([NOTE]);
+    expect(where("placeholders")).toBe(where("twin") + 1);
+    // A visitor's line comes: it takes its slot, and the placeholder words stay right after it.
+    copy.setVisitorLine("A visitor's line.");
+    expect(where("visitor")).toBe(where("twin") + 1);
+    expect(where("placeholders")).toBe(where("visitor") + 1);
+    // Both: main's join for the stage note (layout.ts's setPlaceholders on main), the first ending in a stop; one item.
+    copy.setPlaceholders({ pieces: true, figure: true });
+    expect(placeholders().map((li) => textOf(li))).toEqual([`${/[.!?]$/.test(NOTE) ? NOTE : `${NOTE}.`} ${AVATAR}`]);
+    copy.setPlaceholders({ pieces: false, figure: true });
+    expect(placeholders().map((li) => textOf(li))).toEqual([AVATAR]);
+    copy.setVisitorLine(null);
+    expect(where("placeholders")).toBe(where("twin") + 1);
+    // Neither: the item goes.
+    copy.setPlaceholders({ pieces: false, figure: false });
+    expect(placeholders()).toHaveLength(0);
+    expect(items().some((li) => [NOTE, AVATAR].some((w) => textOf(li).includes(w)))).toBe(false);
+  });
+
   it("puts words in as text, never markup", () => {
     const { index } = fixture();
     const ui = { ...index.ui, "tier.not-live": "<img src=x onerror=alert(1)>" };
@@ -132,7 +171,7 @@ describe("in the room", () => {
       expect(around.previousElementSibling?.querySelector(".hud-panels > .talk:last-child")).not.toBeNull();
       expect(around.closest(".room-stage")).toBeNull();
       expect(around.closest("[hidden], [inert], [aria-hidden='true']")).toBeNull();
-      expect(linesOf(around)).toEqual(expectedLines(index, "not-live"));
+      expect(linesOf(around)).toEqual(inRoom(index, expectedLines(index, "not-live")));
     }
   });
 
@@ -147,20 +186,21 @@ describe("in the room", () => {
     expect(v.room.visit.stage).toBe("handoff");
     expect(v.doc.querySelector(".flat, canvas")).toBeNull();
     const around = v.doc.querySelector(".room-around");
-    expect(linesOf(around ?? v.doc.body)).toEqual(expectedLines(index, "not-live"));
+    expect(linesOf(around ?? v.doc.body)).toEqual(inRoom(index, expectedLines(index, "not-live")));
   });
 
-  it("shows the placeholder note, the UI word standin.note, only while stand-ins are in use", async () => {
+  it("gives the placeholder words, the UI word standin.note, a line of Around the room only while stand-ins are in use (spec 028)", async () => {
     const { index } = fixture();
     expect(index.build.placeholders).toBe(true);
     for (const placeholders of [true, false]) {
       const v = start({ room: { ...index, build: { ...index.build, placeholders } } });
       await intoRoom(v);
-      const note = v.doc.querySelector(".room-note");
-      // Spec 014 (FR-053 to FR-055; plan.md §9): the note's words are its causes', so with nothing missing it is hidden
-      // and says nothing.
+      // Spec 014 (FR-053 to FR-055; plan.md §9): the words are their causes', so with nothing missing there are none.
+      // Spec 028 (T-A06): "Around the room"'s line, no longer a stage note.
+      const note = v.doc.querySelector('.room-around li[data-line="placeholders"]');
       expect(textOf(note)).toBe(placeholders ? index.ui["standin.note"] : "");
-      expect(note?.hasAttribute("hidden"), String(placeholders)).toBe(!placeholders);
+      expect(note === null, String(placeholders)).toBe(!placeholders);
+      expect(v.doc.querySelector(".room-note")).toBeNull();
     }
   });
 });

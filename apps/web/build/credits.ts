@@ -5,10 +5,16 @@
 // each linking to its section's anchor, so a visitor reaches a directory's records, the twin's among them, in two
 // activations from the room: "Credits", then the directory. The file is read through the build and never changed; every
 // character of it is escaped by disclosure.ts's renderer, so the page holds no markup but what these files write.
+// Spec 028 (FR-013; Q6; the Author's answer "Keep top banner (Recommended)": "move the likeness lines to the Credits
+// page"): under the disclosure and before the contents, a section headed by the UI word credits.likeness, one line for
+// each model the room's bundle carries whose approval gives one, as the bundle carries it (main's approvals' words,
+// never code's), escaped; the twin's first, then the visitors' in the choice's order, each once; with none, none.
 import { readFileSync } from "node:fs";
 
 import type { Plugin } from "vite";
 
+import { AVATARS } from "../src/choice/avatars";
+import type { RoomIndex, RoomScene } from "../src/room/compose/bundle";
 import { renderBody } from "./disclosure";
 
 const AI_DISCLOSURE = "You're talking with an AI representation of the Author, not the Author.";
@@ -50,9 +56,43 @@ export function directories(markdown: string): string[] {
     });
 }
 
-/** The whole page: the site's AI disclosure and a way back, the contents, then the rendered Markdown, each `##`
- *  heading carrying its anchor. */
-export function renderCredits(markdown: string): string {
+/** The AI-made figures' section: its heading's words and its lines. */
+export interface LikenessLines {
+  readonly heading: string;
+  readonly lines: readonly string[];
+}
+
+/** The likeness lines a composed bundle carries: the twin's (`index.twin.line`, main's approval of its model), then each
+ *  visitor avatar's (`scene.avatars.<id>.line`) in the choice's order, each line once; the heading the UI word
+ *  credits.likeness. */
+export function likenessLines(composed: {
+  readonly index: Pick<RoomIndex, "ui" | "twin">;
+  readonly scene: Pick<RoomScene, "avatars">;
+}): LikenessLines {
+  const lines: string[] = [];
+  const add = (line: string | null | undefined): void => {
+    if (typeof line === "string" && line !== "" && !lines.includes(line)) lines.push(line);
+  };
+  add(composed.index.twin?.line);
+  for (const { id } of AVATARS) add(composed.scene.avatars[id]?.line);
+  return { heading: composed.index.ui["credits.likeness"] ?? "", lines };
+}
+
+/** The section of the AI-made figures' lines, or "" with none. */
+function likenessSection(likeness: LikenessLines | undefined): string {
+  if (!likeness || likeness.lines.length === 0) return "";
+  const id = anchorOf(likeness.heading) || "ai-made-figures";
+  const lines = likeness.lines.map((line) => `<p>${escape(line)}</p>`).join("\n");
+  return `<section class="credits-likeness" aria-labelledby="${id}">
+<h2 id="${id}">${escape(likeness.heading)}</h2>
+${lines}
+</section>
+`;
+}
+
+/** The whole page: the site's AI disclosure and a way back, the AI-made figures' lines (spec 028), the contents, then
+ *  the rendered Markdown, each `##` heading carrying its anchor. */
+export function renderCredits(markdown: string, likeness?: LikenessLines): string {
   const dirs = directories(markdown);
   const contents = dirs.map((d) => `<li><a href="#${anchorOf(d)}">${escape(d.replace(/`/g, ""))}</a></li>`).join("\n");
   const body = renderBody(markdown).replace(/<h2>(.*?)<\/h2>/g, (_whole, inner: string) => {
@@ -77,7 +117,7 @@ export function renderCredits(markdown: string): string {
 <p><a href="../">Back to the room</a></p>
 </header>
 <main>
-<nav aria-label="Asset directories">
+${likenessSection(likeness)}<nav aria-label="Asset directories">
 <ul>
 ${contents}
 </ul>
@@ -90,15 +130,19 @@ ${body}
 }
 
 /** The Vite plugin: emits credits/index.html and its stylesheet from assets/CREDITS.md, read when the bundle is
- *  written. */
-export function creditsPage(options: { source: string }): Plugin {
+ *  written, and the AI-made figures' lines `likeness` gives then (the room's bundle's, spec 028). */
+export function creditsPage(options: { source: string; likeness?: () => LikenessLines | undefined }): Plugin {
   return {
     name: "h4-credits-page",
     apply: "build",
     generateBundle() {
       this.addWatchFile(options.source);
       const markdown = readFileSync(options.source, "utf8");
-      this.emitFile({ type: "asset", fileName: "credits/index.html", source: renderCredits(markdown) });
+      this.emitFile({
+        type: "asset",
+        fileName: "credits/index.html",
+        source: renderCredits(markdown, options.likeness?.()),
+      });
       this.emitFile({ type: "asset", fileName: "credits/style.css", source: STYLE });
     },
   };

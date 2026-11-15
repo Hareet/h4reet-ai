@@ -43,7 +43,10 @@ function signal(v: Visit, s: FigureSignal): void {
   options.onFigure?.(s);
 }
 
-const standInLine = (v: Visit): HTMLElement | null => v.doc.querySelector<HTMLElement>(".room-stand-in");
+/** The twin's line slot: since spec 028 (T-A06; plan.md §R-B8) "Around the room"'s first line, no longer the stage's
+ *  note. */
+const standInLine = (v: Visit): HTMLElement | null =>
+  v.doc.querySelector<HTMLElement>('.room-around [data-line="twin"]');
 const aroundLines = (v: Visit): string[] => [...v.doc.querySelectorAll(".room-around li")].map((li) => textOf(li));
 
 describe("the stand-in line (FR-013, FR-029, FR-030; R-13; SC-003)", () => {
@@ -55,7 +58,7 @@ describe("the stand-in line (FR-013, FR-029, FR-030; R-13; SC-003)", () => {
     expect(index.copy[0]).toEqual({ twin_line: true });
   });
 
-  it("shows in the stage's note and first in Around the room in 3D, as text a screen reader reads", async () => {
+  it("shows first in Around the room in 3D, as text a screen reader reads, and nowhere on the stage (spec 028)", async () => {
     const v = start({ webgl: true });
     await enter(v, "engineer", "woman");
     expect(v.room.visit.mode).toBe("3d");
@@ -63,7 +66,8 @@ describe("the stand-in line (FR-013, FR-029, FR-030; R-13; SC-003)", () => {
     expect(textOf(line)).toBe(STAND_IN);
     expect(line?.hasAttribute("hidden")).toBe(false);
     expect(line?.closest("[aria-hidden='true'], [hidden], .visually-hidden")).toBeNull();
-    expect(line?.closest(".room-stage")).not.toBeNull();
+    expect(line?.closest(".room-around")).not.toBeNull();
+    expect(v.doc.querySelector(".room-stage")?.textContent ?? "").not.toContain(STAND_IN);
     expect(aroundLines(v)[0]).toBe(STAND_IN);
     expect(v.doc.body.textContent).toContain(AI_DISCLOSURE);
     expect(v.doc.body.textContent).not.toContain(LIKENESS);
@@ -94,15 +98,15 @@ describe("the stand-in line (FR-013, FR-029, FR-030; R-13; SC-003)", () => {
     expect(v.doc.body.textContent).toContain(AI_DISCLOSURE);
   });
 
-  it("keeps the placeholder note its own paragraph beside it, shown only while stand-ins are in use", async () => {
+  it("keeps the placeholder words a line of their own in Around the room, only while stand-ins are in use; no note on the stage (spec 028)", async () => {
     const index = roomIndex();
     for (const placeholders of [true, false]) {
       const v = start({ room: { ...index, build: { ...index.build, placeholders } } });
       await intoRoom(v);
-      const notes = [...v.doc.querySelectorAll(".room-notes > p")];
-      expect(notes.map((p) => p.classList.contains("room-stand-in"))).toEqual([false, true]);
-      expect(notes[0]?.hasAttribute("hidden")).toBe(!placeholders);
-      expect(notes[1]?.hasAttribute("hidden")).toBe(false);
+      expect(v.doc.querySelectorAll(".room-notes > *")).toHaveLength(0);
+      const line = v.doc.querySelector('.room-around li[data-line="placeholders"]');
+      expect(line === null).toBe(!placeholders);
+      if (placeholders) expect(textOf(line)).toBe(index.ui["standin.note"]);
     }
   });
 
@@ -224,7 +228,7 @@ describe("degraded (FR-001, FR-002, FR-007; SC-002)", () => {
     expect(typeof v.scene.created[0]?.onFigure).toBe("function");
   });
 
-  it("stays usable with an avatar failed: the disclosure and the stand-in line visible, the list selecting every piece", async () => {
+  it("stays usable with an avatar failed: the disclosure visible, the stand-in line in Around the room, the list selecting every piece (spec 028)", async () => {
     const v = start({ webgl: true });
     await intoRoom(v);
     signal(v, { kind: "failed" });

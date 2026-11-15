@@ -69,8 +69,10 @@ async function expectWhole(v: Visit, from: number, what: string): Promise<void> 
   const strip = v.doc.getElementById("ai-disclosure");
   expect(textOf(strip), what).toBe(AI_DISCLOSURE);
   expect(strip?.closest("[hidden], [inert], [aria-hidden='true']"), what).toBeNull();
-  const standIn = v.doc.querySelector(".room-stand-in");
-  if (standIn && textOf(standIn) !== "") expect(standIn.closest("[hidden], [inert]"), what).toBeNull();
+  // Spec 028 (T-A06, FR-012, FR-015; plan.md §R-B8): the stand-in line is no longer on the stage; "Around the room"
+  // keeps it for a screen reader.
+  expect(v.doc.querySelector(".room-stand-in"), what).toBeNull();
+  expect(textOf(v.doc.querySelector('.room-around [data-line="twin"]')), what).not.toBe("");
   // The hand-off to its end, then the offer answered: the room is the visitor's.
   v.clock.advance(5000);
   await flush();

@@ -4,6 +4,8 @@
 // model or its model failing mid-visit, shows `standin.avatar`; both show both in one note, `standin.note` first; the
 // 2D room never shows the figure's words; and nothing missing shows no note. The twin's stand-in line keeps its own
 // paragraph, so the notes stay two, and both let a pointer through.
+// Spec 028's T-A06 (its FR-012, FR-015; plan.md §R-A5, §R-B8): the note leaves the stage; its words, by the same
+// causes, are a line of their own in "Around the room", which `note` now reads. The cases are otherwise unchanged.
 import { describe, expect, it } from "vitest";
 
 import type { RoomIndex } from "../../src/room/compose/bundle";
@@ -22,10 +24,10 @@ async function room(o: { placeholders: boolean; webgl?: boolean }): Promise<Visi
   return v;
 }
 
-/** The placeholder note's words, or null where it's hidden. */
+/** The placeholder words, "Around the room"'s line of them (spec 028), or null where there is none. */
 function note(v: Visit): string | null {
-  const el = v.doc.querySelector<HTMLElement>(".room-note:not(.room-stand-in)");
-  return el && !el.hidden ? textOf(el) : null;
+  const el = v.doc.querySelector<HTMLElement>('.room-around li[data-line="placeholders"]');
+  return el ? textOf(el) : null;
 }
 
 const figure = (v: Visit, shows: "avatar" | "fallback", why: string | null): void =>
@@ -37,12 +39,12 @@ describe("the placeholder note's causes (spec 014, T040)", () => {
     expect(AVATAR).toBe("Your figure is a flat placeholder until its model arrives.");
   });
 
-  it("shows no note when every piece and the visitor's figure show their models", async () => {
+  it("shows no placeholder words when every piece and the visitor's figure show their models; the stage holds no note (spec 028)", async () => {
     const v = await room({ placeholders: false });
     figure(v, "avatar", null);
     expect(note(v)).toBeNull();
-    // The twin's stand-in line is its own paragraph, unchanged (spec 009, FR-013).
-    expect(v.doc.querySelectorAll(".room-note")).toHaveLength(2);
+    // Spec 028 (FR-012): neither the note nor the stand-in line is drawn on the stage.
+    expect(v.doc.querySelectorAll(".room-note")).toHaveLength(0);
   });
 
   it("names the room's pieces while one shows its stand-in, from the bundle", async () => {

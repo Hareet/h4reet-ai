@@ -76,7 +76,7 @@ describe("the variant's stages (Q150)", () => {
     expect(g.protect.key).toBe(protectorFor(scene).key);
   });
 
-  it("gives stages whose reserved boxes hold the Eat box; the plain sweep's stages hold none", () => {
+  it("gives stages whose reserved boxes hold the Eat box, or its column in the split layout; the plain sweep's stages hold none", () => {
     const g = repository();
     const variant = framedStages(g.protectEat);
     const plain = framedStages(g.protect);
@@ -84,16 +84,28 @@ describe("the variant's stages (Q150)", () => {
     let held = 0;
     variant.screens.forEach(({ screen, state, stage }, k) => {
       if (k % 11 !== 0) return;
-      const eat = compactBoxes(screen, state, DEFAULT_METRICS, { eat: true }).eat as Box;
+      // Spec 028 (T-A05; plan.md §R-B8): the compact boxes take the protector's wall; in the split layout the Eat box
+      // stands in the column's tiles' block, which the stage reserves where it overlaps the area.
+      const c = compactBoxes(screen, state, DEFAULT_METRICS, { eat: true, wall: g.protectEat });
+      const eat = c.eat as Box;
       const f = frameArea(screen, state, DEFAULT_METRICS, g.protectEat);
       expect(stage).toEqual(stageFor(screen, g.protectEat, state));
-      if (overlaps(eat, f.area)) {
+      if (c.split) {
+        const col = c.split.column;
+        expect(
+          eat.x >= col.x && eat.y >= col.y && eat.x + eat.w <= col.x + col.w && eat.y + eat.h <= col.y + col.h,
+        ).toBe(true);
+        if (overlaps(col, f.area)) held += 1;
+      } else if (overlaps(eat, f.area)) {
         held += 1;
         expect(stage.reserved).toContainEqual(reservedIn(f.area, [eat])[0]);
       }
       const p = plain.screens[k];
       expect(p?.stage.reserved ?? []).toEqual(
-        reservedIn(frameArea(screen, state, DEFAULT_METRICS, g.protect).area, compactBoxes(screen, state).all),
+        reservedIn(
+          frameArea(screen, state, DEFAULT_METRICS, g.protect).area,
+          compactBoxes(screen, state, DEFAULT_METRICS, { wall: g.protect }).all,
+        ),
       );
     });
     expect(held).toBeGreaterThan(0);
