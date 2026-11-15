@@ -97,15 +97,15 @@ describe("paused (FR-026)", () => {
   it("stops the scene's clock while paused, and goes on from where it was", () => {
     const a = made();
     const b = made();
-    runTo(a.scene, "gather");
-    runTo(b.scene, "gather");
+    runTo(a.scene, "leave");
+    runTo(b.scene, "leave");
     for (let k = 0; k < 10; k += 1) {
       a.scene.frame(DT, inputs());
       b.scene.frame(DT, inputs());
     }
     const at = { x: a.scene.twin.x, z: a.scene.twin.z };
     for (let k = 0; k < 120; k += 1) a.scene.frame(DT, inputs({ paused: true }));
-    expect(a.scene.phase).toBe("gather");
+    expect(a.scene.phase).toBe("leave");
     expect({ x: a.scene.twin.x, z: a.scene.twin.z }).toEqual(at);
     a.scene.frame(DT, inputs());
     b.scene.frame(DT, inputs());

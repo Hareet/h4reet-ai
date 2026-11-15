@@ -40,8 +40,9 @@ export interface ChaseFigures {
   frame(dt: number, motion: ChaseMotion): void;
 }
 
-/** A picture as it stood at home: its local place and turn, and its home's place and heading on the floor. */
-interface Picture {
+/** A picture as it stood at home: its local place and turn, and its home's place and heading on the floor. Spec 028's
+ *  scene (dino-scene-figures.ts) takes its pictures the same way (plan.md R-B3). */
+export interface Picture {
   readonly node: Object3D;
   readonly position: Vector3;
   readonly rotation: Euler;
@@ -56,7 +57,7 @@ const scratch = new Vector3();
 
 /** A picture's home: its world place on the floor and spec 008's heading from its world turn (it faces glTF's +z, so
  *  the heading is its turn − π). */
-function pictureOf(node: Object3D): Picture {
+export function pictureOf(node: Object3D): Picture {
   node.updateWorldMatrix(true, false);
   const at = new Vector3();
   const turn = new Quaternion();
@@ -72,12 +73,12 @@ function pictureOf(node: Object3D): Picture {
   };
 }
 
-const atHome = (r: Runner, h: ChaseHome): boolean => r.x === h.x && r.z === h.z && r.facing === h.heading;
+const atHome = (r: Pick<Runner, "x" | "z" | "facing">, h: ChaseHome): boolean => r.x === h.x && r.z === h.z && r.facing === h.heading;
 
 /** The picture at its runner: its world place on the floor, its turn by the facing's change from home; exactly as it
  *  was on the frame the runner gets home, and untouched while it stays there, so another writer's (the hand-off's
  *  turn) shows (B-1). Writes in place (FR-029). */
-function place(p: Picture, r: Runner): void {
+export function place(p: Picture, r: Pick<Runner, "x" | "z" | "facing">): void {
   const { node } = p;
   if (atHome(r, p.home)) {
     if (!p.away) return;

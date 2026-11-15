@@ -168,6 +168,9 @@ export interface AvatarFigures {
   close(): void;
   /** Spec 016 (FR-022; contracts/twin-states.md §1): the conversation's activity, for the twin's own states. */
   twinActivity(activity: TwinActivity): void;
+  /** Spec 028 (FR-020; plan.md R-B3): the dinosaur's scene's call: the twin's own model plays its greeting once more
+   *  (twin-states.ts's `wave`), once a visit; nothing where it shows the stand-in or the capsule. */
+  twinWave(): void;
   /** Spec 026 (plan.md §4; A016): spec 016's state of the twin's own model, or null where it doesn't show. */
   twinState(): TwinState | null;
   /** Spec 026 (R-04): the reach rig of the twin's shown avatar on a side, or null without its bones. */
@@ -1105,6 +1108,13 @@ export function createAvatarFigures(
       if (disposed || role === dogRole) return;
       dogRole = role;
       play(figures.dog);
+    },
+    twinWave() {
+      const f = figures.twin;
+      if (disposed || !twinStates || f.wants !== "twin" || !f.shown) return;
+      const greeting = sourceOf("twin").clips.get(part.twin?.block.clips.arriving ?? "greeting");
+      twinStates.wave(now(), greeting?.duration ?? 0);
+      play(f);
     },
     twinActivity(activity) {
       if (disposed || !twinStates) return;

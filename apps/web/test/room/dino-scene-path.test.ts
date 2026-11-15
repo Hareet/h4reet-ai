@@ -20,18 +20,18 @@ describe("by arc length, facing each segment (FR-021)", () => {
     runTo(t.scene, "leave");
     let prev = { x: t.scene.twin.x, z: t.scene.twin.z };
     let steps = 0;
-    while (t.scene.phase === "leave") {
+    while (t.scene.twin.visible && steps < 60 * 60) {
       t.scene.frame(DT, inputs());
       const d = Math.hypot(t.scene.twin.x - prev.x, t.scene.twin.z - prev.z);
-      if (t.scene.phase === "leave") {
-        // Across a corner the straight-line step is at most the arc's.
-        expect(d).toBeLessThanOrEqual(LEAVE.walk_mps * DT + 1e-9);
-        expect(d).toBeGreaterThan(LEAVE.walk_mps * DT * 0.9);
-        steps += 1;
-      }
+      // Across a corner the straight-line step is at most the arc's; on a straight it is the arc's.
+      expect(d).toBeLessThanOrEqual(LEAVE.walk_mps * DT + 1e-9);
       prev = { x: t.scene.twin.x, z: t.scene.twin.z };
+      steps += 1;
     }
-    expect(steps).toBeGreaterThan(10);
+    // The frames it took are the route's arc length over the step: from below the bicycle along the path.
+    const route = [LEAVE.under_bicycle, ...LEAVE.path];
+    const arc = route.slice(1).reduce((n, p, k) => n + Math.hypot(p[0] - route[k]![0], p[1] - route[k]![1]), 0);
+    expect(steps).toBe(Math.ceil(arc / (LEAVE.walk_mps * DT) - 1e-9));
   });
 
   it("moves the dog dog_mps × dt a frame in the enter", () => {
