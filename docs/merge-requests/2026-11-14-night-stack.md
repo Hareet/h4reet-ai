@@ -5555,6 +5555,157 @@ No `make test`, `make evals`, or full `make check`: rule 4, and the stack's last
 
 **Interruptions (amend-026).** `npm ci --offline` failed (ENOTCACHED), as for patch3-026; `npm ci` from the registry succeeded. No hook or bash-gate refusal, and nothing was respelled. No new question: Q304 is answered (recommended).
 
+### Verification (rule 7, verify-patch-026)
+
+`night/verify-patch-026/verify-patch-026`, from amend-026's tip 4ac61609, Opus 5.5, 2026-11-15, by an implementer who wrote none of the off-line chain (measure-026 to amend-026). rv-amend-026: "Verdict: not blocking". Its findings and rv-patch3-026's were read whole on the page.
+
+**The merge.** `git merge refs/heads/night/merge-2/merge-2`: "Already up to date." Nothing else was merged (merge-3 takes this tip and verify-026's).
+
+**What the chain touched** (no `apps/web` file, so no `apps/web` run on the tip; the patch's four test files ran on the export, below):
+
+```
+$ git log --no-merges --name-only --format= refs/heads/night/rework5-026/rework5-026..HEAD | sort -u
+corpus/proposals/dog-intro-2026-11-14.md
+docs/merge-requests/2026-11-14-corpus-dog-intro.patch
+docs/merge-requests/2026-11-14-night-stack.md
+docs/merge-requests/human-patches/026.md
+scripts/corpus/dog_intro_proposal.py
+scripts/corpus/test_dog_intro_proposal.py
+specs/026-twin-pets-dog/dog-sign-offset.md
+specs/026-twin-pets-dog/notes.md
+specs/026-twin-pets-dog/plan.md
+specs/026-twin-pets-dog/spec.md
+specs/026-twin-pets-dog/tasks.md
+```
+
+(Run at step 1's save point; this task's own later commits add no other path.)
+
+**The runs on the tip** (tree 336158fd, the same as 4ac61609's). `node_modules` was missing, so the setup target ran first: exit 0 (its git-hooks step: "isn't writable here (the agent sandbox); the Author runs make git-hooks").
+
+```
+$ python3 -m pytest -q scripts/corpus
+........................................................................ [ 18%]
+........................................................................ [ 37%]
+........................................................................ [ 56%]
+........................................................................ [ 75%]
+........................................................................ [ 93%]
+.......................                                                  [100%]
+383 passed in 10.39s
+exit 0
+$ python3 -I scripts/corpus/dog_intro_proposal.py proposal corpus/proposals/dog-intro-2026-11-14.md
+OK: proposal dog-intro-2026-11-14.md
+buildable: no (FR-019: waiting on his approval of the dog's model, with a disclosure line)
+exit 0
+$ python3 -m pytest -q evals/test_docs_links.py
+............................................                             [100%]
+44 passed in 1.75s
+exit 0
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+836 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit 0
+```
+
+(The `exit` lines are the shell's `echo "exit $?"` after each command.) rv-amend-026's N-4, the checker on d185b67b's proposal (`scripts/corpus` is unchanged from d185b67b to this tip):
+
+```
+$ git archive d185b67b | tar -x -C <d>
+$ python3 -I scripts/corpus/dog_intro_proposal.py --root <d> proposal <d>/corpus/proposals/dog-intro-2026-11-14.md
+OK: proposal dog-intro-2026-11-14.md
+buildable: no (FR-019: waiting on his approval of the dog's model, with a disclosure line)
+exit 0
+```
+
+**The patches as his hand applies them (Q293: 022's, then 026's).** `main` is at ab4876f5 ("policy(020): first visit's phase 3 to 26 MB"), one commit past b6985ad2, where the reviews ran.
+
+*First, on a bare `git archive refs/heads/main` export, as the brief worded it.* 022's patch applies there (`--dry-run` and `patch -p1`: exit 0, 104 files). 026's doesn't, and can't: four of the files it edits, `apps/web/test/room/dog-pick.test.ts`, `dog-selectable.test.ts`, `eat-3d.test.ts`, `eat-chunker.test.ts`, and `docs/corpus-size.json` aren't on `main` (`git cat-file -e refs/heads/main:<path>`: "exists on disk, but not in 'refs/heads/main'"), and `scene.yaml`'s second hunk needs spec 026's lines. Every earlier run of this patch (patch-026 to patch3-026, and rv-patch3-026's) used the tip with `main`, and human patch 026's row 1 builds it "in a plain export" of the line. The `checking file` lines are left out below; the rest is whole:
+
+```
+$ patch -p1 --dry-run < docs/merge-requests/2026-11-14-corpus-dog-intro.patch     # bare main ab4876f5, after 022's
+exit 1
+checking file apps/web/room/scene.yaml
+Hunk #1 succeeded at 88 with fuzz 1 (offset -3 lines).
+Hunk #2 FAILED at 230.
+1 out of 2 hunks FAILED
+can't find file to patch at input line 32
+… (the same "can't find file to patch" block, "Skipping patch.", for dog-pick.test.ts, 5 of 5 hunks; dog-selectable.test.ts,
+   eat-3d.test.ts, eat-chunker.test.ts, 1 of 1 each; docs/corpus-size.json, 12 of 12)
+```
+
+That export was deleted. The page asks whether the human-patch note should say so (Q below, in the questions file).
+
+*Then, as the earlier runs did, on the tip with `main`.* The export is a `git archive` of `git merge-tree --write-tree HEAD refs/heads/main` (no checkout or merge of `main`), in a scratch folder inside the worktree, with the worktree's `node_modules` symlinked in and `TMPDIR` inside it; it was deleted before the last commit, and none of it is committed. Its tree, df2a7518, differs from rv-patch3-026's d8a231a8 because `main` moved and the tip's documents changed.
+
+```
+$ T=$(git merge-tree --write-tree HEAD refs/heads/main); echo "merge-tree exit $? tree $T"    # HEAD: step 2's save point, tree 336158fd; main ab4876f5
+merge-tree exit 0 tree df2a75189c5c25f35aeafe4b647393f8448ec9dd
+$ patch -p1 --dry-run < 2026-11-14-corpus-film-scripts.patch
+exit 0
+patching/checking lines: 104
+$ patch -p1  < 2026-11-14-corpus-film-scripts.patch
+exit 0
+patching/checking lines: 104
+$ patch -p1 --dry-run < 2026-11-14-corpus-dog-intro.patch
+exit 0
+patching/checking lines: 72
+$ patch -p1  < 2026-11-14-corpus-dog-intro.patch
+exit 0
+patching/checking lines: 72
+orig/rej:
+$ sha256sum docs/merge-requests/2026-11-14-corpus-film-scripts.patch docs/merge-requests/2026-11-14-corpus-dog-intro.patch
+d05a7bf11e87c0853ec466eb80b0ede0d28748663a1fab0ac1a7414f0daf7c15  docs/merge-requests/2026-11-14-corpus-film-scripts.patch
+46ed5db73554ed90985b8859c4be7580c20269150db90582b4150ddd590d249f  docs/merge-requests/2026-11-14-corpus-dog-intro.patch
+```
+
+(Each command's output went to a file. The lines shown are its exit status, the count of `patching file`/`checking file` lines, every other line, which is none, and a `find` for `.orig`/`.rej` files, which finds none: no offset, fuzz, or reject.) Both SHA-256s are the ones the notes give (022's: `notes.md`; 026's: `46ed5db7…d249f`).
+
+On the patched export, the four test files inside 026's patch (the container's CPUs: `cat /sys/fs/cgroup/cpu.max` reads `400000 100000`, so 4), then the type check rv-patch3-026's verify note 4 says they never had, then Prettier and ESLint on the four:
+
+```
+$ cd apps/web && TMPDIR=<export>/tmp npx vitest run --maxWorkers=4 test/room/dog-pick.test.ts test/room/dog-selectable.test.ts test/room/eat-3d.test.ts test/room/eat-chunker.test.ts
+ RUN  v5.0.3 <export>/apps/web
+
+
+ Test Files  4 passed (4)
+      Tests  78 passed (78)
+   Start at  02:03:59
+   Duration  149.86s (tests 64%, import 35%, transform 2%)
+
+exit 0
+$ node_modules/.bin/tsc --noEmit -p apps/web            # apps/web/tsconfig.json includes "test/**/*.ts"
+exit 0
+$ node_modules/.bin/prettier --check <the four files>
+Checking formatting...
+All matched files use Prettier code style!
+exit 0
+$ node_modules/.bin/eslint --max-warnings 0 <the four files>
+exit 0
+```
+
+The patch changes no Python file (`grep '^+++ b/.*\.py$'` on it: none), so no `ruff` run is due there. Verify note 4's gap is closed: the four test files type-check on the patched export.
+
+**Documents** (rv-amend-026's nits; the patch and its SHA-256 unchanged):
+
+- **N-1.** Spec 026's User Story 2 gains, after scenario 4, "As amended (Q304 …), for scenarios 1 and 4", quoting `dog-sign-offset.md`: "At those stages neither the sign nor the dog figure is pickable", and pointing to FR-014 as amended. Human patch 026's row 1 now says "neither the sign nor the dog figure is pickable there", where it said only the figure.
+- **N-3.** "My reading beside it:" reads "amend-026's reading beside it:" in `spec.md`, `plan.md`, and `tasks.md`.
+- **N-4.** The summary line under amend-026's lint blocks (here and in `notes.md`) is marked as a summary, and its full output wasn't kept. The lint target and the d185b67b checker run are pasted above.
+- **N-2.** It's in item 9's Backlog, beside rv-patch3-026's N-2 and N-3, in the review's words.
+
+**Not re-run** (rv-amend-026's verify note 3): `pickSweep`'s side-wall count (16 / 240) on a patched export. That's one probe, if he wants the numbers on the scene he applies.
+
+**Interruptions (verify-patch-026).** No hook or bash-gate refusal; nothing was respelled. One question on the page (026's patch on a bare `main`).
+
+verify-patch-026: green
+
 ## Item 10: spec 027, when the twin's file context stops being enough (`night/impl-027/impl-027`)
 
 Spec: specs/027-corpus-retrieval-adr/ · Intent: intent/027-corpus-retrieval-adr.md (draft) · ADR: docs/adr/0054-when-file-context-stops-being-enough.md (proposed) · Written by: implementer (night shift, impl-027, Opus 5.5); the review is for a worker who didn't write the code (T006; the reviewer follows this task) · Date: 2026-11-14
