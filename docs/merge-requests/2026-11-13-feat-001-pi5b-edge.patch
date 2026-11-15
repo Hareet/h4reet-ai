@@ -50,8 +50,8 @@ check_index and check_distribution's ordered behaviors fail.
 +      };
      }
    EOT
- }
-@@ -108,7 +115,7 @@
+ 
+@@ -112,7 +119,7 @@
      }
    }
  
@@ -60,7 +60,7 @@ check_index and check_distribution's ordered behaviors fail.
    default_cache_behavior {
      target_origin_id           = "site"
      viewer_protocol_policy     = "redirect-to-https"
-@@ -117,11 +124,6 @@
+@@ -121,11 +128,6 @@
      compress                   = true
      cache_policy_id            = aws_cloudfront_cache_policy.site.id
      response_headers_policy_id = aws_cloudfront_response_headers_policy.site.id
@@ -72,7 +72,7 @@ check_index and check_distribution's ordered behaviors fail.
    }
  
    # /api/*: the relay, never cached, with the four headers it reads and nothing of the viewer's beyond them.
-@@ -136,6 +138,73 @@
+@@ -140,6 +142,73 @@
      origin_request_policy_id = aws_cloudfront_origin_request_policy.relay.id
    }
  
