@@ -40,8 +40,10 @@ async function expectWhole(v: Visit, what: string): Promise<void> {
   const strip = v.doc.getElementById("ai-disclosure");
   expect(textOf(strip), what).toBe(AI_DISCLOSURE);
   expect(strip?.closest("[hidden], [inert], [aria-hidden='true']"), what).toBeNull();
-  const standIn = v.doc.querySelector(".room-stand-in");
-  if (standIn && textOf(standIn) !== "") expect(standIn.closest("[hidden], [inert]"), what).toBeNull();
+  // Spec 028 (T-A06, FR-012, FR-015; plan.md §R-B8): the stand-in line is no longer on the stage; "Around the room"
+  // keeps it for a screen reader.
+  expect(v.doc.querySelector(".room-stand-in"), what).toBeNull();
+  expect(textOf(v.doc.querySelector('.room-around [data-line="twin"]')), what).not.toBe("");
   for (const part of v.doc.querySelectorAll(".hud-bar, .hud-panels, .room-list, .talk"))
     expect(part.hasAttribute("inert"), `${what}: ${part.className}`).toBe(false);
   const view = v.doc.querySelector(".room-stage-view");

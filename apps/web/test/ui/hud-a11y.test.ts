@@ -315,8 +315,9 @@ describe("axe with spec 014's HUD (T046)", () => {
         } as never);
         // A piece the room targets, its list button marked aria-current (FR-025).
         v.scene.created[0]?.target?.("pointer", roomIndex().selectables[0]?.id ?? null);
-        const note = v.doc.querySelector<HTMLElement>(".room-note:not(.room-stand-in)");
-        expect(note?.hidden).toBe(false);
+        // Spec 028 (T-A06; plan.md §R-B8): the placeholder words are "Around the room"'s line, off the stage.
+        const note = v.doc.querySelector<HTMLElement>('.room-around li[data-line="placeholders"]');
+        expect(note).not.toBeNull();
         expect(note?.textContent?.includes(UI["standin.avatar"] ?? "?")).toBe(webgl);
         expect(await axeViolations(v)).toEqual([]);
         if (layout === "column") {

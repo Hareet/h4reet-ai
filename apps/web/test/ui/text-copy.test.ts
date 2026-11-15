@@ -49,6 +49,10 @@ function expectedLines(index: RoomIndex, tier: string): string[] {
 }
 
 const linesOf = (section: Element): string[] => [...section.querySelectorAll("li")].map((li) => textOf(li));
+/** Spec 028 (T-A06, FR-015; plan.md §R-A5, §R-B8): in the room, the placeholder words are a line of their own after
+ *  the line slots while the bundle's pieces are placeholders. */
+const inRoom = (index: RoomIndex, lines: string[]): string[] =>
+  index.build.placeholders ? [...lines.slice(0, 1), index.ui["standin.note"] ?? "", ...lines.slice(1)] : lines;
 
 describe("the text copy (renderTextCopy)", () => {
   it("heads a section with around.heading, listing each switch's state and the fixed lines in copy[]'s order", () => {
@@ -132,7 +136,7 @@ describe("in the room", () => {
       expect(around.previousElementSibling?.querySelector(".hud-panels > .talk:last-child")).not.toBeNull();
       expect(around.closest(".room-stage")).toBeNull();
       expect(around.closest("[hidden], [inert], [aria-hidden='true']")).toBeNull();
-      expect(linesOf(around)).toEqual(expectedLines(index, "not-live"));
+      expect(linesOf(around)).toEqual(inRoom(index, expectedLines(index, "not-live")));
     }
   });
 
@@ -147,20 +151,21 @@ describe("in the room", () => {
     expect(v.room.visit.stage).toBe("handoff");
     expect(v.doc.querySelector(".flat, canvas")).toBeNull();
     const around = v.doc.querySelector(".room-around");
-    expect(linesOf(around ?? v.doc.body)).toEqual(expectedLines(index, "not-live"));
+    expect(linesOf(around ?? v.doc.body)).toEqual(inRoom(index, expectedLines(index, "not-live")));
   });
 
-  it("shows the placeholder note, the UI word standin.note, only while stand-ins are in use", async () => {
+  it("gives the placeholder words, the UI word standin.note, a line of Around the room only while stand-ins are in use (spec 028)", async () => {
     const { index } = fixture();
     expect(index.build.placeholders).toBe(true);
     for (const placeholders of [true, false]) {
       const v = start({ room: { ...index, build: { ...index.build, placeholders } } });
       await intoRoom(v);
-      const note = v.doc.querySelector(".room-note");
-      // Spec 014 (FR-053 to FR-055; plan.md §9): the note's words are its causes', so with nothing missing it is hidden
-      // and says nothing.
+      // Spec 014 (FR-053 to FR-055; plan.md §9): the words are their causes', so with nothing missing there are none.
+      // Spec 028 (T-A06): "Around the room"'s line, no longer a stage note.
+      const note = v.doc.querySelector('.room-around li[data-line="placeholders"]');
       expect(textOf(note)).toBe(placeholders ? index.ui["standin.note"] : "");
-      expect(note?.hasAttribute("hidden"), String(placeholders)).toBe(!placeholders);
+      expect(note === null, String(placeholders)).toBe(!placeholders);
+      expect(v.doc.querySelector(".room-note")).toBeNull();
     }
   });
 });

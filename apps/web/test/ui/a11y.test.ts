@@ -800,7 +800,8 @@ describe("the twin's room's accessibility (spec 016, FR-059; SC-016)", () => {
     await enter(v, "engineer", "woman");
     signal(v, { kind: "picture", figure: "twin", shows: "own", why: null });
     const line = roomIndex().twin?.line ?? "";
-    expect(textOf(v.doc.querySelector(".room-stand-in"))).toBe(line);
+    // Spec 028 (T-A06; plan.md §R-B8): the line is "Around the room"'s, no longer the stage's note.
+    expect(textOf(v.doc.querySelector('.room-around [data-line="twin"]'))).toBe(line);
     expect(await axeViolations(v)).toEqual([]);
     button(v.doc, "2D view").click();
     await flush();
