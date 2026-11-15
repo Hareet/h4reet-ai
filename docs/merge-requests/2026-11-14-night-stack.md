@@ -7269,3 +7269,36 @@ exit 0
 ```
 
 With his two patches, the six pass on the merged code.
+
+**The lint target**, exit 0, with this section in the tree. As in merge-1 and merge-2, shellcheck's echoed file list is left out:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+841 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- <the file list>
+shellcheck -- <the file list>
+exit 0
+```
+
+The check above, run again on the tip before this commit, printed the same one file (`corpus/proposals/dog-intro-2026-11-14.md`, 119 insertions), and `-- assets` printed nothing.
+
+### What waits for him
+
+This batch adds nothing new for his hand beyond what its items already carry: item 9's dog-intro proposal (`corpus/proposals/dog-intro-2026-11-14.md`) and its corpus patch (`human-patches/026.md` row 1, now after item 9's code and spec 027's `docs/corpus-size.json` are on main, Q308); ADR 0055 (proposed), his to accept, amend, or reject at the stack's merge (Q306); the stack's CLAUDE.md lines patch (`human-patches/stack-claude-md-lines.md`, embedded diff SHA-256 `79161ebb…7c12`, unchanged). D-V2's patches (Q165) are still waiting. merge-3 changed nothing under a human-only path, `assets/**`, or `/srv/studio/`. There was no merge into main and no push. Q309 and Q306's hand-over half are the integration task's.
+
+**Interruptions (merge-3):**
+
+- One bash-gate refusal, a false match: a shell command that wrote this section's text in a here-document was refused ("an Author-only make target"), because the quoted last line of the setup target names one. Nothing was respelled. The same text was written with the Write tool into a scratch file and put in here by a script that names no target, as rule 5 says.
+- One tool call that needed an approval this session doesn't have: a Monitor watch with a shell wait loop. It was not retried; the suite's output file was read instead.
+- The first whole-suite start was stopped by the tool's background limit (above); the rerun is the one pasted.
+
+No question for the Author, and no request to the runner. The D-V2 copy stays at `/tmp/merge3-dv2.DgMS` (a `git archive` export with the two proposed patches applied, nothing secret), as merge-2's did.
+
+merge-3: green, carrying D-V2's six (Q165); the line's tip is the commit that adds this section on `night/merge-3/merge-3`: 5b433036's merged code, with documents-only commits on top (spec 026's ADR pointer, Q308's clause, rv-docs4's N-1 to N-3, and this section)
