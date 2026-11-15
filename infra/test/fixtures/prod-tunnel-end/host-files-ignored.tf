@@ -40,7 +40,7 @@ resource "aws_instance" "tunnel_end" {
   }
 
   primary_network_interface {
-    network_interface_id = aws_network_interface.tunnel_end_public.id
+    network_interface_id = aws_network_interface.tunnel_end_private.id
   }
 
   tags = {

@@ -1,7 +1,8 @@
 # Prod's network (spec 001 FR-051, FR-052; research.md R-07, R-10; contracts/tunnel.md §1): one VPC with two subnets in
 # one zone. The public subnet routes to the internet gateway: the tunnel end's public interface, with its Elastic IP,
-# and, from group 7, EC2's. The private subnet has no route out: the tunnel end's private interface, where CloudFront's
-# VPC origin reaches the relay (group 8). Neither subnet gives an address on its own; only the Elastic IP is public.
+# and, from group 7, EC2's. The private subnet has no route out: the tunnel end's private interface, its primary since
+# B-6's option C, where CloudFront's VPC origin reaches the relay (group 8); the host's own traffic leaves by the public
+# one (tunnel-end.tf). Neither subnet gives an address on its own; only the Elastic IP is public.
 
 resource "aws_vpc" "prod" {
   cidr_block           = "10.42.0.0/16"
@@ -86,11 +87,11 @@ resource "aws_route_table_association" "private" {
 # description's change replaces nothing.
 resource "aws_security_group" "ec2" {
   name        = "h4-ec2"
-  description = "EC2's interface: 8085 and 4318 from the tunnel end alone"
+  description = "EC2 interface: 8085 and 4318 from the tunnel end alone"
   vpc_id      = aws_vpc.prod.id
 
   ingress {
-    description = "The relay block, for the tunnel end's relay"
+    description = "The relay block, for the tunnel end relay"
     protocol    = "tcp"
     from_port   = 8085
     to_port     = 8085
@@ -98,7 +99,7 @@ resource "aws_security_group" "ec2" {
   }
 
   ingress {
-    description = "EC2's collector, for the tunnel end's collector"
+    description = "The EC2 collector, for the tunnel end collector"
     protocol    = "tcp"
     from_port   = 4318
     to_port     = 4318
@@ -114,7 +115,7 @@ resource "aws_security_group" "ec2" {
   }
 
   egress {
-    description = "The alerts mailbox's SMTP, implicit TLS, through the gateway's proxy alone"
+    description = "SMTP to the alerts mailbox, implicit TLS, through the gateway proxy alone"
     protocol    = "tcp"
     from_port   = 465
     to_port     = 465

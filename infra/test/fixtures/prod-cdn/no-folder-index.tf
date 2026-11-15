@@ -26,7 +26,7 @@ resource "aws_cloudfront_distribution" "site" {
     domain_name = aws_instance.tunnel_end.private_dns
 
     vpc_origin_config {
-      vpc_origin_id            = aws_cloudfront_vpc_origin.relay[0].id
+      vpc_origin_id            = aws_cloudfront_vpc_origin.relay.id
       origin_read_timeout      = 30
       origin_keepalive_timeout = 5
     }

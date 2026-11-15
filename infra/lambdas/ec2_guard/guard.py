@@ -49,7 +49,7 @@ EC2_NAME = "h4-prod-ec2"
 NAMESPACE = "h4reet/handover"
 PREFIX = "[hareet.ai aws]"
 CLEAR = frozenset({"STANDBY", "REVERSE_SUCCESS"})
-# Provisional: question 3, recommended option A, until the Author's answer: the start function's set. The close's
+# Question 3, option A, the Author's answer ("3 A", 2026-11-12): the start function's set. The close's
 # outcome, ec2_stopped_outside_hours, isn't among them, so the close's routine stop is recorded and not alerted;
 # ec2_unrecognised_instance and ec2_guard_failed always alert. Option B alerts every stop, as FR-071 says.
 SCHEDULED_ALERTED = frozenset(

@@ -89,7 +89,7 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 
 ## 8. Group 8: the edge and the relay
 
-1. Point the registrar's name servers at the zone, and record it. Apply the certificate, the distribution, and the VPC origin, and `infra/account`'s P-I5 line that enables the probe's schedule. Deploy the relay on the tunnel end.
+1. Point the registrar's name servers at the zone, and record it. Apply the certificate and the distribution (W1 already made the VPC origin; plan.md §16, "B-6: option C, and the VPC origin from W1"), and `infra/account`'s P-I5 line that enables the probe's schedule. Deploy the relay on the tunnel end.
 2. Run the red-team cases on all four adapters, and record that they passed (FR-039).
 3. `curl -I https://hareet.ai/`: TLS, HSTS, the CSP. `curl http://hareet.ai/` redirects to HTTPS.
 4. Stop EC2 with the laptop off. `POST /api/hello` gets 503 `no_host_serving` from the relay. Stop the relay: the edge's own body, the same cause. The site still loads.

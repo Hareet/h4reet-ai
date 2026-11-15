@@ -419,8 +419,8 @@ def test_before_group_4_the_laptop_identity_isnt_asked_for(aws: StubAws) -> None
             {"Effect": "Allow", "Action": "bedrock:InvokeModel", "Resource": "*"}
         ),
     )
-    assert audit.LAPTOP_PERMISSION_SET is None
-    assert findings(aws) == []
+    # Named explicitly: the module names the set since T040b, which the fixture above sets aside.
+    assert findings(aws, laptop_permission_set=None) == []
 
 
 def test_the_laptop_role_once_it_exists_must_be_terraforms(aws: StubAws) -> None:
@@ -969,3 +969,16 @@ def test_the_named_set_is_read_when_the_audit_runs(aws: StubAws, monkeypatch) ->
     assert findings(aws) == []
     monkeypatch.setattr(audit, "LAPTOP_PERMISSION_SET", "some-other-set")
     assert findings(aws) == [("laptop_identity_not_terraform", "some-other-set")]
+
+
+def test_the_lambda_holds_the_named_set_too(aws: StubAws, monkeypatch) -> None:
+    # The weekly function runs the module's name, as the terminal does (the rehearsal branch's review, nit 1).
+    monkeypatch.delenv("H4_AUDIT_BUCKET", raising=False)
+    monkeypatch.delenv("H4_ALERTS_TOPIC_ARN", raising=False)
+    monkeypatch.delenv("H4_AUDIT_ALLOW_PARAMETER", raising=False)
+    monkeypatch.setattr(audit, "LAPTOP_PERMISSION_SET", "h4reet-ai-cloud")
+    laptop_role(aws)
+    result = audit.handler({}, None, aws=aws)
+    assert ("laptop_identity_not_terraform", "h4reet-ai-cloud") in [
+        (f["check"], f["resource"]) for f in result["findings"]
+    ]

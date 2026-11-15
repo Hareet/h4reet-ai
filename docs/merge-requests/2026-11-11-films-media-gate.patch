@@ -1,0 +1,835 @@
+diff --git a/tools/gates/arrival_check.py b/tools/gates/arrival_check.py
+index d3920b5..2bd781c 100644
+--- a/tools/gates/arrival_check.py
++++ b/tools/gates/arrival_check.py
+@@ -11,9 +11,18 @@ check's `arrival` and the Author's gate over every commit since main, and make p
+ Standard library only. Human-only: the hook, make check, and the gate each run the main working tree's copy.
+ 
+ - Where a file may be (rules A): images, videos, and models only under the asset roots, assets/ (but assets/policy/)
+-  and docs/research/images/, found by extension and by their leading bytes; model weights nowhere; in an asset
+-  directory only PNG, JPEG, WebP, GLB, records.json, and LICENSE.md; camera metadata (EXIF, XMP, a GPS directory) in
+-  no binary file anywhere, but the mark's own packet in a file the M rules admit.
++  and docs/research/images/, and a film's renders in its media folder (A11), found by extension and by their leading
++  bytes; model weights nowhere; in an asset directory only PNG, JPEG, WebP, GLB, records.json, and LICENSE.md; camera
++  metadata (EXIF, XMP, a GPS directory) in no binary file anywhere, but the mark's own packet in a file the M rules
++  admit.
++- A film's renders (rule A11, ADR 0050): in films/<name>/media/, where films/<name>/ holds the film's index.html, only
++  an MP4 (its name, an ftyp box at byte 4, an MP4 brand) of up to 60 MiB and a GIF (its name, GIF87a or GIF89a) of up
++  to 10 MiB, each a file, never a link or a subfolder; no place and no XMP in either (an MP4's ©xyz or loci atom, a
++  location key, an XMP_ or uuid box, or a timed-metadata track; a GIF's XMP, or any application extension but the
++  loop count's), and no byte its boxes or blocks don't account for. The encoder's own tags (©too, the handler names)
++  pass, and meet the B rules with every udta and meta box and a GIF's comments; the whole file meets A4. No record, no
++  notice, no mark: the films are code, and their renders this code's output. Anywhere else under films/, an image or
++  a video meets A1 as it would anywhere.
+ - What a file holds (rules M): each admitted format parsed down to its chunks, and only research R-03's allowlist and
+   one mark admitted: the XMP packet holding only the IPTC digital source type (KHR_xmp_json_ld's, in a GLB); no name
+   or uri in a GLB that holds a file name or a path; no byte a container doesn't account for.
+@@ -151,6 +160,69 @@ BY_EXTENSION = {
+     **{ext: "a model" for ext in MODEL_EXT},
+ }
+ 
++# A film's renders (rule A11; ADR 0050): films/<name>/media/, in a film's own folder, the one holding its index.html.
++FILMS_MEDIA = re.compile(r"films/(?P<film>[a-z0-9-]+)/media/")
++FILM_PAGE = "index.html"
++FILM_MEDIA = {".mp4": "mp4", ".gif": "gif"}
++FILM_SIGNATURE = {"mp4": "isobmff", "gif": "gif"}
++FILM_CAPS = {
++    "mp4": 60 * 1024 * 1024,
++    "gif": 10 * 1024 * 1024,
++}  # 62,914,560 and 10,485,760 bytes
++# An MP4's own brands, as ffmpeg writes them (isom, with iso2, avc1, and mp41): never QuickTime's `qt  `, HEIF's, AVIF's.
++MP4_BRANDS = frozenset(
++    {b"isom", b"iso2", b"iso4", b"iso5", b"iso6", b"mp41", b"mp42", b"avc1"}
++)
++MP4_TOP = frozenset(
++    {
++        b"ftyp",
++        b"moov",
++        b"mdat",
++        b"free",
++        b"skip",
++        b"wide",
++        b"moof",
++        b"mfra",
++        b"sidx",
++        b"styp",
++    }
++)
++# The boxes walked: those that hold the tracks and their metadata. Sample entries and mdat aren't (the pixel-data rule).
++MP4_CONTAINERS = frozenset(
++    {
++        b"moov",
++        b"trak",
++        b"mdia",
++        b"minf",
++        b"stbl",
++        b"edts",
++        b"dinf",
++        b"udta",
++        b"meta",
++        b"ilst",
++        b"mvex",
++        b"moof",
++        b"traf",
++    }
++)
++MP4_DEPTH = 16
++# Where a camera or an editor puts a place or its own record: QuickTime's ©xyz, 3GPP's loci, Adobe's XMP_, and the uuid
++# box XMP rides in (any uuid box: what another holds, nothing here can read).
++MP4_REFUSED = {
++    b"\xa9xyz": "a location atom (©xyz)",
++    b"loci": "a location atom (loci)",
++    b"XMP_": "an XMP box (XMP_)",
++    b"uuid": "a uuid box",
++}
++XMP_UUID = bytes.fromhex("be7acfcb97a942e89c71999491e3afac")
++# A track's handler: video, sound, or text (captions); never a timed-metadata track, where a camera keeps its GPS. A
++# metadata box's: iTunes-style tags (mdir), or keys (mdta).
++TRACK_HANDLERS = frozenset({b"vide", b"soun", b"text", b"sbtl", b"subt"})
++META_HANDLERS = frozenset({b"mdir", b"mdta"})
++# A GIF's one admitted application extension: the loop count, as NETSCAPE2.0 or ANIMEXTS1.0 writes it.
++GIF_APPLICATIONS = frozenset({b"NETSCAPE2.0", b"ANIMEXTS1.0"})
++GIF_XMP = b"XMP DataXMP"
++
+ # The mark (research R-03, FR-034): an XMP packet holding exactly this property, and nothing else. Its value is one of
+ # three terms of IPTC's digital source type, the one the file's record calls for (spec 004, Amendment C1).
+ X_NS = "adobe:ns:meta/"
+@@ -1695,6 +1767,167 @@ def container_findings(data: bytes, kind: str) -> list[tuple[str, str]]:
+     return found
+ 
+ 
++# --------------------------------------------------------------------------------------------------
++# A film's renders (A11; ADR 0050)
++# --------------------------------------------------------------------------------------------------
++def box_name(raw: bytes) -> str:
++    """A box's type, a brand, or a handler, quoted, when it's four plain characters; never the raw bytes otherwise."""
++    return (
++        f"'{raw.decode('ascii')}'"
++        if re.fullmatch(rb"[A-Za-z0-9 ]{4}", raw)
++        else "of no readable type"
++    )
++
++
++def parse_film_mp4(data: bytes, out: Parsed) -> None:
++    """A film's MP4, walked down the boxes that hold its tracks and their metadata: an MP4 brand; only an MP4's own
++    boxes at the top; no location atom, location key, XMP, uuid box, or timed-metadata track; every byte in a box. The
++    udta and meta boxes, and the handler boxes outside them, are its text."""
++    if data[8:12] not in MP4_BRANDS:
++        out.bad(
++            "A11",
++            f"its ftyp brand, {box_name(data[8:12])}, isn't an MP4's (QuickTime's, HEIF's, and AVIF's aren't)",
++        )
++
++    def walk(lo: int, hi: int, parents: tuple[bytes, ...]) -> None:
++        if len(parents) > MP4_DEPTH:
++            out.bad("A11", f"boxes nested deeper than {MP4_DEPTH} at byte {lo}")
++            return
++        at = lo
++        while at < hi:
++            if hi - at < 8:
++                # QuickTime ends a udta box's children with a 32-bit zero.
++                if not (parents and hi - at == 4 and data[at:hi] == bytes(4)):
++                    out.bad("A11", f"bytes no box accounts for at byte {at}")
++                return
++            size, kind = struct.unpack(">I4s", data[at : at + 8])
++            head = 8
++            if size == 1 and hi - at >= 16:
++                (size,) = struct.unpack(">Q", data[at + 8 : at + 16])
++                head = 16
++            elif size == 0 and not parents:
++                size = hi - at  # the last box runs to the end of the file
++            if size < head or at + size > hi:
++                out.bad("A11", f"a box at byte {at} runs past its container")
++                return
++            body, end = at + head, at + size
++            udta = b"udta" in parents
++            if kind in MP4_REFUSED:
++                what = MP4_REFUSED[kind]
++                if kind == b"uuid" and data[body : body + 16] == XMP_UUID:
++                    what = "an XMP uuid box"
++                out.bad("A11", f"{what} at byte {at}")
++            elif not parents and kind not in MP4_TOP:
++                out.bad(
++                    "A11",
++                    f"a top-level box {box_name(kind)} at byte {at}, which an MP4 doesn't hold",
++                )
++            elif kind == b"hdlr":
++                if parents and parents[-1] in (b"mdia", b"meta"):
++                    handler = data[body + 8 : body + 12]
++                    allowed = (
++                        META_HANDLERS if parents[-1] == b"meta" else TRACK_HANDLERS
++                    )
++                    if handler not in allowed:
++                        out.bad(
++                            "A11",
++                            f"a handler {box_name(handler)} in a {parents[-1].decode()} box at byte {at} "
++                            "(a timed-metadata track, where a camera keeps its GPS, or another program's tags)",
++                        )
++                if not udta:
++                    out.texts.append(("an hdlr box", body, data[body:end]))
++            elif kind == b"keys" and b"location" in data[body:end].lower():
++                out.bad("A11", f"a location key in a keys box at byte {at}")
++            if kind in (b"udta", b"meta") and not udta:
++                out.texts.append((f"a {kind.decode()} box", body, data[body:end]))
++            if kind in MP4_CONTAINERS:
++                start = body
++                if kind == b"meta" and data[body : body + 4] == bytes(4):
++                    start += 4  # ISO's meta is a full box; QuickTime's isn't
++                walk(start, end, parents + (kind,))
++            at = end
++
++    walk(0, len(data), ())
++
++
++def gif_blocks(data: bytes, at: int) -> tuple[int, bytes] | None:
++    """A GIF's data sub-blocks from `at`: the offset past their terminator, and their bytes; None when it's cut short."""
++    parts = []
++    while at < len(data):
++        size = data[at]
++        at += 1
++        if size == 0:
++            return at, b"".join(parts)
++        if at + size > len(data):
++            return None
++        parts.append(data[at : at + size])
++        at += size
++    return None
++
++
++def parse_film_gif(data: bytes, out: Parsed) -> None:
++    """A film's GIF, block by block: its images, their graphic controls, comments, and the loop count's application
++    extension; no XMP or other application extension; nothing after the trailer. The comments are its text."""
++    short = "the GIF ends before its trailer"
++    if len(data) < 13:
++        out.bad("A11", short)
++        return
++    at = 13
++    if data[10] & 0x80:
++        at += 3 << ((data[10] & 7) + 1)  # the global color table
++    while True:
++        if at >= len(data):
++            out.bad("A11", short)
++            return
++        block, start = data[at], at
++        if block == 0x3B:
++            at += 1
++            break
++        if block == 0x21 and at + 2 < len(data):
++            label = data[at + 1]
++            if label == 0xFF:
++                ident = data[at + 3 : at + 14]
++                if data[at + 2] != 11 or len(ident) != 11:
++                    out.bad(
++                        "A11",
++                        f"an application extension at byte {at} whose header isn't 11 bytes",
++                    )
++                    return
++                got = gif_blocks(data, at + 14)
++                if ident == GIF_XMP:
++                    out.bad("A11", f"an XMP application extension at byte {start}")
++                elif ident not in GIF_APPLICATIONS:
++                    out.bad(
++                        "A11",
++                        f"an application extension at byte {start} other than the loop count's (NETSCAPE2.0)",
++                    )
++            elif label in (0xF9, 0xFE, 0x01):
++                got = gif_blocks(data, at + 2)
++                if got and label != 0xF9:
++                    what = "a comment" if label == 0xFE else "a plain-text extension"
++                    out.texts.append((what, start, got[1]))
++            else:
++                out.bad(
++                    "A11", f"an extension of unknown label {label:#04x} at byte {at}"
++                )
++                return
++        elif block == 0x2C and at + 11 <= len(data):
++            flags = data[at + 9]
++            at += 10
++            if flags & 0x80:
++                at += 3 << ((flags & 7) + 1)  # the local color table
++            got = gif_blocks(data, at + 1)  # past the LZW minimum code size
++        else:
++            out.bad("A11", f"bytes no block accounts for at byte {at}")
++            return
++        if got is None:
++            out.bad("A11", short)
++            return
++        at = got[0]
++    if at != len(data):
++        out.bad("A11", f"{len(data) - at:,} bytes after the GIF's trailer")
++
++
+ # --------------------------------------------------------------------------------------------------
+ # The policy, from the main branch (R-05)
+ # --------------------------------------------------------------------------------------------------
+@@ -2434,6 +2667,9 @@ class Checker:
+             return
+         if path.startswith(POLICY):
+             return
++        if FILMS_MEDIA.match(path):
++            self.check_film_media(tree, path, item, data, found, weights, commit)
++            return
+         media = (
+             found in DESCRIBE
+             and found not in ("safetensors", "gguf")
+@@ -2451,6 +2687,86 @@ class Checker:
+             for reason in camera_metadata(data):
+                 self.add("A4", path, f"camera metadata: {reason}", commit)
+ 
++    def check_film_media(
++        self,
++        tree: Tree,
++        path: str,
++        item: Item,
++        data: bytes,
++        found: str | None,
++        weights: bool,
++        commit: str | None,
++    ) -> None:
++        """Rule A11 (ADR 0050): a film's render, in films/<name>/media/ of a film's own folder, as an MP4 or a GIF,
++        within its cap, with no place, no XMP, and no byte its container doesn't account for; its text meets the B
++        rules, and the whole file A4."""
++        match = FILMS_MEDIA.match(path)
++        assert match is not None
++        folder = f"films/{match['film']}/"
++        ext = ext_of(path)
++        what = DESCRIBE.get(found or "") or BY_EXTENSION.get(ext) or "a file"
++        if "/" in path[match.end() :]:
++            self.add(
++                "A11",
++                path,
++                f"{what} in a subfolder of a film's media folder, which holds only MP4 and GIF files",
++                commit,
++            )
++            return
++        if item.mode in ("120000", "160000"):
++            self.add(
++                "A11", path, "a link or a submodule in a film's media folder", commit
++            )
++            return
++        if tree.read(folder + FILM_PAGE) is None:
++            self.add(
++                "A11",
++                path,
++                f"{what} in a media folder whose folder isn't a film's (no {FILM_PAGE} beside it)",
++                commit,
++            )
++            return
++        kind = FILM_MEDIA.get(ext)
++        if kind is None:
++            if not weights:
++                self.add(
++                    "A11",
++                    path,
++                    f"{what} of a kind a film's media folder doesn't take (only MP4 and GIF)",
++                    commit,
++                )
++            if binary(data):
++                for reason in camera_metadata(data):
++                    self.add("A4", path, f"camera metadata: {reason}", commit)
++            return
++        if found != FILM_SIGNATURE[kind]:
++            self.add(
++                "A11",
++                path,
++                f"its bytes aren't the {kind.upper()} its name says",
++                commit,
++            )
++            return
++        cap = FILM_CAPS[kind]
++        if len(data) > cap:
++            self.add(
++                "A11",
++                path,
++                f"{len(data):,} bytes, over a film's {kind.upper()} cap of {cap:,} (ADR 0050)",
++                commit,
++            )
++        parsed = Parsed()
++        (parse_film_mp4 if kind == "mp4" else parse_film_gif)(data, parsed)
++        for rule, reason in parsed.problems:
++            self.add(rule, path, reason, commit)
++        for part, at, text in parsed.texts:
++            for rule, offset, description in text_hits(text):
++                self.add(
++                    rule, path, f"{description} in {part} at byte {at + offset}", commit
++                )
++        for reason in camera_metadata(data):
++            self.add("A4", path, f"camera metadata: {reason}", commit)
++
+     def scan_text(self, data: bytes, path: str, what: str, commit: str | None) -> None:
+         for rule, offset, description in text_hits(data):
+             self.add(rule, path, f"{description} in {what} at byte {offset}", commit)
+diff --git a/tools/gates/test/arrival_fixtures.py b/tools/gates/test/arrival_fixtures.py
+index b3ec08e..b4a2945 100644
+--- a/tools/gates/test/arrival_fixtures.py
++++ b/tools/gates/test/arrival_fixtures.py
+@@ -16,6 +16,12 @@ runs. The containers follow the formats themselves:
+   BIN chunk (0x004E4942, padded with zeros). The mark is KHR_xmp_json_ld's packet on the asset.
+ - TIFF and DNG: II*\\0 and an IFD whose tags include GPSInfo (0x8825); HEIC, AVIF, and MOV: ISO BMFF's ftyp box at
+   byte 4, with an EXIF block in an mdat box.
++- A film's MP4 (rule A11, ADR 0050): ffmpeg's layout, as `ffprobe` and a box walk read a real render on 2026-11-11:
++  ftyp (isom, with isom iso2 avc1 mp41), moov holding mvhd, one video trak (its hdlr vide, VideoHandler), and udta >
++  meta > hdlr mdir and ilst > ©too "Lavf60.16.100", then free and mdat. Boxes are a 4-byte big-endian size counting
++  itself and a 4-byte type.
++- A film's GIF: GIF89a, a 1x1 logical screen with a two-colour table, NETSCAPE2.0's loop count, a graphic control,
++  one image, and the trailer (3B), as ffmpeg's palette pass writes them.
+ """
+ 
+ from __future__ import annotations
+@@ -131,6 +137,113 @@ def isobmff(brand: bytes, *compatible: bytes) -> bytes:
+     return ftyp + _box(b"mdat", struct.pack(">I", 6) + exif_block() + bytes(range(16)))
+ 
+ 
++XMP_UUID = bytes.fromhex("be7acfcb97a942e89c71999491e3afac")
++
++
++def _hdlr(kind: bytes, name: bytes) -> bytes:
++    return _box(b"hdlr", bytes(8) + kind + bytes(12) + name + b"\x00")
++
++
++def mp4_tag(kind: bytes, value: bytes) -> bytes:
++    """An iTunes-style tag as ffmpeg writes one in ilst: the tag's box holding a data box (type 1, UTF-8)."""
++    return _box(kind, _box(b"data", struct.pack(">II", 1, 0) + value))
++
++
++def film_mp4(
++    *,
++    brand: bytes = b"isom",
++    tags: bytes = b"",
++    udta: bytes = b"",
++    moov: bytes = b"",
++    top: bytes = b"",
++    handler: bytes = b"vide",
++    mdat: int = 64,
++    trailing: bytes = b"",
++) -> bytes:
++    """A film's render as ffmpeg lays it out: `tags` go into ilst beside ©too, `udta` into udta beside meta, `moov`
++    into moov, `top` between moov and free; `mdat` is the media data's length in bytes."""
++    ftyp = _box(b"ftyp", brand + struct.pack(">I", 512) + b"isomiso2avc1mp41")
++    stbl = _box(b"stbl", _box(b"stsd", bytes(8)))
++    minf = _box(b"minf", _box(b"vmhd", bytes(12)) + stbl)
++    mdia = _box(
++        b"mdia", _box(b"mdhd", bytes(24)) + _hdlr(handler, b"VideoHandler") + minf
++    )
++    trak = _box(b"trak", _box(b"tkhd", bytes(84)) + mdia)
++    ilst = _box(b"ilst", mp4_tag(b"\xa9too", b"Lavf60.16.100") + tags)
++    # ISO's meta, a full box: its version and flags, then hdlr mdir (ffmpeg writes "appl" as the first reserved word).
++    mdir = _box(b"hdlr", bytes(8) + b"mdirappl" + bytes(9))
++    meta = _box(b"meta", bytes(4) + mdir + ilst)
++    return (
++        ftyp
++        + _box(
++            b"moov",
++            _box(b"mvhd", bytes(100)) + trak + moov + _box(b"udta", meta + udta),
++        )
++        + top
++        + _box(b"free", b"")
++        + _box(b"mdat", bytes(mdat))
++        + trailing
++    )
++
++
++def film_gif(
++    *, extensions: bytes = b"", image: int = 2, trailing: bytes = b""
++) -> bytes:
++    """A film's GIF: `extensions` go after the loop count's; `image` is the image's LZW data length, in sub-blocks of at
++    most 255 bytes."""
++    screen = (
++        b"GIF89a"
++        + struct.pack("<HH", 1, 1)
++        + b"\x80\x00\x00"
++        + b"\xff\xff\xff\x00\x00\x00"
++    )
++    loop = b"\x21\xff\x0bNETSCAPE2.0\x03\x01\x00\x00\x00"
++    control = b"\x21\xf9\x04\x00\x00\x00\x00\x00"
++    data = b"D\x01" + bytes(max(0, image - 2))
++    blocks = b"".join(
++        bytes([len(data[i : i + 255])]) + data[i : i + 255]
++        for i in range(0, len(data), 255)
++    )
++    descriptor = b"\x2c" + struct.pack("<HHHH", 0, 0, 1, 1) + b"\x00"
++    return (
++        screen
++        + loop
++        + extensions
++        + control
++        + descriptor
++        + b"\x02"
++        + blocks
++        + b"\x00"
++        + b"\x3b"
++        + trailing
++    )
++
++
++def gif_application(ident: bytes, payload: bytes) -> bytes:
++    """An application extension: 11 bytes of identifier and code, then `payload` in sub-blocks."""
++    blocks = b"".join(
++        bytes([len(payload[i : i + 255])]) + payload[i : i + 255]
++        for i in range(0, len(payload), 255)
++    )
++    return b"\x21\xff\x0b" + ident + blocks + b"\x00"
++
++
++def gif_xmp(packet: bytes) -> bytes:
++    """XMP in a GIF as Adobe writes it: XMP DataXMP, the packet's bytes as they are, then the 258-byte magic trailer
++    (01, FF down to 00, then the terminator) that lets a decoder skip it as sub-blocks."""
++    return (
++        b"\x21\xff\x0bXMP DataXMP"
++        + packet
++        + b"\x01"
++        + bytes(range(255, -1, -1))
++        + b"\x00"
++    )
++
++
++def gif_comment(text: bytes) -> bytes:
++    return b"\x21\xfe" + bytes([len(text)]) + text + b"\x00"
++
++
+ def safetensors_header() -> bytes:
+     header = json.dumps(
+         {"w": {"dtype": "F32", "shape": [1], "data_offsets": [0, 4]}}
+diff --git a/tools/gates/test/test_arrival_check.py b/tools/gates/test/test_arrival_check.py
+index 4040258..70f33f4 100644
+--- a/tools/gates/test/test_arrival_check.py
++++ b/tools/gates/test/test_arrival_check.py
+@@ -2045,3 +2045,241 @@ def test_a10_staged_on_a_branch_but_not_the_authors_commit_on_main(
+     repo.git("add", "-A")
+     run = check(repo, "--staged")
+     assert run.code == 0, run.out
++
++
++# --------------------------------------------------------------------------------------------------
++# Rule A11 (ADR 0050): a film's renders, in films/<name>/media/ beside the film's index.html, as an MP4 or a GIF
++# within its cap, with no place, no XMP, and no byte its container doesn't account for. Anywhere else under films/,
++# an image or a video meets A1 as before.
++# --------------------------------------------------------------------------------------------------
++FILM = "films/kill-switch"
++MEDIA = f"{FILM}/media"
++PAGE = b"<!doctype html><title>kill switch</title>\n"
++
++
++def in_film(repo: fx.Repo, name: str, data: bytes, *, page: bool = True) -> Run:
++    if page:
++        repo.write(f"{FILM}/index.html", PAGE)
++    repo.write(name, data)
++    return check(repo, *paths(repo, name))
++
++
++def test_a11_a_films_mp4_and_gif_pass(repo: fx.Repo) -> None:
++    repo.write(f"{FILM}/index.html", PAGE)
++    repo.write(f"{MEDIA}/kill-switch.mp4", fx.film_mp4())
++    repo.write(f"{MEDIA}/kill-switch.gif", fx.film_gif())
++    run = check(
++        repo, *paths(repo, f"{MEDIA}/kill-switch.mp4", f"{MEDIA}/kill-switch.gif")
++    )
++    assert run.code == 0 and run.findings == [], run.out
++
++
++def test_a11_staged_in_range_and_in_history_alike(repo: fx.Repo) -> None:
++    repo.write(f"{FILM}/index.html", PAGE)
++    repo.commit("the film's code")
++    repo.write(f"{MEDIA}/kill-switch.mp4", fx.film_mp4())
++    repo.write(f"{MEDIA}/kill-switch.gif", fx.film_gif())
++    repo.git("add", "-A")
++    staged = check(repo, "--staged")
++    assert staged.code == 0 and staged.findings == [], staged.out
++    repo.commit("the film's final cut")
++    for args in (("--range", "main..HEAD"), ("--history",)):
++        run = check(repo, *args)
++        assert run.code == 0 and run.findings == [], run.out
++    repo.write(f"{MEDIA}/still.png", fx.png())
++    bad = repo.commit("a still beside it")
++    for args in (("--range", "main..HEAD"), ("--history",)):
++        run = check(repo, *args)
++        assert run.code == 1 and run.has("A11", f"{MEDIA}/still.png", bad), run.out
++
++
++def test_a11_a_films_narration_and_fonts_arent_media(repo: fx.Repo) -> None:
++    wav = (
++        b"RIFF"
++        + struct.pack("<I", 36)
++        + b"WAVEfmt "
++        + struct.pack("<I", 16)
++        + bytes(24)
++    )
++    woff = b"wOFF" + bytes(40)
++    repo.write(f"{FILM}/index.html", PAGE)
++    repo.write(f"{FILM}/assets/voice.wav", wav)
++    repo.write(f"{FILM}/assets/fonts/Plex.woff", woff)
++    run = check(
++        repo, *paths(repo, f"{FILM}/assets/voice.wav", f"{FILM}/assets/fonts/Plex.woff")
++    )
++    assert run.code == 0 and run.findings == [], run.out
++
++
++@pytest.mark.parametrize(
++    "name, data",
++    [
++        ("still.png", fx.png()),
++        ("poster.jpg", fx.jpeg()),
++        ("clip.mov", fx.isobmff(b"qt  ")),
++        ("README.md", b"# the film\n"),
++        ("records.json", b'{"schema": 1, "entries": []}\n'),
++        ("not-an.mp4", fx.film_gif()),  # its bytes aren't what its name says
++        ("not-a.gif", fx.png()),
++    ],
++    ids=ident,
++)
++def test_a11_anything_but_an_mp4_or_a_gif_in_a_films_media(
++    repo: fx.Repo, name: str, data: bytes
++) -> None:
++    run = in_film(repo, f"{MEDIA}/{name}", data)
++    assert run.code == 1 and run.has("A11", f"{MEDIA}/{name}"), run.out
++
++
++@pytest.mark.parametrize(
++    "name",
++    [
++        f"{FILM}/out/kill-switch.mp4",
++        f"{FILM}/out/share/kill-switch.gif",
++        f"{FILM}/assets/kill-switch.mp4",
++        f"{FILM}/kill-switch.gif",
++        "films/kill-switch.mp4",
++        "films/Kill_Switch/media/kill-switch.mp4",  # not a film folder's name
++        "assets/films/kill-switch.mp4",
++    ],
++)
++def test_a11_an_mp4_or_a_gif_outside_a_films_media_meets_a1(
++    repo: fx.Repo, name: str
++) -> None:
++    data = fx.film_gif() if name.endswith(".gif") else fx.film_mp4()
++    run = in_film(repo, name, data)
++    assert run.code == 1 and not run.has("A11"), run.out
++    assert run.has("A1", name) or run.has("A3", name), run.out
++
++
++def test_a11_a_media_folder_beside_no_film(repo: fx.Repo) -> None:
++    run = in_film(repo, f"{MEDIA}/kill-switch.mp4", fx.film_mp4(), page=False)
++    assert run.code == 1 and run.has("A11", f"{MEDIA}/kill-switch.mp4"), run.out
++
++
++def test_a11_a_subfolder_of_a_films_media(repo: fx.Repo) -> None:
++    run = in_film(repo, f"{MEDIA}/old/kill-switch.mp4", fx.film_mp4())
++    assert run.code == 1 and run.has("A11", f"{MEDIA}/old/kill-switch.mp4"), run.out
++
++
++@pytest.mark.parametrize("name", ["over.mp4", "over.gif"])
++def test_a11_a_render_over_its_cap(repo: fx.Repo, name: str) -> None:
++    # Built in the test, not at collection, so the 70 MB stay out of the session's memory.
++    if name.endswith(".mp4"):
++        data = fx.film_mp4(mdat=60 * 1024 * 1024)
++    else:
++        data = fx.film_gif(image=10 * 1024 * 1024)
++    run = in_film(repo, f"{MEDIA}/{name}", data)
++    assert run.code == 1 and run.has("A11", f"{MEDIA}/{name}"), run.out
++    assert "cap of" in run.out
++
++
++def test_a11_a_render_at_its_cap_passes(repo: fx.Repo) -> None:
++    data = fx.film_mp4()
++    data = fx.film_mp4(mdat=60 * 1024 * 1024 - len(data) + 64)
++    assert len(data) == 60 * 1024 * 1024
++    run = in_film(repo, f"{MEDIA}/full.mp4", data)
++    assert run.code == 0, run.out
++
++
++def _keys(*names: bytes) -> bytes:
++    entries = b"".join(struct.pack(">I", 8 + len(n)) + b"mdta" + n for n in names)
++    return fx._box(b"keys", bytes(4) + struct.pack(">I", len(names)) + entries)
++
++
++def _mdta_meta(*names: bytes) -> bytes:
++    mdta = fx._box(b"hdlr", bytes(8) + b"mdta" + bytes(13))
++    return fx._box(b"meta", bytes(4) + mdta + _keys(*names))
++
++
++ISO6709 = b"+48.8584+002.2945/"
++
++
++@pytest.mark.parametrize(
++    "kwargs",
++    [
++        {"udta": fx._box(b"\xa9xyz", struct.pack(">HH", len(ISO6709), 0) + ISO6709)},
++        {"tags": fx.mp4_tag(b"\xa9xyz", ISO6709)},
++        {"udta": fx._box(b"loci", bytes(4) + b"\x15\xc7" + bytes(20))},
++        {"moov": _mdta_meta(b"com.apple.quicktime.location.ISO6709")},
++        {"udta": fx._box(b"XMP_", fx.xmp())},
++        {"top": fx._box(b"uuid", fx.XMP_UUID + fx.xmp())},
++        {"moov": fx._box(b"uuid", bytes(range(16)) + b"a vendor's record")},
++        {"handler": b"meta"},  # a timed-metadata track: where a camera keeps its GPS
++        {"top": fx._box(b"meta", bytes(4) + fx._box(b"Exif", bytes(8)))},
++        {"brand": b"qt  "},
++        {"trailing": b"\x00\x00\x00"},
++    ],
++    ids=[
++        "xyz-in-udta",
++        "xyz-tag",
++        "loci",
++        "location-key",
++        "xmp-box",
++        "xmp-uuid",
++        "other-uuid",
++        "metadata-track",
++        "top-level-meta",
++        "quicktime-brand",
++        "trailing-bytes",
++    ],
++)
++def test_a11_an_mp4_with_a_place_xmp_or_bytes_no_box_holds(
++    repo: fx.Repo, kwargs: dict
++) -> None:
++    run = in_film(repo, f"{MEDIA}/kill-switch.mp4", fx.film_mp4(**kwargs))
++    assert run.code == 1 and run.has("A11", f"{MEDIA}/kill-switch.mp4"), run.out
++
++
++def test_a11_an_xmp_uuid_box_also_meets_a4(repo: fx.Repo) -> None:
++    data = fx.film_mp4(top=fx._box(b"uuid", fx.XMP_UUID + fx.xmp()))
++    run = in_film(repo, f"{MEDIA}/kill-switch.mp4", data)
++    assert run.rules(f"{MEDIA}/kill-switch.mp4") == {"A11", "A4"}, run.out
++
++
++@pytest.mark.parametrize(
++    "kwargs",
++    [
++        {"extensions": fx.gif_xmp(fx.xmp())},
++        {"extensions": fx.gif_application(b"ICCRGBG1012", bytes(64))},
++        {"trailing": b"after the trailer"},
++    ],
++    ids=["xmp", "icc", "trailing-bytes"],
++)
++def test_a11_a_gif_with_xmp_another_application_or_bytes_after_its_trailer(
++    repo: fx.Repo, kwargs: dict
++) -> None:
++    run = in_film(repo, f"{MEDIA}/kill-switch.gif", fx.film_gif(**kwargs))
++    assert run.code == 1 and run.has("A11", f"{MEDIA}/kill-switch.gif"), run.out
++
++
++@pytest.mark.parametrize(
++    "name, data",
++    [
++        (
++            "titled.mp4",
++            fx.film_mp4(tags=fx.mp4_tag(b"\xa9cmt", b"/home/someone/films/out.mp4")),
++        ),
++        (
++            "titled.gif",
++            fx.film_gif(extensions=fx.gif_comment(b"rendered from /tmp/om/frames")),
++        ),
++    ],
++    ids=ident,
++)
++def test_b3_a_local_path_in_a_renders_tags_or_comment(
++    repo: fx.Repo, name: str, data: bytes
++) -> None:
++    run = in_film(repo, f"{MEDIA}/{name}", data)
++    assert run.code == 1 and run.rules(f"{MEDIA}/{name}") == {"B3"}, run.out
++    assert (
++        "/home/" not in run.out and "/tmp/om" not in run.out
++    )  # the offset, never the bytes
++
++
++def test_a11_the_encoders_own_tags_pass(repo: fx.Repo) -> None:
++    tags = fx.mp4_tag(b"\xa9too", b"Lavf60.16.100") + fx.mp4_tag(
++        b"\xa9nam", b"Kill switch"
++    )
++    run = in_film(repo, f"{MEDIA}/kill-switch.mp4", fx.film_mp4(tags=tags))
++    assert run.code == 0, run.out
+diff --git a/specs/003-studio-assets/contracts/arrival-check.md b/specs/003-studio-assets/contracts/arrival-check.md
+index af89fce..e22a496 100644
+--- a/specs/003-studio-assets/contracts/arrival-check.md
++++ b/specs/003-studio-assets/contracts/arrival-check.md
+@@ -18,6 +18,7 @@
+ ## 2. Which files it checks
+ 
+ - **Asset roots:** `assets/**` (but `assets/policy/`), and `docs/research/images/**`.
++- **A film's media folder** ([ADR 0050](../../../docs/adr/0050-films-media-in-git.md)): `films/<name>/media/`, `<name>` matching `[a-z0-9-]+`, in a film's own folder, the one holding its `index.html`. Not an asset root: it takes a film's renders alone, an MP4 or a GIF, under rule A11, with no record, notice, or mark. Anywhere else under `films/`, the next line applies as it does everywhere.
+ - **Anywhere, by format:** every file whose extension or leading bytes mark an image, video, or model format, so a studio file can't hide outside the roots:
+   - images: `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.tif`, `.tiff`, `.dng` (TIFF's `II*\0` or `MM\0*`), `.heic`, `.heif`, `.avif`;
+   - video: `.mp4`, `.mov`, `.m4v` (HEIC, HEIF, AVIF, MP4, and MOV share ISO BMFF's `ftyp` box at byte 4, which identifies them whatever their name);
+@@ -37,6 +38,7 @@ Each refusal names one rule's ID.
+ | **A3** | In an asset root: a file that isn't PNG, JPEG, WebP, GLB, `records.json`, or `LICENSE.md` (a workflow, a node pack, a script, a `.gltf`, a KTX2 file, a HEIC, AVIF, TIFF, DNG, or video file, an editor's backup such as `*_original`) | FR-001, FR-008 |
+ | **A4** | An XMP sidecar file (`.xmp`), text or not, anywhere; and camera metadata in any binary file anywhere: an EXIF header, an XMP packet, or a GPS directory (§2, "by content"), apart from the mark's own packet in a file the M rules admit | FR-002, FR-006 |
+ | **A9** | A branch changes `assets/policy/`. It applies under `--staged` when the current branch isn't `main`, and under `--range`; never to the Author's own policy commits on `main`, and not under `--history`, where they're expected | FR-005 |
++| **A11** | In a film's media folder (§2): a file that isn't an MP4 (by its name, an `ftyp` box at byte 4, and an MP4 brand: `isom`, `iso2`, `iso4` to `iso6`, `mp41`, `mp42`, or `avc1`) of at most 60 MiB (62,914,560 bytes) or a GIF (by its name, and `GIF87a` or `GIF89a`) of at most 10 MiB (10,485,760 bytes); a link, a submodule, or a subfolder; a media folder beside no `index.html`. In an MP4: a location atom (`©xyz`, `loci`), a `keys` box naming a location, an `XMP_` box, a `uuid` box (XMP's or another), a track whose handler isn't `vide`, `soun`, `text`, `sbtl`, or `subt` (a timed-metadata track, where a camera keeps its GPS), a `meta` handler other than `mdir` or `mdta`, a top-level box an MP4 doesn't hold, or bytes no box accounts for. In a GIF: an XMP application extension (`XMP DataXMP`), any other but the loop count's (`NETSCAPE2.0`, `ANIMEXTS1.0`), or bytes after the trailer. The encoder's tags (`©too`, `handler_name`, `vendor_id`) pass; the B rules read every `udta`, `meta`, and `hdlr` box and a GIF's comments, and A4 the whole file | ADR 0050; FR-002, FR-007 |
+ | **M1** | PNG: a chunk outside research R-03's list, or more than one `iTXt` mark | FR-006 |
+ | **M2** | JPEG: a segment outside the list; an EXIF `APP1`; an `APP0` that isn't JFIF; an `APP2` that isn't an ICC profile | FR-002, FR-006 |
+ | **M3** | WebP: a chunk outside the list, or a `VP8X` flag other than XMP | FR-006 |
+@@ -114,6 +116,7 @@ It never prints the bytes a B rule matched, only the offset; never a key or toke
+ - a three-commit branch where the second commit adds a failing file and the third fixes it (`--range` fails); a merge commit whose resolution adds a failing file (`--range` fails); a branch that deletes a directory's `LICENSE.md` (`--range` fails on the tip's tree);
+ - the policy read from the fixture repository's `refs/heads/main`, with the branch's own copy, the working tree's checked-out copy, a tag named `main`, and a `refs/replace` entry all ignored;
+ - a commit on `main` that changes `assets/policy/` passing under `--staged` (A9 doesn't apply), and the same change on a branch refused;
+-- a commit with no studio file passing while `main` has no policy.
++- a commit with no studio file passing while `main` has no policy;
++- a film's MP4 and GIF in its media folder passing by path, staged, in a range, and in the history; a film's WAV narration and WOFF fonts passing (neither is §2's format); a PNG, a JPEG, a MOV, a text file, a `records.json`, and a file whose bytes aren't its name's in the media folder refused (A11), and an MP4 or a GIF anywhere else under `films/` refused as before (A1, or A3 under `assets/`); a render over its cap refused, and one at its cap passing; an MP4 with a location atom, a location key, XMP, a `uuid` box, a timed-metadata track, a QuickTime brand, or trailing bytes, and a GIF with XMP, an ICC application extension, or bytes after its trailer, refused (A11); a local path in an MP4's tag or a GIF's comment refused (B3), by its offset alone.
+ 
+ SC-001: every rule refuses its fixture, and every passing fixture passes.
+diff --git a/docs/adr/README.md b/docs/adr/README.md
+index dda727b..ea4c814 100644
+--- a/docs/adr/README.md
++++ b/docs/adr/README.md
+@@ -49,3 +49,4 @@ One file per decision, numbered, immutable once accepted (supersede with a new A
+ | [0045](0045-the-room-loads-behind-a-loader.md) | The room loads behind a loader: a game-style bar from "Enter" to the hand-off counting the first visit's files as each ends, the room's models shown while it shows and never from its giving way to the hand-off's end, a 7-second ceiling that keeps spec 002's SC-005, and hints as data with their figures from configuration (0044 is `docs/001-ec2-default`'s) | proposed | 012 |
+ | [0046](0046-the-room-framed-under-the-hud.md) | The room framed under the HUD: a frame area eased from the window toward the clear area only as far as keeps every pressable piece and both figures clear, the stages as frame areas, compact clusters within a quarter of the window, one game look from the room's own materials, and walking from the room's view (amends 0043's decisions 2 to 4) | proposed | 014 |
+ | [0047](0047-one-account-shared-with-other-work.md) | One account, shared with the Author's other work: the credential audit's allowlist and a server budget on the project's tag (amends 0007's decision 4) | proposed (accepted when the Author merges `fix/001-shared-account-p`) | 001 |
++| [0050](0050-films-media-in-git.md) | The films' renders in plain git, in each film's `media/` folder: MP4 up to 60 MiB and GIF up to 10 MiB only, with no place, no XMP, and no byte a container doesn't account for, under the arrival check's rule A11 (extends 0031's fixed roots; 0048 and 0049 are `feat/001-w1`'s) | proposed | intent 015 |
+diff --git a/docs/adr/0050-films-media-in-git.md b/docs/adr/0050-films-media-in-git.md
+new file mode 100644
+index 0000000..8d74120
+--- /dev/null
++++ b/docs/adr/0050-films-media-in-git.md
+@@ -0,0 +1,53 @@
++# ADR 0050: The films' renders in plain git, in each film's `media/` folder: MP4 and GIF only, capped, with no place and no XMP (rule A11)
++
++Status: proposed, 2026-11-11, for the Author to accept · Intent: 015 (the spec stage waived for the films, as the intent's open questions record) · Extends [ADR 0031](0031-assets-in-plain-git.md)'s fixed roots by one folder outside the asset tree; changes no decision of [ADR 0030](0030-media-license-and-ai-mark.md) or [ADR 0032](0032-pre-publication-cleanup-for-assets.md) · Number: the next free one across the branches (0047 is spec 001's shared account, on `main`; 0048 and 0049 are `feat/001-w1`'s)
++
++## Context
++
++Intent 015 makes seven explainer films for the resume's claims, "made with the huashu-motion skill as editable code (HTML and GSAP) and rendered to MP4". Its data-flow impact records where they live, in the Author's words of 2026-11-10: "we'll keep it in films"; "we are going to merge these videos into the main repo, and then push everything up". The intent places them: "The rendered MP4s and one GIF go in `films/<name>/media/` once the arrival check admits them (ADR 0050)." The Author's decision of 2026-11-10 put the renders there, not under `assets/films/`.
++
++Today the arrival check refuses them. Rule A1 refuses "an image, video, or model file outside the asset roots", found by extension or by leading bytes, so a studio file can't hide outside `assets/` and `docs/research/images/`. Under `assets/`, rule A3 admits only PNG, JPEG, WebP, GLB, `records.json`, and `LICENSE.md`. What `films/` holds now passes: each film's `index.html`, `vendor/`, WOFF fonts, and WAV narration were committed with "arrival-check: 0 findings". A WAV (RIFF `WAVE`) and a WOFF are neither an extension nor a signature A1 lists, so they meet only A4's camera-metadata search, which they pass.
++
++Why a GIF beside the MP4: the README's Films section shows one film inline as a GIF (intent 015: "a Films section in the repository's README with one film shown inline as a GIF"), the kill-switch film's, because GitHub's Markdown renders a GIF as an image, and a repository MP4 linked from a README doesn't play there. `films/RESUME-LINKS-PLAN.md` adds that "a GitHub file view may offer the MP4 as a download rather than play it, depending on its size and the browser", which is why the resume links to each film's landing page.
++
++What the films are: code, rendered by headless Chrome and FFmpeg on the Author's machine; every string and number on screen sourced in the film's `materials.md`; "a synthetic voice (Kokoro) reads the session's scripts, which the Author approved, and the Author may record over a locked cut" (intent 015). ADR 0030 doesn't reach them as written. Its media license "covers `assets/` and `docs/research/images/`", and its mark goes in "every published image and model file", where spec 003 defines a published image as "a studio-made image in a document" and an asset as "any file the studio makes that comes into this repository". The films aren't the studio's: no studio pipeline makes them. The voice is a model's, so the AI disclosure matters, and it is already made to people: the README says "The narration is a synthetic voice (Kokoro)", and each landing page "the narration is a synthetic voice". The mark's machine form, an XMP packet, is what this rule keeps out of a render.
++
++The renders as of 2026-11-11, read with `ffprobe` and a box walk: every one of the 27 MP4s under `films/*/out/` carries the same tags and nothing more: `major_brand=isom`, `compatible_brands=isomiso2avc1mp41`, `encoder=Lavf60.16.100` (the `©too` atom), and per track `handler_name` (VideoHandler, SoundHandler), `vendor_id=[0][0][0][0]`, `language=und`, and `encoder=Lavc60.31.102 libx264`. No title, comment, date, or location; no `uuid`, `XMP_`, `©xyz`, or `loci` box. x264's own options string sits in the first frame's SEI, inside `mdat` (`x264 - core 164 ... options: cabac=1 ... threads=34 ...`), with no path; the B rules don't scan media data. The kill-switch GIF holds GIF89a, one `NETSCAPE2.0` loop count, 174 graphic controls and images, no comment, no other application extension, and nothing after its trailer.
++
++## Decision
++
++1. **The root.** `films/<name>/media/`, where `<name>` matches `[a-z0-9-]+` and `films/<name>/` holds the film's `index.html`. It isn't an asset root: no `records.json`, no `LICENSE.md`, no mark, no approval, none of the R, N, L, P, or F rules. A file there must be a plain file: never a link, a submodule, or a subfolder.
++2. **The formats.** An MP4, by its name (`.mp4`), an `ftyp` box at byte 4, and an MP4 brand (`isom`, `iso2`, `iso4` to `iso6`, `mp41`, `mp42`, `avc1`); and a GIF, by its name (`.gif`) and `GIF87a` or `GIF89a`. Nothing else: no PNG, no poster frame, no text file, no MOV under another name.
++3. **The caps,** per file: an MP4 at most 60 MiB (62,914,560 bytes), a GIF at most 10 MiB (10,485,760 bytes). The MP4 cap stays under GitHub's 100 MB per-file limit. GitHub warns on a push over 50 MB, which the stack film (56.0 MB) will meet.
++4. **The metadata,** parsed, never searched. An MP4's boxes are walked down the containers that hold its tracks and their metadata (`moov`, `trak`, `mdia`, `minf`, `stbl`, `edts`, `dinf`, `udta`, `meta`, `ilst`, and the fragment boxes). Refused: a location atom (`©xyz`, `loci`), a `keys` box naming a location, an `XMP_` box, a `uuid` box (XMP's `BE7ACFCB-97A9-42E8-9C71-999491E3AFAC`, or any other, whose contents nothing here can read), a track whose handler isn't `vide`, `soun`, `text`, `sbtl`, or `subt` (a timed-metadata track, where a camera keeps its GPS), a metadata handler other than `mdir` or `mdta`, a top-level box an MP4 doesn't hold, and any byte no box accounts for. A GIF's blocks are walked to its trailer. Refused: an XMP application extension (`XMP DataXMP`), any application extension but the loop count's (`NETSCAPE2.0`, `ANIMEXTS1.0`), an unknown block, and any byte after the trailer. Admitted: the encoder's tags FFmpeg writes (`©too`, `handler_name`, `vendor_id`). The B rules (a prompt or workflow record, a model file's name, a local path) read every `udta`, `meta`, and `hdlr` box and a GIF's comments; rule A4 searches the whole file, as it does every binary file. Media data isn't read, as the B rules' scope already has it.
++5. **One rule ID, A11,** in the existing format, `A11 <path>[ @<commit>]: <reason>`. Every mode applies it alike: `--staged`, `--range`, `--history`, and named paths, through the same per-file check. Anywhere else under `films/`, an image or a video meets A1 as it does today.
++6. **What to commit:** final cuts only. A film's media folder holds its MP4 and, for the films the README shows, one GIF. The comparison cuts (`films/kill-switch`, `-b`, `-mix`) stay code.
++
++The rule, in the arrival check's docstring:
++
++> - A film's renders (rule A11, ADR 0050): in films/<name>/media/, where films/<name>/ holds the film's index.html, only an MP4 (its name, an ftyp box at byte 4, an MP4 brand) of up to 60 MiB and a GIF (its name, GIF87a or GIF89a) of up to 10 MiB, each a file, never a link or a subfolder; no place and no XMP in either (an MP4's ©xyz or loci atom, a location key, an XMP_ or uuid box, or a timed-metadata track; a GIF's XMP, or any application extension but the loop count's), and no byte its boxes or blocks don't account for. The encoder's own tags (©too, the handler names) pass, and meet the B rules with every udta and meta box and a GIF's comments; the whole file meets A4. No record, no notice, no mark: the films are code, and their renders this code's output. Anywhere else under films/, an image or a video meets A1 as it would anywhere.
++
++The patch, human-only since it changes `tools/gates/`: `docs/merge-requests/2026-11-11-films-media-gate.patch` (the check, its fixtures and tests, and spec 003's `contracts/arrival-check.md`, §2, §3's A11 row, and §5).
++
++## Alternatives considered
++
++- **`assets/films/`:** an asset directory takes only PNG, JPEG, WebP, GLB, `records.json`, and `LICENSE.md` (A3), each format one the check parses completely (research R-02), each file with a record, the media license's notice, and the mark (R, N, M5). A video would need an M rule of its own and a record for a file no studio made, and its blobs would count toward the asset roots' 500 MB history cap (H1). The Author chose `films/`.
++- **GitHub user attachments** (a video dragged into an issue or a README edit, served from `github.com/user-attachments/`): they play inline in a README. But they need the repository published, which ADR 0013 keeps local until the Author publishes; they live outside git, so no clone, no local tier, and no gate has them; and the arrival check can't see them.
++- **Git LFS:** the clone stays small and a re-cut doesn't grow every clone's history. Against it, ADR 0031's reasons still hold (GitHub meters LFS storage and bandwidth past a free allowance; a clone without LFS holds pointers, not films), and more: the index and the history hold only pointer files, so the pre-commit hook, the gate's range, and `make publish-check`'s history scan would check pointers, not the renders, unless the check learned to read LFS's object store; and ADR 0032's cleanup would have LFS's object store to clean as well as the history. Worth revisiting if the films' blobs in the history pass the asset roots' own 500 MB cap.
++- **No GIF, the MP4 alone:** a README would show the film as a link, not a picture.
++- **A wider rule** (any `media/` folder, or MOV and WebM too): more than seven films and one GIF need.
++
++## Consequences
++
++- **Repository size.** The seven films' current cuts total 228,300,082 bytes (21.6 to 56.0 MB each: five between 21.6 and 27.9 MB, `lifecycle` 47.5 MB, `stack` 56.0 MB), and the kill-switch GIF 7,038,051 bytes: about 235 MB in every clone. Compressed video doesn't shrink in a pack. The history keeps every version committed, so a re-cut adds its full size for good: commit final cuts only, best once the cuts are locked and the Author has settled intent 015's open question ("Whether the Author records the narration or keeps the synthetic voice"), so the history holds one version of each.
++- **No history cap for the films.** H1 counts the asset roots only; A11 caps each file, not the folder's history. The Author holds the history by what he commits; the merge-request note of the media commit records the total.
++- **The caps' headroom.** All 29 current renders pass A11 but two superseded kill-switch cuts (v2, 67.6 MB; v4, 64.7 MB), neither a final cut. The largest final cut, `stack`, is 56.0 MB, with 6.9 MB of headroom; a longer film at the same bitrate may need a lower CRF or a cap the Author raises in a patch of his own.
++- **ADR 0032 still covers what the check can't see.** A11 reads containers, never frames. A frame that shows a secret, a private path, or anything that locates the Author is the intent's constraint ("No secret, token, key, private photo or private path on screen"), checked by the Author's viewing before the media commit. Found before publication, it's ADR 0013's cleanup, as ADR 0032 extends it: the Author rewrites the history; after publication, a withdrawal and an incident note.
++- **A studio video can't hide here unchecked.** A1's purpose stands for everything else: an MP4 under `films/` outside a film's own `media/` folder is still refused, and inside one it must be a film folder's, with no place and no XMP. A studio render placed there on purpose would pass the machine; the reviewer and the Author's merge are what stop it.
++- **The license and the AI disclosure** (ADR 0030 doesn't reach `films/`, as the Context reads it). As the repository stands, `films/` falls under the MIT license with the code, renders included. For the Author to decide, and recommended here: the README's license line names `films/*/media/` under the media license, `all-rights-reserved-2026`, as one more line, with no `LICENSE.md` per folder (A11 admits only MP4 and GIF). The synthetic voice stays disclosed to people where it is now, in the README and each landing page; no machine mark goes in a render, since A11 refuses the XMP the mark would need.
++- **No data flow.** The renders live in the repository; the site doesn't serve or link them (intent 015). If the site ever serves one from its own origin, or a third-party player, that is new work with its own disclosure row first, as `films/README.md` says.
++- **Cost: $0.** No cloud spend; the check's time grows by a box walk and one search per render (the 29 renders under `films/*/out/`, 1,102,437,467 bytes, took 3.8 s by path in an agent session's sandbox).
++
++## Links
++
++Intent: `intent/015-explainer-films.md`. Plan: `films/RESUME-LINKS-PLAN.md`. Contract: `specs/003-studio-assets/contracts/arrival-check.md` (§2, §3's A11 row, §5, by the patch). Patch: `docs/merge-requests/2026-11-11-films-media-gate.patch`. ADRs 0013, 0030, 0031, 0032.

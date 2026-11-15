@@ -30,6 +30,10 @@ What it holds:
 Its checks, on a patched export: infra/test, infra/lambdas, deploy/hosts, and evals/test_runbooks.py pass; the policy
 passes both roots' files but for T10 on infra/prod, whose lockfile is the Author's step from his mirror, as each root's
 was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change; GREEN 55 passed.
+Rebuilt for B-6's option C (the Author's answer, "We aren't building option A, we went with Option C"): the tunnel
+end's primary interface, device 0, is the private one, so the instance sits in the private subnet and CloudFront's
+VPC origin reaches 10.42.1.10, where the relay listens; tunnel-end.tf attaches the public one as device 1. One line
+of ec2-market.tf changes; rebuilt from a git archive export of ef173c58, the same way, with a/ and b/ labels.
 --- a/infra/account/alerts.tf
 +++ b/infra/account/alerts.tf
 @@ -101,3 +101,50 @@
@@ -381,7 +385,7 @@ was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change
 +  }
 +
 +  primary_network_interface {
-+    network_interface_id = aws_network_interface.tunnel_end_public.id
++    network_interface_id = aws_network_interface.tunnel_end_private.id
 +  }
 +
 +  tags = {

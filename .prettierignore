@@ -37,6 +37,8 @@ apps/web/content/room/outlines/
 # against its SHA256SUMS, from which the outline is converted; reformatting them would change what was checked.
 apps/web/content/lettering/
 docs/
+# The films (intent 015): compositions, their notes, and vendored runtimes, kept as rendered and reviewed.
+films/
 intent/
 specs/
 CLAUDE.md

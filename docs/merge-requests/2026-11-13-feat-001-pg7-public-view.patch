@@ -19,9 +19,12 @@ Its checks, on a fresh export with P-I3, P-G1, P-G3, P-I7, P-G4, P-G2, P-I4, P-G
 patch, in that order: the policy's own tests pass, and `compose policy: PASS` on the real tree with its five env
 files. Before it, on the same export, its new test of the three services fails ("5 failed, 191 passed": that one,
 and the four real-file tests the new services trip).
+Rebuilt formatted: the first build (sha256 17c8c984…) left both files as ruff format would not, so make lint failed
+after it; this one is the same change with the pinned ruff format run on its two files (the two results parse to the
+same AST: wrapping, parentheses, and a trailing comma only).
 --- a/tools/gates/compose_policy.py
 +++ b/tools/gates/compose_policy.py
-@@ -103,14 +103,20 @@
+@@ -103,14 +103,27 @@
  # tunnel, which dials the tunnel end, and the tunnel end's collector, which exports to EC2's inside the VPC (its host's
  # nftables keep both there). The edge network's other one: the tunnel end's sshd, since a port can't be published from
  # internal alone.
@@ -40,11 +43,18 @@ and the four real-file tests the new services trip).
 +# interface (its contracts/public-view.md §2).
  EDGE_NETWORK_SERVICES = frozenset(
 -    {PUBLISHER, "tunnel-end", "shared-state", "ec2-relay-block", "relay"}
-+    {PUBLISHER, "tunnel-end", "shared-state", "ec2-relay-block", "relay", "snapshot-sink"}
++    {
++        PUBLISHER,
++        "tunnel-end",
++        "shared-state",
++        "ec2-relay-block",
++        "relay",
++        "snapshot-sink",
++    }
  )
  # The cloud hosts' classes: the profiles whose services run on a cloud host alone, which no laptop stack selects.
  CLOUD_PROFILES = frozenset({"tunnel-end", "ec2"})
-@@ -130,6 +136,9 @@
+@@ -130,6 +143,9 @@
      # Group 8: the relay's edge listener on the private interface's fixed address, which the security group holds to
      # CloudFront's origin-facing list, and its internal listener on the tunnel end's own loopback alone.
      "relay": frozenset({("10.42.1.10", "8080", 8080), ("127.0.0.1", "18505", 8081)}),
@@ -54,7 +64,7 @@ and the four real-file tests the new services trip).
  }
  # The binds each of spec 001's services takes outside BIND_ROOTS, each read-only but where it says writable: the
  # laptop's client key and pinned host key, which the Author's tunnel-keys target leaves under
-@@ -149,8 +158,14 @@
+@@ -149,8 +165,14 @@
  # release's env file; an upstream image's copy runs by the lock's own digest and tag, which the copy keeps: the lock's
  # line of the service it copies, by the repository's name.
  REGISTRY = "${H4_REGISTRY:-registry.invalid}/h4reet/"
@@ -83,7 +93,7 @@ and the four real-file tests the new services trip).
          "egress" in out
      )
      assert "FAIL deploy/stray.env: env file" in out
-@@ -1775,3 +1776,100 @@
+@@ -1775,3 +1776,104 @@
      assert ("dev-relay", "ports") in {
          (f.where.rsplit(" ", 1)[-1], f.rule) for f in found
      }
@@ -92,7 +102,9 @@ and the four real-file tests the new services trip).
 +# Spec 001 group 10 (its contracts/public-view.md §1 and §2): the tunnel end's sink, on the edge network, publishing
 +# exactly 10.42.1.10:2301 in the tunnel end's class alone; EC2's publisher, on egress, in EC2's class alone; both by the
 +# release's own image, h4reet/snapshot by its digest; and the laptop's publisher, built from the tree, on internal.
-+SNAPSHOT_IMAGE = "${H4_REGISTRY:-registry.invalid}/h4reet/snapshot@${H4_DIGEST_SNAPSHOT:-}"
++SNAPSHOT_IMAGE = (
++    "${H4_REGISTRY:-registry.invalid}/h4reet/snapshot@${H4_DIGEST_SNAPSHOT:-}"
++)
 +
 +
 +def snapshot_model() -> dict:
@@ -154,7 +166,9 @@ and the four real-file tests the new services trip).
 +    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
 +    for name in ("snapshot-sink", "ec2-snapshot-publisher"):
 +        model = snapshot_model()
-+        model["services"][name]["image"] = "ghcr.io/someone/snapshot:1@sha256:" + "0" * 64
++        model["services"][name]["image"] = (
++            "ghcr.io/someone/snapshot:1@sha256:" + "0" * 64
++        )
 +        assert (name, "image") in snapshot_rules(model, tmp_path), name
 +
 +

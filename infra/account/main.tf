@@ -23,7 +23,7 @@ locals {
   # adds infra/account/rehearsal-on.txt, naming its note, whose `<!-- h4-rehearsal: on -->` line says it is the
   # rehearsal; the change that ends it sets false and removes the marker (infra/test/test_account.py). The permission
   # set's name is iam.tf's own local.
-  rehearsal = true
+  rehearsal = false
 
   # The one inference profile config/routing.yaml's bedrock adapter names, and the models it routes to (spec 000
   # T105; research.md R-15). infra/test/test_account.py holds the first to routing.yaml's.
@@ -37,7 +37,7 @@ locals {
     # and T175 writes its new digest here; until then it is stale, though it has a digest's form (W2's review, N1).
     alert_bridge     = "sha256:d245392171b5432b2f159f202e2ed753b793c120388802d1bb2a79dc146ad1b2" # PLACEHOLDER: stale until T174
     probe            = "sha256:85e0a4e0a428482e9f10829f8fde23313762cce3fc06410b3fd87ca460e7f205"
-    credential_audit = "sha256:9a660808453e99673c769f4fb9e51ffd2b1396bfa15fd7707a3db6881be8793d"
+    credential_audit = "sha256:dd899845f873e200d23db827797e8e556588f5c4c74aee2c4e4e1f0d71264494"
     # Group 9's (tasks.md T122). PLACEHOLDER until T174: "" is the one form handover.tf's preconditions refuse, so
     # with P-W2's switch on no plan runs until the Author pushes each image to the repository W1's apply made, reports
     # its digest, and the session writes it here (T175). A named placeholder string would pass `!= ""` and reach the

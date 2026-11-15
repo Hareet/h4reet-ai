@@ -16,7 +16,9 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && rm -f /etc/ssh/ssh_host_* \
  && useradd --uid 10001 --user-group --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin tunnel \
- && usermod -p '*' tunnel
+ && usermod -p '*' tunnel \
+ && install -d -m 0755 /etc/ssh/h4
+# /etc/ssh/h4 made first, 0755: a COPY --chmod into a missing directory makes it 0644 (T166's dry run).
 COPY --chmod=0644 sshd_config ssh_config ssh_config_admin /etc/ssh/h4/
 COPY --chmod=0755 entrypoint.sh /usr/local/bin/h4-tunnel
 # ssh runs its LocalCommand with $SHELL, and the user's own shell is nologin.

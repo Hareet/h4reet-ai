@@ -113,6 +113,20 @@ export function renderStatus(root: HTMLElement, document: unknown, answer: Statu
     return;
   }
 
+  // T170 (the Author's answers "1b A" and "Only /status/ (Recommended)"): EC2's hours in their zone, as the sink read
+  // them from the two schedules; unknown when the document has none, never a guess.
+  const hours = obj(doc.ec2_hours);
+  const open = str(hours?.open);
+  const close = str(hours?.close);
+  const zone = str(hours?.zone);
+  const hoursPart = section("ec2_hours", "EC2's hours");
+  line(
+    hoursPart,
+    open !== null && close !== null && zone !== null
+      ? `EC2 can serve from ${open} to ${close}, ${zone} time, when the laptop doesn't; outside them, the laptop serves or no host does.`
+      : "EC2's hours are unknown right now.",
+  );
+
   const panels = obj(doc.host_panels);
   const hp = section("host_panels", "Requests, latency, errors, and the model server");
   if (panels === null) line(hp, "No host's values yet.");

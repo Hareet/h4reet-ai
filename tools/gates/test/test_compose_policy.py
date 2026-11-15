@@ -954,6 +954,8 @@ REAL_FILES = (
     cp.DEVCONTAINER_FILE,
     ".devcontainer/Dockerfile",
     PROBE_DOCKERFILE,
+    # Spec 001's tunnel, both ends' one image (deploy/compose.yaml's tunnel service builds it).
+    "deploy/tunnel/Dockerfile",
     *(env for _, env in cp.ENV_FILES),
 )
 needs_compose = pytest.mark.skipif(
@@ -1072,8 +1074,9 @@ def test_end_to_end_refusals(tree: Path, capsys: pytest.CaptureFixture[str]) -> 
     assert cp.run(tree) == 1
     out = capsys.readouterr().out
     assert (
-        "FAIL deploy/compose.yaml service gateway-state: networks: only gateway joins egress"
-        in out
+        "FAIL deploy/compose.yaml service gateway-state: networks: only ec2-snapshot-publisher, gateway, tunnel, "
+        "tunnel-end-collector join "
+        "egress" in out
     )
     assert "FAIL deploy/stray.env: env file" in out
     assert "compose policy: 2 refusal(s)" in out
@@ -1343,3 +1346,534 @@ def test_the_real_web_service_is_the_shared_build_and_x005_needs_no_exception() 
     assert cp.check_service("web", web, model, lock, REPO) == []
     assert "127.0.0.1:${H4_SITE_PORT}:8087" in model["services"]["edge"]["ports"]
     assert cp.check_service("edge", model["services"]["edge"], model, lock, REPO) == []
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Spec 001's host classes (its tasks.md T044, T049; contracts/env-cloud.md §3; contracts/tunnel.md §1 and §3): the
+# laptop's tunnel dials out through egress with its keys read-only; the tunnel end's services run from the account's
+# registry, the sshd publishing exactly its two ports on the public interface's fixed address, and nothing builds.
+
+COLLECTOR = cp.LockEntry(
+    "otel-collector",
+    "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib",
+    "0.162.0",
+    "sha256:" + "c" * 64,
+    "ghcr.io",
+    "2026-11-13",
+)
+# The tunnel end's collector runs the lock's otel-collector line, copied to the account's registry.
+CLOUD_LOCK = {**LOCK, "otel-collector": COLLECTOR}
+TUNNEL_END_IMAGE = (
+    "${H4_REGISTRY:-registry.invalid}/h4reet/tunnel@${H4_DIGEST_TUNNEL:-}"
+)
+COLLECTOR_IMAGE = (
+    "${H4_REGISTRY:-registry.invalid}/h4reet/otel-collector:0.162.0@sha256:" + "c" * 64
+)
+
+
+def tunnel_model() -> dict:
+    model = good_model()
+    model["services"]["tunnel"] = service(
+        profiles=["tunnel"],
+        build={"context": "tunnel"},
+        networks={"internal": None, "egress": None},
+        volumes=[
+            {
+                "type": "bind",
+                "source": "${H4_TUNNEL_DIR}",
+                "target": "/run/tunnel-client",
+                "read_only": True,
+            }
+        ],
+    )
+    model["services"]["tunnel-end"] = service(
+        profiles=["tunnel-end"],
+        image=TUNNEL_END_IMAGE,
+        networks={"internal": None, "edge": None},
+        ports=[
+            {
+                "host_ip": "10.42.0.10",
+                "mode": "ingress",
+                "protocol": "tcp",
+                "published": "2222",
+                "target": 2222,
+            },
+            {
+                "host_ip": "10.42.0.10",
+                "mode": "ingress",
+                "protocol": "tcp",
+                "published": "8087",
+                "target": 2203,
+            },
+        ],
+        volumes=[
+            {
+                "type": "bind",
+                "source": "/run/h4reet/tunnel-end/keys",
+                "target": "/run/keys",
+                "read_only": True,
+            }
+        ],
+    )
+    model["services"]["tunnel-end-collector"] = service(
+        profiles=["tunnel-end"],
+        image=COLLECTOR_IMAGE,
+        networks={"internal": None, "egress": None},
+    )
+    return model
+
+
+TUNNEL_DISCLOSED = DISCLOSED | {"tunnel", "tunnel-end", "tunnel-end-collector"}
+
+
+def tunnel_rules(model: dict, tree: Path) -> set[tuple[str, str]]:
+    found = cp.check_model(model, CLOUD_LOCK, tree, TUNNEL_DISCLOSED)
+    return {(f.where.rsplit(" ", 1)[-1], f.rule) for f in found}
+
+
+def ec2_model() -> dict:
+    """Group 7's EC2 class on top of the tunnel's: edge's image as EC2's override, and its two doors."""
+    model = tunnel_model()
+    model["services"]["edge"]["image"] = "${H4_IMAGE_EDGE:-" + EDGE_IMAGE + "}"
+    model["services"]["ec2-relay-block"] = service(
+        profiles=["ec2"],
+        image="${H4_REGISTRY:-registry.invalid}/h4reet/edge:"
+        + EDGE_IMAGE.split(":", 1)[1],
+        networks={"internal": None, "edge": None},
+        ports=["10.42.0.20:8085:8085", "10.42.0.20:4318:4318"],
+    )
+    return model
+
+
+EC2_DISCLOSED = TUNNEL_DISCLOSED | {"ec2-relay-block"}
+
+
+def ec2_rules(model: dict, tree: Path) -> set[tuple[str, str]]:
+    found = cp.check_model(model, CLOUD_LOCK, tree, EC2_DISCLOSED)
+    return {(f.where.rsplit(" ", 1)[-1], f.rule) for f in found}
+
+
+def test_ec2s_class_passes(tmp_path: Path) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    assert ec2_rules(ec2_model(), tmp_path) == set()
+
+
+def test_ec2s_doors_publish_exactly_their_two_ports_in_ec2s_class_alone(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    for ports in (
+        ["10.42.0.20:8085:8085"],
+        ["0.0.0.0:8085:8085", "0.0.0.0:4318:4318"],
+        ["10.42.0.20:8085:8085", "10.42.0.20:4318:4318", "10.42.0.20:8083:8083"],
+    ):
+        model = ec2_model()
+        model["services"]["ec2-relay-block"]["ports"] = ports
+        assert ("ec2-relay-block", "ports") in ec2_rules(model, tmp_path), ports
+    model = ec2_model()
+    model["services"]["ec2-relay-block"]["profiles"] = ["ec2", "gpu"]
+    assert ("ec2-relay-block", "ports") in ec2_rules(model, tmp_path)
+    model = ec2_model()
+    model["services"]["ec2-relay-block"]["image"] = EDGE_IMAGE
+    assert ("ec2-relay-block", "image") in ec2_rules(model, tmp_path)
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        "${H4_IMAGE_EDGE:-ghcr.io/nginx/nginx-unprivileged:9.9@sha256:"
+        + "0" * 64
+        + "}",
+        "${H4_IMAGE_LOKI:-" + EDGE_IMAGE + "}",
+        "${H4_IMAGE_EDGE}",
+    ],
+)
+def test_an_override_holds_its_own_services_lock_pin_alone(
+    tmp_path: Path, image: str
+) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    model = ec2_model()
+    model["services"]["edge"]["image"] = image
+    assert ("edge", "image") in ec2_rules(model, tmp_path)
+
+
+def test_no_env_file_names_an_image() -> None:
+    found = cp.check_env_values("x.env", {"H4_IMAGE_EDGE": "elsewhere/edge"})
+    assert [f.rule for f in found] == ["image key"]
+
+
+def test_the_tunnels_ends_pass(tmp_path: Path) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    assert tunnel_rules(tunnel_model(), tmp_path) == set()
+
+
+def test_the_tunnel_end_publishes_exactly_its_two_ports(tmp_path: Path) -> None:
+    for ports in (
+        ["10.42.0.10:2222:2222"],
+        ["10.42.0.10:2222:2222", "10.42.0.10:8087:2203", "10.42.0.10:22:22"],
+        ["0.0.0.0:2222:2222", "0.0.0.0:8087:2203"],
+        ["127.0.0.1:2222:2222", "10.42.0.10:8087:2203"],
+    ):
+        model = tunnel_model()
+        model["services"]["tunnel-end"]["ports"] = ports
+        assert ("tunnel-end", "ports") in tunnel_rules(model, tmp_path), ports
+
+
+def test_only_the_tunnel_end_publishes_beside_edge_and_only_in_its_class(
+    tmp_path: Path,
+) -> None:
+    model = tunnel_model()
+    model["services"]["tunnel-end"]["profiles"] = ["tunnel-end", "gpu"]
+    assert ("tunnel-end", "ports") in tunnel_rules(model, tmp_path)
+    model = tunnel_model()
+    model["services"]["tunnel"]["ports"] = ["10.42.0.10:2222:2222"]
+    assert ("tunnel", "ports") in tunnel_rules(model, tmp_path)
+
+
+def test_egress_and_the_edge_network_take_their_named_services_alone(
+    tmp_path: Path,
+) -> None:
+    model = tunnel_model()
+    model["services"]["tunnel-end"]["networks"] = {"internal": None, "egress": None}
+    model["services"]["tunnel"]["networks"] = {"internal": None, "edge": None}
+    assert {("tunnel-end", "networks"), ("tunnel", "networks")} <= tunnel_rules(
+        model, tmp_path
+    )
+    model = good_model()
+    model["services"]["gateway-state"]["networks"] = {"internal": None, "egress": None}
+    assert ("gateway-state", "networks") in rules(model, tmp_path)
+
+
+def test_each_end_binds_its_own_keys_read_only_and_nothing_else(tmp_path: Path) -> None:
+    model = tunnel_model()
+    model["services"]["tunnel"]["volumes"][0]["read_only"] = False
+    assert ("tunnel", "binds") in tunnel_rules(model, tmp_path)
+    model = tunnel_model()
+    model["services"]["tunnel"]["volumes"][0]["source"] = "/run/h4reet/tunnel-end/keys"
+    assert ("tunnel", "binds") in tunnel_rules(model, tmp_path)
+    model = tunnel_model()
+    model["services"]["gateway"]["volumes"] = [
+        {
+            "type": "bind",
+            "source": "${H4_TUNNEL_DIR}",
+            "target": "/k",
+            "read_only": True,
+        }
+    ]
+    assert ("gateway", "binds") in tunnel_rules(model, tmp_path)
+
+
+def test_a_cloud_service_runs_the_registrys_image_and_never_builds(
+    tmp_path: Path,
+) -> None:
+    model = tunnel_model()
+    model["services"]["tunnel-end"]["image"] = "ghcr.io/someone/tunnel:latest"
+    assert ("tunnel-end", "image") in tunnel_rules(model, tmp_path)
+    model = tunnel_model()
+    model["services"]["tunnel-end-collector"]["image"] = COLLECTOR_IMAGE.replace(
+        "c" * 64, "d" * 64
+    )
+    assert ("tunnel-end-collector", "image") in tunnel_rules(model, tmp_path)
+    model = tunnel_model()
+    del model["services"]["tunnel-end"]["image"]
+    model["services"]["tunnel-end"]["build"] = {"context": "tunnel"}
+    assert ("tunnel-end", "build") in tunnel_rules(model, tmp_path)
+    model = tunnel_model()
+    model["services"]["stranger"] = service(profiles=["tunnel-end"], image=EDGE_IMAGE)
+    assert ("stranger", "image") in tunnel_rules(model, tmp_path)
+
+
+def test_a_cloud_image_on_a_laptop_profile_is_refused(tmp_path: Path) -> None:
+    model = tunnel_model()
+    model["services"]["tunnel-end"]["profiles"] = []
+    assert ("tunnel-end", "image") in tunnel_rules(model, tmp_path)
+
+
+def test_the_tunnel_ends_env_file_is_rendered_too() -> None:
+    assert ("prod", "deploy/hosts/tunnel-end/tunnel-end.env.example") in cp.ENV_FILES
+
+
+# Group 6 (spec 001 tasks.md T163; contracts/shared-state.md §1): the tunnel end's shared state, gateway-state's Postgres
+# copied to its own repository, publishing exactly 5432 on the private interface's fixed address, binding its key and
+# certificate read-only and its data writable, and nothing else.
+# The copy keeps the lock's own gateway-state line, the tag and digest the laptop's store runs.
+GATEWAY_STATE = LOCK["gateway-state"]
+SHARED_LOCK = CLOUD_LOCK
+SHARED_IMAGE = (
+    "${H4_REGISTRY:-registry.invalid}/h4reet/shared-state:"
+    + f"{GATEWAY_STATE.tag}@{GATEWAY_STATE.digest}"
+)
+
+
+def shared_model() -> dict:
+    model = tunnel_model()
+    model["services"]["shared-state"] = service(
+        profiles=["tunnel-end"],
+        image=SHARED_IMAGE,
+        networks={"internal": None, "edge": None},
+        ports=[
+            {
+                "host_ip": "10.42.1.10",
+                "mode": "ingress",
+                "protocol": "tcp",
+                "published": "5432",
+                "target": 5432,
+            }
+        ],
+        volumes=[
+            {
+                "type": "bind",
+                "source": "/run/h4reet/shared-state",
+                "target": "/run/shared-state",
+                "read_only": True,
+            },
+            {
+                "type": "bind",
+                "source": "/srv/h4reet/shared-state",
+                "target": "/var/lib/postgresql/data",
+            },
+        ],
+    )
+    return model
+
+
+def shared_rules(model: dict, tree: Path) -> set[tuple[str, str]]:
+    found = cp.check_model(
+        model, SHARED_LOCK, tree, TUNNEL_DISCLOSED | {"shared-state"}
+    )
+    return {(f.where.rsplit(" ", 1)[-1], f.rule) for f in found}
+
+
+def test_the_shared_state_passes(tmp_path: Path) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    assert shared_rules(shared_model(), tmp_path) == set()
+
+
+def test_the_shared_state_publishes_5432_on_the_private_address_alone(
+    tmp_path: Path,
+) -> None:
+    for ports in (
+        ["0.0.0.0:5432:5432"],
+        ["10.42.0.10:5432:5432"],
+        ["10.42.1.10:5432:5432", "10.42.1.10:5433:5433"],
+    ):
+        model = shared_model()
+        model["services"]["shared-state"]["ports"] = ports
+        assert ("shared-state", "ports") in shared_rules(model, tmp_path), ports
+
+
+def test_the_shared_states_key_binds_read_only_and_its_data_alone_writable(
+    tmp_path: Path,
+) -> None:
+    model = shared_model()
+    model["services"]["shared-state"]["volumes"][0]["read_only"] = False
+    assert ("shared-state", "binds") in shared_rules(model, tmp_path)
+    model = shared_model()
+    model["services"]["shared-state"]["volumes"][1]["source"] = "/srv/h4reet/other"
+    assert ("shared-state", "binds") in shared_rules(model, tmp_path)
+    model = shared_model()
+    model["services"]["tunnel-end"]["volumes"].append(
+        {"type": "bind", "source": "/srv/h4reet/shared-state", "target": "/x"}
+    )
+    assert ("tunnel-end", "binds") in shared_rules(model, tmp_path)
+
+
+def test_the_shared_state_runs_gateway_states_digest_from_its_own_repository(
+    tmp_path: Path,
+) -> None:
+    model = shared_model()
+    model["services"]["shared-state"]["image"] = SHARED_IMAGE.replace(
+        GATEWAY_STATE.digest, "sha256:" + "f" * 64
+    )
+    assert ("shared-state", "image") in shared_rules(model, tmp_path)
+    model = shared_model()
+    model["services"]["shared-state"]["image"] = SHARED_IMAGE.replace(
+        "/shared-state:", "/gateway-state:"
+    )
+    assert ("shared-state", "image") in shared_rules(model, tmp_path)
+
+
+def test_the_shared_state_never_joins_egress(tmp_path: Path) -> None:
+    model = shared_model()
+    model["services"]["shared-state"]["networks"] = {"internal": None, "egress": None}
+    assert ("shared-state", "networks") in shared_rules(model, tmp_path)
+
+
+# Spec 001 group 8 (its contracts/relay-http.md §1): the tunnel end's relay, on the edge network, publishing exactly its
+# edge listener on the private interface's fixed address and its internal listener on the tunnel end's loopback, in
+# the tunnel end's class alone, with the release's image by its digest; and dev-relay, built from the tree, on internal.
+RELAY_IMAGE = "${H4_REGISTRY:-registry.invalid}/h4reet/relay@${H4_DIGEST_RELAY:-}"
+
+
+def relay_model() -> dict:
+    model = ec2_model()
+    model["services"]["relay"] = service(
+        profiles=["tunnel-end"],
+        image=RELAY_IMAGE,
+        networks={"internal": None, "edge": None},
+        ports=["10.42.1.10:8080:8080", "127.0.0.1:18505:8081"],
+    )
+    return model
+
+
+RELAY_DISCLOSED = EC2_DISCLOSED | {"relay"}
+
+
+def relay_rules(model: dict, tree: Path) -> set[tuple[str, str]]:
+    found = cp.check_model(model, CLOUD_LOCK, tree, RELAY_DISCLOSED)
+    return {(f.where.rsplit(" ", 1)[-1], f.rule) for f in found}
+
+
+def test_the_relay_passes(tmp_path: Path) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    assert relay_rules(relay_model(), tmp_path) == set()
+
+
+def test_the_relay_publishes_exactly_its_two_listeners_in_the_tunnel_ends_class_alone(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    for ports in (
+        ["10.42.1.10:8080:8080"],
+        ["0.0.0.0:8080:8080", "127.0.0.1:18505:8081"],
+        ["10.42.0.10:8080:8080", "127.0.0.1:18505:8081"],
+        ["10.42.1.10:8080:8080", "0.0.0.0:18505:8081"],
+        ["10.42.1.10:8080:8080", "127.0.0.1:18505:8081", "10.42.1.10:8082:8082"],
+    ):
+        model = relay_model()
+        model["services"]["relay"]["ports"] = ports
+        assert ("relay", "ports") in relay_rules(model, tmp_path), ports
+    model = relay_model()
+    model["services"]["relay"]["profiles"] = ["tunnel-end", "dev-relay"]
+    assert ("relay", "ports") in relay_rules(model, tmp_path)
+
+
+def test_the_relay_runs_the_releases_image_and_joins_no_egress(tmp_path: Path) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    model = relay_model()
+    model["services"]["relay"]["image"] = "ghcr.io/someone/relay:1@sha256:" + "0" * 64
+    assert ("relay", "image") in relay_rules(model, tmp_path)
+    model = relay_model()
+    model["services"]["relay"]["networks"] = {
+        "internal": None,
+        "edge": None,
+        "egress": None,
+    }
+    assert ("relay", "networks") in relay_rules(model, tmp_path)
+
+
+def test_a_service_named_otherwise_may_not_publish_the_relays_ports(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    model = relay_model()
+    model["services"]["dev-relay"] = service(
+        profiles=["dev-relay"],
+        build={"context": "tunnel"},
+        ports=["127.0.0.1:18505:8081"],
+    )
+    found = cp.check_model(model, CLOUD_LOCK, tmp_path, RELAY_DISCLOSED | {"dev-relay"})
+    assert ("dev-relay", "ports") in {
+        (f.where.rsplit(" ", 1)[-1], f.rule) for f in found
+    }
+
+
+# Spec 001 group 10 (its contracts/public-view.md §1 and §2): the tunnel end's sink, on the edge network, publishing
+# exactly 10.42.1.10:2301 in the tunnel end's class alone; EC2's publisher, on egress, in EC2's class alone; both by the
+# release's own image, h4reet/snapshot by its digest; and the laptop's publisher, built from the tree, on internal.
+SNAPSHOT_IMAGE = (
+    "${H4_REGISTRY:-registry.invalid}/h4reet/snapshot@${H4_DIGEST_SNAPSHOT:-}"
+)
+
+
+def snapshot_model() -> dict:
+    model = relay_model()
+    model["services"]["snapshot-sink"] = service(
+        profiles=["tunnel-end"],
+        image=SNAPSHOT_IMAGE,
+        networks={"internal": None, "edge": None},
+        ports=["10.42.1.10:2301:8080"],
+    )
+    model["services"]["ec2-snapshot-publisher"] = service(
+        profiles=["ec2"],
+        image=SNAPSHOT_IMAGE,
+        networks={"internal": None, "egress": None},
+    )
+    model["services"]["snapshot-publisher"] = service(
+        profiles=["tunnel"],
+        build={"context": "tunnel"},
+    )
+    return model
+
+
+SNAPSHOT_DISCLOSED = RELAY_DISCLOSED | {
+    "snapshot-sink",
+    "ec2-snapshot-publisher",
+    "snapshot-publisher",
+}
+
+
+def snapshot_rules(model: dict, tree: Path) -> set[tuple[str, str]]:
+    found = cp.check_model(model, CLOUD_LOCK, tree, SNAPSHOT_DISCLOSED)
+    return {(f.where.rsplit(" ", 1)[-1], f.rule) for f in found}
+
+
+def test_the_public_views_services_pass(tmp_path: Path) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    assert snapshot_rules(snapshot_model(), tmp_path) == set()
+
+
+def test_the_sink_publishes_exactly_2301_on_the_private_address_in_the_tunnel_ends_class_alone(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    for ports in (
+        ["0.0.0.0:2301:8080"],
+        ["10.42.0.10:2301:8080"],
+        ["10.42.1.10:2301:8080", "127.0.0.1:18506:8080"],
+        ["10.42.1.10:8080:8080"],
+    ):
+        model = snapshot_model()
+        model["services"]["snapshot-sink"]["ports"] = ports
+        assert ("snapshot-sink", "ports") in snapshot_rules(model, tmp_path), ports
+    model = snapshot_model()
+    model["services"]["snapshot-sink"]["profiles"] = ["tunnel-end", "tunnel"]
+    assert ("snapshot-sink", "ports") in snapshot_rules(model, tmp_path)
+
+
+def test_the_public_views_cloud_services_run_the_releases_image(tmp_path: Path) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    for name in ("snapshot-sink", "ec2-snapshot-publisher"):
+        model = snapshot_model()
+        model["services"][name]["image"] = (
+            "ghcr.io/someone/snapshot:1@sha256:" + "0" * 64
+        )
+        assert (name, "image") in snapshot_rules(model, tmp_path), name
+
+
+def test_only_ec2s_publisher_joins_egress_and_the_sink_alone_the_edge_network(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    model = snapshot_model()
+    model["services"]["snapshot-publisher"]["networks"] = {
+        "internal": None,
+        "egress": None,
+    }
+    assert ("snapshot-publisher", "networks") in snapshot_rules(model, tmp_path)
+    model = snapshot_model()
+    model["services"]["snapshot-sink"]["networks"] = {
+        "internal": None,
+        "edge": None,
+        "egress": None,
+    }
+    assert ("snapshot-sink", "networks") in snapshot_rules(model, tmp_path)
+    model = snapshot_model()
+    model["services"]["ec2-snapshot-publisher"]["networks"] = {
+        "internal": None,
+        "edge": None,
+    }
+    assert ("ec2-snapshot-publisher", "networks") in snapshot_rules(model, tmp_path)
+    model = snapshot_model()
+    model["services"]["snapshot-publisher"]["ports"] = ["127.0.0.1:2301:8080"]
+    assert ("snapshot-publisher", "ports") in snapshot_rules(model, tmp_path)

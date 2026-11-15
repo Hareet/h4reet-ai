@@ -13,8 +13,8 @@ status     EC2's state and its spot request's, the autostart switch, the server 
            it is inside them now, and the relay's serving host. Each read that fails reads `unknown`, never a guess.
            The hours are read from infra/account/handover.tf's local.ec2_hours, their one source; the status request is
            marked as a probe (X-H4-Probe: 1), as the handover loop's is.
-start      invokes h4-ec2-start with {"manual": true}, so the function's checks apply (outside the hours, provisionally
-           refused: the regrouping note's question 2), and prints its outcome.
+start      invokes h4-ec2-start with {"manual": true}, so the function's checks apply (outside the hours, refused:
+           the regrouping note's question 2, his answer "2 A"), and prints its outcome.
 stop       stops the running instance tagged h4-prod-ec2 through the profile he names, his h4-ec2-stop permission set;
            a line in ~/.local/state/h4reet/ec2-actions.jsonl, and ec2_stopped_by_author on h4-alerts. W1's: it needs no
            function (plan.md §16, "Between W1's applies and W2's").

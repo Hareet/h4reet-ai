@@ -26,3 +26,17 @@ limits:
   # turns and characters of conversation a request carries, a twin call's input bound (also its reservation's), and
   # its output cap.
   twin:        { turn_max_chars: 600, history_max_turns: 8, history_max_chars: 4000, max_input_chars: 32000, max_output_tokens: 300 }
+
+# The relay's public request cap (spec 001 FR-033, FR-042; ADR 0029; contracts/relay-http.md §3, step 3), on the
+# tunnel end, before any gateway: per address, from the address CloudFront supplies, a token bucket of `burst`
+# refilled at `requests_per_minute`, and at most `requests_per_day` a UTC day; and across every address at most
+# `in_flight` requests forwarded and not yet answered. Held in memory only, for at most one UTC day. Each figure is
+# the Author's (P-6; tasks.md T114): the relay refuses to start, and the gateway's validator refuses the file, while
+# one is blank, naming each key.
+public:
+  per_address:
+    requests_per_minute: 12 # the Author's figure
+    burst: 6 # the Author's figure
+    requests_per_day: 300 # the Author's figure
+  global:
+    in_flight: 8 # the Author's figure

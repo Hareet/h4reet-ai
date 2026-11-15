@@ -29,4 +29,5 @@ ec2.us-east-1.amazonaws.com
 monitoring.us-east-1.amazonaws.com
 route53.amazonaws.com
 budgets.amazonaws.com
+scheduler.us-east-1.amazonaws.com
 h4reet-ai-site-*.s3.us-east-1.amazonaws.com

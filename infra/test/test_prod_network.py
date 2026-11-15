@@ -21,8 +21,9 @@ What the root must hold:
     true from W2's P-W2, which a test T175 flipped holds (plan.md §16, "Why a switch"; group 5's review, I8);
   - neither root reading the other: nothing under infra/account names a prod instance or health check, or reads prod's
     state; nothing under infra/prod reads, by a data source or a remote state, what the account makes;
-  - the tunnel end's type as local.tunnel_end_type in the unprotected tunnel-end.tf, holding "measure-in-T166" until
-    T166 measures it; the instance reads it, no other file sets a type, and a precondition refuses the placeholder;
+  - the tunnel end's type as local.tunnel_end_type in the unprotected tunnel-end.tf, "t4g.small", T166's measured type
+    (2026-11-13: "The type, the larger of the two (R-33's rule on the peaks and on the limits): t4g.small."); the
+    instance reads it, no other file sets a type, and a precondition still refuses the placeholder, "measure-in-T166";
   - a changed host file, or a new local.tunnel_end_generation (an OS update), replaces the tunnel end in the plan:
     terraform_data.tunnel_end_host in tunnel-end.tf holds the user data's SHA-256 and the generation, and the instance
     is replace_triggered_by it, though it ignores its user data's and its image's drift (group 5's review, I3).
@@ -84,6 +85,10 @@ PROTECTED_FILES = (
     "failover.tf",
 )
 PLACEHOLDER = "measure-in-T166"
+# T166's block, on the Author's engine (2026-11-13): "The type, the larger of the two (R-33's rule on the peaks and on
+# the limits): t4g.small." The relay's and the collector's limits rise to 128M with it; the five's 592 MiB beside the
+# OS's 512 still fit t4g.small by R-33's rule (deploy/scripts/test_measure_tunnel_end.py).
+MEASURED_TYPE = "t4g.small"
 PUBLIC_ADDRESS = "10.42.0.10"
 PRIVATE_ADDRESS = "10.42.1.10"
 TOPIC_ARN = (
@@ -342,11 +347,17 @@ def check_instance(root: dict[str, list]) -> list[str]:
     src = ip.Source("infra/prod/ec2-market.tf", "", ip.Body([i]))
     for f in ip.t11_spot(src) + ip.t13_imds(src):
         found.append(f"tunnel end: {f.message}")
+    # B-6, option C (the Author's answer: "We aren't building option A, we went with Option C"): the private interface
+    # is the instance's primary, device 0, so the instance sits in the private subnet, where AWS documents a VPC
+    # origin's instance, and the origin reaches 10.42.1.10, where the relay listens; the public one, with the Elastic
+    # IP, is its second, device 1. Built before W1's apply: moving the primary interface later replaces the tunnel end.
     primary = i.block("primary_network_interface")
     if primary is None or raw(primary, "network_interface_id") != (
-        "aws_network_interface.tunnel_end_public.id"
+        "aws_network_interface.tunnel_end_private.id"
     ):
-        found.append("tunnel end: its primary interface isn't the public one")
+        found.append(
+            "tunnel end: its primary interface isn't the private one, device 0 (B-6, option C)"
+        )
     attachments = [
         a
         for a in resource(root, "aws_network_interface_attachment")
@@ -355,10 +366,10 @@ def check_instance(root: dict[str, list]) -> list[str]:
     if (
         len(attachments) != 1
         or raw(attachments[0], "network_interface_id")
-        != "aws_network_interface.tunnel_end_private.id"
+        != "aws_network_interface.tunnel_end_public.id"
         or lit(attachments[0], "device_index") != 1
     ):
-        found.append("tunnel end: the private interface isn't its second, device 1")
+        found.append("tunnel end: the public interface isn't its second, device 1")
     for name, subnet, addr, group in (
         ("tunnel_end_public", "public", PUBLIC_ADDRESS, "tunnel_end_public"),
         ("tunnel_end_private", "private", PRIVATE_ADDRESS, "tunnel_end_private"),
@@ -399,9 +410,9 @@ def check_instance(root: dict[str, list]) -> list[str]:
 def check_type(root: dict[str, list]) -> list[str]:
     found = []
     mine = locals_in(root, "tunnel-end.tf").get("tunnel_end_type")
-    if mine is None or ip.literal(mine) != PLACEHOLDER:
+    if mine is None or ip.literal(mine) != MEASURED_TYPE:
         found.append(
-            f"type: tunnel-end.tf's local.tunnel_end_type isn't \"{PLACEHOLDER}\" (T166 measures it)"
+            f"type: tunnel-end.tf's local.tunnel_end_type isn't \"{MEASURED_TYPE}\", T166's measured type"
         )
     elsewhere = [
         name
@@ -565,6 +576,10 @@ ROLE_GRANTS = {
     "route53:GetHealthCheckStatus": '["arn:aws:route53:::healthcheck/${aws_route53_health_check.laptop.id}"]',
     "budgets:ViewBudget": f'["arn:aws:budgets::{ACCOUNT_ID}:budget/h4-server-month"]',
     "budgets:DescribeBudgetActionsForBudget": f'["arn:aws:budgets::{ACCOUNT_ID}:budget/h4-server-month"]',
+    # T170 (the Author's answer to question 1b, "1b A"): the sink reads EC2's hours from the two schedules, by name,
+    # so local.ec2_hours stays their one source.
+    "scheduler:GetSchedule": f'[ "arn:aws:scheduler:us-east-1:{ACCOUNT_ID}:schedule/default/h4-ec2-hours-open", '
+    f'"arn:aws:scheduler:us-east-1:{ACCOUNT_ID}:schedule/default/h4-ec2-hours-close", ]',
 }
 # Session Manager and Run Command, the one way in (FR-050), as AWS documents an instance profile's own policy for them
 # without AmazonSSMManagedInstanceCore, whose ssm:GetParameter and ssm:GetParameters on "*" would read every parameter in

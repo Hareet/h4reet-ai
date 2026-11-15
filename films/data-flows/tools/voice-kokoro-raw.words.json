@@ -1,0 +1,1180 @@
+{
+ "source": "tts:kokoro:af_heart",
+ "precision": "tts",
+ "offset": 0,
+ "duration": 73.102,
+ "sentences": [
+  {
+   "text": "Every byte that leaves this stack is written down before it can leave.",
+   "start": 0,
+   "end": 3.65
+  },
+  {
+   "text": "The data-flow disclosure lists each flow: where it goes, what it carries, what it never carries, and how to switch it off.",
+   "start": 3.9,
+   "end": 10.527
+  },
+  {
+   "text": "And the build enforces it: a service without a row is refused.",
+   "start": 10.778,
+   "end": 14.441
+  },
+  {
+   "text": "When you talk to the twin, what leaves your device?",
+   "start": 14.691,
+   "end": 17.148
+  },
+  {
+   "text": "Your typed words, the last few turns, and the address and browser every request carries.",
+   "start": 17.398,
+   "end": 22.559
+  },
+  {
+   "text": "Never audio, the avatar, a cookie, or any identifier of the visit or the visitor.",
+   "start": 22.81,
+   "end": 28.079
+  },
+  {
+   "text": "And in production, no one's words land in any log, trace, or store.",
+   "start": 28.329,
+   "end": 32.211
+  },
+  {
+   "text": "When the paid fallback answers, your words go to Anthropic.",
+   "start": 32.461,
+   "end": 35.716
+  },
+  {
+   "text": "In Hareet's words: this site saves none of it, and Anthropic may keep a turn it answered for up to thirty days, never for training.",
+   "start": 35.966,
+   "end": 43.487
+  },
+  {
+   "text": "Then, what the twin says back.",
+   "start": 43.737,
+   "end": 45.334
+  },
+  {
+   "text": "It answers only from what Hareet wrote, and when that doesn't hold the answer, it says: \"I don't know yet.\"",
+   "start": 45.583,
+   "end": 51.17
+  },
+  {
+   "text": "Before any word leaves the gateway, code checks the answer against its sources: numbers, amounts, ownership, privacy.",
+   "start": 51.42,
+   "end": 58.568
+  },
+  {
+   "text": "A failed check withholds the answer.",
+   "start": 58.818,
+   "end": 60.585
+  },
+  {
+   "text": "And every change is tested: a hundred and eighty-six cases drawn from the corpus, graded by code, never by another model.",
+   "start": 60.835,
+   "end": 68.633
+  },
+  {
+   "text": "Every data flow disclosed.",
+   "start": 68.883,
+   "end": 70.509
+  },
+  {
+   "text": "Built in the open, at hareet dot A I.",
+   "start": 70.759,
+   "end": 73.101
+  }
+ ],
+ "words": [
+  {
+   "word": "Every",
+   "start": 0,
+   "end": 0.481
+  },
+  {
+   "word": "byte",
+   "start": 0.481,
+   "end": 0.802
+  },
+  {
+   "word": "that",
+   "start": 0.802,
+   "end": 0.962
+  },
+  {
+   "word": "leaves",
+   "start": 0.962,
+   "end": 1.283
+  },
+  {
+   "word": "this",
+   "start": 1.283,
+   "end": 1.443
+  },
+  {
+   "word": "stack",
+   "start": 1.443,
+   "end": 1.604
+  },
+  {
+   "word": "is",
+   "start": 1.604,
+   "end": 2.046
+  },
+  {
+   "word": "written",
+   "start": 2.046,
+   "end": 2.367
+  },
+  {
+   "word": "down",
+   "start": 2.367,
+   "end": 2.527
+  },
+  {
+   "word": "before",
+   "start": 2.527,
+   "end": 3.008
+  },
+  {
+   "word": "it",
+   "start": 3.008,
+   "end": 3.169
+  },
+  {
+   "word": "can",
+   "start": 3.169,
+   "end": 3.329
+  },
+  {
+   "word": "leave",
+   "start": 3.329,
+   "end": 3.65
+  },
+  {
+   "word": "The",
+   "start": 3.9,
+   "end": 4.089
+  },
+  {
+   "word": "data-flow",
+   "start": 4.089,
+   "end": 4.654
+  },
+  {
+   "word": "disclosure",
+   "start": 4.654,
+   "end": 5.407
+  },
+  {
+   "word": "lists",
+   "start": 5.407,
+   "end": 5.596
+  },
+  {
+   "word": "each",
+   "start": 5.596,
+   "end": 5.784
+  },
+  {
+   "word": "flow",
+   "start": 5.784,
+   "end": 5.972
+  },
+  {
+   "word": "where",
+   "start": 5.972,
+   "end": 6.837
+  },
+  {
+   "word": "it",
+   "start": 6.837,
+   "end": 7.028
+  },
+  {
+   "word": "goes",
+   "start": 7.028,
+   "end": 7.22
+  },
+  {
+   "word": "what",
+   "start": 7.22,
+   "end": 7.411
+  },
+  {
+   "word": "it",
+   "start": 7.411,
+   "end": 7.602
+  },
+  {
+   "word": "carries",
+   "start": 7.602,
+   "end": 7.985
+  },
+  {
+   "word": "what",
+   "start": 7.985,
+   "end": 8.175
+  },
+  {
+   "word": "it",
+   "start": 8.175,
+   "end": 8.63
+  },
+  {
+   "word": "never",
+   "start": 8.63,
+   "end": 9.009
+  },
+  {
+   "word": "carries",
+   "start": 9.009,
+   "end": 9.389
+  },
+  {
+   "word": "and",
+   "start": 9.389,
+   "end": 9.579
+  },
+  {
+   "word": "how",
+   "start": 9.579,
+   "end": 9.768
+  },
+  {
+   "word": "to",
+   "start": 9.768,
+   "end": 9.958
+  },
+  {
+   "word": "switch",
+   "start": 9.958,
+   "end": 10.148
+  },
+  {
+   "word": "it",
+   "start": 10.148,
+   "end": 10.338
+  },
+  {
+   "word": "off",
+   "start": 10.338,
+   "end": 10.527
+  },
+  {
+   "word": "And",
+   "start": 10.778,
+   "end": 10.942
+  },
+  {
+   "word": "the",
+   "start": 10.942,
+   "end": 11.107
+  },
+  {
+   "word": "build",
+   "start": 11.107,
+   "end": 11.271
+  },
+  {
+   "word": "enforces",
+   "start": 11.271,
+   "end": 11.765
+  },
+  {
+   "word": "it",
+   "start": 11.765,
+   "end": 11.93
+  },
+  {
+   "word": "a",
+   "start": 12.36,
+   "end": 12.533
+  },
+  {
+   "word": "service",
+   "start": 12.533,
+   "end": 13.053
+  },
+  {
+   "word": "without",
+   "start": 13.053,
+   "end": 13.4
+  },
+  {
+   "word": "a",
+   "start": 13.4,
+   "end": 13.574
+  },
+  {
+   "word": "row",
+   "start": 13.574,
+   "end": 13.747
+  },
+  {
+   "word": "is",
+   "start": 13.747,
+   "end": 13.92
+  },
+  {
+   "word": "refused",
+   "start": 13.92,
+   "end": 14.441
+  },
+  {
+   "word": "When",
+   "start": 14.691,
+   "end": 14.867
+  },
+  {
+   "word": "you",
+   "start": 14.867,
+   "end": 15.042
+  },
+  {
+   "word": "talk",
+   "start": 15.042,
+   "end": 15.218
+  },
+  {
+   "word": "to",
+   "start": 15.218,
+   "end": 15.393
+  },
+  {
+   "word": "the",
+   "start": 15.393,
+   "end": 15.569
+  },
+  {
+   "word": "twin",
+   "start": 15.569,
+   "end": 15.744
+  },
+  {
+   "word": "what",
+   "start": 15.995,
+   "end": 16.16
+  },
+  {
+   "word": "leaves",
+   "start": 16.16,
+   "end": 16.489
+  },
+  {
+   "word": "your",
+   "start": 16.489,
+   "end": 16.654
+  },
+  {
+   "word": "device",
+   "start": 16.654,
+   "end": 17.148
+  },
+  {
+   "word": "Your",
+   "start": 17.398,
+   "end": 17.648
+  },
+  {
+   "word": "typed",
+   "start": 17.648,
+   "end": 18.147
+  },
+  {
+   "word": "words",
+   "start": 18.147,
+   "end": 18.396
+  },
+  {
+   "word": "the",
+   "start": 18.598,
+   "end": 18.852
+  },
+  {
+   "word": "last",
+   "start": 18.852,
+   "end": 19.106
+  },
+  {
+   "word": "few",
+   "start": 19.106,
+   "end": 19.36
+  },
+  {
+   "word": "turns",
+   "start": 19.36,
+   "end": 19.614
+  },
+  {
+   "word": "and",
+   "start": 19.994,
+   "end": 20.178
+  },
+  {
+   "word": "the",
+   "start": 20.178,
+   "end": 20.361
+  },
+  {
+   "word": "address",
+   "start": 20.361,
+   "end": 20.727
+  },
+  {
+   "word": "and",
+   "start": 20.727,
+   "end": 20.911
+  },
+  {
+   "word": "browser",
+   "start": 20.911,
+   "end": 21.277
+  },
+  {
+   "word": "every",
+   "start": 21.277,
+   "end": 21.827
+  },
+  {
+   "word": "request",
+   "start": 21.827,
+   "end": 22.193
+  },
+  {
+   "word": "carries",
+   "start": 22.193,
+   "end": 22.559
+  },
+  {
+   "word": "Never",
+   "start": 22.81,
+   "end": 23.156
+  },
+  {
+   "word": "audio",
+   "start": 23.156,
+   "end": 23.502
+  },
+  {
+   "word": "the",
+   "start": 23.502,
+   "end": 23.676
+  },
+  {
+   "word": "avatar",
+   "start": 23.676,
+   "end": 24.462
+  },
+  {
+   "word": "a",
+   "start": 24.462,
+   "end": 24.637
+  },
+  {
+   "word": "cookie",
+   "start": 24.637,
+   "end": 24.986
+  },
+  {
+   "word": "or",
+   "start": 24.986,
+   "end": 25.156
+  },
+  {
+   "word": "any",
+   "start": 25.156,
+   "end": 25.869
+  },
+  {
+   "word": "identifier",
+   "start": 25.869,
+   "end": 26.549
+  },
+  {
+   "word": "of",
+   "start": 26.549,
+   "end": 26.719
+  },
+  {
+   "word": "the",
+   "start": 26.719,
+   "end": 26.889
+  },
+  {
+   "word": "visit",
+   "start": 26.889,
+   "end": 27.229
+  },
+  {
+   "word": "or",
+   "start": 27.229,
+   "end": 27.399
+  },
+  {
+   "word": "the",
+   "start": 27.399,
+   "end": 27.569
+  },
+  {
+   "word": "visitor",
+   "start": 27.569,
+   "end": 28.079
+  },
+  {
+   "word": "And",
+   "start": 28.329,
+   "end": 28.501
+  },
+  {
+   "word": "in",
+   "start": 28.501,
+   "end": 28.673
+  },
+  {
+   "word": "production",
+   "start": 28.673,
+   "end": 29.488
+  },
+  {
+   "word": "no",
+   "start": 29.488,
+   "end": 29.658
+  },
+  {
+   "word": "one's",
+   "start": 29.658,
+   "end": 30.169
+  },
+  {
+   "word": "words",
+   "start": 30.169,
+   "end": 30.34
+  },
+  {
+   "word": "land",
+   "start": 30.34,
+   "end": 30.51
+  },
+  {
+   "word": "in",
+   "start": 30.51,
+   "end": 30.68
+  },
+  {
+   "word": "any",
+   "start": 30.68,
+   "end": 31.021
+  },
+  {
+   "word": "log",
+   "start": 31.021,
+   "end": 31.334
+  },
+  {
+   "word": "trace",
+   "start": 31.334,
+   "end": 31.688
+  },
+  {
+   "word": "or",
+   "start": 31.688,
+   "end": 31.863
+  },
+  {
+   "word": "store",
+   "start": 31.863,
+   "end": 32.211
+  },
+  {
+   "word": "When",
+   "start": 32.461,
+   "end": 32.669
+  },
+  {
+   "word": "the",
+   "start": 32.669,
+   "end": 32.877
+  },
+  {
+   "word": "paid",
+   "start": 32.877,
+   "end": 33.085
+  },
+  {
+   "word": "fallback",
+   "start": 33.085,
+   "end": 33.501
+  },
+  {
+   "word": "answers",
+   "start": 33.501,
+   "end": 33.917
+  },
+  {
+   "word": "your",
+   "start": 34.212,
+   "end": 34.427
+  },
+  {
+   "word": "words",
+   "start": 34.427,
+   "end": 34.642
+  },
+  {
+   "word": "go",
+   "start": 34.642,
+   "end": 34.856
+  },
+  {
+   "word": "to",
+   "start": 34.856,
+   "end": 35.071
+  },
+  {
+   "word": "Anthropic",
+   "start": 35.071,
+   "end": 35.716
+  },
+  {
+   "word": "In",
+   "start": 35.966,
+   "end": 36.172
+  },
+  {
+   "word": "Hareet's",
+   "start": 36.172,
+   "end": 36.789
+  },
+  {
+   "word": "words",
+   "start": 36.789,
+   "end": 36.995
+  },
+  {
+   "word": "this",
+   "start": 37.445,
+   "end": 37.582
+  },
+  {
+   "word": "site",
+   "start": 37.582,
+   "end": 37.857
+  },
+  {
+   "word": "saves",
+   "start": 37.857,
+   "end": 38.132
+  },
+  {
+   "word": "none",
+   "start": 38.132,
+   "end": 38.406
+  },
+  {
+   "word": "of",
+   "start": 38.406,
+   "end": 38.544
+  },
+  {
+   "word": "it",
+   "start": 38.544,
+   "end": 38.681
+  },
+  {
+   "word": "and",
+   "start": 38.992,
+   "end": 39.171
+  },
+  {
+   "word": "Anthropic",
+   "start": 39.171,
+   "end": 39.708
+  },
+  {
+   "word": "may",
+   "start": 39.708,
+   "end": 39.887
+  },
+  {
+   "word": "keep",
+   "start": 39.887,
+   "end": 40.066
+  },
+  {
+   "word": "a",
+   "start": 40.066,
+   "end": 40.245
+  },
+  {
+   "word": "turn",
+   "start": 40.245,
+   "end": 40.424
+  },
+  {
+   "word": "it",
+   "start": 40.424,
+   "end": 40.603
+  },
+  {
+   "word": "answered",
+   "start": 40.603,
+   "end": 41.14
+  },
+  {
+   "word": "for",
+   "start": 41.14,
+   "end": 41.319
+  },
+  {
+   "word": "up",
+   "start": 41.319,
+   "end": 41.498
+  },
+  {
+   "word": "to",
+   "start": 41.498,
+   "end": 41.677
+  },
+  {
+   "word": "thirty",
+   "start": 41.677,
+   "end": 42.035
+  },
+  {
+   "word": "days",
+   "start": 42.035,
+   "end": 42.214
+  },
+  {
+   "word": "never",
+   "start": 42.536,
+   "end": 42.916
+  },
+  {
+   "word": "for",
+   "start": 42.916,
+   "end": 43.107
+  },
+  {
+   "word": "training",
+   "start": 43.107,
+   "end": 43.487
+  },
+  {
+   "word": "Then",
+   "start": 43.737,
+   "end": 43.998
+  },
+  {
+   "word": "what",
+   "start": 44.025,
+   "end": 44.286
+  },
+  {
+   "word": "the",
+   "start": 44.286,
+   "end": 44.548
+  },
+  {
+   "word": "twin",
+   "start": 44.548,
+   "end": 44.81
+  },
+  {
+   "word": "says",
+   "start": 44.81,
+   "end": 45.072
+  },
+  {
+   "word": "back",
+   "start": 45.072,
+   "end": 45.334
+  },
+  {
+   "word": "It",
+   "start": 45.583,
+   "end": 45.76
+  },
+  {
+   "word": "answers",
+   "start": 45.76,
+   "end": 46.113
+  },
+  {
+   "word": "only",
+   "start": 46.113,
+   "end": 46.467
+  },
+  {
+   "word": "from",
+   "start": 46.467,
+   "end": 46.643
+  },
+  {
+   "word": "what",
+   "start": 46.643,
+   "end": 46.82
+  },
+  {
+   "word": "Hareet",
+   "start": 46.82,
+   "end": 47.173
+  },
+  {
+   "word": "wrote",
+   "start": 47.173,
+   "end": 47.527
+  },
+  {
+   "word": "and",
+   "start": 47.527,
+   "end": 48.043
+  },
+  {
+   "word": "when",
+   "start": 48.043,
+   "end": 48.22
+  },
+  {
+   "word": "that",
+   "start": 48.22,
+   "end": 48.397
+  },
+  {
+   "word": "doesn't",
+   "start": 48.397,
+   "end": 48.751
+  },
+  {
+   "word": "hold",
+   "start": 48.751,
+   "end": 48.928
+  },
+  {
+   "word": "the",
+   "start": 48.928,
+   "end": 49.105
+  },
+  {
+   "word": "answer",
+   "start": 49.105,
+   "end": 49.459
+  },
+  {
+   "word": "it",
+   "start": 49.459,
+   "end": 49.643
+  },
+  {
+   "word": "says",
+   "start": 49.643,
+   "end": 49.827
+  },
+  {
+   "word": "I",
+   "start": 49.827,
+   "end": 50.428
+  },
+  {
+   "word": "don't",
+   "start": 50.428,
+   "end": 50.799
+  },
+  {
+   "word": "know",
+   "start": 50.799,
+   "end": 50.985
+  },
+  {
+   "word": "yet",
+   "start": 50.985,
+   "end": 51.17
+  },
+  {
+   "word": "Before",
+   "start": 51.42,
+   "end": 51.828
+  },
+  {
+   "word": "any",
+   "start": 51.828,
+   "end": 52.101
+  },
+  {
+   "word": "word",
+   "start": 52.101,
+   "end": 52.237
+  },
+  {
+   "word": "leaves",
+   "start": 52.237,
+   "end": 52.509
+  },
+  {
+   "word": "the",
+   "start": 52.509,
+   "end": 52.645
+  },
+  {
+   "word": "gateway",
+   "start": 52.645,
+   "end": 53.053
+  },
+  {
+   "word": "code",
+   "start": 53.343,
+   "end": 53.738
+  },
+  {
+   "word": "checks",
+   "start": 53.738,
+   "end": 53.935
+  },
+  {
+   "word": "the",
+   "start": 53.935,
+   "end": 54.132
+  },
+  {
+   "word": "answer",
+   "start": 54.132,
+   "end": 54.526
+  },
+  {
+   "word": "against",
+   "start": 54.526,
+   "end": 54.921
+  },
+  {
+   "word": "its",
+   "start": 54.921,
+   "end": 55.118
+  },
+  {
+   "word": "sources",
+   "start": 55.118,
+   "end": 55.512
+  },
+  {
+   "word": "numbers",
+   "start": 56.009,
+   "end": 56.603
+  },
+  {
+   "word": "amounts",
+   "start": 56.731,
+   "end": 57.243
+  },
+  {
+   "word": "ownership",
+   "start": 57.366,
+   "end": 57.825
+  },
+  {
+   "word": "privacy",
+   "start": 57.967,
+   "end": 58.568
+  },
+  {
+   "word": "A",
+   "start": 58.818,
+   "end": 59.014
+  },
+  {
+   "word": "failed",
+   "start": 59.014,
+   "end": 59.407
+  },
+  {
+   "word": "check",
+   "start": 59.407,
+   "end": 59.603
+  },
+  {
+   "word": "withholds",
+   "start": 59.603,
+   "end": 59.996
+  },
+  {
+   "word": "the",
+   "start": 59.996,
+   "end": 60.192
+  },
+  {
+   "word": "answer",
+   "start": 60.192,
+   "end": 60.585
+  },
+  {
+   "word": "And",
+   "start": 60.835,
+   "end": 61.004
+  },
+  {
+   "word": "every",
+   "start": 61.004,
+   "end": 61.51
+  },
+  {
+   "word": "change",
+   "start": 61.51,
+   "end": 61.848
+  },
+  {
+   "word": "is",
+   "start": 61.848,
+   "end": 62.017
+  },
+  {
+   "word": "tested",
+   "start": 62.017,
+   "end": 62.355
+  },
+  {
+   "word": "a",
+   "start": 62.883,
+   "end": 63.091
+  },
+  {
+   "word": "hundred",
+   "start": 63.091,
+   "end": 63.509
+  },
+  {
+   "word": "and",
+   "start": 63.509,
+   "end": 63.717
+  },
+  {
+   "word": "eighty-six",
+   "start": 63.717,
+   "end": 64.343
+  },
+  {
+   "word": "cases",
+   "start": 64.343,
+   "end": 64.76
+  },
+  {
+   "word": "drawn",
+   "start": 64.76,
+   "end": 64.969
+  },
+  {
+   "word": "from",
+   "start": 64.969,
+   "end": 65.177
+  },
+  {
+   "word": "the",
+   "start": 65.177,
+   "end": 65.386
+  },
+  {
+   "word": "corpus",
+   "start": 65.386,
+   "end": 65.803
+  },
+  {
+   "word": "graded",
+   "start": 66.113,
+   "end": 66.516
+  },
+  {
+   "word": "by",
+   "start": 66.516,
+   "end": 66.718
+  },
+  {
+   "word": "code",
+   "start": 66.718,
+   "end": 67.121
+  },
+  {
+   "word": "never",
+   "start": 67.415,
+   "end": 67.719
+  },
+  {
+   "word": "by",
+   "start": 67.719,
+   "end": 67.872
+  },
+  {
+   "word": "another",
+   "start": 67.872,
+   "end": 68.328
+  },
+  {
+   "word": "model",
+   "start": 68.328,
+   "end": 68.633
+  },
+  {
+   "word": "Every",
+   "start": 68.883,
+   "end": 69.425
+  },
+  {
+   "word": "data",
+   "start": 69.425,
+   "end": 69.787
+  },
+  {
+   "word": "flow",
+   "start": 69.787,
+   "end": 69.967
+  },
+  {
+   "word": "disclosed",
+   "start": 69.967,
+   "end": 70.509
+  },
+  {
+   "word": "Built",
+   "start": 70.759,
+   "end": 70.951
+  },
+  {
+   "word": "in",
+   "start": 70.951,
+   "end": 71.144
+  },
+  {
+   "word": "the",
+   "start": 71.144,
+   "end": 71.336
+  },
+  {
+   "word": "open",
+   "start": 71.336,
+   "end": 71.72
+  },
+  {
+   "word": "at",
+   "start": 71.948,
+   "end": 72.14
+  },
+  {
+   "word": "hareet",
+   "start": 72.14,
+   "end": 72.525
+  },
+  {
+   "word": "dot",
+   "start": 72.525,
+   "end": 72.717
+  },
+  {
+   "word": "A",
+   "start": 72.717,
+   "end": 72.909
+  },
+  {
+   "word": "I",
+   "start": 72.909,
+   "end": 73.101
+  }
+ ]
+}

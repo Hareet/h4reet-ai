@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="en" data-om-signature="off" data-composition-variables='[
+  {"id":"dailyCap","type":"number","label":"Daily ceiling (USD), config/budgets.yaml","default":5,"min":0.1,"max":100,"step":0.01,"group":"Numbers"},
+  {"id":"warnAt","type":"number","label":"Daily warning (USD), 0.70 × the ceiling","default":3.5,"min":0.1,"max":100,"step":0.01,"group":"Numbers"},
+  {"id":"monthCap","type":"number","label":"Monthly ceiling (USD)","default":20,"min":0,"max":1000,"step":0.01,"group":"Numbers"},
+  {"id":"callCost","type":"number","label":"The breach test’s synthetic call (USD)","default":0.1,"min":0.01,"max":1,"step":0.01,"group":"Numbers"},
+  {"id":"passCount","type":"number","label":"Breach-test assertions passed","default":52,"min":0,"max":999,"step":1,"group":"Numbers"},
+  {"id":"blocked","type":"number","label":"Forbidden actions tested blocked (redteam/forbidden-actions.sh)","default":345,"min":0,"max":9999,"step":1,"group":"Numbers"},
+  {"id":"question","type":"string","label":"The visitor asks (golden Q&A, corpus/08)","default":"How much does it cost to run?","group":"Words"},
+  {"id":"degraded","type":"string","label":"What the visitor sees (apps/web/content/messages.yaml)","default":"The twin can’t talk right now. Today’s budget for its answers is used.","group":"Words"},
+  {"id":"ground","type":"color","label":"Ground","default":"#0f1820","group":"Colour"},
+  {"id":"green","type":"color","label":"Green (resume green-bar)","default":"#47a386","group":"Colour"},
+  {"id":"crimson","type":"color","label":"Crimson (resume crimson-bar)","default":"#d0587a","group":"Colour"},
+  {"id":"endHold","type":"number","label":"End hold (s)","default":2.4,"min":0,"max":10,"step":0.1,"group":"Timing"}
+]'>
+<head>
+<meta charset="utf-8">
+<title>hareet.ai · A $5-a-day kill switch</title>
+<script src="vendor/gsap.min.js"></script>
+<script src="vendor/om.js"></script>
+<style id="om-fonts">
+@font-face { font-family: "Overpass"; src: url("assets/fonts/Overpass-normal.woff2") format("woff2"); font-weight: 100 900; }
+@font-face { font-family: "Literata"; src: url("assets/fonts/Literata-normal.woff2") format("woff2"); font-weight: 200 900; }
+@font-face { font-family: "Plex Mono"; src: url("assets/fonts/IBMPlexMono-Regular.woff") format("woff"); font-weight: 400; }
+@font-face { font-family: "Plex Sans"; src: url("assets/fonts/IBMPlexSans-Bold.woff") format("woff"); font-weight: 700; }
+</style>
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #0b131a; }
+  #film { position: relative; width: 1920px; height: 1080px; overflow: hidden; color: #eef3f5; font-family: "Overpass", sans-serif;
+    background: radial-gradient(1500px 900px at 58% 52%, #1b2a35 0%, var(--ground) 55%, #0a1117 100%); }
+  .vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(1600px 1000px at 50% 50%, transparent 60%, #050a0e 100%); }
+  #world, #world * { transform-style: preserve-3d; }
+  #world { position: absolute; left: 0; top: 0; width: 1px; height: 1px; }
+  .abs { position: absolute; left: 0; top: 0; }
+
+  /* the resume's twin section, as a card (resume/source/twin.html) */
+  #resume, #endcard { width: 1200px; height: 520px; border-radius: 10px; background: #ffffff; color: #17232e; box-shadow: 0 60px 140px -40px #000c; }
+  #endcard { opacity: 0; }
+  .rz-name { position: absolute; left: 0; right: 0; top: 70px; text-align: center; font-weight: 800; font-size: 150px; letter-spacing: -.02em; line-height: 1; color: #17232e; }
+  .rz-name span { color: #1c6b54; }
+  .rz-pitch { position: absolute; left: 110px; right: 110px; top: 250px; text-align: center; font-family: "Literata", serif; font-size: 33px; line-height: 1.42; color: #2b3843; }
+  .rz-claims { position: absolute; left: 0; right: 0; top: 420px; display: flex; justify-content: center; align-items: center; gap: 14px; font-weight: 800; font-size: 17px; letter-spacing: .11em; color: #1c6b54; white-space: nowrap; }
+  .rz-claims i { font-style: normal; color: #9bb0a8; }
+  .rz-claims b { display: inline-block; font-weight: 800; color: #fff; background: #ad2549; padding: 7px 12px 3px; border-radius: 4px; }
+
+  /* the stack's layers: glass slabs */
+  .slab { width: 1200px; height: 800px; border-radius: 22px; background: linear-gradient(135deg, rgba(30,70,62,.93), rgba(14,32,36,.92));
+    border: 2px solid rgba(71,163,134,.55); box-shadow: inset 0 0 70px rgba(71,163,134,.10); box-sizing: border-box; }
+  .slab .name { position: absolute; left: 44px; top: 34px; font-weight: 800; font-size: 54px; letter-spacing: .07em; line-height: 1; }
+  .slab .what { position: absolute; left: 46px; top: 104px; font-family: "Plex Mono", monospace; font-size: 28px; color: #a9b8c1; }
+  .slab.small { width: 700px; height: 380px; }
+  .slab.small .name { font-size: 40px; }
+  .slab.small .what { top: 88px; font-size: 24px; }
+  #room { background: linear-gradient(135deg, rgba(58,72,82,.94), rgba(28,40,50,.93)); border-color: rgba(238,243,245,.5); }
+  #state { background: linear-gradient(135deg, rgba(30,70,62,.95), rgba(14,32,36,.94)); }
+  .flood { position: absolute; inset: -2px; border-radius: 22px; background: linear-gradient(135deg, rgba(208,88,122,.62), rgba(173,37,73,.34)); border: 2px solid var(--crimson); box-shadow: 0 0 140px rgba(208,88,122,.55), inset 0 0 60px rgba(255,180,200,.25); opacity: 0; }
+  #paid { border-color: rgba(238,243,245,.4); background: linear-gradient(135deg, rgba(52,64,74,.94), rgba(26,36,44,.93)); }
+
+  /* room: the conversation */
+  .bubble { position: absolute; max-width: 820px; padding: 26px 32px; border-radius: 22px; font-size: 40px; line-height: 1.3; }
+  .bubble.q { left: 300px; top: 220px; background: rgba(238,243,245,.92); color: #17232e; font-weight: 700; }
+  .bubble.a { left: 70px; top: 420px; width: 900px; min-height: 120px; background: rgba(23,35,46,.92); border: 2px solid var(--crimson); color: #fff; font-family: "Literata", serif; font-size: 40px; opacity: 0; }
+  .bubble .who { display: block; font-family: "Plex Mono", monospace; font-size: 22px; font-weight: 400; color: #5b6973; margin-bottom: 8px; }
+  .bubble.a .who { color: #ff9db5; }
+
+  /* edge: six ports, loopback only */
+  .ports { position: absolute; left: 46px; top: 200px; display: grid; grid-template-columns: repeat(3, 340px); gap: 22px; }
+  .port { height: 92px; border-radius: 14px; border: 2px solid rgba(71,163,134,.6); font-family: "Plex Mono", monospace; font-size: 26px; display: flex; flex-direction: column; justify-content: center; padding-left: 22px; }
+  .port small { font-size: 19px; color: #93a4ae; }
+  .edge-note { position: absolute; left: 46px; top: 470px; font-family: "Plex Mono", monospace; font-size: 26px; color: #c8d5dc; }
+
+  /* gateway: the lamp and the order it routes in */
+  .lamp { position: absolute; right: 44px; top: 30px; height: 70px; padding: 0 30px; border-radius: 35px; border: 3px solid currentColor; font-family: "Plex Mono", monospace; font-size: 30px; display: flex; align-items: center; color: var(--green); background: rgba(71,163,134,.14); }
+  .lamp.bad { color: #ff9db5; background: rgba(173,37,73,.4); opacity: 0; }
+  .lamp.unk { color: #ffd0a8; background: rgba(160,90,40,.35); opacity: 0; }
+  .rule { position: absolute; left: 46px; top: 220px; width: 1100px; font-family: "Plex Mono", monospace; font-size: 30px; line-height: 1.6; color: #d5e0e6; opacity: .35; }
+  .rule b { color: var(--green); font-weight: 400; }
+
+  /* gateway-state: the meter */
+  .meter { position: absolute; left: 46px; top: 210px; width: 1100px; }
+  .meter .row { display: flex; justify-content: space-between; align-items: baseline; font-family: "Plex Mono", monospace; font-size: 34px; color: #c8d5dc; }
+  .meter .row b { font-weight: 400; color: #fff; font-size: 64px; }
+  .meter .bar { position: relative; height: 54px; margin-top: 18px; border-radius: 8px; background: rgba(5,10,14,.55); border: 2px solid rgba(238,243,245,.35); }
+  .meter .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; border-radius: 6px; background: var(--green); transform-origin: 0 50%; transform: scaleX(0); }
+  .meter .tick { position: absolute; top: -10px; bottom: -10px; width: 3px; background: #eef3f5; }
+  .meter .tick span { position: absolute; top: 76px; left: -60px; width: 120px; text-align: center; font-family: "Plex Mono", monospace; font-size: 22px; color: #a9b8c1; }
+  .meter .month { margin-top: 64px; font-family: "Plex Mono", monospace; font-size: 26px; color: #93a4ae; }
+  .synth { position: absolute; left: 46px; bottom: 34px; font-family: "Plex Mono", monospace; font-size: 22px; color: #7f939f; }
+  .chips { position: absolute; left: 46px; top: 560px; display: flex; flex-wrap: wrap; gap: 18px; width: 1110px; }
+  .chip { padding: 14px 22px; border-radius: 12px; background: rgba(5,10,14,.6); border: 2px solid var(--crimson); font-family: "Plex Mono", monospace; font-size: 26px; color: #ffe1e8; opacity: 0; }
+  .chip.ok { border-color: var(--green); color: #d8f3ea; }
+
+  /* beads: calls; the beam: the way a question falls */
+  .bead { position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; border-radius: 50%; opacity: 0; }
+  .bead.local { background: #eef3f5; box-shadow: 0 0 24px #eef3f5; }
+  .bead.paid { background: #ffd27a; box-shadow: 0 0 26px #ffb84a; }
+  #beam { width: 8px; height: 700px; margin-left: -4px; background: linear-gradient(#ffffff, var(--green)); box-shadow: 0 0 34px var(--green); transform-origin: 50% 0; }
+  #stopring { width: 150px; height: 150px; margin: -75px 0 0 -75px; border-radius: 50%; border: 8px solid var(--crimson); box-shadow: 0 0 50px var(--crimson); box-sizing: border-box; opacity: 0; }
+  .wire { height: 6px; background: rgba(238,243,245,.35); transform-origin: 0 50%; }
+
+  /* alerts: the real Telegram texts */
+  #hud { position: absolute; right: 64px; top: 64px; width: 780px; height: 600px; }
+  #hud .tg { position: absolute; right: 0; top: 0; }
+  .tg { width: 780px; padding: 30px 34px; border-radius: 26px; background: #22323f; border: 1px solid #36495a; box-shadow: 0 40px 90px rgba(0,0,0,.5); font-family: "Plex Sans", sans-serif; color: #eef3f5; opacity: 0; box-sizing: border-box; }
+  .tg .h { font-size: 26px; color: #a9b8c1; display: flex; align-items: center; gap: 12px; }
+  .tg .sev { display: inline-block; width: 20px; height: 20px; border-radius: 50%; }
+  .tg .t { margin-top: 12px; font-size: 34px; line-height: 1.25; }
+  .tg pre { margin: 18px 0 0; font-family: "Plex Mono", monospace; font-size: 23px; line-height: 1.55; color: #cfdae0; }
+  .tg .n { margin-top: 14px; font-family: "Plex Mono", monospace; font-size: 23px; line-height: 1.45; color: #a9b8c1; }
+
+  /* the breach test's terminal */
+  #term { width: 1500px; height: 860px; border-radius: 22px; background: rgba(8,14,19,.94); border: 2px solid #2f4250; padding: 40px 46px; box-sizing: border-box; font-family: "Plex Mono", monospace; font-size: 25px; line-height: 1.6; color: #93a4ae; overflow: hidden; opacity: 0; }
+  #term .cmd { color: #fff; }
+  #term .step { color: #eef3f5; margin-top: 8px; }
+  #term .r { white-space: nowrap; opacity: 0; }
+  #term .r b { color: var(--green); font-weight: 400; }
+  #term .sum { margin-top: 18px; color: #fff; opacity: 0; }
+  .tally { position: absolute; right: 50px; top: 30px; font-weight: 900; font-size: 92px; letter-spacing: -.02em; color: var(--green); line-height: 1; text-align: right; }
+  .tally small { display: block; font-family: "Plex Mono", monospace; font-weight: 400; font-size: 24px; color: #93a4ae; letter-spacing: 0; margin-top: 6px; }
+
+  /* the host, its one tunnel and its one road out */
+  #host { width: 4300px; height: 2300px; border-radius: 40px; border: 4px dashed rgba(238,243,245,.35); opacity: 0; box-sizing: border-box; }
+  #host .name { position: absolute; left: 50px; bottom: 40px; font-weight: 800; font-size: 60px; letter-spacing: .1em; color: rgba(238,243,245,.75); }
+  #tunnel { width: 70px; height: 1300px; margin-left: -35px; border-radius: 35px; background: linear-gradient(0deg, rgba(71,163,134,.85), rgba(71,163,134,.25)); box-shadow: 0 0 50px rgba(71,163,134,.6); transform-origin: 50% 100%; }
+  .tag { padding: 18px 28px; border-radius: 16px; background: rgba(8,14,19,.88); border: 2px solid rgba(238,243,245,.35); font-family: "Plex Mono", monospace; font-size: 34px; color: #eef3f5; white-space: nowrap; opacity: 0; }
+  .tag.red { border-color: var(--crimson); color: #ffd5df; }
+  .tag.big { font-family: "Overpass", sans-serif; font-weight: 800; font-size: 64px; letter-spacing: .08em; }
+  .tag.huge { font-size: 54px; }
+  #egress { height: 8px; background: rgba(255,210,122,.8); box-shadow: 0 0 24px rgba(255,184,74,.6); transform-origin: 0 50%; }
+
+  /* the build site: agents, the bash gate, the final gate */
+  .role { width: 400px; height: 500px; border-radius: 22px; background: linear-gradient(160deg, rgba(238,243,245,.14), rgba(238,243,245,.04)); border: 2px solid rgba(238,243,245,.45); padding: 34px; box-sizing: border-box; opacity: 0; }
+  .role h3 { margin: 0; font-weight: 800; font-size: 44px; line-height: 1.05; }
+  .role p { margin: 20px 0 0; font-family: "Plex Mono", monospace; font-size: 25px; line-height: 1.45; color: #c8d5dc; }
+  .role .src { position: absolute; left: 34px; bottom: 28px; font-family: "Plex Mono", monospace; font-size: 18px; color: #7f939f; }
+  #fence { width: 16px; height: 1200px; border-radius: 8px; background: linear-gradient(var(--crimson), rgba(208,88,122,.3)); box-shadow: 0 0 40px rgba(208,88,122,.6); opacity: 0; transform-origin: 50% 0; }
+  .refused { padding: 14px 24px; border-radius: 40px; background: #17232e; border: 2px solid #ff9db5; font-family: "Plex Mono", monospace; font-size: 30px; color: #ffe1e8; white-space: nowrap; opacity: 0; }
+  #gate { width: 620px; height: 640px; border-radius: 26px; background: linear-gradient(160deg, rgba(71,163,134,.30), rgba(28,107,84,.12)); border: 3px solid var(--green); padding: 40px; box-sizing: border-box; opacity: 0; }
+  #gate h3 { margin: 0; font-weight: 900; font-size: 64px; letter-spacing: .04em; }
+  #gate p { margin: 22px 0 0; font-family: "Plex Mono", monospace; font-size: 28px; line-height: 1.5; color: #d5e0e6; }
+  #gate .main { position: absolute; left: 40px; bottom: 40px; padding: 14px 26px; border-radius: 14px; background: #eef3f5; color: #17232e; font-family: "Plex Mono", monospace; font-size: 34px; }
+  .count { font-weight: 900; font-size: 130px; letter-spacing: -.03em; color: #eef3f5; white-space: nowrap; line-height: 1; opacity: 0; }
+  .count small { display: block; font-family: "Plex Mono", monospace; font-weight: 400; font-size: 30px; letter-spacing: 0; color: #a9b8c1; margin-top: 10px; }
+</style>
+<script type="application/json" id="om-cues">{"source": "tts:kokoro:af_heart", "precision": "tts", "offset": 0, "duration": 88.816, "words": [{"word": "Every", "start": 0.5, "end": 1.033}, {"word": "answer", "start": 1.033, "end": 1.389}, {"word": "the", "start": 1.389, "end": 1.567}, {"word": "twin", "start": 1.567, "end": 1.744}, {"word": "gives", "start": 1.744, "end": 2.1}, {"word": "can", "start": 2.1, "end": 2.278}, {"word": "cost", "start": 2.278, "end": 2.455}, {"word": "money", "start": 2.455, "end": 2.811}, {"word": "So", "start": 3.061, "end": 3.218}, {"word": "it", "start": 3.218, "end": 3.375}, {"word": "has", "start": 3.375, "end": 3.532}, {"word": "a", "start": 3.532, "end": 3.689}, {"word": "ceiling", "start": 3.689, "end": 4.003}, {"word": "five", "start": 4.299, "end": 4.654}, {"word": "dollars", "start": 4.654, "end": 5.009}, {"word": "a", "start": 5.009, "end": 5.186}, {"word": "day", "start": 5.186, "end": 5.363}, {"word": "Every", "start": 7.44, "end": 8.031}, {"word": "question", "start": 8.031, "end": 8.426}, {"word": "falls", "start": 8.426, "end": 8.623}, {"word": "through", "start": 8.623, "end": 8.82}, {"word": "the", "start": 8.82, "end": 9.017}, {"word": "same", "start": 9.017, "end": 9.411}, {"word": "layers", "start": 9.411, "end": 9.608}, {"word": "The", "start": 9.858, "end": 10.079}, {"word": "gateway", "start": 10.079, "end": 10.741}, {"word": "reads", "start": 10.741, "end": 10.962}, {"word": "the", "start": 10.962, "end": 11.182}, {"word": "kill", "start": 11.182, "end": 11.403}, {"word": "switch", "start": 11.403, "end": 11.624}, {"word": "first", "start": 11.624, "end": 11.845}, {"word": "and", "start": 12.213, "end": 12.338}, {"word": "if", "start": 12.338, "end": 12.464}, {"word": "it", "start": 12.464, "end": 12.589}, {"word": "can't", "start": 12.589, "end": 12.841}, {"word": "read", "start": 12.841, "end": 12.966}, {"word": "it", "start": 12.966, "end": 13.092}, {"word": "it", "start": 13.299, "end": 13.473}, {"word": "assumes", "start": 13.473, "end": 13.995}, {"word": "the", "start": 13.995, "end": 14.169}, {"word": "worst", "start": 14.169, "end": 14.343}, {"word": "Local", "start": 16.04, "end": 16.503}, {"word": "answers", "start": 16.503, "end": 16.967}, {"word": "cost", "start": 16.967, "end": 17.199}, {"word": "nothing", "start": 17.199, "end": 17.662}, {"word": "Paid", "start": 17.912, "end": 18.053}, {"word": "ones", "start": 18.053, "end": 18.336}, {"word": "are", "start": 18.336, "end": 18.618}, {"word": "metered", "start": 18.618, "end": 19.042}, {"word": "to", "start": 19.042, "end": 19.183}, {"word": "the", "start": 19.183, "end": 19.324}, {"word": "millionth", "start": 19.324, "end": 19.607}, {"word": "of", "start": 19.607, "end": 19.748}, {"word": "a", "start": 19.748, "end": 19.889}, {"word": "dollar", "start": 19.889, "end": 20.172}, {"word": "in", "start": 20.563, "end": 20.722}, {"word": "the", "start": 20.722, "end": 20.88}, {"word": "gateway's", "start": 20.88, "end": 21.516}, {"word": "own", "start": 21.516, "end": 21.674}, {"word": "database", "start": 21.674, "end": 22.31}, {"word": "At", "start": 25.54, "end": 25.742}, {"word": "three", "start": 25.742, "end": 25.943}, {"word": "fifty", "start": 25.943, "end": 26.347}, {"word": "a", "start": 26.661, "end": 26.837}, {"word": "warning", "start": 26.837, "end": 27.191}, {"word": "goes", "start": 27.191, "end": 27.367}, {"word": "out", "start": 27.367, "end": 27.544}, {"word": "on", "start": 27.544, "end": 27.72}, {"word": "Telegram", "start": 27.72, "end": 28.25}, {"word": "and", "start": 28.25, "end": 28.427}, {"word": "email", "start": 28.427, "end": 28.78}, {"word": "At", "start": 30.04, "end": 30.252}, {"word": "five", "start": 30.252, "end": 30.676}, {"word": "dollars", "start": 30.676, "end": 31.101}, {"word": "it", "start": 32.64, "end": 32.904}, {"word": "stops", "start": 32.904, "end": 33.169}, {"word": "itself", "start": 33.169, "end": 33.697}, {"word": "One", "start": 35.04, "end": 35.488}, {"word": "transaction", "start": 35.488, "end": 36.16}, {"word": "sets", "start": 36.16, "end": 36.384}, {"word": "the", "start": 36.384, "end": 36.607}, {"word": "switch", "start": 36.607, "end": 36.831}, {"word": "opens", "start": 37.195, "end": 37.478}, {"word": "an", "start": 37.478, "end": 37.619}, {"word": "incident", "start": 37.619, "end": 38.043}, {"word": "and", "start": 38.24, "end": 38.446}, {"word": "queues", "start": 38.446, "end": 38.651}, {"word": "the", "start": 38.651, "end": 38.856}, {"word": "alert", "start": 38.856, "end": 39.267}, {"word": "Every", "start": 39.518, "end": 40.012}, {"word": "request", "start": 40.012, "end": 40.342}, {"word": "after", "start": 40.342, "end": 40.672}, {"word": "that", "start": 40.672, "end": 40.836}, {"word": "gets", "start": 40.836, "end": 41.001}, {"word": "one", "start": 41.001, "end": 41.331}, {"word": "line", "start": 41.331, "end": 41.661}, {"word": "local", "start": 41.998, "end": 42.385}, {"word": "answers", "start": 42.385, "end": 42.773}, {"word": "included", "start": 42.773, "end": 43.355}, {"word": "The", "start": 44.64, "end": 44.876}, {"word": "twin", "start": 44.876, "end": 45.111}, {"word": "can't", "start": 45.111, "end": 45.581}, {"word": "talk", "start": 45.581, "end": 45.817}, {"word": "right", "start": 45.817, "end": 46.052}, {"word": "now", "start": 46.052, "end": 46.287}, {"word": "Today's", "start": 46.537, "end": 47.095}, {"word": "budget", "start": 47.095, "end": 47.466}, {"word": "for", "start": 47.466, "end": 47.652}, {"word": "its", "start": 47.652, "end": 47.838}, {"word": "answers", "start": 47.838, "end": 48.209}, {"word": "is", "start": 48.209, "end": 48.395}, {"word": "used", "start": 48.395, "end": 48.766}, {"word": "A", "start": 50.04, "end": 50.233}, {"word": "new", "start": 50.233, "end": 50.425}, {"word": "day", "start": 50.425, "end": 50.617}, {"word": "doesn't", "start": 50.617, "end": 51.002}, {"word": "bring", "start": 51.002, "end": 51.194}, {"word": "it", "start": 51.194, "end": 51.386}, {"word": "back", "start": 51.386, "end": 51.578}, {"word": "Only", "start": 51.828, "end": 52.178}, {"word": "an", "start": 52.178, "end": 52.353}, {"word": "operator", "start": 52.353, "end": 53.054}, {"word": "reset", "start": 53.054, "end": 53.404}, {"word": "does", "start": 53.404, "end": 54.029}, {"word": "a", "start": 54.029, "end": 54.208}, {"word": "person", "start": 54.208, "end": 54.723}, {"word": "with", "start": 54.723, "end": 54.901}, {"word": "a", "start": 54.901, "end": 55.078}, {"word": "reason", "start": 55.078, "end": 55.433}, {"word": "in", "start": 55.433, "end": 55.61}, {"word": "the", "start": 55.61, "end": 55.787}, {"word": "audit", "start": 55.787, "end": 56.141}, {"word": "log", "start": 56.141, "end": 56.317}, {"word": "The", "start": 57.64, "end": 57.831}, {"word": "breach", "start": 57.831, "end": 58.022}, {"word": "test", "start": 58.022, "end": 58.213}, {"word": "trips", "start": 58.213, "end": 58.404}, {"word": "it", "start": 58.404, "end": 58.595}, {"word": "on", "start": 58.595, "end": 58.786}, {"word": "purpose", "start": 58.786, "end": 59.359}, {"word": "fifty-two", "start": 59.819, "end": 60.398}, {"word": "assertions", "start": 60.398, "end": 60.977}, {"word": "fifty-two", "start": 61.19, "end": 61.776}, {"word": "passed", "start": 61.776, "end": 62.166}, {"word": "From", "start": 63.64, "end": 63.827}, {"word": "outside", "start": 63.827, "end": 64.388}, {"word": "there's", "start": 64.388, "end": 64.947}, {"word": "no", "start": 64.947, "end": 65.133}, {"word": "door", "start": 65.133, "end": 65.798}, {"word": "no", "start": 65.798, "end": 65.985}, {"word": "inbound", "start": 65.985, "end": 66.359}, {"word": "ports", "start": 66.359, "end": 66.546}, {"word": "only", "start": 66.546, "end": 67.036}, {"word": "an", "start": 67.036, "end": 67.221}, {"word": "outbound", "start": 67.221, "end": 67.592}, {"word": "tunnel", "start": 67.592, "end": 67.962}, {"word": "and", "start": 67.962, "end": 68.146}, {"word": "only", "start": 68.146, "end": 68.833}, {"word": "the", "start": 68.833, "end": 69.017}, {"word": "gateway", "start": 69.017, "end": 69.57}, {"word": "has", "start": 69.57, "end": 69.754}, {"word": "a", "start": 69.754, "end": 69.938}, {"word": "road", "start": 69.938, "end": 70.122}, {"word": "out", "start": 70.122, "end": 70.306}, {"word": "The", "start": 71.64, "end": 71.818}, {"word": "agents", "start": 71.818, "end": 72.175}, {"word": "that", "start": 72.175, "end": 72.353}, {"word": "built", "start": 72.353, "end": 72.532}, {"word": "it", "start": 72.532, "end": 72.71}, {"word": "are", "start": 72.71, "end": 73.266}, {"word": "fenced", "start": 73.266, "end": 73.623}, {"word": "in", "start": 73.623, "end": 73.801}, {"word": "too", "start": 73.801, "end": 73.98}, {"word": "The", "start": 74.23, "end": 74.402}, {"word": "one", "start": 74.402, "end": 74.746}, {"word": "that", "start": 74.746, "end": 74.919}, {"word": "writes", "start": 74.919, "end": 75.263}, {"word": "never", "start": 75.263, "end": 75.607}, {"word": "reviews", "start": 75.607, "end": 75.951}, {"word": "None", "start": 76.201, "end": 76.608}, {"word": "can", "start": 76.608, "end": 76.811}, {"word": "touch", "start": 76.811, "end": 77.015}, {"word": "the", "start": 77.015, "end": 77.218}, {"word": "budgets", "start": 77.218, "end": 77.625}, {"word": "or", "start": 77.625, "end": 77.829}, {"word": "the", "start": 77.829, "end": 78.251}, {"word": "switch", "start": 78.251, "end": 78.455}, {"word": "push", "start": 78.455, "end": 78.866}, {"word": "merge", "start": 78.866, "end": 79.289}, {"word": "or", "start": 79.289, "end": 79.497}, {"word": "apply", "start": 79.497, "end": 79.914}, {"word": "And", "start": 80.164, "end": 80.346}, {"word": "only", "start": 80.346, "end": 80.711}, {"word": "Hareet", "start": 80.711, "end": 81.222}, {"word": "runs", "start": 81.222, "end": 81.404}, {"word": "the", "start": 81.404, "end": 81.586}, {"word": "final", "start": 81.586, "end": 81.951}, {"word": "gate", "start": 81.951, "end": 82.315}, {"word": "A", "start": 84.04, "end": 84.233}, {"word": "five-dollar-a-day", "start": 84.233, "end": 85.389}, {"word": "kill", "start": 85.389, "end": 85.581}, {"word": "switch", "start": 85.581, "end": 85.774}, {"word": "Built", "start": 86.024, "end": 86.216}, {"word": "in", "start": 86.216, "end": 86.408}, {"word": "the", "start": 86.408, "end": 86.601}, {"word": "open", "start": 86.601, "end": 86.985}, {"word": "at", "start": 87.213, "end": 87.405}, {"word": "hareet", "start": 87.405, "end": 87.79}, {"word": "dot", "start": 87.79, "end": 87.982}, {"word": "A", "start": 87.982, "end": 88.174}, {"word": "I", "start": 88.174, "end": 88.366}]}</script>
+</head>
+<body>
+<div id="film" data-composition-id="film" data-width="1920" data-height="1080">
+  <audio id="om-voice" src="assets/voice.wav" data-start="0" data-duration="88.816" data-track-index="9" data-volume="1"></audio>
+  <audio id="om-sound" src="assets/sound.wav" data-start="0" data-duration="91.2" data-track-index="8" data-volume="1"></audio>
+  <div id="world">
+
+    <!-- ① the resume's line: the poster -->
+    <div class="abs" id="resume" data-om-id="resume">
+      <div class="rz-name">hareet<span>.ai</span></div>
+      <div class="rz-pitch">Come talk to my AI twin about my work and my life. It’s built in the open, so you can see how I build AI that is secure, cost-effective, and observable.</div>
+      <div class="rz-claims">LOCAL MODELS FIRST <i>•</i> A REAL-TIME COST METER <i>•</i> <b>A $5-A-DAY KILL SWITCH</b> <i>•</i> EVERY DATA FLOW DISCLOSED</div>
+    </div>
+
+    <!-- ② the stack in section: gateway-state at the bottom, the room at the top -->
+    <div class="abs slab" id="state" data-om-id="state">
+      <div class="flood" id="flood"></div>
+      <div class="name">GATEWAY-STATE</div>
+      <div class="what">the meter and the kill switch · its own Postgres</div>
+      <div class="meter">
+        <div class="row"><span>Daily</span><span><b id="spend" data-om-id="spend">0.00</b> / <span id="capTxt">5.00</span> USD</span></div>
+        <div class="bar"><div class="fill" id="fill"></div><div class="tick" id="warnTick"><span id="warnTxt">3.50</span></div></div>
+        <div class="month" id="monthTxt">Month ceiling 20.00 USD · counted in whole micro-dollars</div>
+      </div>
+      <div class="chips">
+        <div class="chip" id="c1">killswitch.tripped</div>
+        <div class="chip" id="c2">incident.drafted</div>
+        <div class="chip" id="c3">alert queued</div>
+        <div class="chip ok" id="c4">operator.reset · who, when, why</div>
+      </div>
+      <div class="synth">the breach test's synthetic calls, $0.10 each, on a test clock</div>
+    </div>
+
+    <div class="abs slab" id="gw" data-om-id="gateway">
+      <div class="name">GATEWAY</div>
+      <div class="what">every model call goes through it</div>
+      <div class="lamp" id="lampOk">state: normal</div>
+      <div class="lamp unk" id="lampUnk">unknown → degraded</div>
+      <div class="lamp bad" id="lampBad">refused</div>
+      <div class="rule" id="rule">1 · read the kill switch, no cache<br>2 · <b>local</b>, if the model server is healthy<br>3 · <b>paid fallback</b>, inside its sub-budget<br>4 · otherwise, the degraded line</div>
+    </div>
+    <div class="abs slab small" id="local" data-om-id="local"><div class="name">MODEL-SERVER</div><div class="what">local · $0</div></div>
+    <div class="abs slab small" id="paid" data-om-id="paid"><div class="name">ANTHROPIC API</div><div class="what">paid fallback · metered</div></div>
+    <div class="abs wire" id="wire1"></div>
+    <div class="abs" id="egress"></div>
+
+    <div class="abs slab" id="edge" data-om-id="edge">
+      <div class="name">EDGE</div>
+      <div class="what">the only container that publishes a port</div>
+      <div class="ports">
+        <div class="port">API<small>127.0.0.1</small></div><div class="port">site<small>127.0.0.1</small></div><div class="port">admin<small>127.0.0.1</small></div>
+        <div class="port">Langfuse<small>127.0.0.1</small></div><div class="port">Grafana<small>127.0.0.1</small></div><div class="port">OTLP<small>127.0.0.1</small></div>
+      </div>
+      <div class="edge-note">nothing listens on the internet</div>
+    </div>
+
+    <div class="abs slab" id="room" data-om-id="room">
+      <div class="name">THE ROOM</div>
+      <div class="what">a visitor talks to the twin</div>
+      <div class="bubble q" data-om-id="question"><span class="who">visitor</span><span data-var-text="question">How much does it cost to run?</span></div>
+      <div class="bubble a" id="reply" data-om-id="reply"><span class="who">twin · degraded</span><span id="replyTxt" data-om-var="degraded"></span></div>
+    </div>
+
+    <div class="abs" id="beam"></div>
+    <div class="abs" id="stopring"></div>
+    <div id="beads"></div>
+
+    <div class="abs tag" id="newday" data-om-id="new-day">00:00 UTC · a new day · still degraded</div>
+
+    <!-- ③ the proof: the breach test's real output (docs/merge-requests/2026-10-09-feat-000-us2-kill-switch.md) -->
+    <div class="abs" id="term" data-om-id="breach-test">
+      <div class="tally"><span id="passN">0</span> / <span id="passD">52</span><small>assertions passed</small></div>
+      <div class="cmd">$ make breach-test ENV=dev-cpu</div>
+      <div>breach test: h4reet-dev-cpu, checking /health first</div>
+      <div class="step">step 7 · US2-3: the model server back, and metered calls to $5.00 today: the kill switch trips</div>
+      <div class="r">7a   US2-3   <b>PASS</b>   the kill switch reads degraded within 60 s of the crossing</div>
+      <div class="r">7b   US2-3   <b>PASS</b>   killswitch.tripped within 60 s of the crossing call's record</div>
+      <div class="r">7c   US2-3   <b>PASS</b>   the trip alert is delivered on both channels within 300 s</div>
+      <div class="r">7f   US2-3   <b>PASS</b>   a hello's call.degraded record names kill_switch_tripped: local is refused too</div>
+      <div class="step">step 9 · US2-4: a reset brings local answers back; metered calls stay refused at the ceiling</div>
+      <div class="r">9a   US2-4   <b>PASS</b>   operator.reset, and its audit row: who, when, why</div>
+      <div class="r">9c   US2-4   <b>PASS</b>   hello answers locally again: its trace is a local call at 0 USD</div>
+      <div class="step">step 10 · US2-5: the month to $20.00 trips; rollovers leave it degraded until a reset</div>
+      <div class="r">10f  US2-5   <b>PASS</b>   the next day: today reads 0.00, and the kill switch still degraded</div>
+      <div class="step">step 11 · US2-7: the store stopped, then wiped: fail closed, then rebuilt from the journal</div>
+      <div class="r">11a  US2-7   <b>PASS</b>   with the store stopped, Why responses are degraded shows store_unreachable</div>
+      <div class="sum" id="sum">summary: 52 assertions: 52 passed, 0 missed</div>
+    </div>
+
+    <!-- ④ the walls -->
+    <div class="abs" id="host" data-om-id="host"><div class="name">THE HOST</div></div>
+    <div class="abs" id="tunnel" data-om-id="tunnel"></div>
+    <div class="abs tag huge" id="tunnelTag">one outbound tunnel</div>
+    <div class="abs tag red big" id="internet" data-om-id="internet">INTERNET</div>
+    <div class="abs tag red huge" id="noIn">no inbound ports</div>
+    <div class="abs tag huge" id="egressTag">egress: the gateway only</div>
+
+    <!-- ⑤ the build site -->
+    <div class="abs role" id="r1" data-om-id="role-spec-writer"><h3>spec-writer</h3><p>Never writes code.</p><div class="src">.claude/agents/spec-writer.md</div></div>
+    <div class="abs role" id="r2" data-om-id="role-implementer"><h3>implementer</h3><p>Cannot review its own work.</p><div class="src">.claude/agents/implementer.md</div></div>
+    <div class="abs role" id="r3" data-om-id="role-reviewer"><h3>reviewer</h3><p>Read-only. Never for the change this session wrote.</p><div class="src">.claude/agents/reviewer.md</div></div>
+    <div class="abs role" id="r4" data-om-id="role-red-teamer"><h3>red-teamer</h3><p>Read-only on source.</p><div class="src">.claude/agents/red-teamer.md</div></div>
+    <div class="abs role" id="r5" data-om-id="role-ops"><h3>ops</h3><p>Plan only; never apply.</p><div class="src">.claude/agents/ops.md</div></div>
+    <div class="abs role" id="r6" data-om-id="role-docs"><h3>docs</h3><p>Read-only on source.</p><div class="src">.claude/agents/docs.md</div></div>
+    <div class="abs" id="fence" data-om-id="bash-gate"></div>
+    <div class="abs tag red" id="fenceTag">the bash gate</div>
+    <div class="abs refused" id="x1">git push</div>
+    <div class="abs refused" id="x2">terraform apply</div>
+    <div class="abs refused" id="x3">edit config/budgets.yaml</div>
+    <div class="abs refused" id="x4">git merge main</div>
+    <div class="abs count" id="blockedN" data-om-id="blocked"><span id="blockedTxt">345</span><small>forbidden actions, each tested to stay blocked</small></div>
+    <div class="abs" id="gate" data-om-id="final-gate"><h3>THE GATE</h3><p>tools/gates/gate<br>a clean-room check of the branch<br>run by Hareet, never by an agent</p><div class="main">main</div></div>
+
+    <!-- the end: the resume's line again -->
+    <div class="abs" id="endcard" data-om-id="endcard">
+      <div class="rz-name">hareet<span>.ai</span></div>
+      <div class="rz-pitch">Come talk to my AI twin about my work and my life. It’s built in the open, so you can see how I build AI that is secure, cost-effective, and observable.</div>
+      <div class="rz-claims">LOCAL MODELS FIRST <i>•</i> A REAL-TIME COST METER <i>•</i> <b>A $5-A-DAY KILL SWITCH</b> <i>•</i> EVERY DATA FLOW DISCLOSED</div>
+    </div>
+  </div>
+  <!-- the alerts, as Telegram delivers them (services/gateway/test/fixtures/alerts): flat, like a notification -->
+  <div id="hud">
+    <div class="tg" id="tgWarn" data-om-id="alert-warning">
+      <div class="h"><i class="sev" style="background:#f08c2e"></i>Warning · [h4reet.ai prod]</div>
+      <div class="t">WARNING: daily meter at 70%</div>
+      <pre>Daily     3.50 /  5.00 USD   warning  3.50
+Month     9.10 / 20.00 USD   warning 14.00</pre>
+    </div>
+    <div class="tg" id="tgTrip" data-om-id="alert-trip">
+      <div class="h"><i class="sev" style="background:#e5484d"></i>Critical · [h4reet.ai prod]</div>
+      <div class="t">KILL SWITCH TRIPPED: daily ceiling reached</div>
+      <pre>Daily      5.00 /  5.00 USD   warning  3.50
+Month     13.40 / 20.00 USD   warning 14.00</pre>
+      <div class="n">Next: Every request now gets the degraded response, local answers included. Only an operator reset restores service.</div>
+    </div>
+    <div class="tg" id="tgReset" data-om-id="alert-reset">
+      <div class="h"><i class="sev" style="background:#3e8ed0"></i>Operator action · [h4reet.ai prod]</div>
+      <div class="t">OPERATOR ACTION: reset</div>
+      <div class="n">Next: Local answers resume. Metered calls stay refused while a meter is at or above its ceiling: day.</div>
+    </div>
+  </div>
+  <div class="vignette"></div>
+</div>
+
+<script>
+  const V = OM.vars();
+  const fmt = (n) => n.toFixed(2);
+  const $ = (s) => document.querySelector(s);
+  $('#capTxt').textContent = fmt(V.dailyCap);
+  $('#warnTxt').textContent = fmt(V.warnAt);
+  $('#monthTxt').textContent = `Month ceiling ${fmt(V.monthCap)} USD · counted in whole micro-dollars`;
+  $('#passD').textContent = V.passCount;
+  $('#sum').textContent = `summary: ${V.passCount} assertions: ${V.passCount} passed, 0 missed`;
+  $('#warnTick').style.left = `${(V.warnAt / V.dailyCap) * 100}%`;
+
+  // ---------- the narration's timing: estimated at 150 wpm until `om voice` gives word cues ----------
+  // sentence starts in the respaced take (tools/respace.py); OM.cue words anchor the beats inside them
+  const L = { hook: 0.5, layers: 7.4, meter: 16.0, warn: 25.8, five: 30.0, stop: 31.2, trip: 32.68, after: 35.0,
+              visitor: 44.6, reset: 50.0, proof: 57.6, walls: 63.6, agents: 71.6, end: 84.0 };
+  const D = L.end + 4.8 + V.endHold;
+  const tl = gsap.timeline({ paused: true, defaults: { ease: 'power3.out', immediateRender: false } });
+  OM.music({ product: 'devtool', bpm: 100, drop: 'trip', ending: 'button',
+             energy: { hook: .55, layers: .45, meter: .8, warn: .85, stop: 0, trip: 1, visitor: .4, reset: .5, proof: .75, walls: .6, agents: .7, end: .35 } });
+
+  // ---------- the world: where everything stands (page px, y down, z towards the camera) ----------
+  const Z = { resume: 1500, room: 1050, edge: 700, gw: 350, state: 0 };
+  const place = (sel, x, y, z, extra = {}) => gsap.set(sel, { x, y, z, ...extra });
+  place('#resume', 0, -60, Z.resume);
+  place('#room', 0, 0, Z.room);
+  place('#edge', 0, 0, Z.edge);
+  place('#gw', 0, 0, Z.gw);
+  place('#state', 0, 0, Z.state);
+  place('#local', 1450, 20, Z.gw);
+  place('#paid', 3000, 420, Z.gw);
+  place('#wire1', 1200, 207, Z.gw, { width: 250 });
+  place('#egress', 1200, 606, Z.gw, { width: 1800, scaleX: 0 });
+  place('#beam', 600, 400, Z.room, { rotationX: -90, scaleY: 0 });   // its own y runs along −z: from the room down to the gateway
+  place('#stopring', 600, 400, Z.gw + 2);
+  place('#newday', 260, 690, 30);
+  place('#term', -1700, -40, Z.room);
+  place('#host', -1500, -900, Z.gw);
+  place('#tunnel', 600, -1300, Z.edge, { scaleY: 0 });
+  place('#tunnelTag', 690, -900, Z.edge);
+  place('#internet', 330, -1860, Z.edge);
+  place('#noIn', 900, -1830, Z.edge);
+  place('#egressTag', 1900, 650, Z.gw);
+  const RX = -6600;                                                     // the build site, left of the host
+  [1, 2, 3, 4, 5, 6].forEach((i) => place(`#r${i}`, RX + (i - 1) * 460, 80, 120));
+  place('#fence', RX + 2840, -150, 120, { scaleY: 0 });
+  place('#fenceTag', RX + 2700, -260, 120);
+  place('#blockedN', RX + 2950, 760, 120);
+  place('#gate', RX + 3500, 70, 120);
+  place('#endcard', RX + 3200, 150, 900);
+
+  // ---------- one camera ----------
+  const cam = OM.space('#world', { fov: 36 });
+  const C = (x, y, z) => [x, y, z];
+  cam.set({ target: C(600, 230, Z.resume), distance: 700, yaw: -34, pitch: -16, roll: -5 });
+
+  // hook: swing off the resume's line; the card lifts away and the stack is under it
+  tl.addLabel('scene:hook', 0);
+  tl.fromTo('#resume .rz-claims b', { scale: 1 }, { scale: 1.1, duration: .3, ease: 'power2.out', yoyo: true, repeat: 1 }, OM.sfx('pop', 1.2, { gain: .5 }));
+  tl.fromTo('#resume', { rotationX: 0, y: -60, opacity: 1 }, { rotationX: 70, y: -900, opacity: 0, duration: 1.5, ease: 'power3.in' }, 2.6);
+  OM.sfx('whoosh', 3.3, { gain: .5 });
+  tl.fromTo('#capTxt', { color: '#c8d5dc' }, { color: '#ffffff', duration: .4 }, 5.6);   // "five dollars a day"
+  OM.sfx('tick', 5.6, { gain: .4 });
+
+  // layers: follow a question down through the room, the edge, the gateway
+  tl.addLabel('scene:layers', L.layers);
+  tl.fromTo('#beam', { scaleY: 0 }, { scaleY: 1, duration: 2.2, ease: 'power2.inOut' }, L.layers + 0.6);
+  tl.fromTo('#edge .port', { borderColor: 'rgba(71,163,134,.6)' }, { borderColor: '#eef3f5', duration: .3, stagger: .08 }, L.layers + 1.6);
+  OM.sfx('thud', L.layers + 1.6, { gain: .5 });
+  OM.sfx('thud', L.layers + 2.9, { gain: .6 });
+  tl.fromTo('#rule', { opacity: .35 }, { opacity: 1, duration: .5 }, L.layers + 2.9);
+  // "if it can't read it, it assumes the worst"
+  tl.fromTo('#lampUnk', { opacity: 0 }, { opacity: 1, duration: .25 }, L.layers + 4.9)
+    .fromTo('#lampOk', { opacity: 1 }, { opacity: 0, duration: .25 }, L.layers + 4.9)
+    .fromTo('#lampUnk', { opacity: 1 }, { opacity: 0, duration: .25 }, L.layers + 7.4)
+    .fromTo('#lampOk', { opacity: 0 }, { opacity: 1, duration: .25 }, L.layers + 7.4);
+  OM.sfx('glitch', L.layers + 4.9, { gain: .35 });
+
+  // meter: calls fall; local ones cost nothing, paid ones climb the meter
+  tl.addLabel('scene:meter', L.meter);
+  tl.fromTo('#wire1', { opacity: .4 }, { opacity: 1, duration: .3 }, L.meter);
+  tl.fromTo('#egress', { scaleX: 0 }, { scaleX: 1, duration: .6, ease: 'expo.out' }, L.meter + 1.8);
+  OM.sfx('slide', L.meter + 1.8, { gain: .4 });
+
+  // the calls: each falls from the room to the gateway (0.45 s), then to its route (0.35 s); the meter commits on arrival
+  const calls = [];
+  for (let i = 0; i < 6; i++) calls.push({ t: L.meter + 0.3 + i * 0.6, paid: false });                   // local, one a beat
+  const nPaid = Math.round(V.dailyCap / V.callCost), nWarn = Math.round(V.warnAt / V.callCost);         // 50 and 35 at $0.10
+  const p0 = L.meter + 2.2, pW = L.warn - 0.8, pF = L.stop - 0.9;
+  for (let i = 0; i < nWarn; i++) { const u = i / Math.max(1, nWarn - 1); calls.push({ t: p0 + (pW - p0) * (1 - Math.pow(1 - u, 1.7)), paid: true }); }
+  for (let i = 1; i < nPaid - nWarn; i++) calls.push({ t: pW + (pF - pW) * (i / Math.max(1, nPaid - nWarn - 1)), paid: true });
+  const HOLD = L.trip - L.stop;
+  calls.push({ t: L.stop - 0.625, paid: true, last: true });                                             // the last call: frozen mid-way in the stop
+  const after = [0, 1, 2, 3, 4].map((i) => L.after + 4.5 + i * 0.85);                                     // requests after the trip, refused at the gateway
+
+  const beadsEl = $('#beads');
+  const mk = (cls) => { const d = document.createElement('div'); d.className = `abs bead ${cls}`; beadsEl.appendChild(d); return d; };
+  calls.forEach((c) => { c.el = mk(c.paid ? 'paid' : 'local'); });
+  const refusedBeads = after.map((t) => ({ t, el: mk('local') }));
+  const GWP = [600, 400, Z.gw], ROOMP = [600, 400, Z.room], LOCP = [1800, 210, Z.gw], PAIDP = [3350, 610, Z.gw];
+  const lerp = (a, b, u) => a.map((v, i) => v + (b[i] - v) * u);
+  const local = (c, t) => c.last ? (t < L.stop ? t : (t < L.trip ? L.stop : t - HOLD)) : t;   // the stop holds the last call's clock
+  const arrive = (c) => c.t + 0.8 + (c.last ? HOLD : 0);
+
+  calls.filter((c) => c.paid).forEach((c, i) => { c.n = i + 1; });
+  calls.filter((c) => c.paid && c.n % 2 === 0 && !c.last).forEach((c) => OM.sfx('tick', arrive(c), { gain: .22, pitch: 1 + (c.n % 7) * .03 }));
+  calls.filter((c) => !c.paid).forEach((c, i) => OM.sfx('pop', c.t + 0.45, { gain: .3, note: i + 1 }));
+
+  const spendAt = (t) => { let n = 0; for (const c of calls) if (c.paid && t >= arrive(c)) n++; return Math.min(n * V.callCost, V.dailyCap); };
+  const rows = [...document.querySelectorAll('#term .r')];
+  const rowAt = (i) => L.proof + 0.5 + i * 0.34;
+  const RT = V.degraded, reply = $('#replyTxt');
+
+  OM.clock(tl, (t) => {
+    for (const c of calls) {
+      const u = local(c, t) - c.t;
+      let p = null;
+      if (u >= 0 && u < 0.45) p = lerp(ROOMP, GWP, u / 0.45);
+      else if (u >= 0.45 && u < 0.8) p = lerp(GWP, c.paid ? PAIDP : LOCP, (u - 0.45) / 0.35);
+      if (p) gsap.set(c.el, { x: p[0], y: p[1], z: p[2], opacity: 1 }); else gsap.set(c.el, { opacity: 0 });
+    }
+    for (const r of refusedBeads) {
+      const u = (t - r.t) / 0.6;
+      if (u >= 0 && u < 1) {
+        const p = u < 0.7 ? lerp(ROOMP, GWP, u / 0.7) : lerp(GWP, [600, 400, Z.gw + 200], (u - 0.7) / 0.3);
+        gsap.set(r.el, { x: p[0], y: p[1], z: p[2], opacity: u < 0.7 ? 1 : 1 - (u - 0.7) / 0.3 });
+      } else gsap.set(r.el, { opacity: 0 });
+    }
+    // the meter, from the calls that have arrived; before the calls, a glimpse of the ceiling on "five dollars a day"
+    const s = spendAt(t);
+    $('#spend').textContent = fmt(s);
+    let fill = s / V.dailyCap, op = 1;
+    if (t < L.meter) { const k = t - 5.6; fill = k < 0 ? 0 : Math.min(1, k / 0.5); op = k < 0 ? 0 : (k < 0.8 ? 1 : Math.max(0, 1 - (k - 0.8) / 0.5)); }
+    gsap.set('#fill', { scaleX: fill, opacity: op, backgroundColor: s >= V.dailyCap - 1e-9 ? '#d0587a' : (s >= V.warnAt - 1e-9 ? '#e7a96b' : V.green) });
+    // the twin's one line, typed
+    const k = Math.max(0, Math.min(1, (t - (L.visitor + 0.1)) / 4.1));
+    reply.textContent = RT.slice(0, Math.round(k * RT.length));
+    // the breach test's tally, and the forbidden actions counting up
+    const shown = rows.filter((r, i) => t >= rowAt(i)).length;
+    $('#passN').textContent = t >= rowAt(rows.length) ? V.passCount : Math.round(shown * V.passCount / (rows.length + 1));
+    const kb = Math.max(0, Math.min(1, (t - (L.agents + 7.6)) / 2.4));
+    $('#blockedTxt').textContent = Math.round(V.blocked * (1 - Math.pow(1 - kb, 3)));
+  }, D);
+
+  // the warning: "at three fifty"
+  tl.addLabel('scene:warn', L.warn);
+  tl.fromTo('#tgWarn', { opacity: 0, x: 140 }, { opacity: 1, x: 0, duration: .5, ease: 'expo.out' }, L.warn + 0.2);
+  OM.sfx('ding', L.warn + 0.3, { gain: .5 });
+
+  // "at five dollars…" the stop, then "it stops itself"
+  tl.addLabel('scene:stop', L.stop);
+  tl.addLabel('scene:trip', L.trip);
+  const T0 = L.trip + 0.18;                                                                             // the last call lands; the meter reads the ceiling
+  OM.sfx('impact', T0, { gain: .9 }); OM.sfx('subdrop', T0, { gain: .8 });
+  tl.fromTo('#flood', { opacity: 0 }, { opacity: 1, duration: .18, ease: 'power4.out' }, T0)
+    .fromTo('#stopring', { opacity: 0, scale: .4 }, { opacity: 1, scale: 1, duration: .35, ease: 'expo.out' }, T0)
+    .fromTo('#lampBad', { opacity: 0 }, { opacity: 1, duration: .12 }, T0)
+    .fromTo('#lampOk', { opacity: 1 }, { opacity: 0, duration: .12 }, T0)
+    .fromTo('#beam', { opacity: 1 }, { opacity: .25, duration: .3 }, T0)
+    .fromTo('#local, #paid', { opacity: 1 }, { opacity: .35, duration: .4 }, T0 + 0.05)
+    .fromTo('#tgWarn', { opacity: 1 }, { opacity: 0, duration: .2 }, T0)
+    .fromTo('#tgTrip', { opacity: 0, x: 140, scale: 1.06 }, { opacity: 1, x: 0, scale: 1, duration: .45, ease: 'expo.out' }, T0 + 0.3);
+  // "one transaction sets the switch, opens an incident and queues the alert"
+  ['#c1', '#c2', '#c3'].forEach((id, i) => {
+    const at = L.after + [1.1, 2.2, 3.4][i];
+    tl.fromTo(id, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: .35, ease: 'expo.out' }, at);
+    OM.sfx('stamp', at + .1, { gain: .45, pan: -.3 + i * .3 });
+  });
+  after.forEach((t) => { OM.sfx('click', t + 0.42, { gain: .35 }); tl.fromTo('#stopring', { scale: 1 }, { scale: 1.12, duration: .12, yoyo: true, repeat: 1 }, t + 0.42); });
+
+  // the visitor's one line
+  tl.addLabel('scene:visitor', L.visitor);
+  tl.fromTo('#reply', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: .3 }, L.visitor - 0.1);
+  OM.sfx('type', L.visitor + 0.1, { gain: .25, dur: 4.1 });
+
+  // the reset: a new day doesn't, an operator does
+  tl.addLabel('scene:reset', L.reset);
+  tl.fromTo('#newday', { opacity: 0, y: 720 }, { opacity: 1, y: 690, duration: .5, ease: 'expo.out' }, L.reset + 0.2)
+    .fromTo('#newday', { opacity: 1 }, { opacity: 0, duration: .4 }, L.reset + 1.9);
+  OM.sfx('tick', L.reset + 0.2, { gain: .5 }); OM.sfx('thud', L.reset + 1.0, { gain: .5 });
+  tl.fromTo('#tgTrip', { opacity: 1 }, { opacity: 0, duration: .3 }, L.reset + 2.0)
+    .fromTo('#tgReset', { opacity: 0, x: 140 }, { opacity: 1, x: 0, duration: .5, ease: 'expo.out' }, L.reset + 2.2)
+    .fromTo('#flood', { opacity: 1 }, { opacity: 0, duration: 1.2, ease: 'power2.inOut' }, L.reset + 2.4)
+    .fromTo('#lampBad', { opacity: 1 }, { opacity: 0, duration: .3 }, L.reset + 2.4)
+    .fromTo('#lampOk', { opacity: 0 }, { opacity: 1, duration: .3 }, L.reset + 2.4)
+    .fromTo('#stopring', { opacity: 1 }, { opacity: 0, duration: .3 }, L.reset + 2.4)
+    .fromTo('#local', { opacity: .35 }, { opacity: 1, duration: .5 }, L.reset + 2.6)
+    .fromTo('#beam', { opacity: .25 }, { opacity: 1, duration: .5 }, L.reset + 2.6)
+    .fromTo('#c4', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: .35 }, L.reset + 3.6);
+  OM.sfx('chime', L.reset + 2.4, { gain: .45 });
+
+  // the proof: the breach test's own rows
+  tl.addLabel('scene:proof', L.proof);
+  tl.fromTo('#term', { opacity: 0 }, { opacity: 1, duration: .6 }, L.proof - 0.4);
+  tl.fromTo('#tgReset', { opacity: 1 }, { opacity: 0, duration: .4 }, L.proof - 0.6);
+  rows.forEach((r, i) => {
+    tl.fromTo(r, { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: .25 }, rowAt(i));
+    OM.sfx('pop', rowAt(i), { gain: .32, note: i + 1 });
+  });
+  tl.fromTo('#sum', { opacity: 0 }, { opacity: 1, duration: .3 }, rowAt(rows.length));
+  OM.sfx('ding', rowAt(rows.length), { gain: .5 });
+
+  // the walls: crane out to the whole host, its one tunnel, its one road out
+  tl.addLabel('scene:walls', L.walls);
+  tl.fromTo('#term', { opacity: 1 }, { opacity: .25, duration: .8 }, L.walls);
+  tl.fromTo('#paid', { opacity: .35 }, { opacity: 1, duration: .4 }, L.walls);
+  tl.fromTo('#host', { opacity: 0, scale: .96 }, { opacity: 1, scale: 1, duration: 1.0 }, L.walls + 0.6)
+    .fromTo('#internet', { opacity: 0, y: -1960 }, { opacity: 1, y: -1860, duration: .6, ease: 'expo.out' }, L.walls + 1.4)
+    .fromTo('#noIn', { opacity: 0 }, { opacity: 1, duration: .4 }, L.walls + 2.1)
+    .fromTo('#tunnel', { scaleY: 0 }, { scaleY: 1, duration: 1.4, ease: 'expo.inOut' }, L.walls + 2.9)
+    .fromTo('#tunnelTag', { opacity: 0 }, { opacity: 1, duration: .4 }, L.walls + 3.8)
+    .fromTo('#egressTag', { opacity: 0 }, { opacity: 1, duration: .4 }, L.walls + 5.2);
+  OM.sfx('whoosh', L.walls + 0.4, { gain: .45 }); OM.sfx('thud', L.walls + 1.5, { gain: .5 });
+  OM.sfx('riser', L.walls + 4.4, { gain: .35 }); OM.sfx('pop', L.walls + 5.2, { gain: .4 });
+
+  // the agents: one role each, the bash gate, the final gate
+  tl.addLabel('scene:agents', L.agents);
+  [1, 2, 3, 4, 5, 6].forEach((i) => {
+    const at = L.agents + 0.6 + (i - 1) * 0.3;
+    tl.fromTo(`#r${i}`, { opacity: 0, z: 0, rotationY: -25 }, { opacity: 1, z: 120, rotationY: 0, duration: .6, ease: OM.spring(0.3) }, at);
+    OM.sfx('thud', at + .25, { gain: .3, pan: -.6 + (i - 1) * .24 });
+  });
+  // "the one that writes never reviews": the implementer and the reviewer, kept apart
+  tl.fromTo('#r2, #r3', { borderColor: 'rgba(238,243,245,.45)' }, { borderColor: '#ff9db5', duration: .3 }, L.agents + 2.7)
+    .fromTo('#r2, #r3', { borderColor: '#ff9db5' }, { borderColor: 'rgba(238,243,245,.45)', duration: .5 }, L.agents + 4.4);
+  tl.fromTo('#fence', { opacity: 0, scaleY: 0 }, { opacity: 1, scaleY: 1, duration: .6, ease: 'expo.out' }, L.agents + 4.5)
+    .fromTo('#fenceTag', { opacity: 0 }, { opacity: 1, duration: .3 }, L.agents + 4.9);
+  ['#x3', '#x1', '#x4', '#x2'].forEach((id, i) => {                     // budgets, push, merge, apply: as they're said
+    const at = L.agents + [5.3, 6.6, 7.05, 7.5][i] - 0.35, y = 40 + i * 230;
+    tl.fromTo(id, { opacity: 0, x: RX + 1900, y, z: 260 }, { opacity: 1, x: RX + 2420, y, z: 260, duration: .35, ease: 'power2.in' }, at)
+      .fromTo(id, { opacity: 1, x: RX + 2420 }, { x: RX + 2150, opacity: 0, duration: .6, ease: 'power2.out' }, at + .35);
+    OM.sfx('glitch', at + .35, { gain: .35, pan: .2 });
+  });
+  tl.fromTo('#blockedN', { opacity: 0, y: 820 }, { opacity: 1, y: 760, duration: .5, ease: 'expo.out' }, L.agents + 7.6);
+  OM.sfx('count', L.agents + 7.6, { gain: .35, dur: 2.4 });
+  tl.fromTo('#gate', { opacity: 0, z: 0 }, { opacity: 1, z: 120, duration: .7, ease: OM.spring(0.25) }, L.agents + 9.0);
+  OM.sfx('thud', L.agents + 9.3, { gain: .6 });
+
+  // the end: back to the resume's line
+  tl.addLabel('scene:end', L.end);
+  tl.fromTo('#endcard', { opacity: 0, rotationX: 24, y: 360 }, { opacity: 1, rotationX: 0, y: 150, duration: 1.4, ease: 'expo.out' }, L.end);
+  tl.fromTo('#endcard .rz-claims b', { scale: 1 }, { scale: 1.1, duration: .35, yoyo: true, repeat: 1, ease: 'power2.out' }, L.end + 2.0);
+  OM.sfx('chime', L.end + 2.0, { gain: .5 });
+  // ---------- the camera, every move in time order (om.js builds each move from the one before) ----------
+  // pitch < 0 looks down on the stack: the room nearest and on top, gateway-state at the bottom
+  const M = (at, pose, dur, ease) => cam.to(tl, at, { ...pose, duration: dur, ease });
+  M(0,              { target: C(600, 200, Z.resume), distance: 1250, yaw: -8, pitch: -6, roll: 0 }, 2.8, 'power2.out');
+  M(2.8,            { target: C(900, 400, 450), distance: 2700, yaw: -30, pitch: -40 }, 2.4, 'expo.inOut');
+  M(5.2,            { target: C(750, 400, 450), distance: 2150, yaw: -6, pitch: -28 }, L.layers - 5.2, 'sine.inOut');
+  M(L.layers,       { target: C(600, 420, Z.room), distance: 1300, yaw: -10, pitch: -22 }, 1.2, 'expo.inOut');
+  M(L.layers + 1.2, { target: C(600, 420, Z.edge), distance: 1250, yaw: -8, pitch: -20 }, 1.1, 'expo.inOut');
+  M(L.layers + 2.4, { target: C(600, 400, Z.gw), distance: 1250, yaw: -6, pitch: -20 }, 1.4, 'expo.inOut');
+  M(L.layers + 3.8, { target: C(600, 400, Z.gw), distance: 1150, yaw: 8, pitch: -16 }, L.meter - L.layers - 3.8, 'sine.inOut');
+  M(L.meter,        { target: C(1500, 420, 160), distance: 2700, yaw: -26, pitch: -34 }, 2.0, 'expo.inOut');
+  M(L.meter + 2.0,  { target: C(1000, 420, 100), distance: 1900, yaw: -4, pitch: -24 }, L.warn - L.meter - 2.0, 'sine.inOut');
+  M(L.warn,         { target: C(120, 420, 120), distance: 2500, yaw: -6, pitch: -24 }, 2.0, 'expo.inOut');
+  M(L.warn + 2.0,   { target: C(450, 420, 200), distance: 1800, yaw: -10, pitch: -26 }, L.stop - L.warn - 2.0, 'power2.out');
+  M(T0,             { target: C(450, 420, 100), distance: 1800, yaw: -34, pitch: -54 }, 0.45, 'expo.inOut');
+  M(T0 + 0.45,      { target: C(150, 380, 220), distance: 2550, yaw: -4, pitch: -26 }, L.after - T0 - 0.45, 'power2.inOut');
+  // "one transaction sets the switch, opens an incident, and queues the alert": push in along the three records
+  M(L.after,        { target: C(420, 610, 0), distance: 1300, yaw: -6, pitch: -20 }, 1.0, 'expo.inOut');
+  M(L.after + 1.0,  { target: C(820, 610, 0), distance: 1250, yaw: 4, pitch: -18 }, 2.6, 'sine.inOut');
+  // "every request after that gets one line": up to the gateway, where they bounce
+  M(L.after + 3.6,  { target: C(600, 400, Z.gw), distance: 1650, yaw: 10, pitch: -22 }, 1.2, 'expo.inOut');
+  M(L.after + 4.8,  { target: C(600, 420, Z.gw), distance: 1550, yaw: -6, pitch: -18 }, L.visitor - 0.4 - L.after - 4.8, 'sine.inOut');
+  M(L.visitor - 0.4,{ target: C(560, 470, Z.room), distance: 1250, yaw: -4, pitch: -12 }, 1.6, 'expo.inOut');
+  M(L.visitor + 1.2,{ target: C(560, 470, Z.room), distance: 1100, yaw: 8, pitch: -8 }, L.reset - L.visitor - 1.2, 'sine.inOut');
+  M(L.reset,        { target: C(100, 420, 150), distance: 2200, yaw: -8, pitch: -26 }, 2.0, 'expo.inOut');
+  M(L.reset + 2.0,  { target: C(250, 440, 120), distance: 1950, yaw: 6, pitch: -22 }, L.proof - 0.4 - L.reset - 2.0, 'sine.inOut');
+  M(L.proof - 0.4,  { target: C(-950, 360, Z.room), distance: 1500, yaw: 6, pitch: -10 }, 1.8, 'expo.inOut');
+  M(L.proof + 1.4,  { target: C(-950, 400, Z.room), distance: 1400, yaw: -2, pitch: -6 }, L.walls - 0.3 - L.proof - 1.4, 'sine.inOut');
+  M(L.walls - 0.3,  { target: C(700, -200, 500), distance: 5200, yaw: -26, pitch: -40 }, 2.6, 'expo.inOut');
+  M(L.walls + 2.3,  { target: C(1100, -400, 500), distance: 4300, yaw: 6, pitch: -26 }, L.agents - 0.4 - L.walls - 2.3, 'sine.inOut');
+  M(L.agents - 0.4, { target: C(RX + 1350, 330, 120), distance: 2600, yaw: 8, pitch: -14 }, 2.4, 'expo.inOut');
+  M(L.agents + 2.0, { target: C(RX + 1700, 330, 120), distance: 2350, yaw: -4, pitch: -10 }, 2.4, 'sine.inOut');
+  M(L.agents + 4.4, { target: C(RX + 2850, 300, 120), distance: 2000, yaw: 4, pitch: -12 }, 1.6, 'expo.inOut');
+  M(L.agents + 6.0, { target: C(RX + 3000, 320, 120), distance: 1800, yaw: -6, pitch: -8 }, 2.4, 'sine.inOut');
+  M(L.agents + 8.4, { target: C(RX + 3700, 380, 120), distance: 1500, yaw: -4, pitch: -8 }, 1.6, 'expo.inOut');
+  M(L.agents + 10.0,{ target: C(RX + 3700, 380, 120), distance: 1380, yaw: 3, pitch: -5 }, L.end - L.agents - 10.0, 'sine.inOut');
+  M(L.end,          { target: C(RX + 3800, 410, 900), distance: 1300, yaw: 0, pitch: 0, roll: 0 }, 1.6, 'expo.inOut');
+  M(L.end + 1.6,    { target: C(RX + 3800, 410, 900), distance: 1240, yaw: 0, pitch: 0 }, D - L.end - 1.6, 'sine.inOut');
+  // x-ray: the layers above the one the camera is on turn to ghosts, so the deeper one reads; solid again for the wide shots
+  const ghost = (sel, at, from, to, dur = .6) => tl.fromTo(sel, { opacity: from }, { opacity: to, duration: dur, ease: 'power2.inOut' }, at);
+  ghost('#room', L.layers + 1.2, 1, .14);
+  ghost('#edge', L.layers + 2.4, 1, .14);
+  ghost('#gw', L.meter, 1, .24);
+  ghost('#gw', L.after + 3.4, .24, 1);                  // "every request after that": the gateway refusing, solid
+  ghost('#room', L.visitor - 0.4, .14, 1);
+  ghost('#room', L.reset, 1, .14);
+  ghost('#gw', L.reset, 1, .24);
+  ghost('#room, #edge', L.walls - 0.3, .14, 1, 1.0);
+  ghost('#gw', L.walls - 0.3, .24, 1, 1.0);
+  // the build site steps back so the end card stands alone
+  tl.fromTo('.role, #fence, #fenceTag, #blockedN, #gate', { opacity: 1 }, { opacity: 0, duration: .6 }, L.end);
+
+  tl.to({}, { duration: 0 }, D);
+
+  window.__timelines['film'] = tl;
+</script>
+</body>
+</html>

@@ -440,6 +440,19 @@ H/bash-gate.sh/make shared-state-roles
 H/bash-gate.sh/make server-budget-restore
 H/bash-gate.sh/make tunnel-keys
 H/bash-gate.sh/make tunnel-revoke
+H/bash-gate.sh/make shared-state-tls
+H/bash-gate.sh/make shared-state-tls ROTATE=1
+H/bash-gate.sh/make shared-state-restore
+H/bash-gate.sh/make shared-state-restore DUMP=dumps/2026-11-13T06:00:00Z.dump
+H/bash-gate.sh/gmake shared-state-tls
+H/bash-gate.sh/make -C . shared-state-restore
+H/bash-gate.sh/bash -c "make shared-state-tls"
+H/bash-gate.sh/make ./shared-state-restore
+H/bash-gate.sh/make "shared-state-"tls
+H/bash-gate.sh/make shared-state-"restore"
+H/bash-gate.sh/(make shared-state-restore)
+H/bash-gate.sh/env PROFILE=x make shared-state-tls
+H/bash-gate.sh/make shared-state-tlsx
 H/bash-gate.sh/make aws-login PROFILE=h4reet-admin
 H/bash-gate.sh/bash deploy/scripts/aws-sso-profile.sh h4reet-admin
 H/bash-gate.sh/./deploy/scripts/aws-sso-profile.sh h4reet-admin

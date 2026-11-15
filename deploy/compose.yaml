@@ -823,7 +823,7 @@ services:
       resources:
         limits:
           cpus: "0.25"
-          memory: 96M
+          memory: 128M
 
   # The shared state (spec 001 contracts/shared-state.md §1; the Author's answer of 2026-11-11, "Postgres in a container
   # on the tunnel end"): prod's one meter and kill switch, in the tunnel end's class. Spec 000's pinned Postgres 17,
@@ -931,7 +931,7 @@ services:
       resources:
         limits:
           cpus: "0.25"
-          memory: 96M
+          memory: 128M
 
   # The public view's sink (spec 001 contracts/public-view.md §2; tasks.md T137; disclosure row C4), in the tunnel end's
   # class: the publishers' one way in, the laptop's through the tunnel's -L 2301 (snapshot-sink:8080 on internal), EC2's
@@ -1076,7 +1076,7 @@ services:
       resources:
         limits:
           cpus: "0.25"
-          memory: 96M
+          memory: 128M
 
   # EC2's two doors from the tunnel end (spec 001 contracts/tunnel.md §4; contracts/env-cloud.md §3), in EC2's `ec2`
   # class: the relay block, edge's 8085, for the tunnel end's relay, and EC2's collector's OTLP/HTTP, 4318, for the

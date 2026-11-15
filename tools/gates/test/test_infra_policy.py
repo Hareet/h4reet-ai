@@ -310,6 +310,35 @@ def test_t2_component(tree: Path) -> None:
     only(tree, "T2")
 
 
+# The types the policy's list lacked (spec 001 tasks.md T155, T157, T158): each takes tags, so T2 asks each for
+# component. The Author's T037 plan found the model action's tags_all without one; only the saved plan caught it.
+TAGGABLE_ADDED = {
+    "aws_budgets_budget_action": (
+        "infra/account/killswitch.tf",
+        'resource "aws_budgets_budget_action" "model" {\n  budget_name = "h4-model-month"\n%s}\n',
+    ),
+    "aws_sqs_queue": (
+        "infra/account/lambdas.tf",
+        'resource "aws_sqs_queue" "failed" {\n  name = "h4-alert-bridge-failed"\n%s}\n',
+    ),
+    "aws_ssoadmin_permission_set": (
+        "infra/account/iam.tf",
+        'resource "aws_ssoadmin_permission_set" "laptop" {\n  name = "h4reet-ai-cloud"\n%s}\n',
+    ),
+}
+
+
+@pytest.mark.parametrize("rtype", sorted(TAGGABLE_ADDED))
+def test_t2_component_on_the_types_the_list_lacked(tree: Path, rtype: str) -> None:
+    rel, text = TAGGABLE_ADDED[rtype]
+    assert rtype in ip.TAGGABLE
+    write(tree, rel, text % "")
+    (finding,) = only(tree, "T2")
+    assert finding.path == rel
+    write(tree, rel, text % '  tags = { component = "x" }\n')
+    assert ip.check_repo(tree) == []
+
+
 def test_t3_exact_pins_and_only_aws(tree: Path) -> None:
     write(
         tree,

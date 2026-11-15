@@ -10,9 +10,10 @@ sends the Author one plain-text message through the Telegram Bot API:
 The kinds and their pages are contracts/aws-alerts.md §2's. It knows a notice by its shape:
   - this project's own, already in the format, from the credential audit, the handover's functions, the hosts'
     deployers, and the EventBridge rules' input transformers: its kind must be one §2 lists, and only its fact lines,
-    `- <key>: <value>`, pass;
+    `- <key>: <value>`, pass; a rule's string template arrives as a JSON string, read once as its text;
   - AWS Budgets' threshold notices and its actions' notices, by the budget's name;
-  - Cost Anomaly Detection's, CloudWatch's alarms' (the probe's), and EventBridge's events (ACM's expiry, EC2's spot
+  - Cost Anomaly Detection's, CloudWatch's alarms' (the probe's, and from W1 the credential audit's errors and the
+    bridge's own failure queue), and EventBridge's events (ACM's expiry, EC2's spot
     warning), as JSON.
 Anything else is `unrecognized`, and carries nothing of the notice: the alerts mailbox has SNS's own copy.
 
@@ -62,22 +63,35 @@ KINDS: dict[str, str] = {
     "probe_failing": "probe-failing.md",
     "probe_recovered": "probe-failing.md",
     "credential_finding": "credential-audit.md",
+    "credential_audit_failed": "credential-audit.md",
+    "alert_bridge_failed": "alert-bridge.md",
     "ec2_started": "handover.md",
     "ec2_start_refused": "handover.md",
     "ec2_stopped_laptop_serving": "handover.md",
     "ec2_stopped_paused": "handover.md",
     "ec2_stopped_server_budget": "server-budget.md",
     "ec2_stopped_by_author": "handover.md",
+    # Group 9's review A (I3): the laptop's loop's failed stop, published through the Author's stop profile.
+    "handover_stop_failed": "handover.md",
+    # Group 9 (P-I6; ADR 0048; contracts/handover.md §4, amended): the guard's stop outside the hours, its stop of a
+    # second tagged instance, and its own failure.
+    "ec2_stopped_outside_hours": "ec2.md",
+    "ec2_unrecognised_instance": "ec2.md",
+    "ec2_guard_failed": "ec2.md",
     "spot_interruption": "spot-interruption.md",
     "deploy_rolled_back": "deploy.md",
     "deploy_rollback_failed": "deploy.md",
     "deploy_refused": "deploy.md",
     "tunnel_end_interruption": "tunnel-end.md",
     "tunnel_end_back": "tunnel-end.md",
+    # Group 6: the tunnel end's backup timer (deploy/hosts/tunnel-end/shared_state.py).
+    "shared_state_backup_failed": "shared-state.md",
 }
 REASONS: dict[str, dict[str, str]] = {
     "ec2_start_refused": {
         "paused": "handover.md",
+        # Group 9 (P-I6; ADR 0048): outside EC2's hours.
+        "outside_hours": "handover.md",
         "server_budget_stopped": "handover.md",
         "laptop_serving": "handover.md",
         "start_failed": "handover.md",
@@ -93,6 +107,17 @@ BUDGETS: dict[str, tuple[str, bool]] = {
     "h4-rehearsal-server": ("server", True),
 }
 PROBE_ALARM = "h4-probe-failing"
+# W1's alarms (tasks.md T159; infra/account/alerts.tf): each has an ALARM action only, so ALARM is its one notice.
+ALARMS: dict[str, tuple[str, str]] = {
+    "h4-credential-audit-errors": (
+        "credential_audit_failed",
+        "the weekly credential audit raised",
+    ),
+    "h4-alert-bridge-failed": (
+        "alert_bridge_failed",
+        "a notice the bridge couldn't send is in its failure queue",
+    ),
+}
 
 # What never leaves, in the order they're taken out: each shape, and what stands in for it.
 SCRUB = (
@@ -245,10 +270,16 @@ def from_json(doc: object) -> Alert | None:
     if not isinstance(doc, dict):
         return None
     if "AlarmName" in doc and "NewStateValue" in doc:
-        if doc.get("AlarmName") != PROBE_ALARM:
-            return unrecognized("alarm")
         state = doc.get("NewStateValue")
         since = str(doc.get("StateChangeTime", ""))[:19]
+        mine = ALARMS.get(str(doc.get("AlarmName")))
+        if mine is not None:
+            kind, what = mine
+            if state != "ALARM":
+                return unrecognized("alarm")
+            return Alert("alarm", kind, f"{what}, since {since}")
+        if doc.get("AlarmName") != PROBE_ALARM:
+            return unrecognized("alarm")
         if state == "ALARM":
             return Alert(
                 "alarm",
@@ -313,7 +344,7 @@ def from_json(doc: object) -> Alert | None:
     return None
 
 
-def classify(message: str) -> Alert:
+def classify(message: str, decoded: bool = False) -> Alert:
     text = message or ""
     for reader in (from_ours, from_budgets):
         found = reader(text)
@@ -323,6 +354,11 @@ def classify(message: str) -> Alert:
         doc = json.loads(text)
     except ValueError:
         doc = None
+    # An EventBridge rule's input transformer, given a string template, publishes that string's JSON text: its quotes,
+    # and its line breaks as \n (infra/prod/handover.tf's rules; group 5's review, I6). Read it once, as the text it
+    # encodes; a string inside that string is no shape of ours.
+    if isinstance(doc, str) and not decoded:
+        return classify(doc, decoded=True)
     return from_json(doc) or unrecognized("unknown")
 
 

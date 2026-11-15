@@ -1,0 +1,99 @@
+1
+00:00:00,500 --> 00:00:05,674
+Every change to hareet.ai starts as a sentence, and ends with a person's merge.
+
+2
+00:00:06,460 --> 00:00:10,904
+First, the intent: what's wanted, and why, in the words of whoever wants it.
+
+3
+00:00:10,954 --> 00:00:15,245
+The Author accepts it or closes it, and the survival rate is published.
+
+4
+00:00:15,900 --> 00:00:21,377
+A spec-writer agent turns it into a spec, with acceptance criteria a test can check.
+
+5
+00:00:21,427 --> 00:00:25,637
+Its questions go to the Author, and the answers are kept word for word.
+
+6
+00:00:26,290 --> 00:00:31,403
+Then the plan: the files, the order, the risks, the cost, and what happens when it degrades.
+
+7
+00:00:31,453 --> 00:00:33,736
+It's approved before any code exists.
+
+8
+00:00:34,280 --> 00:00:38,953
+Then the tasks, and a read-only check that the spec, the plan, and the tasks agree.
+
+9
+00:00:39,610 --> 00:00:44,444
+An implementer agent builds it on a feature branch, task by task, with tests.
+
+10
+00:00:44,494 --> 00:00:54,657
+And every new feature brings its own telemetry, a dashboard panel, a cost estimate, its degraded behavior, and a disclosure row if a byte leaves your device.
+
+11
+00:00:55,400 --> 00:01:02,591
+A reviewer agent, read-only, and never the one that wrote it, checks the change for bugs, security, compliance, and cost.
+
+12
+00:01:02,641 --> 00:01:06,124
+Its findings inform the merge; they never replace it.
+
+13
+00:01:08,080 --> 00:01:10,223
+Changing a feature works the same way.
+
+14
+00:01:10,273 --> 00:01:17,663
+A newer spec names each clause it amends, and when the code departs from the plan, the plan is corrected in the same commit.
+
+15
+00:01:18,310 --> 00:01:20,254
+A bug starts as a failing test.
+
+16
+00:01:20,304 --> 00:01:25,686
+During a fix, a hook stops the agent from editing tests: fix the code, not the test.
+
+17
+00:01:26,440 --> 00:01:30,865
+An incident gets a note within seven days, with the eval that would have caught it.
+
+18
+00:01:30,915 --> 00:01:36,924
+When the kill switch trips, the gateway drafts that incident itself, from a template, with no model call.
+
+19
+00:01:37,670 --> 00:01:47,198
+Before the Author merges, a clean-room gate runs every check on an export of the branch, with the network cut off, so nothing an agent left behind can run.
+
+20
+00:01:47,950 --> 00:01:58,681
+The agents work in a sandbox, on their own container engine, behind hooks that refuse pushing, merging, applying infrastructure, editing budgets, or reading secrets.
+
+21
+00:01:58,731 --> 00:02:02,164
+Hundreds of forbidden actions are tested on every run.
+
+22
+00:02:02,910 --> 00:02:10,508
+Deploys only pull: the same images, by digest, from a release made from main, and rolled back if the health checks fail.
+
+23
+00:02:12,260 --> 00:02:13,499
+The agents type.
+
+24
+00:02:13,549 --> 00:02:14,898
+The Author decides.
+
+25
+00:02:14,948 --> 00:02:17,540
+Built in the open, at hareet dot A I.

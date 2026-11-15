@@ -87,6 +87,12 @@ EC2_STATES = (
 )
 SPOT_STATES = ("open", "active", "disabled", "closed", "cancelled", "failed", "none")
 CLEAR = frozenset({"STANDBY", "REVERSE_SUCCESS"})
+# T170 (the Author's answers "1b A" and "Only /status/ (Recommended)"): EC2's hours, read from the two schedules
+# local.ec2_hours sets, so that local stays their one source; the public view shows them, the relay's status doesn't.
+HOURS_SCHEDULES = ("h4-ec2-hours-open", "h4-ec2-hours-close")
+DAILY_RE = re.compile(r"cron\((\d{1,2}) (\d{1,2}) \* \* \? \*\)")
+HOUR_RE = re.compile(r"(?:[01]\d|2[0-3]):[0-5]\d")
+ZONE_RE = re.compile(r"[A-Za-z][A-Za-z0-9_+-]*(?:/[A-Za-z0-9_+-]+){0,2}")
 
 
 class AwsError(RuntimeError):
@@ -145,6 +151,8 @@ class Reads:
     # EC2's state for the document (group 10): the instance's, or `interrupted` while AWS holds it stopped after a spot
     # interruption, by the request's status code; `unknown` while unread.
     ec2_state: str = "unknown"
+    # EC2's hours, {open, close, zone}, from the two schedules; None while unread or inconsistent (T170).
+    hours: dict[str, str] | None = None
 
 
 def one_hot(name: str, states: tuple[str, ...], now_state: str) -> list[Point]:
@@ -212,6 +220,34 @@ def read_autostart(aws, out: Reads) -> None:
         out.errors.append("autostart")
         return
     out.points.append(Point("h4.ec2.autostart", 1.0 if value == "on" else 0.0))
+
+
+def read_hours(aws, out: Reads) -> None:
+    """EC2's hours from the two schedules: each a daily time, both in one zone; anything else is an error, never a
+    guess (T170)."""
+    times: list[str] = []
+    zones: set[str] = set()
+    for name in HOURS_SCHEDULES:
+        try:
+            answer = aws.call("scheduler", "GetSchedule", Name=name)
+        except AwsError:
+            out.errors.append("hours")
+            return
+        m = DAILY_RE.fullmatch(str(answer.get("ScheduleExpression", "")))
+        zone = answer.get("ScheduleExpressionTimezone")
+        if m is None or not isinstance(zone, str) or not ZONE_RE.fullmatch(zone):
+            out.errors.append("hours")
+            return
+        minute, hour = int(m.group(1)), int(m.group(2))
+        if minute > 59 or hour > 23:
+            out.errors.append("hours")
+            return
+        times.append(f"{hour:02d}:{minute:02d}")
+        zones.add(zone)
+    if len(zones) != 1:
+        out.errors.append("hours")
+        return
+    out.hours = {"open": times[0], "close": times[1], "zone": zones.pop()}
 
 
 def read_health_check(aws, out: Reads) -> None:
@@ -583,6 +619,7 @@ def check_document(doc: object) -> None:
             "handovers",
             "host_panels",
             "releases",
+            "ec2_hours",
         ),
     )
     if d["schema"] != 1:
@@ -646,6 +683,11 @@ def check_document(doc: object) -> None:
             r = _object(releases[host], f"releases.{host}", ("release", "taken_at"))
             _match(r["release"], f"releases.{host}.release", RELEASE_RE, nullable=True)
             _match(r["taken_at"], f"releases.{host}.taken_at", TIME_RE)
+    if d["ec2_hours"] is not None:
+        hours = _object(d["ec2_hours"], "ec2_hours", ("open", "close", "zone"))
+        _match(hours["open"], "ec2_hours.open", HOUR_RE)
+        _match(hours["close"], "ec2_hours.close", HOUR_RE)
+        _match(hours["zone"], "ec2_hours.zone", ZONE_RE)
 
 
 def validate_document(doc: object) -> str | None:
@@ -992,7 +1034,10 @@ class Writer:
         reads = self.cloud.read()
         self.keep_cadence()
         self.last = reads
-        for read in reads.errors:
+        # EC2's hours for the document alone, so the dashboard's reads stay as they were (T170).
+        hours = Reads()
+        read_hours(self.cloud.aws, hours)
+        for read in reads.errors + hours.errors:
             self.errors_total[read] = self.errors_total.get(read, 0) + 1
         status = None
         try:
@@ -1057,6 +1102,7 @@ class Writer:
             "handovers": handover_part(store, now),
             "host_panels": panels,
             "releases": {h: releases.get(h) for h in HOSTS},
+            "ec2_hours": hours.hours,
         }
 
     def write(self) -> str:

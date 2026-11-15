@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>C · The stack in section, in depth</title>
+<style>
+@font-face { font-family: "Overpass"; src: url("../assets/fonts/Overpass-normal.woff2") format("woff2"); font-weight: 100 900; }
+@font-face { font-family: "Literata"; src: url("../assets/fonts/Literata-normal.woff2") format("woff2"); font-weight: 200 900; }
+@font-face { font-family: "Plex Mono"; src: url("../assets/fonts/IBMPlexMono-Regular.woff") format("woff"); font-weight: 400; }
+:root { --ground:#0f1820; --text:#eef3f5; --muted:#93a4ae; --green:#47a386; --green-deep:#1c6b54; --crimson:#d0587a; --crimson-deep:#ad2549; }
+html,body { margin:0; width:1920px; height:1080px; overflow:hidden; }
+#film { position:relative; width:1920px; height:1080px; overflow:hidden; color:var(--text); font-family:"Overpass",sans-serif;
+  background: radial-gradient(1300px 800px at 60% 55%, #1b2a35 0%, #121d26 55%, #0b131a 100%); }
+.stage { position:absolute; left:0; top:0; width:1920px; height:1080px; perspective:2200px; perspective-origin:62% 30%; }
+.world { position:absolute; left:820px; top:170px; width:900px; height:600px; transform-style:preserve-3d;
+  transform: rotateX(58deg) rotateZ(-32deg); }
+.slab { position:absolute; left:0; top:0; width:900px; height:600px; border-radius:18px; transform-style:preserve-3d;
+  background: linear-gradient(135deg, rgba(71,163,134,.20), rgba(28,107,84,.10));
+  border:2px solid rgba(71,163,134,.55); box-shadow: 0 0 60px rgba(71,163,134,.12) inset; }
+.slab .name { position:absolute; left:34px; top:26px; font-weight:800; font-size:44px; letter-spacing:.08em; }
+.slab .what { position:absolute; left:36px; top:84px; font-family:"Plex Mono",monospace; font-size:24px; color:var(--muted); }
+.room   { transform: translateZ(540px); background:linear-gradient(135deg, rgba(238,243,245,.14), rgba(238,243,245,.05)); border-color:rgba(238,243,245,.5); }
+.edge   { transform: translateZ(360px); }
+.gw     { transform: translateZ(180px); }
+.state  { transform: translateZ(0px); background:linear-gradient(135deg, rgba(208,88,122,.45), rgba(173,37,73,.22)); border-color:#d0587a; box-shadow:0 0 120px rgba(208,88,122,.45), 0 0 50px rgba(208,88,122,.35) inset; }
+.state .name { color:#ffe1e8; }
+.lamp { position:absolute; right:40px; top:30px; width:150px; height:54px; border-radius:27px; border:2px solid currentColor; font-family:"Plex Mono",monospace; font-size:22px; display:flex; align-items:center; justify-content:center; }
+.gw .lamp { color:#ff9db5; background:rgba(173,37,73,.35); }
+/* the request: a beam that falls through the room and the edge and stops dead on the gateway */
+.beam { position:absolute; left:450px; top:300px; width:10px; height:360px; transform-origin:50% 0; transform: translateZ(540px) rotateX(-90deg); background:linear-gradient(#ffffff, #47a386); box-shadow:0 0 30px #47a386; }
+.stop { position:absolute; left:405px; top:255px; width:100px; height:100px; border-radius:50%; transform: translateZ(181px); border:6px solid #d0587a; box-shadow:0 0 40px #d0587a; }
+.title { position:absolute; left:110px; top:120px; width:640px; }
+.title .k { font-weight:800; font-size:24px; letter-spacing:.22em; color:var(--green); }
+.title h1 { margin:18px 0 0; font-weight:900; font-size:112px; line-height:.98; letter-spacing:-.03em; }
+.title h1 em { font-style:normal; color:var(--crimson); }
+.title p { margin:34px 0 0; font-family:"Literata",serif; font-size:34px; line-height:1.4; color:#cfdae0; }
+.title .src { display:block; margin-top:16px; font-family:"Plex Mono",monospace; font-size:19px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div id="film" data-composition-id="dir-c" data-width="1920" data-height="1080">
+  <div class="stage"><div class="world">
+    <div class="slab state"><div class="name">GATEWAY-STATE</div><div class="what">kill switch · degraded</div></div>
+    <div class="slab gw"><div class="name">GATEWAY</div><div class="what">reads the state at request start</div><div class="lamp">refused</div></div>
+    <div class="stop"></div>
+    <div class="slab edge"><div class="name">EDGE</div><div class="what">127.0.0.1 only</div></div>
+    <div class="slab room"><div class="name">THE ROOM</div><div class="what">a visitor asks the twin</div></div>
+    <div class="beam"></div>
+  </div></div>
+  <div class="title">
+    <div class="k">HAREET.AI</div>
+    <h1>At <em>$5.00</em> it stops itself.</h1>
+    <p>“The twin can’t talk right now. Today’s budget for its answers is used.”<span class="src">apps/web/content/messages.yaml</span></p>
+  </div>
+</div>
+</body>
+</html>

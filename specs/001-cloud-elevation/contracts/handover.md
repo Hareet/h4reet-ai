@@ -50,6 +50,8 @@ A Lambda container image (stdlib Python, arm64), in `infra/lambdas/ec2_start/`. 
 
 Each outcome, started or refused and why, is one message to `h4-alerts`, and one log line in CloudWatch's embedded metric format, which the sink counts for the dashboard (contracts/public-view.md §2; to confirm in group 9). It makes one attempt per invocation and never loops (FR-065).
 
+**The hours** (amended; ADR 0048, decision 3). Second, after step 1, on every trigger, the Author's hand start among them: outside EC2's hours, 07:00 to 19:00 in `America/Denver`, it refuses with `outside_hours`. `h4-ec2-hours-open` invokes it at 07:00 with `{"from": "hours_open"}`, which takes step 4's read as a hand start does. The open's routine outcomes are recorded and on the dashboard, and alerted only for `start_failed`, `server_budget_stopped`, and `tunnel_end_down`.
+
 ## 4. `h4-ec2-guard`
 
 The same packaging, in `infra/lambdas/ec2_guard/`, with its own role, `h4-ec2-guard-fn`: it may stop the tagged instance and nothing else, read the parameter, the health check's status, and the server action's status (`budgets:DescribeBudgetActionsForBudget` on `h4-server-month`), and publish to `h4-alerts`. On `h4-ec2-running`:
@@ -62,6 +64,8 @@ The same packaging, in `infra/lambdas/ec2_guard/`, with its own role, `h4-ec2-gu
 | Otherwise | nothing |
 
 Each stop also writes one embedded-metric log line, as §3's.
+
+**The hours** (amended; ADR 0048, decision 4). The guard also stops EC2 outside its hours, `ec2_stopped_outside_hours`: on `h4-ec2-running`, as after AWS's restart once spot capacity returns; and at `hours_close`, when `h4-ec2-hours-close` invokes it at 19:00 with `{"from": "hours_close"}`, if EC2 runs. If it is already stopped, the guard writes its log line and nothing else. It alerts but at the close.
 
 **Amended on 2026-11-12, in W1's regrouping: more than one tagged instance.** A replace of EC2 can leave its persistent spot request open, so AWS may launch a second instance from it (tasks.md T097). On each run the guard lists the instances tagged `h4-prod-ec2`. It stops any that runs and isn't the one `/h4reet/prod/ec2-instance-id` names, and alerts `ec2_unrecognised_instance` with the instance's ID. Then it applies the table above to the named one. An instance the orphaned request launches without the tag is out of the guard's sight; the runbook's check after a replace finds it (`docs/runbooks/ec2.md`).
 
@@ -149,5 +153,5 @@ The functions and the loop change EC2's running state only. The relay's choice i
   - **`h4_server_month_usd`** and **`h4_server_budget_usd`** are `h4.server.month_usd` and `h4.server.budget_usd`: the server budget's month to date and its figure, read once an hour, beside spec 000's and spec 010's spend panels above.
   - A read that fails gets no point and counts in `h4.sink.read_errors`, by `read`: the panels show no data, never a stale value as fresh.
 - **`h4_handover_window_seconds`** is `h4.handover.window_seconds`, the laptop loop's gauge (§6), posted through the laptop's collector: the last takeover's window, from the relay's first `laptop` to EC2's `stopped`. It reads green under 300 s (FR-063), red from 300 s.
-- **The hours** are the schedules', in the zone `local.ec2_hours` names; the panel shows each scheduled start and stop by its outcome. While spec 001's question 1b is open, no panel states the hours themselves: that is T170's.
+- **The hours** are the schedules', in the zone `local.ec2_hours` names; the panel shows each scheduled start and stop by its outcome. The hours themselves are on the public view, `/status/`, from the document's `ec2_hours`, which the sink reads from the two schedules (T170; the Author's "1b A" and "Only /status/ (Recommended)"); this row's panels show the outcomes.
 - `deploy/scripts/test_dashboard.py` reads this section's table with the other Hosts sections'.

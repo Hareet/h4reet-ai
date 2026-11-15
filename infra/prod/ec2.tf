@@ -39,7 +39,7 @@ locals {
     "/opt/h4reet/deploy/scripts/deploy_first_step.py"              = { source = "deploy/scripts/deploy_first_step.py", mode = "0755" }
   }
   ec2_user_data = templatefile("${path.module}/../../deploy/hosts/ec2/cloud-init.yaml.tftpl", {
-    files = { for path, f in local.ec2_host_files : path => { mode = f.mode, content = file("${path.module}/../../${f.source}") } }
+    files = { for p, f in local.ec2_host_files : p => { mode = f.mode, content = file("${path.module}/../../${f.source}") } }
   })
 }
 

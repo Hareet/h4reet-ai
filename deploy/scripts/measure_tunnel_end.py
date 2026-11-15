@@ -34,8 +34,8 @@ How it runs, in its own project, h4reet-measure-tunnel-end, never a stack's:
 It prints a block for W1's note, then the record as one JSON line, marked "h4_measure_tunnel_end": 1. Two types, each
 the smallest t4g by R-33's rule as T016 applied it (a figure, beside OS_DOCKER_MIB for the OS and Docker, within
 USABLE_SHARE of the type's memory): by the largest total of the five at one sample, and by the five's memory limits
-together, as docker stats reports them (deploy/compose.yaml's, 528 MiB); the type it names is the larger. The host's
-own timers (the sink's writer and the backup) run beside Docker and aren't counted, which the block says. The images
+together, as docker stats reports them (deploy/compose.yaml's, 592 MiB since T166's run raised the relay's and the
+collector's to 128M); the type it names is the larger. The host's own timers (the sink's writer and the backup) run beside Docker and aren't counted, which the block says. The images
 it builds, h4reet-measure-{tunnel,relay,snapshot}:local, stay after the run (the note's "T166" says how to remove
 them). Standard library only, by path through PY_HOST. Nothing it prints holds a stand-in secret, a payload, or an
 address.
@@ -50,6 +50,7 @@ import contextlib
 import datetime as dt
 import importlib.util
 import json
+import os
 import re
 import secrets
 import shutil
@@ -68,6 +69,14 @@ PROJECT = "h4reet-measure-tunnel-end"
 FIVE = ("tunnel-end", "relay", "snapshot-sink", "tunnel-end-collector", "shared-state")
 SERVICES = (*FIVE, "measure-host")
 LOAD_SERVICE = "measure-load"
+# Every compose call names these, so each of the run's services is in the project's view, its take-down included:
+# compose skips a profiled service its call doesn't enable (the Author's first run left the five running).
+PROFILES = ("tunnel-end", LOAD_SERVICE)
+# A failed docker call's stderr: its last lines, without compose's interpolation warnings (it reads the whole file, and
+# VALKEY_PASSWORD is the Langfuse stack's), and the whole of it in a file under the home folder, since the run's
+# temporary folder goes with it.
+ERROR_LINES = 20
+UNSET_WARNING = "variable is not set"
 LOAD_CONTAINER = f"{PROJECT}-load"
 STORE_CONTAINER = f"{PROJECT}-shared-state-1"
 DEFAULT_MINUTES = 30
@@ -367,6 +376,9 @@ class Context:
     say: Callable[[str], None] = print
     scratch_root: Path = field(default_factory=lambda: Path(tempfile.gettempdir()))
     per_minute: int | None = None
+    error_log: Path = field(default_factory=lambda: Path.home() / "t166-error.log")
+    # The run's stand-in values, which no message or log may hold.
+    redact: list[str] = field(default_factory=list)
 
 
 def _docker(
@@ -374,9 +386,32 @@ def _docker(
 ) -> str:
     code, out, err = ctx.run(argv, stdin, timeout)
     if code != 0:
-        first = (err or out).strip().splitlines()[:1]
+        text = err or out
+        for value in ctx.redact:
+            if value:
+                text = text.replace(value, "[stand-in]")
+        where = f"the whole stderr is in {ctx.error_log}"
+        try:
+            ctx.error_log.parent.mkdir(parents=True, exist_ok=True)
+            # Never through a symlink, and 0600 even when an older file had wider bits (the review of b78e3492, N1).
+            fd = os.open(
+                ctx.error_log,
+                os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
+                0o600,
+            )
+            with os.fdopen(fd, "w", encoding="utf-8") as log:
+                os.fchmod(log.fileno(), 0o600)
+                log.write(text)
+        except OSError as exc:
+            where = f"{ctx.error_log} couldn't be written ({exc.strerror})"
+        lines = [
+            line
+            for line in text.strip().splitlines()
+            if line.strip() and UNSET_WARNING not in line
+        ][-ERROR_LINES:]
         raise Stop(
-            f"{' '.join(argv[:3])} failed (exit {code}){': ' + first[0] if first else ''}"
+            f"{' '.join(argv[:3])} failed (exit {code}); {where}; its last lines:\n"
+            + "\n".join(lines)
         )
     return out
 
@@ -385,6 +420,7 @@ def measure(ctx: Context) -> dict[str, Any]:
     per_minute = ctx.per_minute or metered_per_minute(ctx.tree)
     scratch = Path(tempfile.mkdtemp(prefix="h4-measure-te-", dir=ctx.scratch_root))
     values = stand_ins()
+    ctx.redact[:] = [v for v in values.values() if v]
     env_file = scratch / "measure.vars"
     env_file.touch(mode=0o600)
     env_file.write_text(env_text(ctx.tree, scratch, values), encoding="utf-8")
@@ -396,6 +432,7 @@ def measure(ctx: Context) -> dict[str, Any]:
         str(env_file),
         "-p",
         PROJECT,
+        *(word for profile in PROFILES for word in ("--profile", profile)),
     ]
     samples: list[dict[str, int]] = []
     limits: dict[str, int] = {}

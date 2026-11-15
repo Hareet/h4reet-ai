@@ -11,9 +11,11 @@ What the roots must hold:
   - site.tf: the site's bucket, which also holds the public view under site/status/, with its public access block, its
     encryption, and its owner's objects, made without the switch; behind it, its bucket policy, which lets
     CloudFront's service read site/* for this distribution alone (aws:SourceArn), and refuses any request without TLS;
-  - edge.tf, a file under spec 000's protected names (P-I5): the origin access control, without the switch; behind
-    it, the certificate for hareet.ai and www.hareet.ai, validated by DNS, with aws_acm_certificate_validation; the VPC
-    origin to the tunnel end, port 8080, HTTP inside AWS's network; and the distribution: its two aliases, the
+  - edge.tf, a file under spec 000's protected names (P-I5): the origin access control, and the VPC origin to the
+    tunnel end, port 8080, HTTP inside AWS's network, each without the switch (the VPC origin since the Author's answer
+    of 2026-11-12, so CloudFront makes its VPC origins' security group in W1); behind it, the certificate for
+    hareet.ai and www.hareet.ai, validated by DNS, with aws_acm_certificate_validation; and the distribution: its
+    two aliases, the
     certificate by SNI at TLS 1.2 (2021) at least, IPv6, HTTP to HTTPS, no access logs; the origin `site`, the
     bucket under /site through the origin access control, and the origin `relay`, the VPC origin; /api/* to the
     relay with CachingDisabled and the relay's origin-request policy, every other path to the site with its cache
@@ -204,14 +206,15 @@ def check_vpc_origin(r: dict[str, list]) -> list[str]:
     config = origin.block("vpc_origin_endpoint_config")
     if (
         where(r, origin) != "edge.tf"
-        or raw(origin, "count") != WIRED
+        or origin.attr("count") is not None
+        or origin.attr("for_each") is not None
         or config is None
         or raw(config, "arn") != "aws_instance.tunnel_end.arn"
         or lit(config, "http_port") != 8080
         or lit(config, "origin_protocol_policy") != "http-only"
     ):
         return [
-            "vpc origin: not the tunnel end on 8080, HTTP inside AWS's network, in edge.tf, behind the switch"
+            "vpc origin: not the tunnel end on 8080, HTTP inside AWS's network, in edge.tf, made in W1 without the switch"
         ]
     return []
 
@@ -268,7 +271,7 @@ def check_distribution(r: dict[str, list]) -> list[str]:
     vpc = relay.block("vpc_origin_config") if relay is not None else None
     if relay is not None and (
         vpc is None
-        or raw(vpc, "vpc_origin_id") != "aws_cloudfront_vpc_origin.relay[0].id"
+        or raw(vpc, "vpc_origin_id") != "aws_cloudfront_vpc_origin.relay.id"
         or relay.block("custom_origin_config") is not None
         or not isinstance(lit(vpc, "origin_read_timeout"), int)
         or lit(vpc, "origin_read_timeout") < 30
@@ -689,6 +692,9 @@ def test_the_certificate_validated_by_dns_behind_the_switch() -> None:
 # it is named for. It now reads either form, and the parse has its own test below, which passes, so only the
 # comparison is left to fail; and it takes option B's shape too, an internal Network Load Balancer whose target is the
 # relay's address or the instance.
+# Answered (B-6): "We aren't building option A, we went with Option C". The private interface becomes the instance's
+# primary, so the origin reaches 10.42.1.10, where the relay publishes 8080, and the strict marker goes, in W1, before
+# its apply (plan.md §16, "B-6: option C, and the VPC origin from W1").
 
 
 def primary_eni(r: dict[str, list]):
@@ -755,10 +761,6 @@ def test_the_tunnel_ends_primary_interface_parses_to_one_interface() -> None:
     assert ipaddress.ip_address(address) in ipaddress.ip_network("10.42.0.0/23")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="W2's precondition: the Author's answer to the VPC origin's interface (the note, group 8's review B, I6)",
-)
 def test_the_vpc_origin_reaches_the_interface_the_relay_publishes_on() -> None:
     r = prod()
     reached = reached_by_the_origin(r)
@@ -772,8 +774,67 @@ def test_the_vpc_origin_reaches_the_interface_the_relay_publishes_on() -> None:
     assert published and set(reached) & set(published), (reached, published)
 
 
+# B-6, option C: the VPC origin's instance has its primary interface in the private subnet, 10.42.1.10 alone, and the
+# relay's origin is the instance's private DNS name, which is that interface's.
+def test_option_c_the_origin_reaches_the_private_interface_by_the_instances_private_dns() -> (
+    None
+):
+    r = prod()
+    eni = primary_eni(r)
+    assert eni is not None
+    assert raw(eni, "subnet_id") == "aws_subnet.private.id"
+    assert eni_addresses(eni) == ["10.42.1.10"]
+    origin = one(r, "aws_cloudfront_vpc_origin", "relay")
+    config = origin.block("vpc_origin_endpoint_config") if origin else None
+    assert raw(config, "arn") == "aws_instance.tunnel_end.arn"
+    d = one(r, "aws_cloudfront_distribution", "site")
+    relay = next(o for o in d.blocks("origin") if lit(o, "origin_id") == "relay")
+    assert raw(relay, "domain_name") == "aws_instance.tunnel_end.private_dns"
+
+
 def test_the_vpc_origin_to_the_tunnel_ends_relay() -> None:
     assert check_vpc_origin(prod()) == []
+
+
+def _raws(block) -> str:
+    """Every attribute's raw text in a block, its nested blocks' too."""
+    return " ".join(
+        i.raw if isinstance(i, ip.Attribute) else _raws(i)
+        for i in block.body
+        if isinstance(i, (ip.Attribute, ip.Block))
+    )
+
+
+# The Author's answers (2026-11-12, relayed): "Yes w1 can create the vpc origin", and for B-6, "We aren't building
+# option A, we went with Option C". W1 makes the origin, so CloudFront's VPC origins' security group,
+# CloudFront-VPCOrigins-Service-SG, exists from W1; under option C the private group's 8080 from CloudFront's
+# origin-facing prefix list is the source W2 uses, so W2 needs no second phase (plan.md §16, "B-6: option C, and the
+# VPC origin from W1"). The rest of the relay's path waits behind the switch: the certificate and its validation, and
+# the distribution, whose origin `relay` and /api/* behavior are the only ones that use the VPC origin; and anything
+# that names the group.
+def test_w1_makes_the_vpc_origin_and_nothing_else_of_the_relays_path() -> None:
+    r = prod()
+    origin = one(r, "aws_cloudfront_vpc_origin", "relay")
+    assert origin is not None
+    assert origin.attr("count") is None and origin.attr("for_each") is None
+    for rtype in (
+        "aws_acm_certificate",
+        "aws_acm_certificate_validation",
+        "aws_cloudfront_distribution",
+    ):
+        b = one(r, rtype, "site")
+        assert b is not None and raw(b, "count") == WIRED, rtype
+    d = one(r, "aws_cloudfront_distribution", "site")
+    relay = next(o for o in d.blocks("origin") if lit(o, "origin_id") == "relay")
+    assert (
+        raw(relay.block("vpc_origin_config"), "vpc_origin_id")
+        == "aws_cloudfront_vpc_origin.relay.id"
+    )
+    for b in blocks(r):
+        if b.type in ("resource", "data") and "VPCOrigins" in _raws(b):
+            assert raw(b, "count") == WIRED or raw(b, "for_each").startswith(
+                "local.wired ?"
+            ), address(b)
 
 
 def test_the_distribution_its_origins_behaviors_and_error_responses() -> None:
@@ -794,6 +855,16 @@ def test_the_origin_access_control() -> None:
 
 def test_a_folders_path_is_its_index() -> None:
     assert check_index(prod()) == []
+
+
+# The Author's prod plan (2026-11-13): the plan policy's T2 refused "aws_cloudfront_function.index: tags_all lacks
+# component". Provider 6.72 gives the function tags; project and environment come from prod's default_tags, so the
+# function names its component, as the edge's other resources do. (tools/gates/infra_policy.py's static TAGGABLE list
+# lacks aws_cloudfront_function, so only the plan's check saw it: the note's backlog.)
+def test_the_index_function_names_its_component() -> None:
+    fn = one(prod(), "aws_cloudfront_function", "index")
+    assert fn is not None
+    assert lit(fn, "tags") == {"component": "edge"}
 
 
 def test_the_probe_enabled_by_the_accounts_switch_with_its_alarm() -> None:

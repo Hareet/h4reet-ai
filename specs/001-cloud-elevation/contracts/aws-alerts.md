@@ -25,16 +25,21 @@ Message format as September: `[hareet.ai aws] <kind>: <facts>`, one line, then f
 | `cert_expiring` | ACM | as September | `certificate.md` |
 | `probe_failing`, `probe_recovered` | the probe's alarm | 5 failed minutes; the next pass | `probe-failing.md` |
 | `credential_finding` | the credential audit | any finding | `credential-audit.md` |
-| `ec2_started`, `ec2_start_refused` (`paused`, meaning the autostart switch is `off`; `server_budget_stopped`, `laptop_serving`, `start_failed`) | `h4-ec2-start` | each invocation | `handover.md` |
+| `credential_audit_failed` | the alarm `h4-credential-audit-errors` (W1) | the audit raised, so its run wrote no result | `credential-audit.md` |
+| `alert_bridge_failed` | the alarm `h4-alert-bridge-failed` (W1) | a notice the bridge couldn't send to Telegram is in its failure queue | `alert-bridge.md` |
+| `ec2_started`, `ec2_start_refused` (`paused`, meaning the autostart switch is `off`; `outside_hours`; `server_budget_stopped`, `laptop_serving`, `start_failed`) | `h4-ec2-start` | each invocation; from W1 (ADR 0048), at the hours' open only for `start_failed`, `server_budget_stopped`, `tunnel_end_down`, and a failed read, the rest recorded and on the dashboard (provisional: the regrouping note's question 3, option A) | `handover.md` |
 | `ec2_stopped_laptop_serving`, `ec2_stopped_paused`, `ec2_stopped_server_budget` | `h4-ec2-guard` | each stop | `handover.md`; `server-budget.md` for the last |
+| `ec2_stopped_outside_hours`, `ec2_unrecognised_instance`, `ec2_guard_failed` | `h4-ec2-guard` | from W1 (ADR 0048; contracts/handover.md §4, amended): EC2 running outside its hours, but the close's routine stop (provisional: question 3, option A); a running instance tagged `h4-prod-ec2` that `/h4reet/prod/ec2-instance-id` doesn't name, with its ID; a read or a stop that failed | `ec2.md` |
 | `ec2_stopped_by_author` | `make ec2-stop` | each stop | `handover.md` |
+| `handover_stop_failed` | the laptop's loop, `h4-handover`, through the Author's stop profile (`sns:Publish` on `h4-alerts`, P-I6) | a describe or a stop of EC2 that failed, once a failing streak; one that can't be published stays in the loop's log (group 9's review A, I3) | `handover.md` |
 | `spot_interruption` | `h4-ec2-spot-warning` | AWS's warning (spec FR-071, "You get an alert") | `spot-interruption.md` |
 | `deploy_rolled_back`, `deploy_rollback_failed`, `deploy_refused` | each cloud host's deployer | contracts/releases-deployer.md §3 | `deploy.md` |
 | `tunnel_end_interruption` | `h4-tunnel-end-spot-warning` | AWS's warning for the tunnel end (spec FR-076) | `tunnel-end.md` |
 | `tunnel_end_back` | `h4-tunnel-end-running` | the tunnel end running again | `tunnel-end.md` |
+| `shared_state_backup_failed` | the tunnel end's backup timer, `h4-shared-state-backup.timer` (group 6) | an hourly dump, or its put to the backups' bucket, failed: once per failing streak, the last good dump kept | `shared-state.md` |
 | `ec2_start_refused (tunnel_end_down)` | `h4-ec2-start` | the laptop gone while the tunnel end is down | `tunnel-end.md` |
 
-The laptop's own alerts, such as the handover loop's failed stop, go through spec 000's dispatcher, as its other alerts do.
+The laptop's own alerts go through spec 000's dispatcher, as its other alerts do, but the handover loop's failed stop, which goes to `h4-alerts` through the Author's stop profile, since the dispatcher has no host-script kind (plan.md §16, "Group 9, as built", item 13, after the review).
 
 ## 3. The budgets (infra/bootstrap/budgets.tf, protected)
 
