@@ -36,6 +36,10 @@ const WALL_VARS = [
   "--wall-tiles-y",
   "--wall-tiles-w",
   "--wall-tiles-h",
+  "--wall-bar-x",
+  "--wall-bar-y",
+  "--wall-bar-w",
+  "--wall-bar-h",
   "--wall-scale-left",
   "--wall-scale-right",
 ];
@@ -101,6 +105,10 @@ describe("applyHud's --wall-* (FR-007, FR-008)", () => {
       px(want.tiles.y),
       px(want.tiles.w),
       px(want.tiles.h),
+      px(want.bar.x),
+      px(want.bar.y),
+      px(want.bar.w),
+      px(want.bar.h),
       String(want.scaleLeft),
       String(want.scaleRight),
     ]);
@@ -148,11 +156,11 @@ describe("split.css places the parts at --wall-* (FR-007, FR-008)", () => {
     expect(decl(`${ON} .room-list`, "height")).toBe("var(--wall-list-h)");
   });
 
-  it("puts the toolbar's tiles in the column's tiles' block, three to a row, and the walking control and Eat tile at their boxes", () => {
-    expect(decl(`${ON} .hud-bar`, "left")).toBe("var(--wall-tiles-x)");
-    expect(decl(`${ON} .hud-bar`, "top")).toBe("var(--wall-tiles-y)");
-    expect(decl(`${ON} .hud-bar`, "width")).toBe("var(--wall-tiles-w)");
-    expect(decl(`${ON} .hud-bar`, "height")).toBe("var(--wall-tiles-h)");
+  it("puts the toolbar's tiles in the column's tiles' block, three to a row, in the bar's box above the walking control and Eat tile (rv-028a-1's A1-1)", () => {
+    expect(decl(`${ON} .hud-bar`, "left")).toBe("var(--wall-bar-x)");
+    expect(decl(`${ON} .hud-bar`, "top")).toBe("var(--wall-bar-y)");
+    expect(decl(`${ON} .hud-bar`, "width")).toBe("var(--wall-bar-w)");
+    expect(decl(`${ON} .hud-bar`, "height")).toBe("var(--wall-bar-h)");
     expect(decl(`${ON} .hud-bar`, "display")).toBe("grid");
     expect(decl(`${ON} .hud-bar`, "grid-template-columns")).toMatch(/^repeat\(3,/);
     expect(decl(`${ON} .room-walk`, "width")).toBe("calc(8rem * var(--wall-scale-right))");
@@ -166,6 +174,9 @@ describe("split.css places the parts at --wall-* (FR-007, FR-008)", () => {
     expect(decl(`${ON} .room-list`, "font-size")).toContain("var(--wall-scale-right)");
     expect(decl(`${ON} .hud-bar .hud-tile`, "font-size")).toContain("var(--wall-scale-right)");
     expect(decl(`${ON} .hud-bar .hud-tile`, "min-height")).toContain("var(--wall-scale-right)");
+    // rv-028a-1's A1-3: each row is HUD_PLACEMENTS.wall.tiles.tileRem tall at the scale, an icon over two lines.
+    expect(decl(`${ON} .hud-bar`, "grid-auto-rows")).toBe("calc(3.75rem * var(--wall-scale-right))");
+    expect(decl(`${ON} .hud-bar .hud-tile`, "min-height")).toBe("calc(3.75rem * var(--wall-scale-right))");
   });
 
   it("has no rest row: no rule for the bar state is left", () => {
