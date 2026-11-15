@@ -6,7 +6,7 @@ Written by the night-shift implementer patch3-026, about 01:15Z to 01:45Z. It do
 
 **Result: T019 is checked.** RED: floorrun-026's 9 failures, reproduced on a fresh patched export of the old patch (SHA-256 `8bd70563…1c6ead`). GREEN: with the rebuilt patch (SHA-256 `46ed5db73554ed90985b8859c4be7580c20269150db90582b4150ddd590d249f`, 64,206 bytes, 72 files), the brief's set passes on a fresh plain export and a fresh patched one, 260 of 260 each; on the patched one, the strict `room:check`, `room:report`, `check_corpus.py`, `content:check`, the checker in patch mode, and T019's `twin-pack` and `narration` tests pass. The review is item 9's verify's, a worker that didn't write this.
 
-**What the patch carries now.** Against patch2-026's 68 files, four more, all tests that hold only beside the patch's `scene.yaml` line (each fails without it on the patched tree, and the plain tree runs the line's own copies, unchanged):
+**What the patch carries now.** Against patch2-026's 68 files, four more, all tests for the patched scene (wording corrected by amend-026, rv-patch3-026's N-1: the `eat-*` edits hold only with the sign off the desk; the `dog-*` edits hold on either scene; the plain tree runs the line's own copies, unchanged):
 
 - `apps/web/test/room/dog-pick.test.ts` (spec 026): a `lessDog` helper drops a `dog` selectable the scene already holds before the test appends its own (`withDog`, the sign-only sweep, the bicycle fixture); "gives no front without the selectable's figure" now builds its "without" tree from the scene less `dog` instead of the bare repository tree.
 - `apps/web/test/room/dog-selectable.test.ts` (spec 026): `bundles()`'s `without` is the scene less `dog`, and `with` that plus `DOG_SELECTABLE`.
