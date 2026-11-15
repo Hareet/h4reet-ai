@@ -52,9 +52,10 @@ export interface TextCopy {
   /** Spec 020 (FR-007; plan.md R-02): the likeness line of any visitor-avatar model the room shows, once, in the
    *  slot's place after the twin's line; null takes the entry away. */
   setVisitorLine(line: string | null): void;
-  /** Spec 028 (FR-012, FR-015; plan.md §R-A5): the placeholder words, which the stage's note no longer shows, a line of
-   *  their own after the line slots while there are any (`placeholderWords`); "" takes it away. Not a live region. */
-  setPlaceholders(words: string): void;
+  /** Spec 028 (FR-012, FR-015, Q23; plan.md §R-A5): the placeholder words, which the stage's note no longer shows, one
+   *  item right after the visitor's line (its slot where no line shows), main's stage-note join of what applies
+   *  (`placeholderWords`); neither applying takes it away. Not a live region. */
+  setPlaceholders(on: { readonly pieces: boolean; readonly figure: boolean }): void;
 }
 
 /** The tier the room shows until its signal applies another: not-live's case is the one the 3D and 2D rooms draw. */
@@ -210,7 +211,8 @@ export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
         visitorMarker.after(visitorItem);
       }
     },
-    setPlaceholders(words) {
+    setPlaceholders(on) {
+      const words = placeholderWords(room.ui, on);
       if (words === "") {
         placeholderItem?.remove();
         placeholderItem = null;

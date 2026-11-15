@@ -122,7 +122,7 @@ import type { TierValue } from "./signals/tier";
 import { classifyTurn, createCostChannel } from "./signals/turn-cost";
 import type { CostChannel } from "./signals/turn-cost";
 import type { ClearArea, FigureSignal, FrameGiven, SceneModule, Stage, Stage3D, WalkEnd } from "./stage";
-import { placeholderWords, renderTextCopy } from "./text-copy";
+import { renderTextCopy } from "./text-copy";
 import type { TextCopy } from "./text-copy";
 import { uiWord } from "./ui-keys";
 import { NO_TARGET, reduceTarget } from "./walk/target";
@@ -455,13 +455,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
    *  a load that fell back, and the visitor's figure while the 3D room shows its flat shape. */
   const placeholders = { pieces: deps.room.build.placeholders, figure: false };
   function showPlaceholders(): void {
-    // Spec 028 (FR-012, FR-015): "Around the room"'s line, no longer the stage's note.
-    copy?.setPlaceholders(
-      placeholderWords(deps.room.ui, {
-        pieces: placeholders.pieces,
-        figure: placeholders.figure && visit.mode !== "2d",
-      }),
-    );
+    // Spec 028 (FR-012, FR-015, Q23): "Around the room"'s item, no longer the stage's note; the argument main gave
+    // layout.ts's setPlaceholders (rv-rework-spec-028's N-1).
+    copy?.setPlaceholders({ pieces: placeholders.pieces, figure: placeholders.figure && visit.mode !== "2d" });
   }
 
   /** Spec 016 (FR-014; contracts/twin-states.md §4): the line slot, since spec 028 the text copy's first line alone: the twin's line while its own picture shows (its model in 3D, its still in 2D), the stand-in
