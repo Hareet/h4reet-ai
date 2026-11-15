@@ -68,14 +68,28 @@ The worktree had no `node_modules`; the setup target ran first (exit 0; its last
 `python3 -I -m pytest -q -p no:cacheprovider evals/test_docs_links.py`:
 
 ```text
-RUN-PYTEST
+............................................                             [100%]
+44 passed in 2.24s
 ```
+
+(exit 0; an earlier run, before this note, read "44 passed in 1.59s".)
 
 The lint target (the shellcheck lines, which list the repository's `.sh` files, left out here):
 
 ```text
-RUN-LINT
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+829 files already formatted
+exit 0
 ```
+
+(An earlier run, before this note, read "828 files already formatted" and exit 0.) Both runs were repeated with this note's final text in the tree, before the last commit, and printed the same lines (the test's time aside).
 
 The full check isn't run here (rule 4: once, at the end of the stack).
 
