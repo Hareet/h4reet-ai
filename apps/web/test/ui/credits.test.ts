@@ -11,8 +11,8 @@ import { join } from "node:path";
 import { JSDOM } from "jsdom";
 import { describe, expect, inject, it } from "vitest";
 
-import { anchorOf, directories, renderCredits } from "../../build/credits";
-import { REPO, button, enter, flush, intoRoom, start, textOf } from "../helpers/room";
+import { anchorOf, creditsPage, directories, likenessLines, renderCredits } from "../../build/credits";
+import { REPO, button, enter, flush, intoRoom, repositoryBundle, start, textOf } from "../helpers/room";
 
 const CREDITS = readFileSync(join(REPO, "assets/CREDITS.md"), "utf8");
 const builds = inject("siteBuilds");
@@ -86,5 +86,73 @@ describe("the toolbar's Credits link (FR-042; SC-012)", () => {
     const twinLink = [...page.querySelectorAll("nav a")].find((a) => a.getAttribute("href") === "#assets-twin");
     expect(twinLink).toBeDefined();
     expect(page.getElementById((twinLink?.getAttribute("href") ?? "").slice(1))).not.toBeNull();
+  });
+});
+
+// T-A07 (spec 028; FR-013; Q6; the Author's answer "Keep top banner (Recommended)": "move the likeness lines to the
+// Credits page"): under the page's disclosure and before the asset directories, a section headed by the UI word
+// credits.likeness, one line for each model the bundle carries whose approval has a disclosure line, verbatim as the
+// bundle carries it from main's approvals, escaped; the twin's first, then the visitors' in the choice's order, each
+// line once; with none, no section.
+describe("the AI-made figures' lines (spec 028, T-A07; FR-013)", () => {
+  const SECTION = { heading: "The AI-made figures", lines: ["The twin is <b>made</b> & shown.", "The dog's line."] };
+
+  it("sits under the disclosure and before the contents, headed by credits.likeness, each line verbatim and escaped", () => {
+    const html = renderCredits(CREDITS, SECTION);
+    expect(html).not.toContain("<b>made</b>");
+    const page = new JSDOM(html).window.document;
+    const section = page.querySelector("main > section.credits-likeness");
+    if (!section) throw new Error("no section");
+    expect(section.previousElementSibling).toBeNull();
+    expect(section.nextElementSibling?.localName).toBe("nav");
+    const heading = section.querySelector("h2");
+    expect(textOf(heading)).toBe("The AI-made figures");
+    expect(section.getAttribute("aria-labelledby")).toBe(heading?.id);
+    expect([...section.querySelectorAll("p")].map((p) => p.textContent)).toEqual(SECTION.lines);
+    // The contents still list the asset directories alone.
+    expect([...page.querySelectorAll("nav a")].map((a) => a.getAttribute("href"))).toEqual(
+      directories(CREDITS).map((d) => `#${anchorOf(d)}`),
+    );
+  });
+
+  it("has no section where no bundled model's approval gives a line", () => {
+    for (const html of [renderCredits(CREDITS), renderCredits(CREDITS, { heading: "The AI-made figures", lines: [] })])
+      expect(new JSDOM(html).window.document.querySelector(".credits-likeness")).toBeNull();
+    expect(renderCredits(CREDITS, { heading: "x", lines: [] })).toBe(renderCredits(CREDITS));
+  });
+
+  it("takes the lines from the bundle: the twin's first, then each visitor model's in the choice's order, each once", () => {
+    const composed = {
+      index: { ui: { "credits.likeness": "The AI-made figures" }, twin: { line: "T" } },
+      scene: { avatars: { dinosaur: { line: "D" }, dog: { line: "G" }, man: {}, woman: { line: "W" } } },
+    };
+    expect(likenessLines(composed as never)).toEqual({ heading: "The AI-made figures", lines: ["T", "W", "G", "D"] });
+    const twice = { ...composed, scene: { avatars: { woman: { line: "T" }, dog: { line: "G" } } } };
+    expect(likenessLines(twice as never).lines).toEqual(["T", "G"]);
+    const none = { index: { ui: { "credits.likeness": "H" }, twin: null }, scene: { avatars: {} } };
+    expect(likenessLines(none as never)).toEqual({ heading: "H", lines: [] });
+  });
+
+  it("gives the room's own bundle's lines, the twin's approval line first, as the room bundles them", () => {
+    const composed = repositoryBundle();
+    const got = likenessLines(composed);
+    expect(got.heading).toBe("The AI-made figures");
+    const twin = composed.index.twin?.line ?? null;
+    expect(twin).not.toBeNull();
+    expect(got.lines[0]).toBe(twin);
+    expect(got.lines[0]).toMatch(/^The twin is an AI-made, stylized likeness of the Author/);
+    for (const a of Object.values(composed.scene.avatars)) if (a?.line) expect(got.lines).toContain(a.line);
+  });
+
+  it("is written by the plugin from the lines it is given, with the page's stylesheet", () => {
+    const emitted: { fileName: string; source: string }[] = [];
+    const plugin = creditsPage({ source: join(REPO, "assets/CREDITS.md"), likeness: () => SECTION });
+    const hook = plugin.generateBundle as unknown as (this: unknown) => void;
+    hook.call({
+      addWatchFile: () => undefined,
+      emitFile: (f: { fileName: string; source: string }) => emitted.push(f),
+    });
+    expect(emitted.find((f) => f.fileName === "credits/index.html")?.source).toBe(renderCredits(CREDITS, SECTION));
+    expect(emitted.map((f) => f.fileName)).toContain("credits/style.css");
   });
 });
