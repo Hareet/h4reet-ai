@@ -510,6 +510,18 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       log?.record("twin-pet", { start_ms: r.start_ms, end_ms: r.end_ms, path: r.path, outcome: r.outcome });
       return;
     }
+    // Spec 028 (FR-020, FR-021; plan.md R-B5): the dinosaur's scene's call and its end, said once each in the polite
+    // live region (the 3D stage shows the call in its bubble). No usage event: ADR 0055's deviation.
+    if (signal.kind === "dino-call") {
+      const said = uiWord(deps.room.ui, "figures.dino_call");
+      if (said) announcer.say(said);
+      return;
+    }
+    if (signal.kind === "dino-left") {
+      const said = uiWord(deps.room.ui, signal.who === "both" ? "figures.left_both" : "figures.left_twin");
+      if (said) announcer.say(said);
+      return;
+    }
     if (signal.kind === "failed") {
       if (avatarFailed) return;
       avatarFailed = true;

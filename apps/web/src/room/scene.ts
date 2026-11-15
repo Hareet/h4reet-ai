@@ -34,6 +34,7 @@ import {
   Sprite,
   SpriteMaterial,
   SRGBColorSpace,
+  Vector3,
   WebGLRenderer,
 } from "three";
 import type { Material, Mesh } from "three";
@@ -70,6 +71,11 @@ import { reachTargets } from "./walk/reach";
 import type { Pose } from "./walk/movement";
 import { AVATAR_SHAPES } from "../choice/avatars";
 import { EATER, eatingAvailable } from "./eat/available";
+import { SPEAK_DEFAULTS, createBubble, speakingSeconds } from "./bubble";
+import type { Bubble } from "./bubble";
+import { createDinoFigures } from "./scene/dino-scene-figures";
+import type { DinoFigures } from "./scene/dino-scene-figures";
+import { uiWord } from "./ui-keys";
 import { createEat3d } from "./eat/eat3d";
 import type { Eat3d } from "./eat/eat3d";
 import { createMeal } from "./eat/meal";
@@ -305,6 +311,12 @@ export function createScene(options: SceneOptions): Stage3D {
   };
   void options.gaveWay?.then(close, close);
   const handoffEnded = options.handoff ?? Promise.resolve();
+  // Spec 028 (FR-019; plan.md R-B3): the hand-off has ended, so the dinosaur's scene may take the figures' homes (as
+  // spec 025's run did, B-1: no home holds the hand-off's mid-turn rotation).
+  let handedOff = false;
+  void handoffEnded.then(() => {
+    handedOff = true;
+  });
   const gate = (): Promise<unknown> => (closed ? handoffEnded : Promise.resolve());
   // What the stage will load (spec 012): resolved once the loader's chunk has built the entries; never rejected.
   let sayExpected: (files: readonly ExpectedFile[]) => void = () => undefined;
@@ -704,6 +716,46 @@ export function createScene(options: SceneOptions): Stage3D {
   let frame = 0;
   let level = 0;
   let last: number | null = null;
+  /** Spec 028 (FR-019 to FR-026; plan.md R-B3): the dinosaur's scene, made once in a dinosaur visit after the hand-off,
+   *  where the scene has `figures.leave`; its director waits for the dinosaur's model to show (Q11). */
+  let dino: DinoFigures | null = null;
+  /** Spec 028 (FR-020, FR-027; plan.md R-B5): the speech bubble over the twin, made at its first words. */
+  let bubble: Bubble | null = null;
+  const reducedNow = (): boolean => (options.motion ? options.motion.reducedMotion : options.reducedMotion);
+  /** The twin's speaking time for a line (spec 016's speak_wpm within speak_s; the defaults where the part has no twin
+   *  block). */
+  const speaking = (text: string): number =>
+    speakingSeconds(
+      text,
+      part.twin?.block.speak_wpm ?? SPEAK_DEFAULTS.speak_wpm,
+      part.twin?.block.speak_s ?? SPEAK_DEFAULTS.speak_s,
+    );
+  /** Shows a line in the bubble over the twin for `seconds`, its host the canvas's container. */
+  const say = (text: string, seconds: number): void => {
+    if (disposed) return;
+    const host = canvas.parentElement;
+    if (!host) return;
+    if (!bubble || bubble.element.parentElement !== host) {
+      bubble?.dispose();
+      bubble = createBubble(doc, host);
+    }
+    bubble.show(text, seconds, clock.now(), { reduced: reducedNow() });
+  };
+  const head = new Vector3();
+  /** The bubble at the twin's head, projected by the room's camera, clamped inside the frame area. */
+  const placeBubble = (): void => {
+    if (!bubble?.shown) return;
+    bubble.tick(clock.now());
+    if (!bubble.shown) return;
+    const picture = figures?.pictureOf("twin") ?? room.twin;
+    picture.updateWorldMatrix(true, false);
+    head.setFromMatrixPosition(picture.matrixWorld);
+    head.y += part.figures.twin_height + 0.1;
+    head.project(camera);
+    const x = canvas.offsetLeft + ((head.x + 1) / 2) * size.w;
+    const y = canvas.offsetTop + ((1 - head.y) / 2) * size.h;
+    bubble.place(x, y, { x: canvas.offsetLeft + area.x, y: canvas.offsetTop + area.y, w: area.w, h: area.h });
+  };
   const loop = (time: number): void => {
     if (disposed) return;
     options.onFrame(time);
@@ -740,6 +792,32 @@ export function createScene(options: SceneOptions): Stage3D {
     }
     // Spec 025's run (its FR-001 to FR-024) and spec 026's petting (its FR-001) no longer start in the room (spec 028,
     // FR-028; Q10, Q17): the run's shell and the pet director aren't made for any visit; their modules stay, unwired.
+    // Spec 028 (FR-019 to FR-026; plan.md R-B3): the dinosaur's scene in their place, after the walking view's pose and
+    // before the figures' clips; paused (or a hidden page) apart from reduced motion, which cuts it.
+    const leave = part.figures.leave;
+    if (!dino && figures && handedOff && options.avatar === EATER && leave) {
+      const avatars = figures;
+      dino = createDinoFigures({
+        leave,
+        avatars,
+        bicycle: room.placements.get(leave.takes) ?? null,
+        root: room.scene,
+        chosen: options.avatar,
+        handedOff: () => handedOff,
+        callSeconds: () =>
+          Math.max(
+            speaking(uiWord(options.room.ui, "figures.dino_call") ?? ""),
+            avatars.clipOf("twin", "greeting")?.duration ?? 0,
+          ),
+        call: () => {
+          const words = uiWord(options.room.ui, "figures.dino_call");
+          if (words) say(words, Math.max(speaking(words), avatars.clipOf("twin", "greeting")?.duration ?? 0));
+          options.onFigure?.({ kind: "dino-call" });
+        },
+        left: (who) => options.onFigure?.({ kind: "dino-left", who }),
+      });
+    }
+    dino?.frame(dt, { animate: moving, paused: !moving && !reducedNow(), level, reduced: reducedNow() });
     const sway = settings.animations && moving && !figures?.shows("twin");
     room.twin.rotation.z = sway ? Math.sin(time / 900) * 0.015 : 0;
     // The figures' clips advance only while the motion store animates (spec 009, FR-025 to FR-027).
@@ -748,6 +826,7 @@ export function createScene(options: SceneOptions): Stage3D {
     faces.frame(time);
     glows.frame(time);
     eatFrame();
+    placeBubble();
     // The highlight after the look's frame, whatever the quality level does to its ink lines (spec 008, FR-017), and
     // the labels after the highlight (FR-019).
     drawFrame({
@@ -781,6 +860,10 @@ export function createScene(options: SceneOptions): Stage3D {
     figures: figuresReady,
     waitMs: part.figures.wait_ms,
     expected,
+    // Spec 028 (FR-027; plan.md R-B5, R-B7): a line in the bubble over the twin, for its seconds.
+    say(text, seconds) {
+      say(text, seconds);
+    },
     // Spec 016 (FR-022): the conversation's activity, to the twin's states; nothing before the figures' chunk loads.
     twinActivity(activity) {
       figures?.twinActivity(activity);
@@ -846,6 +929,8 @@ export function createScene(options: SceneOptions): Stage3D {
       input.unbind();
       loader?.stop();
       figures?.dispose();
+      dino?.dispose();
+      bubble?.dispose();
       canvas.removeEventListener("webglcontextrestored", restored);
       faces.dispose();
       glows.dispose();
