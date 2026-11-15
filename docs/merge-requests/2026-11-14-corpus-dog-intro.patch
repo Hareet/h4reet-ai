@@ -1,18 +1,19 @@
 diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/apps/web/room/scene.yaml b/apps/web/room/scene.yaml
 --- a/apps/web/room/scene.yaml
 +++ b/apps/web/room/scene.yaml
-@@ -91,7 +91,9 @@
+@@ -91,7 +91,10 @@
      edible: { chunks: 4 }
    - id: dog-sign
      piece: dog-sign
 -    mount: { on: work-desk, anchor: top, offset: [0.27, 0, -0.04], turn: { y: -10 }, estimated: true }
-+    # Spec 026 (T019; the page's Q287, answered: recommended, his to confirm or overturn): on the floor beside the dog,
-+    # no turn, where RG6 passes (specs/026-twin-pets-dog/dog-sign-offset.md, "Off the desk").
-+    mount: { on: room-shell, anchor: floor, offset: [0, 0, 0.3], estimated: true }
++    # Spec 026 (T019; as amended, the page's Q297, answered: recommended, his to confirm or overturn): on the right
++    # wall, no turn, where RG6 passes (specs/026-twin-pets-dog/dog-sign-offset.md, "Off the desk"); Q287's floor
++    # mount put the sign under the "Eat" tile's box for a 3D dinosaur visit.
++    mount: { on: room-shell, anchor: right-wall, offset: [-0.2, 0.4, 0.0375], estimated: true }
      frame: true
      label: label.dog-sign
    - id: chalkboard
-@@ -227,6 +229,12 @@
+@@ -227,6 +230,12 @@
      emblem: slate
      members: [chalkboard]
      action: { talk: { topic: mission } }
@@ -25,6 +26,118 @@ diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/apps/web/room/scene
  # Spec 024 (FR-011): the seconds an eaten chunk takes to grow back.
  eating: { regrow_s: 20 }
  handoff: { from: { placement: twin-figure, anchor: hand }, to: { placement: visitor-figure, anchor: hand } }
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/apps/web/test/room/dog-pick.test.ts b/apps/web/test/room/dog-pick.test.ts
+--- a/apps/web/test/room/dog-pick.test.ts
++++ b/apps/web/test/room/dog-pick.test.ts
+@@ -46,6 +46,10 @@
+   figure: "dog",
+   action: { talk: { topic: "hobbies-and-travel", lead: "The dog first." } },
+ };
++/** The scene's selectables without a `dog` (spec 026's human patch, T019, puts one in scene.yaml; Q297), so a test
++ *  that adds its own works whether or not the shipped scene holds it. */
++const lessDog = (selectables: unknown[]): unknown[] =>
++  selectables.filter((s) => (s as { id?: unknown }).id !== DOG_SELECTABLE.id);
+ 
+ const corners = (dog: { home: { at: [number, number]; heading_deg: number }; footprint_m: number }) => {
+   const h = (dog.home.heading_deg * Math.PI) / 180;
+@@ -153,7 +157,7 @@
+   const base = fileTree(REPO);
+   const text = new TextDecoder().decode(base.read(SCENE_PATH) ?? new Uint8Array());
+   const doc = parse(text) as { selectables: unknown[] };
+-  doc.selectables = [...doc.selectables, DOG_SELECTABLE];
++  doc.selectables = [...lessDog(doc.selectables), DOG_SELECTABLE];
+   const tree = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]]));
+   const policy = readRoomPolicy({ env: {}, root: REPO });
+   shipped = { tree, result: compose(tree, policy, STRICT) };
+@@ -291,10 +295,14 @@
+ 
+   it("gives no front without the selectable's figure, or without figures.dog", () => {
+     const base = fileTree(REPO);
+-    expect(figureFronts(geometryWith(base), { w: 1280, h: 800 }).size).toBe(0);
+     const text = new TextDecoder().decode(base.read(SCENE_PATH) ?? new Uint8Array());
++    // The scene without a `dog` selectable: no front.
++    const bare = parse(text) as { selectables: unknown[] };
++    bare.selectables = lessDog(bare.selectables);
++    const withoutDog = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(bare))]]));
++    expect(figureFronts(geometryWith(withoutDog), { w: 1280, h: 800 }).size).toBe(0);
+     const doc = parse(text) as { selectables: unknown[]; figures: Record<string, unknown> };
+-    doc.selectables = [...doc.selectables, DOG_SELECTABLE];
++    doc.selectables = [...lessDog(doc.selectables), DOG_SELECTABLE];
+     delete doc.figures.dog;
+     const tree = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]]));
+     expect(figureFronts(geometryWith(tree), { w: 1280, h: 800 }).size).toBe(0);
+@@ -312,7 +320,7 @@
+     const doc = parse(text) as { selectables: unknown[] };
+     const { figure: dropped, ...signOnly } = DOG_SELECTABLE;
+     void dropped;
+-    doc.selectables = [...doc.selectables, signOnly];
++    doc.selectables = [...lessDog(doc.selectables), signOnly];
+     const bare = geometryWith(overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]])));
+     const withoutFigure = pickSweep(bare).problems.map(key).sort();
+     console.log(
+@@ -338,7 +346,11 @@
+       const { figure: dropped, ...signOnly } = DOG_SELECTABLE;
+       void dropped;
+       // The dog piece's member the bicycle, on the side wall, away from the desk.
+-      d.selectables = [...d.selectables, { ...(figure ? DOG_SELECTABLE : signOnly), members: ["bicycle"] }, FIXTURE];
++      d.selectables = [
++        ...lessDog(d.selectables),
++        { ...(figure ? DOG_SELECTABLE : signOnly), members: ["bicycle"] },
++        FIXTURE,
++      ];
+       if (home) d.figures.dog.home.at = home;
+       return overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(d))]]));
+     };
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/apps/web/test/room/dog-selectable.test.ts b/apps/web/test/room/dog-selectable.test.ts
+--- a/apps/web/test/room/dog-selectable.test.ts
++++ b/apps/web/test/room/dog-selectable.test.ts
+@@ -43,14 +43,18 @@
+   if (composed) return composed;
+   const base = fileTree(REPO);
+   const text = new TextDecoder().decode(base.read(SCENE_PATH) ?? new Uint8Array());
++  // The scene's selectables without a `dog` (spec 026's human patch, T019, puts one in scene.yaml; Q297), so the
++  // comparison holds whether or not the shipped scene holds it.
+   const doc = parse(text) as { selectables: unknown[] };
++  doc.selectables = doc.selectables.filter((s) => (s as { id?: unknown }).id !== DOG_SELECTABLE.id);
++  const less = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]]));
+   doc.selectables = [...doc.selectables, DOG_SELECTABLE];
+   const tree = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]]));
+   const policy = readRoomPolicy({ env: {}, root: REPO });
+   const options = { mode: "strict" as const, drafts: false };
+   composed = {
+     with: compose(tree, policy, { ...options }),
+-    without: compose(base, policy, { ...options }),
++    without: compose(less, policy, { ...options }),
+   };
+   return composed;
+ }
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/apps/web/test/room/eat-3d.test.ts b/apps/web/test/room/eat-3d.test.ts
+--- a/apps/web/test/room/eat-3d.test.ts
++++ b/apps/web/test/room/eat-3d.test.ts
+@@ -492,7 +492,7 @@
+ 
+   it(`${DESK}: no placement or switch pose mounted on it loses the top under it`, () => {
+     const boxes = keepOutBoxes(scene, DESK);
+-    expect(boxes).toHaveLength(9);
++    expect(boxes).toHaveLength(8); // 9 until spec 026's human patch (T019, Q297) moved the dog sign off the desk
+     const prims = standing(DESK);
+     for (const box of boxes) {
+       const centre: V3 = [(box.min[0] + box.max[0]) / 2, 2, (box.min[2] + box.max[2]) / 2];
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/apps/web/test/room/eat-chunker.test.ts b/apps/web/test/room/eat-chunker.test.ts
+--- a/apps/web/test/room/eat-chunker.test.ts
++++ b/apps/web/test/room/eat-chunker.test.ts
+@@ -506,9 +506,9 @@
+     expect(asideCount(r, holder)).toBeGreaterThan(0);
+   });
+ 
+-  it(`${DESK}: sets aside the top under each of its 9 mounts (7 placements and the ${CHARGER}'s two desk poses)`, () => {
++  it(`${DESK}: sets aside the top under each of its 8 mounts (6 placements and the ${CHARGER}'s two desk poses)`, () => {
+     const r = of(DESK);
+-    expect(r.input.keepOuts).toHaveLength(9);
++    expect(r.input.keepOuts).toHaveLength(8); // 9 until spec 026's human patch (T019, Q297) moved the dog sign off the desk
+     for (const box of r.input.keepOuts) {
+       const centre: V3 = [(box.min[0] + box.max[0]) / 2, 2, (box.min[2] + box.max[2]) / 2];
+       const hit = firstHit(r.input.primitives, centre, [0, -1, 0]);
 diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/config/room-events.yaml b/config/room-events.yaml
 --- a/config/room-events.yaml
 +++ b/config/room-events.yaml
@@ -432,7 +545,7 @@ diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/docs/studio/photo-g
  On the shell, at its anchors:
  
  - [ ] Desk: on the anchor `back-wall`, offset x 0, y 0, z 0.4 (estimated)
-+- [ ] Desk sign, dog: on the anchor `floor`, offset x 0, y 0, z 0.3 (estimated)
++- [ ] Desk sign, dog: on the anchor `right-wall`, its origin (on the desk, below the centre of the sign's foot) 0.4096 from the back wall and 0.4 above the floor, 0.0375 out from the wall (estimated)
  - [ ] Chalkboard: on the anchor `left-wall`, its origin (the centre of the board's back, against the wall) 0.8972 from the back wall and 1.65 above the floor, 0 out from the wall (estimated)
  - [ ] Snowboard: on the anchor `left-wall`, its origin (the centre of the board, midway along its length and across its width, in the middle of its thickness) 0.2096 from the back wall and 0.775 above the floor, 0.035 out from the wall (estimated)
  - [ ] Bicycle: on the anchor `right-wall`, its origin (midway between the two wheels' hubs) 0.8317 from the back wall and 1.49 above the floor, 0.09 out from the wall (estimated)
@@ -444,7 +557,7 @@ diff -ruN '--exclude=__pycache__' '--exclude=node_modules' a/docs/studio/work-or
  - Where the sign stands on the desk, from the desk's front-left corner.
  - Measure: the size, now estimated at 0.16 × 0.12 × 0.05 m (w × h × d).
 -- Measure: where `dog-sign` sits, now estimated: on `work-desk`'s anchor `top`, offset (0.27, 0, -0.04) m.
-+- Measure: where `dog-sign` sits, now estimated: on `room-shell`'s anchor `floor`, offset (0, 0, 0.3) m.
++- Measure: where `dog-sign` sits, now estimated: on `room-shell`'s anchor `right-wall`, offset (-0.2, 0.4, 0.0375) m.
  
  ## Size, origin, and bounds
  

@@ -714,6 +714,13 @@ Its recommended answer (answered: recommended, the orders file's rule; his to co
 
 ### The answer, in short
 
+**As amended (Q297, patch3-026, 2026-11-15):** the mount in his patch is the right wall's
+`{ on: room-shell, anchor: right-wall, offset: [-0.2, 0.4, 0.0375], estimated: true }`, no turn (the table's row "right
+wall | [-0.2, 0.4, 0.0375]", 0.98 m from the dog's home; the page's Q297, answered: recommended, his to confirm or
+overturn), not the floor point below (Q287). floorrun-026 found the floor sign's core under the "Eat" tile's box for a
+3D dinosaur visit (spec 024's `eat-checks`), which this section's probe didn't measure. The text below stands as the
+record of the measure.
+
 **The floor by the dog's home passes.** With the dog sign on the room shell's `floor` anchor, on the dog's −x side,
 RG6 passes at every supported stage, in 3D and in 2D, with no other finding. The `dog` selectable keeps its own pick
 area at every stage, so the carve-out holds it nowhere. The nearest passing mount to the dog's home is `floor`, offset
