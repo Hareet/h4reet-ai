@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The dog-intro proposal's checker (spec 026, FR-017 to FR-023, SC-005's first half; plan.md R-13).
+"""The dog-intro proposal's checker (spec 026, FR-017 to FR-023, SC-005's first half; plan.md R-13; as amended, Q292).
 
 Read-only, deterministic, standard library only. Two modes:
 
@@ -7,12 +7,14 @@ Read-only, deterministic, standard library only. Two modes:
   and "Source") is found verbatim in the file its Source cell names first, in backticks: a repository path, or
   ``main:<path>``, read from main (``git show main:<path>``, or ``--main-dir`` for a copy). A span from
   ``assets/policy/approvals.json`` is found in an approval's ``disclosure_line``. It reports whether the patch is
-  buildable: only once ``approvals.json`` holds an approval of the dog's model with a non-empty line (FR-019).
+  buildable: only once ``approvals.json`` holds an approval of the dog's model with a non-empty line (FR-019). It
+  refuses a proposal that still proposes the dropped slot ``hobbies.room_dog_name`` (its facts entry, or its
+  ``{{slot:…}}`` in a line), which the prose may still name (Q292).
 - ``patch FILE [--page PAGE --entry QID]``: the patch the Author applies. It refuses: a touched path that is human-only
   (``config/twin-readiness.yaml``, ``.claude/**``, ``CLAUDE.md``, ``REVIEW.md``, the constitution, ``tools/gates/**``,
   ``evals/agent-config/**``, ``redteam/forbidden-actions.sh``, ``assets/**``) or in ``corpus/`` other than
-  ``04-hobbies-and-travel.md`` and ``facts/hobbies-and-travel.yaml``; the slot ``hobbies.room_dog_name`` missing or with
-  a field other than null (FR-018); a ``<his answer>`` or ``<his disclosure line>`` placeholder; a Golden Q&A 9 whose
+  ``04-hobbies-and-travel.md`` (since Q292, its facts file too); the dropped slot ``hobbies.room_dog_name`` in any form,
+  null or filled, or its ``{{slot:…}}`` (FR-018 as amended, Q292); a ``<his answer>`` or ``<his disclosure line>`` placeholder; a Golden Q&A 9 whose
   answer is empty or holds no word, or isn't found verbatim inside a quotation on an "Answered:" line of the page's
   entry QID, a line holding ``RECOMMENDED``'s match never counting: "re", one or more "c", "o", one or more "m",
   "end", in any case (Recommended, as recommended, recomended, reccommended, the recommendation); other misspellings
@@ -41,15 +43,18 @@ from pathlib import Path
 
 DEFAULT_ROOT = Path(__file__).resolve().parents[2]
 CORPUS_04 = "corpus/04-hobbies-and-travel.md"
-FACTS_04 = "corpus/facts/hobbies-and-travel.yaml"
 APPROVALS = "assets/policy/approvals.json"
 CONSENT_SOURCE = "main:specs/017-the-night-shift/spec.md"
 #: His consent, in his words (spec FR-019); its own sentence in CONSENT_SOURCE is the one part of that file a span may
 #: come from.
 CONSENT = "it's okay that we use the likeness of my dog"
 DOG_MODEL = "assets/visitors/dog/dog.glb"
+#: The slot impl-026 to patch-026 proposed, dropped by Q292: neither the patch nor the proposal may carry it.
 SLOT_ID = "hobbies.room_dog_name"
-SLOT_FIELDS = ("value", "tag", "source", "public_safe")
+#: The slot's facts entry, or its reference in a line.
+DROPPED_SLOT = re.compile(
+    rf"^\s*-\s+id:\s*{re.escape(SLOT_ID)}\s*$|\{{\{{slot:{re.escape(SLOT_ID)}\}}\}}"
+)
 PRIVATE = "corpus/intake/private/"
 
 HUMAN_ONLY = (
@@ -63,7 +68,8 @@ HUMAN_ONLY = (
     re.compile(r"^redteam/forbidden-actions\.sh$"),
     re.compile(r"^assets/"),
 )
-CORPUS_ALLOWED = (CORPUS_04, FACTS_04)
+#: Of corpus/, the patch touches `04` only: with the slot dropped (Q292), nothing in its facts file changes.
+CORPUS_ALLOWED = (CORPUS_04,)
 PLACEHOLDERS = ("<his answer>", "<his disclosure line>")
 QUOTED = re.compile(r'"([^"\n]+)"')
 SLOT = re.compile(r"\{\{slot:[a-z0-9_.]+\}\}")
@@ -226,6 +232,10 @@ def source_rows(text: str) -> list[tuple[str, str]]:
 
 def check_proposal(text: str, sources: Sources) -> list[str]:
     problems: list[str] = []
+    if any(DROPPED_SLOT.search(line) for line in text.splitlines()):
+        problems.append(
+            f"the proposal still proposes the slot {SLOT_ID}, which the rework drops (Q292)"
+        )
     for words, source in source_rows(text):
         spans = QUOTED.findall(words)
         if not spans:
@@ -364,31 +374,12 @@ def digit_problems(diff: FileDiff, sources: Sources) -> list[str]:
 
 
 def slot_problems(files: list[FileDiff]) -> list[str]:
-    facts = next((f for f in files if f.path == FACTS_04), None)
-    lines = facts.added if facts else []
-    start = next(
-        (
-            k
-            for k, line in enumerate(lines)
-            if re.match(rf"^\s*-\s+id:\s*{re.escape(SLOT_ID)}\s*$", line)
-        ),
-        None,
-    )
-    if start is None:
-        return [f"{FACTS_04}: the slot {SLOT_ID} is missing from the patch (FR-018)"]
-    values: dict[str, str] = {}
-    for line in lines[start + 1 :]:
-        if re.match(r"^\s*-\s+id:", line):
-            break
-        m = re.match(r"^\s+([a-z_]+):\s*(.*?)\s*$", line)
-        if m:
-            values[m.group(1)] = m.group(2)
-    filled = [k for k in SLOT_FIELDS if values.get(k, "null") not in ("null", "~", "")]
-    missing = [k for k in SLOT_FIELDS if k not in values]
-    if filled or missing:
-        return [
-            f"{FACTS_04}: the slot {SLOT_ID} must hold every field null, his to fill (FR-018): {', '.join(filled + missing)}"
-        ]
+    """The dropped slot, in any file the patch touches: its facts entry, null or filled, or its reference (Q292)."""
+    for f in files:
+        if any(DROPPED_SLOT.search(line) for line in f.added):
+            return [
+                f"{f.path}: the slot {SLOT_ID} is dropped (Q292); the patch may not carry it, null or filled"
+            ]
     return []
 
 
@@ -466,7 +457,7 @@ def check_patch(
             problems.append(f"{f.path}: a human-only path; the patch may not touch it")
         elif f.path.startswith("corpus/") and f.path not in CORPUS_ALLOWED:
             problems.append(
-                f"{f.path}: of corpus/, the patch touches only {CORPUS_04} and {FACTS_04}"
+                f"{f.path}: of corpus/, the patch touches only {CORPUS_04} (its facts file neither, since Q292)"
             )
     for placeholder in PLACEHOLDERS:
         if placeholder in text:
