@@ -1005,6 +1005,33 @@ The range run's first visit, 21,803,040 of 25,000,000, is main's arrival check's
 - **N-5** (can't be shown now; test 4's tail waits for Q288): re-run `apps/web` `npx vitest run test/room/dog-intake.test.ts`, all five cases, so test 4's four bundle assertions run (the clips `idle` and `walk`; `dog.line === disclosure_line`; `avatars.dog` defined; `bundledFiles` the three GLBs).
 - The review's "What item 3's verify must know", points 1 to 5, quoted above, as written.
 
+#### Runs (rule 4; documents only)
+
+The docs tests that read the files this task changes, from the repository's root:
+
+```
+$ pytest -q -p no:cacheprovider --import-mode=importlib evals/test_docs_links.py evals/test_repository_docs.py
+61 passed in 0.99s
+```
+
+`make lint`, exit 0 (shellcheck's file list left out). The setup target ran first (no `node_modules`), exit 0:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+830 files already formatted
+```
+
+Interruptions: none. No hook, bash-gate, permission, or filesystem refusal in this session. The setup target said "git hooks: /home/h4reet/h4reet-ai/h4reet-ai/.git/hooks isn't writable here (the agent sandbox); the Author runs make git-hooks", its own expected line, not a refusal.
+
+notes2-020: rv-intake-020's review in item 3's note in its words (from the page, Q291); N-2, N-3, N-4 done; N-1 and N-5 on item 3's verify-to-do; held on Q288 and Q286
+
 ---
 
 ## Item 4: spec 021, the dinosaur modeled and brought in (`night/impl2-021/impl2-021`)
