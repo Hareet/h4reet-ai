@@ -4642,6 +4642,53 @@ No full `make check` was run: the stack's last task runs it once (rule 4).
 
 **Interruptions (rework5-026).** No hook or bash-gate refusal, and nothing was respelled. `make setup` installed `node_modules` (the worktree had none) and said the git hooks directory isn't writable in the sandbox. No new question.
 
+### Verification (rule 7, verify-026)
+
+Written by the night-shift implementer verify-026 (Opus 5.5) on 2026-11-15, from rework5-026's reviewed tip 215b4eea (rv-rework5-026, Opus: "Verdict: not blocking"). verify-026 wrote none of item 9's code. The container's `cat /sys/fs/cgroup/cpu.max` reads `400000 100000`, so 4 CPUs tonight (the order said 2 "today"), and every vitest run below uses `--maxWorkers=4`.
+
+#### The merge
+
+`git merge refs/heads/night/merge-2/merge-2` (ce3f6305): "Already up to date." The line's tip hadn't moved since rework5-026's step 1, so nothing was resolved, and no off-line branch was merged (patch3-026's chain and patch-claude-md are merge-3's).
+
+#### I-1: the auto-merged files' tests and item 9's other test files, on 215b4eea
+
+`scene.ts` and `build/room/schema.ts` were auto-merged from both sides (rv-rework5-026's I-1). Their tests are spec 024's `eat-*` files (11 under `test/room/`, 8 under `test/ui/`) and the schema tests (`schema.test.ts`, `chase-schema.test.ts`). Beside them run item 9's `dog-selectable`, `bundle`, `twin-states`, `twin-reach`, and `twin-compose`. From `apps/web`, with vitest's JSON report summarized by file:
+
+```
+$ npx vitest run --maxWorkers=4 test/room/eat- test/ui/eat- test/room/schema.test.ts test/room/chase-schema.test.ts test/room/dog-selectable.test.ts test/room/bundle.test.ts test/room/twin-states.test.ts test/room/twin-reach.test.ts test/room/twin-compose.test.ts
+ Test Files  26 passed (26)
+      Tests  606 passed (606)
+   Duration  184.89s (tests 65%, import 35%, transform 1%)
+passed  test/room/bundle.test.ts  53/53 passed
+passed  test/room/chase-schema.test.ts  27/27 passed
+passed  test/room/dog-selectable.test.ts  7/7 passed
+passed  test/room/eat-3d.test.ts  19/19 passed
+passed  test/room/eat-available.test.ts  14/14 passed
+passed  test/room/eat-box.test.ts  13/13 passed
+passed  test/room/eat-checks.test.ts  13/13 passed
+passed  test/room/eat-chunker.test.ts  34/34 passed
+passed  test/room/eat-data.test.ts  16/16 passed
+passed  test/room/eat-meal.test.ts  15/15 passed
+passed  test/room/eat-model.test.ts  7/7 passed
+passed  test/room/eat-mouth.test.ts  9/9 passed
+passed  test/room/eat-pause.test.ts  6/6 passed
+passed  test/room/eat-scene.test.ts  10/10 passed
+passed  test/room/schema.test.ts  256/256 passed
+passed  test/room/twin-compose.test.ts  33/33 passed
+passed  test/room/twin-reach.test.ts  11/11 passed
+passed  test/room/twin-states.test.ts  18/18 passed
+passed  test/ui/eat-button.test.ts  13/13 passed
+passed  test/ui/eat-degraded.test.ts  7/7 passed
+passed  test/ui/eat-fall.test.ts  1/1 passed
+passed  test/ui/eat-hidden.test.ts  1/1 passed
+passed  test/ui/eat-input.test.ts  14/14 passed
+passed  test/ui/eat-key-repeat.test.ts  2/2 passed
+passed  test/ui/eat-place.test.ts  3/3 passed
+passed  test/ui/eat-reduced.test.ts  4/4 passed
+```
+
+The same 26 files had passed once before this run, with the same totals (26 and 606), before the JSON reporter was added. So the auto-merge is now tested, and I-1 is closed.
+
 ## Item 10: spec 027, when the twin's file context stops being enough (`night/impl-027/impl-027`)
 
 Spec: specs/027-corpus-retrieval-adr/ · Intent: intent/027-corpus-retrieval-adr.md (draft) · ADR: docs/adr/0054-when-file-context-stops-being-enough.md (proposed) · Written by: implementer (night shift, impl-027, Opus 5.5); the review is for a worker who didn't write the code (T006; the reviewer follows this task) · Date: 2026-11-14
