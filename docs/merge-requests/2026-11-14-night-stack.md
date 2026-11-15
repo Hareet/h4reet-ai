@@ -4895,7 +4895,7 @@ ruff format --check --no-cache --extend-exclude corpus .
 exit 0
 ```
 
-It ran again on this section's commit, below.
+It ran again on a415a39e, this section's commit, with the same output, exit 0: eslint, tsc, and prettier ("All matched files use Prettier code style!"), ruff ("All checks passed!", "835 files already formatted"), and shellcheck with no finding. Only this sentence changed after that, and `prettier --check` passes on it.
 
 #### The hooks
 
