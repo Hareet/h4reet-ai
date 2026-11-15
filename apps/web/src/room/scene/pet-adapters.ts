@@ -14,8 +14,10 @@ import type { Object3D } from "three";
 import { Quaternion, Vector3 } from "three";
 
 import { AVATAR_SHAPES } from "../../choice/avatars";
+import type { AvatarId } from "../../choice/avatars";
 import type { FigureId } from "../stage";
 import type { Chase } from "./chase";
+import { chaseDue } from "./chase-figures";
 import type { FigureRole, FigureSource } from "./loader";
 import type { PetChase, PetDog, PetFigurePhase, PetHome, PetTwin } from "./pet";
 import type { ReachRig, ReachSide, Vec3 } from "./pet-reach";
@@ -105,6 +107,14 @@ class DogView implements PetDog {
     return out;
   }
 }
+
+/** Whether the stage makes the run's shell now (spec 026, T014; the page's Q282; rv-impl3-026's I-1): never before the
+ *  hand-off has ended, so no home it takes holds the hand-off's mid-turn rotation (spec 025's B-1); then for the
+ *  dinosaur, the one pursuer (spec 025's `chaseDue`, unchanged), and, where the scene has the room's dog, for every
+ *  visitor, so the twin can turn to pet it through spec 025's director, its one writer (R-07). No run starts unless
+ *  the visitor is the dinosaur (FR-001's `pursuerPresent`). Here, not in chase-figures.ts, which stays spec 025's. */
+export const shellDue = (chosen: AvatarId, handedOff: boolean, hasDog: boolean): boolean =>
+  chaseDue(chosen, handedOff) || (handedOff && hasDog);
 
 /** Spec 026 (R-09; M5): the `dog` figure's front rectangle counts for a pick only while the dog shows its model at its
  *  home: its picture there, its model shown, and spec 025's phase `home` (never fleeing or returning). */

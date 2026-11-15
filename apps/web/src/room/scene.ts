@@ -62,10 +62,10 @@ import type { Box as WorldBox } from "./compose/framing";
 import { nearsEdge } from "./walk/hold";
 import { startPose } from "./walk/movement";
 import type { Camera as ViewCamera } from "./compose/project";
-import { chaseDue, createChaseFigures } from "./scene/chase-figures";
+import { createChaseFigures } from "./scene/chase-figures";
 import { createPet } from "./scene/pet";
 import type { Pet, PetMotion } from "./scene/pet";
-import { createPetAdapters, dogPickable } from "./scene/pet-adapters";
+import { createPetAdapters, dogPickable, shellDue } from "./scene/pet-adapters";
 import type { PetAdapters } from "./scene/pet-adapters";
 import { PET_DEFAULTS } from "./scene/pet-config";
 import type { ChaseFigures } from "./scene/chase-figures";
@@ -262,6 +262,9 @@ export function createScene(options: SceneOptions): Stage3D {
   ink.prepare(room.scene);
   // Spec 008's highlight: the target's members' draws bordered in the look's highlight, its passes after the look's.
   const members = new Map(options.room.selectables.map((s) => [s.id, s.members] as const));
+  /** Spec 026 (plan.md R-01, R-07; T014): the pet director's adapters, made with the run's shell; declared before the
+   *  highlight and the picker, whose callbacks read it, so a call of either can't come before it (rv-impl3-026's N-5). */
+  let petAdapters: PetAdapters | null = null;
   // Spec 026 (R-09): a selectable with `figure: dog` borders the dog's picture too, while it is pickable.
   const withFigure = new Set(options.room.selectables.filter((s) => s.figure === "dog").map((s) => s.id));
   const highlight = createHighlight({
@@ -624,13 +627,14 @@ export function createScene(options: SceneOptions): Stage3D {
   let level = 0;
   let last: number | null = null;
   /** Spec 025 (plan.md R-06): the run's shell, made once the avatars' controller and the walking view exist and the
-   *  hand-off has ended, so no home it takes holds the hand-off's mid-turn rotation (B-1), and only where the visitor
-   *  chose the dinosaur, the one pursuer (FR-001): no other visitor's frame does anything for it. */
+   *  hand-off has ended, so no home it takes holds the hand-off's mid-turn rotation (B-1); where the visitor chose the
+   *  dinosaur, the one pursuer (FR-001), and, since spec 026 (Q282), for every visitor where the scene has the room's
+   *  dog (`shellDue`): then the twin turns to pet it through the shell, and no run starts unless the visitor is the
+   *  dinosaur. */
   let chaseFigures: ChaseFigures | null = null;
-  /** Spec 026 (plan.md R-01, R-07; T014): the pet director and its adapters, made with the run's shell; the motion it
-   *  reads, written in place each frame. */
+  /** Spec 026 (plan.md R-01, R-07; T014): the pet director, made with the run's shell (its adapters, `petAdapters`, are
+   *  declared before the highlight); the motion it reads, written in place each frame. */
   let pet: Pet | null = null;
-  let petAdapters: PetAdapters | null = null;
   const petMotion: { -readonly [K in keyof PetMotion]: PetMotion[K] } = {
     animate: false,
     paused: false,
@@ -673,15 +677,16 @@ export function createScene(options: SceneOptions): Stage3D {
     }
     // Spec 025 (FR-001 to FR-024; plan.md R-06): the run, after the walking view's pose and before the figures' clips
     // and the stand-in's sway; paused (or a hidden page) apart from reduced motion, which cuts the figures home.
-    // Spec 026 (T014; the page's question, its recommended answer taken provisionally): where the scene has the room's
-    // dog, the shell is made for every visitor once the hand-off ends, so the twin can turn to pet it through spec 025's
-    // director, its one writer; no run starts unless the visitor is the dinosaur (FR-001's pursuerPresent).
+    // Spec 026 (T014; the page's Q282, its recommended answer taken provisionally): `shellDue` (pet-adapters.ts), so
+    // where the scene has the room's dog, the shell is made for every visitor once the hand-off ends, and the twin can
+    // turn to pet it through spec 025's director, its one writer; no run starts unless the visitor is the dinosaur
+    // (FR-001's pursuerPresent).
     if (
       !chaseFigures &&
       figures &&
       walkable &&
       walking &&
-      (chaseDue(options.avatar, handedOff) || (handedOff && part.figures.dog !== undefined))
+      shellDue(options.avatar, handedOff, part.figures.dog !== undefined)
     )
       chaseFigures = createChaseFigures({
         floor: walkable,
