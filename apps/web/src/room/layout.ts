@@ -136,6 +136,14 @@ export interface RoomLayout {
   insertLoader(card: HTMLElement): void;
 }
 
+/** Spec 028: every --wall-* property applyHud sets in the split layout, each taken away outside it. */
+const WALL_PROPERTIES: readonly string[] = [
+  ...["panel", "column", "list", "tiles"].flatMap((p) => ["x", "y", "w", "h"].map((k) => `--wall-${p}-${k}`)),
+  "--wall-title-h",
+  "--wall-scale-left",
+  "--wall-scale-right",
+];
+
 /** A HUD tile (spec 005, FR-026; plan.md §6.2): an icon over its words, the words its name. */
 function tile<K extends "button" | "a">(
   doc: Document,
@@ -428,29 +436,31 @@ export function renderRoom(
         ["--frame-w", applied.frame.w],
         ["--frame-h", applied.frame.h],
       ];
-      // Spec 018: the split layout's boxes for hud/split.css, and data-split beside data-hud. The walking control's
-      // place is compact.walk's, above (R-3); the rest row is in the bar's band (R-2), and the open panel's frame is the
-      // panel with the rest row below it, its title row at its top.
+      // Spec 018's split layout, placed beside the room's walls by spec 028 (FR-004 to FR-008; plan.md §R-A4): the panel's,
+      // the title row's, the column's, the list's, and the tiles' block's boxes for hud/split.css as --wall-*, and the
+      // two sides' scales, unitless; data-split beside data-hud. The walking control's and the Eat tile's places are
+      // compact.walk's and compact.eat's, above, in the tiles' block. Outside the split layout none is set.
       const sp = applied.layout === "column" ? (applied.split ?? null) : null;
       root.setAttribute("data-split", sp ? "on" : "off");
-      if (sp)
-        sizes.push(
-          ["--split-panel-x", sp.panel.x],
-          ["--split-panel-y", sp.panel.y],
-          ["--split-panel-w", sp.panel.w],
-          ["--split-panel-h", sp.panel.h],
-          ["--split-title-h", sp.title.h],
-          ["--split-frame-y", sp.frame.y],
-          ["--split-frame-h", sp.frame.h],
-          ["--split-rest-x", sp.rest.x],
-          ["--split-rest-y", sp.rest.y],
-          ["--split-rest-w", sp.rest.w],
-          ["--split-rest-h", sp.rest.h],
-          ["--split-list-x", sp.list.x],
-          ["--split-list-y", sp.list.y],
-          ["--split-list-w", sp.list.w],
-          ["--split-list-h", sp.list.h],
-        );
+      for (const name of WALL_PROPERTIES) root.style.removeProperty(name);
+      if (sp) {
+        const boxes: [string, Box][] = [
+          ["panel", sp.panel],
+          ["column", sp.column],
+          ["list", sp.list],
+          ["tiles", sp.tiles],
+        ];
+        for (const [part, b] of boxes)
+          sizes.push(
+            [`--wall-${part}-x`, b.x],
+            [`--wall-${part}-y`, b.y],
+            [`--wall-${part}-w`, b.w],
+            [`--wall-${part}-h`, b.h],
+          );
+        sizes.push(["--wall-title-h", sp.title.h]);
+        root.style.setProperty("--wall-scale-left", String(sp.scaleLeft));
+        root.style.setProperty("--wall-scale-right", String(sp.scaleRight));
+      }
       for (const [name, value] of sizes) root.style.setProperty(name, px(value));
       // The stacked layout's header is sticky in the page's flow, its own height: the scroll padding takes its 4rem
       // fallback there, as before spec 005.

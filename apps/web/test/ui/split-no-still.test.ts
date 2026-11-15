@@ -18,14 +18,16 @@ const ready = (): RoomIndex => {
 };
 const WIDE = { w: 1920, h: 1080 } as const;
 
-async function room(screen: { w: number; h: number } = WIDE) {
+async function room(screen: { w: number; h: number } = WIDE, o: { webgl?: boolean; answer?: string } = {}) {
   const sent: TurnRequest[] = [];
   const viewport = stubViewport(screen);
   const v = start({
+    ...(o.webgl ? { webgl: true, maxTextureSize: 4096 } : {}),
     room: ready(),
     sendTurn: (request, ended, signal) => {
       sent.push(request);
-      signal?.addEventListener("abort", () => ended({ kind: "error", error: "aborted" }));
+      if (o.answer !== undefined) ended({ kind: "response", status: 200, body: { text: o.answer } });
+      else signal?.addEventListener("abort", () => ended({ kind: "error", error: "aborted" }));
     },
     viewport: viewport.factory,
   });
@@ -62,7 +64,8 @@ describe("no portrait (FR-001; Q1)", () => {
 
 describe("no still in 3D (FR-002)", () => {
   it("makes no request for the twin's still in a 3D visit, at rest or in a conversation", async () => {
-    const { v } = await room();
+    const { v } = await room(WIDE, { webgl: true });
+    expect(v.doc.querySelector(".room-stage-view")?.getAttribute("data-stage")).toBe("3d");
     expect(ready().twin?.still).toBeTruthy();
     talkingPiece(v).click();
     await flush();
@@ -102,7 +105,7 @@ describe("the panel stands open in the split layout (FR-003; Q2)", () => {
   });
 
   it("Back closes the open piece's conversation and leaves the panel standing, its log kept", async () => {
-    const { v } = await room();
+    const { v } = await room(WIDE, { answer: "The twin's answer." });
     talkingPiece(v).click();
     await flush();
     const lines = v.doc.querySelectorAll("#talk-log > *").length;

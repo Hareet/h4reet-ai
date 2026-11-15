@@ -67,11 +67,12 @@ const decl = (selector: string, property: string): string =>
     .at(-1)
     ?.declarations.get(property) ?? "";
 
-/** The page's controls in document order, the Tab order's: each by its name or words. */
+/** The page's controls in document order, the Tab order's, each by its name or words, but spec 018's own parts, which
+ *  show only in the split layout ("Back", the hint). */
 const order = (doc: Document): string[] =>
-  [...doc.querySelectorAll<HTMLElement>(".room button, .room a[href], .room input")].map(
-    (el) => el.getAttribute("aria-label") ?? el.textContent?.trim() ?? el.id,
-  );
+  [...doc.querySelectorAll<HTMLElement>(".room button, .room a[href], .room input")]
+    .filter((el) => !el.matches(".split-back, .split-hint"))
+    .map((el) => el.getAttribute("aria-label") ?? el.textContent?.trim() ?? el.id);
 
 describe("applyHud's --wall-* (FR-007, FR-008)", () => {
   it("writes the split layout's boxes and scales, the wall from the room's protector (the 2D drawing's before a 3D one)", async () => {

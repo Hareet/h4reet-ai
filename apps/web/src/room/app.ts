@@ -79,7 +79,7 @@ import { h } from "./dom";
 import { noEvents } from "./events";
 import type { EventSink } from "./events";
 import { bufferRatio } from "./fit";
-import { fetchStill, renderFlat } from "./flat";
+import { renderFlat } from "./flat";
 import { browserOwnsEscape, createFullscreen } from "./fullscreen";
 import { loadTypefaces } from "./faces/fonts";
 import type { TypefaceLoader } from "./faces/fonts";
@@ -245,17 +245,23 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     // Spec 014: the frame area, from the drawing stage's protector, or the clear area where there is none yet; never a
     // throw, since frameArea falls back to the clear area (FR-004).
     const protect = protector();
-    const framed: FrameArea | null = fits
-      ? protect
-        ? frameArea(screen, hudState, metrics, protect)
-        : { area: boxes.clear, ease: 1, fellBack: false }
-      : null;
     // Spec 024 (FR-012; plan.md §5.5, Q150): a 3D dinosaur visit's protector carries the "Eat" tile's box, which the
     // compact boxes and the split layout's then hold, from the visit's start, so the tile showing moves nothing.
-    const eatOption = { eat: protect?.eat };
-    const compact = compactBoxes(screen, hudState, metrics, eatOption);
-    // Spec 018 (FR-001): the split layout's boxes, where the window takes it; its parts follow.
-    const splitAt = fits ? splitBoxes(screen, hudState, metrics, eatOption) : null;
+    // Spec 028 (FR-005, FR-009; plan.md §R-A2): the split layout's wall box is the drawing stage's protector's (a stage
+    // whose protector gives none keeps spec 014's framing), or, before a stage frames the room, the 2D drawing's, from
+    // the index, so the first re-fit already stands the panel and the column beside the room.
+    const hudOption = { eat: protect?.eat, wall: protect ?? flatProtect };
+    const compact = compactBoxes(screen, hudState, metrics, hudOption);
+    // Spec 018 (FR-001), as spec 028's FR-009 places it: the split layout's boxes, where the window takes it; its parts
+    // follow, and the room is framed into its area with no ease (FR-006).
+    const splitAt = fits ? splitBoxes(screen, hudState, metrics, hudOption) : null;
+    const framed: FrameArea | null = !fits
+      ? null
+      : splitAt
+        ? { area: splitAt.area, ease: 0, fellBack: false }
+        : protect
+          ? frameArea(screen, hudState, metrics, protect)
+          : { area: boxes.clear, ease: 1, fellBack: false };
     layout.applyHud({
       layout: fits ? boxes.layout : "stacked",
       state: hudState,
@@ -865,14 +871,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       stats: () =>
         statsFrom(live.tier.tier, cost.state, { ui: deps.room.ui, drafts: deps.room.build.kind === "drafts" }),
       onClose: () => talk?.closeLarger(),
-      // Spec 018 (Q4; FR-003): the twin's still, through spec 016's verified fetch, once, at the first opening in 3D.
-      // The twin is the one speaker with a still today; item d's dog adds its own here (the speaker seam).
-      portrait: (speaker) => {
-        const still = speaker === "twin" ? (deps.room.twin?.still ?? null) : null;
-        return still && visit.mode !== "2d"
-          ? fetchStill(still, (url, init) => win.fetch(url, init))
-          : Promise.resolve(null);
-      },
+      // Spec 028 (FR-001, FR-002; Q1): no portrait, so no still is fetched for the panel; the 2D room alone fetches it.
       turnOut: () => talk?.turnOut() ?? false,
       walking: () => walker(stage)?.walk.walking === true,
       resumeOpen: () => resumeOpen,

@@ -329,6 +329,8 @@ describe("after review (T018)", () => {
   it("a part that throws midway leaves no stray part behind, and one set stands, its hint hidden once closed (finding 2; spec 028)", () => {
     let calls = 0;
     const t = split();
+    // Since spec 028 a split builds its parts as it becomes active: the first leaves the page before the second comes.
+    t.s.setActive(false);
     const again = createSplit(t.doc, {
       talk: t.doc.querySelector(".talk") as HTMLElement,
       list: t.doc.querySelector(".room-list") as HTMLElement,

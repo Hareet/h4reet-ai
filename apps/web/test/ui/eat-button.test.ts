@@ -233,13 +233,13 @@ describe("what the tile never covers", () => {
         const over = (a: Box, o: Box): boolean =>
           a.x < o.x + o.w && o.x < a.x + a.w && a.y < o.y + o.h && o.y < a.y + a.h;
         // The notes (the placeholder note and the stand-in line) and the panels the AI disclosure lives in: the column's
-        // compact content or the split layout's list and rest row, the dock, the strip, and the bar.
+        // compact content or the split layout's list (spec 028, T-A03: no rest row), the dock, the strip, and the bar.
         const others = [
           notes,
           b.strip,
           b.bar,
           ...(b.dock ? [b.dock] : []),
-          ...(c.split ? [c.split.list, c.split.rest] : c.column ? [c.column] : []),
+          ...(c.split ? [c.split.list] : c.column ? [c.column] : []),
         ];
         if (others.some((o) => over(eat, o))) wrong.push(`${screen.w} × ${screen.h}, ${st.list}`);
       }

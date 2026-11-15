@@ -234,7 +234,7 @@ describe("axe in full screen (FR-051)", () => {
 
 // The review of 60b51de4, finding 1 (WCAG 2.4.7; FR-051): no stop of the Tab order is a control nobody can see.
 describe("no control in the Tab order that isn't drawn (T046, finding 1)", () => {
-  it("hides the log's header buttons with the dock's empty sheet, and shows them with its first line; the column keeps them", async () => {
+  it("hides the log's header buttons with the dock's empty sheet, and shows them with its first line; the column keeps them (spec 028: 1024 x 600)", async () => {
     const heads = (v: Visit): string[] =>
       tabOrder(v.doc)
         .map(nameOf)
@@ -246,7 +246,10 @@ describe("no control in the Tab order that isn't drawn (T046, finding 1)", () =>
     button(upright.doc, "Send").click();
     await flush();
     expect(heads(upright)).toEqual([UI["hud.log_toggle"], UI["talk.larger"]]);
-    const wide = await room({ w: 1280, h: 720 });
+    // Spec 028 (T-A03; plan.md §R-B8): 1280 × 720 takes the split layout, which has no larger view (its FR-003);
+    // 1024 × 600 keeps the column layout.
+    const wide = await room({ w: 1024, h: 600 });
+    expect(wide.doc.documentElement.getAttribute("data-split")).toBe("off");
     expect(heads(wide)).toEqual([UI["hud.log_toggle"], UI["talk.larger"]]);
   });
 

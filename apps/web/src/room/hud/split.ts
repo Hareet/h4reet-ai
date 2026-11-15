@@ -1,19 +1,22 @@
 // The split layout's parts (spec 018; FR-002, FR-005 to FR-009, FR-012, FR-013, FR-016; plan.md §3, §4, §9): around the
 // conversation panel and the list the room already has, never in place of them. The text box, the log, Send, and the
 // list's buttons keep their elements and handlers; this module adds the title's hint, the emblem and the three stats,
-// the frame, and the portrait to the panel, and "Back", the label, and the selected entry's strokes and confirm key
-// cap to the list, and keeps the panel's two states: `bar` at rest (the title and the text box row) and `open`.
-// - The panel's decoration exists only while it is open and the split layout shows; closing removes it, and the log and
-//   the text box stay where they are, so a resize into or out of the split layout loses nothing (plan.md P2).
+// and the frame to the panel, and "Back", the label, and the selected entry's strokes and confirm key cap to the list.
+// Spec 028 (FR-001 to FR-003; Q1, Q2; plan.md §R-A4): the panel stands open beside the room's left wall wherever the
+// split layout shows, at rest and in a conversation (`data-panel="open"`), with no portrait and no "Larger
+// conversation"; `open` is whether a conversation is open, which the hint and "Back" (shown only then) and Escape
+// close, the panel standing, its log as the conversation left it.
+// - The panel's decoration exists only while the split layout shows; leaving it removes it, and the log and the text
+//   box stay where they are, so a resize into or out of the split layout loses nothing (plan.md P2).
 // - The selected entry is the piece focused or targeted, else the one hovered, else the one the open conversation is
 //   about (P7); it carries aria-current and the strokes; no other row changes size.
 // - Escape, in FR-009's order, from one listener at capture on the document: an event already prevented, and full
 //   screen, are left alone; a turn out, the walking view, the open resume, and the larger view with focus in the
-//   conversation are left to their owners; else the open panel closes to the rest row, and focus goes back to the
-//   control that opened it, or to the selected entry where that control is gone or hidden (spec 005's FR-045).
+//   conversation are left to their owners; else the open conversation closes, and focus goes back to the control that
+//   opened it, or to the selected entry where that control is gone or hidden (spec 005's FR-045).
 // - Every decoration is made inside its own try: a part that throws shows its plain form (a 1 px border, no strokes,
-//   the silhouette, text labels) and every control still works (FR-002; plan.md §9).
-// It makes no request: the portrait comes from the function the room gives it, spec 016's verified still (FR-003).
+//   text labels) and every control still works (FR-002; plan.md §9).
+// It makes no request (spec 028's FR-002: no still in a 3D visit).
 import "./split.css";
 
 import { h, svg } from "../dom";
@@ -37,8 +40,6 @@ export interface SplitDraw {
   readonly frame: (w: number, h: number, seed: number) => string;
   readonly stroke: (w: number, seed: number) => string;
   readonly keycap: (doc: Document, name: string) => HTMLElement;
-  /** The portrait's plain form for a speaker, shown until its still arrives, and where it doesn't. */
-  readonly portrait: (doc: Document, speaker: string) => HTMLElement;
   /** The emblem by its name, the open conversation's piece's as the room's data gives it, or none (null) for free talk
    *  and a piece without one: hud/icons.ts's (FR-005, Q60; D-V3). */
   readonly emblem: (doc: Document, name: string | null) => Element;
@@ -55,12 +56,6 @@ export interface SplitOptions {
   readonly turnOut: () => boolean;
   readonly walking: () => boolean;
   readonly resumeOpen?: () => boolean;
-  /** A speaker's still as a data URL, fetched once per speaker through its verified path (spec 016's, for the twin);
-   *  absent or null, the silhouette stays. */
-  readonly portrait?: (speaker: string) => Promise<string | null>;
-  /** Who speaks in the conversation, whose portrait stands at the frame's edge: "twin" where absent. A seam for item d
-   *  (the dog), which adds a speaker without a change here. */
-  readonly speaker?: () => string;
   /** A piece's emblem name, the selectable's `emblem` in the room's data (D-V3; spec 002's FR-007 keeps the IDs out of
    *  the code); absent, or none for the piece, the speech glyph. */
   readonly emblem?: (piece: string) => string | undefined;
@@ -71,16 +66,18 @@ export interface SplitOptions {
 
 export interface Split {
   readonly active: boolean;
+  /** Whether a conversation is open in the panel (spec 028: the panel itself stands open while `active`). */
   readonly open: boolean;
   /** The split layout shows, or doesn't: the panel's state and its parts come and go with it; nothing else changes. */
   setActive(on: boolean): void;
   /** The open panel's frame box's size and its title row's height in CSS pixels (compose/hud.ts's `SplitBoxes.frame`
    *  and `.title`), for the frame's path, drawn below the title row. */
   setSize(w: number, h: number, title: number): void;
-  /** Opens the panel, recording `opener`, the control that opened it, for focus to go back to (FR-009); `focusHint`
-   *  moves focus to the hint, where the opener is hidden while the panel is open. */
+  /** Opens a conversation in the panel, recording `opener`, the control that opened it, for focus to go back to
+   *  (FR-009); `focusHint` moves focus to the hint, where the opener is hidden while it is open. */
   openPanel(opener?: HTMLElement | null, focusHint?: boolean): void;
-  /** Closes the panel; `focus` sends focus back to the opener, or to the selected entry where it is gone or hidden. */
+  /** Closes the open conversation, the panel standing; `focus` sends focus back to the opener, or to the selected entry
+   *  where it is gone or hidden. */
   closePanel(focus?: boolean): void;
   /** The three stats' values again, after a tier or cost change. */
   refreshStats(): void;
@@ -97,14 +94,6 @@ const DEFAULT_DRAW: SplitDraw = {
   frame: roughFramePath,
   stroke: brushStrokePath,
   keycap,
-  portrait: (doc) =>
-    svg(
-      doc,
-      "svg",
-      { class: "split-silhouette", viewBox: "0 0 100 160", focusable: "false" },
-      svg(doc, "circle", { cx: 50, cy: 38, r: 22 }),
-      svg(doc, "path", { d: "M10 160 C10 105 30 84 50 84 C70 84 90 105 90 160 Z" }),
-    ) as unknown as HTMLElement,
   emblem: (doc, named) => {
     const { name, d } = emblemIcon(named);
     return svg(
@@ -141,8 +130,10 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
   let conversation: string | null = null;
   let parts: HTMLElement[] = [];
   let listParts: HTMLElement[] = [];
-  const portraitUrls = new Map<string, Promise<string | null>>();
   let opener: HTMLElement | null = null;
+  /** The larger view's toggle, which the split layout doesn't show (spec 028, FR-003), and its `hidden` before. */
+  const larger = talk.querySelector<HTMLElement>(".talk-larger");
+  let largerHidden = larger?.hidden ?? false;
 
   /** A button's label: the key cap and the word where the cap draws, the word alone where it doesn't. The key's name is
    *  in the button's accessible name either way (FR-016). */
@@ -216,29 +207,8 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
     li.append(...add);
   };
 
-  const portraitSlot = (): HTMLElement => {
-    const speaker = attempt(() => options.speaker?.()) ?? "twin";
-    const slot = h(doc, "div", { class: "split-portrait", "aria-hidden": "true", "data-speaker": speaker });
-    const plain = attempt(() => draw.portrait(doc, speaker));
-    if (plain) slot.append(plain);
-    const fetchIt = options.portrait;
-    if (fetchIt) {
-      let still = portraitUrls.get(speaker);
-      if (!still) {
-        still = attempt(() => fetchIt(speaker))?.catch(() => null) ?? Promise.resolve(null);
-        portraitUrls.set(speaker, still);
-      }
-      void still.then((url) => {
-        if (url === null || !slot.isConnected) return;
-        const img = h(doc, "img", { class: "split-still", alt: "", src: url });
-        slot.replaceChildren(img);
-      });
-    }
-    return slot;
-  };
-
-  /** Builds the open panel's parts, each in its own try, each recorded the moment it is in the document, so `tear` takes
-   *  away exactly what was added however far a failure got. */
+  /** Builds the panel's parts, each in its own try, each recorded the moment it is in the document, so `tear` takes
+   *  away exactly what was added however far a failure got. The hint shows only while a conversation is open. */
   const build = (): void => {
     parts = [];
     const keep = (el: HTMLElement): void => {
@@ -248,6 +218,7 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
     attempt(() => {
       if (!head) return;
       const hint = labelled("split-hint", words.close, words.esc, "Escape");
+      hint.hidden = !open;
       hint.addEventListener("click", () => api.closePanel(true));
       head.append(hint);
       keep(hint);
@@ -293,11 +264,6 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
       talk.prepend(frame);
       keep(frame);
     } else talk.classList.add("split-plain");
-    attempt(() => {
-      const slot = portraitSlot();
-      talk.append(slot);
-      keep(slot);
-    });
   };
 
   const tear = (): void => {
@@ -320,9 +286,9 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
 
   const sync = (): void => {
     if (active) {
-      talk.setAttribute("data-panel", open ? "open" : "bar");
-      if (open && parts.length === 0) build();
-      if (!open) tear();
+      talk.setAttribute("data-panel", "open");
+      if (parts.length === 0) build();
+      for (const p of parts) if (p.classList.contains("split-hint")) p.hidden = !open;
       if (listParts.length === 0) build2();
       for (const p of listParts) if (p.classList.contains("split-back")) p.hidden = !open;
     } else {
@@ -361,7 +327,7 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
     // 6: the larger view, where the conversation holds focus, is talk.ts's: it ends, and the panel closes with it.
     const focus = doc.activeElement ?? (event.target as Node | null);
     if (talk.getAttribute("data-larger") === "on" && talk.contains(focus)) return;
-    // 7: the open panel closes to the rest row.
+    // 7: the open conversation closes, the panel standing.
     if (!active || !open) return;
     event.preventDefault();
     api.closePanel(true);
@@ -382,6 +348,13 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
     setActive(on) {
       if (on === active) return;
       active = on;
+      // Spec 028 (FR-003): no "Larger conversation" in the split layout; its own `hidden` again outside it.
+      if (larger) {
+        if (on) {
+          largerHidden = larger.hidden;
+          larger.hidden = true;
+        } else larger.hidden = largerHidden;
+      }
       sync();
     },
     setSize(w, h2, title) {
@@ -400,7 +373,7 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
       }
     },
     openPanel(by = null, focusHint = false) {
-      // Only where the split layout shows: a conversation in a narrower window leaves the bar for a later, wider one.
+      // Only where the split layout shows: a conversation in a narrower window opens none of its parts in a later one.
       if (!active) return;
       if (!open) {
         open = true;
@@ -438,7 +411,7 @@ export function createSplit(doc: Document, options: SplitOptions): Split {
       conversation = feature;
       // An open panel's emblem follows the conversation; one that can't be drawn is none (FR-002).
       const top = talk.querySelector(".split-top");
-      if (open && top) {
+      if (active && top) {
         const fresh = attempt(() => draw.emblem(doc, emblemName()));
         const old = top.querySelector(".split-emblem");
         if (fresh) {

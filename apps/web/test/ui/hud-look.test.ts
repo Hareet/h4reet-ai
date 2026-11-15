@@ -8,8 +8,19 @@
 // column's log rests at --log-rest and scrolls; and the room sets the compact boxes' properties from compactBoxes.
 import { describe, expect, it } from "vitest";
 
-import { compactBoxes, hudBoxes, logRestRem } from "../../src/room/compose/hud";
-import { button, flush, intoRoom, matchesRule, parseCss, start, stubViewport, stylesheets } from "../helpers/room";
+import { DEFAULT_METRICS, OPENING, compactBoxes, hudBoxes, logRestRem } from "../../src/room/compose/hud";
+import { flatProtectorFor } from "../../src/room/compose/protect";
+import {
+  button,
+  flush,
+  intoRoom,
+  matchesRule,
+  parseCss,
+  roomIndex,
+  start,
+  stubViewport,
+  stylesheets,
+} from "../helpers/room";
 import type { Visit } from "../helpers/room";
 
 interface Rule {
@@ -202,14 +213,17 @@ describe("the notes, the type, and the motion (spec 014, T024; FR-023, FR-024, F
 });
 
 describe("the compact column's properties and the log at rest (spec 014, T024; FR-018, FR-021)", () => {
-  it("sets --strip-x, --strip-w, --bar-w, --column-h, and --log-rest from compactBoxes", async () => {
+  it("sets --strip-x, --strip-w, --bar-w, --column-h, and --log-rest from compactBoxes, the room's wall included (spec 028)", async () => {
     for (const screen of [
       { w: 1920, h: 1200 },
       { w: 1280, h: 720 },
+      { w: 1024, h: 600 },
     ]) {
       const v = await room(screen);
       const root = v.doc.documentElement;
-      const c = compactBoxes(screen);
+      // Spec 028 (T-A03; plan.md §R-B8): the room's compact boxes take its wall, the 2D drawing's before a stage frames
+      // the room (the fake stage has no protector), so 1920 × 1200 and 1280 × 720 take the split layout.
+      const c = compactBoxes(screen, OPENING, DEFAULT_METRICS, { wall: flatProtectorFor(roomIndex()) });
       expect(root.style.getPropertyValue("--strip-x")).toBe(`${c.strip.x}px`);
       expect(root.style.getPropertyValue("--strip-w")).toBe(`${c.strip.w}px`);
       expect(root.style.getPropertyValue("--bar-w")).toBe(`${c.bar.w}px`);
@@ -251,9 +265,9 @@ describe("the walking control at the column's head, and the hover's scope (spec 
     return out;
   })();
 
-  it("places the control at the column's head on a wide window, and in the clear area's corner on a phone", async () => {
+  it("places the control at the column's head on a wide window, and in the clear area's corner on a phone (spec 028: the room's wall)", async () => {
     const wide = await room({ w: 1920, h: 1200 });
-    const c = compactBoxes({ w: 1920, h: 1200 });
+    const c = compactBoxes({ w: 1920, h: 1200 }, OPENING, DEFAULT_METRICS, { wall: flatProtectorFor(roomIndex()) });
     expect(wide.doc.documentElement.getAttribute("data-walk-place")).toBe("column");
     expect(px(wide, "--walk-x")).toBeCloseTo(c.walk.x, 3);
     expect(px(wide, "--walk-y")).toBeCloseTo(c.walk.y, 3);
@@ -272,8 +286,10 @@ describe("the walking control at the column's head, and the hover's scope (spec 
   // compact column; it still opens as spec 005 drew it (its FR-028), from the notes' foot to 3.75rem above the bar,
   // what the visitor opens counting for no HUD box (FR-019). Its box, from the rule's declarations and the room's
   // properties, over the column's compact box, its containing block.
-  it("opens the larger conversation as tall as spec 005 drew it, above the compact column", async () => {
-    const screen = { w: 1920, h: 1200 };
+  it("opens the larger conversation as tall as spec 005 drew it, above the compact column (spec 028: at a column window without the split)", async () => {
+    // Spec 028 (T-A03; plan.md §R-B8): 1920 × 1200 takes the split layout, which has no larger view (its FR-003);
+    // 1024 × 600 keeps the column layout.
+    const screen = { w: 1024, h: 600 };
     const v = await room(screen);
     const root = v.doc.documentElement;
     const rule = ROOM_RULES.find((r) => r.selector === 'html[data-hud="column"] .talk[data-larger="on"] .talk-sheet');
