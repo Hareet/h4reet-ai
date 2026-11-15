@@ -292,6 +292,9 @@ export function createScene(options: SceneOptions): Stage3D {
   // loaded first, with the loader, by scene/avatars.ts's controllers, which show each in its figure once ready. Until
   // then, and for good where one fails, the figures keep buildRoom's fallbacks.
   let figures: AvatarFigures | null = null;
+  /** Spec 028 (FR-019 to FR-026; plan.md R-B3): the dinosaur's scene, made once in a dinosaur visit after the hand-off,
+   *  where the scene has `figures.leave`; its director waits for the dinosaur's model to show (Q11). */
+  let dino: DinoFigures | null = null;
   let leaving = false;
   const bundled = (id: string | null): boolean => id !== null && Object.hasOwn(part.avatars, id);
   // Spec 016 (FR-044): the twin's own model counts as the twin's figure's avatar where the part has it.
@@ -497,6 +500,9 @@ export function createScene(options: SceneOptions): Stage3D {
       paused: state.paused,
       loading: state.loading,
       failed: eat3d?.disabled() ?? true,
+      // Spec 028 (FR-025; plan.md R-B6): only once the dinosaur's scene has ended or been cut, or at once where the
+      // scene has no `figures.leave`; the Eat box stays reserved from the visit's start (spec 024's FR-012, Q150).
+      sceneDone: part.figures.leave === undefined || dino?.scene.phase === "gone" || dino?.scene.phase === "cut",
     };
   };
   /** The edible placement the walking figure reaches, or null. */
@@ -716,9 +722,6 @@ export function createScene(options: SceneOptions): Stage3D {
   let frame = 0;
   let level = 0;
   let last: number | null = null;
-  /** Spec 028 (FR-019 to FR-026; plan.md R-B3): the dinosaur's scene, made once in a dinosaur visit after the hand-off,
-   *  where the scene has `figures.leave`; its director waits for the dinosaur's model to show (Q11). */
-  let dino: DinoFigures | null = null;
   /** Spec 028 (FR-020, FR-027; plan.md R-B5): the speech bubble over the twin, made at its first words. */
   let bubble: Bubble | null = null;
   const reducedNow = (): boolean => (options.motion ? options.motion.reducedMotion : options.reducedMotion);
