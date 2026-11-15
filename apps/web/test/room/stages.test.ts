@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { frameArea } from "../../src/room/compose/frame";
+import { frameArea, reservedIn } from "../../src/room/compose/frame";
 import {
   DEFAULT_METRICS,
   HUD_PLACEMENTS,
@@ -22,6 +22,7 @@ import {
   fitsHud,
   layoutFor,
   reservedBoxes,
+  wallBoxes,
 } from "../../src/room/compose/hud";
 import type { Box } from "../../src/room/compose/hud";
 import type { Rect } from "../../src/room/compose/pick";
@@ -38,6 +39,7 @@ import {
   SWEEP_STEP,
   flatScale,
   smallestFlatStage,
+  framedStages,
   stageFor,
   supportedStages,
   sweepScreens,
@@ -415,9 +417,11 @@ describe("the stages as frame areas (spec 014, T009)", () => {
   const { scene, index } = repositoryBundle();
   const protect = protectorFor(protectSceneOf(scene, index));
   const overlap = (a: Box, b: Box): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-  /** The reserved boxes of a frame area, written out: every compact box that overlaps it, in its pixels, clipped. */
+  /** The reserved boxes of a frame area, written out: every compact box that overlaps it, in its pixels, clipped. Spec
+   *  028 (T-A05; plan.md §R-B8): the compact boxes the room's protector's wall gives, the split layout's where the
+   *  window takes it. */
   function reservedOf(area: Box, screen: { w: number; h: number }, state = OPENING): Rect[] {
-    return compactBoxes(screen, state).all.flatMap((b): Rect[] => {
+    return compactBoxes(screen, state, DEFAULT_METRICS, { wall: protect }).all.flatMap((b): Rect[] => {
       if (!overlap(b, area)) return [];
       const x0 = Math.max(b.x, area.x);
       const y0 = Math.max(b.y, area.y);
@@ -479,5 +483,68 @@ describe("the stages as frame areas (spec 014, T009)", () => {
     const aspects = supportedStages(protect).map((s) => s.w / s.h);
     expect(ASPECTS[0]).toBeLessThanOrEqual(Math.min(...aspects));
     expect(ASPECTS.at(-1)).toBeGreaterThanOrEqual(Math.max(...aspects));
+  });
+});
+
+// T-A05 (spec 028; FR-010; plan.md §R-A7): the compositor judges the split layout's stages. Every screen of the sweep
+// that takes the split layout with the room's protector is framed into the split's area, with no ease, the strip, the
+// panel, and the column that overlap it reserved in its pixels; a dinosaur visit's variant (spec 024's Q150) keeps its
+// "Eat" tile in the column, so it reserves nothing more.
+describe("the split layout's stages (spec 028, T-A05)", () => {
+  const { scene, index } = repositoryBundle();
+  const protect = protectorFor(protectSceneOf(scene, index));
+  const protectEat = protectorFor(protectSceneOf(scene, index), DEFAULT_METRICS.rem, { eat: true });
+  const screens = sweepScreens().filter((s) => wallBoxes(s, OPENING, DEFAULT_METRICS, { wall: protect }) !== null);
+
+  it("are taken at the wide screens of the sweep", () => {
+    expect(screens.length).toBeGreaterThan(100);
+    for (const s of [
+      { w: 1920, h: 1200 },
+      { w: 2560, h: 1440 },
+    ])
+      expect(
+        screens.some((x) => x.w === s.w && x.h === s.h),
+        key(s),
+      ).toBe(true);
+  });
+
+  it("frame each split screen into the split's area, no ease, its strip, panel, and column reserved", () => {
+    const wrong: string[] = [];
+    for (const s of screens) {
+      const split = wallBoxes(s, OPENING, DEFAULT_METRICS, { wall: protect });
+      if (!split) continue;
+      const c = compactBoxes(s, OPENING, DEFAULT_METRICS, { wall: protect });
+      const want = {
+        w: split.area.w,
+        h: split.area.h,
+        reserved: reservedIn(split.area, [c.strip, split.panel, split.column]),
+        ease: 0,
+      };
+      if (JSON.stringify(stageFor(s, protect)) !== JSON.stringify(want)) wrong.push(key(s));
+    }
+    expect(wrong.slice(0, 5)).toEqual([]);
+  });
+
+  it("are among the swept stages RG5 to RG7 judge", () => {
+    const made = framedStages(protect);
+    for (const s of screens.filter((_, k) => k % 13 === 0)) {
+      const swept = made.screens.find((x) => x.screen.w === s.w && x.screen.h === s.h && x.state.list === "open");
+      expect(swept?.stage, key(s)).toEqual(stageFor(s, protect));
+    }
+  });
+
+  it("keep a dinosaur visit's Eat tile in the column, reserving nothing more", () => {
+    for (const s of screens.filter((_, k) => k % 7 === 0)) {
+      const c = compactBoxes(s, OPENING, DEFAULT_METRICS, { eat: true, wall: protectEat });
+      const split = c.split;
+      if (!split || !c.eat) throw new Error(`no split or no Eat box at ${key(s)}`);
+      const inColumn =
+        c.eat.x >= split.column.x - 1e-9 &&
+        c.eat.y >= split.column.y - 1e-9 &&
+        c.eat.x + c.eat.w <= split.column.x + split.column.w + 1e-9 &&
+        c.eat.y + c.eat.h <= split.column.y + split.column.h + 1e-9;
+      expect(inColumn, key(s)).toBe(true);
+      expect(stageFor(s, protectEat).reserved, key(s)).toEqual(stageFor(s, protect).reserved);
+    }
   });
 });

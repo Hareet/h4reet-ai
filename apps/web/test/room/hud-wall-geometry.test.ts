@@ -69,8 +69,10 @@ function oracle(
   const right = screen.w - safe.right - (t.column.minRem + t.gapRem + t.edgeRem) * rem;
   const y = bands.strip.h;
   const area: Box = { x, y, w: right - x, h: screen.h - safe.bottom - y };
-  // (b) The floor, and the wall box at least minHeightRem tall.
-  if (area.w < T.minimum.w || area.h < T.minimum.h) return null;
+  // (b) The floor, and the wall box at least minHeightRem tall. T-A05 (the page's question, recommended answer taken):
+  // the area at least spec 004's widest stage, 686.4 px, so no split stage is under its screen's stage before spec 005
+  // (test/room/stages-floor.test.ts; spec 005's FR-054).
+  if (area.w < T.minimum.w || area.h < T.minimum.h || area.w < t.minAreaWidthPx) return null;
   const wall = protect.wall?.(area) ?? null;
   if (!wall || wall.h < t.minHeightRem * rem) return null;
   // (c) Both bands hold their least widths.
@@ -170,6 +172,7 @@ describe("the wall placement table (Key Entities)", () => {
       panel: { minRem: 20, maxRem: 44 },
       column: { minRem: 18, maxRem: 32 },
       minHeightRem: 14,
+      minAreaWidthPx: 686.4,
       scaleMax: 1.375,
       tiles: { rows: 2, perRow: 3, gapRem: 0.25, padRem: 0.25 },
     });
