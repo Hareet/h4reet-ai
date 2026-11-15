@@ -233,3 +233,128 @@ exit 0
 - **His look** (SC-008): the columns beside the walls and their sizes (`HUD_PLACEMENTS.wall`, data in code), the tiles' block, the list's cap slot, the focused "Around the room". His screenshot is in his checkout, out of this container's reach; nothing here was compared with it.
 - **Not done, named**: `build/room/report.ts`'s "Frame" prose doesn't name the split layout (its stages count among "the column layout from 1280 × 720" at ease 0); `notesReserve` still reserves the empty notes' place (plan §R-A5); `room.css`'s `.room-note` and `.room-stand-in` rules and `HUD_PLACEMENTS.split`'s unused entries (`shareMax`, `rest`, `list`, `coverMax`, `walkGapRem`) stay, unused, for a later clean-up with their pins; the empty `.room-notes` box stays in the DOM.
 - **Windows under about 1359 px wide** keep the column layout (the question): on such a window the Author would see today's column layout (which never had the thumbnail), the labels gone, and "Around the room" hidden; the panel and the column beside the walls only from about 1359 px.
+
+## rework-028a (night of 2026-11-15, implementer, Opus 5.5)
+
+Branch `night/rework-028a/rework-028a`, from group A's tip `14162126` (`impl-028a`'s last commit). Tests ran from `apps/web/` with `../../node_modules/.bin/vitest run <files> --maxWorkers=1` (`cpu.max` 400000/100000, 4 CPUs, ÷ 4 = 1), after `npm ci --ignore-scripts` (exit 0). Never bare `npx`.
+
+### The merge
+
+`718dddc4` merges `night/rework-spec-028/rework-spec-028` (`e4d29ff1`). Conflicts in `plan.md` (§R-A5's first two bullets, §R-A6) and `tasks.md` (group A's list), resolved toward the reworked spec: its text taken whole; impl-028a's "As built (T-A07)" sentence kept on §R-A5's credits bullet, its "As built (T-A08)" paragraph kept under §R-A6 marked "before the rework; superseded below"; group A's checkboxes kept `[x]`, the **Changed** notes kept beside them. `spec.md`, `analysis.md`, `notes.md`, and the intent merged with no conflict.
+
+### The commits
+
+| Finding | Task | RED | GREEN |
+|---|---|---|---|
+| N-4 (rv-spec-028), A1-2 (rv-028a-1) | T-A01, T-A02 | `9f26a218` | `eb82b711` |
+| A1-1, A1-3 (rv-028a-1) | T-A02, T-A03 | `d8943aaf` | `3c4c9b66` |
+| A2-1 (rv-028a-2) | T-A05 | `2736157a` | `ed8486ee` |
+| B-2, I-1 (rv-spec-028), N-1 (rv-rework-spec-028) | T-A06 | `9cc443d2` | `8e3596c5` |
+| B-1, N-2 (rv-spec-028) | T-A08 | `3cb76a09` | `c0f4818c` |
+| A1-4 = A2-4 | (lint) | — | already fixed by impl-028a's `b16bb225`; `make lint` exit 0 below |
+
+Each GREEN commit updates `plan.md` (§R-A2, §R-A5, §R-A6, §6) beside the code.
+
+**For group B and T-INT:** `src/room/app.ts` changes once more after T-A06's `33436c6e`, in `8e3596c5` (`showPlaceholders` calls `copy?.setPlaceholders({ pieces, figure })`; `placeholderWords` is no longer imported there). It's a three-line hunk inside `showPlaceholders`, which T-B05 doesn't touch.
+
+### Each finding, reworked
+
+- **N-4, A1-2 (the panel's top; SC-001 as reworked).** `compose/hud.ts`: `HudOption` gains `notes?: boolean`; in `wallBoxes` the panel runs from `wall.y + notesReserve(clear)` while a note shows, from `wall.y` otherwise, to the wall box's foot; the column, the list, the tiles' block, and the walk don't move. Since T-A06 no note is drawn on the stage, so `app.ts` passes none and the panel's top is the wall box's (plan §R-A2, reworked bullet). The geometry test's SC-001 case now asserts the column's top and foot and the panel's foot at the wall box's, and the panel's top at the wall's with no note; a new case pushes it below the reserve with one.
+- **A1-1 (Blocking: the bar over the walking control and the Eat tile).** `wallBoxes` gains `bar`, the toolbar's tile rows only, at the tiles' block's top; `walk` (and `eat` beside it) sit a gap below it, outside it. `layout.ts` writes `--wall-bar-*`; `split.css` places `.hud-bar` there (it was at `--wall-tiles-*`, the whole block, walk row included). Tested: `bar` overlaps neither `walk` nor `eat` at every table window, with and without the Eat option.
+- **A1-3 (tile words wrapping into the next row).** A row is `HUD_PLACEMENTS.wall.tiles.tileRem` (3.75rem, new) × the right scale, an icon over two lines of words; `split.css`'s `grid-auto-rows` and the tile's `min-height` follow. A new case measures every tile's words with the model's text widths at every split window of the sweep: at most two lines, and the row holds the icon, the gap, the lines, the padding, and the border. A second case confirms a word does wrap at 1366 × 768 (so one-line rows wouldn't hold it).
+- **A2-1 (the report's split class).** `build/room/report.ts`'s `frameLines` (now exported, over the geometry's `protect` and `framed`) gives the split layout's screens a class of their own, chosen as the room chooses it (`wallBoxes(…, { wall: protect }) !== null`), its head prose saying they are the wall area with no ease; the column classes take the rest ("from 1280 × 720" is now "(no split)"). Pinned in a new spec-028 file, `test/room/report-split.test.ts`, not in spec 004's `test/room/report.test.ts`, which this rework's tasks don't name (the supervisor's rule; plan §6 records it, and names `report.ts` as group A's).
+- **B-2 (the notes' test against "Around the room").** `test/ui/notes-gone.test.ts` reads the page outside "Around the room" (the body with the section taken out of a copy) and the stage's notes (`.room-notes`, `p.room-stand-in`, `.room-visitor-line`, `p.room-note`); a new block checks that where "Around the room" shows (the dock and stacked layouts), its lines show with it. It passed before the code change (the stage held no note since T-A06); its point is that it and `around.test.ts` now both pass with the dock showing the section.
+- **I-1, N-1 (the placeholder words' item).** `text-copy.ts`'s `setPlaceholders` takes `{ pieces, figure }` as plan §R-A5 gives it and joins main's stage-note words itself (`placeholderWords`, still exported); `app.ts` calls it beside the other line writers with main's argument, `figure && visit.mode !== "2d"` (N-1: `app.ts`, not `layout.ts`). A unit case in `test/ui/text-copy.test.ts` pins one item right after the visitor's line (after its slot where no line shows), main's join, and its removal when neither applies.
+- **B-1, N-2 ("Around the room" in the dock layout; the focus overlay).** `room.css`: `html[data-hud="column"] .room-around:not(:focus-within)` takes the visually hidden declarations; `…:focus-within` shows it at the window's foot centre (left, right, bottom 1rem, `margin: 0 auto`, `max-width: 48rem`, `z-index: 6`, the glass), out of the layout's flow; the dock's and the stacked layout's rules are main's, so 390 × 844 and 320 × 568 show it. **Departure from plan §R-A6's text:** `position: absolute`, not `fixed`, since spec 005's FR-044 pin (`hud-a11y.test.ts`) refuses any fixed part but the strip (impl-028a's `64111be2` found it); recorded in §R-A6's "As built (`rework-028a`)".
+
+### The runs
+
+T-A01 (N-4) RED, `hud-wall-geometry`: `Tests 1 failed | 23 passed (24)`. GREEN, `hud-wall-geometry`, `wall-box`, `hud-split-geometry`: `Test Files 3 passed (3) · Tests 42 passed (42)`.
+
+A1-1, A1-3 RED, `hud-wall-geometry`, `hud-wall-dom`: `Test Files 2 failed (2) · Tests 13 failed | 20 passed (33)`. GREEN, the same two: `Tests 33 passed (33)`; then the kernel's, the layout's, and `split.css`'s files (`hud-wall-geometry`, `wall-box`, `hud-split-geometry`, `frame`, `room/hud`, `framing`, `protect`, `stages`, `stages-floor`, `eat-box`, `eat-checks`, `hud-split-model`, `hud-model`, `hud-wall-dom`, `split-no-still`, `hud-split`, `hud-split-rest-row`, `hud-split-fallback`, `hud-split-a11y`, `hud-split-contrast`, `hud-split-list`, `resize`, `hud-look`, `hud-a11y`, `hud-pointer`, `eat-button`, `eat-place`, `hud-faults`): `Test Files 28 passed (28) · Tests 332 passed (332)`.
+
+A2-1 RED, `report-split`: `TypeError: frameLines is not a function · Tests no tests`. GREEN, `report`, `report-split`, `stages-checks`, `dog-report`, `determinism`: `Test Files 5 passed (5) · Tests 50 passed (50)`. The compositor on the room's data, its frame lines:
+
+```
+$ npm run room:report -w apps/web
+Frame (spec 014, FR-060, FR-061; spec 028, FR-006): the frame areas over the same screens: in the split layout (spec 028, FR-006), the wall area beside the room's walls, with no ease; elsewhere eased from the window toward each clear area only as far as keeps every pressable selectable's core and both figures 0.5rem clear of the HUD's compact boxes; 7,671 stages, each with the HUD boxes over it reserved.
+- the split layout (spec 028): 3,329 screens and states, 3,329 at ease 0, 0 between, 0 at ease 1; the median 0.
+- the dock layout: 3,972 screens and states, 1,648 at ease 0, 954 between, 1,370 at ease 1; the median 7/16.
+- the column layout under 1280 × 720: 1,771 screens and states, 0 at ease 0, 1,473 between, 298 at ease 1; the median 14/16.
+- the column layout from 1280 × 720 (no split): 158 screens and states, 0 at ease 0, 158 between, 0 at ease 1; the median 13/16.
+- The reference desktop (1920 × 1200): ease 0, a frame area of 1248 × 1172.5 over spec 005's 1472 × 1120.5, the room 4.6% larger on screen.
+- The reference phone (384 × 740): ease 1, a frame area of 384 × 422 over spec 005's 384 × 422, the room 0.0% larger on screen.
+Findings: none.
+exit 0
+```
+
+(Before, the column classes held the split's: "under 1280 × 720" 2,821 with 1,050 at ease 0, "from 1280 × 720" 2,437 with 2,279 at ease 0; the column and split rows together, 5,258, are the same.)
+
+T-A06 RED, `text-copy`, `notes-gone`: `Test Files 1 failed | 1 passed (2) · Tests 1 failed | 17 passed (18)`. GREEN, T-A06's list (`notes-gone`, `text-copy`, `avatars`, `ui/hud`, `dog-line`, `likeness-line-anywhere`, `likeness-visitor`, `notes-causes`, `hud-notes`, `loading-notes`, `hud-faults`, `loading-faults`, `loading-page`, `twin-compose`, `loading-degraded`, `a11y`, `hud-a11y`): `Test Files 17 passed (17) · Tests 257 passed (257)`.
+
+T-A08 RED, `around`: `Test Files 1 failed (1) · Tests 5 failed | 15 passed (20)`. GREEN, T-A08's list (`around`, `a11y`, `text-copy`, `notes-gone`, `room/text`, `pause`, `room/live`, `hud-a11y`, `loading-a11y`, `hud-look`): `Test Files 10 passed (10) · Tests 199 passed (199)`; `room/hud-contrast`: `Test Files 1 passed (1) · Tests 12 passed (12)`.
+
+RUN_AT_TIP
+
+### Every rewritten test case (old name → new name)
+
+Spec 028's own files (impl-028a's, reworked here):
+
+- `test/room/hud-wall-geometry.test.ts`: `` `at ${s.w} x ${s.h}: each column 1rem off the wall box, as tall as it, 1rem inside the window, apart` `` → `` `at ${s.w} x ${s.h}: each column 1rem off the wall box, 1rem inside the window, apart; the column's top and foot and the panel's foot the wall box's, the panel's top the wall box's with no note (SC-001 as reworked)` `` (N-4; it also checks the bar off the walk and the Eat tile, A1-1); "holds spec 028's numbers" (name kept; `tiles.tileRem: 3.75` added); the oracle gains the note and the bar, its rows 3.75rem. New: "pushes the panel's top below the notes' reserve while a note shows, its foot and the column the wall box's (FR-004, FR-014; SC-001 as reworked, N-4)"; "holds every tile's words in at most two lines, inside its row, at every split window of the sweep"; "wraps a tile's words at the narrowest split window, 1366 × 768 (so one line would not hold them)".
+- `test/ui/hud-wall-dom.test.ts`: "puts the toolbar's tiles in the column's tiles' block, three to a row, and the walking control and Eat tile at their boxes" → "puts the toolbar's tiles in the column's tiles' block, three to a row, in the bar's box above the walking control and Eat tile (rv-028a-1's A1-1)"; "writes the split layout's boxes and scales, the wall from the room's protector (the 2D drawing's before a 3D one)" and "scales the panel's type by --wall-scale-left and the column's type and tiles by --wall-scale-right" (names kept; `--wall-bar-*` and the rows' 3.75rem added).
+- `test/ui/notes-gone.test.ts`: `` `draws none of the four in the ${name} layout, whichever pictures show` `` → `` `puts none of the four in the stage's notes or anywhere outside Around the room in the ${name} layout, whichever pictures show (B-2)` ``; the block '"Around the room" keeps the lines (FR-015)' → '"Around the room" keeps main\'s lines, plus the placeholder words while stand-ins show (FR-015; I-1)' (its three cases' names kept). New block "where Around the room shows, its lines show with it (FR-012, FR-016; B-2, B-1)": `` `holds the stand-in line and the placeholder words in the ${name} layout, where it shows` `` for the dock and stacked layouts.
+- `test/room/report-split.test.ts`: new (A2-1), four cases.
+
+Earlier specs' files, each named by the reworked `tasks.md` (T-A06, T-A08):
+
+- `test/ui/around.test.ts` (spec 004; T-A08): the block '"Around the room" hidden from view, kept for readers (spec 028, T-A08; FR-016)' → '"Around the room" hidden from view in the split and column layouts, kept for readers (spec 028, T-A08; FR-016)'; "takes the room's visually hidden declarations in the column and dock layouts (the split layout's among them)" → "takes the room's visually hidden declarations in the column layout (the split layout's among them), not in the dock layout (B-1)"; "shows when it has focus there, at the window's foot, over the room" → "shows while it holds focus in the column and split layouts, at the window's foot centre, over the room, taking no layout space (N-2, Q22)"; "shows in the stacked layout: no rule there hides it" → "shows in the dock and stacked layouts: no rule there hides it (B-1, Q7 as reworked)". New: "is hidden from view in the split layout, and shown while it holds focus (B-1, N-2)", the same for the column layout; "is shown in the dock (390 × 844) layout (B-1, N-2)", "… dock (320 × 568) …", "… stacked …". `` `is the room's last Tab stop in the ${name} layout, in the accessibility tree, its lines whole` `` kept. All of these are impl-028a's T-A08 cases; spec 004's own cases are untouched.
+- `test/ui/a11y.test.ts` (spec 004; T-A08): "is in %s after the conversation panel, outside the stage, open to a screen reader with nothing to expand, with the tier's sentence (spec 028: visually hidden in the HUD's layouts)" → "… (spec 028: visually hidden in the split and column layouts)", and its comment; assertions unchanged.
+- `test/ui/text-copy.test.ts` (spec 004; T-A06's RED case): new, "keeps the placeholder words one item right after the visitor's line, main's stage-note join, removed when neither applies (spec 028, FR-015, Q23)"; one comment changed ("in the HUD's layouts" → "in the split and column layouts").
+
+No test was weakened, and no floor, threshold, or tolerance was loosened.
+
+### Refusals
+
+- **The bash gate refused one command**, a heredoc appending this section to `impl-a.md`: "Blocked by .claude/hooks/bash-gate.sh — running the agents' engine's Author commands. Route: the Author runs deploy/agents-engine/engine.sh directly (contracts/agents-engine.md §8); agents use make engine-status or make engine-smoke". This was a false match: the text being written was the pasted `make lint` output below, whose `shellcheck` line names the engine's script; nothing ran it. By his rule 5 it wasn't respelled; the section was written with the Edit tool. It's named here for the page (his rule 5: every refusal goes on the page).
+
+### `make lint`
+
+At `c0f4818c`:
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+855 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit 0
+```
+
+`make test` and `make evals` weren't run here. His rule 4 ("Small tests, and the full suite once") gives the one full `make check` to T-INT.
+
+### What's left
+
+- **The reviewers' nits, no code here** (the supervisor's instruction):
+  - rv-028a-1:
+    - **A1-N1**: `compose/protect.ts` isn't in plan §6's owner table (group A edited it; name it as A's).
+    - **A1-N2**: `test/ui/hud-split-a11y.test.ts:119` asserts only `if (big)`.
+    - **A1-N3**: `app.ts`'s comment on `wall: protect ?? flatProtect` vs `scene.ts:861` always giving a protector.
+    - **A1-N4**: `test/room/hud.test.ts:396`'s `if (c.split)` branch can't run.
+    - **A1-N5**: `test/room/eat-box.test.ts` no longer checks spec 024's "listed right after `walk`" (name it in §R-B8, or check `eat` lies in `column`).
+  - rv-028a-2:
+    - **A2-3**: `test/room/eat-checks.test.ts:93-98` counts `held` without asserting the column in `stage.reserved`.
+    - **A2-5**: `hud-wall-geometry.test.ts`'s scale case skips 1366 × 768 and 1280 × 720 (`TABLE[4]`, `TABLE[5]`), Q34's two windows.
+    - **A2-6**: plan.md's two T-A05 bullets should be merged, with both renamed cases' old and new names in T-A05's notes.
+    - **A2-7**: the counters fixture no longer takes the split, so RG7's unit cases cover no split stage.
+  - **A2-2** went to `docfix2-028` (done there).
+- **Files group A edited that plan §6 doesn't name** (for T-INT's list, N-5): `build/room/plugin.ts` (T-A07's `api.composed()`), `compose/protect.ts` (T-A02), `hud/keycap.ts` (T-A04). None of the files §6 gives to B (`stage.ts`, `compose/bundle.ts`, `scene/bundle3d.ts`, `scene/highlight.ts`) was edited by group A. `ui-keys.ts` changed only through the merge of T-B01.
+- **The notes' option is in the kernel only.** No stage note exists since T-A06, so `app.ts` passes none. A note that comes back passes `notes: true` and a re-fit when it shows.
+- **His look** (SC-008): the tiles' block is taller by the two-line rows. At 1920 × 1080 (right scale about 1.29) a row is about 77 px, against about 57 px before, so the list above it is about 45 px shorter. Also for his look: the dock layout's "Around the room" below the room, and the focused overlay.
+- From impl-028a's list, still standing: `notesReserve`'s empty reserve, `room.css`'s unused `.room-note` and `.room-stand-in` rules, `HUD_PLACEMENTS.split`'s unused entries, the empty `.room-notes` box.
