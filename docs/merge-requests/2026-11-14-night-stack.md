@@ -830,6 +830,88 @@ Interruptions: none. No hook, bash-gate, or filesystem refusal in this session.
 
 intake-020: files in and checked (SHA-256s equal main's; arrival 0 findings; credits OK); held on RK5 (first visit 25,050,327 of 25,000,000), the page's question
 
+### Review (rv-intake-020)
+
+rv-intake-020 (Opus 5.5, another worker than intake-020) reviewed this branch at `eee66786`. **Verdict: blocking.** Its review file, `/home/h4reet/h4reet-ai/night/.io/rv-intake-020/out/review.md`, isn't mounted in a worker's container (Q291), so its words below are copied from the supervisor page's copy, not from the file: "rv-intake-020's findings, its words" in `docs/night-shift/2026-11-14.md` on `refs/heads/night/supervisor/2026-11-14` (`b58aad68`), which holds its first line, its "Why blocking", its "## Findings", and its "## What item 3's verify must know", whole. They're quoted whole, word for word; only the headings' levels are set to fit this note, as the page set them to fit its own. The line numbers it gives are the branch's at `eee66786`; notes2-020 adds no line above this section, so this note's numbers still hold, and `tasks.md:113` is the line N-2 moves (below).
+
+> Verdict: blocking
+>
+> **Why blocking:** the branch's own notes say it's held, and this review agrees. As committed, the branch fails SC-002 (I-1). It also can't pass the gate's export until main's `b6985ad2` is in the line (I-2). Neither is a defect in the files themselves. The record, the hashes, the records, the licence, and the credit all check out (below).
+>
+> #### Findings
+>
+> ##### I-1 · Compliance / Bugs · Important: SC-002 isn't met, so the strict room check and 19 tests refuse the branch
+> - Where: `assets/visitors/dog/dog.glb`; `apps/web/test/room/dog-intake.test.ts:91`; `specs/020-dog-modeled-and-brought-in/spec.md:179`; `docs/merge-requests/2026-11-14-night-stack.md:718`.
+> - SC-002 says: "The dog's model, with its clips, stays within main's caps and the first visit under phase 3's 25,000,000 bytes. Met at intake by the compositor's RA4 (per-file caps) and RK5 (the first visit's bytes), which refuse a strict build otherwise".
+> - The pasted compose gives RK5 at 25,050,327 bytes, 50,327 over. The pasted runs show:
+>   - 18 failures across `avatars-compose`, `compose`, `data-only`, and `emblem-data`;
+>   - 1 failure in the item's own `dog-intake.test.ts` (`expected [ 'RK5 apps/web/room/scene.yaml' ] to deeply equal []`).
+> - The site's lenient build still builds, so nothing breaks at runtime. But merging this into the line would turn the line's strict check and committed-tree suites red.
+> - The writer says so and holds the branch (spec Assumptions; note line 718). That's correct, and no test was edited to pass it.
+> - **Don't merge into the line until the Author answers the page's RK5 question.**
+>
+> ##### I-2 · Compliance · Important: main's `b6985ad2` isn't in this branch, so the gate's export would find RA9 on `dog.glb`
+> - Where: the branch history; `docs/merge-requests/2026-11-14-night-stack.md:685` and `:812`; `apps/web/test/room/dog-intake.test.ts:10-11` and `:46`.
+> - Rule 15 says: "The line merges main's `b6985ad2` too."
+> - Checked: `git merge-base --is-ancestor b6985ad2 eee66786` is false. Against `b6985ad2`, the branch's `assets/policy/approvals.json` is missing exactly the 48 lines that add the three dog entries.
+> - record-dog-r4's merge was refused by the read-only `assets/policy/` mount, and it was not worked around. That's the right call, and it's on the page.
+> - Consequence, in the note's own words (line 812): "The gate's export has no `.git` … so it reads the tree's own copy, which lacks the dog's three entries until the line merges `b6985ad2`. Without that merge, the gate's strict compose also finds RA9 on `dog.glb`."
+> - In that export, `dog-intake.test.ts` tests 1 and 4 also fail, because they read `readRoomPolicy`'s tree approvals. The lenient build leaves the dog out.
+> - So `b6985ad2` must be in the line before, or with, this intake, and before any gate run. None of the intake's pasted runs used the export. They all read `refs/heads/main` from a checkout with `.git`.
+>
+> ##### N-1 · Compliance · Nit: "nothing in the handoff folder or the brief changed" isn't shown by a pasted run
+> - Where: `specs/020-dog-modeled-and-brought-in/studio-round-4.md:382`.
+> - The record pastes the handoff GLBs' hashes before `--record`. It pastes no hash of `/srv/studio/briefs/dog/4.json`, and no hash or listing of the handoff after `--record`.
+> - The claim holds on other evidence:
+>   - `scripts/studio/line.py:1302-1311` writes only `<round>.result.json`; the rest goes to a temp scratch.
+>   - The intake's GLBs, copied after the record, carry the same SHA-256s.
+>   - The intake's `records.json` (24,123 bytes) and `LICENSE.md` (327 bytes) match the handoff listing's sizes.
+> - Next time, paste `sha256sum` of the brief and the handoff before and after.
+>
+> ##### N-2 · Compliance · Nit: tasks.md still says the intake waits for the Author
+> - Where: `specs/020-dog-modeled-and-brought-in/tasks.md:113`.
+> - It still lists "the intake of `assets/visitors/dog/**`" under "Not tasks (waits for him)", and it has no task for intake-020's two new tests.
+> - The spec and plan carry the departure; tasks.md wasn't updated with them.
+>
+> ##### N-3 · Compliance · Nit: two "done" markers sit beside the old draft disclosure line
+> - Where: `docs/merge-requests/2026-11-14-night-stack.md:582`; `docs/merge-requests/human-patches/020.md:11`.
+> - Both still quote the old draft, "a stylized likeness of the Author's dog". The night stack's step 3 now ends with "(Done for round 4 …)", which reads as if that line was applied.
+> - The line on main is the breed line (Q280). Say "with the breed line" beside the marker, so nobody copies the old draft into the room text.
+>
+> ##### N-4 · Compliance · Nit: two arrival-check results are stated, not shown in full
+> - Where: `docs/merge-requests/2026-11-14-night-stack.md:764`.
+> - "The pre-commit hook's arrival check on the intake's commit, `8fd4522a`, gave `arrival-check: 0 findings in 11 files`" is stated without its output.
+> - The `--range refs/heads/main..HEAD` run is pasted with `...` elisions.
+> - The five-file run and `credits.py --check` are pasted, and they're enough for the asset claims. These two are claims beyond what's pasted.
+>
+> ##### N-5 · Bugs (test) · Nit: four bundle assertions in `dog-intake.test.ts` test 4 have never run
+> - Where: `apps/web/test/room/dog-intake.test.ts:91-99`.
+> - RK5 trips the expect at line 91, so these never ran:
+>   - the clips (`idle`, `walk`);
+>   - `dog.line === disclosure_line`;
+>   - `avatars.dog` defined;
+>   - `bundledFiles` = `dog.glb`, `dog-idle.glb`, `dog-walk.glb`.
+> - The note's "The bundle's `avatars.dog` holds the model …, `idle`, and `walk`, with the line above" rests only on the pasted report lines ("Likeness `dog`: main's approval holds …" and the three "yes" rows).
+> - Item 3's verify must re-run this test once RK5 is resolved.
+>
+> #### What item 3's verify must know
+> 1. **Hold:** don't merge `eee66786` into the line until the Author answers RK5 (I-1). Any answer that changes `dog.glb`'s bytes needs a new approval on main for the new SHA-256, and the clips' approvals stay. These don't need a new approval:
+>    - raising `first_visit_bytes.phase3`;
+>    - spec 025 loading the room's dog after the first visit.
+> 2. **`b6985ad2` goes into the line first** (I-2). Otherwise the gate's export finds RA9 on `dog.glb`, and `dog-intake.test.ts` tests 1 and 4 fail there. Workers can't do this merge where `assets/policy/` is mounted read-only.
+> 3. **After both, re-run** `apps/web` `npx vitest run test/room/dog-intake.test.ts` (all 5; test 4's tail has never run, N-5), the 13 committed-tree files, and spec 025's 22. Do it in the gate's export as well as in a checkout.
+> 4. **SC-005** (frame rate with a 150,000-triangle dog and a 2048² texture, ~22 MB of texture memory, possibly shown twice: the visitor's figure and the room's dog) is the Author's phone run to judge. Nothing here measures it.
+> 5. **Nobody in the night has viewed the texture or the renders.** The look, and `no_screen_logo_text_or_art`, rest on his approval alone.
+
+What each Important finding waits for. Both are the Author's, not a worker's; notes2-020 changes no asset, test, source, or scene, nothing under `assets/policy/**`, and doesn't merge `refs/heads/main`:
+
+| Finding | Waits for | The page's question |
+|---|---|---|
+| I-1 (SC-002; RK5's first visit at 25,050,327 of 25,000,000 bytes) | **Q288** | "Round 4's dog, taken in as approved, puts the first visit at 25,050,327 bytes, 50,327 over main's phase-3 budget of 25,000,000 (RK5; spec 020's SC-002), because spec 025's room dog counts the dog's files (6,474,745 gzip bytes) beside the twin's and the woman's: how should the dog fit the budget?" |
+| I-2 (main's `b6985ad2` isn't in the line) | **Q286** | "Who merges main's b6985ad2 (your round 4 approval entries, `assets/policy/approvals.json` only) into the line, since record-dog-r4's container mounts `assets/policy/` read-only and `git merge refs/heads/main` stopped with "unable to unlink old 'assets/policy/approvals.json': Read-only file system"?" |
+
+The nits: N-2, N-3, and N-4 are done by notes2-020 (below, "Notes (notes2-020)"). N-1 and N-5 can't be shown now, and are on item 3's verify-to-do there.
+
 ---
 
 ## Item 4: spec 021, the dinosaur modeled and brought in (`night/impl2-021/impl2-021`)
