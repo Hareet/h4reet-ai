@@ -105,7 +105,7 @@ The estimates are this plan's, from the shell's bounds (`room-shell.yaml`: x ±1
 
 ### R-B5. The speech bubble (`src/room/bubble.ts`, `src/room/bubble.css`, new)
 
-`createBubble(doc, stageEl)`: one `div.room-bubble[aria-hidden="true"]` in the stage, absolutely placed at a point the 3D stage gives each frame while it shows (`stage3d.twinHead()`: the twin's placement's top projected by the room's camera, clamped inside the wall box), with `show(text, seconds)` and `hide()`. Its CSS: the room's type, a tail toward the point, a contrast of at least 4.5:1, no animation under reduced motion. The live region gets the same words through `app.ts`'s `announcer.say`.
+`createBubble(doc, stageEl)`: one `div.room-bubble[aria-hidden="true"]` in the stage, absolutely placed at a point the 3D stage gives each frame while it shows (`stage3d.twinHead()`: the twin's placement's top projected by the room's camera, clamped inside the frame area, which the 3D stage already holds), with `show(text, seconds)` and `hide()`. Its CSS: the room's type, a tail toward the point, a contrast of at least 4.5:1, no animation under reduced motion. The live region gets the same words through `app.ts`'s `announcer.say`.
 
 ### R-B6. The eating after the scene (`src/room/scene.ts`, `src/room/eat/available.ts`)
 
