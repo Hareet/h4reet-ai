@@ -14,11 +14,11 @@ Read-only, deterministic, standard library only. Two modes:
   ``04-hobbies-and-travel.md`` and ``facts/hobbies-and-travel.yaml``; the slot ``hobbies.room_dog_name`` missing or with
   a field other than null (FR-018); a ``<his answer>`` or ``<his disclosure line>`` placeholder; a Golden Q&A 9 whose
   answer is empty or holds no word, or isn't found verbatim inside a quotation on an "Answered:" line of the page's
-  entry QID, a line holding ``RECOMMENDED``'s match never counting: "rec", one or more "c", "o", one or more "m",
+  entry QID, a line holding ``RECOMMENDED``'s match never counting: "re", one or more "c", "o", one or more "m",
   "end", in any case (Recommended, as recommended, recomended, reccommended, the recommendation); other misspellings
   (recommeded, recommanded), a hyphen or an invisible character inside the word, and look-alike letters of other
-  scripts or fullwidth forms aren't caught, a deviation the stack note's Backlog holds (FR-020; Q143; rule 11); any numbered item the patch adds to ``04`` that isn't Golden Q&A 9 in
-  its one form; a digit the patch adds to ``04`` outside a ``{{slot:…}}``, a claim tag's date, Golden Q&A 9's leading
+  scripts or fullwidth forms aren't caught, a deviation the stack note's Backlog holds (FR-020; Q143; rule 11); any
+  numbered item the patch adds to ``04`` that isn't Golden Q&A 9 in its one form; a digit the patch adds to ``04`` outside a ``{{slot:…}}``, a claim tag's date, Golden Q&A 9's leading
   ``9``, or a quotation that is the dog's approval's ``disclosure_line`` whole or lies inside his consent's own sentence
   in main's spec 017, line 48 (N-2; rv-impl-026's B-1); and the patch while the approval isn't there (FR-019).
 

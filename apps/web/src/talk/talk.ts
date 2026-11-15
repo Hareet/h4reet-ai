@@ -76,6 +76,10 @@ export interface TalkPanel {
   closeLarger(): void;
   /** Spec 018: whether a turn is out, which Escape stops before it closes the panel. */
   turnOut(): boolean;
+  /** Spec 026 (R-02): the active conversation's feature (a piece's ID, or free talk), or null: read only, so the room's
+   *  selection pets the dog unless its piece's conversation is already the active one, as `topicSelected` sends nothing
+   *  then. */
+  readonly active: string | null;
   /** A selectable whose action is talk was selected (FR-023; spec 004, FR-037, FR-038; spec 007, FR-032): an unready
    *  topic shows the fixed message naming it by its own phrase, from the bundle's index; a ready one opens its
    *  conversation, unless it is the active conversation's own. */
@@ -465,6 +469,9 @@ export function renderTalk(
     element,
     textBox,
     turnOut: () => flight !== null && !flight.stopped,
+    get active() {
+      return conversation;
+    },
     closeLarger() {
       if (larger) setLarger(false);
     },

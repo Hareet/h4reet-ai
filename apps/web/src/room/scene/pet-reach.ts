@@ -917,7 +917,12 @@ function unlay(b: ReachBone): void {
 }
 
 /** The crouch's bones, the hips' position and both legs, given back to the clip where the reach's write is still on
- *  them, and forgotten (Q226: a run's cut clears them at once). */
+ *  them, and forgotten (Q226: a run's cut clears them at once). Exported for the twin's controller (T014), which calls
+ *  it before the run's leg layer reads its base, since a clip without the legs' tracks leaves the crouch on them. */
+export function clearReachLegs(rig: ReachRig): void {
+  clearLegs(rig);
+}
+
 function clearLegs(rig: ReachRig): void {
   for (let i = 0; i < 2; i++) {
     const leg = rig.legs[i]!;

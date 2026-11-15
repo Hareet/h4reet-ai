@@ -100,9 +100,7 @@ describe("the scene's figures.pet block (plan §3; R-08)", () => {
   it("refuses a reach_m below figures.chase.separation_m, or its default without a chase block (R-08)", () => {
     expect(judge({ pet: { reach_m: 0.25 }, chase: { separation_m: 0.3 } }).seen).toEqual(["RD3 figures.pet.reach_m"]);
     expect(judge({ pet: { reach_m: 0.3 }, chase: { separation_m: 0.3 } }).seen).toEqual([]);
-    expect(judge({ pet: { reach_m: 0.4 }, chase: { separation_m: 0.45 } }).seen).toEqual([
-      "RD3 figures.pet.reach_m",
-    ]);
+    expect(judge({ pet: { reach_m: 0.4 }, chase: { separation_m: 0.45 } }).seen).toEqual(["RD3 figures.pet.reach_m"]);
     expect(judge({ pet: { reach_m: CHASE_DEFAULTS.separation_m - 0.01 }, chase: undefined }).seen).toEqual([
       "RD3 figures.pet.reach_m",
     ]);

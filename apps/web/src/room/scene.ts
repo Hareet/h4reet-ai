@@ -63,6 +63,11 @@ import { nearsEdge } from "./walk/hold";
 import { startPose } from "./walk/movement";
 import type { Camera as ViewCamera } from "./compose/project";
 import { chaseDue, createChaseFigures } from "./scene/chase-figures";
+import { createPet } from "./scene/pet";
+import type { Pet, PetMotion } from "./scene/pet";
+import { createPetAdapters, dogPickable } from "./scene/pet-adapters";
+import type { PetAdapters } from "./scene/pet-adapters";
+import { PET_DEFAULTS } from "./scene/pet-config";
 import type { ChaseFigures } from "./scene/chase-figures";
 import { cutoutDriver, figureDriverFor } from "./scene/figure";
 import { createWalking } from "./scene/walking";
@@ -257,7 +262,17 @@ export function createScene(options: SceneOptions): Stage3D {
   ink.prepare(room.scene);
   // Spec 008's highlight: the target's members' draws bordered in the look's highlight, its passes after the look's.
   const members = new Map(options.room.selectables.map((s) => [s.id, s.members] as const));
-  const highlight = createHighlight({ room, style: part.look.highlight, members: (id) => members.get(id) ?? [] });
+  // Spec 026 (R-09): a selectable with `figure: dog` borders the dog's picture too, while it is pickable.
+  const withFigure = new Set(options.room.selectables.filter((s) => s.figure === "dog").map((s) => s.id));
+  const highlight = createHighlight({
+    room,
+    style: part.look.highlight,
+    members: (id) => members.get(id) ?? [],
+    figures: (id) => {
+      const dog = withFigure.has(id) && petAdapters && dogPickable(petAdapters) ? figures?.pictureOf("dog") : null;
+      return dog ? [dog] : [];
+    },
+  });
 
   // The studio models the 3D part sets, loaded as R-28 has it (scene/loader.ts): above ADR 0010's floor, which the room
   // read behind the choice (app.ts), so nothing here asks the device during the hand-off; after the hand-off; under the
@@ -416,7 +431,12 @@ export function createScene(options: SceneOptions): Stage3D {
   camera.layers.enable(LABEL_LAYER);
   const boxes = framedBoxes(part);
   frameCamera(camera, 16 / 9, boxes);
-  const picker = selectablePicker(part, options.room);
+  // Spec 026 (R-09): the dog figure's rectangle picks only while the dog shows its model at home.
+  const picker = selectablePicker(
+    part,
+    options.room,
+    (figure) => figure === "dog" && petAdapters !== null && dogPickable(petAdapters),
+  );
   // Spec 008's walking view (T051): the walkable floor and the figure's driver from the 3D part, the input over the
   // canvas, and the orchestrator, which reach and the walking control's room callbacks reach the room through. Where
   // the part gives no floor or no figure, there is no walking view, and entering does nothing.
@@ -607,6 +627,16 @@ export function createScene(options: SceneOptions): Stage3D {
    *  hand-off has ended, so no home it takes holds the hand-off's mid-turn rotation (B-1), and only where the visitor
    *  chose the dinosaur, the one pursuer (FR-001): no other visitor's frame does anything for it. */
   let chaseFigures: ChaseFigures | null = null;
+  /** Spec 026 (plan.md R-01, R-07; T014): the pet director and its adapters, made with the run's shell; the motion it
+   *  reads, written in place each frame. */
+  let pet: Pet | null = null;
+  let petAdapters: PetAdapters | null = null;
+  const petMotion: { -readonly [K in keyof PetMotion]: PetMotion[K] } = {
+    animate: false,
+    paused: false,
+    level: 0,
+    live: true,
+  };
   const loop = (time: number): void => {
     if (disposed) return;
     options.onFrame(time);
@@ -643,7 +673,16 @@ export function createScene(options: SceneOptions): Stage3D {
     }
     // Spec 025 (FR-001 to FR-024; plan.md R-06): the run, after the walking view's pose and before the figures' clips
     // and the stand-in's sway; paused (or a hidden page) apart from reduced motion, which cuts the figures home.
-    if (!chaseFigures && figures && walkable && walking && chaseDue(options.avatar, handedOff))
+    // Spec 026 (T014; the page's question, its recommended answer taken provisionally): where the scene has the room's
+    // dog, the shell is made for every visitor once the hand-off ends, so the twin can turn to pet it through spec 025's
+    // director, its one writer; no run starts unless the visitor is the dinosaur (FR-001's pursuerPresent).
+    if (
+      !chaseFigures &&
+      figures &&
+      walkable &&
+      walking &&
+      (chaseDue(options.avatar, handedOff) || (handedOff && part.figures.dog !== undefined))
+    )
       chaseFigures = createChaseFigures({
         floor: walkable,
         part,
@@ -652,11 +691,38 @@ export function createScene(options: SceneOptions): Stage3D {
         chosen: options.avatar,
         ...(options.onFigure ? { signal: options.onFigure } : {}),
       });
-    chaseFigures?.frame(dt, {
+    if (chaseFigures && figures && !pet && part.figures.dog) {
+      const shell = chaseFigures;
+      const avatars = figures;
+      const adapters = createPetAdapters({ avatars, chase: () => shell.chase, hasDog: true });
+      petAdapters = adapters;
+      const director = createPet({
+        config: part.figures.pet ?? null,
+        clock,
+        motion: () => petMotion,
+        twin: adapters.twin,
+        dog: adapters.dog,
+        chase: adapters.chase,
+        signal: (activity) => avatars.twinActivity(activity),
+        note: () => options.onFigure?.({ kind: "pet-note" }),
+        log: (record) => options.onFigure?.({ kind: "twin-pet", record }),
+      });
+      pet = director;
+      const config = part.figures.pet ?? PET_DEFAULTS;
+      avatars.pet({ reach: () => director.reach, finished: () => director.finished(), config });
+    }
+    const runMotion = {
       animate: moving,
       paused: !moving && !(options.motion ? options.motion.reducedMotion : options.reducedMotion),
       level,
-    });
+    };
+    // Spec 026 (T014): the pet director's frame before the run's shell's, which then writes the twin's turn.
+    petMotion.animate = runMotion.animate;
+    petMotion.paused = runMotion.paused;
+    petMotion.level = level;
+    petMotion.live = !disposed;
+    pet?.frame(dt);
+    chaseFigures?.frame(dt, runMotion);
     const sway = settings.animations && moving && !figures?.shows("twin");
     room.twin.rotation.z = sway ? Math.sin(time / 900) * 0.015 : 0;
     // The figures' clips advance only while the motion store animates (spec 009, FR-025 to FR-027).
@@ -695,6 +761,10 @@ export function createScene(options: SceneOptions): Stage3D {
     figures: figuresReady,
     waitMs: part.figures.wait_ms,
     expected,
+    // Spec 026 (FR-001, FR-013; R-02): a selection, to the pet director; nothing before it is made.
+    pet(id) {
+      pet?.select(id);
+    },
     // Spec 016 (FR-022): the conversation's activity, to the twin's states; nothing before the figures' chunk loads.
     twinActivity(activity) {
       figures?.twinActivity(activity);

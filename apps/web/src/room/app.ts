@@ -477,6 +477,17 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       log?.record("chase", { state: signal.state, who: signal.who });
       return;
     }
+    // Spec 026 (FR-024, FR-026; R-10, R-11): the petting's line, once as it starts, and its frame-log record.
+    if (signal.kind === "pet-note") {
+      const said = uiWord(deps.room.ui, "figures.pet_note");
+      if (said) announcer.say(said);
+      return;
+    }
+    if (signal.kind === "twin-pet") {
+      const r = signal.record;
+      log?.record("twin-pet", { start_ms: r.start_ms, end_ms: r.end_ms, path: r.path, outcome: r.outcome });
+      return;
+    }
     if (signal.kind === "failed") {
       if (avatarFailed) return;
       avatarFailed = true;
@@ -1229,6 +1240,10 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     // Spec 008: the highlight clears in the same call, and the piece isn't targeted again until an input names another
     // or none (FR-011, FR-012).
     retarget({ kind: "select", id: selectable.id });
+    // Spec 026 (R-02): the 3D stage's pet director takes the selection (it starts a petting for the dog alone), unless
+    // the active conversation is this piece's own, for which the panel sends nothing either. It reads no conversation
+    // text.
+    if (talk.active !== selectable.id) walker(stage)?.pet?.(selectable.id);
     const { action } = selectable;
     if (action.kind === "resume") {
       openResume();

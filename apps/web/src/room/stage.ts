@@ -3,6 +3,7 @@
 // quality controller, a lost context, or the visitor asks; never back.
 import type { AssetEvent } from "../asset-events";
 import type { AvatarId, ClipRole } from "../choice/avatars";
+import type { PetRecord } from "./scene/pet";
 import type { TwinActivity, TwinClipRole, TwinState } from "./scene/twin-states";
 import type { Mode } from "../choice/visit";
 import type { Clock } from "./clock";
@@ -78,6 +79,9 @@ export interface Stage3D extends Stage {
   /** Spec 016 (FR-022; contracts/twin-states.md §1): the conversation's activity, for the twin's own states; absent, as
    *  on a stand-in stage, nothing reads it. */
   twinActivity?(activity: TwinActivity): void;
+  /** Spec 026 (FR-001, FR-013; plan.md R-02): a selection, which the pet director takes: the `dog` selectable starts a
+   *  petting where its conditions hold; any other does nothing. Absent on a stand-in stage. */
+  pet?(id: string): void;
 }
 
 /** A file the 3D stage will load (spec 012): its asset events' `asset`, and its bytes as served (C11). */
@@ -198,6 +202,10 @@ export type FigureSignal =
   | { readonly kind: "twin-state"; readonly state: TwinState; readonly role: TwinClipRole }
   /** Spec 025 (FR-025; plan.md R-07): the run's start and end, once each, by the figures that move. */
   | { readonly kind: "chase"; readonly state: "started" | "ended"; readonly who: "both" | "twin" | "dog" }
+  /** Spec 026 (FR-024): a petting has started: its line, said once in the polite live region. */
+  | { readonly kind: "pet-note" }
+  /** Spec 026 (FR-026; R-11): one frame-log record a petting, done, cut, or skipped; no payload. */
+  | { readonly kind: "twin-pet"; readonly record: PetRecord }
   | { readonly kind: "failed" };
 
 /** The 3D chunk's interface, which the room imports only after the WebGL 2 check. */

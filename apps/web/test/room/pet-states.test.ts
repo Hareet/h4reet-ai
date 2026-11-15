@@ -14,7 +14,15 @@ const PET_OFF: TwinActivity = { kind: "pet", on: false };
 
 describe("petting in the closed lists (FR-009)", () => {
   it("comes after fleeing and arriving, before answering", () => {
-    expect([...TWIN_STATES]).toEqual(["fleeing", "arriving", "petting", "answering", "listening", "resting", "present"]);
+    expect([...TWIN_STATES]).toEqual([
+      "fleeing",
+      "arriving",
+      "petting",
+      "answering",
+      "listening",
+      "resting",
+      "present",
+    ]);
   });
 
   it("has its own clip role, petting, last in the closed list, and the default map's petting: petting", () => {

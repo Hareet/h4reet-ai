@@ -75,7 +75,9 @@ export function pickAreas(selectables: readonly PickInput[], core: number = CORE
     const centred: Rect | null = union
       ? [union[0] + union[2] / 2 - core / 2, union[1] + union[3] / 2 - core / 2, core, core]
       : null;
-    return front && front.length > 0 ? { id, members, front, union, core: centred } : { id, members, union, core: centred };
+    return front && front.length > 0
+      ? { id, members, front, union, core: centred }
+      : { id, members, union, core: centred };
   });
 }
 
