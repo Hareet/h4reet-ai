@@ -216,7 +216,8 @@ describe("the disclosure page", () => {
     expect(carries).toMatch(
       /^and the avatar files now: the twin's model and clips .*whose paths show which avatar the visitor chose$/,
     );
-    expect(rows.get("V1")?.[3]).toContain(amendment025(amendmentH11(carries)));
+    // Spec 028's FR-030 (T-B07): the room's dog's sentence as its plan R-B9 words it.
+    expect(rows.get("V1")?.[3]).toContain(amendment028(amendment025(amendmentH11(carries))));
     expect(rows.get("V1")?.[3]).not.toContain(v1);
     expect(v4).toBe("and a figure's avatar failing to load, once a visit");
     expect(rows.get("V4")?.[2]?.endsWith(`, ${v4}`)).toBe(true);
