@@ -15,19 +15,19 @@ Tonight's page, Q300's answer: "The queue has no docs role, so, as ADR 0054 was 
 | `specs/024-dino-eats-room-assets/spec.md` | Assumptions, new A9 (line 188): "ADR 0055 (proposed) records this deviation (A5)", with the link. Inserted after every line the ADR cites, so no citation moves. |
 | `specs/025-twin-and-dog-run-from-dino/spec.md` | Assumptions, a new bullet (line 241): "ADR 0055 (proposed) records this deviation ("Deviations named", above)", with the link. The ADR cites spec 025's lines as they are after it (250, 254, 258). |
 
-**Number.** 0055 is free: `git ls-tree --name-only refs/heads/main docs/adr/` ends at `0053-the-studio-line.md`; the line ends at `0054-when-file-context-stops-being-enough.md` (proposed, spec 027's); no `refs/heads/night/*` branch holds a `docs/adr/0055*` or `005[6-9]*` file. The only mention of "0055" on any night branch is tonight's page (Q300 and the 01:40Z log row, which name it).
+**Number.** 0055 is free: `git ls-tree --name-only refs/heads/main docs/adr/` ends at `0053-the-studio-line.md`; the line ends at `0054-when-file-context-stops-being-enough.md` (proposed, spec 027's); no `refs/heads/night/*` branch holds a `docs/adr/0055*` or `005[6-9]*` file. The only mention of "0055" on any night branch is tonight's page (Q300 and the 01:40Z log row, which name it). adr-nousage's own runs of these checks weren't kept; adr-nousage2 ran them again and pastes them in its note (`docs/merge-requests/2026-11-14-adr-nousage2.md`, rv-docs3's N-3).
 
 **One difference from the brief, from the sources.** The brief reads the deviation as "no usage event; for 025 also no span or panel". The specs' own words have no span and no panel in all three: spec 024's A5 (`spec.md:184`), "it sends no usage event, writes no span, and has no panel"; spec 026's (`spec.md:231`, `:249` at 215b4eea), "no usage event and has no dashboard panel or count" and "Telemetry span: none for the petting". The ADR follows the specs.
 
 ## For merge-3: spec 026's pointer
 
-Spec 026 isn't on this branch. When merge-3 brings `night/rework5-026/rework5-026` (215b4eea or its later tip) onto the line, add one Assumptions line to `specs/026-twin-pets-dog/spec.md`, after line 231 (the bullet beginning "- **Deviation named** (CLAUDE.md, "Deferring or dropping a control the constitution requires"; the page's Q142, taken provisionally)") and before line 232 ("- No other constitution control is deferred or dropped."):
+Spec 026 isn't on this branch. When merge-3 brings spec 026 onto the line (from `night/rework5-026/rework5-026` or `night/amend-026/amend-026`, whichever tip it takes), add one Assumptions line to `specs/026-twin-pets-dog/spec.md`, immediately after the "- **Deviation named**" bullet (the one beginning "- **Deviation named** (CLAUDE.md, "Deferring or dropping a control the constitution requires"; the page's Q142, taken provisionally)") and before "- No other constitution control is deferred or dropped.", found by those words, not by line number (adr-nousage2, rv-docs3's I-1):
 
 ```markdown
 - ADR 0055 (proposed) records this deviation ("Deviation named", above): [`docs/adr/0055-no-usage-event-for-what-only-the-dinosaur-causes.md`](../../docs/adr/0055-no-usage-event-for-what-only-the-dinosaur-causes.md), one ADR for specs 024, 025, and 026 (the page's Q161, Q300).
 ```
 
-The ADR cites spec 026's lines at 215b4eea and says so, so the insertion moves no citation the ADR relies on. If merge-3's tip of spec 026 differs from 215b4eea at lines 183, 231, 241, 245, or 249, the ADR's spec 026 quotes need re-checking against it.
+The ADR cites spec 026 by section, not by line number (adr-nousage2): Assumptions, the "Deviation named" bullet; FR-026; Degraded-Mode Behavior; Data-Flow Disclosure Entries; and the "New Endpoint or Feature" list's "Telemetry span" line. So the insertion, and amend-026's line at 36, move no citation the ADR relies on. Each of those lines, and the "- No other constitution control …" line, is found once and is byte-for-byte the same on rework5-026 (215b4eea) and amend-026 (4ac61609); adr-nousage2's note pastes the check. If merge-3's tip changes one of those lines' words, the ADR's spec 026 quotes need re-checking against it.
 
 ## What I read
 
@@ -76,7 +76,7 @@ ruff format --check --no-cache --extend-exclude corpus .
 exit 0
 ```
 
-Both runs above are the last, with this note in the tree (an earlier run, before the note, read "827 files already formatted" and exit 0).
+Both runs above are the last, with this note in the tree (an earlier run, before the note, read "827 files already formatted" and exit 0; that run's output wasn't kept, rv-docs3's N-3).
 
 The full check isn't run here (rule 4: once, at the end of the stack).
 
