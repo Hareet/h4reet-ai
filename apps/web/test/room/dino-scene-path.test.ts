@@ -68,7 +68,7 @@ describe("by arc length, facing each segment (FR-021)", () => {
 
 /** A room of plain groups: the twin's placement node and picture at its home, the dog's picture hidden at its home,
  *  the bicycle's node on the wall with its stand-in picture and a label, and a controller that records its calls. */
-function room() {
+function room(clips: readonly string[] = ["walk", "idle"]) {
   const root = new Object3D();
   const twinNode = new Object3D();
   twinNode.position.set(0.66, 0, 0.469);
@@ -96,7 +96,7 @@ function room() {
     shows: () => true,
     pictureOf: (id) => (id === "twin" ? twin : id === "dog" ? dog : null),
     legsOf: () => ({}) as never,
-    clipOf: (_a, role) => (role === "walk" || role === "idle" ? ({ duration: 1 } as never) : null),
+    clipOf: (_a, role) => (clips.includes(role) ? ({ duration: 1 } as never) : null),
     dogPlays: (role) => calls.dog.push(role),
     twinActivity: (a) => calls.activity.push(`${a.kind}:${"on" in a ? String(a.on) : ""}`),
     stride: () => void (calls.strides += 1),
@@ -108,8 +108,8 @@ function room() {
 describe("the adapter: the pictures, the bicycle's carry, and the controller (FR-021, FR-023; R-B3)", () => {
   const MOTION = { animate: true, paused: false, level: 0, reduced: false };
   const told: string[] = [];
-  function setup() {
-    const r = room();
+  function setup(clips?: readonly string[]) {
+    const r = room(clips);
     const figures = createDinoFigures({
       leave: LEAVE,
       avatars: r.avatars,
@@ -175,5 +175,31 @@ describe("the adapter: the pictures, the bicycle's carry, and the controller (FR
     expect(s.calls.strides).toBeGreaterThan(10);
     expect(s.calls.dog).toContain("walk");
     expect(told).toEqual(["call", "left:both"]);
+  });
+
+  // Spec 028's Q21 (the page's Q27; rv-028b-1's B1-2), added by rework-028b: the dog's walk, else its run, as
+  // chase.ts's dogRole reads them; with neither, the dog isn't shown and the twin leaves alone.
+  it("plays the dog's run while it moves where it has run and no walk, and says both left (Q21)", () => {
+    const s = setup(["run", "idle"]);
+    told.length = 0;
+    until(s, "gone");
+    expect(s.figures.scene.withDog).toBe(true);
+    expect(s.calls.dog).toContain("run");
+    expect(s.calls.dog).not.toContain("walk");
+    expect(told).toEqual(["call", "left:both"]);
+  });
+
+  it("never shows a dog with neither walk nor run, and says the twin alone left (Q21)", () => {
+    const s = setup(["idle"]);
+    told.length = 0;
+    let shown = false;
+    for (let k = 0; k < 60 * 60 && s.figures.scene.phase !== "gone"; k += 1) {
+      s.figures.frame(DT, MOTION);
+      shown ||= s.dog.visible;
+    }
+    expect(s.figures.scene.phase).toBe("gone");
+    expect(shown).toBe(false);
+    expect(s.calls.dog).toEqual([]);
+    expect(told).toEqual(["call", "left:twin"]);
   });
 });

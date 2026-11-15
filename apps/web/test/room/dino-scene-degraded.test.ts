@@ -1,14 +1,14 @@
 // T-B04 (spec 028; FR-026; User Story 4's scenarios 4 to 6; plan.md R-B2): the scene's cuts and its degraded modes, on
 // the director alone.
 // - Cut at the call's end (the call still shown and said, then the three hidden at once, the left line said): reduced
-//   motion, quality level 1 or more, a twin that can't walk (no leg bones, the capsule), a dog shown without `walk`.
+//   motion, quality level 1 or more, a twin that can't walk (no leg bones, the capsule).
 // - Cut at once when reduced motion or quality level 1 or more begins mid-scene.
-// - The dog not shown (not bundled, or failed): the twin leaves with the bicycle alone, no enter, the left line the
-//   twin's.
+// - The dog not shown (not bundled, failed, or with neither `walk` nor `run`: Q21): the twin leaves with the bicycle
+//   alone, no enter, the left line the twin's.
 // - Paused: the scene's clock stops, and it goes on from where it was.
 import { describe, expect, it } from "vitest";
 
-import type { DinoInputs } from "../../src/room/scene/dino-scene";
+import type { DinoInputs, DinoPhase } from "../../src/room/scene/dino-scene";
 import { CALL_S, DT, inputs, made, runTo } from "../helpers/dino-scene";
 
 function cutAtCallEnd(over: Partial<DinoInputs>): void {
@@ -25,7 +25,6 @@ describe("cut at the call's end (FR-026)", () => {
   it("at quality level 1", () => cutAtCallEnd({ level: 1 }));
   it("at quality level 2", () => cutAtCallEnd({ level: 2 }));
   it("with a twin that can't walk", () => cutAtCallEnd({ twinCanWalk: false }));
-  it("with the dog shown but no walk clip", () => cutAtCallEnd({ dogHasWalk: false }));
 
   it("holds the call its seconds first, then says both left where the dog shows", () => {
     const t = made();
@@ -90,6 +89,28 @@ describe("the dog not shown (FR-026)", () => {
       t.scene.frame(DT, i);
       expect(t.scene.dog.visible).toBe(false);
     }
+  });
+
+  // Spec 028's Q21 (the page's Q27; rv-028b-1's B1-2): a dog shown with neither `walk` nor `run` is a dog not
+  // shown, not a cut. Rewritten from "with the dog shown but no walk clip" (a cut at the call's end), by rework-028b.
+  it("a dog shown with neither walk nor run: no cut, the twin leaves alone, the dog never shown, the left line the twin's (Q21)", () => {
+    const t = made();
+    const i = inputs({ dogHasWalk: false });
+    const seen: DinoPhase[] = [t.scene.phase];
+    for (let k = 0; k < 60 * 60 && t.scene.phase !== "gone"; k += 1) {
+      t.scene.frame(DT, i);
+      expect(t.scene.dog.visible).toBe(false);
+      if (seen.at(-1) !== t.scene.phase) seen.push(t.scene.phase);
+    }
+    expect(seen).toEqual(["idle", "call", "gather", "take", "leave", "gone"]);
+    expect(t.scene.withDog).toBe(false);
+    expect(t.left).toEqual(["twin"]);
+  });
+
+  it("a dog shown with neither walk nor run, cut at the call's end: the left line the twin's (Q21)", () => {
+    const t = made();
+    runTo(t.scene, "cut", inputs({ reduced: true, dogHasWalk: false }));
+    expect(t.left).toEqual(["twin"]);
   });
 });
 
