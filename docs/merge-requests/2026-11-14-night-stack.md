@@ -4748,3 +4748,32 @@ This batch adds nothing new for his hand. Items 7 and 8 carry their own human pa
 **Interruptions (merge-2):** none. No hook or bash-gate refusal. The D-V2 copy stays at `/tmp/merge2-dv2.D9Nu` (a `git archive` export with the two proposed patches applied, nothing secret), as verify2-024's and verify-025's copies stayed.
 
 merge-2: green, carrying D-V2's six (Q165); the line's tip is `night/merge-2/merge-2`: a8446e19's merged code (tree 5563703), with this note's documents-only commit on top
+
+---
+
+## For the repo agent and the Author
+
+Drafted by handover-prep (Opus 5.5, 2026-11-15) from the line's tip `ce3f6305` (merge-2), documents only; the integration task completes it where it says "(the integration task fills this …)". Rule 12's words for this section: "let's finish the items, integrate everything, hand it over to the repo agent that will merge w2 and deploy it to prod. After that, we cna do the studio assets and then they should be quick insertion and quick deploy update". **The merge and the deploy are his and the repo agent's, never the night's** (rule 12).
+
+Sources, cited beside each claim: this note's own sections (by heading, and by line at `ce3f6305`); `docs/merge-requests/human-patches/*.md` and `proposed/*.patch`; `docs/merge-requests/2026-11-14-rounds4-020.md`; the supervisor's page, `refs/heads/night/supervisor/2026-11-14:docs/night-shift/2026-11-14.md` at `3613ee3f` ("the page"), and night 1's, `refs/heads/night/supervisor/2026-11-13:docs/night-shift/2026-11-13.md` at `50fcb941` ("night 1's page"); and two branches off the line, read with `git show`: `night/patch-claude-md/patch-claude-md` (`40c10cef`) and `night/intake-020/intake-020` (`eee66786`) with its notes on `night/notes2-020/notes2-020` (`864b9d5e`). Where the sources leave a gap, the gap is a question on the page with a recommended answer (handover-prep's, in "Questions this section raised" at its end).
+
+### 1. The stack's name and tip
+
+- **Name:** `feat/018-hud-to-dino-stack` (the page's Stacks row: "named once, by the integration task, when every item is verified and merged (rules 3, 12)").
+- **Tip:** (the integration task fills this)
+- **What's on the line at `ce3f6305`**, in merge-2's words: "On the line: items 1 to 8, 10, and item 3's studio line" (the page's merge-2 row). Still to come before the name: item 9 (spec 026; merge-2: "Item 9 (impl3-026) is still being built and goes in a later merge") and patch-claude-md's tip (the page: "Its tip goes into the merge that takes item 9").
+- **Held off the line:** item 3's intake, `night/intake-020/intake-020` (`eee66786`), its notes on `night/notes2-020/notes2-020` (`864b9d5e`; the page: "**Item 3's intake now starts from 864b9d5e**"), held by Q288 and Q286. (the integration task fills this from your answer to Q288)
+
+### 2. The merge order and the gate
+
+All of it is his hand, in his checkout, in this order. Steps 1 and 3 change `main`; steps 2 and 4 change the stack's branch.
+
+1. **On main before the gate: the studio prompt** (`human-patches/017-studio-prompt-rounds.md`, "## Status: on main before the gate"; Q271). Its order, in its words: "1. Apply this patch on main and commit it. 2. Run the gate on the rounds4-020 stack and merge it." and "Between 1 and 2, main's `scripts/studio/test_studio_prompt.py` fails: main's `ROUNDS` is still 3, and the prompt says four. It passes once the stack merges."
+2. **Main merged into the stack, first, by his hand** (Q286, its recommended answer, in its words): "you, once, by hand: `git merge refs/heads/main` on the named stack in your checkout before `tools/gates/gate <branch>`, named first in the hand-over's merge order. The integration task tries the same merge once (no other route, rule 5) and records what happens. The supervisor checked that the merge is clean: the stack touches nothing under `assets/policy/`, and `git merge-tree` of main and record-dog-r4's tip reports no conflict". This brings main's `b6985ad2` ("policy(020): approve the dog, round 4") and step 1's commit into the stack. The integration task's attempt: (the integration task fills this).
+3. **The "no usage event" ADR, on main before items 7 and 8 merge** (Q149: "a docs-role ADR on main before impl-024 merges"; Q152 the same for spec 025; Q161: "one ADR for all three, drafted by the docs role on the line with the stack and merged by you on main"; each "Answered: recommended", night 1's page). No such ADR is on the line at `ce3f6305` (`docs/adr/` ends at 0054). A gap: question HP-2 below.
+4. **D-V2's test amendments, on the stack's branch before the gate** (Q164: "Blocks: the stack's full `make check` (these six fail until it's applied)"; Q165: "the stack's one `make check` runs with your patch set applied in the merge-request note's order"; Q231: 025's "right after `018-verify-test-amendments.patch`"): `proposed/018-verify-test-amendments.patch`, then `proposed/025-disclosure-test-amendments.patch`. merge-2 applied both, in that order, on an export of `d116301e`, "Both applied clean", and the six passed ("Merge (rule 7, merge-2)").
+5. **No `tools/gates/**` patch.** None of the human-patch notes read here changes `tools/gates/**`: 017's, 018 to 025's, 027's, and `stack-claude-md-lines.md`. Item 9's `human-patches/026.md` isn't on the line: (the integration task fills this from item 9's verify).
+6. **The gate:** `tools/gates/gate feat/018-hud-to-dino-stack`, from main's checkout, his to run (CLAUDE.md: "Before merging, the Author runs `tools/gates/gate <branch>` from main's checkout, never `make check` in their own terminal.").
+7. **The merge**, without squash or rebase (item 10's For the Author: "FR-002: ADR 0054's measurement commit is in `main`'s history only if you merge the line without squash or rebase").
+8. **After the merge**, each on a short branch from main with its own gate (section 3's "Order" column): the corpus patches, item 5's then item 9's (Q141, Q293), then his evaluations and re-marking; the resume's publication (item 6); the dinosaur's intake (item 4); the dog's intake (item 3, Q288); the CLAUDE.md lines (any order, with Q277's room).
+9. **The deploy:** the repo agent's, after the merge.
