@@ -63,6 +63,7 @@ export const RULES = {
   RI9: rule("RI", read), // a corpus path outside its form
   RI10: rule("RI"), // lookdev.yaml naming a placement the scene lacks, or an avatar outside the table
   RI11: rule("RI"), // a label nothing references
+  RI12: rule("RI"), // spec 028: the dinosaur's scene's last path point in the shell, or a point off the chase floor
   RG1: rule("RG"), // mounts that aren't one tree
   RG2: rule("RG", readPart), // bounds, faces, glows, and stand-ins; unit vectors (the loader's); px's aspect
   RG3: rule("RG", read), // a stylized scale outside 1 to 4

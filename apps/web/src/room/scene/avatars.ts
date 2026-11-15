@@ -168,6 +168,9 @@ export interface AvatarFigures {
   close(): void;
   /** Spec 016 (FR-022; contracts/twin-states.md §1): the conversation's activity, for the twin's own states. */
   twinActivity(activity: TwinActivity): void;
+  /** Spec 028 (FR-020; plan.md R-B3): the dinosaur's scene's call: the twin's own model plays its greeting once more
+   *  (twin-states.ts's `wave`), once a visit; nothing where it shows the stand-in or the capsule. */
+  twinWave(): void;
   /** Spec 026 (plan.md §4; A016): spec 016's state of the twin's own model, or null where it doesn't show. */
   twinState(): TwinState | null;
   /** Spec 026 (R-04): the reach rig of the twin's shown avatar on a side, or null without its bones. */
@@ -340,11 +343,16 @@ export function createAvatarFigures(
   const fallbackOf = (group: Object3D): Object3D[] =>
     group.children.filter((c) => c !== room.paper.kept && c.name !== AVATAR_NODE);
   /** Spec 025 (FR-018, FR-019; plan.md R-10): the room's dog, where the scene has `figures.dog` and the bundle the dog:
-   *  a picture group of its own at its home on the floor, turned by its heading, with no fallback to show. */
+   *  a picture group of its own at its home on the floor, turned by its heading, with no fallback to show. Since spec
+   *  028 (FR-018), in a dinosaur visit alone, and hidden until its scene shows it. */
   const dogHome = part.figures.dog;
   const dogGroup = new Group();
   dogGroup.name = DOG_NODE;
-  const dogWants = dogHome ? bundled("dog") : null;
+  // Spec 028 (FR-017, FR-018; Q9, Q11; plan.md R-B1): only in a dinosaur visit whose bundle carries the dinosaur's
+  // model, never beside a woman, a man, or a dog visitor; its picture hidden until the dinosaur's scene shows it at its
+  // entry (FR-021), so it is never at a home.
+  const dogWants = dogHome && options.chosen === "dinosaur" && bundled("dinosaur") !== null ? bundled("dog") : null;
+  dogGroup.visible = false;
   if (dogHome && dogWants !== null) {
     const feet = new Vector3();
     const node = room.placements.get(part.figures.visitor);
@@ -1100,6 +1108,13 @@ export function createAvatarFigures(
       if (disposed || role === dogRole) return;
       dogRole = role;
       play(figures.dog);
+    },
+    twinWave() {
+      const f = figures.twin;
+      if (disposed || !twinStates || f.wants !== "twin" || !f.shown) return;
+      const greeting = sourceOf("twin").clips.get(part.twin?.block.clips.arriving ?? "greeting");
+      twinStates.wave(now(), greeting?.duration ?? 0);
+      play(f);
     },
     twinActivity(activity) {
       if (disposed || !twinStates) return;

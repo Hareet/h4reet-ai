@@ -1,0 +1,50 @@
+/* The speech bubble over the twin's figure (spec 028; FR-020, FR-027; plan.md R-B5): the room's type, dark words on a
+   light card (about 16:1), a tail toward the twin's head, placed by bubble.ts (its tail's tip at its left and top), and
+   no animation under reduced motion, by the media query or the room's own motion store (data-motion). */
+.room-bubble {
+  position: absolute;
+  z-index: 3;
+  max-width: min(22rem, 40vw);
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  color: #16191d;
+  background: #fbfaf6;
+  box-shadow: 0 0.25rem 0.75rem rgb(0 0 0 / 35%);
+  font: 600 1rem/1.35 var(--figure-font, system-ui, sans-serif);
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 0.5rem));
+  animation: room-bubble-in 180ms ease-out;
+}
+
+.room-bubble::after {
+  position: absolute;
+  bottom: -0.5rem;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-top: 0.5rem solid #fbfaf6;
+  border-right: 0.5rem solid transparent;
+  border-left: 0.5rem solid transparent;
+  content: "";
+  transform: translateX(-50%);
+}
+
+.room-bubble[data-motion="reduced"] {
+  animation: none;
+}
+
+@keyframes room-bubble-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .room-bubble {
+    animation: none;
+  }
+}

@@ -53,6 +53,9 @@ export interface TwinStates {
   /** The arrival: the hand-off's start where the twin shows then, else its first show; once a visit. `length_s` is the
    *  greeting clip's length. */
   arrive(now: number, length_s: number): void;
+  /** Spec 028 (FR-020; plan.md R-B3, R-3): the dinosaur's scene's call, the greeting once more (the wave), for its
+   *  `length_s`; once a visit, apart from `arrive`'s once. An amendment of contracts/twin-states.md §2. */
+  wave(now: number, length_s: number): void;
   /** The greeting clip has finished playing: arriving ends at once, whatever the clock says (§3). */
   arrived(now: number): void;
   signal(activity: TwinActivity, now: number): void;
@@ -73,6 +76,7 @@ export function createTwinStates(block: TwinTimings): TwinStates {
   const [least, most] = block.speak_s;
   let arrival: { from: number; until: number } | null = null;
   let arrivedOnce = false;
+  let wavedOnce = false;
   let answerUntil = -Infinity;
   let drafting = false;
   let turnOut = false;
@@ -108,6 +112,13 @@ export function createTwinStates(block: TwinTimings): TwinStates {
     arrive(now, length_s) {
       if (arrivedOnce) return;
       arrivedOnce = true;
+      arrival = { from: now, until: now + Math.max(0, length_s) * 1000 };
+      state = compute(now);
+    },
+    wave(now, length_s) {
+      if (wavedOnce) return;
+      wavedOnce = true;
+      settle(now);
       arrival = { from: now, until: now + Math.max(0, length_s) * 1000 };
       state = compute(now);
     },

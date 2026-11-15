@@ -427,6 +427,15 @@ def test_the_rooms_rows_are_in_its_own_section_with_the_specs_words() -> None:
     twin = "the twin's model and clips in every 3D visit above the floor, the same for every visitor; "
     assert files_now.count(twin) == 1
     files_now = files_now.replace(twin, f"{twin}{dog.group(1)}; ")
+    # Spec 028's FR-030 (its plan.md R-B9; T-B07): that sentence becomes the plan's words, the room's dog's files only
+    # in a dinosaur visit, their paths showing the choice.
+    room = (REPO / "specs" / "028-room-after-review" / "plan.md").read_text(
+        encoding="utf-8"
+    )
+    now = re.search(r'becomes: "(the room.s dog.s [^"]*)"', room)
+    assert now, "spec 028's plan R-B9 doesn't read as this test reads it"
+    assert files_now.count(dog.group(1)) == 1
+    files_now = files_now.replace(dog.group(1), now.group(1))
     _from_to, row_trigger, row_carries, row_never, row_why, *_ = rows()["V1"]
     assert (row_carries, row_never, row_why) == (
         f"{carries}, and {files_now}",

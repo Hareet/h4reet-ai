@@ -316,3 +316,18 @@ figures:
     stroke_n: 3
     pet_s: 3.5
     elbow_deg: 150
+  # Spec 028's dinosaur's scene (its FR-021, FR-022; plan.md R-B4; Q13): each an estimate the Author's look places,
+  # placed by T-B03's printed points: the chase floor's bounds x ±0.947, z −0.49 to 0.585; the work desk's obstacle to
+  # z 0.312 and the bicycle's from x 0.769, so the floor below the bicycle is the strip in front of the desk short of
+  # the bicycle's obstacle; the twin's home (0.66, 0.469); the shell's floor x ±1.0668, z ±0.6096, open at the front.
+  # `carry` is the bicycle's origin (midway between its hubs, 0.259 m up: its catalog bounds) beside the twin; the path
+  # goes out of the open front and past the right wall's front edge. RI12 holds the points to the floors.
+  leave:
+    takes: bicycle # the placement whose picture the twin and the dog take out
+    meet: [0.42, 0.45] # estimated: beside the twin, at the dog's home's side
+    take_at: [0.74, 0.52] # estimated
+    carry: [0.3, 0.26, 0.05] # estimated
+    path: [[0.8, 0.75], [1.3, 0.9], [1.7, 0.9]] # estimated
+    dog_mps: 1.2 # estimated
+    walk_mps: 1.0 # estimated
+    take_s: 0.8 # estimated

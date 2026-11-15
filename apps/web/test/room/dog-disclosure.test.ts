@@ -8,8 +8,9 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const SOURCE = readFileSync(resolve(__dirname, "../../../../docs/data-flow-disclosure.md"), "utf8");
+// Spec 028 (T-B07; FR-030; plan.md R-B9, R-B8's departure): the sentence spec 025's FR-028 added becomes plan R-B9's.
 const DOG =
-  "the room's dog's model and clips in every 3D visit above the floor where the bundle has them, the same for every visitor";
+  "the room's dog's model and clips only in a 3D visit whose visitor chose the dinosaur, so, like the chosen avatar's files, their paths show that choice";
 const TWIN = "the twin's model and clips in every 3D visit above the floor, the same for every visitor";
 
 const row = (id: string): string[] => {
@@ -19,7 +20,8 @@ const row = (id: string): string[] => {
 };
 
 describe("row V1 names the room's dog's files (FR-028)", () => {
-  it("in plan R-12's words, right after the twin's model and clips, once", () => {
+  // Spec 028 (FR-030): was "in plan R-12's words, right after the twin's model and clips, once".
+  it("in spec 028's plan R-B9's words, right after the twin's model and clips, once (spec 028, FR-030)", () => {
     const carries = row("V1")[4] ?? "";
     expect(carries).toContain(`${TWIN}; ${DOG};`);
     expect(carries.split(DOG)).toHaveLength(2);

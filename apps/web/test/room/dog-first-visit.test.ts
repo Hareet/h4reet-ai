@@ -2,6 +2,10 @@
 // room's dog's files (the dog's folder as bundled) count once, beside the room's, the twin's or the stand-in's, and the
 // largest other visitor avatar's, which then leaves the dog's folder out as it leaves the stand-in's; without it, the
 // visit is as before. RK5's message and the report's line name the room's dog's bytes.
+// Spec 028 (T-B07; FR-029, SC-005; plan.md R-B8, R-B9, the named departure): the room's dog's files count only with the
+// dinosaur's, as one visitor set ("the dinosaur's plus the room's dog's"), and only where the bundle carries the
+// dinosaur's model; the first visit is the room's, the twin's or the stand-in's, and the largest of the woman's, the
+// man's, the dog visitor's, and that set. Without the dinosaur's model, no room's dog share.
 import { createHash } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
@@ -18,6 +22,7 @@ import { avatarGlb, clipGlb, IDLE_TRACKS } from "../helpers/glb";
 import { overlay } from "../helpers/room-fixtures";
 import { avatarFolder, sceneWith, SCENE } from "../helpers/room-avatars";
 import type { RecordEntry } from "../helpers/room-avatars";
+import { dinosaurFolder } from "../helpers/room-dinosaur";
 import { twinPolicy } from "../helpers/room-twin";
 
 const STRICT: ComposeOptions = { mode: "strict", drafts: true };
@@ -36,8 +41,10 @@ const records = (e: RecordEntry[]): void => {
   }
 };
 
-function files(block: boolean): Record<string, Uint8Array | string> {
+function files(block: boolean, dino = false): Record<string, Uint8Array | string> {
   return {
+    // Spec 028 (FR-029): the dinosaur's folder, whose model the room's dog's share needs; `dino` adds it.
+    ...(dino ? dinosaurFolder() : {}),
     [SCENE]: sceneWith({
       twin_stand_in: "man",
       ...(block ? { dog: { home: { at: [0.3, 0.45], heading_deg: 180 }, footprint_m: 0.3 } } : {}),
@@ -71,12 +78,24 @@ function visitOf(tree: Tree, p: RoomPolicy, roomDog: boolean): ReturnType<typeof
 const rk5 = (result: ComposeResult): string[] => result.findings.filter((f) => f.rule === "RK5").map((f) => f.reason);
 
 describe("RK5's first visit with the room's dog (FR-022)", () => {
-  it("counts the room's dog's files once, and the largest other avatar's leaves the dog's folder out", () => {
+  // Spec 028 (FR-029): was "counts the room's dog's files once, and the largest other avatar's leaves the dog's folder
+  // out".
+  it("counts the room's dog's files with the dinosaur's, as one visitor set, where it is the largest (spec 028, FR-029)", () => {
+    const all = files(true, true);
+    const visit = visitOf(overlay(all), policy(), true);
+    const dino = folderBytes(all, "dinosaur");
+    const dog = folderBytes(all, "dog");
+    expect(dino + dog).toBeGreaterThan(Math.max(folderBytes(all, "woman"), dog));
+    expect(visit.other_id).toBe("dinosaur");
+    expect(visit.other).toBe(dino);
+    expect(visit.dog).toBe(dog);
+  });
+
+  it("counts no room's dog share where the bundle lacks the dinosaur's model; the dog visitor's folder competes alone (spec 028, FR-029)", () => {
     const all = files(true);
     const visit = visitOf(overlay(all), policy(), true);
-    expect(visit.dog).toBe(folderBytes(all, "dog"));
-    expect(visit.other_id).toBe("woman");
-    expect(visit.other).toBe(folderBytes(all, "woman"));
+    expect(visit.dog).toBe(0);
+    expect(visit.other).toBe(Math.max(folderBytes(all, "woman"), folderBytes(all, "dog")));
   });
 
   it("counts no dog share without figures.dog: the visit is as before", () => {
@@ -87,19 +106,21 @@ describe("RK5's first visit with the room's dog (FR-022)", () => {
     expect(visit.other).toBe(largest);
   });
 
+  // Spec 028 (FR-029): the case's subject kept; the room's dog's share now rides with the dinosaur's, the set the largest.
   it("counts the dog's files once where the scene names the dog the stand-in, which RA3 refuses (no hands)", () => {
     const all = {
-      ...files(true),
+      ...files(true, true),
       [SCENE]: sceneWith({ twin_stand_in: "dog", dog: { home: { at: [0.3, 0.45] }, footprint_m: 0.3 } }),
     };
     const visit = visitOf(overlay(all), policy(), true);
     expect(visit.stand_in).toBe(0);
     expect(visit.dog).toBe(folderBytes(all, "dog"));
-    expect(visit.other_id).not.toBe("dog");
+    expect(visit.other_id).toBe("dinosaur");
   });
 
+  // Spec 028 (FR-029): the case's name kept; its room carries the dinosaur's model, which the room's dog's share needs.
   it("refuses over phase 3 with the room's dog's bytes named, and passes at it", () => {
-    const all = files(true);
+    const all = files(true, true);
     const visit = visitOf(overlay(all), policy(), true);
     const total = visit.twin + visit.stand_in + visit.other + visit.dog;
     expect(rk5(compose(overlay(all), policy(total), STRICT))).toEqual([]);
@@ -108,11 +129,14 @@ describe("RK5's first visit with the room's dog (FR-022)", () => {
     expect(over[0]).toContain(`${visit.dog.toLocaleString("en-US")} in the room's dog's files`);
   });
 
-  it("the report's first-visit line names the room's dog's bytes, and only with figures.dog", () => {
-    const withDog = compose(overlay(files(true)), policy(), STRICT).report.markdown;
-    const visit = visitOf(overlay(files(true)), policy(), true);
+  // Spec 028 (FR-029): was "the report's first-visit line names the room's dog's bytes, and only with figures.dog".
+  it("the report's first-visit line names the room's dog's bytes, only with figures.dog and the dinosaur's model (spec 028, FR-029)", () => {
+    const withDog = compose(overlay(files(true, true)), policy(), STRICT).report.markdown;
+    const visit = visitOf(overlay(files(true, true)), policy(), true);
     expect(withDog).toContain(`${visit.dog.toLocaleString("en-US")} of the room's dog's files`);
     const without = compose(overlay(files(false)), policy(), STRICT).report.markdown;
     expect(without).not.toContain("room's dog's files");
+    const noDino = compose(overlay(files(true)), policy(), STRICT).report.markdown;
+    expect(noDino).not.toContain("room's dog's files");
   });
 });

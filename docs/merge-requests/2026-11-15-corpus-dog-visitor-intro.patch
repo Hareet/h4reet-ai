@@ -1,0 +1,21 @@
+diff --git a/corpus/facts/hobbies-and-travel.yaml b/corpus/facts/hobbies-and-travel.yaml
+index c39e3d9b0ac6a2a5d6f5b16e4bdd073e07c9d6db..a4c288d3503810054ef63c01e7a3ad1205ec554d 100644
+--- a/corpus/facts/hobbies-and-travel.yaml
++++ b/corpus/facts/hobbies-and-travel.yaml
+@@ -31,3 +31,16 @@ facts:
+     source: "The Author, interview of 2026-11-06: 'Arya is now 13 years old'; numbers list: 'Arya's age: 13 years old (public: yes)'"
+     public_safe: true
+     phrasing: "{value}"
++  # Spec 028 (FR-027; its plan.md R-B7): the twin's one introduction sentence to a visitor who chose the dog, which the
++  # room shows once a dog visit (its speech bubble and the live region) and never sends to a model. Null until he writes
++  # it; no worker fills it. What the sentence is about, in his review of 2026-11-15 (his point 4b), word for word: "If
++  # the dog was selected, then the twin has one introduction sentence about how much they love Arya, and all the
++  # adventures we've had of course, i'll show her all the work i've been doing, and then the dog selected visitor is
++  # the same concept as the woman or man visitor, they will just engage with the twin or the room assets."
++  - id: hobbies.dog_visitor_intro
++    label: The twin's one introduction sentence to a visitor who chose the dog, in his words
++    value: null
++    tag: null
++    source: null
++    public_safe: null
++    phrasing: "{value}"

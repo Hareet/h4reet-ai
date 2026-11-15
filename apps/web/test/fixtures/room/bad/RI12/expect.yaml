@@ -1,0 +1,16 @@
+rule: RI12
+file: apps/web/room/scene.yaml
+path: figures.leave.path[1]
+why: the dinosaur's scene's path ending at the room's centre, inside the shell's floor, so the twin, the dog, and the bicycle would be hidden in the room, not outside it (spec 028, FR-022)
+edits:
+  - file: apps/web/room/scene.yaml
+    at: [figures, leave]
+    set:
+      takes: fx-desk
+      meet: [0, 0]
+      take_at: [0, 0]
+      carry: [0.3, 0.26, 0.05]
+      path: [[0, 2], [0, 0]]
+      dog_mps: 1.2
+      walk_mps: 1
+      take_s: 0.8

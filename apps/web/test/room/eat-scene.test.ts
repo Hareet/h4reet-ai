@@ -105,7 +105,12 @@ function dinosaurPart(): {
     const bytes = bySha.get(f.sha256);
     if (bytes) files.set(f.url, bytes);
   }
-  const part = { ...repo.scene, avatars: { ...repo.scene.avatars, dinosaur } } as RoomScene;
+  // Spec 028 (FR-025; T-B06; plan.md R-B8's departure, page question): the eating waits for the dinosaur's scene where
+  // the part has `figures.leave`; this file's subject is spec 024's wiring, so its part has none and offers at once.
+  // eat-after-scene.test.ts pins the wait.
+  const figures = { ...repo.scene.figures };
+  delete figures.leave;
+  const part = { ...repo.scene, figures, avatars: { ...repo.scene.avatars, dinosaur } } as RoomScene;
   return { part, index: repo.index, files };
 }
 

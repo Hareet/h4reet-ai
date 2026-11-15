@@ -32,6 +32,7 @@ import type { FigureId, FigureSignal } from "../../src/room/stage";
 import { avatarClips, avatarGlb, clipGlb, IDLE_TRACKS } from "../helpers/glb";
 import { overlay } from "../helpers/room-fixtures";
 import { avatarFolder, avatarPolicy, SCENE, sceneWith } from "../helpers/room-avatars";
+import { dinosaurFolder } from "../helpers/room-dinosaur";
 import { approvalOf, twinDefaults, twinFolder, twinModel, twinPolicy } from "../helpers/room-twin";
 
 const MOVE: ChaseMotion = { animate: true, paused: false, level: 0 };
@@ -380,7 +381,9 @@ interface Real {
   readonly room: Room3D;
   readonly part: RoomScene;
 }
-function real(o: { own?: boolean; manLegs?: boolean; dog?: boolean } = {}): Real {
+// Spec 028 (T-B02; FR-018; plan.md R-B8): the room's dog is wanted only in a dinosaur visit whose bundle carries the
+// dinosaur's model, so `dino` adds the dinosaur's folder and chooses it; every other case keeps the woman.
+function real(o: { own?: boolean; manLegs?: boolean; dog?: boolean; dino?: boolean } = {}): Real {
   const files = {
     [SCENE]: sceneWith({
       twin_stand_in: "man",
@@ -405,11 +408,13 @@ function real(o: { own?: boolean; manLegs?: boolean; dog?: boolean } = {}): Real
         })
       : {}),
     ...(o.own ? twinFolder({ model: ownLegged }) : {}),
+    ...(o.dino ? dinosaurFolder() : {}),
   };
   const policy = o.own ? twinPolicy({ likeness: [approvalOf(ownLegged)] }) : avatarPolicy();
   const composed = compose(overlay(files), policy, { mode: "lenient", drafts: false });
-  const room = buildRoom(composed.scene, { avatar: "woman", label: () => new Object3D(), index: composed.index });
-  const figures = createAvatarFigures(room, composed.scene, { chosen: "woman" });
+  const chosen: AvatarId = o.dino ? "dinosaur" : "woman";
+  const room = buildRoom(composed.scene, { avatar: chosen, label: () => new Object3D(), index: composed.index });
+  const figures = createAvatarFigures(room, composed.scene, { chosen });
   figures.handoffEnded();
   return { figures, room, part: composed.scene };
 }
@@ -436,8 +441,9 @@ function strideTwin(r: Real, n: number, speed = 2): void {
 }
 
 describe("pictureOf and legsOf (R-06)", () => {
+  // Spec 028 (FR-018; plan.md R-B8): the room with a dog is now a dinosaur visit with the dinosaur's model; the name kept.
   it("gives each figure's picture group, the dog's only where the room has one", async () => {
-    const r = real({ dog: true });
+    const r = real({ dog: true, dino: true });
     expect(r.figures.pictureOf("twin")).toBe(r.room.twin);
     expect(r.figures.pictureOf("visitor")).toBe(r.room.visitor);
     expect(r.figures.pictureOf("dog")?.name).toBe(DOG_NODE);
