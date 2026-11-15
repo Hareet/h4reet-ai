@@ -9,14 +9,12 @@
 // object too where V8 can't keep it unboxed: a fraction held in a closure variable, or in a field of an `{ x, y, z }`
 // literal, whose fields this process has generalized, is a new heap number at each write; so the harness itself keeps
 // its state in typed arrays, class fields, and three's `Vector3`s.
-// T016 (impl3-026): the director over the real adapters and spec 025's real director (`twinHeading()` its runner's
-// facing, `faceTwin` its turn), whose frame runs in the step too; the wired twin (the room's controller with the twin's
-// real model and idle, linked to the director as scene.ts links it, `applyReachLayer(rig, pet.reach, config)` after the
-// legs), against the same twin unlinked; and the timing half, under 0.1 ms a frame, on the same seeded runs.
+// T016 (impl3-026): the wired twin (the room's controller with the twin's real model and idle, linked to the director
+// as scene.ts links it, `applyReachLayer(rig, pet.reach, config)` after the legs), against the same twin unlinked; and
+// the timing half, under 0.1 ms a frame, on the same seeded runs. The director over the real adapters and spec 025's
+// real director is in pet-bench-real.test.ts, a file of its own (rework3-026), and the measure in ../helpers/bench.ts.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import v8 from "node:v8";
-import vm from "node:vm";
 
 import { Group, Vector3 } from "three";
 import type { AnimationClip, Object3D } from "three";
@@ -29,87 +27,22 @@ import type { Decode } from "../../src/room/scene/gltf-images";
 import { floorOfPart } from "../../src/room/compose/floor";
 import { createAvatarFigures } from "../../src/room/scene/avatars";
 import { buildRoom } from "../../src/room/scene/bundle3d";
-import { createChase } from "../../src/room/scene/chase";
-import type { Chase } from "../../src/room/scene/chase";
 import { createChaseFigures } from "../../src/room/scene/chase-figures";
-import { CHASE_DEFAULTS } from "../../src/room/scene/chase-steer";
 import { createPet, PET_DEFAULTS } from "../../src/room/scene/pet";
 import { createPetAdapters } from "../../src/room/scene/pet-adapters";
-import type { PetAvatars } from "../../src/room/scene/pet-adapters";
 import type { Pet, PetChase, PetConfig, PetDog, PetMotion, PetTwin } from "../../src/room/scene/pet";
 import { applyReachLayer, findReachRig, strokeTarget } from "../../src/room/scene/pet-reach";
 import type { ReachRig, Vec3 } from "../../src/room/scene/pet-reach";
+import {
+  BENCH_TIMEOUT_MS,
+  bytesPerCall,
+  MAX_BYTES_PER_FRAME,
+  MAX_BYTES_PER_PETTING,
+  MAX_MS_PER_FRAME,
+  msPerCall,
+} from "../helpers/bench";
+import type { Hot } from "../helpers/bench";
 import { REPO, repositoryBundle } from "../helpers/room";
-
-v8.setFlagsFromString("--expose-gc");
-const gc = vm.runInNewContext("gc") as () => void;
-// The measure is of the code the page runs once it is hot: V8's optimized code, which keeps fractions unboxed. Code not
-// yet optimized boxes them, and under load the optimizing compiler, on a thread of its own, can finish late, so the
-// warm-up runs until the functions measured are optimized, read through V8's own status (a test-only flag).
-v8.setFlagsFromString("--allow-natives-syntax");
-const status = new Function("f", "return %GetOptimizationStatus(f);") as (f: unknown) => number;
-/** V8's status bit for a function its optimizing compiler, TurboFan, has compiled. */
-const TURBOFANNED = 1 << 6;
-
-const FRAMES = 20_000;
-/** Below one object a frame (12 bytes or more), above the measure's noise. */
-const MAX_BYTES_PER_FRAME = 8;
-/** Below one object a petting: a step that is a whole petting makes none. */
-const MAX_BYTES_PER_PETTING = 12;
-/** The bench's own limit: its warm-ups run the measured step at least 20 passes and up to 100, until V8 optimizes it
- *  (rv-rework2-026's nit 3), and under load the eight `pet-*` files together took 63 s, over vitest's 60 s a test
- *  (rv-rework-026's nit 5). */
-const BENCH_TIMEOUT_MS = 300_000;
-
-/** Warm-up passes before any measure, past `hot`'s optimization: the functions a petting calls once (its end, its
- *  return to idle, the selection's checks) tier up through V8's lower tiers, which box fractions, after the frame does;
- *  measured on the first pass once `frame` was optimized, they made 232 bytes a petting, and none by the twentieth. */
-const MIN_PASSES = 20;
-
-/** A function the warm-up waits for: optimized by TurboFan; or, a list, any of them optimized, for a function V8
- *  inlines into its caller (`pet.select` into the step that calls it once a petting: then the caller's code is the
- *  optimized one and the callee has none of its own). */
-type Hot = ((...args: never[]) => unknown) | ReadonlyArray<(...args: never[]) => unknown>;
-const optimized = (h: Hot): boolean =>
-  typeof h === "function" ? (status(h) & TURBOFANNED) !== 0 : h.some((f) => (status(f) & TURBOFANNED) !== 0);
-
-/** The heap's growth per call of `step` (a frame, or a whole petting) over `calls` calls, after `MIN_PASSES` passes
- *  and once every function in `hot` is optimized by TurboFan (up to 100 passes), and after a collection; the median of
- *  five, since a collection inside the loop can only lower one and the compiler's work can only raise one. */
-function bytesPerCall(step: () => void, hot: readonly Hot[], calls = FRAMES): number {
-  const loop = (n: number): void => {
-    for (let i = 0; i < n; i += 1) step();
-  };
-  const cold = (): boolean => hot.some((h) => !optimized(h));
-  for (let r = 0; r < 100 && (r < MIN_PASSES || cold()); r += 1) loop(calls);
-  hot.forEach((h, i) => {
-    expect(optimized(h), `hot function ${i} optimized before the measure`).toBe(true);
-  });
-  const runs: number[] = [];
-  for (let r = 0; r < 5; r += 1) {
-    gc();
-    const before = process.memoryUsage().heapUsed;
-    loop(calls);
-    runs.push((process.memoryUsage().heapUsed - before) / calls);
-  }
-  return runs.sort((a, b) => a - b)[2] as number;
-}
-
-/** T016's timing half (FR-027, SC-007): milliseconds a call of `step` over `calls` calls, after the same warm-up as
- *  `bytesPerCall`; the median of five. */
-function msPerCall(step: () => void, hot: readonly Hot[], calls = FRAMES): number {
-  const cold = (): boolean => hot.some((h) => !optimized(h));
-  for (let r = 0; r < 100 && (r < MIN_PASSES || cold()); r += 1) for (let i = 0; i < calls; i += 1) step();
-  const runs: number[] = [];
-  for (let r = 0; r < 5; r += 1) {
-    const t0 = performance.now();
-    for (let i = 0; i < calls; i += 1) step();
-    runs.push((performance.now() - t0) / calls);
-  }
-  return runs.sort((a, b) => a - b)[2] as number;
-}
-/** FR-027's bound on the reach's cost a frame, in milliseconds. */
-const MAX_MS_PER_FRAME = 0.1;
 
 const DOG_HOME = { x: 0.3, z: 0.45, heading: 0 };
 const MOTION: PetMotion = { animate: true, paused: false, level: 0, live: true };
@@ -366,88 +299,7 @@ describe("no allocation per frame (FR-027, SC-007; I-1)", () => {
   // T016 (impl3-026): the director over the real adapters (pet-adapters.ts) and spec 025's real director (chase.ts),
   // whose frame runs in the step: `twinHeading()` reads its runner's facing and `faceTwin` turns it at 180°/s, as in the
   // page; the controller is a fake of its shape whose answers are constants, as the real one's are between pictures.
-  // impl3-026 marked this case `it.fails`, a known gap (246 bytes a petting in the bench's full run, 4,324 alone; about
-  // 62 in the real `twin()` adapter and 14 in the real director's turn). rework3-026 (the page's Q284): a plain `it`,
-  // under one object a petting, measured as Q259's answer says, on V8's optimized code after the warm-up.
-  it(
-    "over the real adapters and spec 025's real director: whole pettings, and the frame's time",
-    () => {
-      const twinNode = new Group();
-      twinNode.position.set(TWIN_HOME.x, 0, TWIN_HOME.z);
-      const dogNode = new Group();
-      dogNode.position.set(DOG_HOME.x, 0, DOG_HOME.z);
-      const root = new Group();
-      root.add(twinNode, dogNode);
-      root.updateMatrixWorld(true);
-      const rigStub = {} as ReachRig;
-      const avatars: PetAvatars = {
-        wants: { twin: "twin", visitor: "woman", dog: "dog" },
-        shows: () => true,
-        pictureOf: (id) => (id === "twin" ? twinNode : id === "dog" ? dogNode : null),
-        clipOf: () => null,
-        twinState: () => "present",
-        reachRigOf: () => rigStub,
-      };
-      let chase: Chase | null = null;
-      const adapters = createPetAdapters({ avatars, chase: () => chase, hasDog: true });
-      const twinHome = adapters.twin()?.home;
-      const dogHome = adapters.dog()?.home;
-      if (!twinHome || !dogHome) throw new Error("no homes");
-      const OPEN = { x0: -2, x1: 2, z0: -2, z1: 2 };
-      const real = createChase({
-        floor: {
-          radius: 0.12,
-          feetY: 0,
-          height: 1.7,
-          shell: OPEN,
-          bounds: OPEN,
-          obstacles: [],
-          start: { x: 0, z: 1.8 },
-        },
-        config: CHASE_DEFAULTS,
-        walkMps: 1,
-        figures: { twin: { x: twinHome.x, z: twinHome.z, heading: twinHome.heading }, dog: { ...dogHome } },
-      });
-      chase = real;
-      const ms = new Float64Array(1);
-      const pet = createPet({
-        config: { cooldown_s: 0 },
-        clock: { now: () => ms[0] as number },
-        motion: () => MOTION,
-        twin: adapters.twin,
-        dog: adapters.dog,
-        chase: adapters.chase,
-      });
-      const gone = { present: false, x: 0, z: 1.8 };
-      const MOVE = { animate: true, paused: false, level: 0 };
-      const seen = new Int32Array(4);
-      const frame = (): void => {
-        ms[0] = (ms[0] as number) + 1000 / 60;
-        pet.frame(1 / 60);
-        real.frame(gone, 1 / 60, MOVE);
-        seen[0] = (seen[0] as number) + 1;
-        if (pet.phase === "turn") seen[1] = (seen[1] as number) + 1;
-      };
-      const step = (): void => {
-        if (!pet.select("dog")) seen[2] = (seen[2] as number) + 1;
-        seen[3] = (seen[3] as number) + 1;
-        for (let i = 0; i < 1000 && pet.phase !== "idle"; i += 1) frame();
-      };
-      const hot: Hot[] = [pet.frame, [pet.select, step], real.frame];
-      const perPetting = bytesPerCall(step, hot, 2_000);
-      expect(seen[2], "selections refused").toBe(0);
-      const msPetting = msPerCall(step, hot, 200);
-      const framesPerPetting = (seen[0] as number) / ((seen[3] as number) || 1);
-      const msFrame = msPetting / framesPerPetting;
-      process.stderr.write(
-        `\npet.select and pet.frame over the real adapters, with chase.frame: ${perPetting.toFixed(2)} bytes a ` +
-          `petting of ${framesPerPetting.toFixed(0)} frames; ${msFrame.toFixed(4)} ms a frame\n`,
-      );
-      expect(perPetting).toBeLessThan(MAX_BYTES_PER_PETTING);
-      expect(msFrame).toBeLessThan(MAX_MS_PER_FRAME);
-    },
-    BENCH_TIMEOUT_MS,
-  );
+  // The director over the real adapters and spec 025's real director is pet-bench-real.test.ts's (rework3-026).
 
   // T016 (impl3-026): the wired twin. The room's controller with the twin's real model and idle, the run's shell over
   // it, and the director over the adapters, linked as scene.ts links it, so each frame's `figures.update` lays

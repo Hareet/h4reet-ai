@@ -358,7 +358,14 @@ describe("the twin's heading read off twinFacing's object (FR-027)", () => {
       twinFacing: () => facing,
       running: () => false,
     };
-    const twin: PetTwin = { home: TWIN_HOME, shows: "model", rig: true, petting_s: null, arriving: false, phase: "home" };
+    const twin: PetTwin = {
+      home: TWIN_HOME,
+      shows: "model",
+      rig: true,
+      petting_s: null,
+      arriving: false,
+      phase: "home",
+    };
     const dog: PetDog = {
       home: DOG_HOME,
       phase: "home",
