@@ -633,3 +633,139 @@ After those runs, one test title's article was fixed (`dino-scene-data.test.ts:1
 ### Result
 
 Result: green. `room:scan` finds 0 room IDs in the code (35 before); `scan.test.ts`, the scanner, and its policy are as they were; every run above passed.
+
+## verify2-028b (night of 2026-11-15, implementer, Opus 5.5)
+
+Branch `night/verify2-028b/verify2-028b`, from rework2-028b's final tip `a148c647`. I wrote none of group B (impl-028b's, rework-028b's, rework2-028b's) and fixed no code and no test. `cpu.max` `400000 100000`, so n = 4.
+
+### The commits after `04530461`
+
+`git log --format='%h %s' 04530461..a148c647`:
+
+```
+a148c647 docs(028): rework2-028b's notes in impl-b.md: the 35 lines and their fix (take_at, carried, takenNode, fx- fixtures, the left lines from the room's words), every run, the departure for T-INT, one harness refusal; Result: green
+54e06e56 wip(rework2-028b): tasks.md T-B03 names take_at; make lint and make evals green; make test running; next, impl-b.md's rework2-028b section
+44941b32 wip(rework2-028b): apps/web's whole suite green (254 files, 4512 passed, 3 skipped); next, make lint, make evals, make test
+```
+
+`git diff --stat 04530461 a148c647`:
+
+```
+ apps/web/test/room/dino-scene-data.test.ts |   2 +-
+ specs/028-room-after-review/impl-b.md      | 121 +++++++++++++++++++++++++++++
+ specs/028-room-after-review/tasks.md       |   2 +-
+ 3 files, 123 insertions(+), 2 deletions(-)
+```
+
+As expected. The one test change is the title at `dino-scene-data.test.ts:142` ("… and an take_at off it" → "… and a take_at off it"), the string only. Nothing else in code or tests changed.
+
+### B4-1: yes
+
+`impl-b.md` has a rework2-028b section. It names each renamed test title, old and new, and the RED (`f3e7e2d1`) and GREEN (`8ac632d9`) runs over those titles' files. I counted the renamed titles in `git diff 53579b8c a148c647 -- apps/web/test`. There are 12: five in `dino-scene-data.test.ts`, one in `dino-scene-degraded.test.ts`, three in `dino-scene-path.test.ts` (one a `describe`), one in `dino-scene-wiring.test.ts` (a `describe`), one in `dino-scene.test.ts`, and one in `pet-dormant.test.ts`. The section lists all 12. rv-rework2-028b's finding counted 13, but I found no thirteenth. The section gives the title at line 142 in its final form ("… and a take_at off it"), and it records the rerun after that fix (2 files, 29 tests passed).
+
+### The merge
+
+`git merge --no-ff ba2b6028` (the 028 line's tip, merge-028-4), with merge base `5437a191`, produced `1d5ee774`. The merge was clean, with no conflicts. It brought documents only: `docs/adr/0055-…`, `docs/merge-requests/2026-11-15-night-028-line.md`, `…record2-dino-r2…md`, `human-patches/023.md`, `specs/028-room-after-review/docfix2.md`, `docfix3.md` (new), and `spec.md` (7 lines, the line's side only).
+
+### What the branch changes against main
+
+`git diff --name-only a36f98ec HEAD`, 73 files, by area:
+
+- `apps/web`, 50: `build/room/` (`checks/family.ts`, `checks/ri-leave.ts`, `checks/ri.ts`, `checks/rk.ts`, `emit.ts`, `schema.ts`); `room/` (`scene.yaml`, `ui-words.yaml`); `src/room/` (`app.ts`, `bubble.css`, `bubble.ts`, `compose/bundle.ts`, `eat/available.ts`, `scene.ts`, `scene/avatars.ts`, `scene/chase-figures.ts`, `scene/dino-scene-figures.ts`, `scene/dino-scene.ts`, `scene/loader.ts`, `scene/twin-states.ts`, `stage.ts`, `ui-keys.ts`); `test/` (`disclosure.test.ts`, `fixtures/room/bad/RI12/expect.yaml`, `fixtures/room/good/apps/web/room/ui-words.yaml`, `helpers/dino-scene.ts`, `ui/bubble.test.ts`, and 23 in `test/room/`: `avatars-compose`, `bundle`, `chase-figures`, `chase-stage`, `compose`, `dino-cutout-visit`, `dino-scene-bench`, `dino-scene-data`, `dino-scene-degraded`, `dino-scene-path`, `dino-scene-wiring`, `dino-scene`, `dog-disclosure`, `dog-figure`, `dog-first-visit`, `dog-intro-build`, `dog-intro-line`, `eat-after-scene`, `eat-scene`, `pet-dormant`, `schema`, `twin-states`, `vocabulary`, each `.test.ts`)
+- `corpus/proposals`, 1: `dog-intro-2026-11-15.md`
+- `deploy/grafana`, 1: `dashboards/h4-runtime.json`
+- `docs`, 8: `adr/0055-no-usage-event-for-what-only-the-dinosaur-causes.md`, `adr/README.md`, `data-flow-disclosure.md`, and in `merge-requests/`: `2026-11-15-corpus-dog-visitor-intro.patch`, `2026-11-15-night-028-line.md`, `2026-11-15-night-record2-dino-r2-record2-dino-r2.md`, `human-patches/023.md`, `human-patches/028.md`
+- `evals`, 1: `test_disclosure.py`
+- `intent`, 1: `028-room-after-review.md`
+- `specs`, 11: `021-dinosaur-modeled-and-brought-in/studio-round-2.md`, and in `028-room-after-review/`: `analysis.md`, `docfix2.md`, `docfix3.md`, `impl-b.md`, `notes.md`, `plan.md`, `probe-eat.md`, `probe-pdf.md`, `spec.md`, `tasks.md`
+
+Those areas' suites: `apps/web`'s whole vitest suite and its room and content checks; `pytest evals`; `pytest deploy/scripts` (its `test_dashboard.py` and `test_observability.py` read `deploy/grafana/dashboards/`); `pytest scripts/corpus` and `pytest corpus/tools` (for the corpus proposal, as verify-028b ran them); the docs tests and links; `make lint`.
+
+### The runs, on `1d5ee774` (the merge)
+
+`npm ci --ignore-scripts` once, at the root, exit 0.
+
+`apps/web`'s whole vitest suite, from `apps/web/`: `../../node_modules/.bin/vitest run --maxWorkers=4`, exit 0:
+
+```
+room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
+ Test Files  254 passed (254)
+      Tests  4512 passed | 3 skipped (4515)
+   Duration  1823.22s (tests 71%, import 29%)
+exit 0
+```
+
+`npm run room:scan -w apps/web`, exit 0:
+
+```
+> node --import tsx build/room/cli.ts scan
+room: 0 hits
+```
+
+`npm run room:check -w apps/web`, exit 0:
+
+```
+> node --import tsx build/room/cli.ts check
+room: 0 findings in 0 files
+```
+
+`npm run room:report -w apps/web`, exit 0 (its last lines):
+
+```
+Walking (spec 008, FR-026): the visitor figure's start, x -0.7 and z 0.58, is on the walkable floor at the radius 0.12 m, 0.005 m from its nearest edge, the floor's open front.
+Reserved boxes (spec 005, FR-055): the walking control's (spec 008, FR-021) where it stands in the clear area (since spec 014's W19, on short column windows and in the dock), 8rem × 2.75rem, 0.5rem in from the clear area's bottom-right corner, holds no side-wall selectable at any supported stage.
+
+Findings: none.
+```
+
+`npm run content:check -w apps/web`, exit 0:
+
+```
+content: C1–C9 and N1–N5 passed for the resume and 44 scripts (denylist missing); the lock and the eval cases are current
+```
+
+`python3 -I -m pytest evals/test_repository_docs.py evals/test_docs_links.py -q -p no:cacheprovider`, exit 0: "61 passed in 1.51s". (I added `-p no:cacheprovider` so the run writes no `.pytest_cache`.)
+
+`python3 -I evals/docs_links.py`, exit 0: "PASS the ADR index links every ADR file: 52 of 52 … docs links: 0 failed, 2524 relative links in 475 files".
+
+`python3 -I -m pytest -q -p no:cacheprovider --import-mode=importlib <folder>` (the flags `make test` uses), each exit 0:
+
+```
+evals           893 passed, 2 skipped in 33.04s
+deploy/scripts  1287 passed in 20.08s
+scripts/corpus  383 passed in 13.39s
+corpus/tools    50 passed in 0.06s
+```
+
+`make lint`, exit 0:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+862 files already formatted
+… shellcheck (no findings)
+make lint exit 0
+```
+
+### Refusals
+
+None. No hook, gate, or harness refused a command.
+
+### Questions
+
+None.
+
+### For the next tasks
+
+- `merge-028-6` takes this tip (`1d5ee774` and the notes commit on top) into the line, after `merge-028-5`'s group A.
+- Left as briefed, for the line's note and T-INT: rv-rework2-028b's B4-2 (`dino-scene-wiring.test.ts:233-239` matches the left lines by a pattern), B4-4 (plan §R-B4's as-built block still says `under_bicycle`), and B4-5 (T-B03's recorded print keys); rework2-028b's departure (FR-021 and FR-022 still name `under_bicycle`); and rv-impl-028b's BR-1 to BR-4.
+
+### Result
+
+Result: green. Since `04530461`, only `impl-b.md`, `tasks.md`, and the one reviewed test title changed. B4-1 is closed. The line's tip `ba2b6028` merged clean. Every run above passed: `apps/web` (254 files, 4512 tests passed, 3 skipped), `room:scan` 0 hits, `room:check` 0 findings, `room:report` no findings, `content:check`, the docs tests and links, `pytest` over `evals`, `deploy/scripts`, `scripts/corpus`, and `corpus/tools`, and `make lint`.
