@@ -16,8 +16,8 @@ Branch `night/impl-028a/impl-028a`, from spec-028's tip `9cf2f91f`. Paths are un
 | T-A05 | `bb3dc6f7` | `089d137c` |
 | T-A06 | merge of T-B01 `0ceb765d`; RED `76d645f9` | `33436c6e` |
 | T-A07 | `1821a07f` | `2efd91cf` |
-| T-A08 | `edb441f8` | `b586b379` |
-| T-A09 | `34bf6a97` (T-A06 named), `b16bb225` (lint) | this note |
+| T-A08 | `edb441f8` | `b586b379`; fix `64111be2` (absolute, not fixed) |
+| T-A09 | `34bf6a97` (T-A06 named), `b16bb225` (lint), the notes' draft | this note |
 
 Tests ran with `../../node_modules/.bin/vitest run <files> --maxWorkers=1` from `apps/web/` (`cpu.max` 400000/100000 = 4 CPUs, ÷ 4 = 1 worker), after `npm ci --ignore-scripts`. Never bare `npx`.
 
@@ -125,7 +125,29 @@ Code: `room.css`. RED: `Tests 2 failed | 4 passed` (the Tab order and stacked ca
 
 ## Every test file this branch changed, at its tip
 
-TIP_RUN
+All 39 files (the 38 test files `git diff --name-only 9cf2f91f` lists, but `vocabulary.test.ts`, which is T-B01's, and `test/room/protect.test.ts`, whose snapshot changed), at `b16bb225`:
+
+```
+$ ../../node_modules/.bin/vitest run <the 39 files> --maxWorkers=1
+     × lays no fixed part but the strip over the page's flow, and scrolls focus clear of the strip and in the panels 5ms
+ FAIL  test/ui/hud-a11y.test.ts > focus is never hidden (FR-044) > lays no fixed part but the strip over the page's flow, and scrolls focus clear of the strip and in the panels
++ [
++   "html[data-hud=\"column\"] .room-around:focus",
++   "html[data-hud=\"dock\"] .room-around:focus",
++ ]
+ Test Files  1 failed | 38 passed (39)
+      Tests  1 failed | 581 passed (582)
+```
+
+T-A08's focused overlay was `position: fixed`, which spec 005's FR-044 pin refuses; T-A08's run hadn't included `hud-a11y`. Fixed in the code (`64111be2`: `position: absolute`), the test untouched; my own `around.test.ts` case that pinned `fixed` now pins `absolute`. Then:
+
+```
+$ ../../node_modules/.bin/vitest run test/ui/hud-a11y.test.ts test/ui/around.test.ts test/room/wall-box.test.ts test/room/hud-wall-geometry.test.ts --maxWorkers=1
+ Test Files  4 passed (4)
+      Tests  69 passed (69)
+```
+
+(`wall-box` and `hud-wall-geometry` are in it because `b16bb225`, the lint fix, touched them while the tip run was going.)
 
 ## Every rewritten case (old name → new name)
 
@@ -176,7 +198,7 @@ Each in the task that changed its subject, test-first in that task's RED commit 
 **T-A08**
 - `test/ui/a11y.test.ts`: "is visible in %s after the conversation panel, outside the stage, open with nothing to expand, with the tier's sentence" → "is in %s after the conversation panel, outside the stage, open to a screen reader with nothing to expand, with the tier's sentence (spec 028: visually hidden in the HUD's layouts)" (its assertions unchanged). `test/ui/text-copy.test.ts`: a comment only. `test/ui/around.test.ts`: new cases only.
 
-**My own new tests, changed after their RED commit** (each before or in its task's GREEN commit, none weakened to pass): `wall-box`'s "lies inside the frame area …" holds where the shell is framed (the fixture's isn't: its near face is in front of the camera); `hud-wall-geometry`'s table pin and oracle gained `minAreaWidthPx` (T-A05's RED, after the page's question), and its wall-less protector lost an unused binding (lint); `split-no-still`'s still case is a 3D visit (jsdom gives 2D without WebGL, where the 2D room rightly fetches the still) and its Back case answers the turn so the log has a line; `hud-wall-dom`'s Tab-order comparison leaves out spec 018's own "Back" and hint; `hud-split`'s finding 2 deactivates the first split before the second (both now build at activation); `hud-split-list`'s ring case checks a `split.css` reset that outranks `room.css`'s rules, not a `:not(...)` in `room.css` (which broke spec 014's selector pin in `hud-look`); `credits`' order case follows `AVATARS` (woman, man, dinosaur, dog).
+**My own new tests, changed after their RED commit** (each before or in its task's GREEN commit, none weakened to pass): `wall-box`'s "lies inside the frame area …" holds where the shell is framed (the fixture's isn't: its near face is in front of the camera); `hud-wall-geometry`'s table pin and oracle gained `minAreaWidthPx` (T-A05's RED, after the page's question), and its wall-less protector lost an unused binding (lint); `split-no-still`'s still case is a 3D visit (jsdom gives 2D without WebGL, where the 2D room rightly fetches the still) and its Back case answers the turn so the log has a line; `hud-wall-dom`'s Tab-order comparison leaves out spec 018's own "Back" and hint; `hud-split`'s finding 2 deactivates the first split before the second (both now build at activation); `hud-split-list`'s ring case checks a `split.css` reset that outranks `room.css`'s rules, not a `:not(...)` in `room.css` (which broke spec 014's selector pin in `hud-look`); `credits`' order case follows `AVATARS` (woman, man, dinosaur, dog); `around`'s focus case pins `absolute`, not `fixed`, after the tip run found spec 005's FR-044 pin refusing `fixed` (`64111be2`).
 
 ## Refusals
 
@@ -184,7 +206,23 @@ None. No hook, bash-gate, or permission refusal this session.
 
 ## `make lint`
 
-LINT_RUN
+At `64111be2`:
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+855 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit 0
+```
 
 `make test` and `make evals` were not run here: his rule 4 ("Small tests, and the full suite once") gives the one full `make check` to the integration task, T-INT.
 
