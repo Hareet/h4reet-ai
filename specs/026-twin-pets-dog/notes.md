@@ -504,7 +504,24 @@ buildable: yes (his approval of the dog's model, with its line, is in approvals.
 
 ### Step 4: the lint target, and this note
 
-{{LINT}}
+At eed1f115, after the scratch folder was deleted (eslint and prettier read the whole tree), exit 0:
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+836 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+# then shellcheck over the repository's scripts (the target's `xargs -0 -t shellcheck` line): no finding; make exited 0
+```
+
+This note's own edit after it is prose only; `prettier --check` on it and the other changed documents passed before the run.
 
 No `make test`, `make evals`, or full `make check`: rule 4, and the stack's last task runs `make check` once. Item 9's verify merges this tip.
 
