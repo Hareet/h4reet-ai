@@ -112,6 +112,40 @@ describe("the text copy (renderTextCopy)", () => {
     }
   });
 
+  // rework-028a (spec 028; FR-015, Q23; plan.md §R-A5 as reworked after rv-spec-028's I-1): "Around the room" holds the
+  // placeholder words main's stage note held, made at runtime from what applies, the copy's entries unchanged.
+  it("keeps the placeholder words one item right after the visitor's line, main's stage-note join, removed when neither applies (spec 028, FR-015, Q23)", () => {
+    const { index } = fixture();
+    const copy = renderTextCopy(page(), index);
+    const NOTE = index.ui["standin.note"] ?? "";
+    const AVATAR = index.ui["standin.avatar"] ?? "";
+    expect(NOTE).not.toBe("");
+    expect(AVATAR).not.toBe("");
+    const items = (): Element[] => [...copy.element.querySelectorAll("li")];
+    const where = (line: string): number => items().findIndex((li) => li.getAttribute("data-line") === line);
+    const placeholders = (): Element[] => items().filter((li) => li.getAttribute("data-line") === "placeholders");
+    expect(placeholders()).toHaveLength(0);
+    // The pieces only: their words, right after the visitor's slot, which follows the twin's line (copy[]'s order).
+    copy.setPlaceholders({ pieces: true, figure: false });
+    expect(placeholders().map((li) => textOf(li))).toEqual([NOTE]);
+    expect(where("placeholders")).toBe(where("twin") + 1);
+    // A visitor's line comes: it takes its slot, and the placeholder words stay right after it.
+    copy.setVisitorLine("A visitor's line.");
+    expect(where("visitor")).toBe(where("twin") + 1);
+    expect(where("placeholders")).toBe(where("visitor") + 1);
+    // Both: main's join for the stage note (layout.ts's setPlaceholders on main), the first ending in a stop; one item.
+    copy.setPlaceholders({ pieces: true, figure: true });
+    expect(placeholders().map((li) => textOf(li))).toEqual([`${/[.!?]$/.test(NOTE) ? NOTE : `${NOTE}.`} ${AVATAR}`]);
+    copy.setPlaceholders({ pieces: false, figure: true });
+    expect(placeholders().map((li) => textOf(li))).toEqual([AVATAR]);
+    copy.setVisitorLine(null);
+    expect(where("placeholders")).toBe(where("twin") + 1);
+    // Neither: the item goes.
+    copy.setPlaceholders({ pieces: false, figure: false });
+    expect(placeholders()).toHaveLength(0);
+    expect(items().some((li) => [NOTE, AVATAR].some((w) => textOf(li).includes(w)))).toBe(false);
+  });
+
   it("puts words in as text, never markup", () => {
     const { index } = fixture();
     const ui = { ...index.ui, "tier.not-live": "<img src=x onerror=alert(1)>" };
