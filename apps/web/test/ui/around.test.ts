@@ -316,12 +316,15 @@ describe("the counters' readings (T264; contracts/turn-cost.md §8)", () => {
   });
 });
 
-// T-A08 (spec 028; FR-016; Q7; the Author's answer "Hide, keep for readers (Recommended)": "no panel below the room on
-// screen; screen readers and the phone layout still get the text"): in the split, column, and dock layouts "Around the
+// T-A08 (spec 028; FR-016; Q7 as reworked after rv-spec-028's B-1, Q22; the Author's answer "Hide, keep for readers
+// (Recommended)": "no panel below the room on screen; screen readers and the phone layout still get the text"): in the
+// split and column layouts (`html[data-hud="column"]`, the split being that layout with data-split on) "Around the
 // room" takes the room's visually hidden declarations, so it takes no space on screen and a screen reader still reads
-// it in its place, the last Tab stop; focused, it shows, since a keyboard user must see where focus is (WCAG 2.4.7,
-// 2.4.11; plan.md §R-A6); in the stacked layout, the phone's, it shows as before.
-describe('"Around the room" hidden from view, kept for readers (spec 028, T-A08; FR-016)', () => {
+// it in its place, the last Tab stop; while it holds focus there it shows as an overlay at the window's foot centre,
+// still taking no space in the layout (WCAG 2.4.7; N-2). In the dock and stacked layouts, where phones are (390 × 844
+// and 320 × 568 take the dock), it shows below the room as before. The overlay is absolute, not fixed: spec 005's
+// FR-044 pin (test/ui/hud-a11y.test.ts) allows no fixed part but the strip, and the room block is the window.
+describe('"Around the room" hidden from view in the split and column layouts, kept for readers (spec 028, T-A08; FR-016)', () => {
   const CSS = parseCss(readFileSync(fileURLToPath(new URL("../../src/room/room.css", import.meta.url)), "utf8"));
   const rules = [...CSS.rules, ...CSS.atRules.flatMap((a) => parseCss(a.body).rules)];
   const declared = (selector: string): Map<string, string> => {
@@ -331,31 +334,69 @@ describe('"Around the room" hidden from view, kept for readers (spec 028, T-A08;
     return out;
   };
   const HIDDEN = declared(".visually-hidden");
+  /** room.css's top-level rules applied to an element, in source order: each rule one of whose selectors it matches. */
+  const applied = (el: Element): Map<string, string> => {
+    const out = new Map<string, string>();
+    for (const r of CSS.rules)
+      if (r.selector.split(",").some((p) => el.matches(p.trim()))) for (const [k, v] of r.declarations) out.set(k, v);
+    return out;
+  };
+  const hidden = (el: Element): boolean => applied(el).get("clip-path") === HIDDEN.get("clip-path");
 
-  it("takes the room's visually hidden declarations in the column and dock layouts (the split layout's among them)", () => {
+  it("takes the room's visually hidden declarations in the column layout (the split layout's among them), not in the dock layout (B-1)", () => {
     expect(HIDDEN.get("clip-path")).toBe("inset(50%)");
-    for (const hud of ["column", "dock"]) {
-      const got = declared(`html[data-hud="${hud}"] .room-around:not(:focus)`);
-      for (const [k, v] of HIDDEN) expect(got.get(k), `${hud}: ${k}`).toBe(v);
+    const got = declared('html[data-hud="column"] .room-around:not(:focus-within)');
+    for (const [k, v] of HIDDEN) expect(got.get(k), k).toBe(v);
+    expect(got.get("position")).toBe("absolute");
+    for (const r of rules.filter((x) => /data-hud="dock"\] \.room-around/.test(x.selector))) {
+      expect(r.declarations.get("clip-path") ?? "none", r.selector).toBe("none");
+      expect(r.declarations.get("position") ?? "static", r.selector).not.toBe("absolute");
     }
   });
 
-  it("shows when it has focus there, at the window's foot, over the room", () => {
-    for (const hud of ["column", "dock"]) {
-      const got = declared(`html[data-hud="${hud}"] .room-around:focus`);
-      expect(got.get("position"), hud).toBe("absolute");
-      expect(got.get("clip-path"), hud).toBe("none");
-      expect(got.get("bottom"), hud).toBe("1rem");
-      expect(got.get("overflow-y"), hud).toBe("auto");
-    }
+  it("shows while it holds focus in the column and split layouts, at the window's foot centre, over the room, taking no layout space (N-2, Q22)", () => {
+    const got = declared('html[data-hud="column"] .room-around:focus-within');
+    expect(got.get("position")).toBe("absolute");
+    expect(got.get("clip-path")).toBe("none");
+    expect(got.get("bottom")).toBe("1rem");
+    expect(got.get("left")).toBe("1rem");
+    expect(got.get("right")).toBe("1rem");
+    expect(got.get("margin")).toBe("0 auto");
+    expect(got.get("max-width")).toBe("48rem");
+    expect(got.get("overflow-y")).toBe("auto");
+    expect(Number(got.get("z-index"))).toBeGreaterThan(3);
   });
 
-  it("shows in the stacked layout: no rule there hides it", () => {
-    for (const r of rules.filter((x) => /data-hud="stacked"\] \.room-around/.test(x.selector))) {
+  it("shows in the dock and stacked layouts: no rule there hides it (B-1, Q7 as reworked)", () => {
+    for (const r of rules.filter((x) => /data-hud="(stacked|dock)"\] \.room-around/.test(x.selector))) {
       expect(r.declarations.get("clip-path") ?? "none").toBe("none");
       expect(r.declarations.get("position") ?? "static").not.toBe("absolute");
     }
   });
+
+  for (const [name, screen, layout, shown] of [
+    ["split", { w: 1920, h: 1080 }, "column", false],
+    ["column", { w: 844, h: 390 }, "column", false],
+    ["dock (390 × 844)", { w: 390, h: 844 }, "dock", true],
+    ["dock (320 × 568)", { w: 320, h: 568 }, "dock", true],
+    ["stacked", { w: 300, h: 500 }, "stacked", true],
+  ] as const)
+    it(`is ${shown ? "shown" : "hidden from view"} in the ${name} layout${shown ? "" : ", and shown while it holds focus"} (B-1, N-2)`, async () => {
+      const view = stubViewport(screen);
+      const v = start({ webgl: true, viewport: view.factory });
+      await intoRoom(v);
+      const around = v.doc.querySelector<HTMLElement>(".room-around");
+      if (!around) throw new Error('no "Around the room"');
+      expect(v.doc.documentElement.getAttribute("data-hud") ?? "stacked").toBe(layout);
+      expect(v.doc.documentElement.getAttribute("data-split")).toBe(name === "split" ? "on" : "off");
+      expect(hidden(around)).toBe(!shown);
+      around.focus();
+      expect(v.doc.activeElement).toBe(around);
+      expect(hidden(around)).toBe(false);
+      if (!shown) expect(applied(around).get("position")).toBe("absolute");
+      around.blur();
+      expect(hidden(around)).toBe(!shown);
+    });
 
   for (const [name, screen] of [
     ["split", { w: 1920, h: 1080 }],
