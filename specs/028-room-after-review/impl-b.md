@@ -1,17 +1,17 @@
 # Group B's notes: spec 028, the behaviour (`impl-028b`, night of 2026-11-15, implementer, Opus 5.5)
 
-Branch `night/impl-028b/impl-028b`, from spec-028's tip `9cf2f91f`. Paths are under `apps/web/` unless they start otherwise.
+Branch `night/impl-028b/impl-028b`, from spec-028's tip `9cf2f91f`. Paths are under `apps/web/` unless they start otherwise. Tests run from `apps/web/` with the root's `node_modules/.bin/vitest` (vitest 5.0.3, the lockfile's, installed by `npm ci --ignore-scripts`; `apps/web/node_modules/.bin` has none), `--maxWorkers=1` (`cpu.max` 400000/100000 = 4, ÷ 4). "vitest run" below is `../../node_modules/.bin/vitest run`.
 
 ## For group A: T-B01's commit
 
-**T-B01: `eeede9c0`** (`feat(028): T-B01 the four UI words, …`). Merge it for `credits.likeness` (T-A06): `git merge eeede9c0`. It adds `figures.dino_call`, `figures.left_both`, `figures.left_twin`, and `credits.likeness` to `room/ui-words.yaml`, `src/room/ui-keys.ts`, and `test/fixtures/room/good/apps/web/room/ui-words.yaml`; its RED step is `20a1a9eb` (the four rows in `test/room/vocabulary.test.ts`'s pinned list, the count 86 → 90).
+**T-B01: `eeede9c0`** (`feat(028): T-B01 the four UI words, …`). Merge it for `credits.likeness` (T-A06): `git merge eeede9c0`. It adds `figures.dino_call`, `figures.left_both`, `figures.left_twin`, and `credits.likeness` to `room/ui-words.yaml`, `src/room/ui-keys.ts`, and `test/fixtures/room/good/apps/web/room/ui-words.yaml`; its RED step is `20a1a9eb` (the four rows in `test/room/vocabulary.test.ts`'s pinned list, the count 86 → 90). Named here at `503c23d1`, right after it.
 
-## T-B01
+## T-B01: the words
 
 RED (`20a1a9eb`), with the three word files as on the base:
 
 ```
-$ ../../node_modules/.bin/vitest run test/room/vocabulary.test.ts --maxWorkers=1
+$ vitest run test/room/vocabulary.test.ts --maxWorkers=1
 -   "figures.dino_call": [],
 -   "figures.left_both": [],
 -   "figures.left_twin": [],
@@ -23,9 +23,194 @@ $ ../../node_modules/.bin/vitest run test/room/vocabulary.test.ts --maxWorkers=1
 GREEN (`eeede9c0`):
 
 ```
-$ ../../node_modules/.bin/vitest run test/room/vocabulary.test.ts --maxWorkers=1
+$ vitest run test/room/vocabulary.test.ts --maxWorkers=1
  Test Files  1 passed (1)
       Tests  10 passed (10)
 ```
 
-Tests run from `apps/web/` with the root's `node_modules/.bin/vitest` (vitest 5.0.3, the lockfile's, installed by `npm ci --ignore-scripts`; `apps/web/node_modules/.bin` has none), `--maxWorkers=1` (`cpu.max` 400000/100000 = 4, ÷ 4).
+## T-B02: the room's dog only in a dinosaur visit; the run and the petting unwired
+
+RED `74cb787e`, GREEN `dc859818`, and `7b08478d` (a spec 025 case its covering run found).
+
+RED, the three files before the code:
+
+```
+$ vitest run test/room/dog-figure.test.ts test/room/chase-stage.test.ts test/room/pet-dormant.test.ts --maxWorkers=1
+     × isn't wanted, and nothing is at its home, for a visitor who chose the woman (spec 028, FR-017)
+     × isn't wanted, and nothing is at its home, for a visitor who chose the man (spec 028, FR-017)
+     × isn't wanted, and nothing is at its home, for a visitor who chose the dog (spec 028, FR-017)
+     × isn't wanted for a dinosaur visit whose bundle lacks the dinosaur's model (spec 028, Q11)
+     × is wanted for a visitor who chose the dinosaur, shows at its home, and stays hidden until the scene's entry (spec 028, FR-018)
+     × shows one dog where the visitor chose the dog: the visitor's own (spec 028, FR-017)
+     × lists none for the woman or the man, or for a dinosaur visit without the dinosaur's model (spec 028, SC-005)
+     × the woman chosen: no pet director, no shell, no petting's line or record, and a dog selection starts nothing
+     × the man chosen: …   × the dinosaur chosen: …   × the dog chosen: …
+     × makes no shell for the dinosaur once the hand-off's promise resolves (spec 028, FR-028)
+     × with the scene's dog, never makes it for the woman, the hand-off ended, and signals no chase (spec 028, FR-028)
+     × … for the man …   × … for the dog …
+ Test Files  3 failed (3)
+      Tests  15 failed | 20 passed (35)
+```
+
+GREEN: `Test Files  3 passed (3)`, `Tests  35 passed (35)`.
+
+Covering run (`dog-avatar`, `avatar-scene`, every `chase-*` and `pet-*`, `dog-selectable`): `Test Files  1 failed | 28 passed (29)`, `Tests  1 failed | 374 passed (375)`: `chase-figures.test.ts` › "gives each figure's picture group, the dog's only where the room has one" (`expected undefined to be 'room-dog'`), a woman visit with a room's dog. Rewritten in `7b08478d` (below), then `chase-figures.test.ts` alone: `Tests  28 passed (28)`.
+
+## T-B03: the leave data
+
+RED `02015c64`, `3d982821` (RI12's catalogue pin), GREEN `c333ad0a`, `91bf2d81` (`bad/RI12`); then RED `09f1bd74` and GREEN `e2f79e8a` for `takes`, found writing T-B04 (plan §R-B4's departure).
+
+RED, before the code: `dino-scene-data.test.ts` and the schema's leave cases, `Tests  18 failed | 258 passed (276)`; the catalogue's pin, `× holds every rule of spec 004's nine families …`. The printed points, recorded in plan §R-B4 (the obstacles cut here):
+
+```
+T-B03 composed points: {"twin_home":[0.66,0.469],"bicycle_origin":[0.977,1.49,0.222],"bicycle_box_floor":{"x":[0.889,1.065],"z":[-0.287,0.481]},"shell_floor":{"x0":-1.0668,"x1":1.0668,"z0":-0.6096,"z1":0.6096},"chase_bounds":{"x0":-0.9468,"x1":0.9468,"z0":-0.48960000000000004,"z1":0.5846}, … ,"start":{"x":-0.7,"z":0.58},"dog_home":[0.3,0.45]}
+```
+
+The plan's estimate `under_bicycle` (0.8, 0.25) lies inside the desk's and the bicycle's obstacles; the shipped block is placed by the printed points (plan §R-B4, as built). The check's code: **RI12** (`build/room/checks/ri-leave.ts`, run last in the RI family).
+
+GREEN, after `takes`: `dino-scene-data`, `schema`, `compose`: `Test Files  3 passed (3)`, `Tests  538 passed (538)`; RI12's bad case and the catalogue's coverage: `Tests  2 passed`. A background run of these with `scene.test.ts` and `chase-schema.test.ts` overlapped my `takes` edits and isn't a record; the sweep below runs them all.
+
+## T-B04: the director
+
+RED `9a57a915`, GREEN `862f3aa1`. RED: the four files can't import `scene/dino-scene` (`Error: Cannot find module`), and `twin-states.test.ts`'s `wave` cases: `TypeError: t.wave is not a function`. GREEN's first run: 2 failed of 66, both my new tests' assumptions (the pause case paused in the gather, which is six frames long; the arc-length case bounded a corner's chord from below by the arc), corrected in the GREEN commit. Then, with the covering files:
+
+```
+$ vitest run test/room/dino-scene.test.ts test/room/dino-scene-path.test.ts test/room/dino-scene-degraded.test.ts test/room/dino-scene-bench.test.ts test/room/twin-states.test.ts test/room/chase-steer.test.ts test/room/gait.test.ts test/room/chase-figures.test.ts --maxWorkers=1
+room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
+dino scene: mean ms a frame per run 0.0002, 0.0001, 0.0001
+ Test Files  8 passed (8)
+      Tests  121 passed (121)
+```
+
+## T-B05: the wiring and the bubble
+
+T-A06's commit wasn't on `night/impl-028a/impl-028a` when T-B05 started (its tip was `2cc81c7a`, T-A03's RED), so, as tasks.md says, `app.ts` is edited only in the figure signal's handler (`figureSignal`: `dino-call`, `dino-left`); the stage's options are unchanged. T-B08 then adds `introduceDogVisitor` and one call at the top of `offerResume`. T-INT resolves `app.ts` by plan §6.
+
+RED `d6c6b8d2`: `bubble.test.ts` can't import `src/room/bubble`; `dino-scene-wiring.test.ts` 3 failed (no scene made; no `dino-call` said). GREEN `4f08e90e`:
+
+```
+$ vitest run test/ui/bubble.test.ts test/room/dino-scene-wiring.test.ts test/room/live.test.ts test/room/twin-figure.test.ts test/room/twin-handoff.test.ts test/room/chase-stage.test.ts test/room/pet-dormant.test.ts --maxWorkers=1
+ Test Files  7 passed (7)
+      Tests  101 passed (101)
+```
+
+## T-B06: the eating after the scene
+
+Merged `night/probe-eat-028/probe-eat-028` at `54e5f665` (`69204014`). Its finding, in its words (`specs/028-room-after-review/probe-eat.md`, "Finding for spec 028's group B"):
+
+> **B-eat: the eating is off with the stand-in, by spec 024's FR-001 and page Q247, not by a defect.**
+>
+> - **Where**: `apps/web/src/room/scene.ts:472` (`bundled(EATER)` in `eats`), and behind it `apps/web/src/room/eat/available.ts:33` (`s.figureModel`, set at `scene.ts:506`).
+> - **What fixes his item 2's eating with no code change**: his intake of the dinosaur's model (human patch 021). With `assets/visitors/dinosaur/dinosaur.glb` bundled, `eats` holds, the figure shows its model, and the path runs as `eat-model.test.ts:227` and `eat-scene.test.ts` exercise it. SC-007's look by hand on the dev-cpu stack is still to come.
+
+and its question (page Q3), unanswered: "The dinosaur's eating is off while it shows its flat stand-in, by spec 024's FR-001 and your Q247 answer ("only when the bundle carries the dinosaur's model"); should spec 028 keep that, so the eating arrives with your intake of the model (human patch 021)?". Its recommendation is taken: the model gates stay; the only eating change is FR-025's wait.
+
+RED `70a44281`, run without the GREEN code: `eat-after-scene` › "offers no tile and bites nothing before the scene ends or is cut, the Eat box reserved from the start" fails (`expected true to be false`); its other cases and `dino-cutout-visit` pin what already holds. GREEN `c4f914dd`. Its first run with every `eat-*` file: `eat-scene.test.ts` (spec 024's) 8 failed, since its staged part is the repository's, which now carries `figures.leave`. Its harness drops the block (see the rewrites, and the question). Then:
+
+```
+$ vitest run test/room/eat-after-scene.test.ts test/room/dino-cutout-visit.test.ts test/room/eat-*.test.ts test/room/dinosaur-compose.test.ts test/room/input.test.ts --maxWorkers=1
+ Test Files  15 passed (15)
+      Tests  191 passed (191)
+```
+
+## T-B07: RK5, V1, the dashboard
+
+RED `08156fda`, `d8c1dfff` (the dinosaur's folder opt-in in the fixture), GREEN `a662f050`, and `e6992e48` (the committed scene's keys pin, T-B03's). RED: `dog-first-visit` 2 failed (no dog share without the dinosaur's model; the report's line), `dog-disclosure` 1 failed, `disclosure.test.ts` 1 failed ("gives the room's rows …"). GREEN's first run:
+
+```
+$ vitest run test/room/dog-first-visit.test.ts test/room/dog-disclosure.test.ts test/room/dog-report.test.ts test/disclosure.test.ts test/room/dog-run.test.ts --maxWorkers=1
+     × names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ Test Files  1 failed | 4 passed (5)
+      Tests  1 failed | 31 passed (32)
+$ pytest -q -p no:cacheprovider evals/test_disclosure.py
+36 passed in 0.16s
+```
+
+The failing case composes V1 from the same amendments; it takes `amendment028` too (in `a662f050`), then `test/disclosure.test.ts`: `Tests  11 passed (11)`. The other RK5 tests (`twin-compose`, `compose`, `avatars-compose`): `avatars-compose` › "names the man as the stand-in in the committed scene, with the defaults written out" failed on the committed scene's `figures` keys (T-B03's `leave`); its pin gains `leave` in `e6992e48`, then `Tests  34 passed (34)`.
+
+## T-B08: the introduction
+
+**The facts-file check** (plan §R-B7, before the RED step), on three scratch exports of `refs/heads/main` (`a36f98ec`), `node --import tsx build/twin-pack.ts` in each:
+
+```
+twin:pack: wrote config/twin/corpus.json: 131 sections, 3 topics; 186 cases   (×3)
+== a vs base
+no file of config/twin or evals changed
+== b vs base
+no file of config/twin or evals changed
+== base vs main as committed
+base regenerates main's pack exactly
+```
+
+Neither file changes a hash, so (a), `corpus/facts/hobbies-and-travel.yaml`; recorded in plan §R-B7.
+
+RED `260a3f9e`: 9 failed of 13 (the index has no `dog_visitor_intro`; no line said). GREEN `16559c3c`: the first run left one failure, my test's own step reading the log region before Enter (`Error: no log region`), and it now checks the log's words after arrival. Then:
+
+```
+$ vitest run test/room/dog-intro-build.test.ts test/room/dog-intro-line.test.ts --maxWorkers=1   (before the fix)
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 12 passed (13)
+$ vitest run test/room/dog-intro-line.test.ts test/room/bundle.test.ts --maxWorkers=1
+ Test Files  2 passed (2)
+      Tests  59 passed (59)
+```
+
+The proposal, the patch, and its checks (`0ac62d1c`): `corpus/proposals/dog-intro-2026-11-15.md` (the container took the write; no fallback needed); `docs/merge-requests/2026-11-15-corpus-dog-visitor-intro.patch`, 1,410 bytes, SHA-256 `570399a0f2d8ee31fde54243b026c52132505362620dca1f17a47bfc9e5af8ce`, from a plain copy of `refs/heads/main`; on a fresh `git archive refs/heads/main` export, `patch -p1 --dry-run` then `patch -p1` clean, the result byte for byte the copy; then `corpus-check` "OK — 45 slots, 26 filled, … 0 problems", `twin:pack` changed nothing, and `content:check`: "content: C1–C9 and N1–N5 passed for the resume and 44 scripts (denylist missing); the lock and the eval cases are current". All in `docs/merge-requests/human-patches/028.md`, P1. The slot stays null; no worker wrote his line.
+
+## T-B09: the PDF
+
+Merged `night/probe-pdf-028/probe-pdf-028` at `04f1a8a8` (`3893f21a`). No answer of his was in `/night/io/in/` when it ran. Its finding, in its words (`specs/028-room-after-review/probe-pdf.md`):
+
+> **Do the four annotations sit on the sub-headlines he means? Yes, on my reading.** Each one covers exactly one of the four small-caps category items on the line under the "hareet.ai" title (LOCAL MODELS FIRST · A REAL-TIME COST METER · A $5-A-DAY KILL SWITCH · EVERY DATA FLOW DISCLOSED). Each rectangle holds that item's glyphs and no others.
+
+> 1. **No code task for item 3.** Neither the PDF, its writer (`apps/web/build/film-links.ts`, run only by the opt-in case in `apps/web/test/content/film-links.test.ts`), nor the table (`films/resume-links.json`) needs to change for the line read above.
+> 2. **The fix is P8, his step** (`docs/merge-requests/human-patches/023.md`).
+
+Its question (page Q2), unanswered; its recommendation taken. `docs/merge-requests/human-patches/028.md`, P2, points him to P8 and the question (`8da69921`). No code.
+
+## Every rewritten test case (old name → new name)
+
+- `test/room/vocabulary.test.ts`: "hold exactly room-data-files.md §9's keys, each with exactly its slots": four rows and the count (86 → 90); name unchanged.
+- `test/room/dog-figure.test.ts`:
+  - "is wanted and shows for a visitor who chose the {woman, man, dog, dinosaur}" (four) → "isn't wanted, and nothing is at its home, for a visitor who chose the {woman, man, dog} (spec 028, FR-017)" (three), "isn't wanted for a dinosaur visit whose bundle lacks the dinosaur's model (spec 028, Q11)", and "is wanted for a visitor who chose the dinosaur, shows at its home, and stays hidden until the scene's entry (spec 028, FR-018)".
+  - "shows two dogs where the visitor chose the dog, one model parsed, two instances" → "shows one dog where the visitor chose the dog: the visitor's own (spec 028, FR-017)".
+  - Set up as a dinosaur visit (the dinosaur's folder bundled), names unchanged: "isn't in the hand-off's wait: the room settles with the dog still loading", "carries the approval's line on its picture signal while its model shows (FR-020)", "plays its walk and run by role, and its idle for a role it hasn't", "a failed model: one fallback signal, failed, and nothing at its home", "lists the dog's files after the twin's and the visitor's", "lists none with no figures.dog, or with the dog not bundled", "reset() puts the dog back to nothing at its home, still wanting it, and a reload shows it again", "one ready during the hand-off waits, and shows at its end (handoffEnded's retry)", "update() advances its mixer at quality level 0, not at 1".
+  - Added: "lists none for the woman or the man, or for a dinosaur visit without the dinosaur's model (spec 028, SC-005)".
+- `test/room/chase-stage.test.ts`: "makes the shell once the hand-off's promise resolves, and only once" → "makes no shell for the dinosaur once the hand-off's promise resolves (spec 028, FR-028)"; "with the scene's dog, makes it once for the %s after the hand-off ends, never while it's pending, and signals no chase" → "with the scene's dog, never makes it for the %s, the hand-off ended, and signals no chase (spec 028, FR-028)".
+- `test/room/chase-figures.test.ts` (not named in plan §R-B8; FR-028's clause; plan §R-B8 updated): "gives each figure's picture group, the dog's only where the room has one": its `real()` gains `dino`, and the case takes it; name unchanged.
+- `test/room/compose.test.ts`: "holds every rule of spec 004's nine families …": RI 11 → 12; name unchanged.
+- `test/room/avatars-compose.test.ts`: "names the man as the stand-in in the committed scene, with the defaults written out": `leave` joins the keys; name unchanged.
+- `test/room/eat-scene.test.ts` (spec 024's; tasks.md said none would be): its harness's `dinosaurPart()` drops `figures.leave`; no case's name or assertion changed. Asked on the page.
+- `test/room/dog-first-visit.test.ts`: "counts the room's dog's files once, and the largest other avatar's leaves the dog's folder out" → "counts the room's dog's files with the dinosaur's, as one visitor set, where it is the largest (spec 028, FR-029)"; added "counts no room's dog share where the bundle lacks the dinosaur's model; the dog visitor's folder competes alone (spec 028, FR-029)"; "counts the dog's files once where the scene names the dog the stand-in, which RA3 refuses (no hands)" (name kept; `other_id` the dinosaur); "refuses over phase 3 with the room's dog's bytes named, and passes at it" (name kept; the dinosaur's folder in its room); "the report's first-visit line names the room's dog's bytes, and only with figures.dog" → "the report's first-visit line names the room's dog's bytes, only with figures.dog and the dinosaur's model (spec 028, FR-029)".
+- `test/room/dog-disclosure.test.ts`: "in plan R-12's words, right after the twin's model and clips, once" → "in spec 028's plan R-B9's words, right after the twin's model and clips, once (spec 028, FR-030)".
+- `test/disclosure.test.ts`: "gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words" and "names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)": V1 composed with `amendment028`; names unchanged.
+- `evals/test_disclosure.py`: V1's Carries, the sentence replaced by plan R-B9's (cell for cell); no test renamed.
+- `test/room/bundle.test.ts`: "is written field by field in §3.1's order": `dog_visitor_intro` last; name unchanged.
+- `test/room/twin-states.test.ts`: a new `describe` for `wave`; none of spec 016's cases edited.
+- Not rewritten, though plan §R-B8 named them: `test/room/pet-shell.test.ts` (its subject, `shellDue` and the shell built by hand, is unchanged and green) and `test/room/dog-report.test.ts` (spec 020's likeness lines, unchanged and green). Plan §R-B8 says so.
+
+## Departures from the plan (each in `plan.md` in its commit)
+
+- §R-B4: `figures.leave.takes`, the placement taken, since the source scan keeps the bicycle's ID out of code; the shipped points placed by T-B03's print (the plan's `under_bicycle` lay in two obstacles); RI12.
+- §R-B7: the introduction rides in the room's index (`dog_visitor_intro`), read by both rooms, not in the 3D and 2D parts; said at the hand-off's end in both rooms (`offerResume`), since the 2D room runs its hand-off too.
+- §R-B8: the rewrites above that the plan didn't name, and the two it named that stay unchanged; `scene.ts` no longer offers `pet(id)` and no longer borders or picks the room's dog (no pet adapters are made).
+- Not in the plan's words, noted here: `Stage3D.say(text, seconds?)` (the stage owns the bubble; the call and the introduction both use it); `FigureSignal`'s `dino-call` and `dino-left`; `AvatarFigures.twinWave()`; `chase-figures.ts` exports `pictureOf`, `place`, and `Picture` (unchanged in behaviour) for the scene's adapter; `EatAvailability.sceneDone` optional, so spec 024's callers and tests keep their shape; the twin's state `fleeing` (its idle under the gait) from the gather on, so no talking clip plays while it walks or is hidden (FR-024).
+
+## Refusals
+
+- **The bash gate, twice**, both "Blocked by .claude/hooks/bash-gate.sh — skipping git's hooks. Route: commit without --no-verify or -n; the pre-commit scan runs on every commit (FR-008)", both false matches on text I was writing:
+  1. T-B04's RED commit, whose `-m` message named the test files by their suffixes after a hyphen (the bench file's suffix reads as short flags holding `n`). Not respelled: the message went into a file with the Write tool and `git commit -F` committed it (`9a57a915`); the two merge commits used `-F` the same way.
+  2. Appending these notes with a shell heredoc, whose text quoted that first message. Not respelled: these notes were written with the Write tool.
+  The hooks ran on every commit (each printed gitleaks' "no leaks found" and "arrival-check: 0 findings").
+- **The harness, once**: `sleep 60; cat …` to wait for `npm ci` was blocked ("To wait for a condition, use Monitor"); I used the Monitor tool. Not a permission or gate refusal.
+- No write refused: `corpus/proposals/dog-intro-2026-11-15.md` was written with the Write tool, as T-B08 allows.
+
+## Questions put on the page (`/night/io/out/questions.md`)
+
+- T-B06: may `eat-scene.test.ts`'s staged part drop `figures.leave`, its cases unchanged? Recommended and taken: yes.
+
+## What's left
+
+- **T-INT**: merge `impl-028a` (whose T-A06 wasn't there for T-B05) and resolve `src/room/app.ts` by plan §6: group B's edits are `figureSignal`'s two branches, and `introduceDogVisitor` with its call at the top of `offerResume`; then V1's still sentence (FR-002); then the one full `make check`.
+- **Not reached by this group's tests**: the scene's pictures and timings on the real twin, dog, and bicycle models (fakes and fixtures here); whether the dinosaur can still eat the bicycle's placement once its pictures have left (its placement stays edible in data); the bubble's place on a real canvas (jsdom has no layout). His look (SC-008) and the dinosaur's model (P9) come first.
+- **His hand**: human patch 028's P1 (the slot) and P2 (P8, the PDF); ADR 0055's two cases (T-DOC).
