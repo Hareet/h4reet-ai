@@ -1,6 +1,6 @@
 # The stack's CLAUDE.md lines: five reviews' lines for "Things Claude gets wrong" (for the Author's hand)
 
-Written by: implementer (patch-claude-md), rebuilt by implementer (claudemd2) · Date: 2026-11-14 (rebuilt 2026-11-15, night 2026-11-14) · Spec: 022-corpus-from-film-scripts (the task's spec; the lines come from five reviews across the stack)
+Written by: implementer (patch-claude-md), rebuilt by implementer (claudemd2), source line numbers corrected by implementer (claudemd3) · Date: 2026-11-14 (rebuilt 2026-11-15, night 2026-11-14) · Spec: 022-corpus-from-film-scripts (the task's spec; the lines come from five reviews across the stack)
 Branch: `night/claudemd2/claudemd2`, from `night/patch-claude-md/patch-claude-md` (`40c10cef`). Built from plain copies of `refs/heads/main` at `b6985ad2`. Main's `CLAUDE.md` is the same there as at `3c0e4cd0`, the first build's base (`git diff --stat 3c0e4cd0 b6985ad2 -- CLAUDE.md` prints nothing).
 
 ## Status: for his hand; not on main before the gate
@@ -37,15 +37,30 @@ Each source line was cut out of its page with `git show <ref>:<file> | sed -n '<
 
 | Line | Source (ref, file, line) | Result |
 |---|---|---|
-| Q249 | tonight's page, "rv-impl-025's findings, its words" (`night/supervisor/2026-11-14`, `47f56a3a`, `docs/night-shift/2026-11-14.md:611`) | the patch's line matches, with the full stop |
+| Q249 | tonight's page, "rv-impl-025's findings, its words" (`night/supervisor/2026-11-14`, `47f56a3a`, `docs/night-shift/2026-11-14.md:612`) | the patch's line matches, with the full stop |
 | Q249 | `docs/merge-requests/human-patches/025.md:16` on `night/merge-2/merge-2` (`ce3f6305`) | identical to the findings' copy |
 | Q249 | night 1's page, Q249 (`night/supervisor/2026-11-13`, `50fcb941`, `docs/night-shift/2026-11-13.md:1194`) | the question's quote lacks the full stop; the first build matched this copy, which is the one difference fixed (Q301) |
 | Q266 | tonight's page, Q266's "Recommended: yes, word for word" (`docs/night-shift/2026-11-14.md:133`) | identical; unchanged from the first build |
 | Q274 | tonight's page, Q274's "Recommended: yes, word for word" (`:165`) | identical; unchanged from the first build |
 | Q276 | tonight's page, Q276's "The line, in the review's words" (`:174`) | identical; unchanged from the first build |
-| Q298 | tonight's page, "rv-rework5-026's findings, its words", its "Feed back" (`:292`) | identical |
+| Q298 | tonight's page, "rv-rework5-026's findings, its words", its "Feed back" (`:293`) | identical |
 | Q298 | tonight's page, Q298's "The line, in its words" (`:49`) | identical to the findings' copy |
 | Q302 | tonight's page, Q302's question (`:63`), and the stack note's item 7 (above) | the two copies identical; listed above, not in the patch |
+
+Every "tonight's page" row cites `docs/night-shift/2026-11-14.md` at `47f56a3a` (`night/supervisor/2026-11-14`). The stack note's row cites `ce3f6305` (`night/merge-2/merge-2`). claudemd3 corrected Q249's line from `:611` to `:612` and Q298's from `:292` to `:293` (rv-docs3's N-4). It printed each cited line and the line before it, each cut to 100 columns:
+
+```text
+$ for n in 611 612 292 293; do git show 47f56a3a:$P | sed -n "${n}p" | cut -c1-100 | sed "s/^/47f56a3a :$n: /"; done
+47f56a3a :611: > - Feed back (REVIEW.md: second occurrence): this is the second time. The first was `docs/merge-req
+47f56a3a :612: >   > Turning git's hooks off by any spelling (`--no-verify`, `-c core.hooksPath`, a `GIT_*` variabl
+47f56a3a :292: >
+47f56a3a :293: > > Stating more in a note than the pasted run's assertion checks (e.g. "optimized" where the check 
+$ for n in 2859 2860; do git show ce3f6305:$S | sed -n "${n}p" | cut -c1-100 | sed "s/^/ce3f6305 :$n: /"; done
+ce3f6305 :2859: - **N-B (a test edit, so not made here; a follow-up):** `eat-scene.test.ts:291-319`'s regrowth half 
+ce3f6305 :2860: - **The reviewer's CLAUDE.md line** (rv-rework2-024), for his hand (CLAUDE.md is human-only): "Writi
+```
+
+(`P=docs/night-shift/2026-11-14.md`, `S=docs/merge-requests/2026-11-14-night-stack.md`.) Q302's line at `ce3f6305` is `:2860`, as this file has said since the rebuild. `:2859` is the N-B bullet. The review's "`:2859`" is the one that's a line off, so `:2860` stays.
 
 The first build's four lines against their pages, before the rebuild (on a `DIFFER`, the run shows the tail of a `diff` of the two lines folded at 200 columns):
 
