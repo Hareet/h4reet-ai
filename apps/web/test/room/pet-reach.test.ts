@@ -227,7 +227,10 @@ describe("reachAt (FR-007, FR-027)", () => {
       for (const dogHeading of [0, Math.PI, -2.1]) {
         const at = { t: 0, pet_s, dogHeading };
         const out = { weight: Number.NaN, target: v(0, 0, 0) };
-        for (let t = -0.2; t < pet_s + 0.3; t += pet_s / 97) {
+        // The sweep, and the ease's edges exactly (0, 0.5, pet_s − 0.5, pet_s) and NaN (rv-rework3-026's N-3).
+        const ts: number[] = [0, 0.5, pet_s - 0.5, pet_s, Number.NaN];
+        for (let t = -0.2; t < pet_s + 0.3; t += pet_s / 97) ts.push(t);
+        for (const t of ts) {
           at.t = t;
           reachAt(at, head, PET_REACH_DEFAULTS, out);
           const want = strokeTarget(head, dogHeading, strokeShare(t, at), PET_REACH_DEFAULTS, v(0, 0, 0));

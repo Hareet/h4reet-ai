@@ -138,7 +138,8 @@ class Numbers implements ReachClock {
 }
 
 /** The aim `faceTwin` is asked for, in a tagged field (`heading`, null before the first petting) written only when the
- *  aim changes, which `last` (unboxed) tells by a comparison of two numbers: a number passed to a call V8 doesn't
+ *  aim changes as a number (−0 = 0, as `!==` has it; rv-rework3-026's N-4: harmless, since `faceTwin` clamps a
+ *  difference), which `last` (unboxed) tells by a comparison of two numbers: a number passed to a call V8 doesn't
  *  inline is boxed at the call unless it is boxed already, and the homes, so the aim, stay the same from one petting to
  *  the next (FR-027; rework3-026, the page's Q284, measured). */
 class Asked {
