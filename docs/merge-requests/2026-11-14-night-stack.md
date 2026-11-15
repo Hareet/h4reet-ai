@@ -2596,6 +2596,113 @@ No full `make check`: the stack's last task runs it once (rule 4).
 
 **Interruptions (rework3-026).** No hook or bash-gate refusal; nothing was respelled. `make setup` installed `node_modules` (the worktree had none) and said the git hooks directory isn't writable in the sandbox.
 
+### rework4-026 (`night/rework4-026/rework3-026`, from rework3-026's tip 6758395f, Opus 5.5)
+
+Written by the night-shift implementer rework4-026 on 2026-11-15, from about 00:25Z to 01:00Z. It answers rv-impl3-026's Opus review of impl3-026's tip 5057ee19 ("Verdict: blocking"): B-1, I-1, N-2 to N-5, and spec 025 whole. rv-rework3-026 reviews rework3-026 and this branch together, and item 9's verify follows. This branch merges nothing.
+
+**B-1 (FR-027 over the real path): met with every function the review named in TurboFan's code. No source change was needed, and Q285 was not used.**
+
+- RED (1c502ecd): `pet-bench-real.test.ts`'s `hot` list names `adapters.twin`, `real.faceTwin`, `adapters.chase.faceTwin`, and `adapters.chase.twinFacing`. Since rework3-026 the director reads `twinFacing` in `twinHeading`'s place. The case counts `twinHeading`'s calls, and checks the time before the bytes (N-2). It failed with "hot function 5 optimized before the measure": `adapters.chase.faceTwin` stayed at Maglev through 100 passes.
+- Why, from V8's status and `--trace-turbo-inlining` (in a scratch copy, since deleted):
+  - `adapters.twin` is inlined into `frame`, and is also compiled by TurboFan on its own. `real.faceTwin` is compiled by TurboFan.
+  - `adapters.chase.faceTwin` is inlined into `select` and `endPetting`, and `real.faceTwin` is inlined with it.
+  - `adapters.chase.twinFacing` is inlined into `atAim` and `atHome`.
+  - So the own code of those two runs too seldom to tier up. Asked of TurboFan with `%OptimizeFunctionOnNextCall` after 2,000 more pettings, both still read "marked" (status bit 8): their own code was never entered.
+- GREEN (04c209c4) is in the measure, `test/helpers/bench.ts`:
+  - A new `inlined(f)` entry. Once the rest of `hot` is optimized, the warm-up asks TurboFan to compile `f` on its next call of its own. Before and after the measure, it checks that `f` is either TurboFan's or still asked. Still asked means every call was inlined into its callers' optimized code. Either way, no call of it ran in V8's lower tiers.
+  - `bytesPerCall` now checks all of `hot` after the measure as well, so a deoptimization during the measure fails the case.
+  - `twinHeading` is called 0 times on the real path.
+- The same number alone and in the whole file:
+  - The file, three runs: 6.55, 6.60, and 6.60 bytes a whole petting of 252 frames.
+  - The case alone (`-t "whole pettings"`): 6.60.
+  - With `pet-bench.test.ts` in the same run: 6.60.
+  - The bar is 12 bytes a petting, under one object. rework3-026 measured 6.49, 6.49, and 6.60 without waiting for the four. The same numbers with the four waited for show that they weren't adding bytes from a lower tier then either.
+- Q285's amendment (R-07: `Runner`'s fields) applied only "if the warm-up shows the bytes are in V8's optimized code". Nothing over the bar is left in optimized code, so the runner stays spec 025's literal and no spec 025 test was edited.
+- The real case is a plain `it`, not `it.fails`, as rework3-026 left it.
+
+**I-1: the shell's rule as a pure function.**
+
+- `shellDue(chosen, handedOff, hasDog)` is in `pet-adapters.ts`, not `chase-figures.ts`. Its body is `chaseDue(chosen, handedOff) || (handedOff && hasDog)`, and `scene.ts` makes the shell on it.
+- RED (7e8f6f88): 17 failed | 1 passed (18), "shellDue is not a function". GREEN (0e61bb4f): 18 passed.
+- `pet-shell.test.ts` runs it over every `AvatarId` (four) × `handedOff` × `hasDog`: 16 cases, plus a case that checks the list is whole.
+- The wired case, for every non-dinosaur visitor (step 4, 7bb2b980; Q282's "every visitor the shell reaches"), with:
+  - a real controller and its hand-off (the twin turned more than 0.4 rad mid-way);
+  - the twin's real model;
+  - the shell and the director made only once `shellDue` says so, as `scene.ts` makes them.
+- What the wired case checks:
+  - 120 frames at home with no petting: no call of `position.copy`/`set` or `rotation.copy`/`set` on the twin's picture, and its pose equals its pose at the hand-off's end.
+  - A petting: the picture turns, and writes happen.
+  - After the petting: exactly the post-hand-off pose, and 120 more frames with no write.
+  - No run starts.
+- Result: 21 passed (21).
+
+**Nits.**
+
+- N-2: the time is checked before the bytes in `pet-bench-real` and in `pet-bench`'s two other cases that check both.
+- N-3: `scene.ts`'s doc comment on the shell now says what Q282 changed.
+- N-4: `dog_intro_proposal.py`'s docstring is wrapped. No line over 120 is left in it (it had one of 185); its tests: 28 passed.
+- N-5: `petAdapters` is declared before the highlight and the picker, whose callbacks read it. The highlight's `figures?.pictureOf` is reached only once `petAdapters` is non-null.
+- **N-1, for item 9's verify:** the picture-level check that the dog doesn't move (`pet-wiring.test.ts`, and the fake dog view in `pet-shell.test.ts`) is vacuous until the dog's model is on the line, because `figures.pictureOf("dog")` is null and the shell has no dog runner. The real guard today is the director-level check in `chase-face.test.ts`. It waits for intake-020 (his look approval), along with `DOG_HEAD_UP`, `DOG_HEAD_FORWARD`, and `dogBoxAt` against the model (T011b's gap).
+- Not done, beyond the review's cap (it named them, but not as asks): `twin-compose.test.ts:77`'s title ("five clips" against six roles); the highlight following the dog if a run starts while it's highlighted.
+
+**Spec 025 whole.**
+
+- `chase-figures.ts` is unchanged from item 8's line (its last commit is e595dae3, spec 025's) and is still the twin heading's one writer (R-07).
+- `chase.ts` differs from verify-025's tip only by spec 026's `faceTwin` and `turnTwin` (51 lines).
+- Item 8's B-1 stays out for every visitor the shell reaches: `chase-handoff.test.ts` covers the dinosaur, and `pet-shell.test.ts` covers the other three.
+- Departures and updates are in plan.md (R-04 "As reworked (rework4-026)", §4, §5, §6) and tasks.md (T014, T016), in c69bd75c.
+
+**Small runs (rule 4), from `apps/web`; every number beside its run:**
+
+```
+RED   pet-bench-real (1c502ecd)                  Tests 1 failed (1)
+        AssertionError: hot function 5 optimized before the measure: expected false to be true
+GREEN pet-bench-real, three runs (04c209c4)      Tests 1 passed (1), each
+        pet.select and pet.frame over the real adapters, with chase.frame: 6.55 bytes a petting of 252 frames;
+        0.0001 ms a frame
+        ... 6.60 bytes a petting ...; ... 6.60 bytes a petting ...
+GREEN pet-bench-real -t "whole pettings"         Tests 1 passed (1); 6.60 bytes a petting; 0.0001 ms a frame
+GREEN pet-bench, pet-bench-real together         Test Files 2 passed (2) · Tests 6 passed (6) · Duration 78.39s
+        real adapters 6.60 bytes a petting; a whole petting of 251 frames 4.04; a short petting 0.72;
+        a cut petting 0.24; applyReachLayer at weight 1: 0.46 bytes a frame, legs off 0.45, 0.0041 ms, legs off
+        0.0032 ms; at 0.37: 0.45, 0.45, 0.0040 ms, 0.0032 ms; the wired twin: linked 692.35 bytes and 0.0113 ms a
+        frame, unlinked 688.77 and 0.0047 ms, the reach adds 3.58 bytes and 0.0066 ms
+RED   pet-shell (7e8f6f88)                       Tests 17 failed | 1 passed (18); shellDue is not a function
+GREEN pet-shell (0e61bb4f)                       Tests 18 passed (18)
+GREEN pet-shell, every non-dinosaur visitor      Tests 21 passed (21) · Duration 61.19s
+spec 025's chase tests: chase-bench, chase-degraded, chase-director, chase-end-line, chase-face, chase-figures,
+        chase-handoff, chase-notes, chase-schema, chase-states, chase-steer: Test Files 11 passed (11) · Tests 144
+        passed (144)
+the files covering what changed (scene.ts, pet-adapters.ts): pet-adapters, dog-selectable, pet-wiring,
+        pet-director, pet-degraded, pet-homes, lookdev/page, avatar-scene, faces, room/highlight, quality, scene-fit,
+        scene, stage-walk, twin-network, ui/degraded, ui/highlight, ui/pick: Test Files 18 passed (18) · Tests 441
+        passed (441) · Duration 154.26s
+from the root: python3 -I -m pytest scripts/corpus/test_dog_intro_proposal.py -q -p no:cacheprovider
+        28 passed in 2.50s
+```
+
+The lint target, from the root, at c69bd75c, exit 0:
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+821 files already formatted
+# then shellcheck over the repository's scripts: no finding; make exited 0
+```
+
+No full `make check` was run: the stack's last task runs it once (rule 4).
+
+Docs checks, from the root: `python3 -I -m pytest -q -p no:cacheprovider evals/test_docs_links.py evals/test_repository_docs.py`: 61 passed in 1.59s; `python3 -I evals/docs_links.py`: "docs links: 0 failed, 2486 relative links in 439 files".
+
+**Interruptions (rework4-026).** No hook or bash-gate refusal, and nothing was respelled. `make setup` installed `node_modules` (the worktree had none) and said the git hooks directory isn't writable in the sandbox. No new question: Q285's condition wasn't met, so nothing waits on him from this branch.
+
 ## Item 10: spec 027, when the twin's file context stops being enough (`night/impl-027/impl-027`)
 
 Spec: specs/027-corpus-retrieval-adr/ · Intent: intent/027-corpus-retrieval-adr.md (draft) · ADR: docs/adr/0054-when-file-context-stops-being-enough.md (proposed) · Written by: implementer (night shift, impl-027, Opus 5.5); the review is for a worker who didn't write the code (T006; the reviewer follows this task) · Date: 2026-11-14
