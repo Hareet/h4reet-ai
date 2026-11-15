@@ -54,7 +54,6 @@ function layoutWith(keycap?: (doc: Document, name: string) => HTMLElement) {
     list: div(),
     talk: div(),
     around: div(),
-    note: "note",
     pause: "Pause the room",
     walk: { enter: "Walk", leave: "Stop walking", region: "region", help: "help" },
     eat: { button: EAT, ...(keycap ? { keycap } : {}) },

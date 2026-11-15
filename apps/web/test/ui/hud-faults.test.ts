@@ -10,7 +10,7 @@ import { compose } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import type { Protect } from "../../src/room/compose/frame";
-import { hudBoxes } from "../../src/room/compose/hud";
+import { hudBoxes, wallArea } from "../../src/room/compose/hud";
 import type { Box } from "../../src/room/compose/hud";
 import type { StatusResult } from "../../src/room/signals/tier";
 import {
@@ -211,7 +211,10 @@ describe("the frame under every fault (spec 014, T021)", () => {
     const px = (name: string): number => Number.parseFloat(root.style.getPropertyValue(name));
     const frame = { x: px("--frame-x"), y: px("--frame-y"), w: px("--frame-w"), h: px("--frame-h") };
     for (const value of Object.values(frame)) expect(Number.isFinite(value), `${what}: --frame-*`).toBe(true);
-    expect(holds(frame, clear), `${what}: the frame holds the clear area`).toBe(true);
+    // Spec 028 (T-A06's run, after T-A03; plan.md §R-B8): where the window takes the split layout the frame is its wall
+    // area, beside the panel and the column; elsewhere it holds the clear area, as spec 014 has it.
+    if (root.getAttribute("data-split") === "on") expect(frame, `${what}: the split's frame`).toEqual(wallArea(W));
+    else expect(holds(frame, clear), `${what}: the frame holds the clear area`).toBe(true);
     expect(holds({ x: 0, y: 0, ...W }, frame), `${what}: the frame lies in the window`).toBe(true);
     if (v.room.visit.mode !== "2d") {
       const given = v.scene.created[0]?.frame?.();

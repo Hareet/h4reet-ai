@@ -122,7 +122,7 @@ import type { TierValue } from "./signals/tier";
 import { classifyTurn, createCostChannel } from "./signals/turn-cost";
 import type { CostChannel } from "./signals/turn-cost";
 import type { ClearArea, FigureSignal, FrameGiven, SceneModule, Stage, Stage3D, WalkEnd } from "./stage";
-import { renderTextCopy } from "./text-copy";
+import { placeholderWords, renderTextCopy } from "./text-copy";
 import type { TextCopy } from "./text-copy";
 import { uiWord } from "./ui-keys";
 import { NO_TARGET, reduceTarget } from "./walk/target";
@@ -455,29 +455,31 @@ export function startRoom(deps: RoomDeps): RoomHandle {
    *  a load that fell back, and the visitor's figure while the 3D room shows its flat shape. */
   const placeholders = { pieces: deps.room.build.placeholders, figure: false };
   function showPlaceholders(): void {
-    room?.setPlaceholders({ pieces: placeholders.pieces, figure: placeholders.figure && visit.mode !== "2d" });
+    // Spec 028 (FR-012, FR-015): "Around the room"'s line, no longer the stage's note.
+    copy?.setPlaceholders(
+      placeholderWords(deps.room.ui, {
+        pieces: placeholders.pieces,
+        figure: placeholders.figure && visit.mode !== "2d",
+      }),
+    );
   }
 
-  /** Spec 016 (FR-014; contracts/twin-states.md §4): the line slot, the stage's note's second paragraph and the text
-   *  copy's first line: the twin's line while its own picture shows (its model in 3D, its still in 2D), the stand-in
+  /** Spec 016 (FR-014; contracts/twin-states.md §4): the line slot, since spec 028 the text copy's first line alone: the twin's line while its own picture shows (its model in 3D, its still in 2D), the stand-in
    *  line otherwise, swapped in place on each picture signal of the twin's figure. */
   let twinOwn = false;
   function showLine(): void {
-    const stand = uiWord(deps.room.ui, "twin.stand_in") ?? "";
-    const own = twinOwn && deps.room.twin ? deps.room.twin.line : stand;
-    room?.setLine(own);
+    // Spec 028 (FR-012): "Around the room"'s first line alone; the stage's note is no longer drawn.
     copy?.setTwinOwn(twinOwn);
   }
 
-  /** Spec 020 (FR-007; plan.md R-02): the likeness line of a visitor-avatar model, in the stage's notes and the text
-   *  copy's slot, once, while any figure but the twin's shows a model whose bundle entry has one (the visitor's, or a
+  /** Spec 020 (FR-007; plan.md R-02): the likeness line of a visitor-avatar model, since spec 028 in the text copy's
+   *  slot alone, once, while any figure but the twin's shows a model whose bundle entry has one (the visitor's, or a
    *  room figure's: spec 025's dog); away otherwise. The twin's likeness has its own slot (spec 016), so its figure's
    *  pictures never reach this one. */
   const likeness = createLikenessLine();
   function showVisitorLine(): void {
-    const line = likeness.line;
-    room?.setVisitorLine(line ?? "");
-    copy?.setVisitorLine(line);
+    // Spec 028 (FR-012): "Around the room"'s slot alone.
+    copy?.setVisitorLine(likeness.line);
   }
 
   /** Spec 009's figures as the 3D stage reports them: avatar_failed once a visit (FR-032), and the frame log (FR-035). */
@@ -830,8 +832,6 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       list,
       talk: talk.element,
       around: around.element,
-      note: uiWord(deps.room.ui, "standin.note") ?? "",
-      noteAvatar: uiWord(deps.room.ui, "standin.avatar") ?? "",
       pause: uiWord(deps.room.ui, "pause.button") ?? "",
       credits: uiWord(deps.room.ui, "toolbar.credits") ?? "Credits",
       // Spec 024 (FR-012): the "Eat" tile's words.
@@ -852,10 +852,6 @@ export function startRoom(deps: RoomDeps): RoomHandle {
             },
           }
         : {}),
-      // Spec 009's stand-in line, while the index's copy holds it (its FR-013; plan.md R-13).
-      standIn: deps.room.copy.some((e) => ("line" in e && e.line === "twin.stand_in") || "twin_line" in e)
-        ? (uiWord(deps.room.ui, "twin.stand_in") ?? "")
-        : "",
     });
     room = layout;
     split = createSplit(doc, {
