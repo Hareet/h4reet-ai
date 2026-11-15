@@ -25,6 +25,22 @@ Documentation only. No model call, no endpoint, no telemetry, and no byte leavin
 
 None yet. An agent that didn't write this change reviews it.
 
+### Review (rv-record2-dino-r2): not blocking
+
+Appended by `merge-028-1`, which took this tip (`bfad20be`) into the 028 line (rule 6: non-blocking findings go to the item's note). Copied from the night page's Stacks row (`git show 30b4675e:docs/night-shift/2026-11-15.md`), unchanged; nothing here is fixed by the merge task.
+
+> **Reviewed, ~07:55Z, by `rv-record2-dino-r2`: not blocking**, no Important finding, five nits (verdict in its io `out/review.md`)
+
+- **N1:** "`studio-round-2.md:607` and the note's line 57 say his mesh review is given without quoting his night-3 words ("his mesh review and the date 2026-11-11 in the handoff's `records.json`") or marking night 2's Q222 answered by them, and Q223 (FR-007's "its source a prompt" against the record's `design` `D-0003`) isn't listed beside Q198"
+- **N2:** "the note's line 56 says "once the stack is on main", which is stale (main `a36f98ec` holds what P9 waits for), and names no Q number (it is Q1)"
+- **N3:** "the note's line 3 says "Intent: none", which should name `intent/021-dinosaur-modeled-and-brought-in.md`"
+- **N4:** "the note's line 18 cites no criterion (US3, FR-015, FR-016, SC-006)"
+- **N5:** "`studio-round-2.md:596` asserts the handoff is unchanged after `--record` without pasting it."
+
+(The line numbers are this note's and `studio-round-2.md`'s at `bfad20be`; this section moves nothing above line 26.)
+
+**The supervisor's real-input check.** "The reviewer's container has no `/srv/studio`, so its step 2 (the real input) didn't run there. **The supervisor ran it read-only, ~07:56Z, and it holds:** `sha256sum` of the 10 files in `/srv/studio/handoff/dinosaur/2/` matches the record's pasted list (`records.json` `39b89e14…d4df`; `dinosaur.glb` `1aa8075b…`, `dinosaur-idle.glb` `dc2f84a6…`, `dinosaur-walk.glb` `d895b608…`, `dinosaur-take.glb` `3bca518b…`; `candidate.json` `9b1a09b2…`; `LICENSE.md` `f7118869…`; `front.png` `18b17bea…`, `side.png` `a05c2dec…`, `note.md` `9332ab73…`), which also answers N5. `/srv/studio/briefs/dinosaur/2.result.json` is `6b3de7033916…2347a`, `{"schema": 1, "asset": "dinosaur", "round": 2, "result": "pass", "findings": []}`. `python3 -I -B scripts/studio/line.py round dinosaur` prints `passed 2`, exit 0."
+
 ## Verification
 
 Checks first, step 3, and step 4 are pasted whole in `studio-round-2.md`, "Round 2's record (`record2-dino-r2`)". Rule 4: this task changes no code and no test, so `make lint` is its run. `make setup` ran first (no `node_modules`) and exited 0.
