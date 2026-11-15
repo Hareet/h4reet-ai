@@ -230,9 +230,16 @@ describe("the room's live region (FR-020, FR-021)", () => {
     signal(v, { kind: "dino-left", who: "both" });
     await flush();
     // The left lines name the taken piece, a room ID (spec 004's FR-007), so they are read from the room's words.
-    const { ui } = repositoryBundle().index;
-    expect(ui["figures.left_both"]).toMatch(/^The twin and the dog took the .+ and left\.$/);
-    expect(ui["figures.left_twin"]).toMatch(/^The twin took the .+ and left\.$/);
+    // rv-rework2-028b's B4-2 (T-INT): the noun is the taken placement's piece's name, read from the bundle by
+    // `figures.leave.takes`, so the words can't name another piece and pass (FR-021's exact words).
+    const { index, scene } = repositoryBundle();
+    const { ui } = index;
+    const takes = scene.figures?.leave?.takes;
+    const piece = index.selectables.find((s) => takes !== undefined && s.members.includes(takes));
+    if (!piece) throw new Error("no selectable holds the taken placement");
+    const noun = piece.name.toLowerCase();
+    expect(ui["figures.left_both"]).toBe(`The twin and the dog took the ${noun} and left.`);
+    expect(ui["figures.left_twin"]).toBe(`The twin took the ${noun} and left.`);
     expect(textOf(announcer(v.doc))).toBe(ui["figures.left_both"]);
     signal(v, { kind: "dino-left", who: "twin" });
     await flush();

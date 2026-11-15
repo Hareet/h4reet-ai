@@ -43,7 +43,10 @@ async function expectWhole(v: Visit, what: string): Promise<void> {
   // Spec 028 (T-A06, FR-012, FR-015; plan.md §R-B8): the stand-in line is no longer on the stage; "Around the room"
   // keeps it for a screen reader.
   expect(v.doc.querySelector(".room-stand-in"), what).toBeNull();
-  expect(textOf(v.doc.querySelector('.room-around [data-line="twin"]')), what).not.toBe("");
+  const line = v.doc.querySelector('.room-around [data-line="twin"]');
+  expect(textOf(line), what).not.toBe("");
+  // rv-028a-4's A4-1 (T-INT): and a screen reader reaches it (FR-015).
+  expect(line?.closest("[hidden], [inert], [aria-hidden='true']") ?? null, what).toBeNull();
   for (const part of v.doc.querySelectorAll(".hud-bar, .hud-panels, .room-list, .talk"))
     expect(part.hasAttribute("inert"), `${what}: ${part.className}`).toBe(false);
   const view = v.doc.querySelector(".room-stage-view");

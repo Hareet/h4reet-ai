@@ -149,6 +149,8 @@ describe("what never hides (FR-021, FR-022)", () => {
       // Spec 028 (FR-012, FR-015): the stand-in line is "Around the room"'s, off the stage.
       const line = v.doc.querySelector('.room-around [data-line="twin"]');
       expect(textOf(line), what).not.toBe("");
+      // rv-028a-4's A4-1 (T-INT): and a screen reader reaches it (FR-015).
+      expect(line?.closest("[hidden], [inert], [aria-hidden='true']") ?? null, what).toBeNull();
       expect(shown(v.doc.querySelector("#talk-text")), `${what}: the text box`).toBe(true);
       // Nothing that collapses holds either.
       expect(strip?.closest(".room-list, .talk-sheet, .resume-panel"), what).toBeNull();
