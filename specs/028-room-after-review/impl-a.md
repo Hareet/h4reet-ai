@@ -294,7 +294,14 @@ T-A06 RED, `text-copy`, `notes-gone`: `Test Files 1 failed | 1 passed (2) · Tes
 
 T-A08 RED, `around`: `Test Files 1 failed (1) · Tests 5 failed | 15 passed (20)`. GREEN, T-A08's list (`around`, `a11y`, `text-copy`, `notes-gone`, `room/text`, `pause`, `room/live`, `hud-a11y`, `loading-a11y`, `hud-look`): `Test Files 10 passed (10) · Tests 199 passed (199)`; `room/hud-contrast`: `Test Files 1 passed (1) · Tests 12 passed (12)`.
 
-RUN_AT_TIP
+At the tip (`c0f4818c`), every test file covering the files this rework changed, and the T-A05 stage readers whose stages the tiles could move. The 64 files: `lookdev/page`, `lookdev/candidate`, `lookdev/phone`, `dog-line`, `eat-box`, `room/flat`, `hud-split-geometry`, `hud-wall-geometry`, `wall-box`, `likeness-line-anywhere`, `likeness-visitor`, `room/live`, `report-split`, `report`, `stages-floor`, `stages`, `room/text`, `frame`, `room/hud`, `framing`, `protect`, `eat-checks`, `eat-model`, `legibility`, `stages-checks`, `twin-compose`, `hud-contrast`, `a11y`, `around`, `avatars`, `degraded`, `eat-button`, `eat-place`, `eat-key-repeat`, `handoff`, `hud-a11y`, `hud-faults`, `hud-split-a11y`, `hud-split-list`, `hud-split`, `hud-split-rest-row`, `hud-split-fallback`, `hud-split-contrast`, `hud-split-model`, `hud-model`, `hud-wall-dom`, `ui/hud`, `hud-look`, `hud-pointer`, `hud-notes`, `split-no-still`, `resize`, `flat-frame`, `loading-a11y`, `loading-degraded`, `loading-faults`, `loading-page`, `loading`, `loading-notes`, `notes-causes`, `notes-gone`, `pause`, `text-copy`, `credits`.
+
+```
+$ ../../node_modules/.bin/vitest run <the 64 files> --maxWorkers=1
+ Test Files  64 passed (64)
+      Tests  995 passed (995)
+exit 0
+```
 
 ### Every rewritten test case (old name → new name)
 
