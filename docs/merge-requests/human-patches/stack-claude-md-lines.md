@@ -135,7 +135,7 @@ $ git diff --no-index --numstat ../claude-md/CLAUDE.md.main CLAUDE.md
 This file was also applied as he will apply it, prose and all, on a second fresh export (`export-2`), from this branch's committed copy:
 
 ```text
-$ git show "HEAD:docs/merge-requests/human-patches/stack-claude-md-lines.md" > ../claude-md/stack-claude-md-lines.md
+$ git -C ../.. show "HEAD:docs/merge-requests/human-patches/stack-claude-md-lines.md" > ../claude-md/stack-claude-md-lines.md
 $ patch -p1 --dry-run < ../claude-md/stack-claude-md-lines.md
 checking file CLAUDE.md
 md dry-run exit 0
@@ -146,7 +146,11 @@ $ cmp ../claude-md/CLAUDE.md.new CLAUDE.md
 cmp exit 0
 $ find . -name "*.orig" -o -name "*.rej"
 find exit 0
+$ sed -n '/^--- a\/CLAUDE.md$/,$p' ../claude-md/stack-claude-md-lines.md | sed '$d' | cmp - ../claude-md/claude-md.diff && echo "embedded diff = claude-md.diff"
+embedded diff = claude-md.diff
 ```
+
+The last line says the diff at the end of this file is byte for byte the diff whose SHA-256 is recorded above. This run read the committed copy at `600e60c0`. Later commits change only this prose, never the diff; the final copy was applied again the same way on a third fresh export, and that run is pasted in `docs/merge-requests/2026-11-14-claudemd2.md`.
 
 ### The size, against Q277's cap
 
