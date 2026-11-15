@@ -41,8 +41,9 @@
 //   A selection, on any path, clears it in the same call (FR-011); the fall to 2D resets it. A target sends nothing:
 //   no event, request, or storage, and no log line outside a drafts build's frame log (FR-013).
 // - Spec 009's avatars: before the hand-off the room waits for both figures' avatars, at most the scene's wait_ms from
-//   the 3D stage's mount (Phase 2); the stage's note shows the stand-in line, the UI word twin.stand_in, while the
-//   index's copy holds it, which in that spec is always, in 3D and 2D (its FR-013); the 3D stage reports its figures
+//   the 3D stage's mount (Phase 2); the stage's note showed the stand-in line, the UI word twin.stand_in (since spec
+//   028, FR-012, "Around the room" alone holds it), while the index's copy holds it, which in that spec is always, in
+//   3D and 2D (its FR-013); the 3D stage reports its figures
 //   (onFigure), and the room sends avatar_failed once a visit, with no identifier, on the first figure file that
 //   failed after its retry, never for a skip, a missing file, the floor, or 2D (FR-032), and logs each picture's and
 //   clip's change in a drafts build's frame log (FR-035).
@@ -460,8 +461,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     copy?.setPlaceholders({ pieces: placeholders.pieces, figure: placeholders.figure && visit.mode !== "2d" });
   }
 
-  /** Spec 016 (FR-014; contracts/twin-states.md §4): the line slot, since spec 028 the text copy's first line alone: the twin's line while its own picture shows (its model in 3D, its still in 2D), the stand-in
-   *  line otherwise, swapped in place on each picture signal of the twin's figure. */
+  /** Spec 016 (FR-014; contracts/twin-states.md §4): the line slot, since spec 028 the text copy's first line alone:
+   *  the twin's line while its own picture shows (its model in 3D, its still in 2D), the stand-in line otherwise,
+   *  swapped in place on each picture signal of the twin's figure. */
   let twinOwn = false;
   function showLine(): void {
     // Spec 028 (FR-012): "Around the room"'s first line alone; the stage's note is no longer drawn.
