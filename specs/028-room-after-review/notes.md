@@ -57,3 +57,63 @@ None. No hook, bash-gate, or permission refusal in this session.
 - Risk R-1: RG7 may fail at a reference stage with the room framed between the columns; T-A05 asks on the page if so.
 - His hand: the dog visitor's introduction slot (T-B08's proposal and patch), the PDF's publishing (P8), the dinosaur's model (P9), and his look (SC-008).
 - The intent moves into `specs/028-room-after-review/intent.md` when he accepts it (`intent/README.md`, step 2).
+
+# Notes: rework-spec-028 (night of 2026-11-15, spec-writer, Opus 5.5)
+
+Task `rework-spec-028`, on `night/rework-spec-028/rework-spec-028` from spec-028's tip `9cf2f91f`, after `rv-spec-028` found it blocking (its findings on the committed page, `git show d303965a:docs/night-shift/2026-11-15.md`, Stacks, spec-028's row "Reviewed, ~08:19Z", and Q10, Q23). Documents only: `specs/028-room-after-review/` (spec, plan, tasks, analysis, these notes), `intent/028-room-after-review.md`, and `/night/io/out/questions.md`. No code, no human-only path, no corpus file, no merge, no push.
+
+## Each finding and its fix
+
+Checked on `main` before fixing: `compose/hud.ts:221-226` (`layoutFor`: the column for a landscape window ≥ 32rem, the dock otherwise), `fitsHud` (the stacked layout only below 20rem or a clear area under 304 × 196), `layout.ts:431-435` (the split is `data-hud="column"` with `data-split="on"`), `build/room/emit.ts`'s `copyOf` (no placeholder slot), `layout.ts`'s `setPlaceholders` (the stage's `p.room-note`), `text-copy.ts:105-193` (the twin's and the visitor's slots), `scene/twin-states.ts` and spec 016's `contracts/twin-states.md` (`arrive`: "once a visit"), `human-patches/023.md`'s timing cell, `human-patches/026.md` (the lead note, the "Dog" piece, its prerequisites).
+
+- **B-1 (blocking)**: "Around the room" visible in the dock and stacked layouts, hidden in the split and column (`html[data-hud="column"]`), read everywhere. Spec Q7 (its reading corrected), FR-016, US3 AS3/AS4, Amendments; plan §1, §R-A6; T-A08 **Changed → rework-028a**.
+- **B-2 (blocking)**: FR-012, SC-003, US3 AS1 scoped to the stage's notes (`.room-notes`: `p.room-stand-in`, `.room-visitor-line`, `p.room-note`) and anything outside "Around the room", with "where "Around the room" shows (FR-016), its lines show with it". T-A06 **Changed → rework-028a** (`notes-gone.test.ts`'s scope).
+- **I-1**: Q6 corrected; FR-015 "keeps main's lines **and adds** the placeholder words while a stand-in shows", in a stated place (new Q23: one item right after the visitor's line, at runtime, `text-copy.ts`'s new `setPlaceholders`, no build change); the edge case, FR-032, SC-003; plan §R-A5; T-A06 **Changed → rework-028a**.
+- **I-2**: new FR-033 and Q20 (rv's question, the page's Q23: hold 026); plan §7 (order 022 → 026 → 028, generated files regenerated once after the third, never hunks; what 028 means for 026); T-INT step 3 runs `patch -p1 --dry-run` on a plain `git archive refs/heads/main` export and on it with 022 then 026 applied; T-B08 **Changed → T-INT**.
+- **N-1**: his review, his two answers, and his rule-14 answers quoted under the "Approved provisionally" lines of plan.md and tasks.md (the lines kept); the `> ` lines' checksums match spec, plan, tasks, and intent.
+- **N-2**: the focus overlay written into FR-016 (new Q22).
+- **N-3**: FR-020 names `wave(now, length_s)`; Amendments gains spec 016's `contracts/twin-states.md` row; plan §R-B3, R-3.
+- **N-4**: SC-001: the panel's top at the wall box's with no note, below the notes' reserve with one; T-A01 **Changed → rework-028a**.
+- **N-5**: plan §6 names owners for `stage.ts`, `compose/bundle.ts`, `scene/bundle3d.ts`, `scene/highlight.ts` (B), `compose/floor.ts`, `vite.config.ts`, `build/room/checks/rg.ts` (A); T-INT step 2 lists cross-edits.
+- **FR-026 (counted)**: decided **the twin alone** (new Q21): a dog with neither `walk` nor `run` is treated as not bundled. Why: the lack is the dog's; the twin can still walk; his order keeps as much of itself as the room can show; the same lack gets one answer. FR-026, US4 AS5, plan §R-B3; T-B04 **Changed → T-INT** (step 1).
+- **His rule 14**: his Q2 and Q3 words recorded verbatim as answered in spec Q19 and Q11 (rule 14's reading and mine beside them), and in the intent. FR-031: P8 is his in the morning, not after the repository is public; T-INT step 4 brings `human-patches/023.md`'s timing cell in line, quoting his words, keeping spec 003's A9 order (gate, merge, then entry). T-B09 and T-B10 **Changed → T-INT** (steps 4, 5).
+
+Every fix is in analysis.md's "Rework after rv-spec-028" table with its finding's id. tasks.md adds R-028a (`rework-028a`'s task) and T-INT's five added steps; T-INT now starts from `rework-028a`'s tip.
+
+## Questions
+
+In `/night/io/out/questions.md`, each with its recommendation, taken provisionally: spec Q21 (the dog that can't walk), Q22 (the focus overlay), Q23 (the placeholder words' place). Not asked twice: Q20 (the page's Q23, rv-spec-028's) and Q7 as reworked (the page's Q10).
+
+## `make lint`
+
+`node_modules` was absent, so `npm ci --ignore-scripts` first (exit 0), then on this branch with every file written:
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+854 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+$ echo $?
+0
+```
+
+Also `python3 -m pytest -q evals/test_repository_docs.py evals/test_docs_links.py`: 61 passed. No other test: no code changed.
+
+## Refusals
+
+None. No hook, bash-gate, or permission refusal in this session.
+
+## What's left
+
+- `rework-028a` (R-028a): merge this tip into group A's and rework T-A01, T-A06, T-A08 as marked.
+- T-INT: its five added steps (the dog that can't walk; ownership; the patch order and dry-runs; `023.md`'s timing cell; his Q3 answer in the stack's note), then the one `make check`.
+- The rework of patch 026 (Q20, recommended: hold it) is not a task of spec 028; named in plan §7 for the supervisor's queue and his hand.
+- His answers to Q20 to Q23 on the page; an answer he overturns is reworked before he merges.
