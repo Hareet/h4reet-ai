@@ -363,6 +363,25 @@ dino scene: mean ms a frame per run 0.0002, 0.0001, 0.0001
 - **A departure from the brief's "never bare `npx`"**: one `npx --no-install prettier --check` on two documents (it runs only the lockfile's local binary, installs nothing); the rest used `node_modules/.bin/…` and `make lint`.
 - No question for the page: each finding's fix was named, and B3-2's new fact (`docs/corpus-size.json`) needs only the note's commands, which FR-033 already orders.
 
+### `make lint`
+
+At `e00e9a38` (after B1-2 to B2-1) and again at this section's first commit, both exit 0; the second:
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+858 files already formatted
+… | xargs -0 -t shellcheck -- … (the repository's 29 shell files; no finding printed)
+exit 0
+```
+
 ### What's left for T-INT
 
 - Step 1 ("The dog that can't walk") is done here (B1-2): skip it, saying so.
