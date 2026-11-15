@@ -69,6 +69,44 @@ diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p6-*' a
  };
  
  /** The speech glyph: a speech bubble, for free talk and a piece with no emblem of its own. */
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p6-*' a/apps/web/test/room/__snapshots__/protect.test.ts.snap b/apps/web/test/room/__snapshots__/protect.test.ts.snap
+--- a/apps/web/test/room/__snapshots__/protect.test.ts.snap
++++ b/apps/web/test/room/__snapshots__/protect.test.ts.snap
+@@ -28,6 +28,12 @@
+       44,
+     ],
+     [
++      1089.9,
++      786.5,
++      44,
++      44,
++    ],
++    [
+       849.1,
+       279.8,
+       355.7,
+@@ -63,7 +69,7 @@
+       1536,
+       27.5,
+       384,
+-      352,
++      400,
+     ],
+     [
+       1788,
+@@ -97,6 +103,12 @@
+       44,
+       44,
+     ],
++    [
++      1340.6,
++      814.4,
++      44,
++      44,
++    ],
+     [
+       1081.2,
+       270.2,
 diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p6-*' a/apps/web/test/room/dog-pick.test.ts b/apps/web/test/room/dog-pick.test.ts
 --- a/apps/web/test/room/dog-pick.test.ts
 +++ b/apps/web/test/room/dog-pick.test.ts
@@ -178,6 +216,22 @@ diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p6-*' a
      for (const box of r.input.keepOuts) {
        const centre: V3 = [(box.min[0] + box.max[0]) / 2, 2, (box.min[2] + box.max[2]) / 2];
        const hit = firstHit(r.input.primitives, centre, [0, -1, 0]);
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p6-*' a/apps/web/test/room/geometry.test.ts b/apps/web/test/room/geometry.test.ts
+--- a/apps/web/test/room/geometry.test.ts
++++ b/apps/web/test/room/geometry.test.ts
+@@ -542,9 +542,10 @@
+         action: { resume: {} },
+       });
+     });
+-    // Spec 014: 7,158 sizes of frame area in place of spec 005's 7,080 clear areas.
++    // Spec 014: 7,158 sizes of frame area in place of spec 005's 7,080 clear areas; 7,182 since spec 026's human patch
++    // (r3) gives the dock's list two rows below 39rem, not 36rem, for its fifth entry.
+     expect(reasons(t)).toContain(
+-      "selectables[4]: its exclusive core overlaps a member of selectables[3] in 3D at 320 × 250 and 7157 others",
++      "selectables[4]: its exclusive core overlaps a member of selectables[3] in 3D at 320 × 250 and 7181 others",
+     );
+   });
+ });
 diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p6-*' a/apps/web/test/room/hud.test.ts b/apps/web/test/room/hud.test.ts
 --- a/apps/web/test/room/hud.test.ts
 +++ b/apps/web/test/room/hud.test.ts
@@ -228,6 +282,19 @@ diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p6-*' a
      expect(bundle.index.selectables.filter((s) => s.figure !== undefined)).toEqual([]);
    });
  
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p6-*' a/apps/web/test/ui/hud-split.test.ts b/apps/web/test/ui/hud-split.test.ts
+--- a/apps/web/test/ui/hud-split.test.ts
++++ b/apps/web/test/ui/hud-split.test.ts
+@@ -619,7 +619,8 @@
+   const path = (u: ReturnType<typeof unit>) => emblem(u)?.querySelector("path")?.getAttribute("d");
+ 
+   it("draws one icon per emblem the scene names, on the 24-unit grid, none the speech glyph", () => {
+-    expect([...NAMES].sort()).toEqual(["board", "screen", "slate", "wheels"]);
++    // Spec 026's human patch (r3): the dog's sign takes the paw.
++    expect([...NAMES].sort()).toEqual(["board", "paw", "screen", "slate", "wheels"]);
+     const all = [...Object.values(EMBLEM_ICONS), SPEECH_ICON];
+     expect(new Set(all).size).toBe(all.length);
+     for (const d of all) {
 diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p6-*' a/config/room-events.yaml b/config/room-events.yaml
 --- a/config/room-events.yaml
 +++ b/config/room-events.yaml
@@ -290,13 +357,13 @@ diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p6-*' a
 +      "files": [
 +        "corpus/04-hobbies-and-travel.md"
 +      ],
-+      "id": "dog",
++      "id": "dog-sign",
 +      "lead": "The dog first.",
 +      "topic": "hobbies-and-travel"
      }
    ],
 -  "sha256": "a2a1655d4b2da434c7eeb71a5cd36194003df52f8767349d500eada86cfe0251",
-+  "sha256": "08a231e5185c741fdf8ff824bb77bccd76643640265c96c0917eac63c53d215b",
++  "sha256": "c18b20c6dcd28ac786547fa1aad047ff58fc49a79f0045d4aa448fbe6af18c91",
    "topics": [
      {
        "files": [
@@ -304,7 +371,7 @@ diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p6-*' a
        ],
        "id": "hobbies-and-travel",
 -      "sha256": "2d340b13a793674d88496615b7a25981270e82f07813ee145da3cd408c1777c5"
-+      "sha256": "fbf21c2f06bd8d81a370937f29a967409981df103a5c95bb0c4c0aeecb81051f"
++      "sha256": "d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507"
      },
      {
        "files": [
@@ -600,7 +667,7 @@ diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p6-*' a
 -    "bytes": 153697,
 -    "rendered": 84391,
 +    "sections": 150,
-+    "bytes": 179431,
++    "bytes": 179436,
 +    "rendered": 102082,
      "longest_section": 3140
    },
