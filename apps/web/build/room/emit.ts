@@ -285,6 +285,7 @@ function chaseOf(c: ChaseConfig): ChaseConfig {
 function leaveOf(l: LeaveBlock): LeaveData {
   const p2 = (p: readonly [number, number]): [number, number] => [m6(p[0]), m6(p[1])];
   return {
+    takes: l.takes,
     meet: p2(l.meet),
     under_bicycle: p2(l.under_bicycle),
     carry: [m6(l.carry[0]), m6(l.carry[1]), m6(l.carry[2])],

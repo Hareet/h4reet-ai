@@ -245,10 +245,12 @@ export interface Walking {
   camera: { yaw_deg: number; pitch_deg: [number, number]; min_distance_m: number; focus_height_m: number };
 }
 
-/** Spec 028 (FR-021, FR-022; plan.md R-B4): the dinosaur's scene's data: where the dog meets the twin, the floor below
+/** Spec 028 (FR-021, FR-022; plan.md R-B4): the dinosaur's scene's data: the placement taken, where the dog meets the twin, the floor below
  *  the bicycle, the bicycle's offset in the twin's picture's frame, the path out of the room as [x, z] points, the
  *  dog's and the walkers' speeds in metres a second, and the take's seconds. */
 export interface LeaveData {
+  /** The placement whose picture the twin takes: the bicycle's, by the scene's data. */
+  takes: string;
   meet: [number, number];
   under_bicycle: [number, number];
   carry: [number, number, number];

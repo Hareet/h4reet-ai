@@ -114,6 +114,8 @@ Reuses `chase-figures.ts`'s `place` for the twin's and the dog's pictures (only 
     take_s: 0.8
 ```
 
+**Departure (T-B03, found writing T-B04's adapter):** the block gains `takes`, the ID of the placement whose picture the twin takes (`bicycle` in the room's data), since the adapter must find the bicycle's node and the source scan (spec 004's FR-007) keeps every room ID out of the code; RI12 refuses a `takes` naming no placement of the scene. FR-022's list of keys is otherwise as the spec has it.
+
 `carry` is in the twin's picture's frame (its heading); the bicycle stands on its wheels with its length along the twin's heading (its catalog's x along the carrier's z). The check is **RI12** (`build/room/checks/ri-leave.ts`, run last in the RI family), and `test/room/compose.test.ts`'s rule catalogue pin counts it (RI 11 → 12), as specs 014 to 021 each did for theirs. The schema requires every key within the block (each is the scene's, no default) and refuses a path of under two points.
 
 The estimates are this plan's, from the shell's bounds (`room-shell.yaml`: x ±1.0668, z ±0.6096) and the twin's and the bicycle's mounts; T-B03 prints the composed points (the bicycle's floor point from its mount) and records them here before its GREEN step. The schema adds the block (optional; absent, no scene: the room is as with a cut, the eating offered at once). A new check in `build/room/checks/` (the next free code of the family that holds the figures' checks, `RI` or `RD`, the task names it) refuses FR-022's cases.

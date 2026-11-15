@@ -1,5 +1,6 @@
-// RI12 (spec 028; FR-022; plan.md R-B4): the dinosaur's scene's points against the room's floors. The schema holds the
-// block's shape and its speeds (RD2, RD3); here, on the composed geometry:
+// RI12 (spec 028; FR-022; plan.md R-B4): the dinosaur's scene's placement and points against the room's floors. The
+// schema holds the block's shape and its speeds (RD2, RD3); here:
+// - `takes` SHALL name a placement of the scene (the bicycle's);
 // - the path's last point SHALL be outside the shell's floor (compose/floor.ts's `shell`: the side walls' inner faces,
 //   the back wall, the open front), so the figures leave the room before they are hidden;
 // - `meet` and `under_bicycle` SHALL be on spec 025's chase floor (the visitor's walkable floor with the twin's own
@@ -37,6 +38,8 @@ export function leave(ctx: Context): void {
   if (!floor) return;
   const chase = chaseFloor(floor, twin.id);
   const ri12 = (path: string, reason: string): void => ctx.report("RI12", scene.file, path, reason);
+  if (!s.placements.some((p) => p.id === block.takes))
+    ri12(ctx.path("figures", "leave", "takes"), "no placement of the scene by that ID: nothing to take");
   const last = block.path.length - 1;
   const end = block.path[last];
   if (end && insideRect(floor.shell, end[0], end[1]))

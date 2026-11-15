@@ -323,6 +323,7 @@ figures:
   # `carry` is the bicycle's origin (midway between its hubs, 0.259 m up: its catalog bounds) beside the twin; the path
   # goes out of the open front and past the right wall's front edge. RI12 holds the points to the floors.
   leave:
+    takes: bicycle # the placement whose picture the twin and the dog take out
     meet: [0.42, 0.45] # estimated: beside the twin, at the dog's home's side
     under_bicycle: [0.74, 0.52] # estimated
     carry: [0.3, 0.26, 0.05] # estimated
