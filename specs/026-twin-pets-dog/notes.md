@@ -1,5 +1,52 @@
 # Notes: spec-026 and its reworks (2026-11-14)
 
+## amend-026 (`night/amend-026/amend-026`, from patch3-026's tip d185b67b, Opus 5.5, 2026-11-15)
+
+Written by the night-shift implementer amend-026, about 01:42Z to 01:50Z, documents only. It covers rv-patch3-026's I-1, N-1, and N-4; its findings are on the page, "rv-patch3-026's findings, its words". The page's Q304 is answered: recommended (his to confirm or overturn).
+
+- **I-1:** FR-014 and the spec's RG6 assumption read "As amended (Q297, Q304)". The same sentence is in plan §7, T019, the proposal's "In the patch with it", and human patch 026, after its patch3-026 paragraph, where patch-026's RG6 bullet is marked superseded for the right wall. It quotes `dog-sign-offset.md` ("16 / 240" in the "List-only" column of its row "right wall | [-0.2, 0.4, 0.0375]", and its words on the carve-out). It quotes the review's verify note 3 on where those counts come from, and Q304's recommended answer. My reading sits beside the quotes: the numbers are measure2-026's run 2 ("list-only (held) 3D 16 / 2D 240 · … of 7671"). floorrun-026's /tmp probe ran the `eat-*` tests at this mount, not the count.
+- **N-1:** the review's wording ("the `eat-*` edits hold only with the sign off the desk; the `dog-*` edits hold on either scene") replaces "hold only beside" in plan §7, the proposal, the human-patch note (paragraph and row 1), patch3-026's part below, and the stack note. **N-4:** the proposal's mount carries `estimated: true`.
+- **N-2 and N-3** go to item 9's backlog in the stack note ("Backlog: rv-patch3-026's N-2 and N-3"), in the review's words, for his look. Nothing else changes for them.
+- **Unchanged:** the patch, every source, test, and scene file. Each quoted span was checked verbatim against its source, whitespace normalized; verify note 3's first sentence is bold on the page, and the quotation drops the `**`.
+
+```
+$ sha256sum docs/merge-requests/2026-11-14-corpus-dog-intro.patch
+46ed5db73554ed90985b8859c4be7580c20269150db90582b4150ddd590d249f  docs/merge-requests/2026-11-14-corpus-dog-intro.patch
+$ git diff --stat d185b67b c4d9711b
+ corpus/proposals/dog-intro-2026-11-14.md      |  4 ++--
+ docs/merge-requests/2026-11-14-night-stack.md | 34 ++++++++++++++++++++++++++-
+ docs/merge-requests/human-patches/026.md      |  8 ++++---
+ specs/026-twin-pets-dog/notes.md              |  2 +-
+ specs/026-twin-pets-dog/plan.md               |  4 +++-
+ specs/026-twin-pets-dog/spec.md               |  4 ++--
+ specs/026-twin-pets-dog/tasks.md              |  2 +-
+ 7 files changed, 47 insertions(+), 11 deletions(-)
+$ python3 -m pytest -q evals/test_docs_links.py evals/test_repository_docs.py
+61 passed in 1.29s
+$ python3 -I scripts/corpus/dog_intro_proposal.py proposal corpus/proposals/dog-intro-2026-11-14.md
+OK: proposal dog-intro-2026-11-14.md
+buildable: no (FR-019: waiting on his approval of the dog's model, with a disclosure line)
+```
+
+The lint target at c4d9711b, after `npm ci` (`--offline` failed, ENOTCACHED; from the registry, "added 431 packages, and audited 435 packages in 46s"), exit 0:
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+836 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+# then shellcheck over the repository's scripts (the target's `xargs -0 -t shellcheck` line): no finding; make exited 0
+```
+
+No `make test`, `make evals`, or full `make check` (rule 4). The review is rv-amend-026's, another worker's. No new question; no hook or bash-gate refusal.
+
 ## patch3-026 (`night/patch3-026/patch3-026`, from floorrun-026's tip 19cdd6b0, Opus 5.5, 2026-11-15)
 
 Written by the night-shift implementer patch3-026, about 01:15Z to 01:45Z. It does the rework the page's Q297 recommends (answered: recommended, the Author's to confirm or overturn), in its words as the brief quotes them: "the right wall at `{ on: room-shell, anchor: right-wall, offset: [-0.2, 0.4, 0.0375], estimated: true }` ... A rework then rebuilds the patch, test-first. It carries spec 026's `dog-pick` and `dog-selectable` fixtures so they work on a scene that already holds `dog` (5 tests fail for any place). It carries spec 024's desk count, 9 → 8 keep-outs, since the sign leaves the desk (2 tests fail for any off-desk place). Then it runs the brief's whole set, plus the walking-view and chase tests, on both exports."

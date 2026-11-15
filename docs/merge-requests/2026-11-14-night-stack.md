@@ -5501,6 +5501,50 @@ Nothing changes for these tonight: each would change the patch (and its SHA-256)
 > - With the patch, the line *is* on disk, and the function now replaces it.
 > - The patch edits the function body but not this comment.
 
+#### Runs (rule 4), amend-026
+
+What changed against patch3-026's tip, at the step-3 save point c4d9711b (this part's runs, added after it, are prose in `notes.md` and this note only):
+
+```
+$ git diff --stat d185b67b c4d9711b
+ corpus/proposals/dog-intro-2026-11-14.md      |  4 ++--
+ docs/merge-requests/2026-11-14-night-stack.md | 34 ++++++++++++++++++++++++++-
+ docs/merge-requests/human-patches/026.md      |  8 ++++---
+ specs/026-twin-pets-dog/notes.md              |  2 +-
+ specs/026-twin-pets-dog/plan.md               |  4 +++-
+ specs/026-twin-pets-dog/spec.md               |  4 ++--
+ specs/026-twin-pets-dog/tasks.md              |  2 +-
+ 7 files changed, 47 insertions(+), 11 deletions(-)
+$ git diff --quiet d185b67b -- docs/merge-requests/2026-11-14-corpus-dog-intro.patch apps services scripts && echo "no change to the patch, apps, services, scripts"
+no change to the patch, apps, services, scripts
+$ python3 -m pytest -q evals/test_docs_links.py evals/test_repository_docs.py
+61 passed in 1.29s
+$ python3 -I scripts/corpus/dog_intro_proposal.py proposal corpus/proposals/dog-intro-2026-11-14.md
+OK: proposal dog-intro-2026-11-14.md
+buildable: no (FR-019: waiting on his approval of the dog's model, with a disclosure line)
+```
+
+The checker reads the same on d185b67b's proposal ("OK", "buildable: no"). `npm ci --offline` failed (ENOTCACHED); `npm ci` from the registry: "added 431 packages, and audited 435 packages in 46s", the lockfile unchanged. Then, at c4d9711b, exit 0:
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+836 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+# then shellcheck over the repository's scripts (the target's `xargs -0 -t shellcheck` line): no finding; make exited 0
+```
+
+No `make test`, `make evals`, or full `make check`: rule 4, and the stack's last task runs `make check` once. **rv-amend-026** (another worker) reviews this; then item 9's verify takes the off-line chain.
+
+**Interruptions (amend-026).** `npm ci --offline` failed (ENOTCACHED), as for patch3-026; `npm ci` from the registry succeeded. No hook or bash-gate refusal, and nothing was respelled. No new question: Q304 is answered (recommended).
+
 ## Item 10: spec 027, when the twin's file context stops being enough (`night/impl-027/impl-027`)
 
 Spec: specs/027-corpus-retrieval-adr/ · Intent: intent/027-corpus-retrieval-adr.md (draft) · ADR: docs/adr/0054-when-file-context-stops-being-enough.md (proposed) · Written by: implementer (night shift, impl-027, Opus 5.5); the review is for a worker who didn't write the code (T006; the reviewer follows this task) · Date: 2026-11-14
