@@ -358,3 +358,118 @@ exit 0
 - **The notes' option is in the kernel only.** No stage note exists since T-A06, so `app.ts` passes none. A note that comes back passes `notes: true` and a re-fit when it shows.
 - **His look** (SC-008): the tiles' block is taller by the two-line rows. At 1920 × 1080 (right scale about 1.29) a row is about 77 px, against about 57 px before, so the list above it is about 45 px shorter. Also for his look: the dock layout's "Around the room" below the room, and the focused overlay.
 - From impl-028a's list, still standing: `notesReserve`'s empty reserve, `room.css`'s unused `.room-note` and `.room-stand-in` rules, `HUD_PLACEMENTS.split`'s unused entries, the empty `.room-notes` box.
+
+## verify-028a (night of 2026-11-15, implementer, Opus 5.5)
+
+Branch `night/verify-028a/verify-028a`, from group A's reviewed tip `1ff6b9eb` (rework-028a's fixes; reviewed by rv-028a-3 and rv-028a-4, both not blocking). This session wrote none of group A. No code or test was changed here. The reviewers' nits (A3-1 to A3-3, A4-1, A4-N1 to A4-N4) and `RUN_AT_TIP` above are left as they are, for the line's note and T-INT.
+
+### The merge
+
+`0e06e268` merges the 028 line's tip `ba2b6028` (`git merge --no-ff ba2b6028`): **no conflict**. It brings documents only (`git diff --name-only 1ff6b9eb 0e06e268`, 15 files): `docs/adr/0055-no-usage-event-for-what-only-the-dinosaur-causes.md`, `docs/adr/README.md`, `docs/merge-requests/2026-11-15-night-028-line.md`, `docs/merge-requests/2026-11-15-night-record2-dino-r2-record2-dino-r2.md`, `docs/merge-requests/human-patches/023.md`, `specs/021-dinosaur-modeled-and-brought-in/studio-round-2.md`, and in `specs/028-room-after-review/`: `analysis.md`, `docfix2.md`, `docfix3.md`, `notes.md`, `plan.md`, `probe-eat.md`, `probe-pdf.md`, `spec.md`, `tasks.md`. rework-028a's notes commits after `1ff6b9eb` weren't merged; the merge task takes them.
+
+### `git diff --name-only a36f98ec HEAD`, by area (79 files)
+
+- **`apps/web`** (62):
+  - build: `build/credits.ts`, `build/room/checks/rg.ts`, `build/room/plugin.ts`, `build/room/report.ts`, `vite.config.ts`
+  - room data: `room/ui-words.yaml`
+  - source: `src/room/app.ts`, `src/room/compose/frame.ts`, `src/room/compose/hud.ts`, `src/room/compose/protect.ts`, `src/room/compose/stages.ts`, `src/room/compose/wall.ts`, `src/room/hud/keycap.ts`, `src/room/hud/split.css`, `src/room/hud/split.ts`, `src/room/layout.ts`, `src/room/room.css`, `src/room/text-copy.ts`, `src/room/ui-keys.ts`
+  - tests: `test/fixtures/room/good/apps/web/room/ui-words.yaml`, `test/lookdev/page.test.ts`, `test/room/__snapshots__/eat-box.test.ts.snap`, `test/room/__snapshots__/protect.test.ts.snap`, `test/room/{dog-line,eat-box,eat-checks,frame,hud-split-geometry,hud-wall-geometry,hud,legibility,likeness-line-anywhere,report-split,report,stages-checks,stages-floor,stages,vocabulary,wall-box}.test.ts`, `test/ui/{a11y,around,avatars,credits,eat-button,eat-key-repeat,eat-place,hud-a11y,hud-faults,hud-look,hud-split-a11y,hud-split-fallback,hud-split-list,hud-split-rest-row,hud-split,hud-wall-dom,hud,loading-degraded,loading-faults,notes-causes,notes-gone,split-no-still,text-copy}.test.ts`
+- **docs** (5): `docs/adr/0055-no-usage-event-for-what-only-the-dinosaur-causes.md`, `docs/adr/README.md`, `docs/merge-requests/2026-11-15-night-028-line.md`, `docs/merge-requests/2026-11-15-night-record2-dino-r2-record2-dino-r2.md`, `docs/merge-requests/human-patches/023.md`
+- **intent** (1): `intent/028-room-after-review.md`
+- **specs** (11): `specs/021-dinosaur-modeled-and-brought-in/studio-round-2.md`; `specs/028-room-after-review/{analysis,docfix2,docfix3,impl-a,notes,plan,probe-eat,probe-pdf,spec,tasks}.md`
+
+No Python file changed, so the only pytest runs are the docs tests and the Credits tests, as the brief names them. No human-only path is in the list.
+
+### The runs
+
+`npm ci --ignore-scripts` once, in the worktree (exit 0). `cpu.max` is `400000 100000`, so n = 4.
+
+**`apps/web`'s whole vitest suite**, from `apps/web/`:
+
+```
+$ ../../node_modules/.bin/vitest run --maxWorkers=4
+ Test Files  249 passed (249)
+      Tests  4486 passed | 3 skipped (4489)
+   Start at  16:00:25
+   Duration  1577.76s (tests 71%, import 29%)
+exit 0
+```
+
+The three skips are `test/content/film-links.test.ts`'s `it.skipIf(skipped("before") !== "")` cases. They run only before the resume is published (`skipped()`, `film-links.test.ts:266-273`), so they skip by the tree's state, not because of this branch. `twin-2d.test.ts` passed, so it wasn't rerun alone.
+
+**An earlier attempt, not counted:** the same command, run while `room:report` and `make lint` ran beside it, was stopped by the session's 10-minute background limit before vitest printed its totals. In that run, `test/room/bundle.test.ts` › "the placeholders flag (spec 014, T040)" › "is the room's stand-ins alone, never an avatar's missing model" (`bundle.test.ts:1338-1344`, two repository bundles in one case) failed at 63241 ms against `testTimeout: 60_000` (`apps/web/vitest.config.ts:19`). This looks like a timeout from the shared CPU, not a fault: in the run above, alone on the machine, the whole file passed. It still deserves a note for T-INT: this case runs close to its time limit when the CPU is shared.
+
+**The room, the compositor, and the content:**
+
+```
+$ npm run room:check -w apps/web
+room: 0 findings in 0 files
+exit 0
+
+$ npm run room:report -w apps/web
+Frame (spec 014, FR-060, FR-061; spec 028, FR-006): the frame areas over the same screens: in the split layout (spec 028, FR-006), the wall area beside the room's walls, with no ease; elsewhere eased from the window toward each clear area only as far as keeps every pressable selectable's core and both figures 0.5rem clear of the HUD's compact boxes; 7,671 stages, each with the HUD boxes over it reserved.
+- the split layout (spec 028): 3,329 screens and states, 3,329 at ease 0, 0 between, 0 at ease 1; the median 0.
+- the dock layout: 3,972 screens and states, 1,648 at ease 0, 954 between, 1,370 at ease 1; the median 7/16.
+- the column layout under 1280 × 720: 1,771 screens and states, 0 at ease 0, 1,473 between, 298 at ease 1; the median 14/16.
+- the column layout from 1280 × 720 (no split): 158 screens and states, 0 at ease 0, 158 between, 0 at ease 1; the median 13/16.
+- The reference desktop (1920 × 1200): ease 0, a frame area of 1248 × 1172.5 over spec 005's 1472 × 1120.5, the room 4.6% larger on screen.
+- The reference phone (384 × 740): ease 1, a frame area of 384 × 422 over spec 005's 384 × 422, the room 0.0% larger on screen.
+Findings: none.
+exit 0
+
+$ npm run content:check -w apps/web
+content: C1–C9 and N1–N5 passed for the resume and 44 scripts (denylist missing); the lock and the eval cases are current
+exit 0
+```
+
+`room:report`'s frame lines match rework-028a's run line for line. Only the frame and findings lines of its 130 are pasted; the rest shows no finding. `content:check`'s "(denylist missing)": the private denylist (`corpus/intake/private/.none/denylist.txt`, `build/narration.ts:220`) can't be read from this checkout, so N3 checked the public list only.
+
+**Docs, specs, and the Credits page:**
+
+```
+$ python3 -I -m pytest evals/test_repository_docs.py evals/test_docs_links.py -q
+61 passed in 1.35s
+exit 0
+
+$ python3 -I evals/docs_links.py
+PASS  README.md links the ADR index (docs/adr/)
+PASS  the ADR index links every ADR file: 52 of 52
+PASS  User Story 6's five decisions have their ADRs: 0001 (local-first routing), 0002 (one compose topology), 0003 (local-compose-first delivery), 0004 (Langfuse and Grafana), 0005 (Telegram alerting)
+docs links: 0 failed, 2524 relative links in 474 files
+exit 0
+
+$ python3 -I -m pytest scripts/assets/test_credits.py -q
+11 passed in 2.47s
+exit 0
+```
+
+### `make lint`
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+861 files already formatted
+{ git ls-files -z '*.sh' … } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- … (30 scripts)
+exit 0
+```
+
+`make test` and `make evals` weren't run here: the supervisor's brief names this task's runs, and the full `make check` is T-INT's (as rework-028a's section above records it).
+
+### Refusals
+
+- A `Monitor` watch on the vitest log, `until grep -qE "Test Files|Error:|FAIL" /tmp/verify-028a-vitest.log && ! pgrep -f "vitest run --maxWorkers=4" >/dev/null; do sleep 5; done; echo done`, was refused by the tool harness: "grep in '/tmp/verify-028a-vitest.log' was blocked. For security, Claude Code may only search for patterns in files from the allowed working directories for this session: '/home/h4reet/h4reet-ai/night/2026-11-15/verify-028a'." I didn't rebuild it another way; I waited for the background run's own end notice instead.
+- No hook or bash-gate refusal. Nothing in `/tmp` was deleted; the second run wrote a new log (`/tmp/verify-028a-vitest2.log`) and kept the first.
+
+### Questions
+
+None.
+
+Result: green
