@@ -694,3 +694,542 @@ $ node_modules/.bin/prettier --check specs/026-twin-pets-dog/dog-sign-offset.md
 Checking formatting...
 All matched files use Prettier code style!
 ```
+
+## Off the desk (measure2-026)
+
+**Task**: measure2-026 (night 2026-11-14), off the line, for the page's Q283 · **Base**: ae19ac55 (measure-026's tip) ·
+**Changes**: none to any source file, test file, `scene.yaml`, `assets/**`, or human-only path; this section only.
+
+### Q283, in measure-026's words
+
+> measure-026 found that no `mount.offset` along the desk's top gets the dog sign past RG6, so Q281's recommended
+> answer, moving the sign along the desk, can't be done. How should the human patch's `dog` selectable get past RG6
+> (spec 026, T019)?
+
+Its recommended answer (answered: recommended, the orders file's rule; his to confirm or overturn), in its words:
+
+> keep the `dog` selectable's scene line out of the human patch until a mount for the dog sign off the desk's top
+> passes RG6. A worker measures candidate mounts with measure-026's probe and puts the numbers on the page for your
+> look: on the back wall either side of the window, on a side wall, or on the floor by the dog's home.
+
+### The answer, in short
+
+**The floor by the dog's home passes.** With the dog sign on the room shell's `floor` anchor, on the dog's −x side,
+RG6 passes at every supported stage, in 3D and in 2D, with no other finding. The `dog` selectable keeps its own pick
+area at every stage, so the carve-out holds it nowhere. The nearest passing mount to the dog's home is `floor`, offset
+[0.01, 0, 0.32], 0.32 m from it (sign centre to `figures.dog.home.at`, on the floor's plane). It is at the passing
+region's edge: 1 cm further in +x RG6 refuses it at 9 stages in 3D (its core under a HUD box), and 1 cm further
+toward the front, at 75 stages in 2D (its core leaves the drawing's view). The candidate for his look is the measured
+point one step inside that edge on both sides, **`floor`, offset [0, 0, 0.30], no turn**, 0.34 m from the dog's home.
+Its neighbours [0, 0, 0.32] and [−0.05, 0, 0.30] pass, and its nearest refused points are 3 cm away: [0.03, 0, 0.30]
+(its core under a HUD box at 10 stages in 3D) and [0, 0, 0.33] (its core leaves the 2D view at 75 stages). The move
+itself is T019's, in his patch.
+
+**The side walls pass, but only through FR-064's carve-out.** On either side wall the sign is a side-wall member, so
+the `dog` selectable is a side-wall selectable (`sideWallsOf`) and RG6 doesn't refuse it for a missing core: every
+side-wall candidate passes RG6. But the carve-out leaves the dog to the "In the room" list at 16 to all 7,671 stages in
+3D, and 0 to all 7,671 in 2D. At those stages neither the sign nor the dog figure is pickable (`pick` returns null for a
+held selectable's front rectangle too), against FR-014's figure pick wherever the dog stands at home. The nearest of
+them to the dog's home, the right wall at room z 0.18 to 0.42, is held at 75 stages in 3D, and stands behind the twin's
+figure (box x 0.29 to 1.02, z 0.145 to 0.669). RG6 reads no depth, and the twin has no pick area, so nothing measures
+that the twin hides it.
+
+**The back wall beside the window doesn't pass.** The window spans x −1.0 to 1.0 of the wall's −1.0668 to 1.0668, from
+y 0.8 to 2.1, so the only wall beside it is 6.7 cm wide, narrower than the 24 cm sign. On the left, every candidate's
+core lies over the snowboard's member at every stage. On the right, the bicycle's member (2D from 76 stages, and 3D
+too from y 0.35) and a HUD box (3D, 12 to 30 stages) refuse it at every point measured. The closest, [0.9, 0.3, 0.0375]
+on `back-wall`, fails at 30 stages in 3D and 76 in 2D.
+
+### Method
+
+measure-026's probe, rebuilt as `apps/web/test/room/zz-probe-dog-sign-mounts.test.ts` (whole below), ran as it did: a
+vitest file in `apps/web/test/room/`, with `--reporter=verbose`, after `npm ci --ignore-scripts`, deleted before the
+commit. Its changes from measure-026's:
+
+- **The whole mount moves, not its offset.** Each candidate replaces the `dog-sign` placement's `mount` with
+  `{ on: room-shell, anchor: <candidate's>, offset: <candidate's>, estimated: true }`, with no turn of its own (the
+  desk's `turn: { y: -10 }` is dropped). A side wall needs that: `sideWallOf` counts a member as hung on a wall only
+  when its mount turns it about z alone. The other mounts took no turn so all the candidates compare alike. The `dog`
+  selectable is added in memory as before (`DOG_SELECTABLE`, `withDog()`'s, `figure: dog`), and nothing touches the
+  disk.
+- **It counts every problem the dog is in**, not just the laptop's: the stages where the sign's core lies over any
+  other selectable's member (`dog member *`), the stages where its core and another's overlap (`dog core *` or
+  `* core dog`), every RG6 problem by subject, kind, and other (the selectables it hits), and the stages with any RG6
+  problem at all.
+- **It counts where the carve-out holds the dog**: the stages where `pickSweep`'s `sideWalls` entry for `dog` lists the
+  stage, in 3D (`stages`) and in 2D (`flat`), and whether `sideWallsOf` flags the `dog` selectable.
+- **It gives each candidate's distance to the dog's home**: from the sign's box centre to `figures.dog.home.at`
+  ([0.30, 0.45]), on the floor's plane (x, z).
+- **The baseline for "new non-RG6 findings"** is the shipped scene with the `dog` selectable and the sign on the desk,
+  which has none (the first run's second line). No candidate has any.
+
+RG6 passes for a candidate only where no stage has any problem in either mode, as before.
+
+**How the candidates were chosen.** From the boxes of the pieces around each mount (the first run prints them):
+
+- **Back wall** (`back-wall` anchor, at [0, 0, −0.6096], no turn, so its axes are the room's; offset[2] 0.0375, the
+  sign's half depth at stylized scale 1.5, sets its back on the wall). The window's box covers x −1.0 to 1.0, y 0.8 to
+  2.1, and the desk's x −0.75 to 0.75, up to y 1.07. So the free wall is x ±(0.75 to 1.0668) under the sill: x ±0.9 at
+  y 0.3 and 0.55 (the sign is 0.175 tall, so its top stays under 0.8), then 0.85, 0.9, 0.95 at y 0.35 and 0.4 on the
+  right, where the first run came close. Two more points stand beside the window at y 1.2, x ±0.93. They overlap the
+  window's box, since no 24 cm sign fits in the 6.7 cm there, and no finding refuses that.
+- **Left wall** (`left-wall`, at [−1.0668, 0, 0], turned y 90°: its x runs to the room's −z, so offset[0] is −z).
+  The chalkboard covers z −0.07 to 0.645 from y 1.17 up; the snowboard z −0.556 to −0.244 from the floor to 1.55; the
+  wall art z −0.58 to −0.08 from y 1.8. So the free wall is z −0.24 to 0.6 under y 1.17: z −0.1, 0.1, 0.3, 0.45, each
+  at y 0.4 and 0.8.
+- **Right wall** (`right-wall`, at [1.0668, 0, 0], turned y −90°: its x runs to the room's +z, so offset[0] is z).
+  The bicycle covers z −0.287 to 0.481 from y 0.854 up; the outlet z −0.436 to −0.364 at y 0.93 to 1.05; the helmet on
+  the floor x 0.68 to 1.03, z −0.227 to 0.071, up to y 0.2; the twin's figure x 0.29 to 1.02, z 0.145 to 0.669. So the
+  free wall is under y 0.85: z −0.45, −0.2, 0, 0.3, each at y 0.4 and 0.65.
+- **Floor** (`floor`, at [0, 0, 0], no turn, the room's axes). The dog's box at its home (`dogBoxAt`: 0.8 m along its
+  heading of 180°, 0.3 across) covers x 0.15 to 0.45, z 0.05 to 0.85; the desk's front edge is z 0.192; the twin's
+  figure covers x 0.29 to 1.02. So the floor by the dog is on its −x side, between the desk and the room's front edge
+  (z 0.61): x 0, −0.15, −0.3 at z 0.3 and 0.45; then, since z 0.45 failed in 2D and x 0 passed, a finer grid of x 0.03,
+  0, −0.05 at z 0.30 to 0.42 in steps of 0.02; then x 0.01, 0.02 at z 0.32 and x 0, 0.01 at z 0.33, to pin the edge.
+  A sign right of x 0.03 would stand in the dog's box.
+
+**The stage counts.** Most rows sweep 7,671 stages, but a few sweep 7,670, 7,666, or 7,662. `sweptStages(g)` is
+`supportedStages(g.protect)`: each screen's frame area with the HUD boxes over it reserved, deduplicated by size and
+reserved boxes. The dog sign is `frame: true`, so moving it moves what the HUD protects, and so how many stages
+deduplicate. Each row's count is out of its own sweep.
+
+**What the problems mean.** RG6's own reasons (`spacing`, `rg.ts`): `member` is a core over another selectable's member
+rectangle; `core`, over another's core; `reserved`, "its exclusive core lies under a panel's box or the walking
+control's box"; `outside`, "its 44 × 44 core leaves the view" (in 2D, the drawing's view box). Selectables by index: 0
+snowboard, 1 bicycle, 2 laptop, 3 chalkboard, 4 dog.
+
+### The table
+
+Counts are stages, "3D / 2D", out of the row's sweep (7,671 unless noted). "Sign's box" is in the room's frame. "Core
+over members" counts stages where the sign's core lies over any other selectable's member, and "Cores overlap" stages
+where its core and another's overlap; "Problems" lists every RG6 problem by subject, kind, and other. "List-only" counts
+the stages where the carve-out holds the dog. Every row has no new finding outside RG6.
+
+| Mount | `mount.offset` | Sign's box (x; y; z) | To the dog's home | Side-wall | Core over members | Cores overlap | Problems (3D / 2D) | List-only | Stages with any RG6 problem | RG6 |
+|---|---|---|---:|---|---:|---:|---|---:|---:|---|
+| back wall, left | [-0.9, 0.3, 0.0375] | −1.020 to −0.780; 0.300 to 0.475; −0.610 to −0.534 | 1.58 m | no | 7,671 / 7,671 | 0 / 0 | dog member snowboard 7671 / 7671 | 0 / 0 | 7,671 / 7,671 | refuses |
+| back wall, left | [-0.9, 0.55, 0.0375] | −1.020 to −0.780; 0.550 to 0.725; −0.610 to −0.534 | 1.58 m | no | 7,671 / 7,671 | 0 / 0 | dog member snowboard 7671 / 7671 | 0 / 0 | 7,671 / 7,671 | refuses |
+| back wall, beside the window, left | [-0.93, 1.2, 0.0375] | −1.050 to −0.810; 1.200 to 1.375; −0.610 to −0.534 | 1.60 m | no | 7,671 / 7,671 | 0 / 0 | dog member snowboard 7671 / 7671<br>dog member laptop 283 / 1331<br>dog member chalkboard 1147 / 1896 | 0 / 0 | 7,671 / 7,671 | refuses |
+| back wall, right | [0.85, 0.35, 0.0375] | 0.730 to 0.970; 0.350 to 0.525; −0.610 to −0.534 | 1.16 m | no | 26 / 443 | 0 / 0 | dog reserved 12 / 0<br>dog member bicycle 26 / 443 | 0 / 0 | 27 / 443 | refuses |
+| back wall, right | [0.85, 0.4, 0.0375] | 0.730 to 0.970; 0.400 to 0.575; −0.610 to −0.534 | 1.16 m | no | 132 / 908 | 0 / 0 | dog member bicycle 132 / 908 | 0 / 0 | 132 / 908 | refuses |
+| back wall, right | [0.9, 0.3, 0.0375] | 0.780 to 1.020; 0.300 to 0.475; −0.610 to −0.534 | 1.19 m | no | 0 / 76 | 0 / 0 | dog reserved 30 / 0<br>dog member bicycle 0 / 76 | 0 / 0 | 30 / 76 | refuses |
+| back wall, right | [0.9, 0.4, 0.0375] | 0.780 to 1.020; 0.400 to 0.575; −0.610 to −0.534 | 1.19 m | no | 132 / 908 | 0 / 0 | dog member bicycle 132 / 908 | 0 / 0 | 132 / 908 | refuses |
+| back wall, right | [0.9, 0.55, 0.0375] | 0.780 to 1.020; 0.550 to 0.725; −0.610 to −0.534 | 1.19 m | no | 2,964 / 4,825 | 0 / 0 | dog member bicycle 2964 / 4825 | 0 / 0 | 2,964 / 4,825 | refuses |
+| back wall, right | [0.95, 0.35, 0.0375] | 0.830 to 1.070; 0.350 to 0.525; −0.610 to −0.534 | 1.21 m | no | 26 / 443 | 0 / 0 | dog reserved 13 / 0<br>dog member bicycle 26 / 443 | 0 / 0 | 27 / 443 | refuses |
+| back wall, right | [0.95, 0.4, 0.0375] | 0.830 to 1.070; 0.400 to 0.575; −0.610 to −0.534 | 1.21 m | no | 132 / 908 | 0 / 0 | dog member bicycle 132 / 908 | 0 / 0 | 132 / 908 | refuses |
+| back wall, beside the window, right | [0.93, 1.2, 0.0375] | 0.810 to 1.050; 1.200 to 1.375; −0.610 to −0.534 | 1.20 m | no | 7,670 / 7,670 (of 7,670) | 0 / 0 | dog member bicycle 7670 / 7670<br>dog member laptop 1593 / 3379 | 0 / 0 | 7,670 / 7,670 | refuses |
+| left wall | [0.1, 0.4, 0.0375] | −1.067 to −0.991; 0.400 to 0.575; −0.220 to 0.020 | 1.44 m | yes | 0 / 0 | 0 / 0 | none | 7,671 / 7,671 | 0 / 0 | passes (held everywhere) |
+| left wall | [0.1, 0.8, 0.0375] | −1.067 to −0.991; 0.800 to 0.975; −0.220 to 0.020 | 1.44 m | yes | 0 / 0 | 0 / 0 | none | 7,671 / 7,671 | 0 / 0 | passes (held everywhere) |
+| left wall | [-0.1, 0.4, 0.0375] | −1.067 to −0.991; 0.400 to 0.575; −0.020 to 0.220 | 1.37 m | yes | 0 / 0 | 0 / 0 | none | 6,474 / 6,590 | 0 / 0 | passes (held) |
+| left wall | [-0.1, 0.8, 0.0375] | −1.067 to −0.991; 0.800 to 0.975; −0.020 to 0.220 | 1.37 m | yes | 0 / 0 | 0 / 0 | none | 6,474 / 6,590 | 0 / 0 | passes (held) |
+| left wall | [-0.3, 0.4, 0.0375] | −1.067 to −0.991; 0.400 to 0.575; 0.180 to 0.420 | 1.34 m | yes | 0 / 0 | 0 / 0 | none | 3,185 / 3,696 | 0 / 0 | passes (held) |
+| left wall | [-0.3, 0.8, 0.0375] | −1.067 to −0.991; 0.800 to 0.975; 0.180 to 0.420 | 1.34 m | yes | 0 / 0 | 0 / 0 | none | 3,225 / 3,728 (of 7,666) | 0 / 0 | passes (held) |
+| left wall | [-0.45, 0.4, 0.0375] | −1.067 to −0.991; 0.400 to 0.575; 0.330 to 0.570 | 1.33 m | yes | 0 / 0 | 0 / 0 | none | 1,624 / 1,998 (of 7,666) | 0 / 0 | passes (held) |
+| left wall | [-0.45, 0.8, 0.0375] | −1.067 to −0.991; 0.800 to 0.975; 0.330 to 0.570 | 1.33 m | yes | 0 / 0 | 0 / 0 | none | 2,100 / 2,824 (of 7,662) | 0 / 0 | passes (held) |
+| right wall | [-0.45, 0.4, 0.0375] | 0.991 to 1.067; 0.400 to 0.575; −0.570 to −0.330 | 1.16 m | yes | 0 / 0 | 0 / 0 | none | 68 / 658 | 0 / 0 | passes (held) |
+| right wall | [-0.45, 0.65, 0.0375] | 0.991 to 1.067; 0.650 to 0.825; −0.570 to −0.330 | 1.16 m | yes | 0 / 0 | 0 / 0 | none | 7,151 / 7,671 | 0 / 0 | passes (held) |
+| right wall | [-0.2, 0.4, 0.0375] | 0.991 to 1.067; 0.400 to 0.575; −0.320 to −0.080 | 0.98 m | yes | 0 / 0 | 0 / 0 | none | 16 / 240 | 0 / 0 | passes (held) |
+| right wall | [-0.2, 0.65, 0.0375] | 0.991 to 1.067; 0.650 to 0.825; −0.320 to −0.080 | 0.98 m | yes | 0 / 0 | 0 / 0 | none | 6,414 / 6,958 | 0 / 0 | passes (held) |
+| right wall | [0, 0.4, 0.0375] | 0.991 to 1.067; 0.400 to 0.575; −0.120 to 0.120 | 0.86 m | yes | 0 / 0 | 0 / 0 | none | 40 / 75 | 0 / 0 | passes (held) |
+| right wall | [0, 0.65, 0.0375] | 0.991 to 1.067; 0.650 to 0.825; −0.120 to 0.120 | 0.86 m | yes | 0 / 0 | 0 / 0 | none | 5,156 / 6,048 | 0 / 0 | passes (held) |
+| right wall, behind the twin | [0.3, 0.4, 0.0375] | 0.991 to 1.067; 0.400 to 0.575; 0.180 to 0.420 | 0.74 m | yes | 0 / 0 | 0 / 0 | none | 75 / 0 | 0 / 0 | passes (held) |
+| right wall, behind the twin | [0.3, 0.65, 0.0375] | 0.991 to 1.067; 0.650 to 0.825; 0.180 to 0.420 | 0.74 m | yes | 0 / 0 | 0 / 0 | none | 3,129 / 4,315 | 0 / 0 | passes (held) |
+| floor | [0.03, 0, 0.3] | −0.090 to 0.150; 0 to 0.175; 0.262 to 0.338 | 0.31 m | no | 0 / 0 | 0 / 0 | dog reserved 10 / 0 | 0 / 0 | 10 / 0 | refuses |
+| floor | [0.03, 0, 0.32] | −0.090 to 0.150; 0 to 0.175; 0.282 to 0.358 | 0.30 m | no | 0 / 0 | 0 / 0 | dog reserved 11 / 0 | 0 / 0 | 11 / 0 | refuses |
+| floor | [0.03, 0, 0.34] | −0.090 to 0.150; 0 to 0.175; 0.302 to 0.378 | 0.29 m | no | 0 / 0 | 0 / 0 | dog reserved 11 / 0<br>dog outside 0 / 75 | 0 / 0 | 11 / 75 | refuses |
+| floor | [0.03, 0, 0.36] | −0.090 to 0.150; 0 to 0.175; 0.322 to 0.398 | 0.28 m | no | 0 / 0 | 0 / 0 | dog reserved 11 / 0<br>dog outside 0 / 75 | 0 / 0 | 11 / 75 (of 7,670) | refuses |
+| floor | [0.03, 0, 0.38] | −0.090 to 0.150; 0 to 0.175; 0.342 to 0.418 | 0.28 m | no | 0 / 0 | 0 / 0 | dog reserved 11 / 0<br>dog outside 0 / 158 | 0 / 0 | 11 / 158 (of 7,670) | refuses |
+| floor | [0.03, 0, 0.4] | −0.090 to 0.150; 0 to 0.175; 0.362 to 0.438 | 0.27 m | no | 0 / 0 | 0 / 0 | dog reserved 11 / 0<br>dog outside 0 / 158 | 0 / 0 | 11 / 158 (of 7,670) | refuses |
+| floor | [0.03, 0, 0.42] | −0.090 to 0.150; 0 to 0.175; 0.382 to 0.458 | 0.27 m | no | 0 / 0 | 0 / 0 | dog reserved 11 / 0<br>dog outside 0 / 239 | 0 / 0 | 11 / 239 (of 7,670) | refuses |
+| floor | [0.02, 0, 0.32] | −0.100 to 0.140; 0 to 0.175; 0.282 to 0.358 | 0.31 m | no | 0 / 0 | 0 / 0 | dog reserved 9 / 0 | 0 / 0 | 9 / 0 | refuses |
+| **floor, the nearest passing** | **[0.01, 0, 0.32]** | −0.110 to 0.130; 0 to 0.175; 0.282 to 0.358 | **0.32 m** | no | 0 / 0 | 0 / 0 | none | 0 / 0 | 0 / 0 | **passes** |
+| floor | [0.01, 0, 0.33] | −0.110 to 0.130; 0 to 0.175; 0.292 to 0.368 | 0.31 m | no | 0 / 0 | 0 / 0 | dog outside 0 / 75 | 0 / 0 | 0 / 75 | refuses |
+| **floor, the candidate** | **[0, 0, 0.3]** | −0.120 to 0.120; 0 to 0.175; 0.262 to 0.338 | **0.34 m** | no | 0 / 0 | 0 / 0 | none | 0 / 0 | 0 / 0 | **passes** |
+| floor | [0, 0, 0.32] | −0.120 to 0.120; 0 to 0.175; 0.282 to 0.358 | 0.33 m | no | 0 / 0 | 0 / 0 | none | 0 / 0 | 0 / 0 | passes |
+| floor | [0, 0, 0.33] | −0.120 to 0.120; 0 to 0.175; 0.292 to 0.368 | 0.32 m | no | 0 / 0 | 0 / 0 | dog outside 0 / 75 | 0 / 0 | 0 / 75 | refuses |
+| floor | [0, 0, 0.34] | −0.120 to 0.120; 0 to 0.175; 0.302 to 0.378 | 0.32 m | no | 0 / 0 | 0 / 0 | dog outside 0 / 75 | 0 / 0 | 0 / 75 | refuses |
+| floor | [0, 0, 0.36] | −0.120 to 0.120; 0 to 0.175; 0.322 to 0.398 | 0.31 m | no | 0 / 0 | 0 / 0 | dog outside 0 / 75 | 0 / 0 | 0 / 75 (of 7,670) | refuses |
+| floor | [0, 0, 0.38] | −0.120 to 0.120; 0 to 0.175; 0.342 to 0.418 | 0.31 m | no | 0 / 0 | 0 / 0 | dog outside 0 / 158 | 0 / 0 | 0 / 158 (of 7,670) | refuses |
+| floor | [0, 0, 0.4] | −0.120 to 0.120; 0 to 0.175; 0.362 to 0.438 | 0.30 m | no | 0 / 0 | 0 / 0 | dog outside 0 / 158 | 0 / 0 | 0 / 158 (of 7,670) | refuses |
+| floor | [0, 0, 0.42] | −0.120 to 0.120; 0 to 0.175; 0.382 to 0.458 | 0.30 m | no | 0 / 0 | 0 / 0 | dog outside 0 / 239 | 0 / 0 | 0 / 239 (of 7,670) | refuses |
+| floor | [0, 0, 0.45] | −0.120 to 0.120; 0 to 0.175; 0.412 to 0.488 | 0.30 m | no | 0 / 0 | 0 / 0 | dog outside 0 / 335 | 0 / 0 | 0 / 335 (of 7,670) | refuses |
+| floor | [-0.05, 0, 0.3] | −0.170 to 0.070; 0 to 0.175; 0.262 to 0.338 | 0.38 m | no | 0 / 0 | 0 / 0 | none | 0 / 0 | 0 / 0 | passes |
+| floor | [-0.05, 0, 0.32] | −0.170 to 0.070; 0 to 0.175; 0.282 to 0.358 | 0.37 m | no | 0 / 0 | 0 / 0 | none | 0 / 0 | 0 / 0 | passes |
+| floor | [-0.05, 0, 0.34] | −0.170 to 0.070; 0 to 0.175; 0.302 to 0.378 | 0.37 m | no | 0 / 0 | 0 / 0 | dog outside 0 / 75 | 0 / 0 | 0 / 75 | refuses |
+| floor | [-0.05, 0, 0.36] | −0.170 to 0.070; 0 to 0.175; 0.322 to 0.398 | 0.36 m | no | 0 / 0 | 0 / 0 | dog outside 0 / 75 | 0 / 0 | 0 / 75 (of 7,670) | refuses |
+| floor | [-0.05, 0, 0.38] | −0.170 to 0.070; 0 to 0.175; 0.342 to 0.418 | 0.36 m | no | 0 / 0 | 0 / 0 | dog outside 0 / 158 | 0 / 0 | 0 / 158 (of 7,670) | refuses |
+| floor | [-0.05, 0, 0.4] | −0.170 to 0.070; 0 to 0.175; 0.362 to 0.438 | 0.35 m | no | 0 / 0 | 0 / 0 | dog outside 0 / 158 | 0 / 0 | 0 / 158 (of 7,670) | refuses |
+| floor | [-0.05, 0, 0.42] | −0.170 to 0.070; 0 to 0.175; 0.382 to 0.458 | 0.35 m | no | 0 / 0 | 0 / 0 | dog outside 0 / 239 | 0 / 0 | 0 / 239 (of 7,670) | refuses |
+| floor | [-0.15, 0, 0.3] | −0.270 to −0.030; 0 to 0.175; 0.262 to 0.338 | 0.47 m | no | 0 / 0 | 0 / 0 | none | 0 / 0 | 0 / 0 | passes |
+| floor | [-0.15, 0, 0.45] | −0.270 to −0.030; 0 to 0.175; 0.412 to 0.488 | 0.45 m | no | 0 / 0 | 0 / 0 | dog outside 0 / 336 | 0 / 0 | 0 / 336 | refuses |
+| floor | [-0.3, 0, 0.3] | −0.420 to −0.180; 0 to 0.175; 0.262 to 0.338 | 0.62 m | no | 0 / 0 | 0 / 0 | none | 0 / 0 | 0 / 0 | passes |
+| floor | [-0.3, 0, 0.45] | −0.420 to −0.180; 0 to 0.175; 0.412 to 0.488 | 0.60 m | no | 0 / 0 | 0 / 0 | dog outside 0 / 336 | 0 / 0 | 0 / 336 | refuses |
+
+### The candidate, for his look
+
+**`dog-sign`'s mount: `{ on: room-shell, anchor: floor, offset: [0, 0, 0.3], estimated: true }`**, no turn, the sign
+standing on the floor beside the dog, facing the room's front. RG6 passes at all 7,671 supported stages in 3D and 2D,
+and the `dog` selectable keeps its pick area at every one, so the carve-out never holds the sign or the figure. The
+nearest passing point, [0.01, 0, 0.32], is 2 cm nearer, but it is on the passing region's edge.
+
+What this measurement doesn't settle, each for his look or for T019:
+
+- **The look.** A 17.5 cm desk sign stands on the floor, its foot 3 cm from the dog's box (x 0.12 to its 0.15) and 7
+  cm in front of the desk's front edge. The catalog's `name` ("Desk sign: my dog thinks i'm cool") and its work order's measurement
+  ("Where the sign stands on the desk") would no longer describe it. The turn is unmeasured: the desk's y −10° was
+  dropped for every candidate.
+- **Anything RG6 doesn't read.** The probe checked RG6 and every other compose finding (none new). It didn't run the
+  room's tests. A placement on the floor may be an obstacle for spec 008's walking view and spec 025's chase run, whose
+  property test holds FR-007 on this floor (`figures.chase`'s comment). T019's small tests would show it.
+- **The move.** It is T019's, in his patch, with the `dog` selectable's line. The dependency in `tasks.md` (T013a's RG6
+  result recorded, with no refusal open on the page) stays open until he takes a mount on the page.
+
+The page's new question asks for that look, with this candidate as its recommended answer (`/night/io/out/questions.md`).
+
+### The probe's source, whole
+
+`apps/web/test/room/zz-probe-dog-sign-mounts.test.ts`, as it ran for every run below, then deleted:
+
+```ts
+// SCRATCH PROBE (measure2-026, Q283), never committed: measure-026's probe, with the `dog` selectable added to the
+// shipped scene in memory as dog-pick.test.ts's withDog() adds it, and the dog sign's whole mount moved off the desk's
+// top: to the back wall beside the desk under the window, to either side wall, or to the floor by the dog's home.
+// Counted per supported stage, in 3D and in 2D, with RG6's own sweep (pickSweep).
+import { it } from "vitest";
+import { parse, stringify } from "yaml";
+
+import { compose } from "../../build/room/compose";
+import type { ComposeOptions } from "../../build/room/compose";
+import { createContext } from "../../build/room/checks/family";
+import { geometryOf, pickSweep, sideWallsOf, sweptStages } from "../../build/room/checks/rg";
+import { loadRoom } from "../../build/room/load";
+import { readRoomPolicy } from "../../build/room/policy";
+import { fileTree, overlayTree } from "../../build/room/source";
+import type { Tree } from "../../build/room/source";
+import { REPO } from "../helpers/room";
+
+const SCENE_PATH = "apps/web/room/scene.yaml";
+const STRICT: ComposeOptions = { mode: "strict", drafts: false };
+const DOG_SELECTABLE = {
+  id: "dog",
+  name: "Dog",
+  members: ["dog-sign"],
+  figure: "dog",
+  action: { talk: { topic: "hobbies-and-travel", lead: "The dog first." } },
+};
+const DOG = "4"; // its index in selectables, after snowboard 0, bicycle 1, laptop 2, chalkboard 3
+const NAMES: Record<string, string> = { "0": "snowboard", "1": "bicycle", "2": "laptop", "3": "chalkboard", "4": "dog" };
+const HOME: [number, number] = [0.3, 0.45]; // figures.dog.home.at, the room's x and z
+
+type Mount = { on: string; anchor: string; offset: number[]; turn?: { x?: number; y?: number; z?: number } };
+type Doc = { selectables: unknown[]; placements: { id: string; mount?: Mount }[] };
+
+/** A candidate mount: a group, the shell's anchor, the offset in that anchor's frame, and a turn about y. */
+interface Candidate {
+  group: string;
+  anchor: "back-wall" | "left-wall" | "right-wall" | "floor";
+  offset: [number, number, number];
+  turnY?: number;
+}
+
+// The sign's half depth at stylized scale 1.5 is 0.0375 m: a wall mount's offset[2] of 0.0375 sets its back on the wall.
+const OUT = 0.0375;
+const CANDIDATES: Candidate[] = [
+  // Back wall, frame = the room's axes; the window spans x −1.0 to 1.0, y 0.8 to 2.1, the desk x −0.75 to 0.75 up to
+  // y 1.07: the free strips are x ±(0.75 to 1.0668) under the sill, and 0.0668 m beside the window's bounds above it.
+  ...[-0.9, 0.9].flatMap((x) =>
+    [0.3, 0.55].map((y): Candidate => ({ group: "back", anchor: "back-wall", offset: [x, y, OUT] })),
+  ),
+  ...[-0.93, 0.93].map((x): Candidate => ({ group: "back", anchor: "back-wall", offset: [x, 1.2, OUT] })),
+  // Left wall: its frame's x runs to the room's −z, so offset[0] = −z. Free under the chalkboard (y < 1.17), in front of
+  // the snowboard (z > −0.24).
+  ...[-0.1, 0.1, 0.3, 0.45].flatMap((z) =>
+    [0.4, 0.8].map((y): Candidate => ({ group: "left", anchor: "left-wall", offset: [-z, y, OUT] })),
+  ),
+  // Right wall: its frame's x runs to the room's +z, so offset[0] = z. Free under the bicycle (y < 0.85); the outlet at
+  // z −0.4, y 0.99; the helmet on the floor at z −0.08; the twin's figure stands in front of z 0.15 to 0.67.
+  ...[-0.45, -0.2, 0.0, 0.3].flatMap((z) =>
+    [0.4, 0.65].map((y): Candidate => ({ group: "right", anchor: "right-wall", offset: [z, y, OUT] })),
+  ),
+  // Floor, frame = the room's axes: the dog's box at its home is x 0.15 to 0.45, z 0.05 to 0.85; the desk's front edge
+  // z 0.19; the twin's figure x 0.29 to 1.02. So the floor beside the dog is on its −x side.
+  ...[0.0, -0.15, -0.3].flatMap((x) =>
+    [0.3, 0.45].map((z): Candidate => ({ group: "floor", anchor: "floor", offset: [x, 0, z] })),
+  ),
+];
+
+const base = fileTree(REPO);
+const sceneText = new TextDecoder().decode(base.read(SCENE_PATH) ?? new Uint8Array());
+const policy = readRoomPolicy({ env: {}, root: REPO });
+
+function treeWith(c: Candidate | null, withDog = true): Tree {
+  const doc = parse(sceneText) as Doc;
+  if (withDog) doc.selectables = [...doc.selectables, DOG_SELECTABLE];
+  if (c !== null) {
+    const sign = doc.placements.find((p) => p.id === "dog-sign");
+    if (!sign?.mount) throw new Error("no dog-sign mount");
+    const mount: Mount = { on: "room-shell", anchor: c.anchor, offset: [...c.offset] };
+    if (c.turnY) mount.turn = { y: c.turnY };
+    sign.mount = { ...mount, estimated: true } as Mount;
+  }
+  return overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]]));
+}
+
+const findingKeys = (tree: Tree): string[] =>
+  compose(tree, policy, STRICT)
+    .findings.filter((f) => f.rule !== "RG6")
+    .map((f) => `${f.rule} ${f.path}: ${f.reason}`);
+
+type Pair = { d3: number; d2: number };
+const pair = (): Pair => ({ d3: 0, d2: 0 });
+
+function measure(c: Candidate, baseFindings: Set<string>): string {
+  const tree = treeWith(c);
+  const g = geometryOf(createContext(loadRoom(tree), policy, STRICT, tree).ctx);
+  if (!g) throw new Error("no geometry");
+  const box = g.boxes.get("dog-sign");
+  if (!box) throw new Error("no dog-sign box");
+  const sideWall = sideWallsOf(g)[Number(DOG)] ?? false;
+  const stages = sweptStages(g);
+  const signMember = pair(); // the sign's core over another selectable's members
+  const coresOverlap = pair(); // the dog's core and another's, either way
+  const held = pair(); // the carve-out leaves the dog to the list
+  const any = pair();
+  const kinds = new Map<string, Pair>();
+  for (const stage of stages) {
+    const sweep = pickSweep(g, [stage]);
+    const seen = { d3: new Set<string>(), d2: new Set<string>() };
+    for (const p of sweep.problems) {
+      const mode = p.mode === "3D" ? "d3" : "d2";
+      const { selectable: s, problem: kind, other: o } = p.problem;
+      seen[mode].add(`${NAMES[s] ?? s} ${kind} ${o === null ? "-" : (NAMES[o] ?? o)}`);
+      if (s === DOG && kind === "member") seen[mode].add("#member");
+      if (kind === "core" && (s === DOG || o === DOG)) seen[mode].add("#core");
+    }
+    const dogHeld = sweep.sideWalls.find((w) => w.id === "dog");
+    if (dogHeld && dogHeld.stages.length > 0) held.d3 += 1;
+    if (dogHeld && dogHeld.flat.length > 0) held.d2 += 1;
+    for (const mode of ["d3", "d2"] as const) {
+      if (seen[mode].size > 0) any[mode] += 1;
+      for (const k of seen[mode]) {
+        if (k === "#member") signMember[mode] += 1;
+        else if (k === "#core") coresOverlap[mode] += 1;
+        else {
+          const n = kinds.get(k) ?? pair();
+          n[mode] += 1;
+          kinds.set(k, n);
+        }
+      }
+    }
+  }
+  const findings = findingKeys(tree).filter((f) => !baseFindings.has(f));
+  const cx = (box.min[0] + box.max[0]) / 2;
+  const cz = (box.min[2] + box.max[2]) / 2;
+  const dist = Math.hypot(cx - HOME[0], cz - HOME[1]);
+  const passes = any.d3 === 0 && any.d2 === 0;
+  const f3 = (n: number): string => n.toFixed(3);
+  return [
+    `${c.group} ${c.anchor} offset [${c.offset.join(", ")}]${c.turnY ? ` turn y ${c.turnY}` : ""}`,
+    `sign x ${f3(box.min[0])}..${f3(box.max[0])} y ${f3(box.min[1])}..${f3(box.max[1])} z ${f3(box.min[2])}..${f3(box.max[2])}`,
+    `to the dog's home ${dist.toFixed(2)} m`,
+    `side-wall ${sideWall ? "yes" : "no"}`,
+    `sign's core over members 3D ${signMember.d3} / 2D ${signMember.d2}`,
+    `cores overlap 3D ${coresOverlap.d3} / 2D ${coresOverlap.d2}`,
+    `problems: ${[...kinds].map(([k, n]) => `${k} 3D ${n.d3} / 2D ${n.d2}`).join("; ") || "none"}`,
+    `list-only (held) 3D ${held.d3} / 2D ${held.d2}`,
+    `stages with any RG6 problem 3D ${any.d3} / 2D ${any.d2} of ${stages.length}`,
+    `RG6 ${passes ? "PASSES" : "refuses"}`,
+    `new non-RG6 findings: ${findings.length === 0 ? "none" : findings.join(" | ")}`,
+  ].join(" · ");
+}
+
+it("measures Q283's candidate mounts", { timeout: 3_600_000 }, () => {
+  const bareTree = treeWith(null, false);
+  const bare = geometryOf(createContext(loadRoom(bareTree), policy, STRICT, bareTree).ctx);
+  if (!bare) throw new Error("no geometry");
+  const bareProblems = pickSweep(bare).problems.map((p) => `${p.mode} ${p.problem.selectable} ${p.problem.problem}`);
+  console.log(`baseline, shipped scene without the dog selectable: RG6 problems ${JSON.stringify(bareProblems)}`);
+  const baseFindings = new Set(findingKeys(treeWith(null)));
+  console.log(`non-RG6 findings with the dog selectable, sign on the desk: ${JSON.stringify([...baseFindings])}`);
+  for (const id of ["snowboard", "bicycle", "chalkboard", "wall-outlet", "helmet", "twin-figure", "wall-window"])
+    console.log(`${id} box ${JSON.stringify(bare.boxes.get(id))}`);
+  const groups = (process.env.PROBE_GROUPS ?? "back,left,right,floor").split(",");
+  const extra = process.env.PROBE_EXTRA; // "group:anchor:x,y,z[:turnY]" entries joined by ";"
+  const list: Candidate[] = extra
+    ? extra.split(";").map((e) => {
+        const [group, anchor, xyz, turn] = e.split(":");
+        const offset = (xyz ?? "").split(",").map(Number) as [number, number, number];
+        return { group: group ?? "extra", anchor: anchor as Candidate["anchor"], offset, turnY: turn ? Number(turn) : undefined };
+      })
+    : CANDIDATES.filter((c) => groups.includes(c.group));
+  for (const c of list) {
+    const t0 = Date.now();
+    console.log(measure(c, baseFindings));
+    console.log(`  (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
+  }
+});
+```
+
+### The runs
+
+Each run in `apps/web`, its console stripped of colour codes (`sed 's/\x1b\[[0-9;]*m//g'`) and filtered as each says.
+Every run ended `Test Files 1 passed (1)`. One candidate took about 9 to 11 s.
+
+#### Run 1: the back wall
+
+`PROBE_GROUPS=back npx vitest run test/room/zz-probe-dog-sign-mounts.test.ts --reporter=verbose`, filtered with
+`grep -E "baseline|box |findings|offset \[|\(|Error|FAIL|Test Files|passed|failed"`:
+
+```text
+baseline, shipped scene without the dog selectable: RG6 problems []
+non-RG6 findings with the dog selectable, sign on the desk: []
+snowboard box {"min":[-1.0667915213882924,2.384185793236071e-8,-0.5561984419822693],"max":[-0.8689360749006272,1.549999976158142,-0.24380155801773074]}
+bicycle box {"min":[0.8890199937701225,0.8535949492454529,-0.28713758745193485],"max":[1.0645800062298776,2.1264050507545473,0.48120499691963203]}
+chalkboard box {"min":[-1.0668,1.17319997549057,-0.07000003328323362],"max":[-1.0071999969363212,2.12680002450943,0.6452000332832337]}
+wall-outlet box {"min":[1.0216545517027378,0.9289999993145466,-0.43599999845027926],"max":[1.0668,1.0510000006854534,-0.3640000015497208]}
+helmet box {"min":[0.6786071685656572,0,-0.22676301256811854],"max":[1.0291768522599658,0.19887010753154755,0.07120928915623441]}
+twin-figure box {"min":[0.29000000000000004,0,0.14499999999999996],"max":[1.02,1.82,0.669]}
+wall-window box {"min":[-1,0.8000000238418579,-0.6096],"max":[1,2.0999999761581423,-0.5487999989748001]}
+back back-wall offset [-0.9, 0.3, 0.0375] · sign x -1.020..-0.780 y 0.300..0.475 z -0.610..-0.534 · to the dog's home 1.58 m · side-wall no · sign's core over members 3D 7671 / 2D 7671 · cores overlap 3D 0 / 2D 0 · problems: dog member snowboard 3D 7671 / 2D 7671 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 7671 / 2D 7671 of 7671 · RG6 refuses · new non-RG6 findings: none
+  (10.6 s)
+back back-wall offset [-0.9, 0.55, 0.0375] · sign x -1.020..-0.780 y 0.550..0.725 z -0.610..-0.534 · to the dog's home 1.58 m · side-wall no · sign's core over members 3D 7671 / 2D 7671 · cores overlap 3D 0 / 2D 0 · problems: dog member snowboard 3D 7671 / 2D 7671 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 7671 / 2D 7671 of 7671 · RG6 refuses · new non-RG6 findings: none
+  (10.1 s)
+back back-wall offset [0.9, 0.3, 0.0375] · sign x 0.780..1.020 y 0.300..0.475 z -0.610..-0.534 · to the dog's home 1.19 m · side-wall no · sign's core over members 3D 0 / 2D 76 · cores overlap 3D 0 / 2D 0 · problems: dog reserved - 3D 30 / 2D 0; dog member bicycle 3D 0 / 2D 76 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 30 / 2D 76 of 7671 · RG6 refuses · new non-RG6 findings: none
+  (9.3 s)
+back back-wall offset [0.9, 0.55, 0.0375] · sign x 0.780..1.020 y 0.550..0.725 z -0.610..-0.534 · to the dog's home 1.19 m · side-wall no · sign's core over members 3D 2964 / 2D 4825 · cores overlap 3D 0 / 2D 0 · problems: dog member bicycle 3D 2964 / 2D 4825 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 2964 / 2D 4825 of 7671 · RG6 refuses · new non-RG6 findings: none
+  (9.7 s)
+back back-wall offset [-0.93, 1.2, 0.0375] · sign x -1.050..-0.810 y 1.200..1.375 z -0.610..-0.534 · to the dog's home 1.60 m · side-wall no · sign's core over members 3D 7671 / 2D 7671 · cores overlap 3D 0 / 2D 0 · problems: dog member snowboard 3D 7671 / 2D 7671; dog member laptop 3D 283 / 2D 1331; dog member chalkboard 3D 1147 / 2D 1896 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 7671 / 2D 7671 of 7671 · RG6 refuses · new non-RG6 findings: none
+  (9.0 s)
+back back-wall offset [0.93, 1.2, 0.0375] · sign x 0.810..1.050 y 1.200..1.375 z -0.610..-0.534 · to the dog's home 1.20 m · side-wall no · sign's core over members 3D 7670 / 2D 7670 · cores overlap 3D 0 / 2D 0 · problems: dog member bicycle 3D 7670 / 2D 7670; dog member laptop 3D 1593 / 2D 3379 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 7670 / 2D 7670 of 7670 · RG6 refuses · new non-RG6 findings: none
+  (9.4 s)
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Duration  120.31s (tests 99%, import 1%, transform 1%)
+```
+
+#### Run 2: the side walls and the floor
+
+`PROBE_GROUPS=left,right,floor npx vitest run test/room/zz-probe-dog-sign-mounts.test.ts --reporter=verbose`, filtered
+with `grep -E "offset \[|Error|FAIL|Test Files|passed|failed"` (the baseline lines are run 1's):
+
+```text
+left left-wall offset [0.1, 0.4, 0.0375] · sign x -1.067..-0.991 y 0.400..0.575 z -0.220..0.020 · to the dog's home 1.44 m · side-wall yes · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 7671 / 2D 7671 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+left left-wall offset [0.1, 0.8, 0.0375] · sign x -1.067..-0.991 y 0.800..0.975 z -0.220..0.020 · to the dog's home 1.44 m · side-wall yes · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 7671 / 2D 7671 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+left left-wall offset [-0.1, 0.4, 0.0375] · sign x -1.067..-0.991 y 0.400..0.575 z -0.020..0.220 · to the dog's home 1.37 m · side-wall yes · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 6474 / 2D 6590 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+left left-wall offset [-0.1, 0.8, 0.0375] · sign x -1.067..-0.991 y 0.800..0.975 z -0.020..0.220 · to the dog's home 1.37 m · side-wall yes · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 6474 / 2D 6590 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+left left-wall offset [-0.3, 0.4, 0.0375] · sign x -1.067..-0.991 y 0.400..0.575 z 0.180..0.420 · to the dog's home 1.34 m · side-wall yes · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 3185 / 2D 3696 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+left left-wall offset [-0.3, 0.8, 0.0375] · sign x -1.067..-0.991 y 0.800..0.975 z 0.180..0.420 · to the dog's home 1.34 m · side-wall yes · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 3225 / 2D 3728 · stages with any RG6 problem 3D 0 / 2D 0 of 7666 · RG6 PASSES · new non-RG6 findings: none
+left left-wall offset [-0.45, 0.4, 0.0375] · sign x -1.067..-0.991 y 0.400..0.575 z 0.330..0.570 · to the dog's home 1.33 m · side-wall yes · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 1624 / 2D 1998 · stages with any RG6 problem 3D 0 / 2D 0 of 7666 · RG6 PASSES · new non-RG6 findings: none
+left left-wall offset [-0.45, 0.8, 0.0375] · sign x -1.067..-0.991 y 0.800..0.975 z 0.330..0.570 · to the dog's home 1.33 m · side-wall yes · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 2100 / 2D 2824 · stages with any RG6 problem 3D 0 / 2D 0 of 7662 · RG6 PASSES · new non-RG6 findings: none
+right right-wall offset [-0.45, 0.4, 0.0375] · sign x 0.991..1.067 y 0.400..0.575 z -0.570..-0.330 · to the dog's home 1.16 m · side-wall yes · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 68 / 2D 658 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+right right-wall offset [-0.45, 0.65, 0.0375] · sign x 0.991..1.067 y 0.650..0.825 z -0.570..-0.330 · to the dog's home 1.16 m · side-wall yes · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 7151 / 2D 7671 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+right right-wall offset [-0.2, 0.4, 0.0375] · sign x 0.991..1.067 y 0.400..0.575 z -0.320..-0.080 · to the dog's home 0.98 m · side-wall yes · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 16 / 2D 240 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+right right-wall offset [-0.2, 0.65, 0.0375] · sign x 0.991..1.067 y 0.650..0.825 z -0.320..-0.080 · to the dog's home 0.98 m · side-wall yes · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 6414 / 2D 6958 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+right right-wall offset [0, 0.4, 0.0375] · sign x 0.991..1.067 y 0.400..0.575 z -0.120..0.120 · to the dog's home 0.86 m · side-wall yes · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 40 / 2D 75 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+right right-wall offset [0, 0.65, 0.0375] · sign x 0.991..1.067 y 0.650..0.825 z -0.120..0.120 · to the dog's home 0.86 m · side-wall yes · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 5156 / 2D 6048 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+right right-wall offset [0.3, 0.4, 0.0375] · sign x 0.991..1.067 y 0.400..0.575 z 0.180..0.420 · to the dog's home 0.74 m · side-wall yes · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 75 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+right right-wall offset [0.3, 0.65, 0.0375] · sign x 0.991..1.067 y 0.650..0.825 z 0.180..0.420 · to the dog's home 0.74 m · side-wall yes · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 3129 / 2D 4315 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+floor floor offset [0, 0, 0.3] · sign x -0.120..0.120 y 0.000..0.175 z 0.262..0.338 · to the dog's home 0.34 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+floor floor offset [0, 0, 0.45] · sign x -0.120..0.120 y 0.000..0.175 z 0.412..0.488 · to the dog's home 0.30 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog outside - 3D 0 / 2D 335 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 335 of 7670 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [-0.15, 0, 0.3] · sign x -0.270..-0.030 y 0.000..0.175 z 0.262..0.338 · to the dog's home 0.47 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+floor floor offset [-0.15, 0, 0.45] · sign x -0.270..-0.030 y 0.000..0.175 z 0.412..0.488 · to the dog's home 0.45 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog outside - 3D 0 / 2D 336 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 336 of 7671 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [-0.3, 0, 0.3] · sign x -0.420..-0.180 y 0.000..0.175 z 0.262..0.338 · to the dog's home 0.62 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+floor floor offset [-0.3, 0, 0.45] · sign x -0.420..-0.180 y 0.000..0.175 z 0.412..0.488 · to the dog's home 0.60 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog outside - 3D 0 / 2D 336 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 336 of 7671 · RG6 refuses · new non-RG6 findings: none
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+```
+
+#### Run 3: the floor beside the dog, finer
+
+`PROBE_EXTRA` built as `floor:floor:<x>,0,<z>` for x in 0.03, 0, −0.05 and z in 0.3 to 0.42 by 0.02, joined by `;`,
+then the same command, filtered as run 2:
+
+```text
+floor floor offset [0.03, 0, 0.3] · sign x -0.090..0.150 y 0.000..0.175 z 0.262..0.338 · to the dog's home 0.31 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog reserved - 3D 10 / 2D 0 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 10 / 2D 0 of 7671 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [0.03, 0, 0.32] · sign x -0.090..0.150 y 0.000..0.175 z 0.282..0.358 · to the dog's home 0.30 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog reserved - 3D 11 / 2D 0 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 11 / 2D 0 of 7671 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [0.03, 0, 0.34] · sign x -0.090..0.150 y 0.000..0.175 z 0.302..0.378 · to the dog's home 0.29 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog reserved - 3D 11 / 2D 0; dog outside - 3D 0 / 2D 75 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 11 / 2D 75 of 7671 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [0.03, 0, 0.36] · sign x -0.090..0.150 y 0.000..0.175 z 0.322..0.398 · to the dog's home 0.28 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog reserved - 3D 11 / 2D 0; dog outside - 3D 0 / 2D 75 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 11 / 2D 75 of 7670 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [0.03, 0, 0.38] · sign x -0.090..0.150 y 0.000..0.175 z 0.342..0.418 · to the dog's home 0.28 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog reserved - 3D 11 / 2D 0; dog outside - 3D 0 / 2D 158 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 11 / 2D 158 of 7670 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [0.03, 0, 0.4] · sign x -0.090..0.150 y 0.000..0.175 z 0.362..0.438 · to the dog's home 0.27 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog reserved - 3D 11 / 2D 0; dog outside - 3D 0 / 2D 158 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 11 / 2D 158 of 7670 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [0.03, 0, 0.42] · sign x -0.090..0.150 y 0.000..0.175 z 0.382..0.458 · to the dog's home 0.27 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog reserved - 3D 11 / 2D 0; dog outside - 3D 0 / 2D 239 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 11 / 2D 239 of 7670 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [0, 0, 0.3] · sign x -0.120..0.120 y 0.000..0.175 z 0.262..0.338 · to the dog's home 0.34 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+floor floor offset [0, 0, 0.32] · sign x -0.120..0.120 y 0.000..0.175 z 0.282..0.358 · to the dog's home 0.33 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+floor floor offset [0, 0, 0.34] · sign x -0.120..0.120 y 0.000..0.175 z 0.302..0.378 · to the dog's home 0.32 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog outside - 3D 0 / 2D 75 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 75 of 7671 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [0, 0, 0.36] · sign x -0.120..0.120 y 0.000..0.175 z 0.322..0.398 · to the dog's home 0.31 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog outside - 3D 0 / 2D 75 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 75 of 7670 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [0, 0, 0.38] · sign x -0.120..0.120 y 0.000..0.175 z 0.342..0.418 · to the dog's home 0.31 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog outside - 3D 0 / 2D 158 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 158 of 7670 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [0, 0, 0.4] · sign x -0.120..0.120 y 0.000..0.175 z 0.362..0.438 · to the dog's home 0.30 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog outside - 3D 0 / 2D 158 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 158 of 7670 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [0, 0, 0.42] · sign x -0.120..0.120 y 0.000..0.175 z 0.382..0.458 · to the dog's home 0.30 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog outside - 3D 0 / 2D 239 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 239 of 7670 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [-0.05, 0, 0.3] · sign x -0.170..0.070 y 0.000..0.175 z 0.262..0.338 · to the dog's home 0.38 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+floor floor offset [-0.05, 0, 0.32] · sign x -0.170..0.070 y 0.000..0.175 z 0.282..0.358 · to the dog's home 0.37 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+floor floor offset [-0.05, 0, 0.34] · sign x -0.170..0.070 y 0.000..0.175 z 0.302..0.378 · to the dog's home 0.37 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog outside - 3D 0 / 2D 75 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 75 of 7671 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [-0.05, 0, 0.36] · sign x -0.170..0.070 y 0.000..0.175 z 0.322..0.398 · to the dog's home 0.36 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog outside - 3D 0 / 2D 75 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 75 of 7670 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [-0.05, 0, 0.38] · sign x -0.170..0.070 y 0.000..0.175 z 0.342..0.418 · to the dog's home 0.36 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog outside - 3D 0 / 2D 158 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 158 of 7670 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [-0.05, 0, 0.4] · sign x -0.170..0.070 y 0.000..0.175 z 0.362..0.438 · to the dog's home 0.35 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog outside - 3D 0 / 2D 158 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 158 of 7670 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [-0.05, 0, 0.42] · sign x -0.170..0.070 y 0.000..0.175 z 0.382..0.458 · to the dog's home 0.35 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog outside - 3D 0 / 2D 239 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 239 of 7670 · RG6 refuses · new non-RG6 findings: none
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+```
+
+#### Run 4: the floor's edge, and more of the back wall's right corner
+
+`PROBE_EXTRA` of `floor:floor:0.01,0,0.32`, `floor:floor:0.02,0,0.32`, `floor:floor:0.01,0,0.33`,
+`floor:floor:0,0,0.33`, then `back:back-wall:<x>,<y>,0.0375` for x in 0.85, 0.95 and y in 0.35, 0.4, and
+`back:back-wall:0.9,0.4,0.0375`, joined by `;`, then the same command, filtered as run 2:
+
+```text
+floor floor offset [0.01, 0, 0.32] · sign x -0.110..0.130 y 0.000..0.175 z 0.282..0.358 · to the dog's home 0.32 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: none · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 0 of 7671 · RG6 PASSES · new non-RG6 findings: none
+floor floor offset [0.02, 0, 0.32] · sign x -0.100..0.140 y 0.000..0.175 z 0.282..0.358 · to the dog's home 0.31 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog reserved - 3D 9 / 2D 0 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 9 / 2D 0 of 7671 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [0.01, 0, 0.33] · sign x -0.110..0.130 y 0.000..0.175 z 0.292..0.368 · to the dog's home 0.31 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog outside - 3D 0 / 2D 75 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 75 of 7671 · RG6 refuses · new non-RG6 findings: none
+floor floor offset [0, 0, 0.33] · sign x -0.120..0.120 y 0.000..0.175 z 0.292..0.368 · to the dog's home 0.32 m · side-wall no · sign's core over members 3D 0 / 2D 0 · cores overlap 3D 0 / 2D 0 · problems: dog outside - 3D 0 / 2D 75 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 0 / 2D 75 of 7671 · RG6 refuses · new non-RG6 findings: none
+back back-wall offset [0.85, 0.35, 0.0375] · sign x 0.730..0.970 y 0.350..0.525 z -0.610..-0.534 · to the dog's home 1.16 m · side-wall no · sign's core over members 3D 26 / 2D 443 · cores overlap 3D 0 / 2D 0 · problems: dog reserved - 3D 12 / 2D 0; dog member bicycle 3D 26 / 2D 443 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 27 / 2D 443 of 7671 · RG6 refuses · new non-RG6 findings: none
+back back-wall offset [0.85, 0.4, 0.0375] · sign x 0.730..0.970 y 0.400..0.575 z -0.610..-0.534 · to the dog's home 1.16 m · side-wall no · sign's core over members 3D 132 / 2D 908 · cores overlap 3D 0 / 2D 0 · problems: dog member bicycle 3D 132 / 2D 908 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 132 / 2D 908 of 7671 · RG6 refuses · new non-RG6 findings: none
+back back-wall offset [0.95, 0.35, 0.0375] · sign x 0.830..1.070 y 0.350..0.525 z -0.610..-0.534 · to the dog's home 1.21 m · side-wall no · sign's core over members 3D 26 / 2D 443 · cores overlap 3D 0 / 2D 0 · problems: dog reserved - 3D 13 / 2D 0; dog member bicycle 3D 26 / 2D 443 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 27 / 2D 443 of 7671 · RG6 refuses · new non-RG6 findings: none
+back back-wall offset [0.95, 0.4, 0.0375] · sign x 0.830..1.070 y 0.400..0.575 z -0.610..-0.534 · to the dog's home 1.21 m · side-wall no · sign's core over members 3D 132 / 2D 908 · cores overlap 3D 0 / 2D 0 · problems: dog member bicycle 3D 132 / 2D 908 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 132 / 2D 908 of 7671 · RG6 refuses · new non-RG6 findings: none
+back back-wall offset [0.9, 0.4, 0.0375] · sign x 0.780..1.020 y 0.400..0.575 z -0.610..-0.534 · to the dog's home 1.19 m · side-wall no · sign's core over members 3D 132 / 2D 908 · cores overlap 3D 0 / 2D 0 · problems: dog member bicycle 3D 132 / 2D 908 · list-only (held) 3D 0 / 2D 0 · stages with any RG6 problem 3D 132 / 2D 908 of 7671 · RG6 refuses · new non-RG6 findings: none
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+```
+
+Two of the back wall's points stand partly in other pieces' boxes, and no compose finding refuses that: the points
+beside the window ([±0.93, 1.2]) overlap the window's box, and [0.95, …] reaches x 1.070, 3 mm past the right wall's
+plane. Points at x 0.85 overlap the desk's box from x 0.73 to 0.75. None passes RG6, so none is a candidate.
+
+### Lint (measure2-026)
+
+The lint target, run after the probe was deleted, with this file the only change in the worktree (`git diff
+--name-only` lists only it). It fails as it did for measure-026 (its Lint section, above), on the same four files that
+came onto the line before measure-026's base, none of which this task may change:
+`apps/web/src/room/compose/pick.ts`, `apps/web/src/room/scene/twin-states.ts`,
+`apps/web/test/room/pet-homes.test.ts`, and `apps/web/test/room/pet-states.test.ts`. ESLint and tsc passed. The target
+stops at Prettier, so its later steps ran on their own, with the target's own commands, and passed. Prettier passes on
+this file alone.
+
+```text
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+[warn] apps/web/src/room/compose/pick.ts
+[warn] apps/web/src/room/scene/twin-states.ts
+[warn] apps/web/test/room/pet-homes.test.ts
+[warn] apps/web/test/room/pet-states.test.ts
+[warn] Code style issues found in 4 files. Run Prettier with --write to fix.
+make: *** [Makefile:231: lint] Error 1
+exit 2
+```
+
+The target's remaining steps:
+
+```text
+$ ruff check .
+All checks passed!
+exit 0
+$ ruff format --check --no-cache --extend-exclude corpus .
+822 files already formatted
+exit 0
+$ shellcheck (the target's file list: LIST_SH, then NAMED_SCRIPTS)
+exit 0
+$ node_modules/.bin/prettier --check specs/026-twin-pets-dog/dog-sign-offset.md
+Checking formatting...
+All matched files use Prettier code style!
+```
