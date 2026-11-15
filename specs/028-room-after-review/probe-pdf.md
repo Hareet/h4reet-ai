@@ -229,7 +229,7 @@ page 1 obj 542 -> https://github.com/hareet/h4reet-ai/tree/main/films/data-flows
     under: E | V | E | R | Y | D | A | T | A | F | L | O | W | D | I | S | C | L | O | S | E | D
 ```
 
-The trailing `g` under obj 20 comes from the probe's ±0.5 pt margin: obj 20 and obj 21 share the edge x = 490.194, so the first glyph of "github.com" falls inside both. The PDF itself is fine. Each film rectangle holds its own claim's glyphs and nothing from the claims beside it. They are separated by gaps of about 19 pt (154.3 → 173.5, 282.7 → 302.1, 406.3 → 425.4), where the row's separators show on the page; the decoded text holds no separator glyphs, as the `under:` lines show (corrected by `docfix-028`, PDF-N1: first written "where the separators sit").
+The trailing `g` under obj 20 comes from the probe's ±0.5 pt margin: obj 20 and obj 21 share the edge x = 490.194, so the first glyph of "github.com" falls inside both. The PDF itself is fine. Each film rectangle holds its own claim's glyphs and nothing from the claims beside it. They are separated by gaps of about 19 pt (154.3 → 173.5, 282.7 → 302.1, 406.3 → 425.4), between the claims; the decoded text holds no separator glyphs there, as the `under:` lines show (corrected by `docfix-028`, PDF-N1: first written "where the separators sit").
 
 ### The page's lines, with positions and sizes
 
