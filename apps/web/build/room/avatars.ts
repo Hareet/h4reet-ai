@@ -473,6 +473,13 @@ export function bundledFiles(avatar: Avatar): AvatarFile[] {
   return [avatar.model, ...avatar.clips.filter((c) => c.bundled)];
 }
 
+/** Whether the bundle carries an avatar's model: the 3D part's `avatars` has it (emit.ts's avatarsPart). Spec 024
+ *  (FR-001; page Q247): a dinosaur visit's Eat box, its checks, and its report lines hang on the dinosaur's. */
+export function carriesModel(set: AvatarSet, id: AvatarId): boolean {
+  const avatar = set.avatars.find((a) => a.id === id);
+  return avatar !== undefined && bundledFiles(avatar).length > 0;
+}
+
 // ---- Spec 016: the twin's own avatar (its FR-009, FR-015, FR-045, FR-046, FR-048, FR-055; plan.md R-01 to R-04) ----
 // The twin's folder, assets/twin/, which the Author's intake fills, read once a compose as the visitors' folders are:
 // - each file's role by the convention: its model `twin.glb`, its clips `<role>.glb` for the closed list

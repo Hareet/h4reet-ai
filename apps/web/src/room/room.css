@@ -313,6 +313,7 @@ html[data-hud="dock"] .room-clear {
 }
 
 .room-walk,
+.room-eat,
 .room-offer {
   pointer-events: auto;
 }
@@ -335,6 +336,38 @@ html[data-hud="dock"] .room-clear {
   background: #ffffff;
   border: 2px solid #1a1a1a;
   border-radius: 4px;
+}
+
+/* Spec 024's "Eat" tile (FR-012; plan.md §5.5): the walking control's size and look, beside it. In the HUD's layouts it
+   sits at compose/hud.ts's compactBoxes place for a 3D dinosaur visit, its `eat`, which the room sets as --eat-x and
+   --eat-y in the window's pixels and the frame area keeps clear; in the stacked layout, on the walking control's left,
+   a 0.25rem gap apart. Its DOM place is after the walking control's, so it comes after it in the Tab order.
+   rework-024 (B-2): a rule that reads a property the room sets for one layout is scoped to that layout and to the
+   attribute that says the property is set, so no other layout reads it unset (layout.ts offers the tile only where a
+   rule places it: the stacked layout, or a HUD layout with data-eat-place="on"; test/ui/eat-place.test.ts). */
+.room-eat {
+  position: absolute;
+  right: 8.75rem;
+  bottom: 0.5rem;
+  width: 8rem;
+  height: 2.75rem;
+  z-index: 1;
+  padding: 0 0.5rem;
+  font: inherit;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+  color: #1a1a1a;
+  background: #ffffff;
+  border: 2px solid #1a1a1a;
+  border-radius: 4px;
+}
+
+html[data-hud="column"][data-eat-place="on"] .room-eat,
+html[data-hud="dock"][data-eat-place="on"] .room-eat {
+  left: calc(var(--eat-x) - var(--clear-x));
+  top: calc(var(--eat-y) - var(--clear-y));
+  right: auto;
+  bottom: auto;
 }
 
 /* The walking view (spec 008, FR-042; R-13): the stage's view takes focus while walking, its ring the room's, inside
@@ -698,6 +731,8 @@ html[data-hud="column"] .hud-glass input:focus-visible,
 html[data-hud="dock"] .hud-glass input:focus-visible,
 html[data-hud="column"] .hud-glass.room-walk:focus-visible,
 html[data-hud="dock"] .hud-glass.room-walk:focus-visible,
+html[data-hud="column"] .hud-glass.room-eat:focus-visible,
+html[data-hud="dock"] .hud-glass.room-eat:focus-visible,
 html[data-hud="column"] .room-offer button:focus-visible,
 html[data-hud="dock"] .room-offer button:focus-visible {
   outline: 2px solid var(--hud-focus);
@@ -717,7 +752,9 @@ html[data-hud="column"][data-walk-place="column"] .room-walk {
 
 /* The walking control over the scene: a glass tile of its own, where no panel lies behind it. */
 html[data-hud="column"] .room-walk,
-html[data-hud="dock"] .room-walk {
+html[data-hud="dock"] .room-walk,
+html[data-hud="column"] .room-eat,
+html[data-hud="dock"] .room-eat {
   flex-direction: row;
   gap: 0.25rem;
   padding: 0 0.5rem;
@@ -1087,6 +1124,7 @@ html[data-hud="dock"] .resume-panel {
   :root[data-hud] .hud-glass a:focus-visible,
   :root[data-hud] .hud-glass input:focus-visible,
   :root[data-hud] .hud-glass.room-walk:focus-visible,
+  :root[data-hud] .hud-glass.room-eat:focus-visible,
   :root[data-hud] .room-offer button:focus-visible,
   :root[data-hud] .room-stage-view[role="application"]:focus-visible + .room-clear {
     outline-color: Highlight;

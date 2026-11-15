@@ -92,7 +92,7 @@ import { PHOTO_GUIDE, photoGuide, workOrder, WORK_ORDERS_DIR } from "./orders";
 import { capsOf } from "./policy";
 import type { CapsSource, RoomCaps, RoomPolicy } from "./policy";
 import { roomReport } from "./report";
-import { HEX, HIGHLIGHT_DEFAULTS, WALKING_DEFAULTS } from "./schema";
+import { EATING_DEFAULTS, HEX, HIGHLIGHT_DEFAULTS, WALKING_DEFAULTS } from "./schema";
 import type {
   CatalogEntry,
   DrawingPrimitive,
@@ -1452,6 +1452,8 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
       frame_box: boxOf(c.frames.get(p.id) ?? ZERO_BOX),
       label: p.label ?? null,
       model: modelOf(c, p),
+      // Spec 024 (FR-002): the chunks a piece splits into for the dinosaur's bite, or null.
+      edible: p.edible ? { chunks: p.edible.chunks } : null,
     })),
     switches: (scene?.switches ?? []).map((sw) => ({
       id: sw.id,
@@ -1513,6 +1515,8 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
     load_order: loadOrder(entries),
     scene_texture_bytes: c.caps.scene_texture_bytes,
     walking: walkingOf(scene),
+    // Spec 024 (FR-011): the regrowth's seconds, the scene's or the default.
+    eating: { regrow_s: scene?.eating.regrow_s ?? EATING_DEFAULTS.regrow_s },
     avatars: avatarsPart(c),
     twin: twinPartOf(c),
   };

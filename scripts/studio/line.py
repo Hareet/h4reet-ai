@@ -6,18 +6,20 @@
     python3 -I -B scripts/studio/line.py round ASSET [--briefs DIR] [--handoff DIR] [--repo DIR]
 
 Standard library only. A repo agent writes a brief, the studio agent answers with a candidate in the handoff folder,
-and these checks judge both; three rounds at most.
+and these checks judge both; four rounds at most (ROUNDS), for every asset.
 
 The policy is main's only: caps.json and studio-tools.json (the Author's P-7) are read from refs/heads/main's commit
 in --repo (the working directory's repository by default), with replace objects off, never from a path the caller
 names, a tag named main, or a working tree. While main lacks either, line.py can't run. The arrival check doesn't
 read the tools list, so this is FR-029's one machine check of the list (review G3, blocker 1).
 
-- brief: data-model.md's shape, every field present and no other; the round 1 to 3; each limit at or under main's
+- brief: data-model.md's shape, every field present and no other; the round 1 to 4; each limit at or under main's
   caps.json for the kind; every tool on the list with `outputs_ship: true`, and none named Qwen-Image or FLUX [dev],
   whatever the list says. The file sits at <briefs>/<asset>/<round>.json, its round the folder's highest brief plus
   one, with no later brief, handoff, or result, and no handoff or result yet for its own round. Round 1 holds no
-  findings; a later round follows round n-1's handoff and recorded failure, and holds its findings verbatim.
+  findings; a later round follows round n-1's handoff and either its recorded failure, whose findings it holds
+  verbatim, or its recorded pass, which must re-check clean as `round` re-checks it, and then holds none. A failure
+  that follows a pass is the Author's to decide: no brief after it.
 - candidate: the brief, re-checked in full; candidate.json's shape, for the brief's asset and round; its files in the
   folder (regular files, never links); its tools in the brief's and on the list, at the list's version; the record's
   directory under assets/ (but assets/policy/); every model and tool a record step names in the brief's tools and on
@@ -36,9 +38,12 @@ read the tools list, so this is FR-029's one machine check of the list (review G
   handoff or result follows.
 - round: the asset's next step. Rounds are counted from the handoff folders, <handoff>/<asset>/<n>/, which only the
   studio writes, and the results, whichever is higher, so deleting a result or a brief resets nothing (review G3,
-  blocker 2). A recorded pass counts only once its round's handoff is there and the candidate re-checks clean.
-  Prints `1` (nothing yet), `open N` (round N's brief or handoff, waiting for the studio or for judging), `N+1`
-  (round N failed), `passed N`, or `decide` (three rounds used without a pass: no brief is written, and the asset
+  blocker 2). A recorded pass counts only once its round's handoff is there and the candidate re-checks clean. The
+  re-check takes later rounds only in the shape that follows a pass, round n+1's brief holding no findings; any
+  other later round still refuses it (rv-rounds4-020, I-2). Prints `1` (nothing yet), `open N` (round N's brief or
+  handoff, waiting for the studio or for judging, after a pass too), `N+1` (round N failed), `passed N` (the latest
+  round, and it passed), `decide (round P passed)` (a round after P's pass failed: the Author chooses, and the line
+  never takes P by itself; Q267), or `decide` (four rounds used without a pass: no brief is written, and the asset
   goes on the decision page).
 
 Output: one line per finding, `<check>: <value> (limit: <limit>)`, then a summary. Exit 0: pass. 1: findings. 2:
@@ -66,7 +71,7 @@ TOOLS = "assets/policy/studio-tools.json"
 MAIN_COPIES = ("assets/policy", "docs/data-flow-disclosure.md")
 BRIEFS = "/srv/studio/briefs"
 HANDOFF = "/srv/studio/handoff"
-ROUNDS = 3
+ROUNDS = 4  # the Author, 2026-11-14 (about 21:00Z); spec 017's data-model.md, Brief
 RECORDS = "records.json"
 NOTICE = "LICENSE.md"
 
@@ -475,9 +480,18 @@ def brief_shape(doc: object) -> list[str]:
     return out
 
 
-def order_findings(path: Path, doc: dict, handoff: Path, *, judging: bool) -> list[str]:
+def order_findings(
+    path: Path,
+    doc: dict,
+    main: Main,
+    handoff: Path,
+    *,
+    judging: bool,
+    rechecking: bool = False,
+) -> list[str]:
     """The brief's place in its asset's rounds. Judging (candidate, round), its own round's handoff and result may
-    exist; writing (brief), they may not. Either way no later brief, handoff, or result may."""
+    exist; writing (brief), they may not. Either way no later brief, handoff, or result may, except when a recorded
+    pass is re-checked (rechecking): a later round doesn't undo a pass."""
     m = ROUND_FILE.fullmatch(path.name)
     if not m:
         return [finding("brief path", path.name, "<briefs>/<asset>/<round>.json")]
@@ -491,7 +505,9 @@ def order_findings(path: Path, doc: dict, handoff: Path, *, judging: bool) -> li
     answered = handoff_rounds(handoff, asset)
     judged = result_rounds(path.parent)
     later = sorted(x for x in briefs | answered | judged if x > n)
-    if later:
+    # A re-checked pass may have later rounds only in the one shape that follows a pass: round n+1's brief, holding
+    # no findings. Any other later round keeps the refusal, so a rewritten early brief and result pass nothing.
+    if later and not (rechecking and follows_a_pass(path.parent, n)):
         out.append(
             finding(
                 "round",
@@ -525,21 +541,63 @@ def order_findings(path: Path, doc: dict, handoff: Path, *, judging: bool) -> li
                 "round", n, f"after round {n - 1}'s recorded failure; it has no result"
             )
         )
-    elif before["result"] != "fail":
-        out.append(finding("round", n, f"after round {n - 1}'s failure; it passed"))
-    elif findings != before["findings"]:
-        out.append(
-            finding(
-                "findings",
-                f"not round {n - 1}'s",
-                f"round {n - 1}'s findings, verbatim",
+    elif before["result"] == "pass":
+        if findings:
+            out.append(
+                finding(
+                    "findings",
+                    f"{len(findings)} lines",
+                    f"none after round {n - 1}'s pass",
+                )
             )
-        )
+        elif n - 1 in answered and not passes_again(path.parent, n - 1, main, handoff):
+            out.append(
+                finding(
+                    "round", n, f"after round {n - 1}'s pass; it doesn't re-check clean"
+                )
+            )
+    else:
+        if findings != before["findings"]:
+            out.append(
+                finding(
+                    "findings",
+                    f"not round {n - 1}'s",
+                    f"round {n - 1}'s findings, verbatim",
+                )
+            )
+        passed = [
+            m
+            for m in sorted(judged)
+            if m < n - 1
+            and (r := read_result(path.parent, m))
+            and r["result"] == "pass"
+        ]
+        if passed:
+            out.append(
+                finding(
+                    "round",
+                    n,
+                    f"no brief after round {n - 1}'s failure, which follows round {passed[-1]}'s pass: "
+                    "the Author decides",
+                )
+            )
     return out
 
 
+def follows_a_pass(folder: Path, n: int) -> bool:
+    """Round n+1's brief exists and holds no findings: the only round that may follow round n's pass."""
+    path = folder / f"{n + 1}.json"
+    if not path.is_file():
+        return False
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, ValueError, RecursionError):
+        return False
+    return isinstance(doc, dict) and doc.get("findings") == []
+
+
 def brief_findings(
-    path: Path, main: Main, handoff: Path, *, judging: bool
+    path: Path, main: Main, handoff: Path, *, judging: bool, rechecking: bool = False
 ) -> tuple[list[str], object]:
     """Every check on a brief: its shape, main's caps and tools, and its place in the rounds."""
     if not path.is_file():
@@ -584,7 +642,9 @@ def brief_findings(
     if not any(
         line.startswith(("round:", "asset:", "findings:", "brief:")) for line in out
     ) and all(k in doc for k in ("asset", "round", "findings")):
-        out += order_findings(path, doc, handoff, judging=judging)
+        out += order_findings(
+            path, doc, main, handoff, judging=judging, rechecking=rechecking
+        )
     return out, doc
 
 
@@ -1159,13 +1219,21 @@ def run_arrival(
 
 
 def judge(
-    folder: Path, brief_path: Path, main: Main, handoff: Path
+    folder: Path,
+    brief_path: Path,
+    main: Main,
+    handoff: Path,
+    *,
+    rechecking: bool = False,
 ) -> tuple[int, list[str], list[str], dict]:
     """One round's verdict: (0 pass or 1 fail, the lines to print, the findings to record, the brief). The brief is
-    re-checked in full first (review G3, important 2); anything that can't be judged raises CantRun."""
+    re-checked in full first (review G3, important 2); anything that can't be judged raises CantRun. Rechecking, a
+    recorded pass is judged again, and a later round doesn't count against its brief."""
     if not folder.is_dir():
         raise CantRun(f"the candidate folder ({clean(str(folder))}) isn't a folder")
-    problems, brief = brief_findings(brief_path, main, handoff, judging=True)
+    problems, brief = brief_findings(
+        brief_path, main, handoff, judging=True, rechecking=rechecking
+    )
     if problems:
         raise CantRun(f"the brief doesn't pass line.py brief: {problems[0]}")
     assert isinstance(brief, dict)
@@ -1254,6 +1322,18 @@ def cmd_candidate(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------------------------------
 # Rounds
 # --------------------------------------------------------------------------------------------------
+def passes_again(folder: Path, n: int, main: Main, handoff: Path) -> bool:
+    """Round n's recorded pass, judged again: its brief in <folder>, its handoff folder, main's checks."""
+    code, _, _, _ = judge(
+        handoff / folder.name / str(n),
+        folder / f"{n}.json",
+        main,
+        handoff,
+        rechecking=True,
+    )
+    return code == 0
+
+
 def cmd_round(args: argparse.Namespace) -> int:
     asset = args.asset
     if not ASSET_RE.fullmatch(asset):
@@ -1262,19 +1342,24 @@ def cmd_round(args: argparse.Namespace) -> int:
     answered = handoff_rounds(handoff, asset)
     judged = {n: read_result(folder, n) for n in sorted(result_rounds(folder))}
     # A recorded pass counts once its handoff is there and the candidate re-checks clean: the file alone is no pass.
-    main = None
-    for n, result in judged.items():
+    # The latest pass is the one that counts. A round after it is `open N` while it's open; if it fails, the Author
+    # decides, with the pass named as one option, so the line never takes the earlier candidate by itself (Q267).
+    main, passed = None, 0
+    for n, result in sorted(judged.items(), reverse=True):
         if result and result["result"] == "pass" and n in answered:
             main = main or Main(Path(args.repo))
-            code, _, _, _ = judge(
-                handoff / asset / str(n), folder / f"{n}.json", main, handoff
-            )
-            if code == 0:
-                print(f"passed {n}")
-                return 0
+            if passes_again(folder, n, main, handoff):
+                passed = n
+                break
     used = max(answered | set(judged), default=0)
     latest = max(brief_rounds(folder), default=0)
-    if used >= ROUNDS:
+    if passed and used > passed and used in judged:
+        print(f"decide (round {passed} passed)")
+    elif passed and max(used, latest) > passed:
+        print(f"open {max(used, latest)}")
+    elif passed:
+        print(f"passed {passed}")
+    elif used >= ROUNDS:
         print("decide")
     elif used == 0:
         print(f"open {latest}" if latest else "1")

@@ -26,6 +26,9 @@ export interface Protect {
   /** What the protector protects, as text, where two protectors over the same scene give the same boxes: the stages'
    *  cache keys on it, so a compose of an unchanged scene doesn't sweep its frame areas again. */
   readonly key?: string;
+  /** Spec 024 (FR-012; plan.md §5.5, Q150): a 3D dinosaur visit's protector, whose compact boxes hold the "Eat" tile's
+   *  box (compose/hud.ts's `eat` option), so the frame area, the stages, and the pressable set agree on it. */
+  readonly eat?: boolean;
 }
 
 export interface FrameArea {
@@ -69,7 +72,7 @@ export function frameArea(
   const fallback: FrameArea = { area: clear, ease: 1, fellBack: true };
   try {
     if (!finite(clear) || !(screen.w > 0) || !(screen.h > 0)) return fallback;
-    const hud = compactBoxes(screen, state, metrics).all;
+    const hud = compactBoxes(screen, state, metrics, { eat: protect.eat }).all;
     const margin = MARGIN_REM * metrics.rem;
     for (let k = 0; k < EASE_STEPS; k += 1) {
       const area = areaAt(k / EASE_STEPS, screen, clear);

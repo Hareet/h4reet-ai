@@ -250,9 +250,12 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         ? frameArea(screen, hudState, metrics, protect)
         : { area: boxes.clear, ease: 1, fellBack: false }
       : null;
-    const compact = compactBoxes(screen, hudState, metrics);
+    // Spec 024 (FR-012; plan.md §5.5, Q150): a 3D dinosaur visit's protector carries the "Eat" tile's box, which the
+    // compact boxes and the split layout's then hold, from the visit's start, so the tile showing moves nothing.
+    const eatOption = { eat: protect?.eat };
+    const compact = compactBoxes(screen, hudState, metrics, eatOption);
     // Spec 018 (FR-001): the split layout's boxes, where the window takes it; its parts follow.
-    const splitAt = fits ? splitBoxes(screen, hudState, metrics) : null;
+    const splitAt = fits ? splitBoxes(screen, hudState, metrics, eatOption) : null;
     layout.applyHud({
       layout: fits ? boxes.layout : "stacked",
       state: hudState,
@@ -269,6 +272,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         column: compact.column,
         walk: compact.walk,
         walkPlace: compact.walkPlace,
+        eat: fits ? compact.eat : null,
       },
       logRest: logRestRem(screen, metrics) * m.rem,
       notes: notesReserve(boxes.clear, m.rem),
@@ -418,8 +422,26 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       if (pose !== null) log.applied(sw.id, pose, pose === sw.claims?.local, target.mode);
     }
   }
+  /** Spec 024 (FR-001, FR-012): whether the 3D side says the eating is available; the tile shows while it is and the
+   *  room isn't paused. */
+  let eatOffered = false;
+  function offerEat(): void {
+    room?.setEatOffered(eatOffered && !motion.paused && visit.mode === "3d");
+  }
+  /** Spec 024 (FR-009; rv-rework-024's I-A): tells the 3D stage's eating that what `eating.state()` gives has changed, so
+   *  the meal pauses or resumes now: a hidden page draws no frames, and the stage's own read is in its frame. */
+  function eatHeld(): void {
+    if (stage?.mode !== "3d") return;
+    try {
+      (stage as Stage3D).eat?.sync();
+    } catch {
+      // The stage's frame reads the state again, as a backstop.
+    }
+  }
   motion.subscribe((state) => {
     room?.setPaused(state.paused);
+    eatHeld();
+    offerEat();
     copy?.setPausedAt(state.paused ? state.pausedAt : null);
   });
 
@@ -636,6 +658,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     let release: (() => void) | null = null;
     if (view) {
       layout.setLoading("on");
+      eatHeld();
       release = motion.hold();
       view.heading.focus();
     } else layout.heading.focus();
@@ -696,6 +719,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     queueMicrotask(sayEndLine);
     if (run.view) {
       layout.setLoading("leaving");
+      // The loader no longer holds the eating (FR-009): its state reads `on` only.
+      eatHeld();
       try {
         run.view.giveWay(() => layout.setLoading("off"));
       } catch {
@@ -803,6 +828,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       noteAvatar: uiWord(deps.room.ui, "standin.avatar") ?? "",
       pause: uiWord(deps.room.ui, "pause.button") ?? "",
       credits: uiWord(deps.room.ui, "toolbar.credits") ?? "Credits",
+      // Spec 024 (FR-012): the "Eat" tile's words.
+      eat: { button: uiWord(deps.room.ui, "eat.button") ?? "" },
       walk: {
         enter: uiWord(deps.room.ui, "walk.enter") ?? "",
         leave: uiWord(deps.room.ui, "walk.leave") ?? "",
@@ -863,6 +890,11 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       if (!open() || !scene3d) return;
       if (scene3d.walk.walking) leaveWalking("control");
       else enterWalking(scene3d);
+    });
+    // Spec 024 (FR-012): the "Eat" tile presses the 3D stage's eating, through the same gate as key B.
+    layout.eatButton.addEventListener("click", () => {
+      if (!open() || motion.paused || stage?.mode !== "3d") return;
+      (stage as Stage3D).eat?.press();
     });
     layout.setPaused(motion.paused);
     around.setPausedAt(motion.paused ? motion.pausedAt : null);
@@ -1065,6 +1097,28 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         frame: () => frame,
         // Spec 014 (FR-064): the walking view's hold and hand-over, in a drafts build's frame log.
         walkHeld: (state, cause) => log?.record("walk", { state, cause }),
+        // Spec 024 (FR-001, FR-009, FR-010, FR-012): a dinosaur visit's eating: the room's pause and loader, the tile,
+        // and the polite line at a piece's first bite, with the piece's label.
+        ...(choice.avatar === "dinosaur"
+          ? {
+              eating: {
+                state: () => ({
+                  paused: motion.paused || motion.hidden,
+                  loading: doc.documentElement.getAttribute("data-loading") === "on",
+                }),
+                available: (on: boolean) => {
+                  eatOffered = on;
+                  offerEat();
+                },
+                said: (placement: string, label: string | null) => {
+                  // The piece's label: its placement's label word (the part carries its key), else its ID.
+                  const name = (label !== null ? uiWord(deps.room.ui, label) : null) ?? placement;
+                  const line = uiWord(deps.room.ui, "eat.first_bite", { name });
+                  if (line) announcer.say(line);
+                },
+              },
+            }
+          : {}),
       });
     } catch {
       // The 3D chunk refused its part (not the index's, or not whole) or its renderer: the room goes to 2D.
@@ -1118,6 +1172,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     // The walk ends with the 3D stage (FR-003).
     if (walker(stage)?.walk.walking) leaveWalking("flat");
     room.setWalkOffered(false);
+    // Spec 024: no eating in 2D.
+    eatOffered = false;
+    room.setEatOffered(false);
     unwatch?.();
     unwatch = null;
     const old = stage;

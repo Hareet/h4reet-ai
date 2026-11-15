@@ -82,6 +82,12 @@ export interface Stage3D extends Stage {
   /** Spec 026 (FR-001, FR-013; plan.md R-02): a selection, which the pet director takes: the `dog` selectable starts a
    *  petting where its conditions hold; any other does nothing. Absent on a stand-in stage. */
   pet?(id: string): void;
+  /** Spec 024 (FR-012): the dinosaur's eating, for a 3D dinosaur visit over a part with an edible placement and the
+   *  dinosaur's model (page Q247): the "Eat" tile's press, which takes the same gate as key B; and sync, which the room calls on each change of what
+   *  SceneOptions.eating.state() gives (the pause toggle, the page hidden or shown, the loader), so the meal pauses or
+   *  resumes at once, not at the next frame, which a hidden page never draws (FR-009; rv-rework-024's I-A). Absent, the
+   *  visit can't eat. */
+  readonly eat?: { press(): void; sync(): void };
 }
 
 /** A file the 3D stage will load (spec 012): its asset events' `asset`, and its bytes as served (C11). */
@@ -126,6 +132,16 @@ export interface SceneOptions {
   /** Spec 014 (FR-064): the walking view's hold at entry, `hold`, and its hand-over, `follow` with its cause (a turn,
    *  a tilt, a zoom, or the edge), for a drafts build's frame log. Absent, nothing is reported. */
   walkHeld?(state: "hold" | "follow", cause: "turn" | "tilt" | "zoom" | "edge" | null): void;
+  /** Spec 024 (FR-001, FR-009, FR-010, FR-012): the dinosaur's eating's link to the room. `state`, read each frame and
+   *  at each `eat.sync()` (Stage3D's `eat`, above): the room paused (or its page hidden) and the loader showing.
+   *  `available`, told on each change: whether the "Eat" tile shows. `said`, a piece's first bite of the visit, for the
+   *  polite line, with its placement's label word's key. Absent, nothing pauses or holds the eating but the stage's own
+   *  state, and nothing is told. */
+  eating?: {
+    state(): { readonly paused: boolean; readonly loading: boolean };
+    available?(on: boolean): void;
+    said?(placement: string, label: string | null): void;
+  };
   // What the room's loader takes from the room (spec 004, T134; R-28): absent, models load at once, unheld, at full
   // size, and their events go nowhere.
   /** Whether studio models may load here: ADR 0010's floor, which the room reads once, behind the choice, with spec

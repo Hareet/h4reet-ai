@@ -67,7 +67,7 @@ A file `~/.local/state/h4reet-ai/night-shift/locks/<name>` (0444) held by `flock
  "findings": [], "notes": "…"}
 ```
 
-- `round`: 1 to 3;
+- `round`: 1 to 4 (`line.py`'s `ROUNDS`, one number for every asset). It was 1 to 3 until the Author's words, 2026-11-14, about 21:00Z: "Let's go with the approval of the SHA and use the actual image /srv/studio/workflows/inbox/duck-toller.jpg", which gave the dog a fourth round;
 - `limits`: never above main's `caps.json` for the kind, read from `refs/heads/main` only;
 - `tools`: IDs from main's `studio-tools.json` whose entries have `outputs_ship: true`;
 - `findings`: the previous round's failures, empty in round 1.
@@ -87,7 +87,7 @@ A file `~/.local/state/h4reet-ai/night-shift/locks/<name>` (0444) held by `flock
 {"schema": 1, "asset": "dog", "round": 1, "result": "fail", "findings": ["triangles dog.glb: 200000 (limit: the brief's, 180000)"]}
 ```
 
-Written once, by `line.py candidate --record`, and only for the round's own handoff folder, `/srv/studio/handoff/<asset>/<round>/`. Never for a round with a result, or one a later handoff folder or result follows. Round *n*+1's brief copies a failed round's `findings` verbatim.
+Written once, by `line.py candidate --record`, and only for the round's own handoff folder, `/srv/studio/handoff/<asset>/<round>/`. Never for a round with a result, or one a later handoff folder or result follows. Round *n*+1's brief copies a failed round's `findings` verbatim. After a recorded pass, round *n*+1 (at most 4) holds no findings, and `line.py brief` takes it only while that pass re-checks clean; re-checking that pass takes later rounds only in this shape (round *n*+1's brief, holding no findings). `line.py round` prints `open N` while the later round is open, `passed N` if it passes, and `decide (round P passed)` if it fails, so the Author chooses between them; no brief follows that failure.
 
 The briefs folder is writable by repo agents, so `line.py round` doesn't trust it alone. Rounds used = the higher of the highest handoff folder (the studio's) and the highest result. A result's `pass` counts only while that round's handoff folder exists and the candidate re-checks clean.
 

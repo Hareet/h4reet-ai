@@ -4,7 +4,7 @@ ADR 0010: "the dog and the dinosaur: a named rig each (`dog`, `dinosaur`), with 
 
 ## Bones
 
-Names are the raw GLB node names, exact (`Arm.L`, never three's sanitized `ArmL`: the compositor reads the file, as `line.py` does, and no runtime code looks these bones up). A bone may have more children than listed; none listed may be missing. A node named `<prefix>:<name>` counts as `<name>`, as `line.py`'s `has_bone` reads it (`b == required or b.endswith(":" + required)`). No Mixamo name is required or forbidden.
+Names are the raw GLB node names, exact (`Arm.L`, never three's sanitized `ArmL`: the compositor reads the file, as `line.py` does; the one runtime lookup is spec 024's `src/room/eat/mouth.ts`, which finds `Jaw` at run time by its raw name, kept in `userData.name`, or by three's sanitized one, `Jaw` or `<prefix>Jaw`). A bone may have more children than listed; none listed may be missing. A node named `<prefix>:<name>` counts as `<name>`, as `line.py`'s `has_bone` reads it (`b == required or b.endswith(":" + required)`). No Mixamo name is required or forbidden.
 
 | Bone | Parent | Why |
 |---|---|---|
