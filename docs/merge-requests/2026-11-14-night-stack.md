@@ -4416,6 +4416,502 @@ No full `make check`: the stack's last task runs it once (rule 4).
 
 **Interruptions (patch2-026).** No hook or bash-gate refusal. `npm ci --offline` failed (ENOTCACHED, the cache held no tarballs), and `npm ci` from the registry succeeded. Nothing was respelled.
 
+### floorrun-026 (`night/floorrun-026/floorrun-026`, from patch2-026's tip b433978c, Opus 5.5, 2026-11-15)
+
+Written by the night-shift implementer floorrun-026, about 00:53Z to 01:35Z. Runs and documents only: no code, test, scene, asset, or patch changed. It runs what rv-patch2-026's I-1 found missing, in the review's words as the brief quotes them: "Q287's own follow-up was never run. Nobody ran the walking-view and chase tests on the room with the sign on the floor." The page's "rv-patch2-026's findings, its words", which the brief names, is on no ref this session can read (the supervisor's branch at 1a9de133 has no such heading), so I-1 and N-1 to N-5 here are the brief's account of them.
+
+**Result: a failure on the patched export alone, so nothing is changed and the question is on the page (below).** Plain export (patch2-026's tip and `main`): 18 files, 260 passed. Patched export (the same, then spec 022's patch, then spec 026's): 5 files failed, 9 tests failed, 251 passed. The walking-view and chase tests the brief names (`chase-steer`, `floor`, `movement`, `chase-schema`, `pet-director`) pass on both. The floor sign is a new floor obstacle, `dog-sign: x [-0.24, 0.24], z [0.142, 0.458]` (on the desk, `x [0.025, 0.515], z [-0.428, -0.071]`), and the room floor's 201 starts × 600 frames keep a least distance of 0.223 m (0.141 m on the plain export), with 0 violations. The nine failures are in spec 026's `dog-pick` and `dog-selectable` and spec 024's `eat-chunker`, `eat-3d`, and `eat-checks`.
+
+The nine, by cause (my reading beside the run, which is pasted whole below):
+
+1. **The shipped scene already holds `dog` (5 tests, spec 026's own).** `dog-pick.test.ts` (4) and `dog-selectable.test.ts` (1) add the `dog` selectable to the shipped scene in memory, as T013a says ("never in `scene.yaml`, FR-016"). Once the patch puts it in `scene.yaml`, the index holds two (`"dog", "dog"`; fronts `[ '4', '5' ]`), and the scene "without" the test's selectable still has one with a `figure`. These fail wherever the sign is mounted.
+2. **The desk's mount count (2 tests, spec 024's).** `eat-chunker.test.ts`, "work-desk: sets aside the top under each of its 9 mounts (7 placements and the charger's two desk poses)", and `eat-3d.test.ts`, "work-desk: no placement or switch pose mounted on it loses the top under it", expect 9 and get 8: the sign is no longer mounted on the desk. These fail wherever the sign is off the desk.
+3. **The floor sign under the "Eat" tile (2 tests, spec 024's `eat-checks.test.ts`, "the repository's scene in the variant (plan §8)").** RG6 reports `selectable: 4` (`dog`), "its exclusive core lies under a panel's box, the walking control's box, or the \"Eat\" tile's box in 3D at 320 × 250 and 469 others for a 3D dinosaur visit"; at the clear area, "384 × 740, open", `selectable: 'dog'`, `problem: "reserved"`. The strict `room:check` passed on the same tree (patch2-026's run, "0 findings") because RG6 reports a 3D dinosaur visit's own problems only where the bundle carries the dinosaur's model (`apps/web/build/room/checks/rg.ts`, `dinosaurVisit`, page Q247), and today's bundle doesn't. The test judges the variant whole. measure2-026's table (`dog-sign-offset.md`) names neither the dinosaur visit nor the "Eat" tile. This one is the floor point's own: see the probe.
+
+**A probe for the question (Q287's "Others"), in `/tmp` copies of the patched export only.** In each copy, only the sign's `mount:` line in `apps/web/room/scene.yaml` was changed, then `npx vitest run --maxWorkers=2 test/room/eat-checks.test.ts test/room/eat-3d.test.ts test/room/eat-chunker.test.ts` was run in `apps/web`:
+
+- `{ on: room-shell, anchor: right-wall, offset: [-0.2, 0.4, 0.0375], estimated: true }` (Q287's first other, 0.98 m): `eat-checks` passes; 2 failed, 64 passed, the two desk-count tests (cause 2) only.
+- `{ on: room-shell, anchor: right-wall, offset: [0.3, 0.4, 0.0375], estimated: true }` (its second, 0.74 m): the same, 2 failed, 64 passed. Its first run stopped on "No space left on device (os error 28)" in `/tmp` (the copies filled the 2 GB tmpfs); it was re-run with `TMPDIR` on the worktree's disk.
+- The desk mount the line has (`{ on: work-desk, anchor: top, offset: [0.27, 0, -0.04], turn: { y: -10 }, estimated: true }`): the test build's RG6 refuses it before any test runs (`selectables[2]` against `selectables[4]`, as T013a found).
+
+The cause-1 tests weren't re-run in the probes, since they fail for every mount. Neither right-wall point was run through the walking-view and chase tests.
+
+**The commands, whole.** `npm ci --offline` failed with ENOTCACHED (`/tmp/floorrun-026-npmci.log`), so `npm ci` ran from the registry: "added 431 packages, and audited 435 packages in 37s", the lockfile unchanged. HEAD b433978c, `main` b6985ad2.
+
+```
+$ git merge-tree --write-tree HEAD refs/heads/main
+4fb627c662e34402976b33784e03f75572989f7a      (exit 0)
+$ git archive 4fb627c6 | tar -x -C /tmp/floorrun-026/plain      # and again into /tmp/floorrun-026/patched
+# in each: node_modules symlinked from the worktree (root, apps/web, services/gateway, services/relay)
+$ sha256sum docs/merge-requests/2026-11-14-corpus-film-scripts.patch docs/merge-requests/2026-11-14-corpus-dog-intro.patch
+d05a7bf11e87c0853ec466eb80b0ede0d28748663a1fab0ac1a7414f0daf7c15  docs/merge-requests/2026-11-14-corpus-film-scripts.patch
+8bd705636a1847de6846bdba132ddb16511fdac103f2387477a700a1161c6ead  docs/merge-requests/2026-11-14-corpus-dog-intro.patch
+```
+
+On the patched export, spec 022's patch (exit 0; 104 lines, no offset, fuzz, or reject):
+
+```
+$ patch -p1 < docs/merge-requests/2026-11-14-corpus-film-scripts.patch
+patching file apps/web/content/resume.lock.json
+patching file config/twin/corpus.json
+patching file corpus/08-hareet-ai.md
+patching file corpus/facts/hareet-ai.yaml
+patching file evals/narration/cases/narration-agent-orchestrator-engineer.yaml
+patching file evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
+patching file evals/narration/cases/narration-agent-watchdog-engineer.yaml
+patching file evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
+patching file evals/narration/cases/narration-ai-strategy-engineer.yaml
+patching file evals/narration/cases/narration-ai-strategy-non-engineer.yaml
+patching file evals/narration/cases/narration-change-management-engineer.yaml
+patching file evals/narration/cases/narration-change-management-non-engineer.yaml
+patching file evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
+patching file evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
+patching file evals/narration/cases/narration-cht-agent-engineer.yaml
+patching file evals/narration/cases/narration-cht-agent-non-engineer.yaml
+patching file evals/narration/cases/narration-cht-codebase-engineer.yaml
+patching file evals/narration/cases/narration-cht-codebase-non-engineer.yaml
+patching file evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
+patching file evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
+patching file evals/narration/cases/narration-cht-skills-engineer.yaml
+patching file evals/narration/cases/narration-cht-skills-non-engineer.yaml
+patching file evals/narration/cases/narration-claude-medic-aws-engineer.yaml
+patching file evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
+patching file evals/narration/cases/narration-cloud-data-centers-engineer.yaml
+patching file evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
+patching file evals/narration/cases/narration-denver-local-ai-engineer.yaml
+patching file evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
+patching file evals/narration/cases/narration-hareet-ai-engineer.yaml
+patching file evals/narration/cases/narration-hareet-ai-non-engineer.yaml
+patching file evals/narration/cases/narration-kenya-localization-engineer.yaml
+patching file evals/narration/cases/narration-kenya-localization-non-engineer.yaml
+patching file evals/narration/cases/narration-national-benchmarking-engineer.yaml
+patching file evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
+patching file evals/narration/cases/narration-national-scale-engineer.yaml
+patching file evals/narration/cases/narration-national-scale-non-engineer.yaml
+patching file evals/narration/cases/narration-no-code-configuration-engineer.yaml
+patching file evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
+patching file evals/narration/cases/narration-other-deployments-engineer.yaml
+patching file evals/narration/cases/narration-other-deployments-non-engineer.yaml
+patching file evals/narration/cases/narration-powersync-postgres-engineer.yaml
+patching file evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
+patching file evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
+patching file evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
+patching file evals/narration/cases/narration-tools-engineer.yaml
+patching file evals/narration/cases/narration-tools-non-engineer.yaml
+patching file evals/narration/cases/narration-voice-for-cht-engineer.yaml
+patching file evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-1-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-1-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-10-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-10-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-11-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-11-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-2-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-2-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-3-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-3-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-4-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-4-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-5-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-5-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-6-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-6-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-7-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-7-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-8-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-8-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-9-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-gap-9-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q1-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q1-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q10-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q10-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q11-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q11-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q12-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q12-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q13-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q13-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q14-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q14-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q15-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q15-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q16-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q16-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q17-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q17-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q2-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q2-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q3-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q3-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q4-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q4-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q5-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q5-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q6-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q6-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q7-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q7-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q8-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q8-non-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q9-engineer.yaml
+patching file evals/product/cases/twin-08-hareet-ai-q9-non-engineer.yaml
+```
+
+Then spec 026's (exit 0; 68 lines, no offset, fuzz, or reject; no `.orig` or `.rej` file in the export after both):
+
+```
+$ patch -p1 < docs/merge-requests/2026-11-14-corpus-dog-intro.patch
+patching file apps/web/room/scene.yaml
+patching file config/room-events.yaml
+patching file config/room-topics.yaml
+patching file config/twin/corpus.json
+patching file corpus/04-hobbies-and-travel.md
+patching file docs/corpus-size.json
+patching file docs/studio/photo-guide.md
+patching file docs/studio/work-orders/dog-sign.md
+patching file evals/narration/cases/narration-agent-orchestrator-engineer.yaml
+patching file evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
+patching file evals/narration/cases/narration-agent-watchdog-engineer.yaml
+patching file evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
+patching file evals/narration/cases/narration-ai-strategy-engineer.yaml
+patching file evals/narration/cases/narration-ai-strategy-non-engineer.yaml
+patching file evals/narration/cases/narration-change-management-engineer.yaml
+patching file evals/narration/cases/narration-change-management-non-engineer.yaml
+patching file evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
+patching file evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
+patching file evals/narration/cases/narration-cht-agent-engineer.yaml
+patching file evals/narration/cases/narration-cht-agent-non-engineer.yaml
+patching file evals/narration/cases/narration-cht-codebase-engineer.yaml
+patching file evals/narration/cases/narration-cht-codebase-non-engineer.yaml
+patching file evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
+patching file evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
+patching file evals/narration/cases/narration-cht-skills-engineer.yaml
+patching file evals/narration/cases/narration-cht-skills-non-engineer.yaml
+patching file evals/narration/cases/narration-claude-medic-aws-engineer.yaml
+patching file evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
+patching file evals/narration/cases/narration-cloud-data-centers-engineer.yaml
+patching file evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
+patching file evals/narration/cases/narration-denver-local-ai-engineer.yaml
+patching file evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
+patching file evals/narration/cases/narration-hareet-ai-engineer.yaml
+patching file evals/narration/cases/narration-hareet-ai-non-engineer.yaml
+patching file evals/narration/cases/narration-kenya-localization-engineer.yaml
+patching file evals/narration/cases/narration-kenya-localization-non-engineer.yaml
+patching file evals/narration/cases/narration-national-benchmarking-engineer.yaml
+patching file evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
+patching file evals/narration/cases/narration-national-scale-engineer.yaml
+patching file evals/narration/cases/narration-national-scale-non-engineer.yaml
+patching file evals/narration/cases/narration-no-code-configuration-engineer.yaml
+patching file evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
+patching file evals/narration/cases/narration-other-deployments-engineer.yaml
+patching file evals/narration/cases/narration-other-deployments-non-engineer.yaml
+patching file evals/narration/cases/narration-powersync-postgres-engineer.yaml
+patching file evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
+patching file evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
+patching file evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
+patching file evals/narration/cases/narration-tools-engineer.yaml
+patching file evals/narration/cases/narration-tools-non-engineer.yaml
+patching file evals/narration/cases/narration-voice-for-cht-engineer.yaml
+patching file evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q1-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q1-non-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q2-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q2-non-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q3-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q3-non-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q4-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q4-non-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q5-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q5-non-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q6-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q6-non-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q7-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q7-non-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q8-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q8-non-engineer.yaml
+```
+
+The run, in `apps/web`, on each export: `npx vitest run --maxWorkers=2 test/room/chase-steer.test.ts test/room/floor.test.ts test/room/movement.test.ts test/room/chase-schema.test.ts test/room/dog-pick.test.ts test/room/dog-selectable.test.ts test/room/pet-director.test.ts test/room/eat-*.test.ts`. That covers all twelve of spec 024's `eat-*` files, a superset of those that read the shipped scene (`eat-model` through `loadRoom`, `eat-checks` through the repository's tree).
+
+The plain export (exit 0):
+
+```
+
+ RUN  v5.0.3 /tmp/floorrun-026/plain/apps/web
+
+visitor floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; start (-0.7, 0.58)
+  obstacle work-desk: x [-0.87, 0.87], z [-0.73, 0.312]
+  obstacle desk-screen: x [-0.766, 0.458], z [-0.695, -0.169]
+  obstacle neon-sign: x [-0.942, 0.845], z [-0.637, -0.309]
+  obstacle laptop-stand: x [0.3, 0.8], z [-0.55, -0.07]
+  obstacle laptop: x [0.274, 0.826], z [-0.561, -0.08]
+  obstacle busy-sign: x [-0.839, -0.261], z [-0.431, -0.048]
+  obstacle dog-sign: x [0.025, 0.515], z [-0.428, -0.071]
+  obstacle chalkboard: x [-1.187, -0.887], z [-0.19, 0.765]
+  obstacle snowboard: x [-1.187, -0.749], z [-0.676, -0.124]
+  obstacle bicycle: x [0.769, 1.185], z [-0.407, 0.601]
+  obstacle wall-window: x [-1.12, 1.12], z [-0.73, -0.429]
+  obstacle window-view: x [-1.08, 1.08], z [-0.718, -0.47]
+  obstacle split-keyboard: x [-0.491, 0.209], z [-0.278, 0.25]
+  obstacle vertical-mouse: x [-0.007, 0.328], z [-0.162, 0.203]
+  obstacle notebook: x [-0.836, -0.239], z [-0.247, 0.282]
+  obstacle helmet: x [0.559, 1.149], z [-0.347, 0.191]
+  obstacle bag: x [-0.092, 0.71], z [-0.578, 0.075]
+  obstacle wall-outlet: x [0.902, 1.187], z [-0.556, -0.244]
+  obstacle twin-figure: x [0.17, 1.14], z [0.025, 0.789]
+chase floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; 18 obstacles (the visitor's less twin-figure)
+room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
+
+ Test Files  18 passed (18)
+      Tests  260 passed (260)
+   Start at  00:56:59
+   Duration  221.85s (tests 54%, import 45%)
+```
+
+The patched export (exit 1):
+
+```
+
+ RUN  v5.0.3 /tmp/floorrun-026/patched/apps/web
+
+ ❯ test/room/dog-pick.test.ts (18 tests | 4 failed) 35040ms
+   ❯ the scene's real selectables plus the dog piece, on a grid (R-09; Q160) (4)
+     × carries the selectable's figure into the index, and the twin has no pick area 16015ms
+   ❯ RG6 measures the dog's box at its home (R-09; Q160) (4)
+     × gives only the dog piece a front, its box dogBoxAt's, non-null at every swept stage of the shipped scene 703ms
+     × gives no front without the selectable's figure, or without figures.dog 680ms
+     × refuses another's core over the dog's rectangle in the sweep: a fixture piece on the desk, the dog before it 14886ms
+ ❯ test/room/eat-checks.test.ts (13 tests | 2 failed) 24832ms
+   ❯ the repository's scene in the variant (plan §8) (2)
+     × composes without a finding the dinosaur visit alone gives 5ms
+     × leaves no pressable core under the Eat box at the clear area (ease 1), as the variant judges it 1ms
+visitor floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; start (-0.7, 0.58)
+  obstacle work-desk: x [-0.87, 0.87], z [-0.73, 0.312]
+  obstacle desk-screen: x [-0.766, 0.458], z [-0.695, -0.169]
+  obstacle neon-sign: x [-0.942, 0.845], z [-0.637, -0.309]
+  obstacle laptop-stand: x [0.3, 0.8], z [-0.55, -0.07]
+  obstacle laptop: x [0.274, 0.826], z [-0.561, -0.08]
+  obstacle busy-sign: x [-0.839, -0.261], z [-0.431, -0.048]
+  obstacle dog-sign: x [-0.24, 0.24], z [0.142, 0.458]
+  obstacle chalkboard: x [-1.187, -0.887], z [-0.19, 0.765]
+  obstacle snowboard: x [-1.187, -0.749], z [-0.676, -0.124]
+  obstacle bicycle: x [0.769, 1.185], z [-0.407, 0.601]
+  obstacle wall-window: x [-1.12, 1.12], z [-0.73, -0.429]
+  obstacle window-view: x [-1.08, 1.08], z [-0.718, -0.47]
+  obstacle split-keyboard: x [-0.491, 0.209], z [-0.278, 0.25]
+  obstacle vertical-mouse: x [-0.007, 0.328], z [-0.162, 0.203]
+  obstacle notebook: x [-0.836, -0.239], z [-0.247, 0.282]
+  obstacle helmet: x [0.559, 1.149], z [-0.347, 0.191]
+  obstacle bag: x [-0.092, 0.71], z [-0.578, 0.075]
+  obstacle wall-outlet: x [0.902, 1.187], z [-0.556, -0.244]
+  obstacle twin-figure: x [0.17, 1.14], z [0.025, 0.789]
+chase floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; 18 obstacles (the visitor's less twin-figure)
+room floor: 201 starts × 600 frames, least distance kept 0.223 m, 0 violations
+ ❯ test/room/dog-selectable.test.ts (7 tests | 1 failed) 33215ms
+   ❯ the selectable adds nothing of a placement for the figure (M5) (1)
+     × leaves the part's placements, framed boxes, and every other selectable as they are 26185ms
+ ❯ test/room/eat-chunker.test.ts (34 tests | 1 failed) 2184ms
+   ❯ the chunker on the four real pieces (FR-003, FR-004, FR-015, SC-001) (19)
+     × work-desk: sets aside the top under each of its 9 mounts (7 placements and the charger's two desk poses) 5ms
+ ❯ test/room/eat-3d.test.ts (19 tests | 1 failed) 106ms
+   ❯ every chunk of the four pieces eaten (US2; SC-002) (11)
+     × work-desk: no placement or switch pose mounted on it loses the top under it 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/room/dog-pick.test.ts > the scene's real selectables plus the dog piece, on a grid (R-09; Q160) > carries the selectable's figure into the index, and the twin has no pick area
+AssertionError: expected [ 'snowboard', 'bicycle', …(4) ] to deeply equal [ 'snowboard', 'bicycle', …(3) ]
+
+- Expected
++ Received
+
+@@ -2,6 +2,7 @@
+    "snowboard",
+    "bicycle",
+    "laptop",
+    "chalkboard",
+    "dog",
++   "dog",
+  ]
+
+ ❯ test/room/dog-pick.test.ts:173:17
+    171|     const { result } = withDog();
+    172|     const ids = result.index.selectables.map((s) => s.id);
+    173|     expect(ids).toEqual(["snowboard", "bicycle", "laptop", "chalkboard…
+       |                 ^
+    174|     expect(result.index.selectables.find((s) => s.id === "dog")?.figur…
+    175|     expect(ids).not.toContain("twin-figure");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  test/room/dog-pick.test.ts > RG6 measures the dog's box at its home (R-09; Q160) > gives only the dog piece a front, its box dogBoxAt's, non-null at every swept stage of the shipped scene
+AssertionError: expected [ '4', '5' ] to deeply equal [ '4' ]
+
+- Expected
++ Received
+
+  [
+    "4",
++   "5",
+  ]
+
+ ❯ test/room/dog-pick.test.ts:285:34
+    283|     for (const stage of stages) {
+    284|       const fronts = figureFronts(g, stage);
+    285|       expect([...fronts.keys()]).toEqual(["4"]);
+       |                                  ^
+    286|       expect(fronts.get("4")?.box).toEqual(box);
+    287|       if (!fronts.get("4")?.rect) nulls.push(`${stage.w} × ${stage.h}`…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  test/room/dog-pick.test.ts > RG6 measures the dog's box at its home (R-09; Q160) > gives no front without the selectable's figure, or without figures.dog
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ test/room/dog-pick.test.ts:294:72
+    292|   it("gives no front without the selectable's figure, or without figur…
+    293|     const base = fileTree(REPO);
+    294|     expect(figureFronts(geometryWith(base), { w: 1280, h: 800 }).size)…
+       |                                                                        ^
+    295|     const text = new TextDecoder().decode(base.read(SCENE_PATH) ?? new…
+    296|     const doc = parse(text) as { selectables: unknown[]; figures: Reco…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+ FAIL  test/room/dog-pick.test.ts > RG6 measures the dog's box at its home (R-09; Q160) > refuses another's core over the dog's rectangle in the sweep: a fixture piece on the desk, the dog before it
+AssertionError: ["3D 4 member 5","3D 4 member 6","3D 6 member 4","3D 6 member 5","2D 4 member 6"]: expected [ '3D 4 member 5', …(4) ] to include '3D 5 member 4'
+ ❯ test/room/dog-pick.test.ts:367:52
+    365|     // The fixture's core (selectable 5) over the dog's rectangle: RG6…
+    366|     const withFigure = problems(true);
+    367|     expect(withFigure, JSON.stringify(withFigure)).toContain("3D 5 mem…
+       |                                                    ^
+    368|     expect(withFigure).not.toContain("2D 5 member 4");
+    369|     expect(problems(false)).not.toContain("3D 5 member 4");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/9]⎯
+
+ FAIL  test/room/dog-selectable.test.ts > the selectable adds nothing of a placement for the figure (M5) > leaves the part's placements, framed boxes, and every other selectable as they are
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ test/room/dog-selectable.test.ts:129:75
+    127|     expect(w.index.selectables.slice(0, -1)).toEqual(without.index.sel…
+    128|     expect(w.index.selectables.at(-1)).toMatchObject({ id: "dog", memb…
+    129|     expect(without.index.selectables.some((s) => s.figure !== undefine…
+       |                                                                           ^
+    130|   });
+    131| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/9]⎯
+
+ FAIL  test/room/eat-3d.test.ts > every chunk of the four pieces eaten (US2; SC-002) > work-desk: no placement or switch pose mounted on it loses the top under it
+AssertionError: expected [ { …(2) }, …(7) ] to have a length of 9 but got 8
+
+- Expected
++ Received
+
+- 9
++ 8
+
+ ❯ test/room/eat-3d.test.ts:495:19
+    493|   it(`${DESK}: no placement or switch pose mounted on it loses the top…
+    494|     const boxes = keepOutBoxes(scene, DESK);
+    495|     expect(boxes).toHaveLength(9);
+       |                   ^
+    496|     const prims = standing(DESK);
+    497|     for (const box of boxes) {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/9]⎯
+
+ FAIL  test/room/eat-checks.test.ts > the repository's scene in the variant (plan §8) > composes without a finding the dinosaur visit alone gives
+AssertionError: expected [ { selectable: 4, …(1) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "reason": "its exclusive core lies under a panel's box, the walking control's box, or the \"Eat\" tile's box in 3D at 320 × 250 and 469 others for a 3D dinosaur visit",
++     "selectable": 4,
++   },
++ ]
+
+ ❯ test/room/eat-checks.test.ts:284:76
+    282|   it("composes without a finding the dinosaur visit alone gives", () =…
+    283|     const g = repository();
+    284|     expect(spacingReasons(g).filter((r) => r.reason.includes("dinosaur…
+       |                                                                            ^
+    285|     const result = compose(repositoryTree(), mainPolicy(), { mode: "le…
+    286|     expect(result.findings.filter((f) => f.reason.includes("dinosaur")…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/9]⎯
+
+ FAIL  test/room/eat-checks.test.ts > the repository's scene in the variant (plan §8) > leaves no pressable core under the Eat box at the clear area (ease 1), as the variant judges it
+AssertionError: 384 × 740, open: expected [ { selectable: 'dog', …(2) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "other": null,
++     "problem": "reserved",
++     "selectable": "dog",
++   },
++ ]
+
+ ❯ test/room/eat-checks.test.ts:304:65
+    302|       const held = listOnly(areas, view, walls, reserved);
+    303|       const under = pickProblems(areas, view, held, reserved).filter((…
+    304|       expect(under, `${screen.w} × ${screen.h}, ${state.list}`).toEqua…
+       |                                                                 ^
+    305|     }
+    306|     // The claim is judged, not vacuous: on 2026-11-14 the variant fra…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/9]⎯
+
+ FAIL  test/room/eat-chunker.test.ts > the chunker on the four real pieces (FR-003, FR-004, FR-015, SC-001) > work-desk: sets aside the top under each of its 9 mounts (7 placements and the charger's two desk poses)
+AssertionError: expected [ { …(2) }, …(7) ] to have a length of 9 but got 8
+
+- Expected
++ Received
+
+- 9
++ 8
+
+ ❯ test/room/eat-chunker.test.ts:511:30
+    509|   it(`${DESK}: sets aside the top under each of its 9 mounts (7 placem…
+    510|     const r = of(DESK);
+    511|     expect(r.input.keepOuts).toHaveLength(9);
+       |                              ^
+    512|     for (const box of r.input.keepOuts) {
+    513|       const centre: V3 = [(box.min[0] + box.max[0]) / 2, 2, (box.min[2…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/9]⎯
+
+
+ Test Files  5 failed | 13 passed (18)
+      Tests  9 failed | 251 passed (260)
+   Start at  01:00:48
+   Duration  246.20s (tests 53%, import 46%)
+```
+
+**What waits.** The page's question below (the sign's place is his look). Until it's answered, the patch, the proposal, and SHA-256 `8bd70563…1c6ead` stay as they are, and T019 stays unchecked (see step 3). Whatever the place, the patch must also carry what causes 1 and 2 need (`dog-pick`'s and `dog-selectable`'s fixtures read a scene that may already hold `dog`; spec 024's desk count follows the sign), or the gate's `make check` fails on his branch.
+
 ## Item 10: spec 027, when the twin's file context stops being enough (`night/impl-027/impl-027`)
 
 Spec: specs/027-corpus-retrieval-adr/ · Intent: intent/027-corpus-retrieval-adr.md (draft) · ADR: docs/adr/0054-when-file-context-stops-being-enough.md (proposed) · Written by: implementer (night shift, impl-027, Opus 5.5); the review is for a worker who didn't write the code (T006; the reviewer follows this task) · Date: 2026-11-14
