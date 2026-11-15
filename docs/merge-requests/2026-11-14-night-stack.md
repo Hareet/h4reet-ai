@@ -11043,6 +11043,51 @@ integration-018: make check ends "11 PASS, 1 SKIP, 1 WARN, 1 PLANNED, 0 PENDING,
 - **Step 4's run:** section 2's step 4 also points to the run on this code, merge-4's on `ed01a3cf` ("80 passed", "Tests 74 passed (74)").
 - **Section 1's tip:** this branch's last commit; the runner names it `feat/018-hud-to-dino-stack` after rv-handover-fix.
 
+**Runs (rule 4; documents only, so the full check isn't run again).** At `85934820` (the fixes in, these runs not yet). The setup target ran first (the worktree had no `node_modules`; the lint target said "node_modules is missing: run make setup"): exit 0, its last line "git hooks: /home/h4reet/h4reet-ai/h4reet-ai/.git/hooks isn't writable here (the agent sandbox); the Author runs make git-hooks". The lint target, whole but for shellcheck's echoed file list (the `shellcheck -- …` line, as merge-1 to merge-4 leave it out):
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+847 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+lint exit 0
+```
+
+The docs tests, whole:
+
+```
+$ pytest -p no:cacheprovider evals/test_docs_links.py evals/test_repository_docs.py
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0
+rootdir: /home/h4reet/h4reet-ai/night/2026-11-14/handover-fix
+collected 61 items
+
+evals/test_docs_links.py ............................................    [ 72%]
+evals/test_repository_docs.py .................                          [100%]
+
+============================== 61 passed in 1.84s ==============================
+pytest exit 0
+```
+
+Only `docs/` against integration-018's tip:
+
+```
+$ git diff --stat refs/heads/night/integration-018/integration-018 HEAD
+ docs/merge-requests/2026-11-14-night-stack.md | 41 ++++++++++++++++++++-------
+ 1 file changed, 31 insertions(+), 10 deletions(-)
+```
+
+**Left as it was (the brief: "Change nothing else"):** the original P10 row, handover-prep's, still says "(Q286, section 2, step 2)" for main's `b6985ad2`, the step number of handover-prep's order; "P10, filled by integration-018" below it gives step 1, which is right.
+
+**Interruptions (handover-fix):** none. No hook, bash-gate, permission, or filesystem refusal; nothing respelled. How the text went in: every sentence with the Edit tool, but for one move: the "S8, filled by integration-018" row was moved below the original S8 by a three-line Python script (`python3 -I`, each row asserted to match once), which wrote no text. No question for the Author, and no request to the runner. Nothing under a human-only path, `assets/policy/**`, or `/srv/studio/` changed; no merge of main or into main; no push.
+
 ---
 
 ## For the repo agent and the Author
