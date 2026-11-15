@@ -337,3 +337,56 @@ describe("the pet director (R-01, R-07; FR-001, FR-002, FR-005, FR-006, FR-010)"
     }
   });
 });
+
+// rework3-026 (the page's Q284; FR-027): where the run's adapter gives `twinFacing`, an object whose `facing` is the
+// twin's heading, the director reads the heading off it, so no fraction is returned from a call V8 may not inline;
+// `twinHeading` stays for a chase that gives no `twinFacing`.
+describe("the twin's heading read off twinFacing's object (FR-027)", () => {
+  it("turns, pets, and turns back on twinFacing's facing, never asking twinHeading", () => {
+    const clock = new FakeClock();
+    const facing = { facing: TWIN_HOME.heading };
+    let asked: number | null = null;
+    let headingAsked = 0;
+    const chase: PetChase = {
+      faceTwin(h) {
+        asked = h;
+      },
+      twinHeading: () => {
+        headingAsked += 1;
+        return Number.NaN;
+      },
+      twinFacing: () => facing,
+      running: () => false,
+    };
+    const twin: PetTwin = { home: TWIN_HOME, shows: "model", rig: true, petting_s: null, arriving: false, phase: "home" };
+    const dog: PetDog = {
+      home: DOG_HOME,
+      phase: "home",
+      headPoint(out: Vec3): Vec3 {
+        out.x = DOG_HOME.x;
+        out.y = 0.558;
+        out.z = DOG_HOME.z + 0.217;
+        return out;
+      },
+    };
+    const motion: PetMotion = { animate: true, paused: false, level: 0, live: true };
+    const pet = createPet({ clock, motion: () => motion, twin: () => twin, dog: () => dog, chase });
+    const frames = { turn: 0, petting: 0, return: 0, idle: 0 };
+    expect(pet.select("dog")).toBe(true);
+    for (let i = 0; i < 600 && !(i > 0 && pet.phase === "idle"); i += 1) {
+      clock.advance(FRAME_S * 1000, FRAME_S * 1000);
+      pet.frame(FRAME_S);
+      frames[pet.phase] += 1;
+      const want = asked ?? TWIN_HOME.heading;
+      const d = wrap(want - facing.facing);
+      const step = Math.PI * FRAME_S;
+      facing.facing = Math.abs(d) <= step ? want : facing.facing + Math.sign(d) * step;
+    }
+    // At 180°/s the 60° turn takes 20 frames; on twinHeading's NaN it would run to its 1 s limit (60 frames).
+    expect(frames.turn).toBeLessThan(30);
+    expect(frames.petting).toBeGreaterThan(0);
+    expect(frames.return).toBeLessThan(30);
+    expect(pet.phase).toBe("idle");
+    expect(headingAsked).toBe(0);
+  });
+});

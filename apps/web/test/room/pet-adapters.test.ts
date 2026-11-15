@@ -240,6 +240,24 @@ describe("the run's adapter (M3)", () => {
     expect(adapters.chase.running()).toBe(false);
   });
 
+  it("gives the twin's facing on an object too, the runner itself, the same numbers as twinHeading (rework3-026)", () => {
+    const { shell, adapters } = setup();
+    const home = adapters.twin()?.home.heading ?? Number.NaN;
+    expect(adapters.chase.twinFacing?.()).toBe(shell.chase.runner("twin"));
+    adapters.chase.faceTwin(home + 0.4);
+    for (let i = 0; i < 10; i += 1) {
+      shell.frame(DT, MOVE);
+      expect(adapters.chase.twinFacing?.().facing).toBe(adapters.chase.twinHeading());
+    }
+  });
+
+  it("without the run's shell: the twin's home heading on twinFacing's object too (rework3-026)", () => {
+    const f = fake();
+    const adapters = createPetAdapters({ avatars: f.avatars, chase: () => null, hasDog: true });
+    expect(adapters.chase.twinFacing?.().facing).toBeCloseTo(0.3 - Math.PI, 12);
+    expect(adapters.chase.twinFacing?.()).toBe(adapters.chase.twinFacing?.());
+  });
+
   it("without the run's shell: the twin's home heading, never running, and faceTwin does nothing", () => {
     const f = fake();
     const adapters = createPetAdapters({ avatars: f.avatars, chase: () => null, hasDog: true });
