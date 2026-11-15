@@ -33,7 +33,7 @@ No new dependency, endpoint, route, event, or setting.
 
 **Target Platform**: as spec 009: WebGL2 above ADR 0010's floor; the cut-out below it.
 
-**Performance Goals**: spec 002's FR-048. First visit under phase 3's 25,000,000 bytes (RK5).
+**Performance Goals**: spec 002's FR-048. First visit under phase 3's 25,000,000 bytes (RK5); 26,000,000 since his answer to Q288 (main's `ab4876f5`, a named deviation from spec 009 FR-038's budget; §5, "Departures at step 5").
 
 **Constraints**: no human-only file edited; no photo in the repo or an agent's context; `make up` builds with or without the dog's files.
 
@@ -83,6 +83,15 @@ A later studio task, using only main's `assets/policy/studio-tools.json` (P-7), 
 3. **Rig and clips** in Blender 5.2.3: a standing, level-headed rest pose; `idle` (loop, root in place), `walk` (loop, root in place, four-legged gait), and `run` (loop, root in place, a faster four-legged gait, for spec 025's room figure); exported with the bundled glTF exporter at the file sizes of main's caps; the model's skeleton node names the clips target.
 4. **Scrub and record**: `scripts/assets/scrub.py` strips metadata; `records.json` written with each step and licence, the model `likeness: true` and `source.type: "photo"`, the clips `likeness: false` (§4); no photo, no EXIF, no path.
 5. **Hand-back** to the studio's hand-off folder; **judging** by the decision page's Q72 (round 1 left open while the arrival check's P1, awaiting his approval, is its only finding); **look** by him, on the hand-off folder's model in a glTF viewer or Blender (R-05's fallback, §11; Q87); **approval** entry, merged to main (patch 020, item 3), naming the model's SHA-256; **intake** by him (patch 020, item 4: a commit of `assets/visitors/dog/**`, the model's record carrying the approval's `id`; the arrival check runs on it and finds the approval on main). Until then the cut-out shows.
+
+**Departures at step 5 (intake-020, 2026-11-15; the spec's Assumptions, "Departures at the intake").**
+
+- **The intake is a worker's.** Rule 15 of his orders says: "then take the dog in (spec 020's intake into `assets/visitors/dog/`), reviewed by another worker and verified like any item, and merged into the line before the integration task". intake-020 copies round 4's `dog.glb`, `dog-idle.glb`, `dog-walk.glb`, `records.json`, and `LICENSE.md` from the studio's hand-off folder, byte for byte. It renders `assets/CREDITS.md` with `credits.py`. `assets/visitors/records.json` lists no folder, so it's unchanged. His approvals on main (`b6985ad2`) came first, as step 5 orders.
+- **§4's records, as round 4 made them.** All three files are `likeness: false`, from a photo source, each naming its approval. Rule 13 says: "It isn't his dog, and the photo is his to use". So R-08's credit renders "- A likeness of the Author's dog: no", and `credits.py` is unchanged. The room's line is his approval's disclosure line (Q280). RA9 gates the model by its photo source.
+- **No run clip.** §5 step 3's `run` wasn't made in round 4 (rule 12, "Next: studio assets"). The bundle holds `idle` and `walk`, and spec 025's room dog falls back as its code has it.
+- **R-10 (SC-002) fails as taken in.** RK5 measures the first visit at 25,050,327 bytes against 25,000,000. That's 6,593,757 for the room, 8,734,538 for the twin, 6,474,745 for spec 025's room dog, and 3,247,287 for the woman. The intake waits on his answer (the page's question). Main's arrival check, which counts the largest visitor avatar alone, gives 21,803,040 and 0 findings.
+- **R-10 (SC-002), answered: the budget is raised (Q288; rule 16, 2026-11-15).** His words: "B for the dog". His commit on main, `ab4876f5`, sets `first_visit_bytes.phase3` from 25,000,000 to 26,000,000, and the intake merges as it is: 25,050,327 is 949,673 under the new budget. This is a named deviation from spec 009 FR-038's first-visit budget (the spec's Assumptions). Nothing in this plan's code changes for it. Until his merge of main into the named stack (Q286), the line's own `caps.json` reads 25,000,000 and its approvals lack `b6985ad2`'s, so item 3's verify (verify4-020) shows those cases green on a copy with main's `assets/policy/` and carries them by name.
+- **The test.** `apps/web/test/room/dog-intake.test.ts` (new) composes the committed tree with main's approvals: the SHA-256s, the records, the licence, RA/RK on the dog's files, the line, and RA9 without his approval. `scripts/assets/test_credits_dog_intake.py` (new) checks the committed credit.
 
 If the listed tools can't make a likeness from the concept image, the round stops at step 2 and asks him; it adds nothing. The data-flow disclosure check: D1's sentence already says the Author's AI-made likeness reaches Anthropic when a session reads one; a dog's likeness is the same kind of file, so T012 reads the disclosure and adds a sentence only if the dog changes none of its rows.
 

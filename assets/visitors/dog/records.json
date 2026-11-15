@@ -1,0 +1,682 @@
+{
+  "schema": 1,
+  "directory": "assets/visitors/dog",
+  "license": "all-rights-reserved-2026",
+  "entries": [
+    {
+      "file": "dog-idle.glb",
+      "sha256": "1bd5ee9454ed654700dbbec6279ec54861419d8ae47ffc61d243aa8107e9ff25",
+      "kind": "animation",
+      "made": "2026-11-14",
+      "source": {
+        "type": "photo",
+        "id": "PH-0002"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "the Author's review of an earlier mesh, which asked for the breed's white markings on the face, the under body, and the feet",
+          "by": "hand"
+        },
+        {
+          "name": "the Author's choice of a photograph of the breed as the concept's reference image, for its white markings; his words on it: \"I own it\", \"it's free to use\"",
+          "by": "hand"
+        },
+        {
+          "name": "the concept, from a text prompt and a photograph of the breed as its reference image; eight seeds drawn and one picked by the studio's agent, which wrote the prompt and drove ComfyUI",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "auxiliary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "d8161f8b50f3fc2a599ab74df63671a9d408df164aae727f5e9eaa2dce5eed22"
+        },
+        {
+          "name": "the mesh and its base-colour texture, from the picked concept, run in ComfyUI by the studio's agent",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "auxiliary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "c378d4e6f7672b5607e0739df559587763f895b15e50bc6333ac5069f30ceb78"
+        },
+        {
+          "name": "the build, which cleaned, decimated and scaled the mesh, kept its texture layout and halved its base colour, and rigged and skinned the dog on its skeleton, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "43d1cc039ed90bc31742b546ac906ef211fcb4cbebdfbaf3defefeed60279f31"
+        },
+        {
+          "name": "the idle, a breathing loop with small head and tail motion, keyed on the build's skeleton and exported alone, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "43d1cc039ed90bc31742b546ac906ef211fcb4cbebdfbaf3defefeed60279f31"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261114-dog-idle"
+    },
+    {
+      "file": "dog-walk.glb",
+      "sha256": "f35b742a6b8070faddf9f184fc1ac94d4560e1d4c501e2bee9a2c1ad3e53e306",
+      "kind": "animation",
+      "made": "2026-11-14",
+      "source": {
+        "type": "photo",
+        "id": "PH-0002"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "the Author's review of an earlier mesh, which asked for the breed's white markings on the face, the under body, and the feet",
+          "by": "hand"
+        },
+        {
+          "name": "the Author's choice of a photograph of the breed as the concept's reference image, for its white markings; his words on it: \"I own it\", \"it's free to use\"",
+          "by": "hand"
+        },
+        {
+          "name": "the concept, from a text prompt and a photograph of the breed as its reference image; eight seeds drawn and one picked by the studio's agent, which wrote the prompt and drove ComfyUI",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "auxiliary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "d8161f8b50f3fc2a599ab74df63671a9d408df164aae727f5e9eaa2dce5eed22"
+        },
+        {
+          "name": "the mesh and its base-colour texture, from the picked concept, run in ComfyUI by the studio's agent",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "auxiliary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "c378d4e6f7672b5607e0739df559587763f895b15e50bc6333ac5069f30ceb78"
+        },
+        {
+          "name": "the build, which cleaned, decimated and scaled the mesh, kept its texture layout and halved its base colour, and rigged and skinned the dog on its skeleton, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "43d1cc039ed90bc31742b546ac906ef211fcb4cbebdfbaf3defefeed60279f31"
+        },
+        {
+          "name": "the walk, a four-legged walk-cycle loop in place, keyed on the build's skeleton and exported alone, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "43d1cc039ed90bc31742b546ac906ef211fcb4cbebdfbaf3defefeed60279f31"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261114-dog-walk"
+    },
+    {
+      "file": "dog.glb",
+      "sha256": "d31c085cfa6dc92449f3ada3873417c829acd8e4989a3ae54c2bacc524842078",
+      "kind": "avatar",
+      "made": "2026-11-14",
+      "source": {
+        "type": "photo",
+        "id": "PH-0002"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "the Author's review of an earlier mesh, which asked for the breed's white markings on the face, the under body, and the feet",
+          "by": "hand"
+        },
+        {
+          "name": "the Author's choice of a photograph of the breed as the concept's reference image, for its white markings; his words on it: \"I own it\", \"it's free to use\"",
+          "by": "hand"
+        },
+        {
+          "name": "the concept, from a text prompt and a photograph of the breed as its reference image; eight seeds drawn and one picked by the studio's agent, which wrote the prompt and drove ComfyUI",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "auxiliary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "d8161f8b50f3fc2a599ab74df63671a9d408df164aae727f5e9eaa2dce5eed22"
+        },
+        {
+          "name": "the mesh and its base-colour texture, from the picked concept, run in ComfyUI by the studio's agent",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "auxiliary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "c378d4e6f7672b5607e0739df559587763f895b15e50bc6333ac5069f30ceb78"
+        },
+        {
+          "name": "the build, which cleaned, decimated and scaled the mesh, kept its texture layout and halved its base colour, and rigged and skinned the dog on its skeleton, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "43d1cc039ed90bc31742b546ac906ef211fcb4cbebdfbaf3defefeed60279f31"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261114-dog"
+    }
+  ]
+}
