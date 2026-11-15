@@ -414,6 +414,19 @@ def test_the_rooms_rows_are_in_its_own_section_with_the_specs_words() -> None:
         f"{still}, or, in a 3D visit, once, when the conversation panel first opens"
         " in the split layout (spec 018)",
     )
+    # Spec 025's FR-028: the room's dog's model and clips among the avatar files fetched, in the requirement's own
+    # words, right after M17's words for the twin's model and clips (its T015; plan.md R-12).
+    run = (REPO / "specs" / "025-twin-and-dog-run-from-dino" / "spec.md").read_text(
+        encoding="utf-8"
+    )
+    dog = re.search(
+        r"among the avatar files fetched, (the room's dog's .*?, the same for every visitor);",
+        run,
+    )
+    assert dog, "spec 025's FR-028 doesn't read as this test reads it"
+    twin = "the twin's model and clips in every 3D visit above the floor, the same for every visitor; "
+    assert files_now.count(twin) == 1
+    files_now = files_now.replace(twin, f"{twin}{dog.group(1)}; ")
     _from_to, row_trigger, row_carries, row_never, row_why, *_ = rows()["V1"]
     assert (row_carries, row_never, row_why) == (
         f"{carries}, and {files_now}",
