@@ -4725,6 +4725,107 @@ No source or test file changed in this step.
 - **N-3 and N-4** touch tests. They're in item 9's Backlog (rv-rework5-026), above, in the review's words.
 - **Q298** (answered as recommended): the review's CLAUDE.md line, word for word, is in item 9's For the Author as a proposal for his hand. No worker writes CLAUDE.md.
 
+#### All of `apps/web`, first run (4b0ff194, the code as reviewed; 1398 s)
+
+```
+$ cd apps/web && npx vitest run --maxWorkers=4
+ FAIL  test/disclosure.test.ts > the disclosure page > gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words
+ FAIL  test/disclosure.test.ts > the disclosure page > names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)
+ FAIL  test/room/avatars-compose.test.ts > the data-only proof set on the repository's own data (FR-037, SC-008) > names the man as the stand-in in the committed scene, with the defaults written out
+ FAIL  test/room/chunk.test.ts > the release build > room-manifest.json (Amendment B7) > is compose()'s manifest, its build_kind "release"
+ FAIL  test/room/chunk.test.ts > the drafts build > room-manifest.json (Amendment B7) > is compose()'s manifest, its build_kind "drafts"
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds the same face to the floor on the desktop
+ FAIL  test/room/legibility.test.ts > RG7's per-face exemption on the reference phone > holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > marks the counter face exempt on the phone, and the word face readable
+ FAIL  test/room/scan.test.ts > the committed tree (T107; FR-007, SC-001, User Story 1 scenario 4) > finds 0 IDs only the room's data defines in the room's code
+ Test Files  6 failed | 235 passed (241)
+      Tests  10 failed | 4377 passed | 3 skipped (4390)
+   Duration  1397.77s (tests 72%, import 28%)
+```
+
+Six are exactly D-V2's six (Q165): `disclosure`'s two, `legibility`'s three, and `report`'s one, the same six as merge-2's full run. `twin-2d.test.ts` passed. The other four failures:
+
+- **`scan.test.ts` (item 9's).** Spec 004's source scan found 37 IDs that only the room's data defines, all in item 9's own test files:
+  - `chase-face`:224 and `pet-adapters`:46, 51: `twin-figure`;
+  - `dog-pick`: lines 45, 47, 173, 175, 333, and 341;
+  - `dog-selectable`: lines 36 to 220, 14 hits;
+  - `pet-degraded`:111, `pet-director`:167 and 314, `pet-homes`:116, and `pet-notes`:99.
+
+  The IDs were `dog-sign`, `hobbies-and-travel`, `laptop`, `snowboard`, `bicycle`, `chalkboard`, `work-desk`, `twin-figure`, and `visitor-figure`. The scan's CLI on a `git archive` copy of the line's tip ce3f6305 says `room: 0 hits`, and on 4b0ff194 it says `room: 37 hits`. The I-1 run above didn't hold `scan.test.ts`, and none of item 9's small runs did.
+- **`avatars-compose.test.ts`:465 (item 9's).** It pins the committed scene's `figures` keys. T012 added `figures.pet` to `scene.yaml`, and its small runs didn't hold this file, so the pin was missed (plan R-05: "Any test pinning the closed lists changes that pin only, in the same commit"). On the line's tip copy: `Test Files 1 passed (1) · Tests 34 passed (34)`.
+- **`chunk.test.ts`'s two (not item 9's): `main` moved during the run.**
+  - Both are the manifest's `caps.sha256` (`source: "main"`). The build read main's `assets/policy/caps.json` before the change (8b5b41fd…), and the in-process `compose()` read it after (181c38be…).
+  - `main` is now ab4876f5, not the brief's b6985ad2. ab4876f5 changed `caps.json`, committed at 2026-11-14 18:43:42 −0700 (01:43Z), and this run started at 01:40:54Z.
+  - Item 9 doesn't touch the file or the policy code. Alone on this branch afterwards: `Test Files 1 passed (1) · Tests 14 passed (14)` (119.65 s). Its run on main's tip is under "Runs", below.
+
+#### Fixed (test-first; no source changed)
+
+- **RED:** the run above, saved at 14492524. Then the two files alone, from `apps/web`:
+
+  ```
+  $ npx vitest run --maxWorkers=4 test/room/scan.test.ts test/room/avatars-compose.test.ts
+   FAIL  test/room/avatars-compose.test.ts > … > names the man as the stand-in in the committed scene, with the defaults written out
+   FAIL  test/room/scan.test.ts > the committed tree (T107; …) > finds 0 IDs only the room's data defines in the room's code
+   Test Files  2 failed (2)
+        Tests  2 failed | 49 passed (51)
+  ```
+
+- **GREEN (ff88ed75):**
+  - **The scan.** A new helper, `test/helpers/room-ids.ts`, finds the room's IDs in the repository's bundle by their words, as `eat-scene.test.ts` finds the busy sign:
+    - a placement by its label's words (`"Desk sign, dog"`, `"Desk"`, `"Bicycle"`);
+    - a selectable by its name (`"Laptop and screen"`, …);
+    - a topic by its phrase (`"hobbies and travel adventures"`);
+    - the twin's figure by `figures.twin`.
+
+    `dog-pick` and `dog-selectable` compose the real room and use the helper. `chase-face`, `pet-adapters`, `pet-degraded`, `pet-director`, and `pet-notes` run on fakes. They now use fixture IDs (`fx-twin-figure`, `fx-snowboard`, …), as the line's `chase-figures` and `chase-handoff` tests took `fx-twin-figure`. `pet-homes` judges the good fixture's scene, so it takes that scene's topic, `fx-work`. Every assertion keeps its meaning. `dog-pick`'s list is still the four shipped selectables in their order, then `dog`.
+  - **The pin.** `avatars-compose.test.ts`'s list gains `"pet"`, and nothing else in it changed, with a comment naming spec 026's T012.
+  - **Counting.** With this pin, item 9 has changed three earlier specs' test files, not two: `avatars-compose.test.ts` (spec 009's file, which spec 016 and spec 025 pinned before) beside N-1's two spec 025 files. Plan R-05's "As built (verify-026)" records it.
+
+  The scan's CLI: `npm run -s room:scan` → `room: 0 hits`, exit 0. Then, from `apps/web`, with vitest's JSON report summarized by file:
+
+  ```
+  $ npx vitest run --maxWorkers=4 test/room/scan.test.ts test/room/avatars-compose.test.ts test/room/chase-face.test.ts test/room/dog-pick.test.ts test/room/dog-selectable.test.ts test/room/pet-adapters.test.ts test/room/pet-degraded.test.ts test/room/pet-director.test.ts test/room/pet-homes.test.ts test/room/pet-notes.test.ts
+   Test Files  10 passed (10)
+        Tests  181 passed (181)
+     Duration  150.80s (tests 67%, import 32%, transform 1%)
+  passed  test/room/avatars-compose.test.ts  34/34 passed
+  passed  test/room/chase-face.test.ts  15/15 passed
+  passed  test/room/dog-pick.test.ts  18/18 passed
+  passed  test/room/dog-selectable.test.ts  7/7 passed
+  passed  test/room/pet-adapters.test.ts  15/15 passed
+  passed  test/room/pet-degraded.test.ts  20/20 passed
+  passed  test/room/pet-director.test.ts  17/17 passed
+  passed  test/room/pet-homes.test.ts  29/29 passed
+  passed  test/room/pet-notes.test.ts  9/9 passed
+  passed  test/room/scan.test.ts  17/17 passed
+  ```
+
+#### D-V2's six, carried (Q165), on a copy
+
+- **The copy.** `git archive HEAD` (ff88ed75) went into a fresh `mktemp -d` folder, `/tmp/verify026-dv2b.kVUw`, with the worktree's two `node_modules` folders linked in.
+- **The patches.** There, `git apply --check` and then `git apply` ran for `docs/merge-requests/proposed/018-verify-test-amendments.patch` (4 files changed, 43 insertions, 11 deletions) and then `025-disclosure-test-amendments.patch` (2 files changed, 28 insertions, 3 deletions). Both applied clean.
+- **On the line.** Neither patch was applied on this branch, and no test file was edited for them.
+
+```
+$ cd <copy> && pytest -q -p no:cacheprovider --import-mode=importlib evals/test_disclosure.py evals/test_docs_links.py
+........                                                                 [100%]
+80 passed in 1.59s
+$ cd <copy>/apps/web && npx vitest run --maxWorkers=4 test/disclosure.test.ts test/room/legibility.test.ts test/room/report.test.ts test/room/dog-disclosure.test.ts test/site.test.ts
+ Test Files  5 passed (5)
+      Tests  74 passed (74)
+   Duration  88.86s (tests 77%, import 17%, transform 6%)
+```
+
+#### pytest
+
+Item 9 changes one Python folder, `scripts/corpus` (`dog_intro_proposal.py` and its test; `git diff --stat ce3f6305 HEAD`). The merge changed none:
+
+```
+$ pytest -q -p no:cacheprovider --import-mode=importlib scripts/corpus
+382 passed in 8.61s
+```
+
 ## Item 10: spec 027, when the twin's file context stops being enough (`night/impl-027/impl-027`)
 
 Spec: specs/027-corpus-retrieval-adr/ · Intent: intent/027-corpus-retrieval-adr.md (draft) · ADR: docs/adr/0054-when-file-context-stops-being-enough.md (proposed) · Written by: implementer (night shift, impl-027, Opus 5.5); the review is for a worker who didn't write the code (T006; the reviewer follows this task) · Date: 2026-11-14
