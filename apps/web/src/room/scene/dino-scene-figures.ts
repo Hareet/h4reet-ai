@@ -121,7 +121,9 @@ export function createDinoFigures(options: {
     carrier.updateMatrixWorld(true);
   }
 
-  /** The taken placement's pictures into the carrier, their world place kept; a model set later joins them. */
+  /** The taken placement's pictures into the carrier, their world place kept: those under its node at the take's
+   *  start. A model set after it (loader.ts's `showModel`) goes under the placement's node, on the wall, not into the
+   *  carrier (rv-028b-1's B1-4, in impl-b.md's backlog; no real input reaches it before P9). */
   function take(): void {
     const node = options.bicycle;
     if (!node) return;
