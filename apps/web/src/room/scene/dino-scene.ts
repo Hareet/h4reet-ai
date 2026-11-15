@@ -5,10 +5,11 @@
 //   dinosaur's model, in the 3D room (FR-019; Q11): then the call, said once (`call`), for its seconds (the twin's
 //   speaking time for the call's words, at least the greeting clip's length, which the stage gives).
 // - At the call's end it cuts (FR-026) where motion is reduced or the quality level is 1 or more at the call's start,
-//   where the twin can't walk, or where the dog shows without a walk clip; otherwise the dog, where it shows, enters
-//   along the path reversed to `meet` at `dog_mps`; the twin and the dog walk to the floor below the bicycle at
-//   `walk_mps` (the dog stopping DOG_STOP_M short of it, beside the twin); the bicycle is taken over `take_s`; the three
-//   go out along the path and each is hidden at its end; the left line is said once (`left`), for both or the twin.
+//   or where the twin can't walk; otherwise the dog, where it shows with a walk or a run clip (a dog with neither is a
+//   dog not shown: Q21), enters along the path reversed to `meet` at `dog_mps`; the twin and the dog walk to the floor
+//   below the bicycle at `walk_mps` (the dog stopping DOG_STOP_M short of it, beside the twin); the bicycle is taken
+//   over `take_s`; the three go out along the path and each is hidden at its end; the left line is said once (`left`),
+//   for both or the twin.
 // - Reduced motion or quality level 1 or more beginning mid-scene cuts it at once; a paused room stops its clock.
 // - Movement is by arc length along routes made once, at the director's making; each frame writes in place into the
 //   twin's, the dog's, and the bicycle's records and allocates nothing (T-B04's bench reads the source).
@@ -39,7 +40,8 @@ export interface DinoInputs {
   readonly twinCanWalk: boolean;
   /** The room's dog shows its model. */
   readonly dogShown: boolean;
-  /** The room's dog has its walk clip. */
+  /** The room's dog has its walk clip or its run clip (chase.ts's `dogRole` finds one); a dog with neither takes no
+   *  part, as one not shown (FR-026, Q21). */
   readonly dogHasWalk: boolean;
   /** The room is paused (spec 002's motion store). */
   readonly paused: boolean;
@@ -67,7 +69,7 @@ export interface DinoScene {
   readonly twin: Readonly<DinoFigure>;
   readonly dog: Readonly<DinoFigure>;
   readonly bicycle: Readonly<DinoBicycle>;
-  /** The dog takes part: decided at the call's end, from whether it shows. */
+  /** The dog takes part: decided at the call's end, from whether it shows with a walk or a run clip. */
   readonly withDog: boolean;
   /** One frame, `dt` the room's clock's seconds. */
   frame(dt: number, inputs: Readonly<DinoInputs>): void;
@@ -138,6 +140,11 @@ function walk(f: DinoFigure, r: Route, s: number, ds: number, speed: number): nu
   return next;
 }
 
+/** The dog takes part where it shows with a walk or a run clip; with neither, it is treated as not shown (Q21). */
+function dogTakesPart(i: Readonly<DinoInputs>): boolean {
+  return i.dogShown && i.dogHasWalk;
+}
+
 export function createDinoScene(options: DinoSceneOptions): DinoScene {
   const { leave } = options;
   const home: readonly [number, number] = [options.twin.x, options.twin.z];
@@ -186,7 +193,7 @@ export function createDinoScene(options: DinoSceneOptions): DinoScene {
 
   /** The cut (FR-026): the three hidden at once, the left line said. */
   function hideAll(i: Readonly<DinoInputs>): void {
-    const both = phase === "call" ? i.dogShown : withDog;
+    const both = phase === "call" ? dogTakesPart(i) : withDog;
     phase = "cut";
     twin.visible = false;
     twin.moving = false;
@@ -205,11 +212,11 @@ export function createDinoScene(options: DinoSceneOptions): DinoScene {
     switch (phase) {
       case "call":
         if (t < callFor) return;
-        if (cutDue || !i.twinCanWalk || (i.dogShown && !i.dogHasWalk)) {
+        if (cutDue || !i.twinCanWalk) {
           hideAll(i);
           return;
         }
-        withDog = i.dogShown;
+        withDog = dogTakesPart(i);
         t = 0;
         sTwin = 0;
         sDog = 0;

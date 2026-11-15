@@ -1,14 +1,15 @@
 // The dinosaur's scene's adapter (spec 028; FR-019 to FR-024, FR-026; plan.md R-B3): the thin part between the pure
 // director (dino-scene.ts) and the room. Each frame it:
 // - reads the director's inputs from the avatar controller: the visitor's figure showing its model (the dinosaur's,
-//   not its cut-out), the twin's walking (its avatar shown with the leg bones), the room's dog shown and its walk clip;
+//   not its cut-out), the twin's walking (its avatar shown with the leg bones), the room's dog shown and its walk or
+//   run clip (chase.ts's `dogRole` reads the same two; with neither, the dog takes no part: Q21);
 //   and from the stage: the hand-off's end, the motion store, and the quality level;
 // - places the twin's and the dog's pictures from the director's poses, as spec 025's run shell does (chase-figures.ts's
 //   `pictureOf` and `place`): only the pictures move, the twin's placement's node stays (FR-023); and shows or hides
 //   each as the director says;
 // - gives the twin's gait its picture's place (`stride`, spec 019 through spec 025's FR-013), and the twin's state
 //   `fleeing` from the gather on (its idle under the gait, never a talking clip while it walks or is hidden: FR-024);
-//   the dog its walk while it moves, else its idle;
+//   the dog its walk while it moves (its run where it has no walk), else its idle;
 // - at the call, asks the twin's wave (its greeting once more, `twinWave`), then the stage's own `call`;
 // - at the take, moves the taken placement's pictures (its stand-in and its set model, never its label, its faces, or
 //   what is mounted on it) under a carrier that follows the twin's picture, and eases them over `take_s` from where
@@ -71,6 +72,8 @@ export function createDinoFigures(options: {
   const twinNode = avatars.pictureOf("twin");
   const twin: Picture | null = twinNode ? pictureOf(twinNode) : null;
   let dog: Picture | null = null;
+  /** The dog's moving clip: its walk, else its run (as chase.ts's `dogRole` falls back). */
+  let dogMoves: "walk" | "run" = "walk";
   const scene = createDinoScene({
     leave,
     twin: twin?.home ?? { x: leave.under_bicycle[0], z: leave.under_bicycle[1], heading: 0 },
@@ -140,7 +143,9 @@ export function createDinoFigures(options: {
       inputs.paused = motion.paused;
       inputs.twinCanWalk = avatars.shows("twin") && avatars.legsOf("twin") !== null;
       inputs.dogShown = avatars.shows("dog");
-      inputs.dogHasWalk = avatars.clipOf("dog", "walk") !== null;
+      const hasWalk = avatars.clipOf("dog", "walk") !== null;
+      inputs.dogHasWalk = hasWalk || avatars.clipOf("dog", "run") !== null;
+      dogMoves = hasWalk ? "walk" : "run";
       scene.frame(dt, inputs);
       const phase = scene.phase;
       if (phase === "idle" || phase === "call") return;
@@ -160,7 +165,7 @@ export function createDinoFigures(options: {
       if (dog) {
         if (scene.dog.visible) place(dog, scene.dog);
         dog.node.visible = scene.dog.visible;
-        if (scene.dog.visible) avatars.dogPlays(scene.dog.moving ? "walk" : "idle");
+        if (scene.dog.visible) avatars.dogPlays(scene.dog.moving ? dogMoves : "idle");
       }
 
       if (phase === "take" || phase === "leave" || phase === "gone" || phase === "cut") {
