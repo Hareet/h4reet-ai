@@ -88,7 +88,7 @@ describe("the composed points (plan.md R-B4's record)", () => {
       start: visitor.start,
       dog_home: part.figures.dog?.home.at ?? null,
     };
-    console.log(`T-B03 composed points: ${JSON.stringify(record)}`);
+    process.stdout.write(`T-B03 composed points: ${JSON.stringify(record)}\n`);
     expect(twinAt.every(Number.isFinite)).toBe(true);
     expect(bicycleAt.every(Number.isFinite)).toBe(true);
   });
