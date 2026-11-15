@@ -1,5 +1,7 @@
 # Studio round 2: the dinosaur's brief (live since `brief-dino-r3`, 2026-11-14 about 16:30Z)
 
+**Recorded (`record2-dino-r2`, 2026-11-15): round 2 is `pass`, with 0 findings (`/srv/studio/briefs/dinosaur/2.result.json`, `6b3de703…2347a`), and the intake into `assets/visitors/dinosaur/` waits for his hand.** See "Round 2's record (`record2-dino-r2`)" at the end. *(The status lines below are the earlier tasks', kept as they were.)*
+
 **Approved by the Author on 2026-11-14 (`intake-021`), and not yet recorded or taken in.** His date is given (`2026-11-11`), but the handoff is read-only to implementers, so the record waits on his morning's steps, in order: the edit to the handoff's `records.json` (steps 1 and 2, his mesh review and his date, as one script), then the dry re-judge (step 3), then `--record` (step 4). His intake follows the record. See "Round 2's record, not made (`record-dino-r2`)" below, and "For his morning, in order".
 
 **Judged dry (`judge-dino-r2`): round 2's candidate passes `line.py`, and the round isn't recorded.** See "Round 2's candidate, judged dry" below. *(Still not recorded: the record and his intake wait for his morning's steps 1 to 4, in order, as the status above says.)*
@@ -554,3 +556,60 @@ $ ls /srv/studio/briefs/dinosaur/
 ```
 
 It passes, with 0 findings, the same output as record-dino-r2's scratch preview apart from main's commit (`a36f98ec568f`, not `3c0e4cd06861`). The four WARNs are C1's expected line, as before. Nothing was written.
+
+### Step 4: `--record`, run once
+
+```
+$ python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dinosaur/2 --brief /srv/studio/briefs/dinosaur/2.json --record; echo "exit $?"
+arrival-check: main's copy, at a36f98ec568f, on a scratch copy under assets/visitors/dinosaur/
+WARN assets/visitors/dinosaur/dinosaur-idle.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dinosaur/dinosaur-take.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dinosaur/dinosaur-walk.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dinosaur/dinosaur.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+file                                        bytes     gzip      vertices  triangles  texture
+assets/visitors/dinosaur/dinosaur-idle.glb  47908     22309     0         0          0
+assets/visitors/dinosaur/dinosaur-take.glb  35904     10963     0         0          0
+assets/visitors/dinosaur/dinosaur-walk.glb  37716     14707     0         0          0
+assets/visitors/dinosaur/dinosaur.glb       2248336   1236931   32645     27997      5592405
+arrival-check: 0 findings in 6 files, 4 warnings
+line: pass; round 2
+exit 0
+```
+
+It wrote `/srv/studio/briefs/dinosaur/2.result.json`:
+
+```
+$ ls /srv/studio/briefs/dinosaur/
+1.json  1.result.json  2.json  2.result.json
+$ cat /srv/studio/briefs/dinosaur/2.result.json
+{
+  "schema": 1,
+  "asset": "dinosaur",
+  "round": 2,
+  "result": "pass",
+  "findings": []
+}
+$ sha256sum /srv/studio/briefs/dinosaur/2.result.json
+6b3de7033916cdb4c770e8fc11e4c6f4ea43820ba41e27c585ab4ed39942347a  /srv/studio/briefs/dinosaur/2.result.json
+```
+
+`--record` ran once and won't run again. The handoff, read afterwards, hasn't changed: it's the hashes under "Checks first" above, plus `front.png` `18b17bea…7aa1`, `side.png` `a05c2dec…e56e4`, and `note.md` `9332ab73…c26a`, the same as "What it judged". The line's own read of the asset:
+
+```
+$ python3 -I -B scripts/studio/line.py round dinosaur; echo "exit $?"
+passed 2
+exit 0
+```
+
+### What waits for him
+
+- **His intake** into `assets/visitors/dinosaur/` (FR-015; human patch 021, P9 in night 2's hand-over). Its steps and the files' SHA-256s are in item 4's section of `docs/merge-requests/2026-11-14-night-stack.md`, under "The intake (intake-021)". The four GLBs it takes are the ones recorded here, and `records.json` is now `39b89e14…d4df`, with his mesh review and his date.
+- Nothing else for this round: his look approval (2026-11-14), his date, and his mesh review are given. Q198 (the concept's source, `design`, D-0003) stays open, and his to overturn.
+
+### Small tests (rule 4)
+
+This task changes no code or test. It adds only this section and the status line at the top of the file, under `specs/`. Its tests are the `line.py` runs above, plus `make lint`, which is in this branch's merge-request note (`docs/merge-requests/2026-11-15-night-record2-dino-r2-record2-dino-r2.md`).
+
+### Interruptions (rule 5)
+
+None. No hook, bash gate, or filesystem refused anything. Nothing under `assets/**` or `/srv/studio/handoff/` was written. The only write under `/srv/studio/` is `2.result.json`, by `line.py --record`. I didn't open, view, copy, or list the inbox, the dog's photos, or `front.png` and `side.png` (I hashed them only).
