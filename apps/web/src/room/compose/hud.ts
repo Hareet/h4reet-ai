@@ -355,6 +355,10 @@ export interface EatOption {
  *  without one, no split layout. */
 export interface HudOption extends EatOption {
   readonly wall?: WallSource | null | undefined;
+  /** Spec 028 (FR-004, FR-014; SC-001 as reworked): whether one of the stage's notes shows. In the split layout the
+   *  panel's top then sits below the notes' reserve (`notesReserve`), its foot still the wall box's; absent or false,
+   *  the panel's top is the wall box's. Since T-A06 no note is drawn on the stage, so the room passes none. */
+  readonly notes?: boolean | undefined;
 }
 
 /** A box beside `walk`: on its left, a gap apart, at its height, where `within` holds it; else directly above it, a gap
@@ -603,7 +607,8 @@ export interface WallSource {
 }
 
 /** The split layout's boxes in a window's pixels (spec 028): `area` the frame area the room is framed into, `wall` the
- *  wall box there; `panel` the conversation panel beside the wall's left edge, as tall as it, `title` its title row and
+ *  wall box there; `panel` the conversation panel beside the wall's left edge, from its top (below the notes' reserve while a note
+ *  shows) to its foot, `title` its title row and
  *  `frame` the box its frame is drawn round (the panel); `column` the right column beside the wall's right edge, as tall
  *  as it, holding `list` at its top and `tiles` at its foot, the toolbar's tiles, then `walk` and, with the option,
  *  `eat`; and the two sides' scales (FR-008). */
@@ -677,10 +682,13 @@ export function wallBoxes(
   const leftBand = wall.x - gap - (safe.left + edge);
   const rightBand = screen.w - safe.right - edge - (wall.x + wall.w + gap);
   if (leftBand < t.panel.minRem * rem - 1e-9 || rightBand < t.column.minRem * rem - 1e-9) return null;
-  if (source.boxes(area, hudBoxes(screen, state, metrics).clear) === null) return null;
-  // The panel and the column, 1rem off the wall box, as tall as it, out to their most widths.
+  const clear = hudBoxes(screen, state, metrics).clear;
+  if (source.boxes(area, clear) === null) return null;
+  // The panel and the column, 1rem off the wall box, out to their most widths; the column as tall as the wall box, the
+  // panel from the wall box's top, or below the notes' reserve while a note shows, to its foot (FR-004; SC-001).
   const px = Math.max(safe.left + edge, wall.x - gap - t.panel.maxRem * rem);
-  const panel: Box = { x: px, y: wall.y, w: wall.x - gap - px, h: wall.h };
+  const py = wall.y + (option.notes ? notesReserve(clear, rem) : 0);
+  const panel: Box = { x: px, y: py, w: wall.x - gap - px, h: wall.y + wall.h - py };
   const cx = wall.x + wall.w + gap;
   const column: Box = {
     x: cx,
