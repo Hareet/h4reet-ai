@@ -50,6 +50,10 @@ export interface PetDog {
 export interface PetChase {
   faceTwin(heading: number | null): void;
   twinHeading(): number;
+  /** The twin's heading as `twinHeading` gives it, on an object read in place (spec 025's runner, or its home's), which
+   *  the director reads where it is given: a fraction returned from a call V8 doesn't inline is boxed at the return,
+   *  an object isn't (FR-027; rework3-026, the page's Q284). */
+  twinFacing?(): { readonly facing: number };
   running(): boolean;
 }
 
@@ -133,11 +137,14 @@ class Numbers implements ReachClock {
   pet_s = 0;
 }
 
-/** The aim `faceTwin` is asked for, a tagged field (null before the first petting), written only when the aim changes:
- *  a number passed to a call V8 doesn't inline is boxed at the call unless it is boxed already, and the homes, so the
- *  aim, stay the same from one petting to the next (FR-027; rework3-026, the page's Q284, measured). */
+/** The aim `faceTwin` is asked for, in a tagged field (`heading`, null before the first petting) written only when the
+ *  aim changes, which `last` (unboxed) tells by a comparison of two numbers: a number passed to a call V8 doesn't
+ *  inline is boxed at the call unless it is boxed already, and the homes, so the aim, stay the same from one petting to
+ *  the next (FR-027; rework3-026, the page's Q284, measured). */
 class Asked {
   heading: number | null = null;
+  last = 0;
+  set = false;
 }
 
 /** `petAim`'s answer, written in place by `aimInto` (I-1). */
@@ -231,11 +238,11 @@ export function createPet(options: {
   /** The twin's heading is at the petting's aim, or back at its home heading: a field read here, not a fraction
    *  passed in (B-3). */
   const atAim = (): boolean => {
-    const d = chase.twinHeading() - n.aim;
+    const d = (chase.twinFacing ? chase.twinFacing().facing : chase.twinHeading()) - n.aim;
     return Math.abs(Math.atan2(Math.sin(d), Math.cos(d))) <= AT_HEADING;
   };
   const atHome = (): boolean => {
-    const d = chase.twinHeading() - n.homeHeading;
+    const d = (chase.twinFacing ? chase.twinFacing().facing : chase.twinHeading()) - n.homeHeading;
     return Math.abs(Math.atan2(Math.sin(d), Math.cos(d))) <= AT_HEADING;
   };
 
@@ -338,7 +345,11 @@ export function createPet(options: {
       aimAt(twin, dog);
       phase = "turn";
       n.t = 0;
-      if (asked.heading !== n.aim) asked.heading = n.aim;
+      if (!asked.set || asked.last !== n.aim) {
+        asked.last = n.aim;
+        asked.heading = n.aim;
+        asked.set = true;
+      }
       chase.faceTwin(asked.heading);
       options.note?.();
       return true;

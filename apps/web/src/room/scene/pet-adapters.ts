@@ -6,7 +6,8 @@
 //   length (its own model's), spec 016's `arriving`, and spec 025's phase;
 // - the room's dog's view, null without `figures.dog`, its picture, or its model shown: its home, its phase, and its
 //   head point;
-// - the run's adapter: `faceTwin` through to spec 025's director, the twin's facing, and whether a run is on.
+// - the run's adapter: `faceTwin` through to spec 025's director, the twin's facing (as a number, and on an object, its
+//   runner or its home's, which the director reads: rework3-026), and whether a run is on.
 // Each view is one class instance written in place, so the director's frame makes no object and boxes no number
 // (FR-027; I-1): it reads them every frame. Nothing here writes a picture: chase-figures.ts stays the one writer (R-07).
 import type { Object3D } from "three";
@@ -71,6 +72,11 @@ function homeInto(node: Object3D, out: Home): void {
   // chase-figures.ts's own reading, so the two homes are the same numbers.
   out.heading = 2 * Math.atan2(turn.y, turn.w) - Math.PI;
 }
+/** The twin's home heading as `twinFacing`'s object, where the run has no runner for it. */
+class HomeFacing {
+  facing = 0;
+}
+
 class TwinView implements PetTwin {
   readonly home = new Home();
   shows: PetTwin["shows"] = "capsule";
@@ -158,15 +164,20 @@ export function createPetAdapters(options: {
     return dogView;
   };
 
-  const chase: PetChase = {
+  const homeFacing = new HomeFacing();
+  const chase: PetChase & { twinFacing(): { readonly facing: number } } = {
     faceTwin(heading) {
       options.chase()?.faceTwin(heading);
     },
     twinHeading() {
+      return chase.twinFacing().facing;
+    },
+    twinFacing() {
       const r = options.chase()?.runner("twin");
-      if (r) return r.facing;
+      if (r) return r;
       if (!twinNode) twin();
-      return twinView.home.heading;
+      homeFacing.facing = twinView.home.heading;
+      return homeFacing;
     },
     running() {
       const c = options.chase();
