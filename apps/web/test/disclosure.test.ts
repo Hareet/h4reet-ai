@@ -69,6 +69,20 @@ function amendmentM17(): { carries: string; why: string; trigger: string } {
   return { carries: `and ${carries}`, why, trigger };
 }
 
+/** Spec 018's Amendment H-11 (its FR-003): V1's Carries gains the twin's still in a 3D visit, once, when the split
+ *  layout's conversation panel first opens, right after M17's words for the still (its T029; plan.md §13). */
+function amendmentH11(carries: string): string {
+  const spec = readFileSync(resolve(WEB, "../../specs/018-better-hud-and-load-screen/spec.md"), "utf8");
+  if (!spec.includes("| H-11 | Data-flow disclosure, row V1 |"))
+    throw new Error("spec 018's H-11 doesn't read as this test reads it");
+  const still = "the twin's still in a visit that shows the 2D room";
+  if (carries.split(still).length !== 2) throw new Error("spec 016's M17 doesn't name the still once");
+  return carries.replace(
+    still,
+    `${still}, or, in a 3D visit, once, when the conversation panel first opens in the split layout (spec 018)`,
+  );
+}
+
 function htmlTables(html: string): string[][][] {
   const doc = new JSDOM(html).window.document;
   return [...doc.querySelectorAll("table")].map((table) =>
@@ -108,13 +122,13 @@ describe("the disclosure page", () => {
         .map((row) => [row[0], row] as const),
     );
     // Spec 016's M17 replaces M6's avatar files in V1's Carries, and adds to its Trigger and Why, in its own words
-    // (changed with T073, plan.md R-18).
+    // (changed with T073, plan.md R-18); spec 018's H-11 adds the still in a 3D visit to its Carries.
     const m17 = amendmentM17();
     for (const id of ["V1", "V4"]) {
       const entry = entries.get(id);
       const row = rows.get(id);
       expect(entry, id).toBeDefined();
-      const carries = id === "V1" ? `${entry?.[2] ?? ""}, ${m17.carries}` : entry?.[2];
+      const carries = id === "V1" ? `${entry?.[2] ?? ""}, ${amendmentH11(m17.carries)}` : entry?.[2];
       const why = id === "V1" ? `${entry?.[4] ?? ""}; ${m17.why}` : entry?.[4];
       expect(row?.slice(3, 6), id).toEqual([carries, entry?.[3], why]);
     }
@@ -177,7 +191,7 @@ describe("the disclosure page", () => {
     expect(carries).toMatch(
       /^and the avatar files now: the twin's model and clips .*whose paths show which avatar the visitor chose$/,
     );
-    expect(rows.get("V1")?.[3]).toContain(carries);
+    expect(rows.get("V1")?.[3]).toContain(amendmentH11(carries));
     expect(rows.get("V1")?.[3]).not.toContain(v1);
     expect(v4).toBe("and a figure's avatar failing to load, once a visit");
     expect(rows.get("V4")?.[2]?.endsWith(`, ${v4}`)).toBe(true);
