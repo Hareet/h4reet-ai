@@ -531,3 +531,26 @@ eddfc1ff881722a4e6c3ece13514e20a70e350b34194690bc61abe7930431b61  /srv/studio/br
 ```
 
 `records.json` is `39b89e14…d4df`, the file "Steps 1 and 2 as one script" makes. The four GLBs, `candidate.json`, and `LICENSE.md` match record-dino-r2's "Checks first". There's no `2.result.json`, and `2.json` is `eddfc1ff…31b61`.
+
+### Step 3: the dry re-judge, on the handoff folder
+
+```
+$ python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/dinosaur/2 --brief /srv/studio/briefs/dinosaur/2.json; echo "exit $?"
+arrival-check: main's copy, at a36f98ec568f, on a scratch copy under assets/visitors/dinosaur/
+WARN assets/visitors/dinosaur/dinosaur-idle.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dinosaur/dinosaur-take.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dinosaur/dinosaur-walk.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+WARN assets/visitors/dinosaur/dinosaur.glb: its record's steps call for the composite mark, and the file needs no approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)
+file                                        bytes     gzip      vertices  triangles  texture
+assets/visitors/dinosaur/dinosaur-idle.glb  47908     22309     0         0          0
+assets/visitors/dinosaur/dinosaur-take.glb  35904     10963     0         0          0
+assets/visitors/dinosaur/dinosaur-walk.glb  37716     14707     0         0          0
+assets/visitors/dinosaur/dinosaur.glb       2248336   1236931   32645     27997      5592405
+arrival-check: 0 findings in 6 files, 4 warnings
+line: pass; round 2
+exit 0
+$ ls /srv/studio/briefs/dinosaur/
+1.json  1.result.json  2.json
+```
+
+It passes, with 0 findings, the same output as record-dino-r2's scratch preview apart from main's commit (`a36f98ec568f`, not `3c0e4cd06861`). The four WARNs are C1's expected line, as before. Nothing was written.
