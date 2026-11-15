@@ -153,7 +153,10 @@ describe("the adapter: the pictures, the bicycle's carry, and the controller (FR
       s.root.updateMatrixWorld(true);
       s.twin.getWorldPosition(at);
       s.twin.getWorldQuaternion(yaw);
-      want.set(...LEAVE.carry).applyQuaternion(yaw).add(at);
+      want
+        .set(...LEAVE.carry)
+        .applyQuaternion(yaw)
+        .add(at);
       expect(s.standin.getWorldPosition(new Vector3()).distanceTo(want)).toBeLessThan(1e-6);
       frames += 1;
     }

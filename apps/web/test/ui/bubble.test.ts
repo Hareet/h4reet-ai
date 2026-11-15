@@ -105,7 +105,9 @@ describe("its stylesheet (FR-020)", () => {
   it("animates nothing under reduced motion: the media query and the room's own attribute", () => {
     const reduced = sheet.atRules.find((r) => /prefers-reduced-motion:\s*reduce/.test(r.prelude));
     expect(reduced?.body ?? "").toMatch(/\.room-bubble[^{]*\{[^}]*animation:\s*none/);
-    const own = sheet.rules.find((r) => r.selector.includes("[data-motion=\"reduced\"]") && r.selector.includes(".room-bubble"));
+    const own = sheet.rules.find(
+      (r) => r.selector.includes('[data-motion="reduced"]') && r.selector.includes(".room-bubble"),
+    );
     expect(own?.declarations.get("animation")).toBe("none");
   });
 

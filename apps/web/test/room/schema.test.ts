@@ -1353,7 +1353,8 @@ describe("the figures' leave block (spec 028, T-B03)", () => {
   });
 
   it("refuses a block missing a key with RD3, and a key it doesn't define with RD2", () => {
-    const { take_s: _, ...short } = FULL;
+    const short: Partial<typeof FULL> = { ...FULL };
+    delete short.take_s;
     expect(judge("scene", withLeave(short)).seen).toContain("RD3 figures.leave.take_s");
     expect(judge("scene", withLeave({ ...FULL, door: 1 })).seen).toContain("RD2 figures.leave.door");
   });

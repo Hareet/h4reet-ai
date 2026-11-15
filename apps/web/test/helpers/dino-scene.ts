@@ -66,12 +66,7 @@ export function made(o: { leave?: LeaveData; call?: number } = {}): Told {
 }
 
 /** Runs frames until the phase is `until` or `frames` have run; the phases seen, once each in order. */
-export function runTo(
-  s: DinoScene,
-  until: DinoPhase | null,
-  i: DinoInputs = inputs(),
-  frames = 60 * 60,
-): DinoPhase[] {
+export function runTo(s: DinoScene, until: DinoPhase | null, i: DinoInputs = inputs(), frames = 60 * 60): DinoPhase[] {
   const seen: DinoPhase[] = [s.phase];
   for (let k = 0; k < frames && s.phase !== until; k += 1) {
     s.frame(DT, i);
@@ -79,4 +74,3 @@ export function runTo(
   }
   return seen;
 }
-
