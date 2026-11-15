@@ -11016,6 +11016,7 @@ Again, with the whole section in (its last line included, before this sentence):
 
 - The harness refused a foreground `sleep 240` while the check ran ("To wait for a condition, use Monitor …"), not the bash gate. It wasn't retried; the background task's notice was the wait.
 - No hook, bash-gate, permission, or filesystem refusal. Nothing was respelled.
+- A stray folder, found after the check: the image gate's docker made `./~/.config/h4reet/agents-engine/docker/buildx/` in the worktree at 05:12 (a literal `~`, not expanded; its `current` file reads `{"Key":"tcp://127.0.0.1:2376","Name":"","Global":false}`, with a `.lock` beside it, nothing secret). This run made it, so I removed it (`rm -r -- './~'`). Untracked, so no commit held it. Worth a look by whoever owns the image gate's `DOCKER_CONFIG`: not chased here.
 - How the text went in: this section's prose and the hand-over's fill-ins were written with the Edit tool, but for one exception: the ten code line numbers in the hand-over's section 4 were changed by a small Python script (`/tmp/i018-sec4.py`, each replacement asserted to match once). The pasted outputs were put in from their log files by a script, as merge-3's and merge-4's were.
 
 No question for the Author, and no request to the runner (`/night/io/out/` holds no file from this task). Nothing under a human-only path, `assets/policy/**`, or `/srv/studio/` changed; no merge of main or into main; no push.
