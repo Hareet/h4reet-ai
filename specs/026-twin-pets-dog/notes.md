@@ -45,6 +45,8 @@ ruff format --check --no-cache --extend-exclude corpus .
 # then shellcheck over the repository's scripts (the target's `xargs -0 -t shellcheck` line): no finding; make exited 0
 ```
 
+*rv-amend-026's N-4 (verify-patch-026, 2026-11-15):* the block's last line, `# then shellcheck …`, is amend-026's summary, not output, and amend-026's full output wasn't kept. verify-patch-026 ran the lint target on 4ac61609's tree (tree 336158fd; c4d9711b to 4ac61609 changed only this note and the stack note) and pasted it whole, with its exit status, in the stack note's item 9, "Verification (rule 7, verify-patch-026)", with the checker's run on d185b67b's proposal.
+
 No `make test`, `make evals`, or full `make check` (rule 4). The review is rv-amend-026's, another worker's. No new question; no hook or bash-gate refusal.
 
 ## patch3-026 (`night/patch3-026/patch3-026`, from floorrun-026's tip 19cdd6b0, Opus 5.5, 2026-11-15)

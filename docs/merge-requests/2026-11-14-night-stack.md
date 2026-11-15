@@ -5501,6 +5501,14 @@ Nothing changes for these tonight: each would change the patch (and its SHA-256)
 > - With the patch, the line *is* on disk, and the function now replaces it.
 > - The patch edits the function body but not this comment.
 
+Beside them, added by verify-patch-026 (2026-11-15): rv-amend-026's N-2, the patch's scene comment, which also changes the patch and its SHA-256, so it waits for the next rebuild with the two above. In the review's words, whole:
+
+> **N-2 · Nit · Compliance: the patch's scene comment isn't in the backlog**
+>
+> - I-1's "Where the cost is missing" listed "the scene comment, which says only "where RG6 passes"". At the tip it is the patch's line 10: `# wall, no turn, where RG6 passes (… "Off the desk")`.
+> - The comment is inside the patch, so fixing it would change the SHA-256, and amend-026 rightly left it alone. But the stack note's backlog takes only N-2 and N-3, and doesn't name this comment for the next rebuild.
+> - It belongs beside N-2 and N-3, for whichever rebuild comes next. Q297's overturn (verify note 5) would be one.
+
 #### Runs (rule 4), amend-026
 
 What changed against patch3-026's tip, at the step-3 save point c4d9711b (this part's runs, added after it, are prose in `notes.md` and this note only):
@@ -5540,6 +5548,8 @@ ruff format --check --no-cache --extend-exclude corpus .
 { git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
 # then shellcheck over the repository's scripts (the target's `xargs -0 -t shellcheck` line): no finding; make exited 0
 ```
+
+*rv-amend-026's N-4 (verify-patch-026, 2026-11-15):* the block's last line, `# then shellcheck …`, is amend-026's summary, not output, and amend-026's full output wasn't kept. "The checker reads the same on d185b67b's proposal" was stated without its run. verify-patch-026 ran both: the lint target on 4ac61609's tree (tree 336158fd; c4d9711b to 4ac61609 changed only this note and spec 026's notes), and the checker on a `git archive` of d185b67b, both pasted whole, with their exit statuses, in "Verification (rule 7, verify-patch-026)" below.
 
 No `make test`, `make evals`, or full `make check`: rule 4, and the stack's last task runs `make check` once. **rv-amend-026** (another worker) reviews this; then item 9's verify takes the off-line chain.
 
