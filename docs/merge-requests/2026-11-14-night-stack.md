@@ -11084,6 +11084,8 @@ $ git diff --stat refs/heads/night/integration-018/integration-018 HEAD
  1 file changed, 31 insertions(+), 10 deletions(-)
 ```
 
+Again at `4c716c9d`, with the runs above pasted (this sentence not yet): the lint target "lint exit 0", filtered with `grep -E 'Prettier|All checks|formatted|lint exit'` ("All matched files use Prettier code style!", "All checks passed!", "847 files already formatted"); the docs tests, "61 passed in 1.63s"; the diff stat, still only this note ("1 file changed, 76 insertions(+), 10 deletions(-)").
+
 **Left as it was (the brief: "Change nothing else"):** the original P10 row, handover-prep's, still says "(Q286, section 2, step 2)" for main's `b6985ad2`, the step number of handover-prep's order; "P10, filled by integration-018" below it gives step 1, which is right.
 
 **Interruptions (handover-fix):** none. No hook, bash-gate, permission, or filesystem refusal; nothing respelled. How the text went in: every sentence with the Edit tool, but for one move: the "S8, filled by integration-018" row was moved below the original S8 by a three-line Python script (`python3 -I`, each row asserted to match once), which wrote no text. No question for the Author, and no request to the runner. Nothing under a human-only path, `assets/policy/**`, or `/srv/studio/` changed; no merge of main or into main; no push.
