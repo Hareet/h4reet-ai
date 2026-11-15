@@ -26,6 +26,16 @@ export function wallSceneOf(part: {
   return { shell: root.frame_box, framed: part.placements.filter((p) => p.framed).map((p) => p.frame_box) };
 }
 
+/** A number on the bundle's grid of 1e-6, −0 written as 0. */
+const m6 = (n: number): number => {
+  const q = Math.round(n * 1e6) / 1e6;
+  return q === 0 ? 0 : q;
+};
+const onGrid = (b: WorldBox): WorldBox => ({
+  min: [m6(b.min[0]), m6(b.min[1]), m6(b.min[2])],
+  max: [m6(b.max[0]), m6(b.max[1]), m6(b.max[2])],
+});
+
 const finite = (b: Box): boolean =>
   Number.isFinite(b.x) && Number.isFinite(b.y) && Number.isFinite(b.w) && Number.isFinite(b.h);
 
@@ -34,9 +44,12 @@ const finite = (b: Box): boolean =>
 export function wallBox(scene: WallScene, area: Box): Box | null {
   if (!finite(area) || !(area.w > 0) || !(area.h > 0)) return null;
   const aspect = area.w / area.h;
-  const view = projector(framing(aspect, scene.framed), aspect);
+  // On the bundle's grid (metres to 1e-6, build/room/emit.ts's m6): the compositor measures its boxes in float32, the
+  // bundle carries them quantized, and the split layout's boxes follow the wall box continuously, so both take the
+  // same numbers and the room is framed exactly where the checks judged it (spec 014's FR-016).
+  const view = projector(framing(aspect, scene.framed.map(onGrid)), aspect);
   const stage = { w: area.w, h: area.h };
-  const { min, max } = scene.shell;
+  const { min, max } = onGrid(scene.shell);
   let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
   for (const x of [min[0], max[0]])
     for (const y of [min[1], max[1]]) {

@@ -47,7 +47,7 @@ import type { Probe } from "../../src/lookdev/results";
 import { framing } from "../../src/room/compose/framing";
 import { REFERENCE_DESKTOP, REFERENCE_PHONE, stageFor } from "../../src/room/compose/stages";
 import { frameArea } from "../../src/room/compose/frame";
-import { DEFAULT_METRICS, OPENING, clearArea } from "../../src/room/compose/hud";
+import { DEFAULT_METRICS, OPENING, clearArea, wallArea, wallBoxes } from "../../src/room/compose/hud";
 import { protectSceneOf, protectorFor } from "../../src/room/compose/protect";
 import { bufferRatio, viewOffsetFor } from "../../src/room/fit";
 import { readImage } from "../../src/room/glb/images";
@@ -1708,13 +1708,12 @@ describe("the window views (spec 005, T026)", () => {
       expect(renderer.ratio).toBeCloseTo(bufferRatio(dpr, qualitySettings(0), screen.w, screen.h), 12);
       // Spec 014 (FR-063): framed into the window's frame area, by the room's kernel over the part, which holds the
       // clear area.
-      const clear = frameArea(
-        screen,
-        OPENING,
-        DEFAULT_METRICS,
-        protectorFor(protectSceneOf(given.part, given.index)),
-      ).area;
-      expect(clear.w).toBeGreaterThanOrEqual(clearArea(screen).w);
+      const protect = protectorFor(protectSceneOf(given.part, given.index));
+      const clear = frameArea(screen, OPENING, DEFAULT_METRICS, protect).area;
+      // Spec 028 (T-A05; plan.md §R-B8): where the window takes the split layout, the frame area is its wall area;
+      // elsewhere it holds the clear area, as spec 014 has it.
+      if (wallBoxes(screen, OPENING, DEFAULT_METRICS, { wall: protect })) expect(clear).toEqual(wallArea(screen));
+      else expect(clear.w).toBeGreaterThanOrEqual(clearArea(screen).w);
       expect(page.stage.stage).toEqual({ w: clear.w, h: clear.h });
       const camera = page.stage.camera;
       expect(camera.aspect).toBeCloseTo(clear.w / clear.h, 12);

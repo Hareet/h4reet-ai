@@ -140,7 +140,8 @@ export const HUD_PLACEMENTS = {
   },
   /** Spec 028 (FR-004 to FR-009; Key Entities; plan.md §R-A2): the split layout beside the room's walls: each column
    *  `gapRem` off the wall box and at least `edgeRem` inside the window's edge; the panel and the column between their
-   *  least and most widths; the wall box at least `minHeightRem` tall; the type and tiles scaled up to `scaleMax`; the
+   *  least and most widths; the wall box at least `minHeightRem` tall, its area `minAreaWidthPx` wide; the type and
+   *  tiles scaled up to `scaleMax`; the
    *  column's tiles' block, the toolbar's tiles in `rows` of `perRow` above the walking control, `gapRem` apart and
    *  `padRem` inside. Data in code, the Author's look to tune. */
   wall: {
@@ -149,6 +150,10 @@ export const HUD_PLACEMENTS = {
     panel: { minRem: 20, maxRem: 44 },
     column: { minRem: 18, maxRem: 32 },
     minHeightRem: 14,
+    /** T-A05 (the page's question, its recommended answer taken): the wall area at least spec 004's widest stage, the
+     *  reference desktop's before spec 005 (686.4 × 640 CSS pixels), so no split stage is narrower than the stage its
+     *  screen had before spec 005 (spec 005's FR-054; test/room/stages-floor.test.ts). In CSS pixels, as that floor. */
+    minAreaWidthPx: 686.4,
     scaleMax: 1.375,
     tiles: { rows: 2, perRow: 3, gapRem: 0.25, padRem: 0.25 },
   },
@@ -663,7 +668,7 @@ export function wallBoxes(
   if (layoutFor(screen, metrics) !== "column" || !fitsHud(screen, state, metrics)) return null;
   // (b)
   const area = wallArea(screen, metrics);
-  if (area.w < T.minimum.w || area.h < T.minimum.h) return null;
+  if (area.w < T.minimum.w || area.h < T.minimum.h || area.w < t.minAreaWidthPx) return null;
   const wall = source.wall(area);
   if (!wall || wall.h < t.minHeightRem * rem) return null;
   // (c)

@@ -107,7 +107,10 @@ describe("the faces' on-screen sizes and texture memory at the new reference sta
         return { w: s.w, h: s.h };
       }),
     );
-    expect(g.reference[0]?.stage.w).toBeGreaterThanOrEqual(REFERENCE_DESKTOP.stage.w);
+    // Spec 028 (T-A05; plan.md §R-B8): the reference desktop's window takes the split layout, whose area is narrower
+    // than spec 005's clear area; it holds spec 004's stage there, 686.4 × 640 (test/room/stages-floor.test.ts).
+    expect(g.reference[0]?.stage.w).toBeGreaterThanOrEqual(686.4);
+    expect(g.reference[0]?.stage.h).toBeGreaterThanOrEqual(640);
     const screens = faceScreens(g);
     for (const face of index.faces) {
       const s = screens.find((x) => `${x.placement}.${x.role}` === face.id);
