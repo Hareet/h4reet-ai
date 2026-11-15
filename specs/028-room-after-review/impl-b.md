@@ -512,3 +512,124 @@ None.
 ### Result
 
 Result: red, `apps/web/test/room/scan.test.ts` ("finds 0 IDs only the room's data defines in the room's code", spec 004's FR-007, T107; `scan.test.ts:426`) fails. Group B hard-codes the room's data IDs in 35 places: "bicycle" in seven code files (`ri-leave.ts:50`, `emit.ts:290`, `schema.ts:657`, `bundle.ts:259`, `scene.ts:806`, `dino-scene-figures.ts:62`, `dino-scene.ts:71, 291`) and in its tests and helper; "hobbies-and-travel" in `dog-intro-build.test.ts:15, 20`; "laptop" in `pet-dormant.test.ts:188`. It holds group B only. The fix is a rework task. Every other run is green: `make lint`, room and content checks, `evals`, docs links, `deploy/scripts`, `scripts/corpus`.
+
+## rework2-028b (night of 2026-11-15, implementer, Opus 5.5)
+
+Branch `night/rework2-028b/rework2-028b`, from verify-028b's red tip `53579b8c` (group B's reviewed tip `03addd66` with the line's `5437a191` merged). I wrote none of group B. The page's brief: each of the 35 lines read from the room's data, test-first from `scan.test.ts`'s red, with `scan.test.ts`, the scanner (`build/room/scan.ts`), and its policy untouched, and every group B case's assertion kept. None of the three was changed. `npm ci --ignore-scripts` once, at the root. `cpu.max` `400000 100000`, so n = 4.
+
+### Why the 35 lines, and the fix
+
+The scanner reads string literals and property names (object literals, interfaces, type literals), never identifiers or comments, and matches `(?<![a-z0-9])<id>(?![a-z0-9])`. So `under_bicycle`, as a key, holds the placement ID `bicycle`, and so do the property `bicycle`, a test title's "the bicycle's", and `"bicycle-fixture"`.
+
+- **The data key `figures.leave.under_bicycle` is `take_at`** (the floor point where the twin takes the piece, beside `takes` and `take_s`): `room/scene.yaml`, `build/room/schema.ts`, `LeaveData` (`src/room/compose/bundle.ts`), `build/room/emit.ts`, RI12 (`build/room/checks/ri-leave.ts`; its finding's path is `figures.leave.take_at`), the director and the adapter. The values are unchanged.
+- **The director's record `bicycle` is `carried`** (`DinoBicycle` → `DinoCarried`, still `{ visible, taken }`; `src/room/scene/dino-scene.ts`).
+- **The adapter's option `bicycle` is `takenNode`** (`src/room/scene/dino-scene-figures.ts`; `src/room/scene.ts` passes `room.placements.get(leave.takes)`, as before).
+- **The tests:** the same renames; `test/helpers/dino-scene.ts`'s `takes: "bicycle-fixture"` → `"fx-taken"` (the reserved prefix, contracts/room-data-files.md §3.1); `dino-scene-data.test.ts`'s locals and printed keys `bicycle_origin`, `bicycle_box_floor` → `taken_origin`, `taken_box_floor`; `dino-scene-wiring.test.ts`'s two left lines read from the repository's bundle (`index.ui["figures.left_both"]`, `["figures.left_twin"]`), each also held to its shape (`/^The twin and the dog took the .+ and left\.$/`, `/^The twin took the .+ and left\.$/`); `dog-intro-build.test.ts`'s fixture file `corpus/facts/hobbies-and-travel.yaml` → `corpus/facts/fx-dog-intro.yaml` and its `topic` → `fx-dog-intro` (the build reads every `corpus/facts/*.yaml` by the slot's ID, never by the file's name, and the known-good tree holds no corpus, so the cases read the same); `test/fixtures/room/bad/RI12/expect.yaml`'s key. No assertion was dropped or loosened.
+- **Test titles reworded** (string literals; only the words naming the ID):
+  - `dino-scene-data.test.ts`: "prints the twin's home, the bicycle's place and floor point, …" → "… the taken placement's place and floor point, …"; "is in the bundle, resolved, naming the bicycle's placement as the one taken" → "… naming the placement labelled Bicycle as the one taken"; "puts meet and under_bicycle on the chase floor, …" → "puts meet and take_at on the chase floor, …"; "leaves the twin's and the bicycle's placements as they are (FR-023)" → "leaves the twin's and the taken placements as they are (FR-023)"; "refuses a meet off the chase floor, and an under_bicycle off it" → "… and a take_at off it".
+  - `dino-scene-degraded.test.ts`: "leaves the twin alone with the bicycle: …" → "leaves the twin alone with the taken piece: …".
+  - `dino-scene-path.test.ts`: "the adapter: the pictures, the bicycle's carry, and the controller …" → "… the taken piece's carry, …"; "keeps the twin's placement's node and the bicycle's label …" → "… the taken piece's label …"; "stands the bicycle at carry …" → "stands the taken piece at carry …".
+  - `dino-scene-wiring.test.ts`: "the bicycle's highlight once it is taken (R-2)" → "the taken piece's highlight once it is taken (R-2)".
+  - `dino-scene.test.ts`: "brings the twin to under_bicycle and the dog within DOG_STOP_M of it, then takes the bicycle over take_s" → "brings the twin to take_at and the dog within DOG_STOP_M of it, then takes the piece over take_s".
+  - `pet-dormant.test.ts`: "… its topic's message in the log, as for the laptop" → "… as for any other piece".
+
+### Commits
+
+- `f3e7e2d1` test(028): RED, the tests renamed, `scan.test.ts` untouched.
+- `8ac632d9` fix(028): GREEN, the code and the data; `plan.md` §R-B4's departure in the same commit.
+- `54e06e56` (save point): `tasks.md` T-B03's line names `take_at`.
+- Save points `60b5e4b6`, `bf1a0a1a`, `04530461`, `44941b32`.
+
+### The runs
+
+The red reproduced at `53579b8c`, `npm run room:scan -w apps/web`: the same 35 lines verify-028b listed, "room: 35 hits", exit 1.
+
+RED, at `f3e7e2d1` (the tests renamed, the code not), from `apps/web/`: `../../node_modules/.bin/vitest run test/room/dino-scene*.test.ts test/room/schema.test.ts test/room/dog-intro-build.test.ts test/room/pet-dormant.test.ts test/room/scan.test.ts --maxWorkers=4`:
+
+```
+ Test Files  8 failed | 2 passed (10)
+      Tests  47 failed | 318 passed (365)
+```
+
+(`room:scan` at that point: "room: 8 hits", the eight code lines only.)
+
+GREEN, at `8ac632d9`, the same command:
+
+```
+ Test Files  10 passed (10)
+      Tests  365 passed (365)
+```
+
+`npm run room:scan -w apps/web`: "room: 0 hits", exit 0.
+
+`apps/web`'s whole vitest suite, from `apps/web/`: `../../node_modules/.bin/vitest run --maxWorkers=4`, exit 0 (the first try was stopped at the harness's time limit before it ended; the second, below, ran whole):
+
+```
+room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
+ Test Files  254 passed (254)
+      Tests  4512 passed | 3 skipped (4515)
+   Duration  1585.79s (tests 71%, import 28%)
+exit 0
+```
+
+`npm run room:check -w apps/web`: "room: 0 findings in 0 files", exit 0. `npm run content:check -w apps/web`: "content: C1–C9 and N1–N5 passed for the resume and 44 scripts (denylist missing); the lock and the eval cases are current", exit 0.
+
+`make lint`, exit 0:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+861 files already formatted
+… shellcheck (no findings)
+```
+
+`make evals`, exit 0: the product suite on the fake adapter (every golden-case bar met, e.g. "twin 00-profile engineer: 6 of 6 golden cases passed (100%; the bar is 5 of 6)"); "evals narration (fake): 44 passed, 0 failed"; "agent-config static: 0 failed, 0 planned"; "agent-config behavioral: pending, 0 planned" (information, not a block: no change here to CLAUDE.md, REVIEW.md, `.claude/`, or the pin); "docs links: 0 failed, 2524 relative links in 474 files".
+
+`make test`, exit 0:
+
+```
+corpus-check: OK — 44 slots, 26 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
+> @h4reet/gateway@0.1.0 test
+ Test Files  102 passed (102)
+      Tests  1710 passed | 13 skipped (1723)
+> @h4reet/relay@0.1.0 test
+ Test Files  2 passed (2)
+      Tests  66 passed (66)
+> @h4reet/web@0.1.0 test
+ Test Files  254 passed (254)
+      Tests  4512 passed | 3 skipped (4515)
+pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine deploy/tunnel deploy/edge deploy/hosts deploy/otel deploy/night-shift scripts infra
+7290 passed, 25 skipped in 813.73s (0:13:33)
+make test exit 0
+```
+
+After those runs, one test title's article was fixed (`dino-scene-data.test.ts:142`, "… and an take_at off it" → "… and a take_at off it", a slip of my rename; the title only). Then, from `apps/web/`, `vitest run test/room/dino-scene-data.test.ts test/room/scan.test.ts --maxWorkers=4`: "Test Files 2 passed (2) · Tests 29 passed (29)"; `room:scan`: "room: 0 hits"; `prettier --check` on that test and on `impl-b.md`, `plan.md`, `tasks.md`: "All matched files use Prettier code style!"; `python3 -I evals/docs_links.py`: "docs links: 0 failed, 2524 relative links in 474 files".
+
+### Departure
+
+- Spec 028's FR-021 and FR-022 still name `figures.leave.under_bicycle`. The key is `take_at` in the data and the code, `plan.md` §R-B4 records it, and FR-021's and FR-022's wording is for T-INT. The page has the question (below). `spec.md` is not edited here.
+
+### Refusals
+
+- The harness, once, not a gate. A Monitor command to wait for the suite's end needed approval and got none: "This Bash command contains multiple operations. The following part requires approval: until grep -qE '^real|Test Files' /night/claude/rework2-vitest.log; do sleep 5; done; sleep 3; grep -E '×|^ *(Test Files|Tests|Duration) |^real' /night/claude/rework2-vitest.log". I didn't respell it; I waited for the background task's own completion notice instead.
+- Not a refusal: the first whole-suite run was stopped at the harness's time limit (600 s foreground, then 600 s in the background). It was run again once, in the background with a longer limit, and ended green (above).
+
+### Questions
+
+- "Spec 028's FR-021 and FR-022 name the scene key `figures.leave.under_bicycle` …; may rework2-028b rename the key to `take_at` …, record the departure in plan.md §R-B4, and leave FR-021/FR-022's wording to T-INT?" Recommended: yes. It doesn't say stop, so I took the recommendation.
+
+### For the next tasks
+
+- The reviewer on this range (`53579b8c..` this branch's tip), then `verify2-028b`, then `merge-028-5`, as the page has them.
+- T-INT: FR-021's and FR-022's `under_bicycle` → `take_at`, and the R-B2/R-B3 names in their prose if the line wants them to match (`carried`, `takenNode`).
+- rv-impl-028b's nits BR-1 to BR-4 are still the merge task's, as verify-028b left them.
+
+### Result
+
+Result: green. `room:scan` finds 0 room IDs in the code (35 before); `scan.test.ts`, the scanner, and its policy are as they were; every run above passed.

@@ -139,7 +139,7 @@ describe("the build's refusals (FR-022; RI12, RD3, RD2)", () => {
     expect(seen(r)).toContain("RI12 figures.leave.path[1]");
   });
 
-  it("refuses a meet off the chase floor, and an take_at off it", () => {
+  it("refuses a meet off the chase floor, and a take_at off it", () => {
     expect(seen(withLeave({ ...GOOD, meet: [3, 0.2] }))).toContain("RI12 figures.leave.meet");
     expect(seen(withLeave({ ...GOOD, take_at: [0.4, -3] }))).toContain("RI12 figures.leave.take_at");
   });
