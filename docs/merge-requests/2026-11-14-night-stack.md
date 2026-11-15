@@ -4940,6 +4940,518 @@ No `make test`, `make evals`, or full `make check`: the brief asks for the lint 
 
 **Interruptions (floorrun-026).** The bash gate refused `rm -rf /tmp/floorrun-026/probe-desk` ("recursive delete outside workspace. Route: delete only inside the repo"). It wasn't respelled. The probe's re-run used `TMPDIR` set to a scratch folder inside the worktree, which was deleted afterwards. `npm ci --offline` failed (ENOTCACHED), and `npm ci` from the registry succeeded. The page's "rv-patch2-026's findings, its words" wasn't on any readable ref (above). All three are in `/night/io/out/questions.md`, under Interruptions, with the question.
 
+### patch3-026 (`night/patch3-026/patch3-026`, from floorrun-026's tip 19cdd6b0, Opus 5.5, 2026-11-15)
+
+Written by the night-shift implementer patch3-026, about 01:15Z to 01:45Z. It does the rework the page's Q297 recommends (answered: recommended, the Author's to confirm or overturn), in its words as the brief quotes them: "the right wall at `{ on: room-shell, anchor: right-wall, offset: [-0.2, 0.4, 0.0375], estimated: true }` ... A rework then rebuilds the patch, test-first. It carries spec 026's `dog-pick` and `dog-selectable` fixtures so they work on a scene that already holds `dog` (5 tests fail for any place). It carries spec 024's desk count, 9 → 8 keep-outs, since the sign leaves the desk (2 tests fail for any off-desk place). Then it runs the brief's whole set, plus the walking-view and chase tests, on both exports."
+
+**Result: T019 is checked.** RED: floorrun-026's 9 failures, reproduced on a fresh patched export of the old patch (SHA-256 `8bd70563…1c6ead`). GREEN: with the rebuilt patch (SHA-256 `46ed5db73554ed90985b8859c4be7580c20269150db90582b4150ddd590d249f`, 64,206 bytes, 72 files), the brief's set passes on a fresh plain export and a fresh patched one, 260 of 260 each; on the patched one, the strict `room:check`, `room:report`, `check_corpus.py`, `content:check`, the checker in patch mode, and T019's `twin-pack` and `narration` tests pass. The review is item 9's verify's, a worker that didn't write this.
+
+**What the patch carries now.** Against patch2-026's 68 files, four more, all tests that hold only beside the patch's `scene.yaml` line (each fails without it on the patched tree, and the plain tree runs the line's own copies, unchanged):
+
+- `apps/web/test/room/dog-pick.test.ts` (spec 026): a `lessDog` helper drops a `dog` selectable the scene already holds before the test appends its own (`withDog`, the sign-only sweep, the bicycle fixture); "gives no front without the selectable's figure" now builds its "without" tree from the scene less `dog` instead of the bare repository tree.
+- `apps/web/test/room/dog-selectable.test.ts` (spec 026): `bundles()`'s `without` is the scene less `dog`, and `with` that plus `DOG_SELECTABLE`.
+- `apps/web/test/room/eat-chunker.test.ts` and `apps/web/test/room/eat-3d.test.ts` (spec 024): the work desk's keep-outs 9 → 8 ("8 mounts (6 placements and the charger's two desk poses)"), each with a comment that names T019 and Q297.
+
+The other 68 files are patch2-026's, byte for byte, except three: `apps/web/room/scene.yaml` (the sign's mount line and its comment, Q297), and `docs/studio/photo-guide.md` and `docs/studio/work-orders/dog-sign.md`, which `room:generate` rewrote for the new mount (one line each). The corpus lines, `config/twin/corpus.json`, the eval cases, and `docs/corpus-size.json` (stage 1, the same numbers) are unchanged. My reading, beside the generator's words: the photo guide's new line reads "on the anchor `right-wall`, its origin (on the desk, below the centre of the sign's foot) 0.4096 from the back wall and 0.4 above the floor, 0.0375 out from the wall (estimated)". The parenthesis is the piece's origin as the piece's file describes it, written for the desk, and the generator quotes it for any mount. It's for his look at the sign; nothing fails on it.
+
+**On the patched export the sign is a floor obstacle by the right wall**, `dog-sign: x [0.871, 1.187], z [-0.44, 0.04]` (on the plain export it is on the desk, `x [0.025, 0.515], z [-0.428, -0.071]`). The room floor keeps a least distance of 0.141 m with 0 violations, the same as the plain export (Q287's floor sign gave 0.223 m). The walking-view and chase tests (`chase-steer`, `floor`, `movement`, `chase-schema`, `pet-director`) pass on both.
+
+#### Step 1: the exports (floorrun-026's way)
+
+A save point first (c64b617f, empty: its tree is 19cdd6b0's). `npm ci --offline` failed (ENOTCACHED), so `npm ci` ran from the registry: "added 431 packages, and audited 435 packages in 30s", the lockfile unchanged. Every export is a `git archive` of `git merge-tree --write-tree HEAD refs/heads/main` (no checkout or merge of `main`, Q286), in `scratch-patch3/` inside the worktree, with the worktree's four `node_modules` symlinked in (root, `apps/web`, `services/gateway`, `services/relay`) and `TMPDIR` in `scratch-patch3/tmp`. None of it is committed; it was deleted at the end.
+
+```
+$ git merge-tree --write-tree HEAD refs/heads/main          # HEAD c64b617f, main b6985ad2
+02edcad59b0298894d37ff7c1bf27c70569b2629                  (exit 0)
+$ git archive 02edcad5 | tar -x -C scratch-patch3/plain     # and scratch-patch3/patched, build/a
+$ sha256sum docs/merge-requests/2026-11-14-corpus-film-scripts.patch docs/merge-requests/2026-11-14-corpus-dog-intro.patch
+d05a7bf11e87c0853ec466eb80b0ede0d28748663a1fab0ac1a7414f0daf7c15  docs/merge-requests/2026-11-14-corpus-film-scripts.patch
+8bd705636a1847de6846bdba132ddb16511fdac103f2387477a700a1161c6ead  docs/merge-requests/2026-11-14-corpus-dog-intro.patch
+$ (patched) patch -p1 < …film-scripts.patch      exit 0, 104 files, no offset, fuzz, or reject
+$ (patched) patch -p1 < …dog-intro.patch         exit 0, 68 files, no offset, fuzz, or reject; no .orig or .rej
+```
+
+#### Step 2: RED, then the patch rebuilt (7fd36317)
+
+RED, on the patched export of the old patch, in `apps/web`: `npx vitest run --maxWorkers=2 test/room/chase-steer.test.ts test/room/floor.test.ts test/room/movement.test.ts test/room/chase-schema.test.ts test/room/dog-pick.test.ts test/room/dog-selectable.test.ts test/room/pet-director.test.ts test/room/eat-*.test.ts` (exit 1), whole:
+
+```
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/patch3-026/scratch-patch3/patched/apps/web
+
+ ❯ test/room/eat-3d.test.ts (19 tests | 1 failed) 104ms
+   ❯ every chunk of the four pieces eaten (US2; SC-002) (11)
+     × work-desk: no placement or switch pose mounted on it loses the top under it 4ms
+ ❯ test/room/eat-chunker.test.ts (34 tests | 1 failed) 2142ms
+   ❯ the chunker on the four real pieces (FR-003, FR-004, FR-015, SC-001) (19)
+     × work-desk: sets aside the top under each of its 9 mounts (7 placements and the charger's two desk poses) 5ms
+ ❯ test/room/dog-pick.test.ts (18 tests | 4 failed) 38305ms
+   ❯ the scene's real selectables plus the dog piece, on a grid (R-09; Q160) (4)
+     × carries the selectable's figure into the index, and the twin has no pick area 16913ms
+   ❯ RG6 measures the dog's box at its home (R-09; Q160) (4)
+     × gives only the dog piece a front, its box dogBoxAt's, non-null at every swept stage of the shipped scene 783ms
+     × gives no front without the selectable's figure, or without figures.dog 952ms
+     × refuses another's core over the dog's rectangle in the sweep: a fixture piece on the desk, the dog before it 16615ms
+visitor floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; start (-0.7, 0.58)
+  obstacle work-desk: x [-0.87, 0.87], z [-0.73, 0.312]
+  obstacle desk-screen: x [-0.766, 0.458], z [-0.695, -0.169]
+  obstacle neon-sign: x [-0.942, 0.845], z [-0.637, -0.309]
+  obstacle laptop-stand: x [0.3, 0.8], z [-0.55, -0.07]
+  obstacle laptop: x [0.274, 0.826], z [-0.561, -0.08]
+  obstacle busy-sign: x [-0.839, -0.261], z [-0.431, -0.048]
+  obstacle dog-sign: x [-0.24, 0.24], z [0.142, 0.458]
+  obstacle chalkboard: x [-1.187, -0.887], z [-0.19, 0.765]
+  obstacle snowboard: x [-1.187, -0.749], z [-0.676, -0.124]
+  obstacle bicycle: x [0.769, 1.185], z [-0.407, 0.601]
+  obstacle wall-window: x [-1.12, 1.12], z [-0.73, -0.429]
+  obstacle window-view: x [-1.08, 1.08], z [-0.718, -0.47]
+  obstacle split-keyboard: x [-0.491, 0.209], z [-0.278, 0.25]
+  obstacle vertical-mouse: x [-0.007, 0.328], z [-0.162, 0.203]
+  obstacle notebook: x [-0.836, -0.239], z [-0.247, 0.282]
+  obstacle helmet: x [0.559, 1.149], z [-0.347, 0.191]
+  obstacle bag: x [-0.092, 0.71], z [-0.578, 0.075]
+  obstacle wall-outlet: x [0.902, 1.187], z [-0.556, -0.244]
+  obstacle twin-figure: x [0.17, 1.14], z [0.025, 0.789]
+chase floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; 18 obstacles (the visitor's less twin-figure)
+room floor: 201 starts × 600 frames, least distance kept 0.223 m, 0 violations
+ ❯ test/room/eat-checks.test.ts (13 tests | 2 failed) 25733ms
+   ❯ the repository's scene in the variant (plan §8) (2)
+     × composes without a finding the dinosaur visit alone gives 5ms
+     × leaves no pressable core under the Eat box at the clear area (ease 1), as the variant judges it 1ms
+ ❯ test/room/dog-selectable.test.ts (7 tests | 1 failed) 33952ms
+   ❯ the selectable adds nothing of a placement for the figure (M5) (1)
+     × leaves the part's placements, framed boxes, and every other selectable as they are 26774ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/room/dog-pick.test.ts > the scene's real selectables plus the dog piece, on a grid (R-09; Q160) > carries the selectable's figure into the index, and the twin has no pick area
+AssertionError: expected [ 'snowboard', 'bicycle', …(4) ] to deeply equal [ 'snowboard', 'bicycle', …(3) ]
+
+- Expected
++ Received
+
+@@ -2,6 +2,7 @@
+    "snowboard",
+    "bicycle",
+    "laptop",
+    "chalkboard",
+    "dog",
++   "dog",
+  ]
+
+ ❯ test/room/dog-pick.test.ts:173:17
+    171|     const { result } = withDog();
+    172|     const ids = result.index.selectables.map((s) => s.id);
+    173|     expect(ids).toEqual(["snowboard", "bicycle", "laptop", "chalkboard…
+       |                 ^
+    174|     expect(result.index.selectables.find((s) => s.id === "dog")?.figur…
+    175|     expect(ids).not.toContain("twin-figure");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  test/room/dog-pick.test.ts > RG6 measures the dog's box at its home (R-09; Q160) > gives only the dog piece a front, its box dogBoxAt's, non-null at every swept stage of the shipped scene
+AssertionError: expected [ '4', '5' ] to deeply equal [ '4' ]
+
+- Expected
++ Received
+
+  [
+    "4",
++   "5",
+  ]
+
+ ❯ test/room/dog-pick.test.ts:285:34
+    283|     for (const stage of stages) {
+    284|       const fronts = figureFronts(g, stage);
+    285|       expect([...fronts.keys()]).toEqual(["4"]);
+       |                                  ^
+    286|       expect(fronts.get("4")?.box).toEqual(box);
+    287|       if (!fronts.get("4")?.rect) nulls.push(`${stage.w} × ${stage.h}`…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  test/room/dog-pick.test.ts > RG6 measures the dog's box at its home (R-09; Q160) > gives no front without the selectable's figure, or without figures.dog
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ test/room/dog-pick.test.ts:294:72
+    292|   it("gives no front without the selectable's figure, or without figur…
+    293|     const base = fileTree(REPO);
+    294|     expect(figureFronts(geometryWith(base), { w: 1280, h: 800 }).size)…
+       |                                                                        ^
+    295|     const text = new TextDecoder().decode(base.read(SCENE_PATH) ?? new…
+    296|     const doc = parse(text) as { selectables: unknown[]; figures: Reco…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+ FAIL  test/room/dog-pick.test.ts > RG6 measures the dog's box at its home (R-09; Q160) > refuses another's core over the dog's rectangle in the sweep: a fixture piece on the desk, the dog before it
+AssertionError: ["3D 4 member 5","3D 4 member 6","3D 6 member 4","3D 6 member 5","2D 4 member 6"]: expected [ '3D 4 member 5', …(4) ] to include '3D 5 member 4'
+ ❯ test/room/dog-pick.test.ts:367:52
+    365|     // The fixture's core (selectable 5) over the dog's rectangle: RG6…
+    366|     const withFigure = problems(true);
+    367|     expect(withFigure, JSON.stringify(withFigure)).toContain("3D 5 mem…
+       |                                                    ^
+    368|     expect(withFigure).not.toContain("2D 5 member 4");
+    369|     expect(problems(false)).not.toContain("3D 5 member 4");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/9]⎯
+
+ FAIL  test/room/dog-selectable.test.ts > the selectable adds nothing of a placement for the figure (M5) > leaves the part's placements, framed boxes, and every other selectable as they are
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ test/room/dog-selectable.test.ts:129:75
+    127|     expect(w.index.selectables.slice(0, -1)).toEqual(without.index.sel…
+    128|     expect(w.index.selectables.at(-1)).toMatchObject({ id: "dog", memb…
+    129|     expect(without.index.selectables.some((s) => s.figure !== undefine…
+       |                                                                           ^
+    130|   });
+    131| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/9]⎯
+
+ FAIL  test/room/eat-3d.test.ts > every chunk of the four pieces eaten (US2; SC-002) > work-desk: no placement or switch pose mounted on it loses the top under it
+AssertionError: expected [ { …(2) }, …(7) ] to have a length of 9 but got 8
+
+- Expected
++ Received
+
+- 9
++ 8
+
+ ❯ test/room/eat-3d.test.ts:495:19
+    493|   it(`${DESK}: no placement or switch pose mounted on it loses the top…
+    494|     const boxes = keepOutBoxes(scene, DESK);
+    495|     expect(boxes).toHaveLength(9);
+       |                   ^
+    496|     const prims = standing(DESK);
+    497|     for (const box of boxes) {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/9]⎯
+
+ FAIL  test/room/eat-checks.test.ts > the repository's scene in the variant (plan §8) > composes without a finding the dinosaur visit alone gives
+AssertionError: expected [ { selectable: 4, …(1) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "reason": "its exclusive core lies under a panel's box, the walking control's box, or the \"Eat\" tile's box in 3D at 320 × 250 and 469 others for a 3D dinosaur visit",
++     "selectable": 4,
++   },
++ ]
+
+ ❯ test/room/eat-checks.test.ts:284:76
+    282|   it("composes without a finding the dinosaur visit alone gives", () =…
+    283|     const g = repository();
+    284|     expect(spacingReasons(g).filter((r) => r.reason.includes("dinosaur…
+       |                                                                            ^
+    285|     const result = compose(repositoryTree(), mainPolicy(), { mode: "le…
+    286|     expect(result.findings.filter((f) => f.reason.includes("dinosaur")…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/9]⎯
+
+ FAIL  test/room/eat-checks.test.ts > the repository's scene in the variant (plan §8) > leaves no pressable core under the Eat box at the clear area (ease 1), as the variant judges it
+AssertionError: 384 × 740, open: expected [ { selectable: 'dog', …(2) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "other": null,
++     "problem": "reserved",
++     "selectable": "dog",
++   },
++ ]
+
+ ❯ test/room/eat-checks.test.ts:304:65
+    302|       const held = listOnly(areas, view, walls, reserved);
+    303|       const under = pickProblems(areas, view, held, reserved).filter((…
+    304|       expect(under, `${screen.w} × ${screen.h}, ${state.list}`).toEqua…
+       |                                                                 ^
+    305|     }
+    306|     // The claim is judged, not vacuous: on 2026-11-14 the variant fra…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/9]⎯
+
+ FAIL  test/room/eat-chunker.test.ts > the chunker on the four real pieces (FR-003, FR-004, FR-015, SC-001) > work-desk: sets aside the top under each of its 9 mounts (7 placements and the charger's two desk poses)
+AssertionError: expected [ { …(2) }, …(7) ] to have a length of 9 but got 8
+
+- Expected
++ Received
+
+- 9
++ 8
+
+ ❯ test/room/eat-chunker.test.ts:511:30
+    509|   it(`${DESK}: sets aside the top under each of its 9 mounts (7 placem…
+    510|     const r = of(DESK);
+    511|     expect(r.input.keepOuts).toHaveLength(9);
+       |                              ^
+    512|     for (const box of r.input.keepOuts) {
+    513|       const centre: V3 = [(box.min[0] + box.max[0]) / 2, 2, (box.min[2…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/9]⎯
+
+
+ Test Files  5 failed | 13 passed (18)
+      Tests  9 failed | 251 passed (260)
+   Start at  01:18:12
+   Duration  215.45s (tests 55%, import 45%)
+
+```
+
+The same 9 as floorrun-026's, by the same assertions.
+
+The rebuild, as patch2-026 built it (022 first): `build/a` is the export above with 022's patch applied (exit 0); `build/b` is a copy of `a` with the old 026 patch applied (exit 0), then the hand-written changes, then the commands.
+
+1. In `b`, `apps/web/room/scene.yaml`: the `dog-sign` placement's mount, `{ on: room-shell, anchor: right-wall, offset: [-0.2, 0.4, 0.0375], estimated: true }`, no turn, its comment naming Q297. The four test files as above, then `prettier --write` on them (one reflowed line in `dog-pick.test.ts`).
+2. In `b`, the commands: `npm run room:generate -w apps/web` (exit 0: "wrote docs/studio/photo-guide.md", "wrote docs/studio/work-orders/dog-sign.md", "room: 2 written, 0 removed, 24 unchanged"); `npm run twin:pack -w apps/web` (exit 0: "corpus:size: wrote docs/corpus-size.json: stage 1; hobbies-and-travel 21,564 of 21,182", mission 21,410); `npm run content:lock -w apps/web` (exit 0: "content: C1–C9 and N1–N5 passed for the resume and 44 scripts (denylist missing); wrote apps/web/content/resume.lock.json and 44 eval cases in evals/narration/cases").
+3. `diff -ruN --exclude=__pycache__ --exclude=node_modules a b` (exit 1, differences), then the `---`/`+++` lines' timestamps stripped (none left): 64,206 bytes, 72 files, SHA-256 `46ed5db73554ed90985b8859c4be7580c20269150db90582b4150ddd590d249f`. Its file list against the old patch's: the old 68, plus the four test files. `diff` of the old patch against the new: the scene hunk, one line in each of the two studio docs, and the four test files' hunks; nothing else.
+
+In the same commit: the new size, file count, and SHA-256 in the proposal's "The patch" section (patch2-026's figures kept beside them as replaced) and its "In the patch with it" line; a patch3-026 paragraph in `docs/merge-requests/human-patches/026.md`, ahead of patch2-026's, naming the four test files, and item 1's row naming the right-wall mount and the four tests; plan §7, T019, and `dog-sign-offset.md` ("The answer, in short") naming the mount "As amended (Q297)". Q287's floor mount stays in each as the record.
+
+#### Step 3: GREEN on fresh exports (40239c83)
+
+```
+$ git merge-tree --write-tree HEAD refs/heads/main          # HEAD 7fd36317, main b6985ad2
+013186581bc7ef3d7afc2ead381855ee92b508c4                  (exit 0)
+$ git archive 01318658 | tar -x -C scratch-patch3/g-plain   # and scratch-patch3/g-patched
+$ sha256sum …film-scripts.patch …dog-intro.patch
+d05a7bf11e87c0853ec466eb80b0ede0d28748663a1fab0ac1a7414f0daf7c15  docs/merge-requests/2026-11-14-corpus-film-scripts.patch
+46ed5db73554ed90985b8859c4be7580c20269150db90582b4150ddd590d249f  docs/merge-requests/2026-11-14-corpus-dog-intro.patch
+```
+
+On `g-patched`, spec 022's patch: `patch -p1 --dry-run` exit 0, then `patch -p1` exit 0, 104 files, no offset, fuzz, or reject (the output is floorrun-026's 104 lines above, word for word). Then spec 026's, `--dry-run` exit 0, then `patch -p1` exit 0, whole:
+
+```
+$ patch -p1 < docs/merge-requests/2026-11-14-corpus-dog-intro.patch
+patching file apps/web/room/scene.yaml
+patching file apps/web/test/room/dog-pick.test.ts
+patching file apps/web/test/room/dog-selectable.test.ts
+patching file apps/web/test/room/eat-3d.test.ts
+patching file apps/web/test/room/eat-chunker.test.ts
+patching file config/room-events.yaml
+patching file config/room-topics.yaml
+patching file config/twin/corpus.json
+patching file corpus/04-hobbies-and-travel.md
+patching file docs/corpus-size.json
+patching file docs/studio/photo-guide.md
+patching file docs/studio/work-orders/dog-sign.md
+patching file evals/narration/cases/narration-agent-orchestrator-engineer.yaml
+patching file evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
+patching file evals/narration/cases/narration-agent-watchdog-engineer.yaml
+patching file evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
+patching file evals/narration/cases/narration-ai-strategy-engineer.yaml
+patching file evals/narration/cases/narration-ai-strategy-non-engineer.yaml
+patching file evals/narration/cases/narration-change-management-engineer.yaml
+patching file evals/narration/cases/narration-change-management-non-engineer.yaml
+patching file evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
+patching file evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
+patching file evals/narration/cases/narration-cht-agent-engineer.yaml
+patching file evals/narration/cases/narration-cht-agent-non-engineer.yaml
+patching file evals/narration/cases/narration-cht-codebase-engineer.yaml
+patching file evals/narration/cases/narration-cht-codebase-non-engineer.yaml
+patching file evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
+patching file evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
+patching file evals/narration/cases/narration-cht-skills-engineer.yaml
+patching file evals/narration/cases/narration-cht-skills-non-engineer.yaml
+patching file evals/narration/cases/narration-claude-medic-aws-engineer.yaml
+patching file evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
+patching file evals/narration/cases/narration-cloud-data-centers-engineer.yaml
+patching file evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
+patching file evals/narration/cases/narration-denver-local-ai-engineer.yaml
+patching file evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
+patching file evals/narration/cases/narration-hareet-ai-engineer.yaml
+patching file evals/narration/cases/narration-hareet-ai-non-engineer.yaml
+patching file evals/narration/cases/narration-kenya-localization-engineer.yaml
+patching file evals/narration/cases/narration-kenya-localization-non-engineer.yaml
+patching file evals/narration/cases/narration-national-benchmarking-engineer.yaml
+patching file evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
+patching file evals/narration/cases/narration-national-scale-engineer.yaml
+patching file evals/narration/cases/narration-national-scale-non-engineer.yaml
+patching file evals/narration/cases/narration-no-code-configuration-engineer.yaml
+patching file evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
+patching file evals/narration/cases/narration-other-deployments-engineer.yaml
+patching file evals/narration/cases/narration-other-deployments-non-engineer.yaml
+patching file evals/narration/cases/narration-powersync-postgres-engineer.yaml
+patching file evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
+patching file evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
+patching file evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
+patching file evals/narration/cases/narration-tools-engineer.yaml
+patching file evals/narration/cases/narration-tools-non-engineer.yaml
+patching file evals/narration/cases/narration-voice-for-cht-engineer.yaml
+patching file evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q1-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q1-non-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q2-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q2-non-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q3-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q3-non-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q4-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q4-non-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q5-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q5-non-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q6-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q6-non-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q7-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q7-non-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q8-engineer.yaml
+patching file evals/product/cases/twin-04-hobbies-and-travel-q8-non-engineer.yaml
+```
+
+No `.orig` or `.rej` file in the export after both.
+
+The brief's set, in `apps/web` (the same command as RED). The plain export (exit 0):
+
+```
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/patch3-026/scratch-patch3/g-plain/apps/web
+
+visitor floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; start (-0.7, 0.58)
+  obstacle work-desk: x [-0.87, 0.87], z [-0.73, 0.312]
+  obstacle desk-screen: x [-0.766, 0.458], z [-0.695, -0.169]
+  obstacle neon-sign: x [-0.942, 0.845], z [-0.637, -0.309]
+  obstacle laptop-stand: x [0.3, 0.8], z [-0.55, -0.07]
+  obstacle laptop: x [0.274, 0.826], z [-0.561, -0.08]
+  obstacle busy-sign: x [-0.839, -0.261], z [-0.431, -0.048]
+  obstacle dog-sign: x [0.025, 0.515], z [-0.428, -0.071]
+  obstacle chalkboard: x [-1.187, -0.887], z [-0.19, 0.765]
+  obstacle snowboard: x [-1.187, -0.749], z [-0.676, -0.124]
+  obstacle bicycle: x [0.769, 1.185], z [-0.407, 0.601]
+  obstacle wall-window: x [-1.12, 1.12], z [-0.73, -0.429]
+  obstacle window-view: x [-1.08, 1.08], z [-0.718, -0.47]
+  obstacle split-keyboard: x [-0.491, 0.209], z [-0.278, 0.25]
+  obstacle vertical-mouse: x [-0.007, 0.328], z [-0.162, 0.203]
+  obstacle notebook: x [-0.836, -0.239], z [-0.247, 0.282]
+  obstacle helmet: x [0.559, 1.149], z [-0.347, 0.191]
+  obstacle bag: x [-0.092, 0.71], z [-0.578, 0.075]
+  obstacle wall-outlet: x [0.902, 1.187], z [-0.556, -0.244]
+  obstacle twin-figure: x [0.17, 1.14], z [0.025, 0.789]
+chase floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; 18 obstacles (the visitor's less twin-figure)
+room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
+
+ Test Files  18 passed (18)
+      Tests  260 passed (260)
+   Start at  01:22:16
+   Duration  231.62s (tests 54%, import 46%)
+
+```
+
+The patched export (exit 0):
+
+```
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/patch3-026/scratch-patch3/g-patched/apps/web
+
+visitor floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; start (-0.7, 0.58)
+  obstacle work-desk: x [-0.87, 0.87], z [-0.73, 0.312]
+  obstacle desk-screen: x [-0.766, 0.458], z [-0.695, -0.169]
+  obstacle neon-sign: x [-0.942, 0.845], z [-0.637, -0.309]
+  obstacle laptop-stand: x [0.3, 0.8], z [-0.55, -0.07]
+  obstacle laptop: x [0.274, 0.826], z [-0.561, -0.08]
+  obstacle busy-sign: x [-0.839, -0.261], z [-0.431, -0.048]
+  obstacle dog-sign: x [0.871, 1.187], z [-0.44, 0.04]
+  obstacle chalkboard: x [-1.187, -0.887], z [-0.19, 0.765]
+  obstacle snowboard: x [-1.187, -0.749], z [-0.676, -0.124]
+  obstacle bicycle: x [0.769, 1.185], z [-0.407, 0.601]
+  obstacle wall-window: x [-1.12, 1.12], z [-0.73, -0.429]
+  obstacle window-view: x [-1.08, 1.08], z [-0.718, -0.47]
+  obstacle split-keyboard: x [-0.491, 0.209], z [-0.278, 0.25]
+  obstacle vertical-mouse: x [-0.007, 0.328], z [-0.162, 0.203]
+  obstacle notebook: x [-0.836, -0.239], z [-0.247, 0.282]
+  obstacle helmet: x [0.559, 1.149], z [-0.347, 0.191]
+  obstacle bag: x [-0.092, 0.71], z [-0.578, 0.075]
+  obstacle wall-outlet: x [0.902, 1.187], z [-0.556, -0.244]
+  obstacle twin-figure: x [0.17, 1.14], z [0.025, 0.789]
+chase floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; 18 obstacles (the visitor's less twin-figure)
+room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
+
+ Test Files  18 passed (18)
+      Tests  260 passed (260)
+   Start at  01:26:16
+   Duration  258.18s (tests 53%, import 47%)
+
+```
+
+Then on the patched export, from its root (`npm run` in `apps/web`'s workspace):
+
+```
+$ python3 -I corpus/tools/check_corpus.py
+corpus-check: OK — 45 slots, 27 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
+(exit 0)
+$ npm run content:check -w apps/web
+
+content: C1–C9 and N1–N5 passed for the resume and 44 scripts (denylist missing); the lock and the eval cases are current
+(exit 0)
+$ npm run room:check -w apps/web
+
+room: 0 findings in 0 files
+(exit 0)
+$ npm run room:report -w apps/web
+(exit 0)
+Findings: none.      (line 125 of its output)
+$ python3 -I scripts/corpus/dog_intro_proposal.py --root <g-patched> --main-dir <main> patch docs/merge-requests/2026-11-14-corpus-dog-intro.patch
+OK: patch 2026-11-14-corpus-dog-intro.patch
+buildable: yes (his approval of the dog's model, with its line, is in approvals.json)
+(exit 0)
+```
+
+T019's own small test, on the patched export, in `apps/web`:
+
+```
+$ npx vitest run test/twin-pack.test.ts test/content/narration.test.ts
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-14/patch3-026/scratch-patch3/g-patched/apps/web
+
+
+ Test Files  2 passed (2)
+      Tests  80 passed (80)
+   Start at  01:30:50
+   Duration  68.87s (tests 76%, import 14%, transform 10%)
+(exit 0)
+```
+
+And on the worktree, after the proposal's and the docs' edits (the proposal mode on the line's tree, and on `build/a`, the tree before 026's patch with `main` and 022, since its source table quotes `04` as it is now):
+
+```
+$ python3 -m pytest -q scripts/corpus/test_dog_intro_proposal.py
+29 passed in 2.24s
+$ python3 -m pytest -q evals/test_docs_links.py evals/test_repository_docs.py
+61 passed in 0.96s
+$ python3 -I evals/docs_links.py
+docs links: 0 failed, 2498 relative links in 453 files
+$ python3 -I scripts/corpus/dog_intro_proposal.py proposal corpus/proposals/dog-intro-2026-11-14.md   (the line's tree)
+OK: proposal dog-intro-2026-11-14.md
+buildable: no (FR-019: waiting on his approval of the dog's model, with a disclosure line)
+$ ... --root <build/a: tip, main, 022> --main-dir <main> proposal corpus/proposals/dog-intro-2026-11-14.md
+OK: proposal dog-intro-2026-11-14.md
+buildable: yes (his approval of the dog's model, with its line, is in approvals.json)
+```
+
+#### Step 4: the lint target, and this note
+
+{{LINT}}
+
+No `make test`, `make evals`, or full `make check`: rule 4, and the stack's last task runs `make check` once. Item 9's verify merges this tip.
+
+**What waits for him.** Q297's answer (the right wall) is his to confirm or overturn at his look; if he overturns it toward another point, a rework changes the mount line and rebuilds the patch the same way (the four tests stay, since they hold for any off-desk place: their fixtures read whatever the scene holds, and the desk's count is 8 for any). Applying the patch (022 first), his evaluations, and readiness are as the human-patch note has them.
+
+**Interruptions (patch3-026).** `npm ci --offline` failed (ENOTCACHED); `npm ci` from the registry succeeded. The harness refused a foreground `sleep 60` (a wait, not the bash gate); the wait used a background `until` loop instead. No hook or bash-gate refusal, and nothing was respelled.
+
 ## Item 10: spec 027, when the twin's file context stops being enough (`night/impl-027/impl-027`)
 
 Spec: specs/027-corpus-retrieval-adr/ · Intent: intent/027-corpus-retrieval-adr.md (draft) · ADR: docs/adr/0054-when-file-context-stops-being-enough.md (proposed) · Written by: implementer (night shift, impl-027, Opus 5.5); the review is for a worker who didn't write the code (T006; the reviewer follows this task) · Date: 2026-11-14
