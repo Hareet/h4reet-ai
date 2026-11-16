@@ -168,7 +168,8 @@ Files (plan §R-B3): `apps/web/src/room/hud/split.css` (the panel's block only),
   `:not(:where(…))` is 0,4,1, the `> *` rule's. I chose `:where()` to keep spec 018's specificity. No winner changes
   either way. §R-B3's words are corrected in this commit. FR-013's parenthesis in spec.md still says
   "`> :not(.split-frame, .visually-hidden)`, its specificity kept". That file is the spec-writer's, so it's left for
-  `rv-spec-029` or the spec's next pass.
+  `rv-spec-029` or the spec's next pass. (Done by rework2-029b, rv-029b-1's R-5: FR-013 and plan §R-B3's rework text
+  now name `> :not(:where(.split-frame, .visually-hidden))` at 0,4,1, as `split.css:279` has it.)
 - A rule after it: `.talk[data-panel="open"] > .talk-sheet > * { z-index: 1; }` (the frame behind the body; T-B01's
   last clause; §R-B3; Q-B-2 on the page).
 - `talk.ts`'s submit handler (FR-012), in order:
