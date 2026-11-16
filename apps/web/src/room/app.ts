@@ -806,6 +806,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       path: () => visit.path,
       turns: visit.turns,
       freeTalkReady: content.manifest.free_talk.ready,
+      topicReady: deps.room.topics.some((t) => t.ready),
       turnRoute: deps.room.live.turn === "site",
       ...(deps.sendTurn ? { sendTurn: deps.sendTurn } : {}),
       onTurnOutcome: (result) => cost.report(classifyTurn(result), "turn"),
