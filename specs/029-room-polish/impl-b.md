@@ -206,3 +206,78 @@ ruff format --check --no-cache --extend-exclude corpus .
 …
 make lint exit 0
 ```
+
+## T-B03: the room report's readiness section (FR-014a)
+
+RED (`854c7e54`): `apps/web/test/room/report-readiness.test.ts`, 9 cases.
+
+```
+$ cd apps/web && npx vitest run --maxWorkers=2 test/room/report-readiness.test.ts
+ FAIL  test/room/report-readiness.test.ts > the room report's readiness section (FR-014a) > says every topic and free talk are ready, with no line for a closed one, when the file marks the running hashes
+TypeError: readinessLines is not a function
+ FAIL  … > names a topic whose pack hash changed, and only it
+TypeError: readinessLines is not a function
+ FAIL  … > names a topic whose prompt hash changed, and one with both
+TypeError: readinessLines is not a function
+ FAIL  … > says free talk is closed and why when the file doesn't mark it
+TypeError: readinessLines is not a function
+ FAIL  … > names the pack's hash for free talk, and a topic not marked
+ …
+ Test Files  1 failed (1)
+      Tests  8 failed | 1 passed (9)
+   Duration  92.64s (tests 94%, transform 3%, import 2%)
+```
+
+On the RED commit, `tsc` refused the missing export (`TS2305: … has no exported member 'readinessLines'`). So the
+lint target was red there, by that export alone. It is green at GREEN.
+
+GREEN (`52f9aff1`): `apps/web/build/room/report.ts` only (`build/room/readiness.ts` read, not changed):
+`readinessLines(tree)`, which `roomReport` pushes after the walking lines, before the findings. Plan §R-B4 records
+what was built. One departure: on the repository's own tree the test asserts agreement with `twinReadiness`, not
+`f411d8e1`'s state, which would fail the day he re-marks readiness. That state is pasted below.
+
+```
+$ cd apps/web && npx vitest run --maxWorkers=2 test/room/report-readiness.test.ts test/room/report.test.ts test/room/report-split.test.ts
+ Test Files  3 passed (3)
+      Tests  38 passed (38)
+   Duration  116.36s (tests 64%, import 35%, transform 2%)
+```
+
+`npm run room:report -w apps/web` on the repository's tree, its head and its readiness section. The tree's `config/`
+is `f411d8e1`'s: spec 029's branch changes no file under it.
+
+```
+$ npm run room:report -w apps/web
+> @h4reet/web@0.1.0 room:report
+> node --import tsx build/room/cli.ts report
+
+## Room report
+
+Bundle 161eb35506b0da2e · release build · caps: main, assets/policy/caps.json 181c38be9ce67249
+…
+### The twin's readiness (spec 029, FR-014a)
+
+0 of 3 topics ready; free talk closed.
+
+- `hobbies-and-travel`: closed, pack hash changed.
+- `mission`: closed, pack hash changed.
+- `work-projects`: closed, pack hash changed.
+- free talk: closed, not marked ready.
+
+Findings: none.
+exit 0
+```
+
+This is what tasks.md expected at `f411d8e1`: the three topics' `pack hash changed`, free talk `not marked ready`.
+
+The lint target after GREEN: exit 0 (`ruff format`: 879 files already formatted; the rest as in T-B02's paste).
+
+## Refusals
+
+- **T-B03, the bash gate** (`.claude/hooks/bash-gate.sh`): "Blocked by .claude/hooks/bash-gate.sh — an Author-only
+  make target (spec 001). Route: the Author runs it in his terminal (spec 001 research.md R-32); ask the Author". The
+  refused command was a heredoc appending these notes, then `git add` and `git commit`. It ran no make target. The
+  gate matched words in the notes' text. Nothing ran (`git status` showed the two files unstaged and the notes
+  unchanged). Route taken, as the brief says for a false match on text being written: the notes went in with the Edit
+  tool, the commit in a command of its own. The command wasn't respelled. On the page as Q-B-3. The T-B03 commit
+  (`52f9aff1`) went in before these notes, whose first Edit failed on a stale read; they follow in their own commit.
