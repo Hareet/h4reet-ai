@@ -281,3 +281,109 @@ The lint target after GREEN: exit 0 (`ruff format`: 879 files already formatted;
   unchanged). Route taken, as the brief says for a false match on text being written: the notes went in with the Edit
   tool, the commit in a command of its own. The command wasn't respelled. On the page as Q-B-3. The T-B03 commit
   (`52f9aff1`) went in before these notes, whose first Edit failed on a stale read; they follow in their own commit.
+
+## T-B04: for his morning
+
+### 1. B0's DevTools snippet (its §4), with one line added
+
+Copied from `probe-chat.md` §4 as is, with one field added at rv-chat-029's ask: `rows`, the panel's computed
+`grid-template-rows`. It reads boxes and computed styles only, never the log's words or anything secret, and writes
+nothing. Run it in the room's DevTools console (Console tab) in the split layout (a wide window), after one send, so
+the log holds a line:
+
+```js
+// Paste in the room's DevTools console (Console tab) after one send in a wide window. It reads, never writes.
+(() => {
+  const q = (s) => document.querySelector(s);
+  const box = (el) => { if (!el) return null; const r = el.getBoundingClientRect(); const c = getComputedStyle(el);
+    return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), position: c.position, gridRow: c.gridRow }; };
+  const root = document.documentElement;
+  return JSON.stringify({
+    ua: navigator.userAgent.replace(/\s+/g, " "), viewport: [innerWidth, innerHeight],
+    split: root.dataset.split, hud: root.dataset.hud,
+    panel: q("section.talk")?.dataset.panel, logLines: q("#talk-log")?.childElementCount,
+    rows: q("section.talk") ? getComputedStyle(q("section.talk")).gridTemplateRows : null,
+    talk: box(q("section.talk")), frame: box(q("section.talk > svg.split-frame")),
+    frameViewBox: q("section.talk > svg.split-frame")?.getAttribute("viewBox"),
+    heading: box(q("#talk-heading")), top: box(q(".split-top")), log: box(q("#talk-log")),
+    status: box(q(".talk-status")), form: box(q(".talk-form")),
+  }, null, 1);
+})();
+```
+
+The added line is `rows: …`. `rows` is the used track sizes in px in a browser, so the log's row (the third) shows its
+height directly. The `q("section.talk") ? … : null` guard keeps the snippet from throwing outside the room.
+
+What it tells:
+- **On `f411d8e1` (his screenshot's build), as B0 expects:** `split: "on"`, `frame.position: "relative"`,
+  `frame.y` greater than `form.y` (the frame below the form), `log.h` 0 or near it, the third of `rows` `0px`.
+- **On this line, after T-B02:** `frame.position: "absolute"`, `frame.y` at the title row's foot (above the form),
+  `heading.position: "absolute"`, `log.h` above 0, and the third of `rows` above `0px`. On his look: the log's lines on
+  the frame's glass, legible, not under it (Q-B-2).
+- A log with height whose lines still don't show would point elsewhere. Then the snippet's output is what a follow-up
+  needs. It names no visitor words.
+
+### 2. His readiness step (plan §10; B0's Q-B0-1)
+
+B0's question and its recommended answer, from `probe-chat.md`, in its words:
+
+> **Q-B0-1:** re-mark readiness for `f411d8e1`'s regenerated pack? Recommended: re-run `make evals` and
+> `make redteam` (local and Anthropic, as the current evidence) on it, then mark the three new pack hashes.
+
+Plan §10's words: "re-run his evaluations and the red-team on `f411d8e1`'s regenerated pack and mark the three new
+pack hashes in `config/twin-readiness.yaml` (his file alone); until then the room sends no turn and, after T-B02, says
+so. FR-014a's report line shows the state in his terminal."
+
+What this line adds for that step:
+- **Before:** `npm run room:report -w apps/web` prints, at `f411d8e1`'s config, "0 of 3 topics ready; free talk
+  closed." and `pack hash changed` for `hobbies-and-travel`, `mission`, and `work-projects` (T-B03's paste above).
+- **In the room, until he marks them:** a piece shows `topic_not_ready`, as before. Typed text now shows
+  `cannot_talk.free_talk_closed` ("The twin isn't taking open questions yet. Select a piece in the room to talk about
+  it.", a draft for his words, Q4) in place of "The service is unavailable".
+- **After he marks the three hashes:** the same command prints "3 of 3 topics ready; free talk closed." (free talk
+  stays closed: `free_talk: { ready: false }` on both commits, his to open or not). Then a piece's conversation sends
+  its turns again.
+- The file is his alone (`.claude/settings.json` denies its edit, and tasks.md's rules list it). No agent touched it
+  tonight.
+
+## Not run, and why
+
+- The full check, the whole test suite, and the evaluations weren't run by this group. The supervisor's instructions
+  and tasks.md give the one full check to T-INT (`int-029`), which pastes it in the stack's note. Each task here ran
+  the test files tasks.md names, those covering the files it changed, and the lint target, as pasted above.
+- The image stage wasn't run (night 3's Q46 and Q48: it fails in the workers' containers). It stays with his gate.
+- `apps/web/test/room/twin-2d.test.ts` (it flakes under load) wasn't in any of this group's lists.
+
+## What group B leaves for T-INT
+
+- Merge this branch first (plan §9): `src/room/hud/split.css` is edited in the panel's block only (B0's selector at
+  the old line 273 and one rule after it, 11 lines in all). A's block is appended at the file's end, after both.
+- Rerun `test/ui/talk-answer-shows.test.ts` on the merged tree (plan R-3), and A's contrast test with the frame now
+  behind the body (R-3: what lies behind the log changed).
+- The stack's note carries §1's snippet and §2's step.
+
+## Commits
+
+| Commit | What |
+|---|---|
+| `a0a9fa64` | merge of `night/probe-chat-029/probe-chat-029` (B0's note) |
+| `ec3aa042` | save point: notes started |
+| `28f884fd` | T-B01 RED: `talk-answer-shows.test.ts`; plan §R-B2 |
+| `c9421545` | T-B02's test-first part: five earlier cases rewritten; plan §R-B3 |
+| `81832473` | T-B02 GREEN: `split.css`, `talk.ts`, `messages.ts`, `messages.yaml`; plan §R-B3 |
+| `854c7e54` | T-B03 RED: `report-readiness.test.ts` |
+| `52f9aff1` | T-B03 GREEN: `report.ts`; plan §R-B4 |
+| `451a102f` | T-B03's notes |
+| (this one) | T-B04's notes |
+
+## Questions on the page (`/night/io/out/questions.md`)
+
+- **Q-B-1:** rewrite the five earlier cases that pin FR-012's subject? Recommended: yes, as done (T-B02's test-first
+  part).
+- **Q-B-2:** the sheet's children `z-index: 1`, so the frame sits behind the body? Recommended: yes, as done, and his
+  look in the morning.
+- **Q-B-3:** the bash gate's match on a heredoc's text (T-B03's refusal). Recommended: keep it tonight, and look at it
+  in his next pass over the gate.
+
+B0's Q-B0-1 to Q-B0-4 and the spec's Q3 to Q5 were asked by B0 and the spec-writer on their own pages (this
+container's `questions.md` started empty), so they aren't asked twice here.
