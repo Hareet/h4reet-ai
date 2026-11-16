@@ -6,14 +6,14 @@ Night 4 (2026-11-16), implementer, branch `night/impl-029d/impl-029d`, from spec
 
 | File | What |
 |---|---|
-| `apps/web/test/ui/choice-cards.test.ts` (new, T-D01) | 25 cases: the legends, the instruction, the hint, the cards in order with names, lines, marks, and pictures; the outcome card's three states; `aria-describedby`; "Selected" `aria-hidden`; the focus move by a pointer (`pointerdown`, `pointerup`, `click` with `detail: 1` on the label, then the radio focused as the label's activation does; focus asserted after the click's task, and still in step 1 after `pointerup` alone), by Enter (default prevented: no submit), and by Space (`keydown`, the browser's `click` with `detail: 0`, `keyup`); arrow keys keeping focus in step 1 (`keydown` ArrowDown, the next radio focused, a `click` with `detail: 0`, a `change`, `keyup`, two tasks run); no move from step 2; nothing fetched, sent, or stored before "Enter"; axe in three states; the CSS (chosen by more than colour, the card's focus ring, hover and focus distinct from chosen, forced colours, motion only under `no-preference` at most 150 ms and 2 px, the three layouts at 1280, 600, and 320 px, no sideways track, the 64rem page, every card 44 × 44 px); the dinosaur's line held to the composed room |
+| `apps/web/test/ui/choice-cards.test.ts` (new, T-D01) | 26 cases: the legends, the instruction, the hint, the cards in order with names, lines, marks, and pictures; the outcome card's three states; `aria-describedby`; "Selected" `aria-hidden`; the focus move by a pointer (`pointerdown`, `pointerup`, `click` with `detail: 1` on the label, then the radio focused as the label's activation does; focus asserted after the click's task, and still in step 1 after `pointerup` alone), by Enter (default prevented: no submit), and by Space (`keydown`, the browser's `click` with `detail: 0`, `keyup`); arrow keys keeping focus in step 1 (`keydown` ArrowDown, the next radio focused, a `click` with `detail: 0`, a `change`, `keyup`, two tasks run); no move from step 2; nothing fetched, sent, or stored before "Enter"; axe in three states; the CSS (chosen by more than colour, the card's focus ring, hover and focus distinct from chosen, forced colours, motion only under `no-preference` at most 150 ms and 2 px, the three layouts at 1280, 600, and 320 px, no sideways track, the 64rem page, every card 44 × 44 px); the dinosaur's line held to the composed room, and no piece's or placement's ID in any card's words (spec 004's FR-007) |
 | `apps/web/test/ui/choice.test.ts` (T-D01) | `:44-47`, the legends' case: **old** "Your path", "Your avatar"; **new** "Step 1: Select your role", "Step 2: Select your avatar" (the named departure, spec.md's Assumptions). No other case changed |
 | `apps/web/src/choice/cards.ts` (new, T-D02) | The words: `STEPS`, `ROLE_CARDS`, `ROLE_COMMON`, `ROLE_EMPTY`, `AVATAR_LINES`, `SELECTED`, `HINT` |
 | `apps/web/src/choice/choice.ts` (T-D02) | Two `fieldset`s of cards over the same radios and values; the outcome card; the focus move (§R-D3); `renderChoice`'s signature unchanged |
 | `apps/web/src/choice/choice.css` (T-D02) | The cards, the chosen look, the ring, forced colours, motion under `no-preference`, the three layouts, `body:has(.choice) { max-width: 64rem }` |
 | `apps/web/room/hints.yaml` (T-D03) | `your-path`: "Your role sets the twin's depth: …", the rest unchanged |
 | `specs/012-loading-screen/spec.md` (T-D03) | The Hint Copy, row 6, the same one word (see "Departures") |
-| `specs/029-room-polish/spec.md`, `plan.md`, `tasks.md` | The Amendments row for spec 012's row 6; plan §R-D2, §R-D5, §9; T-D03's line; T-D01 to T-D04 checked |
+| `specs/029-room-polish/spec.md`, `plan.md`, `tasks.md` | The Amendments row for spec 012's row 6; plan §R-D1 (the dinosaur's line), §R-D2, §R-D5, §9; T-D03's line; T-D01 to T-D04 checked |
 
 Not touched (§R-D6): `choice/visit.ts`, `choice/avatars.ts`, `room/app.ts`, `room/room.css`, `test/helpers/room.ts`, `test/ui/a11y.test.ts`. No human-only path.
 
@@ -29,13 +29,15 @@ Taken provisionally under rule 1: the page's Q11 (native radio groups as cards),
 - Step 2's legend: "Step 2: Select your avatar".
 - Woman: "A generic woman. She takes the twin's paper and, in the 3D room, walks where you steer."
 - Man: "A generic man. He takes the twin's paper and, in the 3D room, walks where you steer."
-- Dinosaur: "A generic dinosaur. In the 3D room it can eat chunks of the desk, the laptop, the busy sign, and the chalkboard, and they grow back."
+- Dinosaur: "A generic dinosaur. In the 3D room it can eat chunks of the desk and a few other things in the room, and they grow back." (not the page's Q15 draft: see "Departures", 4; asked)
 - Dog: "A dog. It walks the room and talks with the twin like any visitor." (Q19; no breed; the approval's disclosure line stays whole on the credits page)
 - A chosen card's word: "Selected".
 - The hint under the steps: "Choose a role and an avatar to enter." (FR-024's words)
 - The loader's hint 6: "Your role sets the twin's depth: "Engineer" for each topic's detail, "Not an engineer" for the overview, with the same facts in both."
 
 **One difference between the page and the spec, asked.** The page's Q13 quotes the "Not an engineer" draft as "The twin describes the projects and goals …" (`probe-pick-029`'s N1); spec 029's Q11, which this task follows, has "The twin will describe projects and goals …", which is the Author's example word for word ("The twin will describe projects and goals as if talking to a non-technical person"). CLAUDE.md keeps a quote in its source's words, so the card ships the spec's. Asked on the page (`/night/io/out/questions.md`), recommended: his words, as shipped.
+
+**The dinosaur's line, asked.** The page's Q15 draft can't ship: "laptop" and "chalkboard" are piece IDs (departure 4). Asked, with the shipped line recommended.
 
 **The intro, asked.** FR-024 keeps the intro, "Choose your path and an avatar, then enter. …", which still says "path" where everything around it now says "role". Shipped unchanged; asked on the page, recommended: "Choose your role and an avatar, then enter. …".
 
@@ -44,6 +46,7 @@ Taken provisionally under rule 1: the page's Q11 (native radio groups as cards),
 1. **The role cards' descriptions live once, in the outcome card** (§R-D2). The plan's card holds "the line (span with an id)"; for a role, the line is its two-sentence description, which the outcome card also shows. Printed in both, it would show twice side by side. So each role's description is a `p` in the outcome card (`#choice-role-<id>`), the unchosen one `hidden`, and the role radio's `aria-describedby` points to it (an accessible description reads hidden text; axe passes it in three states). The role card shows its mark, its name, and the chosen mark and word. Each radio is named by `aria-labelledby` its name's `span`, so the line and "Selected" don't join its name (`nameOf` still gives "Engineer", …, as every test that names the radios expects).
 2. **The test's pending task** (§R-D5): the plan said "fake timers". `renderChoice` takes no clock (its signature stays, `app.ts:549`), so the move uses the page window's `setTimeout(…, 0)`; the test runs one task of the jsdom window's own timers (`tasks(v)`), which come in order after the move's. No `vi.useFakeTimers`, which would patch node's timers, not the jsdom window's.
 3. **The hint's test reads spec 012's The Hint Copy** (§R-D5, §9, T-D03). The plan said `hints.test.ts` would keep passing on the names alone. It doesn't: its first case (`hintCopy()`) reads each hint's words from `specs/012-loading-screen/spec.md`'s table, so changing `hints.yaml` alone failed it (output below). Row 6 of that table changes with the hint (the one word), and spec 029's Amendments gains the row. The test is unchanged. If he overturns Q16, both go back together.
+4. **The dinosaur's line names no piece by its ID** (§R-D1, §R-D5; commits `bd94dda5`, the test, and `32b1e820`, the line). The R-6 sweep of `test/ui` and `test/room` found one failure: the source scan (spec 004's FR-007, `build/room/scan.ts`, `test/room/scan.test.ts`), which refuses any ID only the room's data defines in code. The Q15 draft's "the laptop" and "the chalkboard" are piece IDs (`laptop`, `chalkboard`), in `cards.ts:47` and in the test (with "bicycle" in the test's negative check). The scan's own fix, "takes the value from the bundle", isn't open to the choice screen: which pieces are edible is in the lazy 3D part (`RoomScene`'s placements), not in the page's index, and nothing loads before "Enter". I didn't respell the words around the scan. The line now names only the desk ("A generic dinosaur. In the 3D room it can eat chunks of the desk and a few other things in the room, and they grow back."), the test holds it to the composed room (the model bundled, the desk edible, at least two more), and a new case asserts that no placement's or piece's ID stands in any card's words. Test first: the reworked cases were committed failing (output below), then `cards.ts`. Asked on the page, with this line recommended and, as the other option, a later spec that puts the edible pieces' names in the index.
 
 ## Gotchas met
 
@@ -136,9 +139,73 @@ $ npx vitest run --maxWorkers=2 test/room/hints.test.ts
       Tests  6 passed (6)
 ```
 
-SWEEP_PLACEHOLDER
+### R-6: all of `test/ui` and `test/room`, once, on the T-D03 tree (commit `69ee6e00`)
 
-LINT_PLACEHOLDER
+```
+$ npx vitest run --maxWorkers=2 test/ui test/room
+     × finds 0 IDs only the room's data defines in the room's code
+ FAIL  test/room/scan.test.ts > the committed tree (T107; FR-007, SC-001, User Story 1 scenario 4) > finds 0 IDs only the room's data defines in the room's code
++     "FR-007 apps/web/src/choice/cards.ts:47: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/src/choice/cards.ts:47: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/choice-cards.test.ts:65: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/choice-cards.test.ts:65: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/choice-cards.test.ts:576: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/choice-cards.test.ts:576: holds \"laptop\", which only the room's data defines",
++     "FR-007 apps/web/test/ui/choice-cards.test.ts:579: holds \"bicycle\", which only the room's data defines",
+ Test Files  1 failed | 229 passed (230)
+      Tests  1 failed | 4093 passed | 1 skipped (4095)
+   Duration  2513.98s (tests 68%, import 32%)
+```
+
+(The scan's hit lines are from the same failure, run alone with `npx vitest run --maxWorkers=1 test/room/scan.test.ts`.) No other test pins the screen's old words: besides `choice.test.ts:44-47` and the hint (T-D03), the new words broke nothing (plan R-6). `twin-2d.test.ts` didn't flake in this run.
+
+### The dinosaur's line, reworked (departure 4)
+
+The test first (commit `bd94dda5`), on the old `cards.ts`:
+
+```
+$ npx vitest run --maxWorkers=2 test/ui/choice-cards.test.ts test/room/scan.test.ts
+     × finds 0 IDs only the room's data defines in the room's code
+     × gives step 2 a character card per visitor: its picture, its name, and its line, in the code's order
+     × names eating only while the room's bundle carries its model and the desk is edible, with others besides
+     × names no piece or placement by its ID on any card (spec 004's FR-007: a piece's move stays a data edit)
++     "FR-007 apps/web/src/choice/cards.ts:47: holds \"chalkboard\", which only the room's data defines",
++     "FR-007 apps/web/src/choice/cards.ts:47: holds \"laptop\", which only the room's data defines",
+ Test Files  2 failed (2)
+      Tests  4 failed | 39 passed (43)
+```
+
+Then the line (commit `32b1e820`):
+
+```
+$ npx vitest run --maxWorkers=2 test/ui/choice-cards.test.ts test/ui/choice.test.ts test/room/scan.test.ts
+ Test Files  3 passed (3)
+      Tests  52 passed (52)
+```
+
+### At the tip: the files this group adds or changes, those covering them, and the scan
+
+```
+$ npx vitest run --maxWorkers=2 test/ui/choice-cards.test.ts test/ui/choice.test.ts test/ui/a11y.test.ts test/ui/pdf-download.test.ts test/room/hints.test.ts test/ui/loading.test.ts test/room/quality.test.ts test/ui/pause.test.ts test/room/scan.test.ts
+ Test Files  9 passed (9)
+      Tests  173 passed (173)
+   Duration  176.63s (tests 69%, import 30%, transform 1%)
+```
+
+### `make lint` (from the worktree's root, at the tip; `make setup` first, exit 0, "git hooks: … isn't writable here (the agent sandbox); the Author runs make git-hooks"), exit 0, shellcheck's file list cut
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+880 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- …
+```
 
 `make test` and `make evals` were not run: the brief's rule 4 gives the one full `make check` to T-INT, and each group its own files and `make lint`.
 
@@ -149,6 +216,6 @@ None: no hook or bash-gate refusal in this session.
 ## What's left
 
 - The review, by a worker who wrote none of it.
-- The Author's answers on the page: Q11 to Q16 and Q19, and the two questions above (the "Not an engineer" wording; the intro's "path"). An overturned answer is reworked before he merges.
+- The Author's answers on the page: Q11 to Q16 and Q19, and the three questions above (the "Not an engineer" wording; the intro's "path"; the dinosaur's line). An overturned answer is reworked before he merges.
 - His look (SC-008), with the real-browser list above.
 - T-INT: the merge with groups A to C (no file shared with them) and the one `make check`.
