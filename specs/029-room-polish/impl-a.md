@@ -118,3 +118,96 @@ exit 0
 - Merge order: B, then A. `split.css`: B's line 273, then A's block at the end. They don't overlap.
 - His look (FR-008, SC-008): the panels over the room while walking, and on 1280 × 720 and phone windows. The two alphas are data in `room.css`'s `:root`, his to tune within the test's bound. Risk R-4: the plates may read striped on a busy panel. The list's rows are plated whole.
 - On the page: the `app.ts` departure (recommended: keep it) and the npx fetch at setup (recommended: `make setup` first and `npx --no-install`).
+
+## rework-029a: S-10, after rv-spec-029 (T-A04)
+
+Branch `night/rework-029a/rework-029a`, based on `night/impl-029a/impl-029a` (`a93fa34c`, checked: `git merge-base --is-ancestor refs/heads/night/impl-029a/impl-029a HEAD` true). Then I merged `night/rework-spec-029ab/rework-spec-029ab` (`e1212330`) at `f2797c2a`. plan.md conflicted twice, in §R-A1 and in §9. Each conflict keeps both sides: the rework's paragraph first, then impl-029a's as-built record. Spec and tasks merged clean.
+
+### What S-10 found, and what the code already did
+
+- **The walking view's switch.** impl-029a's `layout.ts` already runs the flag from `setWalking(on)` (`walking = on; markOver()`), not from `setWalkOffered`. That is its departure 2 above. No code change.
+- **The wall box outside the split layout.** impl-029a's `app.ts` re-fit already passes `room: framed ? (hudOption.wall.wall?.(framed.area) ?? null) : null` and `stage` into `applyHud`, through `HudApplied`'s optional fields. That is its departure 1. It differs from the reworked §R-A1 (`… ?? boxes.clear`) only in the stacked layout, where `framed` is null. That layout has no parts (`hudParts`), so nothing changes. I recorded this in plan §R-A2. No code change.
+- **What was missing: tests pinning both points.** T-A01's walking cases click the control on and off, but nothing in them separates "offered" from "walking", or a walk the stage ends itself from one the visitor ends. T-A01's non-split cases use the stand-in 3D stage, which has no protector, or the 2D drawing. At most windows the drawing's wall box and the frame area mark the same parts, so a re-fit that passed no `room` would still pass them, except at 390 × 844 (below).
+
+### The tests (new file; T-A01's files unedited)
+
+`apps/web/test/ui/hud-over-walking.test.ts`, 14 cases, through the real room (`test/helpers/room.ts`), `layout.ts`, and `app.ts`'s re-fit:
+
+- **The walk, not its offer** (3D, at 1366 × 768, 1440 × 900, 1920 × 1080, 1280 × 720, 390 × 844). Offered (`data-walk="on"`, the control shown, no `enter` call): the rest's parts. Walking by the control: the parts meeting the stage. Ended by the stage (`endWalk("escape")`, then again `endWalk("failed")`), with the offer unchanged: the rest's parts again. At the three split windows, offered alone marks nothing.
+- **The re-fit's wall box** (3D, the same five windows). A stage protector whose wall box is a 2rem strip at the frame area's top, too short for the split layout, so each window takes the column or the dock layout. The case first asserts that the frame area would mark other parts than the wall box does (it discriminates). The marks are the wall box's at rest, the stage's while walking, and the wall box's after.
+- 1280 × 720 in 2D (column layout, the drawing's wall box). The stacked layout (300 × 400), in 3D and 2D: nothing marked, walking or not.
+
+I put the new cases in a new file by choice, so T-A01's committed tests stay as they are. No hook refused anything.
+
+### RED: each S-10 fault put back in scratch, then restored (`git checkout --`, never committed)
+
+The new file passes on impl-029a's code. So I showed RED on the two faults S-10 names, one at a time, running the new file and T-A01's:
+
+```
+# Mutation 1: layout.ts runs the flag from setWalkOffered (walking = offered), not setWalking
+$ npx vitest run --maxWorkers=2 test/ui/hud-over-walking.test.ts test/ui/hud-over-room.test.ts   # from apps/web/
+ FAIL  test/ui/hud-over-room.test.ts > … > marks exactly the parts that meet the room at 1366 × 768 in 3D, in the room and walking
+ FAIL  test/ui/hud-over-room.test.ts > … > … at 1440 × 900 …   (and 1920 × 1080, 390 × 844, and "follows a re-fit")
+ FAIL  test/ui/hud-over-walking.test.ts > the walking view itself, not its offer, moves the flag (S-10; FR-001) > at 1366 × 768 in 3D: offered marks the rest's parts; walking, the stage's; Escape, the rest's
+       (and 1440 × 900, 1920 × 1080, 1280 × 720, 390 × 844)
+ FAIL  test/ui/hud-over-walking.test.ts > … > offers the walk at the split windows with nothing marked: the offer isn't the walk
+ FAIL  test/ui/hud-over-walking.test.ts > outside the split layout the room's box is the re-fit's wall box (S-10; FR-001) > at 1366 × 768 in 3D with a stage protector, at rest and walking
+       (and 1440 × 900, 1920 × 1080, 1280 × 720, 390 × 844)
+ Test Files  2 failed (2)
+      Tests  16 failed | 14 passed (30)
+
+# Mutation 2: app.ts's re-fit passes no `room` (layout.ts falls back to the frame area)
+$ npx vitest run --maxWorkers=2 test/ui/hud-over-walking.test.ts test/ui/hud-over-room.test.ts
+ FAIL  test/ui/hud-over-room.test.ts > … > marks exactly the parts that meet the room at 390 × 844 in 3D, in the room and walking
+ FAIL  test/ui/hud-over-room.test.ts > … > marks exactly the parts that meet the room at 390 × 844 in 2D
+ FAIL  test/ui/hud-over-room.test.ts > … > follows a re-fit: a window that leaves the split layout marks its parts, and one that returns unmarks them
+ FAIL  test/ui/hud-over-walking.test.ts > the walking view itself, … > at 390 × 844 in 3D: offered marks the rest's parts; …
+ FAIL  test/ui/hud-over-walking.test.ts > outside the split layout … > at 1366 × 768 in 3D with a stage protector, at rest and walking
+       (and 1440 × 900, 1920 × 1080, 1280 × 720, 390 × 844)
+ Test Files  2 failed (2)
+      Tests  9 failed | 21 passed (30)
+```
+
+Under mutation 2 the 2D 1280 × 720 case passes: there the drawing's wall box and the frame area mark the same parts. The stage-protector cases are the ones that catch this fault at every window.
+
+### Runs (GREEN, on this branch's tree; from `apps/web/`)
+
+First, `make setup` (the worktree had no `node_modules`). My first `npx --no-install vitest …` stopped: "npm error npx canceled due to missing packages and no YES option: ["vitest@5.1.0"]". That stop was npm's, not a hook's, and nothing was fetched. Then `make setup`: exit 0, last line "git hooks: … isn't writable here (the agent sandbox); the Author runs make git-hooks".
+
+```
+$ npx --no-install vitest run --maxWorkers=2 test/ui/hud-over-walking.test.ts
+ Test Files  1 passed (1)
+      Tests  14 passed (14)
+   Duration  80.75s
+
+$ npx --no-install vitest run --maxWorkers=2 test/ui/hud-over-walking.test.ts test/ui/hud-over-room.test.ts \
+    test/ui/hud-over-contrast.test.ts test/ui/eat-place.test.ts test/ui/walking.test.ts test/ui/hud-wall-dom.test.ts
+ RUN  v5.0.3 …/rework-029a/apps/web
+ Test Files  6 passed (6)
+      Tests  56 passed (56)
+   Duration  121.61s (tests 72%, import 27%, transform 1%)
+```
+
+This rework changes no source file, only a new test and the documents. So the covering set is group A's three files plus the files that exercise the walking view and `applyHud` directly. impl-029a's wider §R-A4 run (22 files, 250 tests) stands for the unchanged code.
+
+```
+$ make lint      # from the worktree's root
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+879 files already formatted
+… shellcheck -- … (no output)
+exit 0
+```
+
+`make test`, `make evals`, and `make check` are T-INT's, once, on the merged tree (the night's rule 4).
+
+### Departures and the page
+
+- No departure from the reworked plan beyond the one recorded in §R-A2: the stacked layout's `room` is null. No new question for the page. impl-029a's two are still open there (the `app.ts` edit, recommended: keep; `npx --no-install`).
+- For the reviewer: in the stacked layout the walking control and the "Eat" tile are `position: absolute` in the stage's corner, so they lie over the room, and they are not marked. That follows plan §R-A3 as built: these two tiles keep their opaque white face over the scene in every layout, and only their focus ring would change when marked. The stacked layout has no `[data-over]` rule, so a mark there would change nothing. His look (SC-008) can say otherwise.
