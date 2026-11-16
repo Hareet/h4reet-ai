@@ -1561,6 +1561,37 @@ def engine_problem(docker: str, engine: dict[str, str], tmp: Path) -> str | None
     )
 
 
+# The compose images the agents' engine can't build, each with why: their builds fetch from hosts its egress proxy
+# doesn't admit, so the Author's engine builds them, in his make up and his release (W2's release, 2026-11-16).
+HOST_ENGINE_ONLY = {
+    "tunnel": "deploy/tunnel/Dockerfile installs OpenSSH from Ubuntu's archive, which only the Author's engine reaches",
+}
+
+
+def compose_builds(export_dir: Path) -> tuple[list[str] | None, list[str]]:
+    """The compose services to build on the agents' engine, and those left to the Author's engine. None builds every
+    service, compose's own `build`, as before: when no HOST_ENGINE_ONLY service builds, or the file doesn't read here
+    (the compose policy, earlier, is the step that judges it)."""
+    try:
+        import yaml  # the PyYAML check_corpus already loads into this process
+
+        doc = yaml.safe_load(
+            (export_dir / "deploy" / "compose.yaml").read_text(encoding="utf-8")
+        )
+    except Exception:  # noqa: BLE001 - a file that doesn't read builds as before
+        return None, []
+    services = doc.get("services") if isinstance(doc, dict) else None
+    if not isinstance(services, dict):
+        return None, []
+    built = [
+        str(n) for n, s in services.items() if isinstance(s, dict) and "build" in s
+    ]
+    left = [n for n in built if n in HOST_ENGINE_ONLY]
+    if not left:
+        return None, []
+    return [n for n in built if n not in HOST_ENGINE_ONLY], left
+
+
 def image(export_dir: Path, policy_step: Step, tmp: Path, sha: str) -> Step:
     begin(
         "image",
@@ -1646,23 +1677,32 @@ def image(export_dir: Path, policy_step: Step, tmp: Path, sha: str) -> Step:
                 "the agents' engine didn't build the room's image; if it's down: deploy/agents-engine/engine.sh up"
             )
         out += web
-    rc, more = stream(
-        [
-            docker,
-            "compose",
-            "-p",
-            "h4reet-dev-cpu",
-            "-f",
-            str(export_dir / "deploy" / "compose.yaml"),
-            "--env-file",
-            str(export_dir / "deploy" / "env.agents" / "dev-cpu.vars"),
-            "--profile",
-            "*",
-            "build",
-        ],
-        engine,
-        tmp,
-    )
+    names, left = compose_builds(export_dir)
+    for name in left:
+        say(
+            f"image: {name} isn't built on the agents' engine: {HOST_ENGINE_ONLY[name]}"
+        )
+        step.notes.append(f"{name} left to the Author's engine")
+    rc, more = 0, ""
+    if names != []:
+        rc, more = stream(
+            [
+                docker,
+                "compose",
+                "-p",
+                "h4reet-dev-cpu",
+                "-f",
+                str(export_dir / "deploy" / "compose.yaml"),
+                "--env-file",
+                str(export_dir / "deploy" / "env.agents" / "dev-cpu.vars"),
+                "--profile",
+                "*",
+                "build",
+                *(names or []),
+            ],
+            engine,
+            tmp,
+        )
     if rc != 0:
         return step.fail(
             "the agents' engine didn't build the images; if it's down: deploy/agents-engine/engine.sh up"
