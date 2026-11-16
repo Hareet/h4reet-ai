@@ -63,9 +63,8 @@ function recordingDocument(): { doc: Document; win: TestWindow; drawn: Map<HTMLC
   const drawn = new Map<HTMLCanvasElement, Drawn>();
   win.HTMLCanvasElement.prototype.getContext = function getContext(this: HTMLCanvasElement, kind: string) {
     if (kind !== "2d" || this.width !== W || this.height !== H) return null;
-    const canvas = this;
-    const record: Drawn = drawn.get(canvas) ?? { centre: null, angle: null, words: [], run: null };
-    drawn.set(canvas, record);
+    const record: Drawn = drawn.get(this) ?? { centre: null, angle: null, words: [], run: null };
+    drawn.set(this, record);
     return new Proxy(
       {},
       {
@@ -122,7 +121,10 @@ const isSheet = (node: Node): node is Mesh => {
  * The sheet `root` (and whatever it holds) seen by a viewer on its front and on its back, its +Y up: for each mesh that
  * draws that side, the drawn word's run and its letters' up, on the viewer's screen (x right, y up).
  */
-function seen(root: Object3D, drawing: Drawn): { side: "front" | "back"; run: [number, number]; up: [number, number] }[] {
+function seen(
+  root: Object3D,
+  drawing: Drawn,
+): { side: "front" | "back"; run: [number, number]; up: [number, number] }[] {
   root.updateWorldMatrix(true, true);
   const [cx, cy] = drawing.centre ?? [NaN, NaN];
   const a = drawing.angle ?? NaN;
@@ -237,7 +239,8 @@ describe("the sheet from both sides, in buildRoom (Q38; C-1; FR-020)", () => {
     }
     // The hand-off's cross-fade, under reduced motion, and the kept paper's showing, which writes the materials.
     showHandoff(room, 0.25, true);
-    for (const [mesh, front] of pairs) expect((backs(mesh)[0]?.material as MeshBasicMaterial).opacity).toBe(front.opacity);
+    for (const [mesh, front] of pairs)
+      expect((backs(mesh)[0]?.material as MeshBasicMaterial).opacity).toBe(front.opacity);
     room.paper.atTwin.opacity = 0;
     room.paper.atVisitor.opacity = 1;
     expect((backs(room.paper.sheet)[0]?.material as MeshBasicMaterial).opacity).toBe(0);

@@ -6,13 +6,15 @@
 //   context is that layout and nothing else.
 // - In 3D (scene/bundle3d.ts): given a document, the sheet's two materials, the twin's and the visitor's, share one
 //   canvas texture of the drawing, keep their white colour, their opacities (1 and 0, which the hand-off cross-fades),
-//   and both sides; the drawing is made again when the chalk face's family changes. Without a document, the sheet is
-//   plain, as before. The sheet's size and the grip's are unchanged.
+//   and draw the sheet's front; its back is a mesh of its own, the drawing unmirrored (back-029c, Q38's recommended
+//   answer, provisionally; paper-back.test.ts holds it); the drawing is made again when the chalk face's family
+//   changes. Without a document, the sheet is plain, as before, white on both sides. The sheet's size and the grip's
+//   are unchanged.
 // - In 2D (flat.ts): each of the hand-off's three papers has its word drawn over it, through the drawing's allowlist (a
 //   `text` with a matrix), centred on the paper and turned along its diagonal, shown exactly when its paper is.
 import { JSDOM } from "jsdom";
-import { CanvasTexture, DoubleSide, Object3D } from "three";
-import type { MeshBasicMaterial } from "three";
+import { CanvasTexture, DoubleSide, FrontSide, Object3D } from "three";
+import type { Mesh, MeshBasicMaterial, Texture } from "three";
 import { describe, expect, it } from "vitest";
 
 import { contrastRatio } from "../../build/room/checks/rw";
@@ -98,7 +100,7 @@ describe("the sheet in 3D (scene/bundle3d.ts; FR-020)", () => {
     return buildRoom(part, { avatar: "dog", label: () => new Object3D(), index, ...(paper ? { paper } : {}) });
   };
 
-  it("gives both materials one canvas texture of the drawing, keeping their colour, opacities, and both sides", () => {
+  it("gives both materials one canvas texture of the drawing, keeping their colour and opacities, on the front", () => {
     const doc = new JSDOM("<main></main>").window.document;
     const { paper } = build({ doc });
     const twin = paper.atTwin as MeshBasicMaterial;
@@ -114,7 +116,8 @@ describe("the sheet in 3D (scene/bundle3d.ts; FR-020)", () => {
       expect(m.color.getHexString()).toBe("ffffff");
       expect(m.opacity).toBe(opacity);
       expect(m.transparent).toBe(true);
-      expect(m.side).toBe(DoubleSide);
+      // The front only: the back is drawn by a mesh of its own, unmirrored (paper-back.test.ts).
+      expect(m.side).toBe(FrontSide);
     }
     // The sheet's size is the grip's, unchanged.
     const params = (paper.sheet.geometry as unknown as { parameters: { width: number; height: number } }).parameters;
@@ -126,6 +129,9 @@ describe("the sheet in 3D (scene/bundle3d.ts; FR-020)", () => {
     const { paper } = build();
     expect((paper.atTwin as MeshBasicMaterial).map).toBeNull();
     expect((paper.atVisitor as MeshBasicMaterial).map).toBeNull();
+    // White on both sides, one mesh each, as before.
+    for (const m of [paper.atTwin, paper.atVisitor]) expect(m.side).toBe(DoubleSide);
+    expect([paper.sheet.children, paper.kept.children]).toEqual([[], []]);
   });
 
   it("draws the word in the chalk face's family, and again when that family changes", () => {
@@ -159,11 +165,19 @@ describe("the sheet in 3D (scene/bundle3d.ts; FR-020)", () => {
     const { paper } = build({ doc: dom.window.document, typefaces });
     expect(fillTexts).toEqual(["RESUME"]);
     family = "Patrick Hand, cursive";
-    const version = (paper.atTwin as MeshBasicMaterial).map?.version ?? 0;
+    // Every map the sheets draw with, the backs' too (back-029c), is uploaded again.
+    const maps = new Set<Texture>();
+    for (const root of [paper.sheet, paper.kept])
+      root.traverse((node) => {
+        const map = ((node as Partial<Mesh>).material as MeshBasicMaterial | undefined)?.map;
+        if (map) maps.add(map);
+      });
+    expect(maps.size).toBeGreaterThan(1);
+    const versions = new Map([...maps].map((map) => [map, map.version]));
     for (const fn of listeners) fn();
     expect(fillTexts).toEqual(["RESUME", "RESUME"]);
     expect(fonts.at(-1)).toContain("Patrick Hand");
-    expect((paper.atTwin as MeshBasicMaterial).map?.version ?? 0).toBeGreaterThan(version);
+    for (const [map, version] of versions) expect(map.version).toBeGreaterThan(version);
   });
 });
 
