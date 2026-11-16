@@ -334,3 +334,82 @@ exit 0
 - No departure from the plan beyond what §R-A3's rework paragraph records: the cap's face over the room, not a raised plate step, and the title row's words plated in place of the row.
 - No hook or bash-gate refusal of a command. One refusal by the permission layer: a Monitor whose script waited on the covering run's log with a shell loop needed approval. I didn't rephrase it; I waited for the background run's own notice. It goes on the page.
 - No new question.
+
+## rework3-029a: rv-029a-2's RR-1, and RR-2 to the note (T-A06)
+
+Branch `night/rework3-029a/rework3-029a`, based on `refs/heads/night/rework2-029a/rework2-029a` (tip `a4c8af8d`). The worktree had no `node_modules`, so `make setup` first (exit 0, last line "git hooks: … isn't writable here (the agent sandbox); the Author runs make git-hooks"). Every run used `npx --no-install`.
+
+### Why rework2's test passed
+
+`hud-over-layers.test.ts` judged a ring outside its control on the control's own shadow, then on the parent's layers: it took the ring to lie inside the parent's box. The title row's hint is `min-height: 2.75em`, which is the row's `--wall-title-h` track (`split.css`'s grid row 1). The title's toggle is 44 px (`.room button`), taller than the row wherever `scaleLeft` is under 1, and within 4 px of its edge under 1.18. So both rings lay 2 to 4 px above the panel's top, where only the plate's 0.25rem shadow lies over the bare room.
+
+### RED (`23888e5b`): `hud-over-layers.test.ts`, edited
+
+I edited the existing file (rework2-029a's, not a fix task's given test). No hook refused the edit, so no new file was needed. The ring's band (offset plus width) is now set against the parent's box from the declared sizes. The parent's height comes from a fixed grid track (display: contents passed through), else its `height`, raised to its `min-height`. The control's height is its `min-height` or `height`. The control is centred where the parent is a row that centres its items, else it sits at the parent's padding top (`padding-top` or the shorthand). A parent with no fixed height grows around its controls, so the band is taken to fit. Where the band leaves the parent, the ring is judged over the control's own shadow, if that reaches past the ring, and then the layers beyond the parent: its ancestors' up to the part, the split frame not counted (the frame starts at the title row's foot). Only the vertical axis is checked: the title row pads its sides by 0.25rem, the band. A new case pins the sizes: at 1366 × 768 both controls' bands leave the row.
+
+My first draft read only `padding-top`, so it also failed "Back" (`button.split-back … 2.41`). Its parent is the list itself, with `padding: 0.5rem 0.75rem` (shorthand) and `flex-direction: column`. That was a flaw in the model, not a finding: Back's ring lies 4 px inside the list's 8 px padding, on its own plate over the list's glass. I fixed the model (the shorthand, and the column's `align-items` being the horizontal axis) before the RED commit. Run at `a4c8af8d`'s CSS:
+
+```
+$ npx --no-install vitest run --maxWorkers=2 test/ui/hud-over-layers.test.ts      # from apps/web/
+ ❯ test/ui/hud-over-layers.test.ts (9 tests | 4 failed) 30450ms
+     × holds every ratio at 1366 × 768 (split), walking, in a conversation, the key caps included 26627ms
+     × holds every ratio at 1440 × 900 (split), walking, in a conversation, the key caps included 849ms
+     × holds every ratio at 1920 × 1080 (split), walking, in a conversation, the key caps included 857ms
+     × takes --over-plate-alpha's step as the lowest at which all of them hold (FR-003) 887ms
+AssertionError: expected [ …(2) ] to deeply equal []
++   "button.hud-toggle.talk-log-toggle \"Conversation\" focus ring over white: 2.41 under 3",
++   "button.split-hint \"EscClose\" focus ring over white: 2.41 under 3",
+ Test Files  1 failed (1)
+      Tests  4 failed | 5 passed (9)
+   Duration  114.88s (tests 95%, transform 3%, import 2%)
+```
+
+That is the review's number, at all three split windows. The column (1280 × 720) and dock (390 × 844) cases pass: their title row is a plated `.talk-head` whose buttons' rings are already inside (`room.css`'s `.hud-panels[data-over="room"] button:focus-visible`).
+
+### GREEN (`d2897e05`), in group A's CSS only (plan §9)
+
+`split.css`'s appended block, two rules after its last one (no rule above edited, `room.css` untouched):
+
+- `.talk[data-over="room"] .talk-log-toggle:focus-visible` and `… .split-hint:focus-visible`: `outline-offset: -4px`. The ring lies on the control's plate over the row's glass: 3.98:1 over white, the figure rework2's table gives for a ring on that plate.
+- `.talk[data-over="room"] .talk-log-toggle` and `… .split-hint`: `box-shadow: none`. No ring needs the shadow now, so the review's optional step is taken: the plate's shadow no longer overhangs the row. The plates keep their background and corners. The selector-list rule above (`background` with the shadow) is unedited, so `hud-over-contrast.test.ts`'s check (every plate rule carries its shadow) reads it as before.
+
+Both rules name `[data-over="room"]` (FR-005). No alpha changes; the alphas stay data in `room.css`'s `:root`. plan.md §R-A3 (a "Reworked by rework3-029a" paragraph), §R-A4, and tasks.md's T-A06 record this in the same commit.
+
+### For the item's note (not code)
+
+- **RR-2 (nit, his look).** Over the room the title toggle and "Close" lose spec 014's hover cue. The plate rule in `split.css`'s block (`.talk[data-over="room"] .talk-log-toggle`, `… .split-hint`, at (0,5,1), `background`) outranks `room.css`'s hover rule (`html[data-hud="column"] .hud-panels button:hover`, (0,3,2): `background: var(--tile-face-lit)` and an inset 1 px neon `box-shadow`; the toggle has no border, so `border-color` shows nothing). So walking, the pointer over either control changes nothing. That was rework2's code. This rework's `box-shadow: none` outranks the inset shadow as well, the same way, and changes nothing the visitor sees. A fix would be a `:hover` variant in the same block, which his look can ask for.
+- **Seen while fixing, for his look.** At `scaleLeft` under 1, the toggle's 44 px box is taller than the row, so its plate (now with no shadow) still reaches (44 − row) / 2 px above the panel's top. The ring is inside it, and the title's words are inside the row. It's a sliver of 0.5 glass at most a few px tall. Changing the target size is outside group A's CSS (FR-046's 44 px).
+
+### Runs (from `apps/web/`, GREEN at `d2897e05`)
+
+```
+$ npx --no-install vitest run --maxWorkers=2 test/ui/hud-over-layers.test.ts test/ui/hud-over-contrast.test.ts
+ Test Files  2 passed (2)
+      Tests  20 passed (20)
+   Duration  100.68s (tests 91%, transform 5%, import 4%)
+```
+
+COVERING-RUN
+
+```
+$ make lint      # from the worktree's root
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+879 files already formatted
+… shellcheck -- … (no output)
+exit 0
+```
+
+`make test`, `make evals`, and `make check` belong to T-INT, run once on the merged tree (the night's rule 4). The image stage fails in the workers' containers (night 3's Q46 and Q48), so it's left to his gate.
+
+### Departures and the page
+
+- No departure from the plan beyond what §R-A3's rework3 paragraph records.
+- No hook, bash-gate, or permission refusal this task. I waited on the background run by its own notice, never with a Monitor or a shell loop.
+- No new question.
