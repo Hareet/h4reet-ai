@@ -32,7 +32,9 @@ Tasks T-B01 to T-B04 of [tasks.md](tasks.md), against [plan.md](plan.md) §R-B1 
 - Three cases a run (36): the answers and the failures, with the layout's clauses after each answer and at the end;
   `turn_wait.room` at the hand-off's offer, then the kept words sent from the room; `cannot_talk.free_talk_closed`
   with every topic and free talk closed, and not `cannot_talk.unavailable`'s words. The RED assertion and each of the
-  two messages fail in cases of their own, so none hides another.
+  two messages fail in cases of their own, so none hides another. (Superseded by Q20 in rework-029b: with every topic
+  and free talk closed the test now expects `cannot_talk.unavailable`, and `cannot_talk.free_talk_closed` only while a
+  topic is ready; rework-029b's table, S-3.)
 
 ### rv-chat-029's CH-2: the reading of FR-011's clause
 
@@ -134,6 +136,9 @@ test-first, in a test commit before T-B02, and recorded the departure in plan §
 | `test/ui/talk-turns.test.ts` | shows topic_not_ready for a 409 and ends that conversation | (unchanged) | the typed turn after the 409's message |
 | `test/manifest.test.ts` | parses into every fixed message | (unchanged) | the list gains the two IDs |
 
+(The first row, with no topic ready, was restored to `cannot_talk.unavailable` by rework-029b under Q20; its RW-1 table
+below gives each case's value on this line.)
+
 Seen failing on the tree without the fix:
 
 ```
@@ -174,7 +179,8 @@ Files (plan §R-B3): `apps/web/src/room/hud/split.css` (the panel's block only),
   4. No route or no sender: `cannot_talk.unavailable`, unchanged.
   5. Free talk closed and no conversation open: `cannot_talk.free_talk_closed`.
 
-  The header comment says so.
+  The header comment says so. (Superseded by Q20 in rework-029b: step 5 shows `cannot_talk.free_talk_closed` only while
+  a topic is ready, else `cannot_talk.unavailable`; its T-B02 below lists the refusals as built.)
 - `messages.ts`'s `MESSAGE_IDS` and `content/messages.yaml` gain `cannot_talk.free_talk_closed` ("The twin isn't
   taking open questions yet. Select a piece in the room to talk about it.") and `turn_wait.room` ("The twin will answer
   once you're in the room."), the spec's drafts (Q4), for his words. `cannot_talk.free_talk_closed` is a
@@ -337,12 +343,18 @@ so. FR-014a's report line shows the state in his terminal."
 What this line adds for that step:
 - **Before:** `npm run room:report -w apps/web` prints, at `f411d8e1`'s config, "0 of 3 topics ready; free talk
   closed." and `pack hash changed` for `hobbies-and-travel`, `mission`, and `work-projects` (T-B03's paste above).
-- **In the room, until he marks them:** a piece shows `topic_not_ready`, as before. Typed text now shows
-  `cannot_talk.free_talk_closed` ("The twin isn't taking open questions yet. Select a piece in the room to talk about
-  it.", a draft for his words, Q4) in place of "The service is unavailable".
+- **In the room, until he marks them:** a piece shows `topic_not_ready`, as before. Typed text with no piece open
+  shows `cannot_talk.unavailable` ("The twin can't talk right now. The service is unavailable."), as on `f411d8e1`.
+  With no topic ready, Q20's recommended answer (provisional) keeps that message, so that no message points to a piece
+  that would refuse (`talk.ts:389`, `topicReady` from `app.ts:809`; the S-3 row of rework-029b's table below). What
+  differs from his screenshot's build is the log: it has its height, so the message shows in it. The readiness section
+  of the room report, not the panel, tells him why. (Corrected by rework2-029b, rv-029b-1's R-1: impl-029b's draft of
+  this step said typed text would show `cannot_talk.free_talk_closed` here, which Q20 changed.)
 - **After he marks the three hashes:** the same command prints "3 of 3 topics ready; free talk closed." (free talk
   stays closed: `free_talk: { ready: false }` on both commits, his to open or not). Then a piece's conversation sends
-  its turns again.
+  its turns again, and typed text with no piece open shows `cannot_talk.free_talk_closed` ("The twin isn't taking open
+  questions yet. Select a piece in the room to talk about it.", a draft for his words, Q4) in place of "The service is
+  unavailable".
 - The file is his alone (`.claude/settings.json` denies its edit, and tasks.md's rules list it). No agent touched it
   tonight.
 
