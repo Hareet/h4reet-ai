@@ -554,3 +554,19 @@ html[data-split="on"][data-hud="column"] .room-list[data-over="room"] li {
 html[data-split="on"][data-hud="column"] .talk[data-over="room"] .talk-head {
   box-shadow: none;
 }
+
+/* The title row's two controls draw their ring inside, on their own plate over the row's glass, as room.css's last
+   block does for the tiles and the other layouts' panel buttons (rework3-029a, rv-029a-2's RR-1). The hint is as tall
+   as the row (its 2.75em is the row's --wall-title-h track) and the title's toggle (44 px) meets the row's edge
+   wherever the row is under 52 px, so a ring 2 px outside either lay above the panel's top, on only its own shadow
+   over the bare room (2.41:1 over white). With the ring inside, neither plate needs a shadow, and nothing of theirs
+   overhangs the row. */
+html[data-split="on"][data-hud="column"] .talk[data-over="room"] .talk-log-toggle,
+html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint {
+  box-shadow: none;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-over="room"] .talk-log-toggle:focus-visible,
+html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint:focus-visible {
+  outline-offset: -4px;
+}
