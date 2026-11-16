@@ -66,7 +66,7 @@ The same words are in [spec.md](spec.md) ("Source: The Author's Words").
 
 ## Integration (last)
 
-- [ ] T-INT From `impl-028a`'s tip (since the rework: `rework-028a`'s tip): merge `impl-028b`'s and T-DOC's branches; resolve `src/room/app.ts` and any shared file by plan §6, keeping both groups' changes; then edit row V1's still sentence (FR-002, FR-030) in `docs/data-flow-disclosure.md`, with `test/disclosure.test.ts` and `evals/test_disclosure.py` (cell for cell). Run every test file both groups' notes list, then the one full `make check`, and paste it in the stack's note, `docs/merge-requests/<date>-028-room-after-review.md`, with what waits for his hand (plan §7) and his look (SC-008). No merge to `main`, no push.
+- [x] T-INT From `impl-028a`'s tip (since the rework: `rework-028a`'s tip): merge `impl-028b`'s and T-DOC's branches; resolve `src/room/app.ts` and any shared file by plan §6, keeping both groups' changes; then edit row V1's still sentence (FR-002, FR-030) in `docs/data-flow-disclosure.md`, with `test/disclosure.test.ts` and `evals/test_disclosure.py` (cell for cell). Run every test file both groups' notes list, then the one full `make check`, and paste it in the stack's note, `docs/merge-requests/<date>-028-room-after-review.md`, with what waits for his hand (plan §7) and his look (SC-008). No merge to `main`, no push.
 
   **Added by `rework-spec-028`** (group B's changes and the patch order; T-INT starts from `rework-028a`'s tip, which holds the reworked spec, in place of `impl-028a`'s): before the one `make check`, in this order, each test-first where it touches code, each run pasted in the stack's note:
 

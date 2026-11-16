@@ -131,11 +131,127 @@ So, as FR-032 says: **a cut-out dinosaur visit shows no scene and no eating unti
 
 ## Runs
 
-(running)
+Every run below is on this branch. `npm ci --ignore-scripts` ran once at the root (exit 0). vitest ran from `apps/web/` with `--maxWorkers=4` (`/sys/fs/cgroup/cpu.max`: `400000 100000`). I used `node_modules/.bin/…` and never bare `npx`.
+
+**The task's own files** (rule 4), on each change, as above: `test/disclosure.test.ts` (11 passed) and `evals/test_disclosure.py` (36 passed) after GREEN. The four guard files (`test/ui/hud.test.ts`, `hud-faults.test.ts`, `loading-faults.test.ts`, `test/room/dino-scene-wiring.test.ts`): `Test Files 4 passed (4) · Tests 52 passed (52)`. Under the two mutations, reverted: `Tests 35 failed | 17 passed (52)`. `make lint` after the documents (`2057fa10`): exit 0, with "All matched files use Prettier code style!", ruff "All checks passed!", "863 files already formatted". `pytest evals/test_repository_docs.py evals/test_docs_links.py evals/test_disclosure.py`: 97 passed. `docs_links.py`: "0 failed, 2524 relative links in 476 files".
+
+**Every test file both groups' notes list**: 114 vitest files (each `test/…test.ts` path or short name in `impl-a.md` and `impl-b.md` that names a file in the tree), alone on the machine, in the background (limit 2 h), ended by its own notice. Then the seven Python files the notes list:
+
+```text
+$ cd apps/web && ../../node_modules/.bin/vitest run --maxWorkers=4 <the 114 files>   # at 14de69cb
+ Test Files  114 passed (114)
+      Tests  2184 passed | 3 skipped (2187)
+   Start at  23:31:38
+   Duration  903.22s (tests 75%, import 25%)
+exit=0
+$ python3 -I -m pytest -q -p no:cacheprovider evals/test_disclosure.py evals/test_docs_links.py evals/test_repository_docs.py scripts/assets/test_credits.py deploy/scripts/test_dashboard.py deploy/scripts/test_observability.py scripts/corpus/test_film_claims.py
+611 passed in 6.40s
+exit=0
+```
+
+`twin-2d.test.ts` passed in both runs, so it needed no rerun alone. `bundle.test.ts`'s placeholders case (verify-028a's timing note) passed in both.
+
+**The stack beside `main`'s new commit** (`b4b474f1`, his C-0005 entry): `git merge-tree --write-tree HEAD refs/heads/main` (tree `a8acb449`, no conflict), exported to a scratch folder with this checkout's `node_modules` linked in. There, the tests that read the approvals, `content:check`, and `evals/test_room_order.py` ran:
+
+```text
+$ ../../node_modules/.bin/vitest run --maxWorkers=4 test/approvals.test.ts test/content/author-pdf.test.ts test/content/publication.test.ts test/content/film-links.test.ts test/content/narration.test.ts test/room/policy.test.ts test/room/text.test.ts test/smoke.test.ts
+ Test Files  8 passed (8)
+      Tests  191 passed | 2 skipped (193)
+exit=0
+$ npm run content:check
+content: C1–C9 and N1–N5 passed for the resume and 44 scripts (denylist missing); the lock and the eval cases are current
+$ python3 -I -m pytest -q -p no:cacheprovider evals/test_room_order.py
+42 passed in 0.54s
+```
+
+**The one full `make check`**, at `942de6eb` (the tree as this note's runs left it), alone, in the background (limit 2 h), ended by its own notice. **Exit 2.** Its summary, then the lines of the stages that matter:
+
+```text
+$ make check > "$LOG" 2>&1; echo "exit=$?"
+corpus-check: OK — 44 slots, 26 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
+ (services/gateway)  Test Files  102 passed (102)      Tests  1710 passed | 13 skipped (1723)
+ (services/relay)    Test Files  2 passed (2)          Tests  66 passed (66)
+ (apps/web)          Test Files  261 passed (261)      Tests  4606 passed | 3 skipped (4609)
+7290 passed, 25 skipped in 661.55s (0:11:01)
+-> PASS test
+resume: the PDF is apps/web/content/resume-author.pdf, which main approves (PDF1 to PDF9 passed; the private denylist is missing here, so PDF4 checked the public list only)
+content check: PASS (49 content files: 3 approved by main, 46 drafts, none of whose text is in dist/)
+secrets: PASS (unstaged changes, staged changes, 223 commits since main)
+docs links: 0 failed, 2527 relative links in 477 files
+-> WARN evals (WARN (behavioral tier): no run for trigger hash e061ea4d7978 in evals/agent-config/history/; the Author runs make evals-agent-config REF=<branch> from main's checkout, and commits its entry on the branch with the commands it prints)
+redteam: 71 passed, 0 failed
+forbidden-actions (hook layer): 1017 passed, 11 failed, 68 known gaps
+-> FAIL matrix
+gateway image: building h4reet-gateway:working-tree from /home/h4reet/h4reet-ai/night/2026-11-15/int-028
+ERROR: Error response from daemon: Client sent an HTTP request to an HTTPS server.
+gateway image: h4reet-gateway:working-tree didn't build (docker exited 1); the output above says why
+-> FAIL image
+
+PASS     makefiles-check
+PASS     githooks-check
+PASS     toolchain-check
+PASS     policy
+PASS     validate-config
+PASS     lint
+PASS     test
+PASS     content-check
+PASS     secrets
+PASS     arrival
+PLANNED  infra-check  PLANNED (T011): the provider mirror, /night/home/.local/share/h4reet/terraform-providers, is the Author's make infra-mirror
+SKIP     infra-plan-note  no infra change
+PASS     disclosure-check
+WARN     evals  WARN (behavioral tier): no run for trigger hash e061ea4d7978 in evals/agent-config/history/; the Author runs make evals-agent-config REF=<branch> from main's checkout, and commits its entry on the branch with the commands it prints
+PASS     redteam
+FAIL     matrix
+FAIL     image
+make check: 12 PASS, 1 SKIP, 1 WARN, 1 PLANNED, 0 PENDING, 2 FAIL; failing: matrix FAIL, image FAIL
+make: *** [Makefile:168: check] Error 1
+exit=2
+```
+
+(The three test lines are condensed from vitest's own summaries, one per workspace. Every other line is copied from the log as printed.)
+
+**The two failures are the container's, not the stack's.**
+
+- **matrix**: its 11 FAIL rows are all stage S, which probes this sandbox. They are the same 11 rows night 2's stack pasted (`2026-11-14-night-stack.md`, "matrix: FAIL, the container's, not the stack's"):
+  - 8 rows: the studio's photos, outputs, workflows, and blinding-key folders, "nothing at its path from inside the sandbox".
+  - 2 rows: `~/.config/h4reet-ai` and `~/.local/state/h4reet`, which have "no mask: open writable /night/home".
+  - 1 row: "an AF_UNIX socket was allowed (expected EPERM)".
+- **image**: docker's first request to the agents' engine failed before any build step read the tree. The error differs from night 2's ("error during connect … EOF"): the engine's endpoint now answers HTTPS to the container's HTTP client. That is the runner's and the engine's configuration, not the stack's. **For his look**, beside the runner's mounts.
+- **evals: WARN**: the behavioral tier's run is the Author's. Its note says the gate waits for it "only for a branch that changes CLAUDE.md, REVIEW.md, .claude/, or the Claude Code pin", and this stack changes none of them.
+
+The stack changes nothing the matrix, the image, or the agent-config evals read:
+
+```text
+$ git diff --stat refs/heads/main HEAD -- redteam .claude tools/gates evals/agent-config deploy/agents-engine services/gateway deploy/scripts/gateway_image.py Makefile; echo "exit $?"
+exit 0
+```
+
+`make test` and `make evals` ran inside `make check` (its `test` and `evals` stages above), and so did `make lint` (PASS).
+
+**After `make check`**, this note and `tasks.md`'s T-INT box were the only changes. Then:
+
+```text
+$ make lint > "$L" 2>&1; echo "lint exit=$?"     # shellcheck lines filtered from the paste
+lint exit=0
+All matched files use Prettier code style!
+All checks passed!
+864 files already formatted
+$ python3 -I -m pytest -q -p no:cacheprovider evals/test_repository_docs.py evals/test_docs_links.py evals/test_disclosure.py
+97 passed in 1.03s
+$ python3 -I evals/docs_links.py | tail -1
+docs links: 0 failed, 2527 relative links in 477 files
+$ TMPDIR=<node_modules/.int028-tmp> ../../node_modules/.bin/vitest run --maxWorkers=4 test/disclosure.test.ts
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+exit=0
+```
+
+**`/tmp` is full** (a 2 GB tmpfs, 22 MB free at ~00:39Z). The first try of that last vitest run failed with "No space left on device (os error 28)". About 1.1 GB of it is my three scratch exports (`/tmp/tmp.rSSjxwLDQQ`, `/tmp/tmp.E1bFPFyipr`: the two patch dry-runs; `/tmp/tmp.mZUgoZtJ7p`: the merge with `main`). The rule says never delete in `/tmp`, so they stay, for the supervisor or the runner. The rerun used a git-ignored folder under `node_modules/` as `TMPDIR`. A later task that runs vitest in this container may hit the same limit.
 
 ## Refusals
 
-(none so far)
+One, a false match on text I was writing, ~00:20Z (2026-11-16). Writing this note's Runs section to a scratch file through a bash heredoc, the bash gate refused it: "Blocked by .claude/hooks/bash-gate.sh — an Author-only make target. Route: make publish-check, make tools, make matrix-canary, and make evals-agent-config: the Author runs it (spec 000 plan §13); ask the Author". The heredoc ran no target: its text held `make check`'s pasted WARN line, which names that target. I didn't respell it. The section was written with the Edit tool instead. No other refusal: every commit's hooks passed (gitleaks "no leaks found"; "arrival-check: 0 findings"). Nothing was deleted in `/tmp`.
 
 ## Questions
 
@@ -143,4 +259,47 @@ One, to `/night/io/out/questions.md`, with the measured band of I-1 (above); rec
 
 ## For the repo agent and the Author
 
-(written at the end)
+**The stack**: `feat/028-room-after-review` (the naming task names it and fills in its tip: ____). It is this branch, `night/int-028/int-028`, at its last commit. The line it carries: spec 028's documents, the two probes, group A (`impl-028a`, `rework-028a`, `verify-028a`), group B (`impl-028b`, `rework-028b`, `rework2-028b`, `verify2-028b`), ADR 0055's amendment (`doc-028`), the docfixes, and T-INT. Its base on `main` is `a36f98ec`. `main` is now `b4b474f1`, his C-0005 commit, and `git merge-tree` of the stack and `main` has no conflict.
+
+**The gate**: his, from `main`'s checkout: `tools/gates/gate feat/028-room-after-review`. Never `make check` in his terminal.
+
+**The merge order, with every patch for his hand** (the page's Q42, recommended, taken provisionally; plan §7):
+
+| # | Step | File | SHA-256 |
+|---|---|---|---|
+| 1 | Human patch 022 (corpus from the film scripts), on `main` already as a file | `docs/merge-requests/2026-11-14-corpus-film-scripts.patch` | `d05a7bf11e87c0853ec466eb80b0ede0d28748663a1fab0ac1a7414f0daf7c15` |
+| 2 | Gate, then merge the 028 stack | `feat/028-room-after-review` | (its tip, by the naming task) |
+| 3 | Human patch 026 r4 (the dog's sign, rebuilt on main + 022 + the stack by `patch7-026`) | `human-patches/026.md` names it | (r4's, filled in by the naming task) |
+| 4 | Human patch 028's P1, last (the dog visitor's introduction slot, null) | `docs/merge-requests/2026-11-15-corpus-dog-visitor-intro.patch` | `570399a0f2d8ee31fde54243b026c52132505362620dca1f17a47bfc9e5af8ce` |
+
+After step 4, once, from `apps/web/`: `npm run room:generate`, `npm run twin:pack`, `npm run content:lock`, then commit what they write (`human-patches/028.md` P1, "His steps"). He evaluates the three topics once. P1's dry-runs (T-INT): on plain `main` exit 0, on main + 022 exit 0. The check after r4 is the naming task's. P1's proposal is `corpus/proposals/dog-intro-2026-11-15.md` (on the stack). The slot's sentence is his words. No worker fills it.
+
+**What ships as a stand-in**:
+
+- **The dinosaur**: its flat cut-out, until his intake (P9). A cut-out dinosaur visit shows no scene, no room's dog, and no eating (FR-032; Q11 and his Q3 answer). Its "why" shows only where "Around the room" does (the dock and stacked layouts, or while it holds focus).
+- **The dog visitor's introduction**: the slot is null, so a dog visit shows no line until he fills it (P1, then his words).
+- **The scene's data**: `figures.leave` in `apps/web/room/scene.yaml` holds estimates, each marked `# estimated`, for his look. Group B's tests use fakes and fixtures: the scene's pictures and timings on the real models and the bubble on a real canvas are untested.
+
+**What waits for him (item 2)**:
+
+- **The resume's publication, P8, now** (rule 14). His C-0005 entry is on `main` (`b4b474f1`). The other half of P8 isn't on `main` yet: the `git mv apps/web/content/candidates/resume-author-links.pdf apps/web/content/resume-author.pdf` that `023.md` names. `main` still serves C-0002's file (`5523e532…`), which has no film links. So until that move lands, the PDF a visitor downloads has no film links. Before it, `sha256sum` of the candidate should print `5de0e7ee…ff21fb` and `pdfinfo -url` should list eight URLs (`023.md`). The four clicks go on his publication checklist, for the day the repository goes public.
+- **The dinosaur's intake, P9** (human patch 021). It turns on the scene and then the eating.
+- **His look (SC-008)**: the panel and the column beside the walls, and their sizes. That includes 1366 × 768 and 1440 × 900, where the room is 5.3% and 12.0% smaller than spec 005's (I-1, measured; the page's Q36 and this note's question). Also: the taller tile rows, the list's cap slot, "Around the room" in the dock layout and its focused overlay, the scene's path and timing, and the bubble.
+- **ADR 0055's amendment**: accepted with this stack (its status line).
+
+**The backlog** (each finding the line's note routes "backlog", and what T-INT left):
+
+- rework-spec-028's Observation (patch 026's hunk on main + 022; `patch4-026`'s, page Q23; overtaken by r3 and r4).
+- record2-dino-r2's N1, in part: his night-3 words on the mesh review aren't quoted, and `studio-round-2.md:607` is untouched.
+- probe-eat's EAT-I2 (process; the fix is already in the briefs).
+- rv-docfix3-028's Nit D (`docfix3.md:84`, "17 of `spec.md`" where its list holds 18) and Nit E (`probe-pdf.md:334`, "the four film URLs").
+- Group A's item-note nits (`impl-a.md`, "What's left"): A1-N2 to A1-N5, A2-3, A2-5, A2-6, A2-7.
+- Group B's (`impl-b.md`): B1-4, B1-5, B1-N2, B1-N3, B1-N5, B2-N1 to B2-N5, B3-N2, B3-N3's unparsed facts file, B3-N4.
+- BR-2 (the bubble's "above the twin's head" untested; why: above).
+- verify-028a's timing note (`bundle.test.ts`'s placeholders case near its 60 s limit on a shared CPU).
+- The proposed `CLAUDE.md` lines, his to take or leave, each in its review's words:
+  - rv-rework-spec-028: "Changing what an earlier spec's clause, recorded answer, or human-patch note says without a row in the spec's Amendments table naming that clause."
+  - rv-probes-028: "Quoting a recommendation that was taken under a standing rule ("Answered: recommended") as the Author's own words: quote the page's `Answered:` line beside it, and cite the page, not a note that retells it."
+  - rv-probes-028: "Running `npx <tool>` where `node_modules` is missing: npx fetches and runs an unpinned package; call `node_modules/.bin/<tool>` after `make setup`."
+  - rv-028b-3: "Fixing a RED test's own mistake inside its GREEN commit: commit the corrected test alone, seen failing, before the code, and name it in the notes."
+  - rv-rework2-028b: "Writing a room ID (a piece, placement, selectable, or topic) in code or a test, in a string or a property name: spec 004's scan fails `make check`. Read it from the bundle (`test/helpers/room-ids.ts`) or use an `fx-` ID, and run `npm run room:scan -w apps/web` before GREEN."
