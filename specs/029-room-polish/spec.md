@@ -1,0 +1,295 @@
+# Feature Specification: The Room's Polish After the Author's Review of the 028 Line
+
+**Feature Branch**: `night/spec-029/spec-029`, cut from `f411d8e1` (the 028 line's tip, which holds `main`'s `a556a933`; documents only). The implementation is four groups beside each other, T-A to T-D, each from this branch's tip, then one integration task, T-INT ([tasks.md](tasks.md)).
+
+**Created**: 2026-11-16 (night 4)
+
+**Status**: Draft. Specified, clarified, planned, tasked, and analyzed in one session from the draft intent [`intent/029-room-polish.md`](../../intent/029-room-polish.md). Every clarification answer below is the recommended one, taken under the Author's rule 1 for night 4 ("Approval, given ahead"), provisional and his to confirm or overturn on the morning page; none is his answer. Each is also in `/night/io/out/questions.md`. An answer he overturns is reworked before he merges.
+
+**Input**: the intent; the [constitution](../../.specify/memory/constitution.md); `CLAUDE.md`; the specs this changes: [002](../002-the-room/spec.md) (the choice screen, FR-001 to FR-004, FR-046; the hand-off's paper, FR-007, FR-008), [004](../004-room-composition/spec.md) (the desk signs' lettering, FR-032; the monitor, FR-031; reduced motion, FR-059), [005](../005-full-window-room/spec.md) (the HUD's palette, FR-024, FR-025), [007](../007-twin-conversation/spec.md) (the conversation, FR-015, FR-032 to FR-041), [008](../008-visitor-movement/spec.md) (the walking view), [009](../009-room-avatars/spec.md) (FR-010, the choice screen kept as it is), [012](../012-loading-screen/spec.md) (FR-017, the same), [014](../014-room-after-the-demo/spec.md) (the cover cap, the paper's grip FR-038 to FR-042), [018](../018-better-hud-and-load-screen/spec.md) (the split layout's contrast, FR-014, SC-003), [020](../020-dog-modeled-and-brought-in/spec.md) (FR-009, D2), [024](../024-dino-eats-room-assets/spec.md) (the busy sign is edible), [026](../026-twin-pets-dog/spec.md) (the dog sign, FR-013, FR-016), [028](../028-room-after-review/spec.md) (the layout beside the walls, FR-001 to FR-016, SC-008); `corpus/07-denver-local-ai.md`, `corpus/00-profile.md`, `corpus/intake/interview-2026-11-06-hobbies-mission-work.md`, `corpus/facts/hobbies-and-travel.yaml` (read only); `config/twin/prompt.md` (the two depth sections). The code, read at `f411d8e1`: `src/talk/talk.ts`, `src/talk/turn-client.ts`, `src/main.ts`, `src/room/app.ts` (`open`, `renderTalk`'s options), `src/room/hud/split.ts`, `hud/split.css`, `src/room/room.css` (the palette, `--glass`, `--glass-alpha`), `src/room/layout.ts` (`data-walk`), `src/choice/choice.ts`, `choice/avatars.ts`, `choice/visit.ts`, `choice/choice.css`, `src/room/faces/*` (the six renderers; `terminal.ts`'s cursor), `src/room/scene/faces3d.ts`, `scene/bundle3d.ts` (the sheet), `src/room/flat.ts` (the 2D paper), `src/room/motion.ts`, `apps/web/room/scene.yaml`, `room/catalog/busy-sign.yaml`, `dog-sign.yaml`, `desk-screen.yaml`, `neon-sign.yaml`, `room/ui-words.yaml`, `room/hints.yaml`, `content/messages.yaml`, `content/resume.yaml`; and the tests `test/ui/choice.test.ts`, `test/ui/a11y.test.ts`, `test/helpers/room.ts`, `test/ui/talk*.test.ts`, `test/ui/hud-split-contrast.test.ts`. Paths are under `apps/web/` unless they start otherwise.
+
+**Probes beside this spec** (the supervisor's, on `night/probe-{chat,words,pick}-029/*`): `probe-chat-029` (B0, the conversation's cause), `probe-words-029` (group C's words), `probe-pick-029` (group D's screen). Their notes, `specs/029-room-polish/probe-{chat,words,pick}.md`, are the plan's inputs (plan §2).
+
+**Not seen**: his screenshot (`resume/Screenshot 2026-11-15 205554.png`, in his checkout) is out of this session's reach. This spec works from the orders' description of it, which is not his words, and says so where it leans on it.
+
+## Source: The Author's Words
+
+His review of `feat/028-room-after-review-p`, run locally, 2026-11-15 about 21:00 his time, verbatim:
+
+> Okay feedback: Looks great! Dinosaur is in there and the scene of the twin and dog leaving the bicycle works, along with the eating of the desk! A few things to improve: 1) The Interface on both sides of the room looks great, but when walking around or using a smaller browser window, the interface overlaps with the room, i think we could make the interface have an opaque or transparent background, so that it way in those conditions the interface won't block the room visibility. You can see this in the latest screenshot in resume/ 2) We seem to have broken the conversation chat, let's ensure we test it, from the latest screenshot in resume/ you can see that we can't see the chat output in the box below the input text field of "your message" 3) Tying up some last asset polishing, let's add "I AM VERY BUSY" to the desk-sign, let's add "My dog things I'm cool" with a paw print to the dog sign, and let's make the resume paper that the visitor holds into a drawn asset paper that says "RESUME" in diagonal. The monitor should say "Applied AI Engineer" with the cursor in green font
+
+His added item, a few minutes later, verbatim:
+
+> Oh one more item we want to add to that spec: Let's make the character selection screen more Game-like. "Step 1: Select your role" and then a card that displays the output of that selection, The twin will describe projects and goals as if talking to a non-technical person, etc". "Step 2: Select your avatar' And then game-character like selection cards for our choices
+
+His answer to one question (2026-11-15), the option label his choice and the rest the orders' record of what it means:
+
+- The words on the pieces: "Drawn in the room's code (Recommended)": the text and the paw print are drawn as textures on the existing pieces (no studio round, no new model); the monitor reads "Applied AI Engineer" with a green cursor.
+
+The orders' description of his screenshot (theirs, not his): "the walking view, a visitor in front of the desk. The right column's piece list (Snowboard to Dog) and its dark panel cover the right part of the room and the twin; the bottom-right buttons sit over the floor. The conversation panel on the left reads "SERVING Unknown", "THIS CALL no call yet", "THIS VISIT $0"; the field holds "What is this" with Send focused; the box below it is empty, with no answer and no message."
+
+**Readings, beside his words, never in their place.**
+
+- His points are 1 to 3 and the added item; this spec's groups A to C are his points 1 to 3, and group D his added item.
+- "when walking around or using a smaller browser window" is read as two cases: the walking view (spec 008's follow camera, which fills the whole stage with the room, so every HUD part lies over it) and the layouts other than spec 028's split layout (column, dock, stacked), where spec 014's cover cap lets the HUD lie over up to a quarter of the room. In the split layout at the room's framing, the panels sit in the grey bands beside the walls (spec 028's FR-006) and cover none of it (Q2).
+- "an opaque or transparent background" is read as a see-through backdrop: the room shows through it, and its words stay legible (Q1).
+- "the box below the input text field of "your message"" is read as the conversation's log (`#talk-log`), where the twin's answers and the fixed messages show (Q3). In the split layout the log is drawn above the text box row (`hud/split.css`, the panel's grid rows 3 and 5); the empty box below the field in his screenshot is a place this spec doesn't know from the description alone, and B0 records which box it is.
+- In the screenshot's description the field still holds "What is this" and "THIS CALL" reads "no call yet". On `f411d8e1`, a sent turn clears the field (`talk.ts`, the form's submit) and every turn's end reaches the cost channel (`onTurnOutcome`); a failed turn gives the words back to an empty field and shows a fixed message. Reading (this spec's, not a diagnosis): no turn may have gone out at all; B0 finds out.
+- From `a36f98ec` (`main` before the 028 line) to `f411d8e1`, nothing changed under `src/talk/`, `src/main.ts`, `src/choice/`, `services/relay/`, `services/gateway/`, or `config/routing.yaml` (`git diff --stat`); `src/room/app.ts` and `src/room/hud/split.*` did. "SERVING Unknown" is the stats' `stat.tier.unknown` (`ui-words.yaml:106`): the tier signal wasn't known.
+- "the desk-sign" is the `busy-sign` piece on the desk; "the dog sign" is `dog-sign` on the right wall; "the monitor" is `desk-screen`'s `screen` face; "the resume paper that the visitor holds" is the sheet the twin hands over and the visitor keeps (`scene/bundle3d.ts`'s `paper` and `kept`, an A4 plane drawn in code, plain white; `flat.ts`'s `PAPER` in 2D).
+- "My dog things I'm cool" is read as "My dog thinks I'm cool", a typo (Q6): spec 004's FR-032 records the sign's words "exactly as the Author wrote them", "my dog thinks i'm cool"; the catalog names the piece "Desk sign: my dog thinks i'm cool" (`catalog/dog-sign.yaml:10`); his interview's question quotes the sign the same way (`corpus/intake/interview-2026-11-06-hobbies-mission-work.md:19`).
+- "with the cursor in green font" is read with his answer's "with a green cursor": the line and its cursor in the terminal's green (Q7).
+- "Applied AI Engineer" is in the corpus: "`[A 2026-10-30]` His resume label for the company, in his words: "(co-owner, Applied AI Engineer)"." (`corpus/07-denver-local-ai.md:10`), and the site's line at `:8`; the resume carries it (`content/resume.yaml:264`). His title at Medic in the corpus is "Applied AI Engineering Lead" (`corpus/00-profile.md:8`, `[A-BIO, A 2026-10-07]`). The monitor shows his order's words (Q8).
+- "Step 1: Select your role" names the path of spec 002's FR-001 (`choice/visit.ts`'s `PATHS`: `engineer` "Engineer", `non-engineer` "Not an engineer"; no others). "The twin will describe projects and goals as if talking to a non-technical person" is his example of what the card shows for "Not an engineer"; it agrees with the code: the path sets the twin's depth (`config/twin/prompt.md`'s `## Depth:` sections) and which narration script a resume item plays (`narration/view.ts`), with the same facts in both (Q11).
+- "game-character like selection cards for our choices" is read as one card per avatar of `choice/avatars.ts`'s `AVATARS` (woman, man, dinosaur, dog, in that order), each with a picture, a name, and a line, and a clear selected state (Q12, Q13).
+
+## Clarifications
+
+### Session 2026-11-16, taken under the Author's rule 1 for night 4
+
+His rule, from the brief's words: "**Approval, given ahead.** The spec-writer takes the recommended answer at clarify and at the plan, as for nights 1 to 3, and records at the top of `plan.md` and `tasks.md`: "Approved provisionally by the Author's order of 2026-11-15 (night 4)", with his words above. Each question still goes on the morning page with its recommended answer; an answer he overturns is reworked before he merges." Each answer below is taken that way; the other options are kept.
+
+**Group A, the side panels see-through**
+
+- **Q1: What is "an opaque or transparent background"?** → Taken: **a translucent backdrop with a plate behind each text**: where a HUD part lies over the room, its glass (the panel's frame and title row, the list's glass, the bar's glass, the dock's sheet) drops to a translucent alpha so the room shows through around and between its words, and each run of words (a log line, the status, the label, a stat, an entry, a heading, a tile's words) sits on its own plate, dense enough that every text keeps WCAG AA contrast over the brightest pixel the room can put beneath it (option A). Others: (B) one uniform translucency, the least alpha that keeps AA over white for every text (about 0.65 for the muted text against today's 0.78 in the split layout: little more of the room shows); (C) the panels hide while walking and come back on a pointer or focus. Reading: "so that it way in those conditions the interface won't block the room visibility"; with the room's palette (`--glass` 16 20 26, `--split-muted` `#e8e4dc`), a whole panel can't be much clearer than today and keep AA over white, so option B wouldn't show the room, and option C takes the conversation away while he walks. (FR-001 to FR-004.)
+- **Q2: Where is a part "over the room"?** → Taken: **computed per part from its box**: a part is over the room where its on-screen box meets the room's on-screen box: in the walking view, the whole stage (the follow camera fills it); otherwise spec 028's wall box at the room's framing (in 2D, the drawing's view box as placed, spec 028's `flatProtectorFor`). Parts in the grey bands keep today's look, box for box and colour for colour (option A). Others: (B) every part translucent while walking or outside the split layout, without geometry; (C) translucent everywhere, always (against "unchanged where they sit in the grey bands", the brief's words). Reading: his "when walking around or using a smaller browser window"; the brief's "with the panels unchanged where they sit in the grey bands". (FR-001, FR-005.)
+
+**Group B, the conversation**
+
+- **Q3: Where must the answer show: "the box below the input text field"?** → Taken: **in the conversation's log, where each layout puts it today**, and the log must be visible in every layout and view where the text box is (option A). Others: (B) move the log below the text box row in the split layout, where his words place the empty box; (C) both: the log above, and the latest answer repeated below the field. Reading: the log is the one place the twin's answers and fixed messages show (spec 007, FR-035, FR-036); his words name where he looked. B0's note says which box was empty in his view; if it finds the log is drawn below the field in that state (for example in the dock layout's sheet, or the walking view), option A already places it there. (FR-010, FR-011.)
+- **Q4: What does the panel show when the room doesn't take the words (no route, no sender, or the room not yet taking input)?** → Taken: **always a fixed message, never nothing**: the cases spec 007 already answers keep their messages (`cannot_talk.unavailable` and the rest); the one silent case on `f411d8e1`, a send while the room doesn't take input (`app.ts`'s `open()` false: during the hand-off and its offer), shows a new fixed message `turn_wait.room`, "The twin will answer once you're in the room.", its words a message of `content/messages.yaml`, the text left in the box (option A). Others: (B) keep the silent case, and disable Send while the room doesn't take input; (C) queue the turn and send it when the room opens. Reading: his "we can't see the chat output", and Principle I's "Every user-facing capability MUST define its degraded mode before its happy path": an empty box tells the visitor nothing. The words state nothing about the Author. (FR-012.)
+- **Q5: Should the conversation's test be a real-browser test?** → Taken: **not tonight: a DOM test through the real panel code now, and a real-browser test named as a follow-up**, since it needs a browser download, which the brief forbids tonight (option A). Its needs are in plan §R-B4: a pinned Playwright and its Chromium in the devcontainer image (the image is built in CI, a change he approves), a preview of the built site with a fake turn route, one `make` target, and a gate line. Others: (B) a jsdom test only, no follow-up; (C) add the browser tonight (refused by the brief). Reading: jsdom computes no layout, so a DOM test can't see a log squeezed to no height by a grid row, or covered by another box; a browser can. The DOM test evaluates the stylesheets' rules on the log and its ancestors (the way `test/ui/around.test.ts` does) to close as much of that gap as it can. (FR-013.)
+
+**Group C, the words on the pieces**
+
+- **Q6: Is "My dog things I'm cool" "My dog thinks I'm cool"?** → Taken: **yes, a typo**: the dog sign reads "My dog thinks I'm cool" (option A). Others: (B) "My dog things I'm cool", as typed; (C) "my dog thinks i'm cool", the physical sign's own lowercase (spec 004's FR-032). Reading: the orders' own reading, "Read it as "My dog thinks I'm cool" (a typo)"; spec 004's FR-032, the catalog, and his interview's question all hold "thinks". His capitals are kept. (FR-018.)
+- **Q7: What is green on the monitor?** → Taken: **the line and its cursor both, in the terminal's green**: "Applied AI Engineer" then a block cursor, all green on the screen's dark ground (option A). Others: (B) the cursor alone green, the words the terminal's off-white ink; (C) the words alone green. Reading: his words "with the cursor in green font" name a font colour; the option he chose says "with a green cursor"; an all-green line satisfies both. (FR-019.)
+- **Q8: Must any of the pieces' words be corpus?** → Taken: **no proposal**: the monitor's line is already in the corpus ("(co-owner, Applied AI Engineer)", `corpus/07-denver-local-ai.md:10`), and its data carries that claim, which the build checks as `content/resume.yaml`'s claims are checked; the two signs' words are his signs' own words (spec 004's FR-032: "with its words exactly as the Author wrote them"), and "RESUME" is a label; none states a fact beyond the corpus (his dog is the corpus's "## Arya"). All four are the room's data, never literals in code (option A). Others: (B) all four as a corpus proposal for his hand, the pieces plain until he applies it; (C) the monitor shows the corpus's Medic title, "Applied AI Engineering Lead" (`corpus/00-profile.md:8`), not his order's words. Reading: the brief: "words that must be corpus go as a proposal in `corpus/proposals/`, not into code"; `probe-words-029`'s note is this answer's input, and if it finds a word that must be corpus, the plan routes that word to a proposal. (FR-021.)
+
+**Group D, the selection screen**
+
+- **Q9: How does the screen stay keyboard- and reader-friendly as cards?** → Taken: **the cards are the native radio groups, restyled**: each step is one `fieldset` whose `legend` is the step's title, each card a `label` holding its native radio (`name="path"` or `name="avatar"`, today's values and accessible names), so the browser's arrow keys move and select within a step, Tab moves between steps, and every card is a labelled control; the "Enter" button stays (option A). Others: (B) a custom `radiogroup` of buttons with roving tabindex (re-implements what the browser gives, and changes the selectors 68 test files reach through `test/helpers/room.ts`'s `radio()` and `enter()`); (C) a two-page wizard, step 2 shown only after step 1 (one more control and a page change). Reading: the brief: "arrow keys within a step, focus moves to step 2 after step 1, every card a labelled control". (FR-024 to FR-035.)
+- **Q10: When does focus move to step 2?** → Taken: **on a choice that confirms, not on an arrow**: a click or tap on a role card, or Enter on a role card, moves focus to step 2 (its chosen card, else its first); arrow keys move only within step 1; Enter in step 1 never submits the form (option A). Others: (B) on every change of step 1, arrows included (arrowing from "Engineer" to "Not an engineer" would leave step 1: against "arrow keys within a step"); (C) never: Tab only. Reading: WCAG 2.2's 3.2.2 ("On Input") keeps a setting's change from moving the visitor elsewhere unasked; a click or Enter on a card is the visitor's own step forward. (FR-032.)
+- **Q11: What does each role card say?** → Taken: **these drafts, each from what the path changes in the code**, on the page for his words (option A):
+  - "Engineer": "The twin will describe projects and goals at an engineer's depth: the architecture, the trade-offs, and how the systems work. Each resume item's narration takes the engineer's script. The facts are the same on both paths."
+  - "Not an engineer": "The twin will describe projects and goals as if talking to a non-technical person: what the work does and why it matters, without jargon. Each resume item's narration takes the plain script. The facts are the same on both paths."
+  Before a choice, the outcome card reads "Choose a role to see how the twin will talk with you." The roles keep their names, "Engineer" and "Not an engineer" (`hints.yaml`'s `your-path` hint and `README.md`'s "Not an engineer?" quote them). Others: (B) one line each, his example's sentence alone for "Not an engineer" and its mirror for "Engineer"; (C) his words for the second and no card text for the first. Reading: his example, "The twin will describe projects and goals as if talking to a non-technical person, etc", is kept word for word in the second draft; the rest is `config/twin/prompt.md`'s two `## Depth:` sections and `narration/view.ts` in plain words; nothing speaks for the Author beyond them. (FR-026.)
+- **Q12: What picture does each avatar card show?** → Taken: **the existing flat previews, drawn larger**: `choice/avatars.ts`'s `avatarPreview`, the inline shapes the 2D room and the 3D fallback share, scaled to the card, on a ground of the card's own, with nothing fetched before "Enter" (option A). Others: (B) stills rendered from the four approved models, bundled into the page (four images for every visitor before Enter, the first visit's bytes, and his look approval of the renders: a studio round); (C) the live models turning in each card (fetches every avatar's files before Enter, against spec 009's FR-010 and row V1). Reading: the brief: "each with its picture from the existing assets or stand-ins". (FR-027.)
+- **Q13: What does each avatar card's line say?** → Taken: **these drafts, each true of the room as the code has it**, on the page for his words (option A):
+  - Woman: "Walks the room and takes the twin's resume in hand."
+  - Man: "Walks the room and takes the twin's resume in hand."
+  - Dinosaur: "Walks in, and the room reacts. Then it may eat the furniture." only where the bundle carries the dinosaur's model (spec 028's Q11: without it, no scene and no eating); else "Walks the room as a cut-out dinosaur."
+  - Dog: "The only dog in the room. Walks, sniffs out the pieces, and keeps the resume close."
+  Others: (B) the names alone, no line; (C) lines that name the scene's events ("the twin and the dog run off with the bicycle"), which give the dinosaur's surprise away. Reading: spec 028's FR-017 (the dog visitor is the only dog; it holds the paper at its anchor, Q18), FR-019 and FR-025 (the scene and the eating, only with the model); the dog's introduction isn't named while its slot is null (`corpus/facts/hobbies-and-travel.yaml`, `hobbies.dog_visitor_intro: value: null`). (FR-031.)
+
+## User Scenarios & Testing *(mandatory)*
+
+Users: visitors on a window from 320 px to a large monitor, by pointer, touch, keyboard, and screen reader, with or without reduced motion; and the Author, who judges the look. Degraded modes are written into each story (Principle I).
+
+### User Story 1 - The Room Seen Through the Panels (Priority: P1, group A)
+
+As a visitor walking the room or on a small window, I see the room through the panels that lie over it, and I can still read every word on them.
+
+**Why this priority**: his point 1; the panels hide the room and the twin while he walks.
+
+**Independent Test**: `vitest run test/ui/hud-over-room.test.ts test/ui/hud-over-contrast.test.ts`: at 1366 × 768, 1440 × 900, 1920 × 1080, and 390 × 844, in the room and in the walking view, each part's `data-over` matches its box against the room's box; every text's contrast over its plate over white and over black meets its ratio.
+
+**Acceptance Scenarios**:
+
+1. **Given** the split layout at the room's framing (1366 × 768, 1440 × 900, 1920 × 1080), **When** the room shows, **Then** no part is over the room, and each looks as on `f411d8e1`.
+2. **Given** any of those windows, **When** the visitor enters the walking view, **Then** every shown HUD part is over the room: its glass is translucent and the room shows through it; **When** they leave it, **Then** the parts are as in AS1.
+3. **Given** a window that takes the column, dock, or stacked layout (390 × 844, a narrow or short window), **When** a part's box meets the room's, **Then** that part is over the room; a part beside the room is unchanged.
+4. **Given** a part over the room, **When** any text or mark on it is measured over white and over black beneath, **Then** text reaches 4.5:1 (3:1 if large), and borders, icons, and the focus ring 3:1.
+5. **Given** the visitor asks for less transparency or more contrast, or forced colours, **When** a part is over the room, **Then** it is opaque as today.
+
+### User Story 2 - The Conversation Answers, and Says When It Can't (Priority: P1, group B)
+
+As a visitor, I type a message, send it, and see the twin's answer; when it can't answer, I see why.
+
+**Why this priority**: his point 2; the twin's conversation is the site's core.
+
+**Independent Test**: `vitest run test/ui/talk-answer-shows.test.ts`: through the real room (`test/helpers/room.ts`'s `intoRoom`, the real `renderTalk`, `app.ts`, `split.ts`, `layout.ts`, and `createTurnSender` over a fake `fetch` that answers as `/api/room/turn` does), in each layout and view.
+
+**Acceptance Scenarios**:
+
+1. **Given** the room, free talk ready, **When** the visitor types "What is this" in "Your message" and presses Enter (or "Send"), **Then** within 100 ms "You: What is this" shows in the log and the field is empty, and when the fake route answers `200 {"text": …}`, the answer's text shows under "AI twin" in the log, and the log is shown.
+2. **Given** the fake route fails (no answer, a network failure, a 503 `degraded` with a cause, a 429, a 400), **When** the visitor sends, **Then** the matching fixed message shows in the log and the words come back to the field.
+3. **Given** the room doesn't take input yet (the hand-off, its offer), **When** the visitor sends, **Then** `turn_wait.room`'s words show in the log and the words stay in the field.
+4. **Given** the split layout, the split layout in the walking view, the column layout, the dock, and the stacked layout, in 3D and 2D, **When** AS1 runs, **Then** it passes in each.
+5. **Given** B0's cause, **When** the fix lands, **Then** the test written before it passes, unchanged.
+
+### User Story 3 - The Words on the Pieces (Priority: P2, group C)
+
+As a visitor, I read "I AM VERY BUSY" on the desk sign, "My dog thinks I'm cool" with a paw print on the dog sign, "Applied AI Engineer" with a green cursor on the monitor, and "RESUME" across the paper the twin hands me.
+
+**Why this priority**: his point 3, the last of the room's look.
+
+**Independent Test**: `vitest run test/room/piece-words.test.ts test/room/paper-sheet.test.ts test/room/monitor-cursor.test.ts`; then the Author's look.
+
+**Acceptance Scenarios**:
+
+1. **Given** the room in 3D, **When** it shows, **Then** the desk sign's lettering face shows "I AM VERY BUSY", the dog sign's "My dog thinks I'm cool" and a paw print, the monitor's screen "Applied AI Engineer" and a green block cursor; the neon sign is as on `f411d8e1`.
+2. **Given** the hand-off, **When** the twin hands the paper over, **Then** the sheet shows "RESUME" set diagonally across it, in the twin's hand and the visitor's alike.
+3. **Given** motion, **When** the monitor shows, **Then** the cursor blinks; **Given** reduced motion, the room paused, or the page hidden, **Then** it is held still, shown.
+4. **Given** the 2D room, **When** it shows, **Then** the same words, paw print, and cursor (held still) show in the drawing, and the paper shows "RESUME".
+5. **Given** the dinosaur eats the desk sign, **When** a chunk goes, **Then** its words go with the piece as spec 024 takes its parts.
+
+### User Story 4 - The Selection Screen, Game-Like (Priority: P2, group D)
+
+As a visitor at the door, I pick my role in step 1 and see what it means for my visit, then pick my avatar from character cards in step 2, then enter.
+
+**Why this priority**: his added item; the screen is every visit's first.
+
+**Independent Test**: `vitest run test/ui/choice-cards.test.ts test/ui/choice.test.ts test/ui/a11y.test.ts`.
+
+**Acceptance Scenarios**:
+
+1. **Given** the screen, **When** it shows, **Then** "Step 1: Select your role" holds a card for "Engineer" and one for "Not an engineer", an outcome card reading "Choose a role to see how the twin will talk with you.", and "Step 2: Select your avatar" holds four character cards (Woman, Man, Dinosaur, Dog), each with its picture, name, and line; "Enter" is disabled.
+2. **Given** step 1, **When** the visitor clicks "Not an engineer", **Then** its card shows selected, the outcome card shows its description, and focus moves to step 2's first card.
+3. **Given** keyboard focus in step 1, **When** the visitor presses the arrow keys, **Then** the choice moves within step 1 and focus stays there; **When** they press Enter, **Then** focus moves to step 2 and nothing submits.
+4. **Given** both chosen, **When** the visitor presses "Enter", **Then** the visit starts as on `f411d8e1`, nothing having been fetched or sent before it.
+5. **Given** a 320 px or 390 px wide window, **When** the screen shows, **Then** the cards stack, nothing scrolls sideways, and every card is at least 44 × 44 px.
+6. **Given** reduced motion, **When** a card is hovered or chosen, **Then** nothing moves.
+7. **Given** a screen reader, **When** it reaches a card, **Then** it reads the step's name, the card's name, its state, and its description.
+
+### Edge Cases
+
+- A part over the room whose box meets the room's only by a sliver: it is over the room (the rule has no threshold); the look changes, not the box.
+- The walking view on a window that takes the dock: the dock's sheet and bar are over the room, translucent.
+- The larger conversation (spec 018's, outside the split layout) open over the room: over the room, translucent, its texts on plates.
+- The text box itself stays opaque white with dark text, over the room or not (it is a field, not a backdrop).
+- The kill switch degraded or the tier unknown: the turn's answer is the gateway's degraded body, and its message shows (FR-011); the stats keep "Unknown" until the tier is known.
+- A turn that ends after the visitor opened another piece's conversation shows nothing (spec 007, unchanged).
+- The fonts not loaded within 2 s (`faces/fonts.ts`): the pieces' words draw in the fallback face, as every face does.
+- A piece whose model failed shows its stand-in: its words show as the room's other faces do on a stand-in (spec 004), or not at all where faces don't bind to it; never on a wrong surface.
+- The busy sign eaten (a dinosaur visit): its lettering leaves with it; the dog sign and the monitor aren't edible (`scene.yaml`).
+- A dinosaur visit on a bundle without the dinosaur's model: its card's line is the cut-out's (Q13).
+- Enter pressed in step 2 with both chosen: the form submits (the browser's implicit submission), as "Enter" does.
+- No script: `index.html`'s static fallback, unchanged.
+
+## Requirements *(mandatory)*
+
+Terms: **a part**: one of the HUD's boxes over the stage: the conversation panel (`.talk`, its title row and frame), the room's list (`.room-list`), the bar (`.hud-bar`), the walking control, the "Eat" tile, the column layout's column, the dock and its sheet, the larger conversation; **the room's box**: the room's on-screen rectangle (Q2); **over the room**: a part whose box meets the room's box; **a plate**: a backdrop of its own behind one run of words.
+
+### Group A: the side panels see-through
+
+- **FR-001**: THE ROOM SHALL mark each part over the room (`data-over="room"` on the part's element), and no other, at every re-fit and whenever the walking view starts or ends; the room's box SHALL be the whole stage in the walking view and spec 028's wall box at the room's framing otherwise (in 2D, the drawing's view box as placed), computed by a pure function from the boxes the layout already has, with no DOM measurement (Q2).
+- **FR-002**: A PART OVER THE ROOM SHALL draw its glass (its background, the panel's frame and title row, the bar's glass, the dock's sheet) at a translucent alpha, `--over-glass-alpha`, so the room shows through it; the blur (`data-blur`) applies as today. Its box, its order, and its controls SHALL NOT change (Q1).
+- **FR-003**: OVER THE ROOM, EACH RUN OF WORDS (each log line, the status, the field's label, each stat's label and value, the title, the hint, each list entry and heading, "Back", each tile's words) SHALL sit on a plate at `--over-plate-alpha`, and every text SHALL reach WCAG 2.2 AA contrast against its plate over the brightest and the darkest pixel beneath, pure white and pure black, as browsers blend in sRGB: 4.5:1, or 3:1 for large text (at least 24 px, or 18.66 px bold); every border, icon, and the focus ring 3:1 (1.4.11). `--over-plate-alpha` SHALL be the lowest 5% step at which every ratio holds, and `--over-glass-alpha` lower than it, computed by a test from the stylesheets as `test/ui/hud-split-contrast.test.ts` computes spec 018's.
+- **FR-004**: WHERE the visitor asks for less transparency (`prefers-reduced-transparency: reduce`) or more contrast (`prefers-contrast: more`), or forced colours are on, A PART OVER THE ROOM SHALL be opaque as today, with no plates needed.
+- **FR-005**: A PART NOT OVER THE ROOM SHALL look as on `f411d8e1`, colour for colour; in particular the split layout's panel and column at the room's framing (spec 028's FR-006: they never meet the wall box).
+- **FR-006**: THE TEXT BOX SHALL stay opaque, white with dark text, over the room or not; the tiles' faces SHALL keep their contrast on the translucent bar (FR-003 counts their words and icons).
+- **FR-007**: THE TESTS SHALL cover 1366 × 768, 1440 × 900, 1920 × 1080, and 390 × 844, each in the room and in the walking view, in 3D, and the first and last in 2D: which parts are over the room, and the contrast of each text over the room; the compositor's checks and spec 014's cover cap are unchanged (no box moves).
+- **FR-008**: THE AUTHOR'S LOOK SHALL judge the alphas in the morning (SC-008); they are data (`room.css`'s `:root`), his to tune within FR-003's bound.
+
+### Group B: the conversation
+
+- **FR-009**: BEFORE ANY CODE, B0 (the probe `probe-chat-029`) SHALL run the panel's send path against a fake gateway on `f411d8e1` and on `main`'s `a36f98ec`, and SHALL say which change broke it, or that the page sends and shows answers on both and only his running stack can tell (for example a tier or a turn route that didn't answer: "SERVING Unknown"). Its note, `specs/029-room-polish/probe-chat.md`, is T-B's input; where his stack is needed, the note carries one batched script for his morning, in `.claude/agents/ops.md`'s form, that returns what a diagnosis needs (the relay's and the gateway's health, the tier signal's state, the turn route's status code and timing for a fixed test message, the routing's active route names, the compose services' states) and nothing secret (no key, token, header value, or payload).
+- **FR-010**: A TEST, written and seen failing before the fix (Development Workflow 4: "Bug fixes start from a failing test the agent may not edit"), SHALL type a message into "Your message", send it by Enter and by "Send", and see the visitor's line and then the answer's text in the log, through the real panel code (`renderTalk`, `app.ts`, `split.ts`, `layout.ts`) and the real sender (`createTurnSender`) over a fake `fetch` answering as `/api/room/turn` does, never a stub of the panel; and SHALL see each failure's fixed message there (no answer, network failure, the 35-second timeout on a fake clock, 503 `degraded` with each cause, 429, 400, 409). It SHALL hold in the split layout (1920 × 1080), the split layout in the walking view, the column layout (1280 × 720), the dock (390 × 844), and the stacked layout, in 3D and in 2D (Q3).
+- **FR-011**: THE LOG SHALL be shown wherever the text box is: no ancestor's attribute, class, or stylesheet rule (`room.css`, `hud/split.css`, `talk/talk.css`, evaluated on the element with `matches`) hides it (`hidden`, `display: none`, `visibility: hidden`, the visually-hidden declarations, a zero `height` or `max-height`), and a new line scrolls into its view (spec 007, FR-042). The test of FR-010 asserts it in each layout and view.
+- **FR-012**: WHEN THE VISITOR SENDS WORDS, THE PANEL SHALL within 100 ms show either their line and the waiting status (spec 007, FR-034) or a fixed message saying why the words didn't go; never nothing. While the room doesn't take input (`open()` false), the message SHALL be `turn_wait.room`, "The twin will answer once you're in the room.", a message of `content/messages.yaml`, the words left in the field (Q4).
+- **FR-013**: THE FIX SHALL change only what B0's cause names, and SHALL leave FR-010's test unchanged. No real-browser test is added in this spec (Q5); plan §R-B4 names what one needs, for a later spec.
+- **FR-014**: NOTHING in group B SHALL change the turn's request, its route, the gateway, routing, or cost: the request stays spec 002's `{feature, path, turns}`, and the cost channel's report per turn stays as spec 004's contract has it.
+
+### Group C: the words on the pieces
+
+- **FR-015**: THE WORDS SHALL be drawn in the room's code as textures on the existing pieces' text faces, in 3D (`scene/faces3d.ts`) and in the 2D drawing (`faces/svg.ts`, `flat.ts`), with no new model, no studio round, and no image file (his answer). Spec 004's FR-032 ("drawn live from approved vector outlines traced from the Author's own design") is amended for the two desk signs by his answer.
+- **FR-016**: THE DESK SIGN (`busy-sign`'s `lettering` face) SHALL read "I AM VERY BUSY", his order's words and capitals.
+- **FR-017**: THE PAW PRINT SHALL be vector shapes in the room's data (a pad and four toes), drawn in code beside the dog sign's words, in the words' ink.
+- **FR-018**: THE DOG SIGN (`dog-sign`'s `lettering` face) SHALL read "My dog thinks I'm cool" (Q6) with the paw print of FR-017.
+- **FR-019**: THE MONITOR (`desk-screen`'s `screen` face) SHALL read "Applied AI Engineer" followed by a block cursor, the line and the cursor in one green (Q7) with at least 4.5:1 against the screen's ground; WHILE the room animates (`motion().animate`), the cursor SHALL blink, on and off at most twice a second; WHERE motion is reduced, the room is paused, or the page is hidden, it SHALL be held still, shown (spec 004's FR-059; WCAG 2.2's 2.2.2, the room's pause control stopping it). The screen's `screen-glow` and the neon sign SHALL stay as on `f411d8e1` (its placement, anchor, faces, and words).
+- **FR-020**: THE PAPER (the sheet the twin hands over and the visitor keeps, `bundle3d.ts`'s `paper` and `kept`; `flat.ts`'s paper in 2D) SHALL be a drawn sheet: an off-white page with a thin rule border and "RESUME" set diagonally across it, lower left to upper right along the sheet's diagonal, in the room's heading face, at least 3:1 against the page; its size, its grip (spec 014's FR-038 to FR-042), its arc, and its cross-fade under reduced motion SHALL NOT change. The 2D paper SHALL show the same word, in its drawing's allowlist.
+- **FR-021**: EVERY WORD of FR-016 to FR-020 SHALL be the room's data (the scene's faces and a content block, as the neon sign's and the chalkboard's are), never a literal in code (spec 004's FR-007's scan); the monitor's line SHALL carry its claim, `corpus/07-denver-local-ai.md` "(co-owner, Applied AI Engineer)", which the build SHALL check is in that file, failing it otherwise (Q8). Where `probe-words-029` finds a word that must be corpus, it SHALL go to a proposal in `corpus/proposals/` with a patch for his hand, and its piece SHALL show no words until he applies it.
+- **FR-022**: THE WORDS SHALL be legible: each face keeps its catalog's `readable` flag, and the compositor's legibility check (RG7) SHALL pass at the reference stages; WHERE it fails for a face, the task SHALL stop and ask on the page, never lowering the floor.
+- **FR-023**: WHEN THE DINOSAUR EATS THE DESK SIGN (spec 024), ITS WORDS SHALL go with the piece's parts as the eating takes them, never floating where the sign was.
+
+### Group D: the selection screen, game-like
+
+- **FR-024**: THE CHOICE SCREEN SHALL show two numbered steps, each a `fieldset` whose `legend` is "Step 1: Select your role" and "Step 2: Select your avatar" (his words), then "Enter"; the heading "The Author's work area", the disclosure, the intro, the hint (`#choice-hint`, "Choose a role and an avatar to enter."), and the two links stay (spec 002's FR-004, FR-018).
+- **FR-025**: STEP 1 SHALL hold one card per path of `PATHS` (today "Engineer" and "Not an engineer"), each a `label` holding its native radio (`name="path"`, its value as today), its name, and a mark drawn in code; nothing is chosen at first.
+- **FR-026**: STEP 1 SHALL hold an outcome card that shows the chosen role's description (Q11's drafts), or, before a choice, "Choose a role to see how the twin will talk with you."; each role's radio SHALL be described by its description (`aria-describedby`); the outcome card is not a live region.
+- **FR-027**: STEP 2 SHALL hold one character card per avatar of `AVATARS` (woman, man, dinosaur, dog), each a `label` holding its native radio (`name="avatar"`, its value as today), its picture (Q12: `avatarPreview`'s shape, larger, `aria-hidden`), its name, and its line (Q13), the radio described by its line; nothing is chosen at first.
+- **FR-028**: A CHOSEN CARD SHALL look chosen by more than colour: a border at least 3:1 against the screen, a check mark drawn in code, and the word "Selected" (shown, and in its accessible description); a hovered or focused card SHALL look distinct from a chosen one; the focus ring is room.css's (2 px, 3:1).
+- **FR-029**: NO FILE SHALL be fetched and no event or request sent before "Enter" (spec 009's FR-010, row V1, `test/ui/choice.test.ts`'s cases); the choice SHALL live in the page's memory only (spec 002's FR-003).
+- **FR-030**: "ENTER" SHALL stay disabled until both steps hold a choice, and SHALL start the visit as on `f411d8e1`.
+- **FR-031**: A CARD'S WORDS SHALL claim nothing the visit can't give: the dinosaur's line names its scene and eating only where the bundle carries the dinosaur's model (spec 028's Q11), and the dog's names no introduction while its slot is null (Q13). The words are constants beside `PATHS` and `AVATARS`, as their names are, and `hints.yaml`'s `your-path` hint stays true of them.
+- **FR-032**: KEYBOARD: the Tab order SHALL stay the path's group, the avatar's group, "Enter", then the two links (`test/ui/a11y.test.ts`'s pin); arrow keys SHALL move and choose within a step (the browser's radio group); a click or tap on a role card, or Enter on one, SHALL move focus to step 2 (its chosen card, else its first), and Enter in step 1 SHALL NOT submit; arrow keys SHALL NOT move focus out of a step (Q10).
+- **FR-033**: SCREEN READERS: each card SHALL be a labelled control whose name is the card's name, its group the step's legend, its description its description or line (and "Selected" when chosen); axe SHALL find no violation on the screen empty, with step 1 chosen, and with both chosen.
+- **FR-034**: REDUCED MOTION: under `prefers-reduced-motion: reduce`, no card SHALL move, scale, or fade (room.css's `.choice *` rule, kept); otherwise a card may lift on hover and on its choice for at most 150 ms.
+- **FR-035**: LAYOUT: on a wide window, step 1's cards and the outcome card SHALL sit in a row and step 2's four cards in a row; below 40rem, the role cards and the outcome card SHALL stack and the avatar cards take two columns; below 22rem, one column; nothing SHALL scroll sideways at 320 px, and every card SHALL be at least 44 × 44 px (spec 002's FR-046).
+
+### Key Entities
+
+- **The over-room flag**: `data-over="room"` on a part, from a pure function of the parts' boxes, the room's box, and the walking view (FR-001).
+- **The over-room palette**: `--over-glass-alpha`, `--over-plate-alpha` in `room.css`'s `:root` (FR-002, FR-003).
+- **The pieces' words**: a content block of the room's data, holding the busy sign's, the dog sign's, the monitor's line with its claim, and the paper's word (FR-021); the paw print's shapes.
+- **The role card**: a path's id, name, and description (FR-025, FR-026).
+- **The character card**: an avatar's id, name, picture, and line (FR-027, FR-031).
+
+## Success Criteria *(mandatory)*
+
+- **SC-001**: At the four windows, in the room and in the walking view, the parts marked over the room are exactly those whose box meets the room's box; at the split layout's windows at the room's framing, none is, and every part's computed style equals `f411d8e1`'s.
+- **SC-002**: Over the room, every text reaches 4.5:1 (large 3:1) and every mark 3:1 over white and over black beneath, computed from the stylesheets; opaque under the visitor's asks.
+- **SC-003**: The conversation's test (FR-010) fails on the tree before the fix and passes after it, unchanged, in all ten layout-and-mode runs; every failure shows a fixed message; no send shows nothing.
+- **SC-004**: The four pieces show their words in 3D and 2D; the cursor blinks only while the room animates; the neon sign's scene entry is unchanged byte for byte; the monitor's claim is checked by the build.
+- **SC-005**: The choice screen passes axe in three states, keeps the Tab order, moves focus to step 2 on a click or Enter in step 1 and not on arrows, fetches and sends nothing before "Enter", and has no sideways scroll at 320 px.
+- **SC-006**: Every test of `test/helpers/room.ts`'s `enter()` and `intoRoom()` callers passes unchanged.
+- **SC-007**: `make check` passes once, in T-INT.
+- **SC-008**: The Author's look, in the morning: the panels over the room in the walking view, the pieces' words and the paw print, the paper, the monitor's green, and the selection screen's cards.
+
+## Amendments to Earlier Specs
+
+| Spec, clause | Amended to | By |
+|---|---|---|
+| 004, FR-032 (the desk signs' lettering "drawn live from approved vector outlines traced from the Author's own design") | Drawn in the room's code as text on the existing faces, his order's words: "I AM VERY BUSY"; "My dog thinks I'm cool" with a paw print. | His answer ("Drawn in the room's code (Recommended)"); FR-015 to FR-018 |
+| 004, FR-031 (the monitor's two halves, a terminal and a desktop) | One green line, "Applied AI Engineer", and a blinking green cursor. | His point 3; FR-019 |
+| 002, FR-007, FR-008; 014, FR-038 to FR-042 (the paper, plain) | A drawn sheet with "RESUME" diagonally; size, grip, and motion unchanged. | His point 3; FR-020 |
+| 005, FR-024, FR-025; 018, FR-014, SC-003 (the HUD's glass alphas) | Unchanged where a part isn't over the room; translucent glass with plates where it is, AA held. | His point 1; FR-001 to FR-005 |
+| 002, FR-001 (the choice's form); 009, FR-010; 012, FR-017; 020, FR-009 and D2 ("the choice screen stays as it is", "the flat preview unchanged") | Two numbered steps of cards over the same radio groups and values; the flat previews larger in character cards; nothing fetched before "Enter" still holds. | His added item; FR-024 to FR-035 |
+| 007, FR-036 (a failure's fixed message) | Also a fixed message when the room doesn't take input yet (`turn_wait.room`). | His point 2; FR-012 |
+
+## Assumptions
+
+- B0's note decides group B's fix; if it says only his stack can tell, T-B ships FR-010 to FR-012 (the test, the shown log, no silent send) and his morning script, and the fix of the cause waits for his script's output.
+- The alphas, the plate's shape, the paw print's shapes, the paper's look, and the cards' look are estimates, data, his at his look (SC-008).
+- No asset changes: no `assets/**`, no `assets/policy/**`; the busy sign's and the dog sign's models keep their `lettering` meshes, which the loader already hides where a face is declared.
+- `make check` runs once, in T-INT; each group runs its own files and `make lint`.
+- **Deviation named** (Principle II, "telemetry that makes it observable in production"; Development Workflow 7, "A feature without a graph is not done"): groups A, C, and D add no telemetry span or panel: they change the look, the words, and a form, with no new route or call, and an event for the choice screen's cards would carry the visitor's choice, which row V4 says usage events never carry (ADR 0055's reason). Group B is observed by the existing `turn_sent` event and the turn's spans and cost (spec 007), unchanged. No accepted ADR is reversed.
+- **Departure named** (CLAUDE.md, "Do not edit test files during a fix task"): T-B's fix task edits no test; the conversation's test is written in its own task before it. Group D's task rewrites, test-first, the earlier specs' tests that pin the screen's old words (`test/ui/choice.test.ts`'s legends "Your path" and "Your avatar"; any case plan §R-D5 lists), each named in its notes; it is a feature task, not a fix task.
+
+## Expected Cost Impact
+
+Cloud: none. No model call is added; the conversation's fix restores turns that the budget already counts. The first visit: no new file; the drawn textures are made on the device. Dev-time: four implementer sessions beside each other, one integration, and a review.
+
+## Degraded-Mode Behavior
+
+Written first (Principle I). Panels: opaque where the visitor asks or where forced colours are on; unchanged outside the room's box. Conversation: every failure and every refusal shows a fixed message, never an empty box (FR-012); the degraded tier's causes show their messages as spec 007 has them. Words: the fallback face if the fonts are late; words go with an eaten piece; nothing on a stand-in that faces don't bind to. Selection screen: works with no pointer, no motion, a screen reader, and a 320 px window; without script, `index.html`'s static fallback.
+
+## Data-Flow Disclosure Entries
+
+No new row and no new destination: no byte leaves the device that didn't on `f411d8e1`. Row V1 unchanged (nothing fetched before "Enter"); row V2 unchanged (the turn's body); row V4 unchanged.
+
+## The "New Endpoint or Feature" List (`CLAUDE.md`)
+
+- Telemetry span: none new (Assumptions, the deviation named).
+- Dashboard panel: none new; the conversation's existing panels show its turns again once fixed.
+- Cost estimate: above.
+- Degraded-mode behavior: above.
+- Data-flow disclosure entry: none (above).
+
+## Constitution Check
+
+| Principle | How this complies |
+|---|---|
+| I. Data-Local | No new byte leaves the device; nothing fetched before "Enter"; degraded modes first, the conversation's included. |
+| II. Production-Grade | Tests first; the conversation's fix from a failing test it may not edit; telemetry a named deviation for the look and words. |
+| III. Intent, Spec, Code, Humans Merge | The intent is a draft for his acceptance; he merges. |
+| IV. Least Privilege | No human-only path changes; any corpus word is a proposal; his stack's check is a script for his hand. |
+| V. Cost | None in the cloud; stated. |
+| VI. Build in Public | The questions are on the morning page with recommendations. |
+| VII. Own the Whole Product | The monitor's line is the corpus's, quoted with its claim; the cards say only what the code does. |
+| VIII. Honest AI | The disclosure banner and the choice screen's disclosure stay; the role cards describe the twin as the twin, an AI. |
+
+## Open Questions
+
+Q1 to Q13 above, each with its recommended answer, taken provisionally; each is on the morning page (`/night/io/out/questions.md`). B0's finding may add one (plan §R-B1).
