@@ -18,19 +18,26 @@ resource "aws_cloudfront_origin_access_control" "site" {
 
 # A path that ends in a slash is its folder's index.html, as the web image's nginx serves it: S3 through origin access
 # control serves no index document of its own (/disclosure/, /credits/, and group 10's /status/). It names nothing, so
-# W1 makes it.
+# W1 makes it. From W2 (group 8's review B, the smaller ones), it runs on the folders' behaviors alone, never on every
+# site request (one invocation each, its cost line in research.md R-05), and a folder's path without its slash is
+# redirected to it, as nginx's try_files does, instead of answering S3's AccessDenied.
 resource "aws_cloudfront_function" "index" {
   name    = "h4-site-index"
   runtime = "cloudfront-js-2.0"
-  comment = "A folder's path to its index.html (spec 001 contracts/edge.md §3)"
+  comment = "A folder's path to its index.html, and to its slash (spec 001 contracts/edge.md §3)"
   publish = true
   code    = <<-EOT
     function handler(event) {
       var request = event.request;
       if (request.uri.endsWith("/")) {
         request.uri += "index.html";
+        return request;
       }
-      return request;
+      return {
+        statusCode: 301,
+        statusDescription: "Moved Permanently",
+        headers: { location: { value: request.uri + "/" } },
+      };
     }
   EOT
 
@@ -112,8 +119,34 @@ resource "aws_cloudfront_distribution" "site" {
     }
   }
 
-  # Every path but /api/*: the site, cached, with spec 002's headers.
+  # Every other path: the site, cached, with spec 002's headers, and no function (the index behaviors, below).
   default_cache_behavior {
+    target_origin_id           = "site"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = aws_cloudfront_cache_policy.site.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.site.id
+  }
+
+  # /api/*: the relay, never cached, with the four headers it reads and nothing of the viewer's beyond them.
+  ordered_cache_behavior {
+    path_pattern             = "/api/*"
+    target_origin_id         = "relay"
+    viewer_protocol_policy   = "https-only"
+    allowed_methods          = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    cached_methods           = ["GET", "HEAD"]
+    compress                 = false
+    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
+    origin_request_policy_id = aws_cloudfront_origin_request_policy.relay.id
+  }
+
+  # A folder's path, the site's, with its policies, through the index function: `*/` is its index.html, and each of the
+  # site's folders without its slash is redirected to it (/credits, /disclosure, and group 10's /status). After
+  # /api/*, which comes first; every other site path runs no function.
+  ordered_cache_behavior {
+    path_pattern               = "*/"
     target_origin_id           = "site"
     viewer_protocol_policy     = "redirect-to-https"
     allowed_methods            = ["GET", "HEAD"]
@@ -128,16 +161,52 @@ resource "aws_cloudfront_distribution" "site" {
     }
   }
 
-  # /api/*: the relay, never cached, with the four headers it reads and nothing of the viewer's beyond them.
   ordered_cache_behavior {
-    path_pattern             = "/api/*"
-    target_origin_id         = "relay"
-    viewer_protocol_policy   = "https-only"
-    allowed_methods          = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
-    cached_methods           = ["GET", "HEAD"]
-    compress                 = false
-    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
-    origin_request_policy_id = aws_cloudfront_origin_request_policy.relay.id
+    path_pattern               = "/credits"
+    target_origin_id           = "site"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = aws_cloudfront_cache_policy.site.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.site.id
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.index.arn
+    }
+  }
+
+  ordered_cache_behavior {
+    path_pattern               = "/disclosure"
+    target_origin_id           = "site"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = aws_cloudfront_cache_policy.site.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.site.id
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.index.arn
+    }
+  }
+
+  ordered_cache_behavior {
+    path_pattern               = "/status"
+    target_origin_id           = "site"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = aws_cloudfront_cache_policy.site.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.site.id
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.index.arn
+    }
   }
 
   # The edge's own degraded answer (contracts/edge.md §4; research.md R-08): the relay unreachable, as while AWS has
