@@ -10,7 +10,7 @@ twin:
   turns:
     - role: "visitor"
       text: "How is a change made?"
-fake_response: "It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, a clean-room gate runs every check, and only a person merges."
+fake_response: "It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, and a clean-room gate runs every check. AI agents in named roles do most of the typing, and only I merge."
 expect:
   contains:
     - "clean-room"

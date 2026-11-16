@@ -6,9 +6,9 @@
   "files": {
     "topic": {
       "files": 9,
-      "bytes": 114800,
-      "words": 17660,
-      "chars": 114229
+      "bytes": 114847,
+      "words": 17670,
+      "chars": 114276
     },
     "facts": {
       "files": 11,
@@ -18,9 +18,9 @@
     },
     "total": {
       "files": 20,
-      "bytes": 133722,
-      "words": 20179,
-      "chars": 133138
+      "bytes": 133769,
+      "words": 20189,
+      "chars": 133185
     },
     "by_file": [
       {
@@ -73,9 +73,9 @@
       },
       {
         "path": "corpus/08-hareet-ai.md",
-        "bytes": 23047,
-        "words": 3403,
-        "chars": 22895
+        "bytes": 23094,
+        "words": 3413,
+        "chars": 22942
       },
       {
         "path": "corpus/facts/awards.yaml",
@@ -266,22 +266,22 @@
     },
     {
       "file": "corpus/08-hareet-ai.md",
-      "rendered": 21711,
-      "grounding": 34098,
-      "share": 1.6098,
-      "margin": -12916,
+      "rendered": 21755,
+      "grounding": 34142,
+      "share": 1.6118,
+      "margin": -12960,
       "in_topics": []
     }
   ],
   "free_talk": {
     "room": 8795,
-    "rankable": 95893,
+    "rankable": 95937,
     "share": 0.0917
   },
   "pack": {
     "sections": 150,
-    "bytes": 179436,
-    "rendered": 102082,
+    "bytes": 179544,
+    "rendered": 102126,
     "longest_section": 3140
   },
   "thresholds": {

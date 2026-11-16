@@ -2223,20 +2223,21 @@
       "text": "14. *What runs in the stack?* — On the laptop's production stack: the edge, the gateway, the site, the meter's database, the model server, the OpenTelemetry collector, Prometheus, Loki, Grafana, and Langfuse with its own databases. Only the edge listens. [P]"
     },
     {
-      "chars": 294,
+      "chars": 341,
       "file": "corpus/08-hareet-ai.md",
       "golden": {
-        "answer": "It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, a clean-room gate runs every check, and only a person merges.",
+        "answer": "It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, and a clean-room gate runs every check. AI agents in named roles do most of the typing, and only I merge.",
         "n": 15,
         "question": "How is a change made?",
         "tags": [
-          "[P]"
+          "[P]",
+          "[A]"
         ]
       },
       "heading": "Golden Q&A 15",
       "id": "08-hareet-ai#q15",
       "kind": "golden",
-      "text": "15. *How is a change made?* — It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, a clean-room gate runs every check, and only a person merges. [P]"
+      "text": "15. *How is a change made?* — It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, and a clean-room gate runs every check. AI agents in named roles do most of the typing, and only I merge. [P][A]"
     },
     {
       "chars": 183,
@@ -2313,7 +2314,7 @@
       "topic": "hobbies-and-travel"
     }
   ],
-  "sha256": "c18b20c6dcd28ac786547fa1aad047ff58fc49a79f0045d4aa448fbe6af18c91",
+  "sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a",
   "topics": [
     {
       "files": [
