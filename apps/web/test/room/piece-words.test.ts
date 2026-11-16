@@ -10,12 +10,13 @@
 //   Author's approval: while main's content-approvals.json holds no entry for its outline, a release build publishes
 //   none of its words, so the face stays plain, and a drafts build publishes it marked "Draft".
 // - The monitor's block passes the room's checks in strict mode (RT3 to RT5 its claim, RT9 its quote) with its green
-//   ink and its blinking cursor; its words, "Applied AI Engineer", are the corpus's own, on two rows ("Applied AI", then
-//   "Engineer" and the cursor), each row's claim the corpus's sentence.
+//   ink and its blinking cursor; its words, "Applied AI Engineer", are the corpus's own, on two rows ("Applied", then
+//   "AI Engineer" and the cursor), each row's claim the corpus's sentence. Never a row a release build ships anyway
+//   ("Engineer" alone is a role's name in the site's code, so text.test and dist.test would find a draft's line there).
 // - The shirt's outline and the neon sign's scene entry are unchanged against f411d8e1, by their SHA-256s; the scan
 //   finds no piece ID in the code.
 // - The bindings (bind-029c; the page's Q26, its recommended answer taken provisionally; measure-c.md §1): the monitor's
-//   screen a readable face on a 10 × 2 terminal grid, which RG7 measures, at or over the floor on both reference stages;
+//   screen a readable face on a 12 × 2 terminal grid, which RG7 measures, at or over the floor on both reference stages;
 //   the two signs atmosphere faces, as the neon sign's second line and the shirt are (catalog readable: false, binding
 //   atmosphere with max_chars its outline's words' characters, 14 and 22). Each face is in "Around the room" with its
 //   words, the monitor's with around.illustration; in 2D too (SC-004); a release build without his approvals leaves
@@ -203,7 +204,7 @@ describe("the monitor's line (FR-019, FR-021)", () => {
       ink: "green",
       cursor: "blink",
       words_from: [{ file: "intent/029-room-polish.md" }],
-      lines: [row("Applied AI"), row("Engineer")],
+      lines: [row("Applied"), row("AI Engineer")],
     });
     const lines = block.lines as { text: string; claims: { quote: string }[] }[];
     expect(lines).toHaveLength(2);
@@ -224,7 +225,7 @@ describe("the monitor's line (FR-019, FR-021)", () => {
     const drafts = repositoryBundle({ drafts: true, policy: "empty" });
     expect(drafts.roomText.blocks.find((b) => b.id === "monitor-line")).toMatchObject({
       state: "draft",
-      lines: [{ text: "Applied AI" }, { text: "Engineer" }],
+      lines: [{ text: "Applied" }, { text: "AI Engineer" }],
       ink: "green",
       cursor: "blink",
     });
@@ -281,10 +282,10 @@ describe("the three bindings (Q26's recommended answer, provisional; FR-022's de
     });
   });
 
-  it("keeps the monitor's screen readable, on a terminal grid of 10 columns and 2 rows", () => {
+  it("keeps the monitor's screen readable, on a terminal grid of 12 columns and 2 rows", () => {
     const bound = faceOf(draftsBundle().index, MONITOR_TEXT);
     expect(bound).toMatchObject({ readable: true, atmosphere: false, max_chars: null });
-    expect(bound.regions[0]?.grid).toMatchObject({ cols: 10, rows: 2 });
+    expect(bound.regions[0]?.grid).toMatchObject({ cols: 12, rows: 2 });
     expect(catalogFace(MONITOR_TEXT)?.readable).toBe(true);
   });
 
@@ -319,7 +320,7 @@ describe("the three bindings (Q26's recommended answer, provisional; FR-022's de
       expect(measured?.phone ?? null).not.toBeNull();
       expect(measured).toMatchObject({ readable: face.readable, atmosphere: !face.readable, phone_exempt: false });
     }
-    // The monitor's readable face at or over the floor on both reference stages (measure-c.md: 39.1 and 12.5).
+    // The monitor's readable face at or over the floor on both reference stages (bind-029c's room:report: 32.6 and 10.4).
     const monitor = caps.find((c) => c.face === faceOf(index, MONITOR_TEXT).id);
     expect(monitor?.desktop ?? 0).toBeGreaterThanOrEqual(floor);
     expect(monitor?.phone ?? 0).toBeGreaterThanOrEqual(floor);
@@ -331,7 +332,7 @@ describe("the three bindings (Q26's recommended answer, provisional; FR-022's de
     for (const face of FACES) expect(index.copy).toContainEqual({ face: faceOf(index, face).id });
     expect(index.copy).toContainEqual({ line: "around.illustration" });
     const said = (face: Bound): string[] | null => faceWords(faceOf(index, face), { index, text });
-    expect(said(MONITOR_TEXT)).toEqual(["Applied AI", "Engineer", "[Draft]"]);
+    expect(said(MONITOR_TEXT)).toEqual(["Applied", "AI Engineer", "[Draft]"]);
     expect(said(BUSY_TEXT)).toEqual(["I AM VERY BUSY", "[Draft]"]);
     expect(said(COOL_TEXT)).toEqual(["My dog thinks I'm cool", "[Draft]"]);
   });
