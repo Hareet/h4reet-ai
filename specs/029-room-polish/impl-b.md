@@ -387,3 +387,350 @@ What this line adds for that step:
 
 B0's Q-B0-1 to Q-B0-4 and the spec's Q3 to Q5 were asked by B0 and the spec-writer on their own pages (this
 container's `questions.md` started empty), so they aren't asked twice here.
+
+---
+
+# rework-029b: group B after rv-spec-029 and rv-rework-spec-029ab
+
+Night 2026-11-16, task `rework-029b` (implementer), branch `night/rework-029b/rework-029b`, on impl-029b's line
+(`e3c0d936`, its final tip, an ancestor: checked with `git merge-base --is-ancestor`). Merged
+`night/rework-spec-029ab/rework-spec-029ab` (`e1212330`) as `3262c1dc`. `plan.md` (§R-B3, §R-B4) and `tasks.md` (T-B01
+to T-B04) conflicted. Each keeps both sides: impl-029b's text first, under "As built by impl-029b", then the rework's,
+under "After rv-spec-029", which wins where they differ. I ran `make setup` first (exit 0), so `npx --no-install` never
+fetched anything.
+
+## What each finding got
+
+| Finding | Where | Commit |
+|---|---|---|
+| S-1: the sheet's rows above the frame | `split.css`: `.talk[data-panel="open"] > .talk-sheet > *` gains `position: relative` beside impl-029b's `z-index: 1` (plan §R-B3's route, not the frame at `z-index: -1`). Test: each of `.talk-sheet`'s rows (`.talk-head`, `.split-top`, `#talk-log`, `.talk-status`), and every other box placed in a row, is positioned with a `z-index` above the frame's, or the frame's is negative; `.talk` is a stacking context | RED `f7468feb`, GREEN `d3fb9be2` |
+| S-2: a ready topic's path with free talk closed | the test's room (b): select the first piece that talks, see the opening under "AI twin", then type and send by Enter and by "Send", each answer, every failure's message (a 409 last: `topic_not_ready` with the piece's phrase, which ends that conversation); every request's `feature` is the piece's ID. Room (a), free talk, is kept | `f7468feb` |
+| S-3: Q20, provisional | `talk.ts`: `renderTalk`'s optional `topicReady`. Free talk closed with no conversation open shows `cannot_talk.free_talk_closed` while a topic is ready, else `cannot_talk.unavailable`. Two cases a run, one for each | `f7468feb`, `d3fb9be2` |
+| RW-2, Q21 | `app.ts:809`, the one line `topicReady: deps.room.topics.some((t) => t.ready)`, after `freeTalkReady`; nothing else in `app.ts` | `d3fb9be2` |
+| S-4: one rule | `readiness.ts`: `readinessReasons` (each entry's reason in the rule's order, or the whole-file reason with its file); `twinReadiness` is its projection. `report.ts`: `readinessLines(reasons)`, pure. Handed in through `ComposeOptions.readinessReasons` by `room:report` (a departure, below) | RED `ea89215e`, T-B03a `56cd4785`, GREEN `7d54a250` |
+| N-2: eleven runs | `RUNS`: the six layouts and views in 3D, and in 2D all but the walking view. 5 cases a run: 55 | `f7468feb` |
+| CH-1, CH-2 | impl-029b applied both (`:not(:where(…))` at 0,4,1; the `display: contents` reading, plan §R-B2). Nothing left to do | — |
+| RW-1 as RA-1 corrects it | the four cases are impl-029b's `c9421545`, kept. `talk.test.ts:162-164` is restored to `c743e2da`'s `cannot_talk.unavailable` (the comment and the expectation, as they were) in `f7468feb`. Plan §R-B2a's last bullet, §R-B3 (the refusals' order, and impl-029b's departure bullet corrected), spec.md's Assumptions, and T-B01 list them | `f7468feb`, `d3fb9be2` |
+| RA-3 | T-B03's expectation reads free talk `not marked ready` (tasks.md); the run below shows it | `d3fb9be2` |
+| RA-5 | confirmed below: jsdom cascades `z-index`, and an unset one reads `"auto"`. The test reads `""` as `auto` too (`zOf`) | `f7468feb` |
+
+### RW-1's cases, each with its old and new value
+
+| Case (line numbers `c743e2da`'s) | `c743e2da` | impl-029b (`c9421545`) | This line |
+|---|---|---|---|
+| `test/ui/talk-turns.test.ts:357-366` "shows cannot_talk.unavailable, sends nothing, …" (topics ready) | `cannot_talk.unavailable` | renamed "shows cannot_talk.free_talk_closed, sends nothing, … (spec 029, FR-012)", `cannot_talk.free_talk_closed` | kept |
+| `test/ui/talk-turns.test.ts:594-607` "shows topic_not_ready for a 409 and ends that conversation" (topics ready), its last typed turn | `cannot_talk.unavailable` | `cannot_talk.free_talk_closed` | kept |
+| `test/ui/talk.test.ts:445-460` "hold every message data-model.md §7 names, …" | 12 IDs | + `cannot_talk.free_talk_closed`, `turn_wait.room` | kept |
+| `test/manifest.test.ts:215-234` "parses into every fixed message" | 12 IDs | + the same two | kept |
+| `test/ui/talk.test.ts:162-164` "is topic_not_ready for every unready topic, …" (no topic ready), its last typed turn | `cannot_talk.unavailable` | `cannot_talk.free_talk_closed` | **restored** to `cannot_talk.unavailable` |
+
+## RA-5: jsdom's `z-index`
+
+A scratch check (`/tmp/rw029b/z.mjs`, not committed), with the worktree's jsdom: `z-index` is computed through the
+cascade, for a `display: contents` element's child too. An element with no `z-index` reads `"auto"`, never `""`.
+(`isolation` reads `"auto"` too.)
+
+```
+$ node /tmp/rw029b/z.mjs "$PWD/../../node_modules/jsdom/lib/api.js"
+.p "absolute" "3" "3" "auto"
+.f "absolute" "0" "0" "auto"
+.vh "static" "auto" "auto" "auto"
+.s "relative" "1" "1" "auto"
+#row "relative" "1" "1" "auto"
+#plain "relative" "1" "1" "auto"
+#none "static" "auto" "auto" "auto"
+```
+
+(Columns: selector, `position`, `zIndex`, `getPropertyValue("z-index")`, `isolation`. `.vh` had no rule of its own on
+the scratch page.)
+
+## T-B01 (rework) RED
+
+The test had one mistake of its own, fixed before its commit: room (b) first expected each request's `feature` to be
+the topic's ID. It is the piece's ID (spec 007's FR-032: "with its ID as the feature"; `app.ts:1331`).
+
+```
+$ cd apps/web && npx --no-install vitest run --maxWorkers=2 test/ui/talk-answer-shows.test.ts test/ui/talk.test.ts
+5 | (a) free talk ready: types, sends by Enter and by Send, and shows each
+5 | (b) a topic ready, free talk closed: selects its piece, shows the open
+1 | is topic_not_ready for every unready topic, with no request but its us
+5 | says free talk is closed, not that the service is unavailable, when fr
+11 | says the service is unavailable, never that a piece would talk, when f
+5 | says why while the room doesn't take input yet, keeps the words, and s
+4 x AssertionError: boxes the frame (z-index=0) would paint over: expected [ …(4) ] to deeply equal []
+1 x AssertionError: the message shown for cannot_talk.unavailable: expected 'cannot_talk.free_talk_closed' to be 'cannot_talk.unavailable' // Object.is equality
+1 x AssertionError: expected 'cannot_talk.free_talk_closed' to be 'cannot_talk.unavailable' // Object.is equality
+ Test Files  2 failed (2)
+      Tests  32 failed | 52 passed (84)
+   Duration  110.73s (import 82%, tests 16%, transform 2%)
+```
+
+(Summarized from the run's output by `/tmp/rw029b/sum.py`, which counts failing cases by name and distinct errors;
+vitest prints one error block for a run of identical ones.) The four boxes under the frame, in each split run:
+
+```
++   "div.talk-head: position=static grid-row=1 z-index=1",
++   "div.split-top: position=static grid-row=2 z-index=1",
+…   (#talk-log and .talk-status, the same)
+```
+
+So on impl-029b's code:
+- The rows' paint order fails in the five split runs (1920 × 1080 and 1366 × 768, 3D and 2D, and the walking view), in
+  each of the four cases that open the panel: 20 failures.
+- `cannot_talk.unavailable` with nothing ready fails in all eleven runs.
+- The restored `talk.test.ts` case fails.
+
+Room (b) passes in the six runs outside the split layout, where the topic's path already answered.
+
+`make lint` on the RED tree: exit 0 (`ruff format`: 880 files already formatted).
+
+## T-B02 (rework) GREEN
+
+Files: `src/room/hud/split.css` (`position: relative` added to the sheet's rows' rule), `src/talk/talk.ts`
+(`topicReady`, the closed-free-talk branch, the header comment), `src/room/app.ts` (one line). No test edited.
+
+The refusals keep impl-029b's order:
+1. An empty field does nothing.
+2. `!enabled()` shows `turn_wait.room`.
+3. No route or no sender shows `cannot_talk.unavailable`.
+4. Free talk closed with no conversation shows `cannot_talk.free_talk_closed` while `topicReady`, else
+   `cannot_talk.unavailable`.
+
+```
+$ cd apps/web && npx --no-install vitest run --maxWorkers=2 test/ui/talk-answer-shows.test.ts test/ui/talk.test.ts test/ui/talk-turns.test.ts test/ui/talk-activity.test.ts test/ui/hud-split*.test.ts test/ui/hud-look.test.ts test/ui/hud-a11y.test.ts test/manifest.test.ts test/room/flat.test.ts test/room/data-only.test.ts test/ui/a11y.test.ts test/ui/hud-wall-dom.test.ts test/room/hud-wall-geometry.test.ts
+ ❯ test/room/data-only.test.ts (31 tests | 12 failed)
+10 x AssertionError: expected [ 'config/twin/corpus.json', …(5) ] to deeply equal []
+ Test Files  1 failed | 19 passed (20)
+      Tests  12 failed | 398 passed (410)
+   Duration  495.29s (tests 74%, import 25%)
+```
+
+Every case in T-B01's file passed (55 of 55), and so did every other file on the list except one. All 12 failures are
+in the proof set of `test/room/data-only.test.ts` (`:546` to `:1027`). This commit changes no build file, so they don't
+come from it. **impl-029b's T-B03 broke them.** Its `readinessLines(c.reader.tree)` read `config/twin/corpus.json`,
+`prompt.md`, and `lines.yaml` through the compositor's tree, and that test holds the tree to the room's data. T-B03's
+run list didn't include `data-only.test.ts`. S-4's GREEN fixes it (below).
+
+`make lint`: exit 0. The S-4 test was set aside as a copy in `/tmp` first, so tsc saw the committed tree.
+
+## T-B03 (rework): S-4
+
+### A departure: the reasons are handed in
+
+`ComposeOptions.readiness`'s own comment says the build reads the readiness "and hands in, so the compositor's own
+reads stay the room's data". The report is part of the compose, so it can't read the twin's files either. So:
+- `ComposeOptions` gains `readinessReasons?: ReadinessReasons` (`build/room/checks/family.ts`, one field).
+- `room:report` (`cli.ts`'s `report`) reads `readinessReasons(fileTree(root))` and hands it in.
+- The section shows only where the reasons were handed in. The plugin's compose and the tests' composes print no
+  section, as before spec 029.
+
+`plugin.ts` and `hints.ts` are not edited. Plan §R-B4 ("As built in rework-029b") and §9 record the departure.
+
+Two more changes from impl-029b's section, both as the reworked plan §R-B4 has it:
+- Each entry gets one reason: the first check that fails, in the rule's order. Where both hashes changed it reads
+  `pack hash changed`; impl-029b's section named both.
+- A whole-file reason reads "No topic ready; free talk closed." and then "Nothing is ready: <reason> (`<file>`)."
+
+Q-RB-2 on the page.
+
+### RED (`ea89215e`)
+
+```
+$ cd apps/web && npx --no-install vitest run --maxWorkers=2 test/room/report-readiness.test.ts
+9 x TypeError: readinessReasons is not a function
+1 x AssertionError: expected '## Room report\n\nBundle 161eb35506b0…' not to contain '### The twin\'s readiness (spec 029, …'
+1 x AssertionError: READINESS_PATH: expected '// FR-073\'s report (spec 004; FR-052…' not to match /\bREADINESS_PATH\b/
+ Test Files  1 failed (1)
+      Tests  11 failed | 1 passed (12)
+   Duration  121.86s (tests 96%, transform 2%, import 2%)
+```
+
+On this commit `tsc` refuses the missing export, so the lint target is red there for that reason alone. It is green at
+GREEN.
+
+### T-B03a, test-first (`56cd4785`): an earlier test that pins what FR-014a changes
+
+The first run of the list with GREEN in the working tree (not committed) gave 2 failures:
+
+```
+$ cd apps/web && npx --no-install vitest run --maxWorkers=2 test/room/report-readiness.test.ts test/room/report.test.ts test/room/report-split.test.ts test/room/manifest-readiness.test.ts test/room/hints-compose.test.ts test/room/image-inputs.test.ts test/room/data-only.test.ts test/room/cli.test.ts test/room/generated.test.ts
+ ❯ test/room/cli.test.ts (17 tests | 1 failed)
+ ❯ test/room/report-readiness.test.ts (12 tests | 1 failed)
+1 x AssertionError: expected '## Room report\n\nBundle f6568172f8b6…' to be '## Room report\n\nBundle f6568172f8b6…' // Object.is equality
+1 x AssertionError: expected [ 'config/twin-readiness.yaml' ] to deeply equal []
+ Test Files  2 failed | 7 passed (9)
+      Tests  2 failed | 156 passed (158)
+   Duration  353.38s (tests 90%, import 10%)
+```
+
+`test/room/data-only.test.ts` passes again (31 of 31), and `manifest-readiness`, `hints-compose`, and `image-inputs`
+pass without edits. The two failures:
+
+- **`test/room/cli.test.ts`, "report prints FR-073's report of a release build in strict mode, and exits 0, its
+  findings in it" (spec 004).** It held `room:report`'s output equal to a compose's report with nothing handed in. Any
+  route that keeps the compositor to the room's data and still puts the section in `room:report` breaks that equality.
+  - I set the fix aside (copies in `/tmp/rw029b/s4/green/`, the files restored from `HEAD`) and rewrote the case
+    test-first. Its expected report is now `compose(…, { mode: "strict", drafts: false, readinessReasons:
+    readinessReasons(fileTree(root)) })`, as the command composes, and it holds the section's heading.
+  - Its name is unchanged, and no other assertion changed.
+  - It failed on the tree without the fix (`TypeError: readinessReasons is not a function`; 1 failed, 16 skipped, run
+    with `-t "report prints"`).
+  - On the page as Q-RB-1.
+- **`test/room/report-readiness.test.ts`, this task's own RED.** Its check of the compositor's tree log took
+  `config/twin` as a prefix, which also matches `config/twin-readiness.yaml`. The compositor already reads that file as
+  a session hint's source (`room/hints.yaml:39`), and `data-only.test.ts` allows it. The same test commit narrows the
+  prefix to `config/twin/` (the pack, the prompt, the lines).
+
+### GREEN (`7d54a250`)
+
+Files: `build/room/readiness.ts`, `build/room/report.ts`, `build/room/checks/family.ts`, `build/room/cli.ts`, plan.md.
+No test edited.
+
+```
+$ cd apps/web && npx --no-install vitest run --maxWorkers=2 test/room/report-readiness.test.ts test/room/cli.test.ts
+ Test Files  2 passed (2)
+      Tests  29 passed (29)
+   Duration  93.97s (tests 97%, transform 2%, import 1%)
+```
+
+The other seven files on the list passed in the run above, on the same code. After the runs, `prettier` re-wrapped one
+line of `readiness.ts` (formatting only) before the commit.
+
+The section from `npm run room:report -w apps/web` on the repository's tree (its `config/` is `f411d8e1`'s):
+
+```
+$ npm run room:report -w apps/web
+> @h4reet/web@0.1.0 room:report
+> node --import tsx build/room/cli.ts report
+
+## Room report
+…
+### The twin's readiness (spec 029, FR-014a)
+
+0 of 3 topics ready; free talk closed.
+
+- `hobbies-and-travel`: closed, pack hash changed.
+- `mission`: closed, pack hash changed.
+- `work-projects`: closed, pack hash changed.
+- free talk: closed, not marked ready.
+
+Findings: none.
+exit 0
+```
+
+That is what RA-3 expects: the three topics' `pack hash changed`, and free talk `not marked ready`.
+
+```
+$ make lint
+…
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+880 files already formatted
+…
+make lint exit 0
+```
+
+(The first `make lint` after GREEN stopped at `prettier --check` on `readiness.ts`, exit 2. After formatting: exit 0.)
+
+## T-B04 (rework): the DevTools snippet's added line
+
+This is B0's snippet (§1 above) with one more field, `hit`, for rv-spec-029's S-1 (plan §10). It calls
+`document.elementFromPoint` at the centre of `#talk-log`'s client rect and says whether the log contains what comes
+back. It reads node names and class names only, never the log's words, and writes nothing. Run it in a wide window,
+after one send:
+
+```js
+// Paste in the room's DevTools console (Console tab) after one send in a wide window. It reads, never writes.
+(() => {
+  const q = (s) => document.querySelector(s);
+  const box = (el) => { if (!el) return null; const r = el.getBoundingClientRect(); const c = getComputedStyle(el);
+    return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), position: c.position, gridRow: c.gridRow }; };
+  const name = (el) => el ? el.nodeName.toLowerCase() + (el.id ? "#" + el.id : "") + [...el.classList].map((c) => "." + c).join("") : null;
+  const root = document.documentElement;
+  return JSON.stringify({
+    ua: navigator.userAgent.replace(/\s+/g, " "), viewport: [innerWidth, innerHeight],
+    split: root.dataset.split, hud: root.dataset.hud,
+    panel: q("section.talk")?.dataset.panel, logLines: q("#talk-log")?.childElementCount,
+    rows: q("section.talk") ? getComputedStyle(q("section.talk")).gridTemplateRows : null,
+    talk: box(q("section.talk")), frame: box(q("section.talk > svg.split-frame")),
+    frameViewBox: q("section.talk > svg.split-frame")?.getAttribute("viewBox"),
+    heading: box(q("#talk-heading")), top: box(q(".split-top")), log: box(q("#talk-log")),
+    status: box(q(".talk-status")), form: box(q(".talk-form")),
+    hit: (() => { const l = q("#talk-log"); if (!l) return null; const r = l.getBoundingClientRect();
+      const el = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      return { node: name(el), inLog: el !== null && l.contains(el) }; })(),
+  }, null, 1);
+})();
+```
+
+What `hit` tells:
+- **On this line:** `inLog: true`, the log or one of its lines, above the frame's glass.
+- **If `node` names `svg.split-frame` or a `path`:** the frame still paints over the log. That is the fault S-1 guards
+  against, which the jsdom test can read only from the cascade.
+- **On `f411d8e1`:** the log has zero height, so the point falls on its top edge and `inLog` may be false for that
+  reason alone. `log.h` tells which.
+
+## Not run, and why
+
+- The full check, `make test`, and `make evals`: the brief gives the one full check to the integration task
+  (`int-029`), which pastes it in the stack's note. Each step here ran the files it adds or changes, the ones covering
+  the files it changes, and `make lint`, all pasted above.
+- The image stage (night 3's Q46 and Q48): it fails in the workers' containers, so it stays with his gate.
+- `test/room/twin-2d.test.ts` (flaky under load) wasn't on any list here.
+
+## For T-INT
+
+- Merge this line first in `split.css` (the panel's block only) and `app.ts` (one line at `:809`; group A's re-fit is at
+  `:240-295`).
+- `build/room/checks/family.ts` and `build/room/cli.ts` are now group B's (one field; the hand-in). No other group's
+  branch touches them (`git diff --stat c743e2da` on impl-029a, rework-029a, impl-029c, impl-029d: none).
+- Rerun `test/ui/talk-answer-shows.test.ts`, `test/room/data-only.test.ts`, and `test/room/cli.test.ts` on the merged
+  tree.
+
+## How the test files were written
+
+- `talk-answer-shows.test.ts` (`f7468feb`): rewritten by a Python script over the file, then `prettier --write`. Its one
+  fix before the commit used the Edit tool.
+- `talk.test.ts:162-164`, `cli.test.ts`, and the prefix: the Edit tool.
+- `report-readiness.test.ts`: the Write tool, then one script edit and `prettier`.
+
+Nothing refused any of these. I note it because a script's write doesn't pass through the hooks that watch the Edit and
+Write tools. All of them are test-task commits made before their fixes, and no fix commit edits a test.
+
+## Refusals
+
+- **The notes, the bash gate** (`.claude/hooks/bash-gate.sh`): "Blocked by .claude/hooks/bash-gate.sh — an Author-only
+  make target (spec 001). Route: the Author runs it in his terminal (spec 001 research.md R-32); ask the Author".
+  - The refused command was a heredoc appending these notes to this file. It ran no make target, so the gate matched
+    words in the notes' text, as with impl-029b's Q-B-3.
+  - Nothing ran: `git status` was clean afterwards, and the file was unchanged.
+  - Route taken, as the brief says for a false match on text being written: these notes went in with the Edit tool. The
+    command wasn't respelled.
+  - On the page under Q-B-3, which already asks about it.
+- One `Monitor` call that waited on a log needed a permission I didn't have. I didn't retry it as a Monitor; the same
+  wait ran as a background `until` loop in Bash.
+
+## Commits (rework-029b)
+
+| Commit | What |
+|---|---|
+| `3262c1dc` | merge of `rework-spec-029ab` (`e1212330`); plan.md and tasks.md keep both sides |
+| `f7468feb` | T-B01 RED: S-1, S-2, S-3, N-2; `talk.test.ts:162-164` restored (RA-1) |
+| `d3fb9be2` | T-B02 GREEN: `split.css`, `talk.ts`, `app.ts`'s one line; plan §R-B2a, §R-B3, spec Assumptions, tasks (RA-1, RA-3, RA-5) |
+| `ea89215e` | T-B03 RED: `report-readiness.test.ts` rewritten for S-4 |
+| `56cd4785` | T-B03a, test-first: `cli.test.ts`'s report case; the RED's prefix |
+| `7d54a250` | T-B03 GREEN: `readiness.ts`, `report.ts`, `family.ts`, `cli.ts`; plan §R-B4, §9 |
+| (this one) | notes, tasks ticked, questions |
+
+The `wip(rework-029b): …` save points between them hold no changes.
+
+## Questions on the page (`/night/io/out/questions.md`)
+
+- **Q-RB-1:** hand the readiness reasons in through `ComposeOptions` (`family.ts`, `cli.ts`), and rewrite
+  `cli.test.ts`'s report case test-first? Recommended: yes, as done.
+- **Q-RB-2:** one reason per closed entry, the rule's first (both hashes changed reads `pack hash changed`)?
+  Recommended: yes, as plan §R-B4 has it.
+
+Q20 and Q21 stand on the page as they are. This line takes both recommended answers, provisionally.
