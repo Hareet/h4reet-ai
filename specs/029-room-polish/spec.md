@@ -166,7 +166,7 @@ As a visitor at the door, I pick my role in step 1 and see what it means for my 
 - The fonts not loaded within 2 s (`faces/fonts.ts`): the pieces' words draw in the fallback face, as every face does.
 - A piece whose model failed shows its stand-in: its words show as the room's other faces do on a stand-in (spec 004), or not at all where faces don't bind to it; never on a wrong surface.
 - The busy sign eaten (a dinosaur visit): its lettering stays on the set-aside part (FR-023); the dog sign and the monitor aren't edible (`scene.yaml`).
-- The paper's texture is on a two-sided sheet: seen from behind, "RESUME" reads mirrored, as through paper; the twin's sheet and the visitor's are one paper and both read it.
+- The paper seen from behind (the walking view's follow camera stands behind the figure): the sheet shows the same drawing, unmirrored, "RESUME" lower left to upper right; the twin's sheet and the visitor's are one paper and both read it (the page's Q38, its recommended answer, taken provisionally under his rule 1 for night 4; Assumptions).
 - A visit in 2D or below the floor: the dinosaur's card says "In the 3D room"; the visit is as spec 024 and 028 have it.
 - Enter pressed in step 2 with both chosen: the form submits (the browser's implicit submission), as "Enter" does.
 - No script: `index.html`'s static fallback, unchanged.
