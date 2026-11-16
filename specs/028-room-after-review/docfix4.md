@@ -73,13 +73,39 @@ Not changed, as records of what was true when written: `tasks.md`, `analysis.md`
 
 ## Runs
 
-(Below, after the commit of this file.)
+On this branch, after every edit above (at `wip(docfix4-028): docfix4.md, finding by finding; runs pending`):
+
+```text
+$ python3 -I -m pytest -q -p no:cacheprovider evals/test_repository_docs.py evals/test_docs_links.py
+61 passed in 1.77s
+exit=0
+$ python3 -I evals/docs_links.py
+PASS  the ADR index links every ADR file: 52 of 52
+PASS  User Story 6's five decisions have their ADRs: 0001 (local-first routing), 0002 (one compose topology), 0003 (local-compose-first delivery), 0004 (Langfuse and Grafana), 0005 (Telegram alerting)
+docs links: 0 failed, 2527 relative links in 478 files
+exit=0
+$ make lint          # first try, before node_modules existed
+node_modules is missing: run make setup
+make: *** [Makefile:227: lint] Error 1
+exit=2
+$ npm ci --ignore-scripts
+exit=0
+$ make lint
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+865 files already formatted
+(eslint --max-warnings 0, tsc for the three workspaces, and shellcheck, each silent)
+exit=0
+```
+
+This file's own edit after these runs (this section) is text in a Markdown file. The final commit's hooks ran on it.
 
 ## Refusals
 
 None: no hook or bash-gate refusal and no permission prompt.
 
-A slip, recorded: my first command wrote a copy of the page to `/tmp/docfix4-028-page.md`, outside the worktree, to read it with `grep` and `sed`. It holds only the page's text and nothing secret. It is left in place, since nothing in `/tmp` is deleted.
+A slip, recorded: my first command wrote a copy of the page to `/tmp/docfix4-028-page.md`, outside the worktree, to read it with `grep` and `sed`. It holds only the page's text and nothing secret. The same goes for two logs I kept there, `/tmp/docfix4-028-npmci.log` and `/tmp/docfix4-028-lint.log` (`npm ci`'s and `make lint`'s output). All three are left in place, since nothing in `/tmp` is deleted.
 
 ## Questions
 
