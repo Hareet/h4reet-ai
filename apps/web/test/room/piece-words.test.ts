@@ -1,20 +1,25 @@
 // T-C02 (spec 029; FR-015 to FR-018, FR-021, FR-023a; plan.md §R-C1, §R-C2, §R-C5, §R-C6): the words on the pieces,
 // as the room's data holds them.
 // - The two signs' outlines are the converter's setting of their committed sources in the vendored IBM Plex Sans Bold,
-//   byte for byte: "I AM VERY BUSY" on two lines, and "My dog thinks I'm cool" on two with the paw print after the
-//   second, the paw the HUD's own path (hud/icons.ts's EMBLEM_ICONS.paw), copied into the source as data and placed by
-//   the converter with every command kept. Each outline's intent_ref is intent-029 and its source the next free design
-//   ID (D-0004, D-0005; T-C01).
+//   byte for byte: "I AM VERY BUSY" on two lines, and "My dog thinks I'm cool" on three ("My dog / thinks / I'm cool",
+//   bind-029c, measure-c.md §2: its best fit on its face) with the paw print after the third, the paw the HUD's own path
+//   (hud/icons.ts's EMBLEM_ICONS.paw), copied into the source as data and placed by the converter with every command
+//   kept. Each outline's intent_ref is intent-029 and its source the next free design ID (D-0004, D-0005; T-C01).
 // - RT13, in strict mode, passes both outlines on the tree as it is: it checks only that the words stand between
 //   quotation marks in an intent of that number (rt.ts), and intent-029 quotes both. The dog sign's hold is the
 //   Author's approval: while main's content-approvals.json holds no entry for its outline, a release build publishes
 //   none of its words, so the face stays plain, and a drafts build publishes it marked "Draft".
 // - The monitor's block passes the room's checks in strict mode (RT3 to RT5 its claim, RT9 its quote) with its green
-//   ink and its blinking cursor; its line, "Applied AI Engineer", is the corpus's own words.
+//   ink and its blinking cursor; its words, "Applied AI Engineer", are the corpus's own, on two rows ("Applied AI", then
+//   "Engineer" and the cursor), each row's claim the corpus's sentence.
 // - The shirt's outline and the neon sign's scene entry are unchanged against f411d8e1, by their SHA-256s; the scan
 //   finds no piece ID in the code.
-// The faces' bindings in the scene wait for the Author's answer on RG7 (impl-c.md; the page's question): the composed
-// room's faces and "Around the room" are asserted by the task that binds them.
+// - The bindings (bind-029c; the page's Q26, its recommended answer taken provisionally; measure-c.md §1): the monitor's
+//   screen a readable face on a 10 × 2 terminal grid, which RG7 measures, at or over the floor on both reference stages;
+//   the two signs atmosphere faces, as the neon sign's second line and the shirt are (catalog readable: false, binding
+//   atmosphere with max_chars its outline's words' characters, 14 and 22). Each face is in "Around the room" with its
+//   words, the monitor's with around.illustration; in 2D too (SC-004); a release build without his approvals leaves
+//   all three plain; the busy sign's bound face is the live face the eating sets aside (FR-023).
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -22,6 +27,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
+import { createContext } from "../../build/room/checks/family";
+import { faceCaps, geometryOf, lookTypefaces } from "../../build/room/checks/rg";
 import { compose } from "../../build/room/compose";
 import {
   convertLettering,
@@ -33,12 +40,14 @@ import {
   setFromTree,
   setStems,
 } from "../../build/room/lettering";
-import { readRoomPolicy } from "../../build/room/policy";
+import { loadRoom } from "../../build/room/load";
+import { noPolicy, readRoomPolicy } from "../../build/room/policy";
 import { scan } from "../../build/room/scan";
 import { fileTree } from "../../build/room/source";
 import type { RoomIndex } from "../../src/room/compose/bundle";
+import { facesOf } from "../../src/room/eat/chunker";
 import { drawnWords } from "../../src/room/faces/display-list";
-import { faceList, roomTextOf } from "../../src/room/faces/words";
+import { faceList, faceWords, roomTextOf } from "../../src/room/faces/words";
 import { EMBLEM_ICONS } from "../../src/room/hud/icons";
 import { REPO, repositoryBundle } from "../helpers/room";
 
@@ -51,7 +60,7 @@ const SIGNS = [
   {
     stem: "lettering-cool",
     words: "My dog thinks I'm cool",
-    lines: ["My dog thinks", "I'm cool"],
+    lines: ["My dog", "thinks", "I'm cool"],
     id: "D-0005",
     paths: 19,
   },
@@ -97,10 +106,10 @@ describe("the signs' outlines (FR-016 to FR-018, FR-021)", () => {
     expect(outline.cap_height).toBeLessThanOrEqual(outline.view_box[3]);
   });
 
-  it("sets the paw print, the HUD's own path, after the dog sign's second line, in the words' ink", () => {
+  it("sets the paw print, the HUD's own path, after the dog sign's third line, in the words' ink", () => {
     const source = readSetSource(read(`${LETTERING_DIR}/lettering-cool.json`));
     expect(source.mark?.path).toBe(EMBLEM_ICONS.paw);
-    expect(source.mark?.line).toBe(1);
+    expect(source.mark?.line).toBe(2);
     const outline = setFromTree(REPO, "lettering-cool");
     const paw = outline.paths.at(-1) ?? "";
     // Its commands are the paw's own, in order: a pad and four toes, each closed.
@@ -185,19 +194,26 @@ describe("the dog sign's hold, the Author's approval (spec Q6; FR-021)", () => {
 });
 
 describe("the monitor's line (FR-019, FR-021)", () => {
-  it("is a terminal block of one line, green, with a blinking cursor, its words from intent-029 and its claim the corpus's", () => {
+  it("is a terminal block of two rows, green, with a blinking cursor, its words from intent-029 and its claims the corpus's", () => {
     const block = parse(read(MONITOR)) as Record<string, unknown>;
+    const row = (text: string) => ({ text, about_author: true, claims: [{ file: "corpus/07-denver-local-ai.md" }] });
     expect(block).toMatchObject({
       block: "monitor-line",
       renderer: "terminal",
       ink: "green",
       cursor: "blink",
       words_from: [{ file: "intent/029-room-polish.md" }],
-      lines: [{ text: "Applied AI Engineer", about_author: true, claims: [{ file: "corpus/07-denver-local-ai.md" }] }],
+      lines: [row("Applied AI"), row("Engineer")],
     });
-    const quote = (block.lines as { claims: { quote: string }[] }[])[0]?.claims[0]?.quote ?? "";
-    expect(quote).toContain("Applied AI Engineer");
-    expect(read("corpus/07-denver-local-ai.md")).toContain(quote);
+    const lines = block.lines as { text: string; claims: { quote: string }[] }[];
+    expect(lines).toHaveLength(2);
+    // The two rows read as his words, in order.
+    expect(lines.map((l) => l.text).join(" ")).toBe("Applied AI Engineer");
+    for (const line of lines) {
+      const quote = line.claims[0]?.quote ?? "";
+      expect(quote).toContain("Applied AI Engineer");
+      expect(read("corpus/07-denver-local-ai.md")).toContain(quote);
+    }
   });
 
   it("passes the room's checks in strict mode: RT3 to RT5, RT9, and the schema's two new keys", () => {
@@ -208,12 +224,147 @@ describe("the monitor's line (FR-019, FR-021)", () => {
     const drafts = repositoryBundle({ drafts: true, policy: "empty" });
     expect(drafts.roomText.blocks.find((b) => b.id === "monitor-line")).toMatchObject({
       state: "draft",
-      lines: [{ text: "Applied AI Engineer" }],
+      lines: [{ text: "Applied AI" }, { text: "Engineer" }],
       ink: "green",
       cursor: "blink",
     });
     const release = repositoryBundle({ drafts: false, policy: "empty" });
     expect(release.roomText.blocks.map((b) => b.id)).not.toContain("monitor-line");
+  });
+});
+
+describe("the three bindings (Q26's recommended answer, provisional; FR-022's departure; measure-c.md §1)", () => {
+  // Spec 004's FR-007: no room ID stands in a test, so each face is found by the words' file it binds, and its
+  // placement by that face; its label is its placement's, whose words name the piece.
+  const FACES = [
+    { text: "monitor-line", words: "Monitor", renderer: "terminal", role: "screen", readable: true },
+    { text: "lettering-busy", words: "Desk sign, busy", renderer: "sign", role: "lettering", readable: false },
+    { text: "lettering-cool", words: "Desk sign, dog", renderer: "sign", role: "lettering", readable: false },
+  ] as const;
+  type Bound = (typeof FACES)[number];
+  const [MONITOR_TEXT, BUSY_TEXT, COOL_TEXT] = FACES;
+  const draftsBundle = (): ReturnType<typeof repositoryBundle> => repositoryBundle({ drafts: true, policy: "empty" });
+  const faceOf = (index: RoomIndex, face: Bound): RoomIndex["faces"][number] => {
+    const found = index.faces.filter((f) =>
+      f.regions.some((r) => "room_text" in r.source && r.source.room_text === face.text),
+    );
+    if (found.length !== 1 || !found[0]) throw new Error(`${found.length} faces bind ${face.text}`);
+    return found[0];
+  };
+  const pieceOf = (face: Bound): string => {
+    const { scene, index } = draftsBundle();
+    const placement = scene.placements.find((p) => p.id === faceOf(index, face).placement);
+    if (!placement) throw new Error(`${face.text}: its face's placement isn't in the scene`);
+    return placement.piece;
+  };
+  const outlineWords = (stem: string): string =>
+    (JSON.parse(read(outlinePath(stem))) as ReturnType<typeof setFromTree>).words;
+  const catalogFace = (face: Bound): Record<string, unknown> | undefined =>
+    (
+      parse(read(`apps/web/room/catalog/${pieceOf(face)}.yaml`)) as { live_faces: Record<string, unknown>[] }
+    ).live_faces.find((f) => f.role === face.role);
+
+  it.each(FACES)("binds $text once, as its piece's $role, under its placement's label ($words)", (face) => {
+    const { scene, index } = draftsBundle();
+    const bound = faceOf(index, face);
+    const placement = scene.placements.find((p) => p.id === bound.placement);
+    expect(bound.role).toBe(face.role);
+    expect(bound.id).toBe(`${bound.placement}.${face.role}`);
+    expect(bound.label).toBe(placement?.label);
+    expect(index.ui[bound.label]).toBe(face.words);
+    expect(bound).toMatchObject({ readable: face.readable, atmosphere: !face.readable });
+    expect(bound.regions).toHaveLength(1);
+    expect(bound.regions[0]).toMatchObject({
+      rect: [0, 0, 1, 1],
+      renderer: face.renderer,
+      source: { room_text: face.text },
+    });
+  });
+
+  it("keeps the monitor's screen readable, on a terminal grid of 10 columns and 2 rows", () => {
+    const bound = faceOf(draftsBundle().index, MONITOR_TEXT);
+    expect(bound).toMatchObject({ readable: true, atmosphere: false, max_chars: null });
+    expect(bound.regions[0]?.grid).toMatchObject({ cols: 10, rows: 2 });
+    expect(catalogFace(MONITOR_TEXT)?.readable).toBe(true);
+  });
+
+  it.each([
+    [BUSY_TEXT, 14],
+    [COOL_TEXT, 22],
+  ] as const)(
+    "makes the sign that binds $text an atmosphere face: catalog readable false, max_chars its outline's characters",
+    (face, max) => {
+      expect(catalogFace(face)?.readable).toBe(false);
+      expect(faceOf(draftsBundle().index, face)).toMatchObject({ readable: false, atmosphere: true, max_chars: max });
+      expect([...outlineWords(face.text)]).toHaveLength(max);
+    },
+  );
+
+  it("passes RG7 in a strict build: no finding for the scene, and every face measured on both stages", () => {
+    expect(strictCompose().findings.filter((f) => f.rule === "RG7")).toEqual([]);
+    expect(strictCompose().findings.filter((f) => f.file === "apps/web/room/scene.yaml")).toEqual([]);
+    const tree = fileTree(REPO);
+    const room = loadRoom(tree);
+    const ctx = createContext(room, noPolicy(), { mode: "strict", drafts: true }, tree).ctx;
+    const caps = faceCaps(geometryOf(ctx), lookTypefaces(room, tree));
+    // FR-052's floor, unlowered: 9 CSS px of cap height.
+    const floor = readRoomPolicy({ env: {}, root: REPO }).caps?.legibility_floor_css_px;
+    expect(floor).toBe(9);
+    if (floor === undefined) return;
+    const { index } = draftsBundle();
+    for (const face of FACES) {
+      const measured = caps.find((c) => c.face === faceOf(index, face).id);
+      // Measured, never a face RG7 skips for want of a measure (measure-c.md §6, its second gap).
+      expect(measured?.desktop ?? null).not.toBeNull();
+      expect(measured?.phone ?? null).not.toBeNull();
+      expect(measured).toMatchObject({ readable: face.readable, atmosphere: !face.readable, phone_exempt: false });
+    }
+    // The monitor's readable face at or over the floor on both reference stages (measure-c.md: 39.1 and 12.5).
+    const monitor = caps.find((c) => c.face === faceOf(index, MONITOR_TEXT).id);
+    expect(monitor?.desktop ?? 0).toBeGreaterThanOrEqual(floor);
+    expect(monitor?.phone ?? 0).toBeGreaterThanOrEqual(floor);
+  });
+
+  it('puts each face\'s words in "Around the room", marked "Draft" in a drafts build, and the monitor\'s illustration line', () => {
+    const { index, roomText } = draftsBundle();
+    const text = roomTextOf({ room_text: roomText });
+    for (const face of FACES) expect(index.copy).toContainEqual({ face: faceOf(index, face).id });
+    expect(index.copy).toContainEqual({ line: "around.illustration" });
+    const said = (face: Bound): string[] | null => faceWords(faceOf(index, face), { index, text });
+    expect(said(MONITOR_TEXT)).toEqual(["Applied AI", "Engineer", "[Draft]"]);
+    expect(said(BUSY_TEXT)).toEqual(["I AM VERY BUSY", "[Draft]"]);
+    expect(said(COOL_TEXT)).toEqual(["My dog thinks I'm cool", "[Draft]"]);
+  });
+
+  it("draws each face in 2D too (SC-004): a frame in the flat room, its final frame holding its words", () => {
+    const { index, roomText } = draftsBundle();
+    const text = roomTextOf({ room_text: roomText });
+    const framed = index.flat.faces.map((f) => f.face);
+    for (const face of FACES) {
+      const bound = faceOf(index, face);
+      expect(framed).toContain(bound.id);
+      expect(drawnWords(faceList(bound, { index, text })?.ops ?? [])).toEqual(faceWords(bound, { index, text }));
+    }
+  });
+
+  it("leaves all three plain in a release build without his approvals, the illustration line kept", () => {
+    const release = repositoryBundle({ drafts: false, policy: "empty" });
+    const text = roomTextOf({ room_text: release.roomText });
+    for (const face of FACES) {
+      const bound = faceOf(release.index, face);
+      expect(faceWords(bound, { index: release.index, text })).toBeNull();
+      expect(faceList(bound, { index: release.index, text })).toBeNull();
+    }
+    expect(release.index.copy).toContainEqual({ line: "around.illustration" });
+  });
+
+  it("binds the busy sign's words to the live face its eating sets aside (FR-023)", () => {
+    const { scene, index } = draftsBundle();
+    const bound = faceOf(index, BUSY_TEXT);
+    const placement = scene.placements.find((p) => p.id === bound.placement);
+    expect(placement?.edible).not.toBeNull();
+    const piece = scene.pieces[placement?.piece ?? ""];
+    expect(facesOf(piece ?? { faces: {} }).map((f) => f.role)).toContain(bound.role);
   });
 });
 
