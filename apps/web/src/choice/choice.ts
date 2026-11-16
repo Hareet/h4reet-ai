@@ -203,6 +203,8 @@ export function renderChoice(doc: Document, options: { onEnter(choice: Choice): 
   });
   roleStep.addEventListener("keyup", (event) => {
     if (event.key !== " " && event.key !== "Spacebar") return;
+    // The browser's click (detail 0) for Space is keyup's default action, after this listener, so the radio isn't
+    // checked yet here: check it and send its change before the move (plan.md §R-D3, rv-rework-spec-029cd's RC-1).
     const input = roleRadio(event.target);
     if (!input) return;
     choose(input);
