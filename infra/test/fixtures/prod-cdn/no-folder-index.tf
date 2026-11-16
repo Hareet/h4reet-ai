@@ -1,5 +1,6 @@
-# The site's behavior without the index function: /disclosure/ and /credits/ would answer 403 from S3.
-# expect: index: the site's behavior doesn't run it on each viewer request
+# No `*/` behavior: /disclosure/ and /credits/ would answer 403 from S3, since only the folders' paths without their
+# slashes run the index function.
+# expect: index: the site's index behaviors aren't `*/` and each of its folders' paths without its slash
 resource "aws_cloudfront_distribution" "site" {
   count               = local.wired ? 1 : 0
   enabled             = true
@@ -31,7 +32,7 @@ resource "aws_cloudfront_distribution" "site" {
     }
   }
 
-  # Every path but /api/*: the site, cached, with spec 002's headers.
+  # Every other path: the site, cached, with spec 002's headers, and no function (the index behaviors, below).
   default_cache_behavior {
     target_origin_id           = "site"
     viewer_protocol_policy     = "redirect-to-https"
@@ -52,6 +53,54 @@ resource "aws_cloudfront_distribution" "site" {
     compress                 = false
     cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
     origin_request_policy_id = aws_cloudfront_origin_request_policy.relay.id
+  }
+
+  ordered_cache_behavior {
+    path_pattern               = "/credits"
+    target_origin_id           = "site"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = aws_cloudfront_cache_policy.site.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.site.id
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.index.arn
+    }
+  }
+
+  ordered_cache_behavior {
+    path_pattern               = "/disclosure"
+    target_origin_id           = "site"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = aws_cloudfront_cache_policy.site.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.site.id
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.index.arn
+    }
+  }
+
+  ordered_cache_behavior {
+    path_pattern               = "/status"
+    target_origin_id           = "site"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = aws_cloudfront_cache_policy.site.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.site.id
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.index.arn
+    }
   }
 
   # The edge's own degraded answer (contracts/edge.md §4; research.md R-08): the relay unreachable, as while AWS has

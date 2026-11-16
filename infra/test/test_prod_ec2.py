@@ -202,9 +202,9 @@ def check_generation(r: dict[str, list]) -> list[str]:
             "generation: no terraform_data.ec2_generation in ec2.tf holds local.ec2_generation and the user data's SHA-256"
         )
     generation = mine.get("ec2_generation")
-    # W1 holds 1; W2's T175 sets 2, so W2's block shows EC2 replaced.
-    if generation is None or ip.literal(generation) != 1:
-        found.append("generation: ec2.tf's local.ec2_generation isn't W1's 1")
+    # W1 held 1; W2's T175 sets 2, so W2's block shows EC2 replaced, and SC-005 is checked after W2's apply (T097).
+    if generation is None or ip.literal(generation) != 2:
+        found.append("generation: ec2.tf's local.ec2_generation isn't W2's 2")
     kind = mine.get("ec2_type")
     if kind is None or ip.literal(kind) != "t4g.large":
         found.append("type: ec2.tf's local.ec2_type isn't R-04's t4g.large")
@@ -707,6 +707,10 @@ def test_the_root_has_no_problem_and_the_network_checks_still_pass() -> None:
 
 def test_the_checks_pass_with_the_switch_on_as_p_w2_sets_it() -> None:
     assert problems(net.switched_on(root())) == []
+
+
+def test_the_checks_pass_with_the_switch_off_as_w1_applied_it() -> None:
+    assert problems(net.switched_off(root())) == []
 
 
 def test_the_accounts_model_action_gains_no_target() -> None:

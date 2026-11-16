@@ -1,0 +1,42 @@
+P-W2, spec 001 W2: the switch-on, for the Author's hand.
+
+Built from plain copies: infra/account/handover.tf and infra/prod/handover.tf as W1's thirteen patches leave them (a
+git archive export of 0bf73883, W1's tip, with P-I3, P-G1, P-G3, P-I7, P-G4, P-G2, P-I4, P-G5, P-6, P-I5, P-G6, P-I6,
+and P-G7 applied in that order); edited in $TMPDIR, then diff -u with a/ and b/ labels after this preamble; never git
+apply, and nothing written into any worktree. Apply it on W2's -p branch, with `patch -p1 < <this file>` at the
+repository's root, and commit the result byte for byte (tasks.md T175, T177).
+
+What it holds (tasks.md T175; plan.md §16, "Why a switch" and "W2's order"):
+  - both roots' local.wired = true: what W1 wrote behind the switch, `count = local.wired ? 1 : 0`, is made by W2's
+    applies, and aws_ec2_instance_state.ec2_w1, behind `!local.wired`, is dropped, which leaves EC2 as it is;
+  - nothing else: each switch sits in a locals block of its own, so the patch changes that block alone.
+
+Its checks, on a fresh export with W1's thirteen patches and this one, in that order: infra/test's T046, T084, T104,
+T119, and T159 checks pass with both switches on; on the same export without this patch,
+test_prod_network.py::test_w2_holds_both_switches_on fails (the switches off).
+--- a/infra/account/handover.tf
++++ b/infra/account/handover.tf
+@@ -7,9 +7,9 @@
+ 
+ locals {
+   # The switch (plan.md §16): false in W1, whose three plan blocks are made before any of W1's applies, so nothing here
+-  # may need another root's W1 apply, or an image not pushed yet. The Author's P-W2 sets it true for W2. Each resource
+-  # behind it is written `count = local.wired ? 1 : 0`.
+-  wired = false
++  # may need another root's W1 apply, or an image not pushed yet. The Author's P-W2 sets it true for W2, whose blocks
++  # follow W1's applies and T174's pushed images. Each resource behind it is written `count = local.wired ? 1 : 0`.
++  wired = true
+ }
+ 
+ # EC2's hours, in a block of their own, so P-W2 changes the switch's block alone.
+--- a/infra/prod/handover.tf
++++ b/infra/prod/handover.tf
+@@ -9,7 +9,7 @@
+   # The switch (plan.md §16): false in W1, whose three plan blocks are made before any of W1's applies, so nothing here
+   # may need another root's W1 apply. The Author's P-W2 sets it true for W2, whose blocks follow W1's applies. Each
+   # resource behind it is written `count = local.wired ? 1 : 0`.
+-  wired = false
++  wired = true
+ }
+ 
+ # AWS's two-minute warning before it stops the tunnel end (spec FR-076, "You get an alert"): the rule names the

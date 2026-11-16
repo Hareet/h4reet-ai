@@ -295,8 +295,11 @@ def check_distribution(r: dict[str, list]) -> list[str]:
         )
     ordered = d.blocks("ordered_cache_behavior")
     api = [b for b in ordered if lit(b, "path_pattern") == "/api/*"]
-    if len(ordered) != 1 or len(api) != 1:
-        found.append("distribution: the one ordered behavior isn't /api/*")
+    # W2: /api/* first, then the site's index behaviors, check_index's (group 8's review B, the smaller ones).
+    if not ordered or lit(ordered[0], "path_pattern") != "/api/*" or len(api) != 1:
+        found.append(
+            "distribution: the first ordered behavior isn't /api/*, the relay's one"
+        )
     else:
         b = api[0]
         if (
@@ -514,9 +517,25 @@ def check_oac(r: dict[str, list]) -> list[str]:
     return []
 
 
+# The folders the site's build writes an index.html into (apps/web/build/*.ts's emitted files): /credits/,
+# /disclosure/, and group 10's /status/.
+SITE_BUILD = REPO / "apps" / "web" / "build"
+INDEX_ARN = "aws_cloudfront_function.index.arn"
+
+
+def site_folders() -> set[str]:
+    found: set[str] = set()
+    for path in SITE_BUILD.glob("*.ts"):
+        text = path.read_text(encoding="utf-8")
+        found |= set(re.findall(r'fileName: "([a-z0-9-]+)/index\.html"', text))
+    return found
+
+
 def check_index(r: dict[str, list]) -> list[str]:
     """A folder's path to its index.html, as the web image's nginx serves it: S3 through origin access control has no
-    index document, so /disclosure/ and /credits/ would answer 403 without it."""
+    index document, so /disclosure/ and /credits/ would answer 403 without it. From W2 (group 8's review B, the
+    smaller ones): on the folders' behaviors alone, `*/` and each folder's path without its slash, which it redirects
+    to the slash as nginx's try_files does, never on every site request, so its cost is one invocation a folder page."""
     fn = one(r, "aws_cloudfront_function", "index")
     code = lit(fn, "code") if fn is not None else None
     found = []
@@ -529,17 +548,52 @@ def check_index(r: dict[str, list]) -> list[str]:
         or not isinstance(code, str)
         or 'request.uri.endsWith("/")' not in code
         or 'request.uri += "index.html"' not in code
+        or "statusCode: 301" not in code
+        or 'location: { value: request.uri + "/" }' not in code
     ):
         found.append(
-            "index: no function in edge.tf, from W1, makes a folder's path its index.html"
+            "index: no function in edge.tf, from W1, makes a folder's path its index.html and redirects a folder's "
+            "path without its slash"
         )
     d = distribution(r)
-    default = d.block("default_cache_behavior") if d is not None else None
-    associations = default.blocks("function_association") if default is not None else []
-    if [(lit(a, "event_type"), raw(a, "function_arn")) for a in associations] != [
-        ("viewer-request", "aws_cloudfront_function.index.arn")
-    ]:
-        found.append("index: the site's behavior doesn't run it on each viewer request")
+    if d is None:
+        return found
+    default = d.block("default_cache_behavior")
+    if default is not None and default.blocks("function_association"):
+        found.append(
+            "index: the site's default behavior runs it on every request, one invocation each"
+        )
+    index = [
+        b
+        for b in d.blocks("ordered_cache_behavior")
+        if lit(b, "path_pattern") != "/api/*"
+    ]
+    want = ["*/"] + sorted(f"/{name}" for name in site_folders())
+    if [lit(b, "path_pattern") for b in index] != want:
+        found.append(
+            "index: the site's index behaviors aren't `*/` and each of its folders' paths without its slash, after "
+            "/api/*"
+        )
+    for b in index:
+        associations = [
+            (lit(a, "event_type"), raw(a, "function_arn"))
+            for a in b.blocks("function_association")
+        ]
+        if (
+            lit(b, "target_origin_id") != "site"
+            or lit(b, "viewer_protocol_policy") != "redirect-to-https"
+            or lit(b, "allowed_methods") != ["GET", "HEAD"]
+            or raw(b, "cache_policy_id") != "aws_cloudfront_cache_policy.site.id"
+            or raw(b, "response_headers_policy_id")
+            != "aws_cloudfront_response_headers_policy.site.id"
+            or b.block("forwarded_values") is not None
+            or b.attr("origin_request_policy_id") is not None
+            or associations != [("viewer-request", INDEX_ARN)]
+        ):
+            found.append(
+                f"index: {lit(b, 'path_pattern')} isn't the site's, with its policies, running the index function on "
+                "each viewer request"
+            )
     return found
 
 
@@ -818,14 +872,18 @@ def test_the_probe_enabled_by_the_accounts_switch_with_its_alarm() -> None:
 
 
 def test_the_checks_pass_with_each_switch_off_and_on() -> None:
-    # W1's tree holds both off (test_w1_holds_both_switches_off); P-W2 sets both on, and every check holds either way.
-    assert problems(prod()) == []
+    # W1 applied both off; W2's P-W2 sets both on (test_w2_holds_both_switches_on), and every check holds either way.
+    assert problems(net.switched_off(prod())) == []
     assert problems(net.switched_on(prod())) == []
     assert (
-        check_probe(account()) == [] and check_probe(net.switched_on(account())) == []
+        check_probe(net.switched_off(account())) == []
+        and check_probe(net.switched_on(account())) == []
     )
     # And the network's own checks, with the edge's files among prod's.
-    assert net.problems(prod()) == [] and net.problems(net.switched_on(prod())) == []
+    assert (
+        net.problems(net.switched_off(prod())) == []
+        and net.problems(net.switched_on(prod())) == []
+    )
 
 
 def test_no_access_logs_anywhere_in_prod() -> None:
@@ -837,6 +895,25 @@ def test_no_access_logs_anywhere_in_prod() -> None:
 def test_the_disclosure_names_both_origins() -> None:
     text = (REPO / "docs" / "data-flow-disclosure.md").read_text(encoding="utf-8")
     assert "`site`" in text and "`relay`" in text
+
+
+def test_the_site_has_the_three_folders_the_index_behaviors_name() -> None:
+    assert site_folders() == {"credits", "disclosure", "status"}
+
+
+def test_row_c1_names_each_header_the_edge_forwards_to_the_relay() -> None:
+    # Group 8's review B, the smaller ones: row C1 says what crosses from the edge to the relay, so each header the
+    # relay's origin-request policy forwards is in its "what" column, traceparent among them.
+    policy = one(prod(), "aws_cloudfront_origin_request_policy", "relay")
+    assert policy is not None
+    headers = policy.block("headers_config").block("headers")
+    names = lit(headers, "items")
+    assert isinstance(names, list) and "traceparent" in names
+    text = (REPO / "docs" / "data-flow-disclosure.md").read_text(encoding="utf-8")
+    (row,) = [line for line in text.splitlines() if line.startswith("| C1 |")]
+    what = row.split(" | ")[3]
+    for name in names:
+        assert f"`{name}`" in what, name
 
 
 FIXTURE_FILES = sorted(FIXTURES.glob("*.tf"))

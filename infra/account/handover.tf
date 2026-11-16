@@ -7,9 +7,9 @@
 
 locals {
   # The switch (plan.md §16): false in W1, whose three plan blocks are made before any of W1's applies, so nothing here
-  # may need another root's W1 apply, or an image not pushed yet. The Author's P-W2 sets it true for W2. Each resource
-  # behind it is written `count = local.wired ? 1 : 0`.
-  wired = false
+  # may need another root's W1 apply, or an image not pushed yet. The Author's P-W2 sets it true for W2, whose blocks
+  # follow W1's applies and T174's pushed images. Each resource behind it is written `count = local.wired ? 1 : 0`.
+  wired = true
 }
 
 # EC2's hours, in a block of their own, so P-W2 changes the switch's block alone.

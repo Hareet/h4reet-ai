@@ -889,10 +889,10 @@ def test_the_account_names_no_prod_id_and_reads_no_prod_state() -> None:
 
 
 def test_every_check_passes_with_both_switches_off_and_on() -> None:
-    for root in (prod(), net.switched_on(prod())):
+    for root in (net.switched_off(prod()), net.switched_on(prod())):
         assert prod_problems(root) == []
         assert net.problems(root) == []
-    for root in (account(), net.switched_on(account())):
+    for root in (net.switched_off(account()), net.switched_on(account())):
         assert account_problems(root) == []
 
 

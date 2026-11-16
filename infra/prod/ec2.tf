@@ -7,9 +7,10 @@ locals {
   # R-04's choice of 2026-11-11, from group 2's measurement: 2 vCPU and 8 GiB, Graviton, burstable (standard credits).
   ec2_type = "t4g.large"
 
-  # EC2's generation: W2 sets 2, so W2's prod block shows EC2 replaced, the server action and the ID's parameter
-  # updated with it, and SC-005 is checked after W2's apply (tasks.md T097, T175). An OS update is a new one too.
-  ec2_generation = 1
+  # EC2's generation: 1 in W1; W2 sets 2, so W2's prod block shows EC2 replaced, the server action and the ID's
+  # parameter updated with it, and SC-005 is checked after W2's apply (tasks.md T097, T175). An OS update is a new one
+  # too.
+  ec2_generation = 2
 
   # The data volume: Docker's data root, so the images and the stack's named volumes (Langfuse's four stores, Prometheus,
   # Loki, Grafana) outlive a replace of the instance. 20 GiB, R-05's size from R-33's measurement.

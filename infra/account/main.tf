@@ -33,13 +33,16 @@ locals {
   # Each function's image in ECR, by digest, once the Author has built and pushed it (tasks.md T040): a function is
   # made only once its digest is set, so the first apply makes the registry the images go to.
   lambda_images = {
-    alert_bridge     = "sha256:d245392171b5432b2f159f202e2ed753b793c120388802d1bb2a79dc146ad1b2"
+    # The bridge's again, since W1's patches changed bridge.py (P-I3, P-I7, P-I6): the Author's T174 push, from main
+    # 5932748c, 2026-11-16, written here by T175.
+    alert_bridge     = "sha256:e0f5e03b15b620a0bcaff76e16cc1d1594c1dd2bc45dc399f76dc44d4051b95a"
     probe            = "sha256:85e0a4e0a428482e9f10829f8fde23313762cce3fc06410b3fd87ca460e7f205"
     credential_audit = "sha256:dd899845f873e200d23db827797e8e556588f5c4c74aee2c4e4e1f0d71264494"
-    # Group 9's (tasks.md T122): empty until the Author pushes each to the repository W1's apply makes (T174), and W2
-    # writes its digest (T175). Their functions wait behind handover.tf's switch and refuse a plan without it.
-    ec2_start = ""
-    ec2_guard = ""
+    # Group 9's (tasks.md T122), pushed by the Author's T174 to the repositories W1's apply made, from main 5932748c,
+    # 2026-11-16, and written here by T175. "" was the one form handover.tf's preconditions refuse, so no plan ran
+    # before these digests were in.
+    ec2_start = "sha256:bd6a6a044d5d0c8353db65066bdbfa86627bef972d567c08850646f85df93a8a"
+    ec2_guard = "sha256:0172b6d16564624020224dd73a8212d990e7e54acbf739b549239d146f76fdd6"
   }
 
   # One repository per function, and one per service the cloud hosts run (contracts/env-cloud.md §3): EC2's whole
