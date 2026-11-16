@@ -147,7 +147,8 @@ function seen(
       if (!isSheet(node)) return;
       const map = (node.material as MeshBasicMaterial).map;
       if (!map || !drawsSide(node, toward)) return;
-      const [s, e, u] = [start, end, above].map((px) => screen(pixelToWorld(node, map, px)));
+      const onScreen = (px: [number, number]): [number, number] => screen(pixelToWorld(node, map, px));
+      const [s, e, u] = [onScreen(start), onScreen(end), onScreen(above)];
       const centre = screen(pixelToWorld(node, map, [cx, cy]));
       out.push({
         side,
