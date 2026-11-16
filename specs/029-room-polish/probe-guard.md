@@ -368,4 +368,33 @@ If he lands the q15 change on the base before the integration runs, the block is
 
 - `git worktree add --detach /tmp/pg2-{base,parent} <commit>`: "fatal: could not create directory of '/home/h4reet/h4reet-ai/h4reet-ai/.git/worktrees/…': Read-only file system" (§1). This came from the filesystem, not a hook or the bash gate. I didn't retry the command another way. I used another route, a `git archive` export of each commit into its own `mktemp -d` under `/tmp`.
 - `make setup` in each export: `git-hooks` stopped with "fatal: not a git repository" (Makefile:205), after `npm ci --ignore-scripts` had finished (§1). That's expected in an export and has no effect on the tests.
-- No hook or bash-gate refusal happened in this session.
+- **The bash gate refused** a command at the end that would have removed the two scratch exports: `rm -rf /tmp/pg2-base.3SpP /tmp/pg2-parent.M6e3`. The reason it gave: "Blocked by .claude/hooks/bash-gate.sh — recursive delete outside workspace. Route: delete only inside the repo". The same command line also held this branch's final `git add`/`git commit`, so none of it ran. I committed again without the delete and didn't retry the delete another way. The two exports, with their `node_modules`, are still under `/tmp`. The base export holds the drafted q15 line from §3, outside any repository. They're the supervisor's or the runner's to clear.
+
+## 7. Verifying
+
+The branch's whole diff from `f411d8e1` is this file. The supervisor said "notes only: commit one file", so this note is also the branch's closing note, and there is no separate `docs/merge-requests/` note. `specs/` is in `.prettierignore`, so `make lint` doesn't read this file; `evals/docs_links.py` does read `specs/`. No test covers this file, so the brief's rule 4 leaves `make lint` and the links check. The three gateway files were run at both commits in §1, and with the drafted fix in §3. I didn't run `make test` here: the branch changes no file it reads, its gateway result at this base is §1's 5 failures, and the full run belongs to the integration (orders, rule 4).
+
+In this worktree, after `make setup` (exit 0; "git hooks: /home/h4reet/h4reet-ai/h4reet-ai/.git/hooks isn't writable here (the agent sandbox); the Author runs make git-hooks"):
+
+```
+$ make lint            → exit 0
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+872 files already formatted
+shellcheck -- … (no findings)
+
+$ python3 -I -B evals/docs_links.py
+PASS  the ADR index links every ADR file: 52 of 52
+PASS  User Story 6's five decisions have their ADRs: 0001 (local-first routing), 0002 (one compose topology), 0003 (local-compose-first delivery), 0004 (Langfuse and Grafana), 0005 (Telegram alerting)
+docs links: 0 failed, 2528 relative links in 484 files
+```
+
+`make evals` and `make redteam` on the base export are in §2.5: evals exit 0; red-team suite 71 passed, 0 failed, with its matrix stopped by the export's sandbox rows. The image stage wasn't run (night 3's Q46 and Q48); that stays with his gate.
+
+**Result:** reproduced. The cause is his corpus commit `f411d8e1`, specifically 022's Golden Q&A 15, which G8 rightly replaces under FR-014. The recommended fix is (a), his words, drafted and checked on a scratch export. The integration's lines are in §4, and two questions are on the page.
