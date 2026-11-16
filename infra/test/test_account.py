@@ -1652,9 +1652,9 @@ def test_the_functions_run_their_images_on_arm64_and_the_bridge_retries_then_fai
 
 
 def test_each_functions_digest_is_empty_or_an_image_digest() -> None:
-    # W2 (tasks.md T174, T175): the start function's and the guard's slots hold "" until the Author reports each pushed
-    # digest, the one form their preconditions refuse (handover.tf), so a plan can't run with a placeholder; then a
-    # digest the session copies from his report, which a typo mustn't reach a plan as.
+    # W2 (tasks.md T174, T175): a slot held "" until the Author reported its pushed digest, the one form the
+    # preconditions refuse (handover.tf), so no plan ran with a placeholder; now each holds a digest the session copied
+    # from his report, which a typo mustn't reach a plan as.
     images = locals_of(parsed(root_texts())).get("lambda_images")
     assert isinstance(images, dict)
     for key, value in images.items():
@@ -1678,6 +1678,23 @@ def test_each_slot_t174_fills_is_marked_a_placeholder_and_has_a_digests_form() -
         assert "PLACEHOLDER" in lines[0], key
         value = images[key]
         assert value == "" or re.fullmatch(r"sha256:[0-9a-f]{64}", str(value)), key
+
+
+# The slots T175 wrote from the Author's T174 report (2026-11-16; T175's review, N1): each holds a digest, never "" (which
+# would drop its function through `count`), and its line carries no PLACEHOLDER mark.
+T174_WRITTEN = {"ec2_start", "ec2_guard", "alert_bridge"}
+
+
+def test_each_slot_t175_wrote_holds_a_digest_and_no_placeholder() -> None:
+    text = (ROOT / "main.tf").read_text(encoding="utf-8")
+    images = locals_of(parsed(root_texts())).get("lambda_images")
+    assert isinstance(images, dict) and T174_WRITTEN <= set(images)
+    assert not (T174_WRITTEN & T174_PENDING)
+    for key in sorted(T174_WRITTEN):
+        lines = [ln for ln in text.splitlines() if re.match(rf"\s*{key}\s*=", ln)]
+        assert len(lines) == 1, key
+        assert "PLACEHOLDER" not in lines[0], key
+        assert re.fullmatch(r"sha256:[0-9a-f]{64}", str(images[key])), key
 
 
 def test_the_bridge_is_h4_alerts_subscriber() -> None:
