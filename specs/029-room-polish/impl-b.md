@@ -115,3 +115,40 @@ ruff format --check --no-cache --extend-exclude corpus .
 …
 make lint exit 0
 ```
+
+## T-B02, its test-first part: earlier specs' cases that pin FR-012's subject (a departure)
+
+Running T-B02's list with the fix in place (before any commit of it) gave 8 failures outside T-B01's file, all on
+FR-012's subject. Three came from the order of my refusals: free talk closed was checked before no route. I put
+no route or no sender first (`cannot_talk.unavailable`: no turn can go, a piece's neither, so "select a piece" would
+mislead), which keeps `talk.test.ts`'s "sends no turn while the turn route is off or no sender exists: the turn is
+cannot_talk.unavailable" and two more cases green unchanged. Five remained. Plan.md didn't name them and T-B02 edits no
+test, so I set the fix aside (copies in `/tmp/b029/fix/`, the four files restored from `HEAD`). I rewrote the five here,
+test-first, in a test commit before T-B02, and recorded the departure in plan §R-B3. The question is on the page (Q-B-1).
+
+| File | Old name | New name | What changed |
+|---|---|---|---|
+| `test/ui/talk.test.ts` | is topic_not_ready for every unready topic, with no request but its usage event and no turn | (unchanged) | the last typed turn's message: `cannot_talk.unavailable` → `cannot_talk.free_talk_closed` |
+| `test/ui/talk.test.ts` | hold every message data-model.md §7 names, each written in advance | (unchanged) | the closed list gains `cannot_talk.free_talk_closed`, `turn_wait.room` |
+| `test/ui/talk-turns.test.ts` | shows cannot_talk.unavailable, sends nothing, and leaves the words in the box when free talk isn't ready | shows cannot_talk.free_talk_closed, sends nothing, and leaves the words in the box when free talk isn't ready (spec 029, FR-012) | the message |
+| `test/ui/talk-turns.test.ts` | shows topic_not_ready for a 409 and ends that conversation | (unchanged) | the typed turn after the 409's message |
+| `test/manifest.test.ts` | parses into every fixed message | (unchanged) | the list gains the two IDs |
+
+Seen failing on the tree without the fix:
+
+```
+$ cd apps/web && npx vitest run --maxWorkers=2 test/ui/talk.test.ts test/ui/talk-turns.test.ts test/manifest.test.ts
+ FAIL  test/manifest.test.ts > content/messages.yaml > parses into every fixed message
+ FAIL  test/ui/talk-turns.test.ts > free talk from the text box (T050; FR-032) > shows cannot_talk.free_talk_closed, sends nothing, and leaves the words in the box when free talk isn't ready (spec 029, FR-012)
+ FAIL  test/ui/talk-turns.test.ts > when the twin can't answer (T060; FR-036, FR-054) > shows topic_not_ready for a 409 and ends that conversation
+ FAIL  test/ui/talk.test.ts > a selectable's action (T205) > is topic_not_ready for every unready topic, with no request but its usage event and no turn
+ FAIL  test/ui/talk.test.ts > the fixed messages > hold every message data-model.md §7 names, each written in advance
+AssertionError: expected 'cannot_talk.unavailable' to be 'cannot_talk.free_talk_closed' // Object.is equality
+AssertionError: expected [ 'cannot_talk.budget', …(11) ] to deeply equal [ 'cannot_talk.budget', …(13) ]
+AssertionError: expected [ 'topic_not_ready', …(11) ] to deeply equal [ 'topic_not_ready', …(13) ]
+ Test Files  3 failed (3)
+      Tests  5 failed | 78 passed (83)
+   Duration  187.60s (tests 78%, import 21%, transform 1%)
+```
+
+(Lines sorted and deduplicated from the run's output.)

@@ -159,9 +159,9 @@ describe("a selectable's action (T205)", () => {
         expect(textOf(lastMessage(v)), id).toBe(messages.topic_not_ready.replace("{topic}", phraseOf(index, id) ?? ""));
       }
       expect(v.events.slice(before)).toEqual(talking.map(({ id }) => ({ kind: "object_selected", id })));
-      // A typed turn afterwards is still free talk, which isn't ready.
+      // A typed turn afterwards is still free talk, which isn't ready: it says so (spec 029, FR-012).
       say(v, "and now?");
-      expect(lastMessage(v)?.getAttribute("data-message")).toBe("cannot_talk.unavailable");
+      expect(lastMessage(v)?.getAttribute("data-message")).toBe("cannot_talk.free_talk_closed");
       expect(sent).toEqual([]);
       expect(v.spies.network).toEqual([]);
       expect(v.spies.beacons).toEqual([]);
@@ -457,6 +457,9 @@ describe("the fixed messages", () => {
       "turn_refused.slow_down",
       "turn_refused.unreadable",
       "turn_stopped",
+      // Spec 029's two (its FR-012, Q4): free talk closed, and the room not yet taking input.
+      "cannot_talk.free_talk_closed",
+      "turn_wait.room",
     ]);
     for (const id of MESSAGE_IDS) expect(messages[id].trim(), id).not.toBe("");
     expect(messages.topic_not_ready).toContain("{topic}");
