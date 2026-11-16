@@ -1325,6 +1325,15 @@ html[data-hud="dock"] [data-over="room"] .room-list-heading {
   box-decoration-break: clone;
 }
 
+/* A key cap over the room (rework2-029a, rv-029a-1's R-2): its face is a tile's, --tile-face, in place of its light
+   tint, which put its 12 px key name under 4.5:1 over white beneath, on a plate ("Back"'s and the hint's "Esc", the
+   selected entry's "Enter") and on the "Eat" tile's glass ("B"). Every layout's, the split's too; its border and its
+   lip stay as they are. test/ui/hud-over-layers.test.ts judges it over its real layers. */
+html[data-hud="column"] [data-over="room"] .hud-keycap,
+html[data-hud="dock"] [data-over="room"] .hud-keycap {
+  background: var(--tile-face);
+}
+
 /* The tiles' ring inside the tile, on its face, never on the translucent glass beside it: the bar's tiles, the walking
    control, the "Eat" tile, and every panel's button but the link-like one, whose ring lies on its message's plate. */
 html[data-hud="column"] [data-over="room"] .hud-tile:focus-visible,

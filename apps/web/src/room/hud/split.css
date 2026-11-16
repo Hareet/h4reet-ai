@@ -522,8 +522,11 @@ html[data-split="on"][data-hud="column"] .room-eat {
    over the room (data-over="room", compose/over.ts), so their glass drops to --over-glass-alpha (room.css's :root) and
    each run of words takes a plate at --over-plate-alpha, as room.css's last block does for the other layouts; at the
    room's framing they stand in the grey bands, unmarked, and nothing here applies (FR-005). Under the visitor's asks
-   both alphas are 1 (room.css). The title row's plate outranks its glass above; the entries' rows are plates with no
-   shadow, so adjacent rows don't darken each other; "Back" is a plate with its ring on it. */
+   both alphas are 1 (room.css). The title row keeps its own glass above (at --over-glass-alpha, as the frame's), its
+   corners, and no shadow; its words, the title's toggle and the hint, are the plates, each with its ring on it
+   (rework2-029a, rv-029a-1's R-1 and R-7: a plate on the row itself replaced the row's glass, the only layer under it,
+   and left the title over the bare room). The entries' rows are plates with no shadow, so adjacent rows don't darken
+   each other; "Back" is a plate with its ring on it. The key caps' face over the room is room.css's. */
 
 html[data-split="on"][data-hud="column"] .talk[data-over="room"],
 html[data-split="on"][data-hud="column"] .room-list[data-over="room"],
@@ -531,7 +534,8 @@ html[data-split="on"][data-hud="column"] .hud-bar[data-over="room"] {
   --split-glass-alpha: var(--over-glass-alpha);
 }
 
-html[data-split="on"][data-hud="column"] .talk[data-over="room"] .talk-head,
+html[data-split="on"][data-hud="column"] .talk[data-over="room"] .talk-log-toggle,
+html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint,
 html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-top,
 html[data-split="on"][data-hud="column"] .room-list[data-over="room"] .split-label,
 html[data-split="on"][data-hud="column"] .room-list[data-over="room"] .split-back {
@@ -543,4 +547,10 @@ html[data-split="on"][data-hud="column"] .room-list[data-over="room"] .split-bac
 html[data-split="on"][data-hud="column"] .room-list[data-over="room"] li {
   background: rgb(var(--glass) / var(--over-plate-alpha));
   border-radius: 0.25rem;
+}
+
+/* The title row as it stands beside the room: room.css's over-room .talk-head plate gives the other layouts' title its
+   shadow, which this row, on its own glass, doesn't take. */
+html[data-split="on"][data-hud="column"] .talk[data-over="room"] .talk-head {
+  box-shadow: none;
 }
