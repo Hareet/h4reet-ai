@@ -39,7 +39,20 @@ I didn't respell it. I made the same document edit with the editor tool, which r
 
 - `make setup` (exit 0; "git hooks: … isn't writable here (the agent sandbox); the Author runs make git-hooks").
 - `node_modules/.bin/prettier --check specs/029-room-polish intent/029-room-polish.md`: "All matched files use Prettier code style!".
-- `make lint`, pasted below.
+- `make lint`, exit 0, with the analysis committed (shellcheck's file list cut):
+
+  ```
+  node_modules/.bin/eslint --max-warnings 0 .
+  for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+  node_modules/.bin/prettier --check .
+  Checking formatting...
+  All matched files use Prettier code style!
+  ruff check .
+  All checks passed!
+  ruff format --check --no-cache --extend-exclude corpus .
+  877 files already formatted
+  exit 0
+  ```
 - No `make test` or `make evals`: no code changed. The one full `make check` is T-INT's.
 
 ## What's left
