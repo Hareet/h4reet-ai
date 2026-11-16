@@ -39,6 +39,7 @@ import { count } from "../../../src/room/glb/rules";
 import { capSides } from "../../../src/room/scene/ledger";
 import { avatarsOf, bundledFiles, figureBlock, twinGlbs, twinOf, VISITORS_DIR } from "../avatars";
 import type { AvatarSet, TwinSet } from "../avatars";
+import { EATER } from "../../../src/room/eat/available";
 import type { Loaded } from "../load";
 import { CAPS_PATH, capsOf } from "../policy";
 import type { CatalogEntry } from "../schema";
@@ -314,9 +315,14 @@ export interface FiguresVisit {
   /** The largest bundled avatar's, and which; null with none. */
   readonly other: number;
   readonly other_id: string | null;
+  /** Spec 025 (FR-022; plan.md R-11): the room's dog's files where the scene has `figures.dog`, counted once: 0 where
+   *  it hasn't, or where the stand-in's files are the dog's already. Since spec 028 (FR-029; plan.md R-B9): counted
+   *  only with the dinosaur's, as one visitor set, where the bundle carries the dinosaur's model, and only where that
+   *  set is the largest (`other_id` the dinosaur); 0 otherwise. */
+  readonly dog: number;
 }
 
-export function figuresVisit(set: AvatarSet, twin: TwinSet | null = null): FiguresVisit {
+export function figuresVisit(set: AvatarSet, twin: TwinSet | null = null, roomDog = false): FiguresVisit {
   const served = (id: string): number => {
     const avatar = set.avatars.find((a) => a.id === id);
     return avatar ? sum(bundledFiles(avatar).map((f) => f.gz?.length ?? 0)) : 0;
@@ -325,13 +331,17 @@ export function figuresVisit(set: AvatarSet, twin: TwinSet | null = null): Figur
   const twinBytes = sum(own.map((f) => f.gz?.length ?? 0));
   const standing = own.length > 0 ? null : set.figures.stand_in;
   const standIn = standing === null ? 0 : served(standing);
-  let [other, otherId] = [0, null as string | null];
+  // Spec 028 (FR-029): the room's dog's folder rides with the dinosaur's, one visitor set ("the dinosaur's plus the
+  // room's dog's"), only where the bundle carries the dinosaur's model; the dog visitor's own folder competes alone.
+  const withDinosaur = roomDog && standing !== "dog" && served(EATER) > 0 ? served("dog") : 0;
+  let [other, otherId, dog] = [0, null as string | null, 0];
   for (const a of set.avatars) {
     if (a.id === standing) continue;
     const bytes = served(a.id);
-    if (bytes > other || (otherId === null && bytes > 0)) [other, otherId] = [bytes, a.id];
+    const rides = a.id === EATER ? withDinosaur : 0;
+    if (bytes + rides > other + dog || (otherId === null && bytes > 0)) [other, otherId, dog] = [bytes, a.id, rides];
   }
-  return { twin: twinBytes, stand_in: standIn, other, other_id: otherId };
+  return { twin: twinBytes, stand_in: standIn, other, other_id: otherId, dog };
 }
 
 /** RK5 (spec 009, FR-038): the first visit with both figures' files, the room's set models and cards by what the site
@@ -349,10 +359,15 @@ function firstVisit(ctx: Context): void {
       .filter((c) => placed.has(c.entry.value.id) && set.has(c.entry.value.id))
       .map((c) => c.measures?.served ?? 0),
   );
-  const figures = figuresVisit(avatarsOf(ctx.tree, ctx.policy, scene.value), twinOf(ctx.tree, ctx.policy, scene.value));
-  const total = room + figures.twin + figures.stand_in + figures.other;
+  const figures = figuresVisit(
+    avatarsOf(ctx.tree, ctx.policy, scene.value),
+    twinOf(ctx.tree, ctx.policy, scene.value),
+    scene.value.figures.dog !== undefined,
+  );
+  const total = room + figures.twin + figures.stand_in + figures.dog + figures.other;
   const budget = ctx.policy.phase3_bytes;
   const twin = figures.twin > 0 ? `${count(figures.twin)} in the twin's files, ` : "";
+  const dog = figures.dog > 0 ? `${count(figures.dog)} in the room's dog's files, ` : "";
   if (total > budget)
     ctx.report(
       "RK5",
@@ -360,7 +375,7 @@ function firstVisit(ctx: Context): void {
       "-",
       `${count(total)} bytes in the first visit with both figures' files, over main's phase-3 budget of ` +
         `${count(budget)}: ${count(room)} in the room's set models and cards, ${twin}${count(figures.stand_in)} in ` +
-        `the stand-in's files, and ${count(figures.other)} in the largest other visitor avatar's`,
+        `the stand-in's files, ${dog}and ${count(figures.other)} in the largest other visitor avatar's`,
     );
 }
 

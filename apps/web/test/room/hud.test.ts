@@ -73,7 +73,7 @@ describe("the boxes and the clear area (compose/hud.ts's hudBoxes and clearArea)
   it("docks the list, the text box's row, and the bar at the foot of a window held upright", () => {
     const b = hudBoxes({ w: 384, h: 740 });
     expect(b.layout).toBe("dock");
-    // Under 27rem the strip's words take two lines; under 35rem the bar's tiles take two rows; under 36rem the list's
+    // Under 27rem the strip's words take two lines; under 35rem the bar's tiles take two rows; under 39rem the list's
     // names take two rows beside its header button.
     expect(b.strip).toEqual({ x: 0, y: 0, w: 384, h: STRIP.two });
     expect(b.bar).toEqual({ x: 0, y: 740 - BAR.two, w: 384, h: BAR.two });
@@ -236,7 +236,9 @@ describe("the compact boxes (spec 014, T005; compose/hud.ts's compactBoxes)", ()
         // the column's content; else in the clear area, as spec 008 put it.
         const band = c.walkPlace === "column" ? bands.column : bands.clear;
         if (!band || !inside(c.walk, band)) failures.push(`${where}: the walking control`);
-        if (c.all.length !== 4) failures.push(`${where}: ${c.all.length} boxes`);
+        // Spec 018 (FR-004, H-8): where the window takes the split layout, five: the rest row and the list stand for the
+        // column's content.
+        if (c.all.length !== (c.split ? 5 : 4)) failures.push(`${where}: ${c.all.length} boxes`);
       }
     expect(failures.slice(0, 5), `${failures.length} failures; the first`).toEqual([]);
   });
@@ -387,6 +389,15 @@ describe("the walking control at the column's head (spec 014, T053)", () => {
       if (!column || !bands.column) throw new Error(`${where}: no column`);
       expect(c.layout, where).toBe("column");
       expect(c.walkPlace, where).toBe("column");
+      // Spec 018 (FR-004, H-8): where the window takes the split layout, the column's content is moved out, and the
+      // walking control stands at the band's foot, the column's head with nothing under it. Spec 028 (T-A03; plan.md
+      // §R-B8): the split layout is taken only with a wall source, which this sweep gives none; its boxes at rest are
+      // the strip, the panel, and the column.
+      if (c.split) {
+        expect(c.walk, where).toEqual(c.split.walk);
+        expect(c.all, where).toEqual([c.strip, c.split.panel, c.split.column]);
+        continue;
+      }
       expect(inside(bands.column, c.walk), where).toBe(true);
       expect(c.walk.y + c.walk.h, where).toBeCloseTo(column.y - HUD_PLACEMENTS.column.walkGapRem * 16, 6);
       expect(c.walk.x + c.walk.w, where).toBeCloseTo(column.x + column.w - HUD_PLACEMENTS.column.walkGapRem * 16, 6);

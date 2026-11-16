@@ -13,6 +13,12 @@ Claude Code's pin is a floor (ADR 0023). It updates itself from the Author's oth
 DISABLE_AUTOUPDATER doesn't reach, so a newer release is WARN: a row, and a line starting "WARN:", that don't fail the
 check. An older release is DRIFT. The agent-config evals record the version each run used, and a moved floor is in
 their trigger hash.
+
+The night shift's images (spec 017, P-8) install one Claude Code, pinned in deploy/night-shift/images/pins.json: its
+claude_code, which the toolchain image's CLAUDE_CODE_VERSION argument must repeat. Beside a .devcontainer/toolchain.vars
+(make toolchain-check's, or the gate's export's), that pin is a row of its own, "claude code (night images)", held to
+the same floor: the floor or its series is OK, newer is WARN, older is DRIFT, and a file that can't say one version is
+DRIFT. No row while the file is absent. H4_NIGHT_PINS names another file.
 """
 
 from __future__ import annotations
@@ -35,6 +41,9 @@ AWS_PROVIDER_DIR = Path("registry.terraform.io") / "hashicorp" / "aws"
 VERSION_RE = re.compile(r"(\d+(?:\.\d+)+)")
 # Pins that are floors (ADR 0023): a newer release is WARN, not DRIFT.
 FLOORS = frozenset({"CLAUDE_CODE_VERSION"})
+# The night shift's image pins (spec 017, P-8), relative to the repository a toolchain.vars sits in.
+NIGHT_PINS = Path("deploy") / "night-shift" / "images" / "pins.json"
+NIGHT_TOOL = "claude code (night images)"
 
 
 @dataclass
@@ -152,11 +161,46 @@ def mirrored_provider(mirror: Path, pinned: str) -> tuple[str | None, str]:
     return (pinned if pinned in versions else versions[-1]), str(folder)
 
 
+def night_pin(path: Path) -> tuple[str | None, str]:
+    """The night images' Claude Code (spec 017, P-8): pins.json's claude_code, when the toolchain image's
+    CLAUDE_CODE_VERSION argument repeats it, so every image installs that one. (None, why) when the file can't say."""
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return None, f"{path}: {exc.__class__.__name__}"
+    if not isinstance(doc, dict):
+        return None, f"{path} isn't an object"
+    pin = doc.get("claude_code")
+    if not isinstance(pin, str) or not VERSION_RE.fullmatch(pin):
+        return None, f"{path}: claude_code isn't a version"
+    toolchain = doc.get("toolchain")
+    args = toolchain.get("args") if isinstance(toolchain, dict) else None
+    arg = args.get("CLAUDE_CODE_VERSION") if isinstance(args, dict) else None
+    if arg != pin:
+        return (
+            None,
+            f"{path}: the toolchain image's CLAUDE_CODE_VERSION isn't claude_code ({pin}), so the images would differ",
+        )
+    return pin, str(path)
+
+
+def night_pins_for(vars_path: Path) -> Path | None:
+    """The night images' pins beside a repository's .devcontainer/toolchain.vars, or H4_NIGHT_PINS; None for a pins
+    file anywhere else, such as a test's."""
+    named = os.environ.get("H4_NIGHT_PINS")
+    if named:
+        return Path(named)
+    if vars_path.name == "toolchain.vars" and vars_path.parent.name == ".devcontainer":
+        return vars_path.parent.parent / NIGHT_PINS
+    return None
+
+
 def check(
     pins: dict[str, str],
     lint_node: Path,
     in_devcontainer: bool,
     mirror: Path | None = None,
+    night_pins: Path | None = None,
 ) -> list[Row]:
     rows: list[Row] = []
 
@@ -209,6 +253,14 @@ def check(
         )
     else:
         add("claude code", "CLAUDE_CODE_VERSION", found, where)
+    # The night images' pin (spec 017, P-8), held to the same floor as the installed Claude Code, once the file exists.
+    if night_pins is not None and night_pins.exists():
+        found, where = night_pin(night_pins)
+        if found is None:
+            pinned = pins.get("CLAUDE_CODE_VERSION") or "(no pin)"
+            rows.append(Row(NIGHT_TOOL, pinned, "-", where, "DRIFT"))
+        else:
+            add(NIGHT_TOOL, "CLAUDE_CODE_VERSION", found, where)
 
     # Spec 001's pins (its research.md R-02; tasks.md T008), each a row only once toolchain.vars names it. Terraform and
     # the AWS CLI run in the Author's terminal, so each is SKIP where it isn't installed, and DRIFT where another release
@@ -280,7 +332,7 @@ def main(argv: list[str]) -> int:
     lint_node = Path(os.environ.get("H4_LINT_NODE") or DEFAULT_LINT_NODE)
     in_devcontainer = os.environ.get("H4_DEVCONTAINER") == "1"
     mirror = Path(os.environ.get("H4_TERRAFORM_MIRROR") or DEFAULT_MIRROR)
-    rows = check(pins, lint_node, in_devcontainer, mirror)
+    rows = check(pins, lint_node, in_devcontainer, mirror, night_pins_for(vars_path))
     print(render(rows))
     above = [r for r in rows if r.status == "WARN"]
     for r in above:

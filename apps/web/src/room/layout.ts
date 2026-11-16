@@ -8,10 +8,10 @@
 // "around" spans both columns before the resume; below a portrait width of 35rem, where five controls (spec 003's
 // "Credits" among them once it lands) wrap to two rows, the stage gives up one toolbar row, and below 25rem the
 // toolbar's type drops to 0.875rem, so the text box and the talk button stay on screen, a 320 × 568 one included
-// (FR-047, FR-065; R-40; the review of T171, B1). The stage's placeholder note, the UI word standin.note, shows only
-// while stand-ins are in use. Spec 009's stand-in line, the UI word twin.stand_in, is a paragraph of its own beside it
-// (its FR-013; plan.md R-13), in 3D and 2D alike, since the note sits in the stage beside the view: the two stack at the
-// stage's top left, over the view, taking no room in the layout and letting a pointer or a touch through to the scene.
+// (FR-047, FR-065; R-40; the review of T171, B1). Spec 028 (FR-012; the Author's answer "Keep top banner"): the stage's
+// notes at its top left, the placeholder note (standin.note, standin.avatar), spec 009's stand-in line or spec 016's
+// twin's line, and spec 020's visitor line, are no longer drawn; their words are "Around the room"'s lines
+// (text-copy.ts), and the notes' box stays, empty, letting a pointer or a touch through to the scene.
 // "Pause the room" (spec 004, FR-060, FR-065; Amendment B8; R-34), the UI word pause.button, is a toggle whose state
 // is in aria-pressed; the room's motion store holds what it sets (motion.ts).
 // Spec 005 (FR-008, FR-019 to FR-022; plan.md §2.3, §5.4, §6.1): the room's block fills the window, and the interface
@@ -25,12 +25,17 @@
 // Spec 012 (its Amendment L10, which amends spec 005's FR-019; FR-018, FR-024 to FR-027): in 3D the stage's loading line,
 // "Loading the room…", gives its place to the loader, whose card insertLoader puts after the room's block and before
 // "Around the room"; setLoading sets data-loading on the page's root, which tints the room's parts (loading/loading.css),
-// and makes "Around the room" inert while the loader shows. The AI disclosure's strip and the stage's notes are never
-// tinted or covered: the card sits below the strip and the notes' reserve, or first in the page's flow when stacked.
-import type { Box, HudLayout, HudMetrics, HudState } from "./compose/hud";
+// and makes "Around the room" inert while the loader shows. The AI disclosure's strip and the stage's notes' box (empty
+// since spec 028, FR-012) are never tinted or covered: the card sits below the strip and the notes' reserve, or first in
+// the page's flow when stacked.
+import type { Box, HudLayout, HudMetrics, HudState, SplitBoxes } from "./compose/hud";
+import { hudParts, overRoom, roomBox } from "./compose/over";
+import type { PartId } from "./compose/over";
 import { h } from "./dom";
 import { icon } from "./hud/icons";
 import type { IconName } from "./hud/icons";
+import { keycap } from "./hud/keycap";
+import { attempt } from "./hud/split";
 
 /** The layout the room applies: the HUD's boxes in their layout, or the stacked layout. */
 export interface HudApplied {
@@ -55,12 +60,22 @@ export interface HudApplied {
     /** T053 (W19): the walking control's box, and where it sits. */
     readonly walk: Box;
     readonly walkPlace: "column" | "stage";
+    /** Spec 024 (FR-012; plan.md §5.5): the "Eat" tile's box, compactBoxes's `eat`, for a 3D dinosaur visit; absent or
+     *  null, none. */
+    readonly eat?: Box | null;
   };
   readonly logRest: number;
   /** The stage's notes' reserve at the clear area's top, which no sheet reaches into (compose/hud.ts's notesReserve). */
   readonly notes: number;
   /** The on-screen keyboard's inset over the window's foot. */
   readonly keyboard: number;
+  /** Spec 018 (FR-001, FR-004): the split layout's boxes where the window takes it; absent or null, today's layout. */
+  readonly split?: SplitBoxes | null;
+  /** Spec 029 (FR-001; plan.md §R-A2): the room's box at its framing, the frame area's protector's wall box at `frame`;
+   *  absent or null, the frame area. */
+  readonly room?: Box | null;
+  /** Spec 029: the stage's box, the window in a HUD layout, which the walking view fills; absent, the frame area. */
+  readonly stage?: Box;
 }
 
 export interface RoomLayout {
@@ -83,19 +98,17 @@ export interface RoomLayout {
   offer(now: () => void, later: () => void): () => void;
   /** The room is in 2D for the rest of the visit: "2D view" stays, marked unavailable. */
   markFlat(): void;
-  /** Shows the placeholder note while stand-ins are in use: from the bundle, or once a piece's load falls back. Since
-   *  spec 014 (its FR-053, FR-054; PD-18) it says what is missing: the room's pieces (standin.note), the visitor's
-   *  figure in 3D (standin.avatar), or both in one note, the pieces' first; hidden where nothing is. */
-  setPlaceholders(on: { readonly pieces: boolean; readonly figure: boolean }): void;
-  /** Spec 016 (FR-014; contracts/twin-states.md §4): the line slot's words, in place: the twin's line while its own
-   *  picture shows, the stand-in line otherwise. The paragraph isn't a live region, so nothing is announced. */
-  setLine(words: string): void;
   /** Shows whether the room is paused, in "Pause the room"'s aria-pressed. */
   setPaused(on: boolean): void;
   /** Spec 008's walking control (FR-020, FR-021; R-09): in the stage's bottom-right corner, inert with the rest. */
   readonly walkButton: HTMLButtonElement;
   /** Offers the walking control, in 3D after the hand-off's offer, or takes it away, in 2D. */
   setWalkOffered(on: boolean): void;
+  /** Spec 024's "Eat" tile (FR-001, FR-012; plan.md §5.5): after the walking control in the clear box, its name
+   *  "{eat.button}, B", hidden until offered. */
+  readonly eatButton: HTMLButtonElement;
+  /** Offers the "Eat" tile, while the 3D side says the eating is available, or takes it away. */
+  setEatOffered(on: boolean): void;
   /** The walking view on or off: the control's words, and the view's name, role, and focus while walking (R-13). */
   setWalking(on: boolean): void;
   /** The clear box, over the stage at the clear area (spec 005): the notes, the offer, and the walking control. */
@@ -119,6 +132,14 @@ export interface RoomLayout {
   /** Spec 012: puts the loader's card in the room, after the room's block and before "Around the room" (contract §5). */
   insertLoader(card: HTMLElement): void;
 }
+
+/** Spec 028: every --wall-* property applyHud sets in the split layout, each taken away outside it. */
+const WALL_PROPERTIES: readonly string[] = [
+  ...["panel", "column", "list", "tiles", "bar"].flatMap((p) => ["x", "y", "w", "h"].map((k) => `--wall-${p}-${k}`)),
+  "--wall-title-h",
+  "--wall-scale-left",
+  "--wall-scale-right",
+];
 
 /** A HUD tile (spec 005, FR-026; plan.md §6.2): an icon over its words, the words its name. */
 function tile<K extends "button" | "a">(
@@ -145,12 +166,6 @@ export function renderRoom(
     talk: HTMLElement;
     /** "Around the room", after the conversation panel and outside the stage (spec 004, FR-063). */
     around: HTMLElement;
-    /** The placeholder note's words: the UI word standin.note. */
-    note: string;
-    /** Spec 014 (FR-054): the visitor's figure's placeholder words, the UI word standin.avatar; empty for none. */
-    noteAvatar?: string;
-    /** Spec 009's stand-in line: the UI word twin.stand_in while the index's copy holds it; empty for none. */
-    standIn?: string;
     /** "Pause the room": the UI word pause.button. */
     pause: string;
     /** Spec 016 (FR-042): the toolbar's credits link, the UI word toolbar.credits. */
@@ -167,6 +182,9 @@ export function renderRoom(
     /** Spec 005's full-screen control's words, fullscreen.enter and fullscreen.leave, where the browser offers full
      *  screen; absent, no control. */
     fullscreen?: { readonly enter: string; readonly leave: string };
+    /** Spec 024's "Eat" tile: its words, eat.button, and the key cap's drawer (hud/keycap.ts's by default; a test's
+     *  may throw, and the tile keeps its icon, words, and name, NB-1). Absent, the tile has no words and never shows. */
+    eat?: { readonly button: string; readonly keycap?: (doc: Document, name: string) => HTMLElement };
   },
 ): RoomLayout {
   const heading = h(doc, "h1", { class: "visually-hidden", tabindex: -1 }, "The Author's work area");
@@ -212,7 +230,6 @@ export function renderRoom(
     { class: "room-stage-view", "data-stage": "loading" },
     h(doc, "p", { class: "room-loading" }, "Loading the room…"),
   );
-  const note = h(doc, "p", { class: "room-note", hidden: true }, parts.note);
   const walkWords: NonNullable<typeof parts.walk> = parts.walk ?? { enter: "", leave: "", region: "", help: "" };
   const walkButton = tile(
     doc,
@@ -224,9 +241,32 @@ export function renderRoom(
   const walkLabel = walkButton.querySelector(".hud-tile-words") as HTMLElement;
   // The walking keys' instructions, read only while walking: hidden otherwise, which aria-describedby still reads.
   const walkHelp = h(doc, "p", { id: "room-walk-help", class: "visually-hidden", hidden: true }, walkWords.help);
-  const standIn = h(doc, "p", { class: "room-note room-stand-in", hidden: !parts.standIn }, parts.standIn ?? "");
-  const notes = h(doc, "div", { class: "room-notes" }, note, standIn);
-  const clear = h(doc, "div", { class: "room-clear" }, notes, walkButton, walkHelp);
+  // Spec 024 (FR-012; NB-1): the "Eat" tile, a tile with the "B" key cap drawn through attempt, as split.ts's labelled
+  // draws its caps, so a throw leaves it its icon and words; its name is "{eat.button}, B" either way.
+  const eatWords = parts.eat?.button ?? "";
+  const eatButton = tile(
+    doc,
+    "button",
+    {
+      type: "button",
+      class: "room-eat hud-glass",
+      hidden: true,
+      "aria-label": `${eatWords}, B`,
+      "aria-keyshortcuts": "B",
+    },
+    "eat",
+    eatWords,
+  );
+  const eatCap = attempt(() => (parts.eat?.keycap ?? keycap)(doc, "B"));
+  if (eatCap) eatButton.append(eatCap);
+  // rework-024 (nit 2): a held Enter or Space is one press, as a held B is (walk/input.ts): a repeat's keydown is
+  // prevented, so the browser makes no click of it.
+  eatButton.addEventListener("keydown", (e) => {
+    if (e.repeat && (e.key === "Enter" || e.key === " ")) e.preventDefault();
+  });
+  // Spec 028 (FR-012): the notes' box, empty: no note is drawn over the stage.
+  const notes = h(doc, "div", { class: "room-notes" });
+  const clear = h(doc, "div", { class: "room-clear" }, notes, walkButton, walkHelp, eatButton);
   const stage = h(doc, "div", { class: "room-stage" }, view, clear);
   const panels = h(doc, "div", { class: "hud-panels hud-glass" }, parts.list, parts.talk);
   const resumeHeading = h(doc, "h2", { id: "resume-heading", tabindex: -1 }, "The resume");
@@ -242,7 +282,55 @@ export function renderRoom(
   const element = h(doc, "div", { class: "room" }, block, parts.around, resumePanel);
   const loadingLine = view.querySelector(".room-loading");
   const root = doc.documentElement;
-  const controls = [toolbar, view, walkButton, parts.list, parts.talk, resumePanel];
+  const controls = [toolbar, view, walkButton, eatButton, parts.list, parts.talk, resumePanel];
+  /** Whether the 3D side offers the tile (setEatOffered). */
+  let eatWanted = false;
+  /** rework-024 (B-2): the tile shows where it is offered and a room.css rule places it, read from the attributes those
+   *  rules read: the stacked layout (or none applied yet), beside the walking control; a HUD layout only with its Eat
+   *  box (data-eat-place="on"), never where --eat-x/-y are unset. */
+  const showEat = (): void => {
+    const hud = root.getAttribute("data-hud");
+    const placed = (hud !== "column" && hud !== "dock") || root.getAttribute("data-eat-place") === "on";
+    eatButton.hidden = !eatWanted || eatWords === "" || !placed;
+  };
+  /** Spec 029 (FR-001; plan.md §R-A2): the last layout applied, and whether the walking view is on, which the over-room
+   *  flag is computed from at every re-fit and at the walking view's start and end. */
+  let lastApplied: HudApplied | null = null;
+  let walking = false;
+  const sheet = parts.talk.querySelector<HTMLElement>(".talk-sheet");
+  const partElements: readonly [PartId, HTMLElement | null][] = [
+    ["talk", parts.talk],
+    ["list", parts.list],
+    ["bar", toolbar],
+    ["walk", walkButton],
+    ["eat", eatButton],
+    ["column", panels],
+    ["dock", panels],
+    ["sheet", sheet],
+    ["larger", sheet],
+  ];
+  /** Marks each part over the room with data-over="room" and takes the mark from every other (compose/over.ts). */
+  const markOver = (): void => {
+    const a = lastApplied;
+    const over = a
+      ? overRoom(
+          hudParts({
+            layout: a.layout,
+            split: a.layout === "column" ? (a.split ?? null) : null,
+            compact: a.compact,
+            dock: a.dock,
+            clear: a.clear,
+            notes: a.notes,
+          }),
+          roomBox({ walking, stage: a.stage ?? a.frame, wall: a.room ?? null, frame: a.frame }),
+        )
+      : new Set<PartId>();
+    const on = new Set<HTMLElement>();
+    for (const [id, el] of partElements) if (el && over.has(id)) on.add(el);
+    for (const [, el] of partElements)
+      if (el && on.has(el)) el.setAttribute("data-over", "room");
+      else el?.removeAttribute("data-over");
+  };
 
   return {
     element,
@@ -277,16 +365,6 @@ export function renderRoom(
     markFlat() {
       flatButton.setAttribute("aria-disabled", "true");
     },
-    setLine(words) {
-      if (standIn.textContent !== words) standIn.textContent = words;
-      standIn.hidden = words === "";
-    },
-    setPlaceholders(on) {
-      const words = [on.pieces ? parts.note : "", on.figure ? (parts.noteAvatar ?? "") : ""].filter((w) => w !== "");
-      // One note (FR-055): the two joined, the first ending in a stop where its words don't.
-      note.textContent = words.map((w, k) => (k < words.length - 1 && !/[.!?]$/.test(w) ? `${w}.` : w)).join(" ");
-      note.hidden = words.length === 0;
-    },
     setPaused(on) {
       pauseButton.setAttribute("aria-pressed", String(on));
     },
@@ -295,9 +373,17 @@ export function renderRoom(
       walkButton.hidden = !on || walkWords.enter === "";
       root.setAttribute("data-walk", walkButton.hidden ? "off" : "on");
     },
+    eatButton,
+    setEatOffered(on) {
+      eatWanted = on;
+      showEat();
+    },
     setWalking(on) {
       walkLabel.textContent = on ? walkWords.leave : walkWords.enter;
       walkHelp.hidden = !on;
+      // Spec 029 (FR-001): the walking view's room fills the stage, so every part meets it while walking.
+      walking = on;
+      markOver();
       // The view takes focus while walking: its name, its instructions, and a role that passes the keys through, never
       // the canvas inside it, which stays aria-hidden (R-13).
       if (on) {
@@ -313,6 +399,19 @@ export function renderRoom(
       root.setAttribute("data-list", applied.state.list);
       // Spec 014, T053 (W19): where the walking control sits, which room.css's column layout reads with --walk-x/-y.
       root.setAttribute("data-walk-place", applied.compact.walkPlace);
+      // Spec 024 (plan.md §5.5): the "Eat" tile's box, for a 3D dinosaur visit only, which room.css reads.
+      // rework-024 (B-2): "on" only in a HUD layout, the only ones whose rule reads --eat-x/-y (room.css); the stacked
+      // layout places the tile beside the walking control by its own rule.
+      const eat = applied.layout === "stacked" ? null : (applied.compact.eat ?? null);
+      root.setAttribute("data-eat-place", eat ? "on" : "off");
+      if (eat) {
+        root.style.setProperty("--eat-x", `${eat.x}px`);
+        root.style.setProperty("--eat-y", `${eat.y}px`);
+      } else {
+        root.style.removeProperty("--eat-x");
+        root.style.removeProperty("--eat-y");
+      }
+      showEat();
       const px = (n: number): string => `${n}px`;
       const { safe } = applied.metrics;
       const sizes: [string, number][] = [
@@ -345,10 +444,40 @@ export function renderRoom(
         ["--frame-w", applied.frame.w],
         ["--frame-h", applied.frame.h],
       ];
+      // Spec 018's split layout, placed beside the room's walls by spec 028 (FR-004 to FR-008; plan.md §R-A4): the panel's,
+      // the title row's, the column's, the list's, the tiles' block's, and the bar's boxes for hud/split.css as --wall-*, and the
+      // two sides' scales, unitless; data-split beside data-hud. The walking control's and the Eat tile's places are
+      // compact.walk's and compact.eat's, above, in the tiles' block. Outside the split layout none is set.
+      const sp = applied.layout === "column" ? (applied.split ?? null) : null;
+      root.setAttribute("data-split", sp ? "on" : "off");
+      for (const name of WALL_PROPERTIES) root.style.removeProperty(name);
+      if (sp) {
+        const boxes: [string, Box][] = [
+          ["panel", sp.panel],
+          ["column", sp.column],
+          ["list", sp.list],
+          ["tiles", sp.tiles],
+          // rv-028a-1's A1-1: the toolbar's bar, its tile rows only, above the walking control and the Eat tile.
+          ["bar", sp.bar],
+        ];
+        for (const [part, b] of boxes)
+          sizes.push(
+            [`--wall-${part}-x`, b.x],
+            [`--wall-${part}-y`, b.y],
+            [`--wall-${part}-w`, b.w],
+            [`--wall-${part}-h`, b.h],
+          );
+        sizes.push(["--wall-title-h", sp.title.h]);
+        root.style.setProperty("--wall-scale-left", String(sp.scaleLeft));
+        root.style.setProperty("--wall-scale-right", String(sp.scaleRight));
+      }
       for (const [name, value] of sizes) root.style.setProperty(name, px(value));
       // The stacked layout's header is sticky in the page's flow, its own height: the scroll padding takes its 4rem
       // fallback there, as before spec 005.
       if (applied.layout === "stacked") root.style.removeProperty("--strip-h");
+      // Spec 029 (FR-001): the parts over the room at this layout.
+      lastApplied = applied;
+      markOver();
     },
     setStage(what) {
       view.setAttribute("data-stage", what);

@@ -31,6 +31,7 @@ import { textureMemory } from "../../src/room/glb/fit";
 import { clipGlb, pngHeader } from "../helpers/glb";
 import { REPO } from "../helpers/room";
 import { goodTree, overlay } from "../helpers/room-fixtures";
+import { twinPolicy } from "../helpers/room-twin";
 import { avatarFolder, avatarModel, avatarPolicy, nightFiles, SCENE, sceneWith } from "../helpers/room-avatars";
 
 const STRICT: ComposeOptions = { mode: "strict", drafts: true };
@@ -293,11 +294,17 @@ describe("the RA family (FR-038; plan.md §3.5)", () => {
       expect(where(strict)).toEqual(["RA3 assets/visitors/man/man.glb:-"]);
       expect(lenient.scene.figures.stand_in).toBeNull();
     }
-    // A likeness the visitor may choose, which spec 003's arrival check holds to the Author's approval, isn't RA3's.
+    // A likeness the visitor may choose, which spec 003's arrival check holds to the Author's approval, isn't RA3's;
+    // spec 020's RA9 holds it to main's approval too, so it composes clean only with one (changed with T002).
     const woman = (e: { file: string; likeness: boolean }[]): void => {
       (e.find((x) => x.file === "woman.glb") as { likeness: boolean }).likeness = true;
     };
-    expect(where(composed(night({ woman: { records: woman as never } })).findings)).toEqual([]);
+    const likeness = night({ woman: { records: woman as never } });
+    expect(where(composed(likeness).findings)).toEqual(["RA9 assets/visitors/woman/woman.glb:-"]);
+    const approved = twinPolicy({
+      likeness: [{ id: "A-fx-woman", sha256: sha256(avatarModel().bytes), line: "A made-up likeness." }],
+    });
+    expect(where(composed(likeness, approved).findings)).toEqual([]);
   });
 
   it("RA4: a model over main's per_asset.avatar, or a clip over per_asset.animation, as spec 003's F2 measures", () => {
@@ -454,8 +461,15 @@ describe("the data-only proof set on the repository's own data (FR-037, SC-008)"
     // Spec 014 (FR-039; D1; plan.md E15): the committed scene's grips beside them, the man's and the woman's left.
     expect(committed.figures).toMatchObject({ twin_stand_in: "man", texture_px: 1024, wait_ms: 1500 });
     // Spec 016 (FR-054; changed with T042, plan.md R-18): the twin's own block beside spec 009's and spec 014's keys.
+    // Spec 025 (FR-018; T011): the room's dog's block beside them; and (FR-005; T013) the run's.
+    // Spec 026 (plan §3; T012, its closed-list pin taken by verify-026): the petting's block.
+    // Spec 028 (FR-022; T-B03): the dinosaur's scene's block.
     expect(Object.keys(committed.figures ?? {}).sort()).toEqual([
+      "chase",
+      "dog",
       "grips",
+      "leave",
+      "pet",
       "texture_px",
       "twin",
       "twin_stand_in",

@@ -98,7 +98,7 @@ async function feed(
     const bytes =
       tracks !== undefined
         ? clipGlb(role, { tracks, unit: o.model?.unit ?? 1 }).bytes
-        : (role === "walk" ? clips.idle : clips[role]).bytes;
+        : (role === "walk" || role === "run" ? clips.idle : clips[role]).bytes;
     s.figures.clip(avatar, role, await clipsOf(bytes));
   }
 }
@@ -127,7 +127,7 @@ const worldOf = (o: Object3D): Vector3 => {
 describe("the picture (FR-002, FR-008, FR-011; R-04)", () => {
   it("puts the avatar in its figure's picture group once its model and idle are ready, the fallback hidden", async () => {
     const s = setup("woman");
-    expect(s.figures.wants).toEqual({ twin: "man", visitor: "woman" });
+    expect(s.figures.wants).toEqual({ twin: "man", visitor: "woman", dog: null });
     expect(s.figures.model("woman", await parsed(avatarGlb().bytes))).toBe(true);
     // The model alone isn't ready while its idle is on its way: it never shows its rest pose for a frame.
     expect(avatarIn(s, "visitor")).toBeUndefined();
@@ -153,7 +153,7 @@ describe("the picture (FR-002, FR-008, FR-011; R-04)", () => {
   it("keeps the fallback where the part bundles no avatar for a figure, or its model fails", async () => {
     // The dog has no files: its flat shape stays, and the frame log says why.
     const s = setup("dog");
-    expect(s.figures.wants).toEqual({ twin: "man", visitor: null });
+    expect(s.figures.wants).toEqual({ twin: "man", visitor: null, dog: null });
     expect(s.signals).toContainEqual({ kind: "picture", figure: "visitor", shows: "fallback", why: "no-file" });
     s.figures.missed("man", null, "failed");
     expect(s.figures.shows("twin")).toBe(false);
@@ -216,7 +216,7 @@ describe("the placement (FR-016, FR-017; R-05; SC-001)", () => {
 describe("two instances of one avatar (FR-015; R-06)", () => {
   it("gives each figure its own skeleton and clip, sharing geometry and materials, when the visitor chooses the stand-in", async () => {
     const s = setup("man");
-    expect(s.figures.wants).toEqual({ twin: "man", visitor: "man" });
+    expect(s.figures.wants).toEqual({ twin: "man", visitor: "man", dog: null });
     await feed(s, "man");
     const [twin, visitor] = [avatarIn(s, "twin"), avatarIn(s, "visitor")];
     if (!twin || !visitor) throw new Error("both figures show the man");

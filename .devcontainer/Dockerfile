@@ -26,7 +26,7 @@ ARG CLAUDE_CODE_VERSION=2.1.296
 # The host's distribution, so apt gives the versions the host has: shellcheck, jq, Python 3.12, git, make.
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      ca-certificates git make bubblewrap socat shellcheck jq python3 python3-yaml python3-venv \
+      ca-certificates git make patch bubblewrap socat shellcheck jq python3 python3-yaml python3-venv \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=node /usr/local/bin/node /usr/local/bin/node

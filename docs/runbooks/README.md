@@ -13,6 +13,7 @@ Commands that act on prod or dev run in the Author's terminal. On dev-cpu, an ag
 | Runbook | Use it for |
 |---|---|
 | [cost-warning.md](cost-warning.md) | the `warn` alert: a meter crossed 70% of its limit |
+| [night-shift.md](night-shift.md) | the night shift (spec 017): the token, the install and `--undo`, starting and stopping the runner, the decision page |
 | [kill-switch-trip.md](kill-switch-trip.md) | the `trip` alert; the cause `kill_switch_tripped`; the daily `reminder` while degraded |
 | [kill-switch-reset.md](kill-switch-reset.md) | restoring `normal` after a trip: the `operator_action` alert for a `reset`; the cause `meter_at_ceiling`, which can follow one |
 | [fallback-renewal.md](fallback-renewal.md) | the `fallback_exhausted` alert; the `operator_action` alert for a `renew`; the causes `fallback_awaiting_renewal` and `fallback_spent_today`; the daily `reminder` while renewal is awaited; the paid adapter's monthly cap, its `warn` and `fallback_exhausted`, and the cause `adapter_month_spent` (spec 010) |

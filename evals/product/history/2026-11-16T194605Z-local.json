@@ -1,0 +1,4605 @@
+{
+  "suite": "product",
+  "adapter": "local",
+  "provider": "local",
+  "stack": "prod",
+  "stack_ref": "f996131ac3e1bb1b56e2e9c7920e2c57b076a2cd",
+  "started": "2026-11-16T19:38:29+00:00",
+  "finished": "2026-11-16T19:46:05+00:00",
+  "cases": 224,
+  "failed": 46,
+  "skipped": [
+    "hello-fake"
+  ],
+  "cost_micro_usd": 0,
+  "tokens": {
+    "input_tokens": 1748422,
+    "output_tokens": 11644
+  },
+  "results": [
+    {
+      "id": "twin-00-profile-q1-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'Applied'"
+      ],
+      "latency_ms": 2190,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 4963,
+        "output_tokens": 15
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "ce0ba73d0ba32a8388c6969a4dd3499d",
+      "answer_sha256": "e953aace0b745a194beec34e8bdab290c1053b5cbfa6973bb676142aa123e7cb",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-00-profile-q1-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'Applied'"
+      ],
+      "latency_ms": 1547,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 4972,
+        "output_tokens": 15
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "6841e5aa612c8acf47c95c9d80e3af4c",
+      "answer_sha256": "e953aace0b745a194beec34e8bdab290c1053b5cbfa6973bb676142aa123e7cb",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-00-profile-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 833,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 5262,
+        "output_tokens": 33
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "3b4d4ca62a1735b279b6aad1822fa9a3",
+      "answer_sha256": "1f0e838aaff3aa4faf2a2ba5cb08445474a28de915e8be38ac311a799b3afc1b",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-00-profile-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 816,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 5271,
+        "output_tokens": 33
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "93acf95dfc5caa44cea45f421479624d",
+      "answer_sha256": "1f0e838aaff3aa4faf2a2ba5cb08445474a28de915e8be38ac311a799b3afc1b",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-00-profile-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 596,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 4964,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "5ce26124b80a4fcc45ed7f42880a06eb",
+      "answer_sha256": "ad3c3c3fbf6f1ba4ba22ba5eaf476fc69ed4a73983d3f268a0d5585c46c15f90",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-00-profile-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 708,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 4973,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "f7ec16d2ecd25dae4eb9ceabb2f93a21",
+      "answer_sha256": "ad3c3c3fbf6f1ba4ba22ba5eaf476fc69ed4a73983d3f268a0d5585c46c15f90",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-00-profile-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2212,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8273,
+        "output_tokens": 71
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "cc293049dcdc222ba106b76310b598da",
+      "answer_sha256": "ada0bf66c30eb263dbd20514a0323f61881ab12ee245bee8ec772cb2e801112d",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-00-profile-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2364,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8282,
+        "output_tokens": 71
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "edc8f70f669005f3e3d52ed14b0d559c",
+      "answer_sha256": "ada0bf66c30eb263dbd20514a0323f61881ab12ee245bee8ec772cb2e801112d",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-00-profile-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1341,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 6375,
+        "output_tokens": 11
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "5a4c3dd7487a03c53f6cd85aab0519b8",
+      "answer_sha256": "3e1128fe3279f9aa78ab1073876e40e9898afaf14137081710c5e1ed49ca5d7e",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-00-profile-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1037,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 6384,
+        "output_tokens": 11
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "f8ddb06d35d57c88237001dcc2dbfda8",
+      "answer_sha256": "3e1128fe3279f9aa78ab1073876e40e9898afaf14137081710c5e1ed49ca5d7e",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-00-profile-q6-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'cht-agent'",
+        "missing 'claude-medic-aws'"
+      ],
+      "latency_ms": 2079,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7918,
+        "output_tokens": 46
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "1fcd296076abcf8bf8e599237706a9f2",
+      "answer_sha256": "4145c4e318c4ae81c6e4f7424520a3205cdfa83d218941fc2b70d4e7b6f0be1f",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-00-profile-q6-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'cht-agent'",
+        "missing 'claude-medic-aws'"
+      ],
+      "latency_ms": 2125,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7927,
+        "output_tokens": 46
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "dff22a1c5e69c7015a4f58753c5f5c70",
+      "answer_sha256": "4145c4e318c4ae81c6e4f7424520a3205cdfa83d218941fc2b70d4e7b6f0be1f",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1968,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7978,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "be351fa36f0e433c1a5bc796bbed819d",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1725,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7987,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "dec047b93e19fb7426db618c1811a201",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1946,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8104,
+        "output_tokens": 23
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "6f17383029b3b72ef35dcd6b0dd7c5ae",
+      "answer_sha256": "9ec24e16c6ef24f610aca8ed575957f236b05a9850150c8a4ce60439e6434e32",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-2-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 2135,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8113,
+        "output_tokens": 14
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "0164f4c1fc2dbcf612f559dfd3032e7b",
+      "answer_sha256": "1e01c08e5bfe58d0aef447d05f17e6c0efd801d82e67e881db3dd4c10c2d2b1d",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-3-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 2032,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8114,
+        "output_tokens": 56
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "219d663b7d9fc570d557dd1296ed627c",
+      "answer_sha256": "aa96bf775f71a74c0a485df84c597f1b40cfefa7c3f31134881a4b2c451a1e80",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-3-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 2015,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8123,
+        "output_tokens": 56
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "645f9e3ad1ddd107a3bd7c2cac8829bd",
+      "answer_sha256": "aa96bf775f71a74c0a485df84c597f1b40cfefa7c3f31134881a4b2c451a1e80",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1586,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8097,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "44e5a039e1b4d11b717c17a8bd31825b",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1784,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8106,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "e393c347b9f787487f196e4a8cd6b294",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2822,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8281,
+        "output_tokens": 92
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "204c5ade21b23eddfe3213ff245065f7",
+      "answer_sha256": "22bd2e8582d2976fec3d79ac9098a514749f1708e6ea8647393f134086277878",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2728,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8290,
+        "output_tokens": 92
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "27873b128162f8109baf367a03861832",
+      "answer_sha256": "22bd2e8582d2976fec3d79ac9098a514749f1708e6ea8647393f134086277878",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q10-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2179,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8008,
+        "output_tokens": 46
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "e15b42e541492da15d31dffa5f9ef087",
+      "answer_sha256": "0a9f07a931d530595f23766732339c12ca1188274fd8c3676f639ba6fa0192f3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q10-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2329,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8017,
+        "output_tokens": 46
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "a7ecbcb0466f4583a3c0108423a6a58c",
+      "answer_sha256": "0a9f07a931d530595f23766732339c12ca1188274fd8c3676f639ba6fa0192f3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q11-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2519,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8291,
+        "output_tokens": 78
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "41aecc6034aee889ee552f363ad9f7c0",
+      "answer_sha256": "94820b6b1a9e90d85b36c5f4682742ea6be1c2dac9cdfce67ffcfae781ae0cbb",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q11-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2474,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8300,
+        "output_tokens": 78
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "a73fb5420f94de93e19ce69212a2bbf9",
+      "answer_sha256": "94820b6b1a9e90d85b36c5f4682742ea6be1c2dac9cdfce67ffcfae781ae0cbb",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q12-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2582,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8218,
+        "output_tokens": 60
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "44848a9f348d40e10be504f706d78673",
+      "answer_sha256": "6d612fddd343afbcbc26e1cdedc0b5cf56df47872cc70f0d2ac3974653dc9d65",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q12-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2543,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8227,
+        "output_tokens": 60
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "3ca4ebb2af05a0d53cafd75e4a9b2bb2",
+      "answer_sha256": "6d612fddd343afbcbc26e1cdedc0b5cf56df47872cc70f0d2ac3974653dc9d65",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q13-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2618,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8538,
+        "output_tokens": 67
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "c508ed82bacc265f48097964f814a83e",
+      "answer_sha256": "69a5a03368132f55ac1fe91832aa2291376cd567f145954276a1f5c0e63bb994",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q13-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2496,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8547,
+        "output_tokens": 67
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "11034ea6695a05708081d3f145e73358",
+      "answer_sha256": "69a5a03368132f55ac1fe91832aa2291376cd567f145954276a1f5c0e63bb994",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q14-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing '1'",
+        "missing 'high-risk'"
+      ],
+      "latency_ms": 2712,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8313,
+        "output_tokens": 81
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "4097a55ccde9dfdc395a096861cd2f2a",
+      "answer_sha256": "38c155eb68c4a47b626a1f5817bf9eec9132ae103b9bca0291f83cf184581de5",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q14-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing '1'",
+        "missing 'high-risk'"
+      ],
+      "latency_ms": 2656,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8322,
+        "output_tokens": 81
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "51df39655dec5226bd8acf63237e8786",
+      "answer_sha256": "38c155eb68c4a47b626a1f5817bf9eec9132ae103b9bca0291f83cf184581de5",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q15-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'cht-conf'"
+      ],
+      "latency_ms": 2244,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8441,
+        "output_tokens": 47
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "f917262768f90be3466083af18e46a6c",
+      "answer_sha256": "fcf6a58a3c10a664c42c2936ab3681823ceb85ead89fe157c10c00d4fc250255",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q15-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'cht-conf'"
+      ],
+      "latency_ms": 2395,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8450,
+        "output_tokens": 47
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "39af3d9d950d777868b53188b8c57c8a",
+      "answer_sha256": "fcf6a58a3c10a664c42c2936ab3681823ceb85ead89fe157c10c00d4fc250255",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q16-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2061,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8048,
+        "output_tokens": 34
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "5160a1886e3bb1e33561c0149472a59e",
+      "answer_sha256": "abec826a9ba2cd979d037586d6ecb3b94b2baedae3c076f40946c67b3fa7847e",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q16-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2408,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8057,
+        "output_tokens": 48
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "50425d5294941260ddb1d632e7b1935d",
+      "answer_sha256": "09aef638d0a057f9a895eda3d256250c91a5c79d7df227ad85334aedaa1aa7ec",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q17-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2045,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8051,
+        "output_tokens": 25
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "7ad84fb16ed4fc850f346436e4fefb0a",
+      "answer_sha256": "c6ce5db2e1630f72c6782092867cb18525355f37987d289a10cf2418baf54f27",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q17-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2048,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8060,
+        "output_tokens": 25
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "f90a877bf816722f04795e0a5c41cb40",
+      "answer_sha256": "c6ce5db2e1630f72c6782092867cb18525355f37987d289a10cf2418baf54f27",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q18-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2620,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8265,
+        "output_tokens": 69
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "08bdb245817f531db3dae4744b9088f2",
+      "answer_sha256": "6d4e5af574d7e72140d4ec8f9b61cd72853197ca0df318fe5b76308001903c17",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q18-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2605,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8274,
+        "output_tokens": 69
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "17e601243ba1c1f3e2ee039d777a455c",
+      "answer_sha256": "6d4e5af574d7e72140d4ec8f9b61cd72853197ca0df318fe5b76308001903c17",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2178,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7978,
+        "output_tokens": 28
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "4bbf04c89a39088fa26caae7f792199f",
+      "answer_sha256": "eadf0c04de2080b073132229ac0dd2c0daeca02c5867a8edcb1898c71e39eb52",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2210,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7987,
+        "output_tokens": 28
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "9b8e610e034e640b9513221b39ef975f",
+      "answer_sha256": "eadf0c04de2080b073132229ac0dd2c0daeca02c5867a8edcb1898c71e39eb52",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2397,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8056,
+        "output_tokens": 56
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "d0da3746e0b9bb06070dba6ed1f9026c",
+      "answer_sha256": "06890f53848f4791eded90dd8b2ad015b5d9089c58272cf85cc6b7b66336d6bc",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2547,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8065,
+        "output_tokens": 56
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "37576690128965410ee09656d4607190",
+      "answer_sha256": "06890f53848f4791eded90dd8b2ad015b5d9089c58272cf85cc6b7b66336d6bc",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2533,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8266,
+        "output_tokens": 65
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "19ae49d773411321ac43b58d90fee49f",
+      "answer_sha256": "563e8a31e92848489c3a4f7eff6536fac10a4cc22bd8b8a0978ef37bce2ea3ad",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2396,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8275,
+        "output_tokens": 65
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "069bbab1719b516e35a69a857146466a",
+      "answer_sha256": "563e8a31e92848489c3a4f7eff6536fac10a4cc22bd8b8a0978ef37bce2ea3ad",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2580,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8173,
+        "output_tokens": 85
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "d086993f5104c2723b66ef75a02f9194",
+      "answer_sha256": "7eee6596b1c514bcd89ad32862e521b6036bfe00c04c5dd70a0d91c0d706c1aa",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2432,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8182,
+        "output_tokens": 63
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "137d6f99d5a6773406e5a980fd7b2c5c",
+      "answer_sha256": "d000e3029f8e533a380e0a50b1811ee4046f0cfb31ad1d72efd01a50bcad4027",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2959,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8378,
+        "output_tokens": 109
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "c775ac30b045a3f30f75d2f02c906527",
+      "answer_sha256": "e8bc2ff8556646c92a098d9f3282b9b5538624aedfd4131c7c50daedaa458510",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2821,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8387,
+        "output_tokens": 109
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "5d4d45d6f1f6a018dfc674e6f17355be",
+      "answer_sha256": "e8bc2ff8556646c92a098d9f3282b9b5538624aedfd4131c7c50daedaa458510",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2322,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8228,
+        "output_tokens": 45
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "f3574261110738f060d065056c5f163b",
+      "answer_sha256": "46272d4d9e71c1b140c0692f67731e532fa4db4794a60814c6d72179d03b21ac",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2551,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8237,
+        "output_tokens": 45
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "9303af394865121c9d3db48c1bdb4f9d",
+      "answer_sha256": "46272d4d9e71c1b140c0692f67731e532fa4db4794a60814c6d72179d03b21ac",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q8-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2526,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8245,
+        "output_tokens": 46
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "dac3ecfd86c6f5ba2e88cce5e8ede681",
+      "answer_sha256": "799b26704516b0837eacded360e7c2d597ca2e7c1e10df41778ba1c0d3bcaa43",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q8-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2284,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8254,
+        "output_tokens": 46
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "b2daf65d5809e856b272aeb10ccd1bcd",
+      "answer_sha256": "799b26704516b0837eacded360e7c2d597ca2e7c1e10df41778ba1c0d3bcaa43",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q9-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2671,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8169,
+        "output_tokens": 107
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "cccba522576fb84dea135ee3b9fff609",
+      "answer_sha256": "bee7567be8c52de3928a836ac9e4cee034991465eea2c67a3611e9baa7c68f7a",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q9-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2699,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8178,
+        "output_tokens": 107
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "547f7f1dadb5bfa275857b1816d3bf9d",
+      "answer_sha256": "bee7567be8c52de3928a836ac9e4cee034991465eea2c67a3611e9baa7c68f7a",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-1-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 2305,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8092,
+        "output_tokens": 53
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "56881905ea1731e7a38ebc3e4bb96404",
+      "answer_sha256": "d9d02ef59455bdf0d14ee861101ffdded08befccbb3c363ccae73500c5820318",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-1-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 2148,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8101,
+        "output_tokens": 53
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "a3fa501f67b0545844e4b3011581786d",
+      "answer_sha256": "e50b3dc879996ee97efc7e91d6bb73450ddb49c93bc0c3eb19b65d50248c5c06",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-10-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 2903,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8164,
+        "output_tokens": 113
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "4ff17d97ebccb9a049d9eddb9529066e",
+      "answer_sha256": "94e675d570cd6df34ad67220a109a0502581f31661f7cc26260ee4459c638dfd",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-10-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 2528,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8173,
+        "output_tokens": 81
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "e59bd74e852a8d7d61555a03f022ba28",
+      "answer_sha256": "ce236b63b1ba22355785fb55ee9f366cb77b0b4e46ceb319c8f1a1a74c695b73",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-11-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2060,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8033,
+        "output_tokens": 13
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "446f1008123cbdad59edb54f8dc9df8c",
+      "answer_sha256": "e538387538a432ecea65e6bdf19854755241de080a0e6b33e8b46572283d63de",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-11-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1847,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8042,
+        "output_tokens": 13
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "a9f479e1a1bb7659265f085cb89cac7e",
+      "answer_sha256": "e538387538a432ecea65e6bdf19854755241de080a0e6b33e8b46572283d63de",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-12-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1722,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7796,
+        "output_tokens": 13
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "e00ed85b602a2442263e774c7d473c76",
+      "answer_sha256": "e538387538a432ecea65e6bdf19854755241de080a0e6b33e8b46572283d63de",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-12-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1718,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7805,
+        "output_tokens": 13
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "df6497f682235611be9765c7bb0c090f",
+      "answer_sha256": "e538387538a432ecea65e6bdf19854755241de080a0e6b33e8b46572283d63de",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-13-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 2644,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8277,
+        "output_tokens": 100
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "c0926c60d257a89f9c027b1d1257e2b8",
+      "answer_sha256": "5c98450de7a4603a687a19edeed1d99f221e898754586ef389cc187e3dde56b4",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-13-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 2754,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8286,
+        "output_tokens": 83
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "108c45369be768639499b23f04d2e217",
+      "answer_sha256": "ab7bd021bcd4b36908c7c59d9332d650ded8ffbd4f2ffbe0bcd2273d2539637e",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1847,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8075,
+        "output_tokens": 12
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "d4421bf6999555c2fb8a356c1c7c3efc",
+      "answer_sha256": "d3f9a2ee5571288daa958dc70bf652ab75261d87e499adb54ce3b1cd5be86a9f",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2040,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8084,
+        "output_tokens": 12
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "eeb5eafc5e8ecf4404b48f6927c7e8fb",
+      "answer_sha256": "d3f9a2ee5571288daa958dc70bf652ab75261d87e499adb54ce3b1cd5be86a9f",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-3-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?=.*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b))(?:4\\.0|\\D)*$/"
+      ],
+      "latency_ms": 2625,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8319,
+        "output_tokens": 56
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "9a719e716807c841286d7bb4be5b57fc",
+      "answer_sha256": "e67866aed1e83db1092494ed769f60cdc4a8cab24c279a0a6ad12151cb1fdda2",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-3-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?=.*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b))(?:4\\.0|\\D)*$/"
+      ],
+      "latency_ms": 2497,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8328,
+        "output_tokens": 56
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "bd78a1efb9e6202147658487a812f6ad",
+      "answer_sha256": "db6548e7da885dad8b49cb05e4fd345354293716f11736ec6c651296b4b3fa92",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-4-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 2679,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8371,
+        "output_tokens": 101
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "6159099b77acff290c38323557771259",
+      "answer_sha256": "e4b9b9f0734c08d3674dbc91bc4c041e3312d61da4cd2c341e6b61f674740c40",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-4-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 2353,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8380,
+        "output_tokens": 57
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "a20317b52b2cb4c392783636ebea3ea5",
+      "answer_sha256": "ca4f41e9205a21889cc86b275cbc75015129f03855d6f89f5d1995dab10c55c8",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-5-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 2657,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8144,
+        "output_tokens": 85
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "a7fc038c33ed5d8caadc9c7d464a4bbe",
+      "answer_sha256": "40e7fbf60bf0b97ff8e42fbd3ace7ab44e21b636b637faf2e9dceacc45e19be6",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-5-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 2500,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8153,
+        "output_tokens": 79
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "825a859fe6ff5d97ced06b5434216238",
+      "answer_sha256": "376de71c85141d71bfea34d44330127641b5b6177f39195cbca70bcac9d06854",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-6-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 1274,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8147,
+        "output_tokens": 63
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "daa6b202097433fa29c9d3f4c057cfc1",
+      "answer_sha256": "cfe8e243dbd8877dd5485d35033b6d95ae4169a5e0d58e031c2eb6e5dbdab7af",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-6-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 1137,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8156,
+        "output_tokens": 53
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "536e6b76cafa6429e4459afb2ed22400",
+      "answer_sha256": "b750065c290ac681c934573c03051ceadc6345316c2093cef5092eca246e107f",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1893,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8217,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "64bb6b27b86fbeff1105559b1273a976",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2137,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8226,
+        "output_tokens": 15
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "779710b8641d75afbb133021110a0c7f",
+      "answer_sha256": "247d469e152b120427dfef02d1465f9781eeefd890145b3be893cd0cb046042a",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-8-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1859,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8140,
+        "output_tokens": 13
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "45915dd63211671b8fa45ff09eb20a46",
+      "answer_sha256": "fd84f97422d86be3b4bb351a92db656ba7afa5a5040ae6032e9480ad65a38fb7",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-8-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1786,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8149,
+        "output_tokens": 13
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "785b51e0539a16a37f1a5aa94d2ab8c3",
+      "answer_sha256": "fd84f97422d86be3b4bb351a92db656ba7afa5a5040ae6032e9480ad65a38fb7",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-9-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 2967,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8157,
+        "output_tokens": 130
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "6819013255b6c6a3321fe41fcab7a55a",
+      "answer_sha256": "c5764736c5cd48c5fadada9bb00930458b45d921f91130d828fdbd4935c506fc",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-9-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 2839,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8166,
+        "output_tokens": 103
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "e427b7011b6f923ad9a25a4d572b772b",
+      "answer_sha256": "a7dcda17c82fde938171369cae2096c4e6816eb7a38bc66b290dc7ebe3330dd7",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q1-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'Medic'"
+      ],
+      "latency_ms": 2535,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8296,
+        "output_tokens": 84
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "515691808424c04afbfa105d460e2073",
+      "answer_sha256": "c623f9b416650b8e51d2603ba39c2c7701aab1022dd6a7cbc7a973a1fdc4b95b",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q1-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'Medic'"
+      ],
+      "latency_ms": 2393,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8305,
+        "output_tokens": 83
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "99edf548abe361ee96487b484c8ddae2",
+      "answer_sha256": "517f4dc0c652357c190c4a2f8a4520da88ea454c111a8fc0d5a22f74a2bd1173",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2173,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7514,
+        "output_tokens": 74
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "fdd2fdd22e748c5c380c73d7b7d8b743",
+      "answer_sha256": "bebb4065e58191af6c8711bd529d5f86c5c22d5c1b3586aca93cc76f63ec9d58",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2379,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7523,
+        "output_tokens": 74
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "11443b669dcdc077438ef19ef87cd64c",
+      "answer_sha256": "bebb4065e58191af6c8711bd529d5f86c5c22d5c1b3586aca93cc76f63ec9d58",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1928,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8082,
+        "output_tokens": 12
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "70fa9ab2256e848f59d14a18d900fd4b",
+      "answer_sha256": "d3f9a2ee5571288daa958dc70bf652ab75261d87e499adb54ce3b1cd5be86a9f",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1794,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8091,
+        "output_tokens": 12
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "a3b47c204ab174ee039419d5fec9676f",
+      "answer_sha256": "d3f9a2ee5571288daa958dc70bf652ab75261d87e499adb54ce3b1cd5be86a9f",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1789,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8063,
+        "output_tokens": 13
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "93328ec7e6667810644f742248f29795",
+      "answer_sha256": "e538387538a432ecea65e6bdf19854755241de080a0e6b33e8b46572283d63de",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1829,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8072,
+        "output_tokens": 13
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "2bc00c3939404b3ce07665e58f8338ad",
+      "answer_sha256": "e538387538a432ecea65e6bdf19854755241de080a0e6b33e8b46572283d63de",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2195,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8113,
+        "output_tokens": 57
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "3b210981bb46595e45eb698b037f31fb",
+      "answer_sha256": "6d5a9f67029baa46b9c9c6ceab829b168e9d882100b07e6a97b485b6b26a42c4",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2463,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8122,
+        "output_tokens": 57
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "69abd1323b7c90464852c43519a096d5",
+      "answer_sha256": "6d5a9f67029baa46b9c9c6ceab829b168e9d882100b07e6a97b485b6b26a42c4",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-03-grants-and-credits-gap-1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2096,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8473,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "d1fd297ebea29c1953547e7850f5ab7a",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-03-grants-and-credits-gap-1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1941,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8482,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "0482f469ed014c7c1c5771eb51c60d41",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-03-grants-and-credits-gap-2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1656,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8234,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "7ba172b6c3a008c1fc7bb28804db5e76",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-03-grants-and-credits-gap-2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1706,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8243,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "4fa440323a9de7ef69c1603982a10da3",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-03-grants-and-credits-gap-3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1715,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8276,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "ee954a7107ed185d693be700350bfcb7",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-03-grants-and-credits-gap-3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1797,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8285,
+        "output_tokens": 23
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "93acd6ed6051f15970ffa906e979b9f3",
+      "answer_sha256": "93fabbeffafd9474f49f452106763af64e40274a4b6355b7a66f38dc77d64c91",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-03-grants-and-credits-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2049,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7452,
+        "output_tokens": 69
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "b0943884d5ed664f99989bf93f05f0e6",
+      "answer_sha256": "2607c4a27bddc18dc108c1e3c97bbc4aac7a4454d3a9c21f070d6f4c5eefcde2",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-03-grants-and-credits-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2203,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7461,
+        "output_tokens": 70
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "668feb30f4948bed1a0b73100634d9d1",
+      "answer_sha256": "8b51d23ab75bb34c2c49ccd59b6185115d8598f80ead1e050db1882fcce9b73e",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-03-grants-and-credits-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1884,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8056,
+        "output_tokens": 8
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "c822be246500f46919412d68dd0b5342",
+      "answer_sha256": "4995897299b4cc1cd21cdb835af150f526cc4c8e9522d1bbce149d1c630e95a8",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-03-grants-and-credits-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1925,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8065,
+        "output_tokens": 8
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "be5cf4e343203c0812a653df7dc83e58",
+      "answer_sha256": "4995897299b4cc1cd21cdb835af150f526cc4c8e9522d1bbce149d1c630e95a8",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2342,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7221,
+        "output_tokens": 112
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "6329888e246a49206dfa3c55945067bb",
+      "answer_sha256": "422af1a2f94fe77020cd58c46fd89d6307934b0224f5e958b1896f9760c26ed5",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2571,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7230,
+        "output_tokens": 112
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "4a648797c7b2e3b0ada7b6408f68e7ca",
+      "answer_sha256": "422af1a2f94fe77020cd58c46fd89d6307934b0224f5e958b1896f9760c26ed5",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1477,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7222,
+        "output_tokens": 79
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "0de9487a7122a36b5b69984f6b80d483",
+      "answer_sha256": "a3efea545715220e7bb2e786d85b6c68c15a352ab78f0c2714f0b791b23d51f7",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1332,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7231,
+        "output_tokens": 79
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "38253a2ce0a852c7a6f482fccc6d9314",
+      "answer_sha256": "a3efea545715220e7bb2e786d85b6c68c15a352ab78f0c2714f0b791b23d51f7",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1021,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7224,
+        "output_tokens": 38
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "04bfae39527908318cdc45b43ce61bc4",
+      "answer_sha256": "1ae346d7ee8981083a7cc73cd38c4d179368352003f9adb01fa3c6272e1320fa",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1059,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7233,
+        "output_tokens": 38
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "eccf4ab5b6141210ff389f4bfb02ab64",
+      "answer_sha256": "1ae346d7ee8981083a7cc73cd38c4d179368352003f9adb01fa3c6272e1320fa",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1598,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7223,
+        "output_tokens": 94
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "64088a428c4f7deff856e020d89cbb59",
+      "answer_sha256": "9c0e38b87ccedb95c8ce006034bfde2f48539eb47535052c23348e020cba31c1",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1531,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7232,
+        "output_tokens": 94
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "ebdc50b3c863c50550f73daeed3a4aeb",
+      "answer_sha256": "9c0e38b87ccedb95c8ce006034bfde2f48539eb47535052c23348e020cba31c1",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1597,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7225,
+        "output_tokens": 112
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "ca6dd0538304d5cb57fb5a3d8e11b8b5",
+      "answer_sha256": "821bb2d1961f495829f98febfe5653f7ebaf1c1ee291b1d4f2368fd126ea0618",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1686,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7234,
+        "output_tokens": 112
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "bc27a893c3f898d0ace10da6c257675a",
+      "answer_sha256": "821bb2d1961f495829f98febfe5653f7ebaf1c1ee291b1d4f2368fd126ea0618",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q6-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'Minneapolis'",
+        "missing 'Lake'",
+        "missing 'Woods'"
+      ],
+      "latency_ms": 1928,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7222,
+        "output_tokens": 112
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "85e096442053fa0ba49474021adebd3c",
+      "answer_sha256": "821bb2d1961f495829f98febfe5653f7ebaf1c1ee291b1d4f2368fd126ea0618",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q6-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'Minneapolis'",
+        "missing 'Lake'",
+        "missing 'Woods'"
+      ],
+      "latency_ms": 1974,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7231,
+        "output_tokens": 112
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "8c6e52abbf2fbb964a5f6cf23874dd9a",
+      "answer_sha256": "821bb2d1961f495829f98febfe5653f7ebaf1c1ee291b1d4f2368fd126ea0618",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1952,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7224,
+        "output_tokens": 125
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "9c9fef97aa5afbdaeec65db01af3c2bc",
+      "answer_sha256": "7dff882cdc3c7a2869d4c230213ab6ca9e05f53328a0f7efcb5f8e89dba9df13",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1976,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7233,
+        "output_tokens": 125
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "781f8d030308600b125c68d25d368c98",
+      "answer_sha256": "7dff882cdc3c7a2869d4c230213ab6ca9e05f53328a0f7efcb5f8e89dba9df13",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q8-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1302,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7223,
+        "output_tokens": 46
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "4efb206463fd9e26b778f3343bae03de",
+      "answer_sha256": "0b29ec79ac67522ebb38ff040f31d93aff62d7cbca7d555d7ce26782bc127ce9",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q8-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1065,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7232,
+        "output_tokens": 46
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "e80634fa8b6a623816cca8ebbffe9a44",
+      "answer_sha256": "0b29ec79ac67522ebb38ff040f31d93aff62d7cbca7d555d7ce26782bc127ce9",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507"
+    },
+    {
+      "id": "twin-05-mission-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2614,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7124,
+        "output_tokens": 147
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "89a01c320cd9b48730cd316bf5b94b93",
+      "answer_sha256": "6d5e7e89fc8f998d206179480f2b44a71ff0a88b0e479ceda365cc60ddc341c4",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "c028c92d9303beebeae8b32bdd8213dd112a057ea238886638ae39cc22a568ad"
+    },
+    {
+      "id": "twin-05-mission-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2691,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7133,
+        "output_tokens": 147
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "5c7c2536baecf888986a38fde21bff81",
+      "answer_sha256": "6d5e7e89fc8f998d206179480f2b44a71ff0a88b0e479ceda365cc60ddc341c4",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "c028c92d9303beebeae8b32bdd8213dd112a057ea238886638ae39cc22a568ad"
+    },
+    {
+      "id": "twin-05-mission-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1660,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7126,
+        "output_tokens": 90
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "cb0253ebdac0839522e1f266aeb84ead",
+      "answer_sha256": "59842ef36ca5780f0e3e5ac88803e93ee23c8a47550d6dd907179c1cab71419f",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "c028c92d9303beebeae8b32bdd8213dd112a057ea238886638ae39cc22a568ad"
+    },
+    {
+      "id": "twin-05-mission-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1749,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7135,
+        "output_tokens": 90
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "08da9d0390dfce1cf5313ada2c912092",
+      "answer_sha256": "59842ef36ca5780f0e3e5ac88803e93ee23c8a47550d6dd907179c1cab71419f",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "c028c92d9303beebeae8b32bdd8213dd112a057ea238886638ae39cc22a568ad"
+    },
+    {
+      "id": "twin-05-mission-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2048,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7127,
+        "output_tokens": 137
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "f13854c8b742c329f7013d62ba840df5",
+      "answer_sha256": "8f7f08d58812d1aacf10fec470df0c85218199defafab9888c3a9746bbbd7f86",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "c028c92d9303beebeae8b32bdd8213dd112a057ea238886638ae39cc22a568ad"
+    },
+    {
+      "id": "twin-05-mission-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1974,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7136,
+        "output_tokens": 137
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "0064ee20f211df08f6f3d409d58319a2",
+      "answer_sha256": "8f7f08d58812d1aacf10fec470df0c85218199defafab9888c3a9746bbbd7f86",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "c028c92d9303beebeae8b32bdd8213dd112a057ea238886638ae39cc22a568ad"
+    },
+    {
+      "id": "twin-05-mission-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1692,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7124,
+        "output_tokens": 81
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "9923d6c379a98f61ca3afc55bf448819",
+      "answer_sha256": "38c155eb68c4a47b626a1f5817bf9eec9132ae103b9bca0291f83cf184581de5",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "c028c92d9303beebeae8b32bdd8213dd112a057ea238886638ae39cc22a568ad"
+    },
+    {
+      "id": "twin-05-mission-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1563,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7133,
+        "output_tokens": 81
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "06ac25af4f8d0f8329e6a2c1f1ba212f",
+      "answer_sha256": "38c155eb68c4a47b626a1f5817bf9eec9132ae103b9bca0291f83cf184581de5",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "c028c92d9303beebeae8b32bdd8213dd112a057ea238886638ae39cc22a568ad"
+    },
+    {
+      "id": "twin-05-mission-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1235,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7124,
+        "output_tokens": 44
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "7d276582e5c39dd98fecaa2e20e4e6da",
+      "answer_sha256": "c0643356a8d8cf98d6cf64e1c957ccadf0e46165fb0ee5da3d3ed86b9c1cb5c0",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "c028c92d9303beebeae8b32bdd8213dd112a057ea238886638ae39cc22a568ad"
+    },
+    {
+      "id": "twin-05-mission-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1067,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7133,
+        "output_tokens": 44
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "dad31db7c08f24db5678fa987bffedda",
+      "answer_sha256": "c0643356a8d8cf98d6cf64e1c957ccadf0e46165fb0ee5da3d3ed86b9c1cb5c0",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "c028c92d9303beebeae8b32bdd8213dd112a057ea238886638ae39cc22a568ad"
+    },
+    {
+      "id": "twin-05-mission-q6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1947,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7122,
+        "output_tokens": 122
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "5017803c79f2781b80e89152ebbe0625",
+      "answer_sha256": "db3dc6c15f0b350a424f15e365531f46da1d18de4cff1045038378f59bc09122",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "c028c92d9303beebeae8b32bdd8213dd112a057ea238886638ae39cc22a568ad"
+    },
+    {
+      "id": "twin-05-mission-q6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1895,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7131,
+        "output_tokens": 122
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "2827901b20ffefa958c900a0dc8be749",
+      "answer_sha256": "db3dc6c15f0b350a424f15e365531f46da1d18de4cff1045038378f59bc09122",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "c028c92d9303beebeae8b32bdd8213dd112a057ea238886638ae39cc22a568ad"
+    },
+    {
+      "id": "twin-05-mission-q7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1993,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7125,
+        "output_tokens": 102
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "85d125f9eb8b1b4aae3e0d8099e949b8",
+      "answer_sha256": "c3fe17f4ed75b2f686c5f61a604dd3c9fed90ae6e04215ea33c1b72034b41fb2",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "c028c92d9303beebeae8b32bdd8213dd112a057ea238886638ae39cc22a568ad"
+    },
+    {
+      "id": "twin-05-mission-q7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1774,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7134,
+        "output_tokens": 102
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "b3a6d3c9880bb2c37e8a5a8a21e917ae",
+      "answer_sha256": "c3fe17f4ed75b2f686c5f61a604dd3c9fed90ae6e04215ea33c1b72034b41fb2",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "c028c92d9303beebeae8b32bdd8213dd112a057ea238886638ae39cc22a568ad"
+    },
+    {
+      "id": "twin-06-work-projects-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1941,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 6793,
+        "output_tokens": 54
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "95b51d8a87d9243b26c2f8697e16adbe",
+      "answer_sha256": "55722da6a129cd8f758e57b0b5bee8421983211bb627602988164123a28e12dc",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "6fdd269b9dd0b207511fa36113f95c596d3de86c659ce71bbaf0abbb8395aadc"
+    },
+    {
+      "id": "twin-06-work-projects-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2092,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 6802,
+        "output_tokens": 77
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "9f7fe73e7e2fc1f287b02ecd89ddc8e0",
+      "answer_sha256": "e2274c06549e3ef535a0e620336475fbce369705e31c48aacbd918826570517f",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "6fdd269b9dd0b207511fa36113f95c596d3de86c659ce71bbaf0abbb8395aadc"
+    },
+    {
+      "id": "twin-06-work-projects-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1616,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 6793,
+        "output_tokens": 111
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "38ce9e278004f32c6a24d7a5655f431e",
+      "answer_sha256": "f754bd9af6ac17ffbdc2fc3d22d743f444ed4583e034585d9303f1c1819d1e18",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "6fdd269b9dd0b207511fa36113f95c596d3de86c659ce71bbaf0abbb8395aadc"
+    },
+    {
+      "id": "twin-06-work-projects-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1586,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 6802,
+        "output_tokens": 111
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "76267a5745a03840dab8f9d23f103940",
+      "answer_sha256": "f754bd9af6ac17ffbdc2fc3d22d743f444ed4583e034585d9303f1c1819d1e18",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "6fdd269b9dd0b207511fa36113f95c596d3de86c659ce71bbaf0abbb8395aadc"
+    },
+    {
+      "id": "twin-06-work-projects-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 980,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 6794,
+        "output_tokens": 44
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "a35ae63ebef2f322d2b8f99e15f6a8f3",
+      "answer_sha256": "c7c811ef499a67a76bc5836059213d43f1fbf40ece8333e376b2c6189ca69d5e",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "6fdd269b9dd0b207511fa36113f95c596d3de86c659ce71bbaf0abbb8395aadc"
+    },
+    {
+      "id": "twin-06-work-projects-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1278,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 6803,
+        "output_tokens": 44
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "93bce90f727c84f1e53b3609aff19871",
+      "answer_sha256": "c7c811ef499a67a76bc5836059213d43f1fbf40ece8333e376b2c6189ca69d5e",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "6fdd269b9dd0b207511fa36113f95c596d3de86c659ce71bbaf0abbb8395aadc"
+    },
+    {
+      "id": "twin-06-work-projects-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2239,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 6794,
+        "output_tokens": 156
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "39ab7db8fdb2f20d5cdbab31ca19e4d6",
+      "answer_sha256": "03c753b544776f883d5f539baa576eb623b9e5e77da694c5126218ad2e41b60b",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "6fdd269b9dd0b207511fa36113f95c596d3de86c659ce71bbaf0abbb8395aadc"
+    },
+    {
+      "id": "twin-06-work-projects-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2179,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 6803,
+        "output_tokens": 156
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "444634920d671ce12a71eac686c94743",
+      "answer_sha256": "03c753b544776f883d5f539baa576eb623b9e5e77da694c5126218ad2e41b60b",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "6fdd269b9dd0b207511fa36113f95c596d3de86c659ce71bbaf0abbb8395aadc"
+    },
+    {
+      "id": "twin-06-work-projects-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 974,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 6800,
+        "output_tokens": 41
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "313f6e0025643385623d54ec15c21aa5",
+      "answer_sha256": "fa2e94e1fd02fa4400802979edd5a3a7e3f49a2d417c47467cd963240db9a428",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "6fdd269b9dd0b207511fa36113f95c596d3de86c659ce71bbaf0abbb8395aadc"
+    },
+    {
+      "id": "twin-06-work-projects-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1185,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 6809,
+        "output_tokens": 41
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "5b9f4721d552ffb473edaffa7f3781b3",
+      "answer_sha256": "fa2e94e1fd02fa4400802979edd5a3a7e3f49a2d417c47467cd963240db9a428",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "6fdd269b9dd0b207511fa36113f95c596d3de86c659ce71bbaf0abbb8395aadc"
+    },
+    {
+      "id": "twin-06-work-projects-q6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1342,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 6796,
+        "output_tokens": 62
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "c5dc9accade3881894e089f9a155f730",
+      "answer_sha256": "d55584c338d79fab06bf9454faa6eb91e767b030eedb880c24a780f69b6e93d6",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "6fdd269b9dd0b207511fa36113f95c596d3de86c659ce71bbaf0abbb8395aadc"
+    },
+    {
+      "id": "twin-06-work-projects-q6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1083,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 6805,
+        "output_tokens": 62
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "8eb5a0eabcd7471a8725cb6a9fb7df48",
+      "answer_sha256": "d55584c338d79fab06bf9454faa6eb91e767b030eedb880c24a780f69b6e93d6",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "6fdd269b9dd0b207511fa36113f95c596d3de86c659ce71bbaf0abbb8395aadc"
+    },
+    {
+      "id": "twin-06-work-projects-q7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 946,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 6798,
+        "output_tokens": 36
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "1da945acba64cdee23539909542c719a",
+      "answer_sha256": "5aa37536982981bc9c29d8ce04197cb082c0f310db6227c801938e3e494a22e3",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "6fdd269b9dd0b207511fa36113f95c596d3de86c659ce71bbaf0abbb8395aadc"
+    },
+    {
+      "id": "twin-06-work-projects-q7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1060,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 6807,
+        "output_tokens": 55
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "d40cd8a278539fb28ac8564d28a301b4",
+      "answer_sha256": "e4fc8814dbadfe92d6af18829b5a937449a650561a97cfea425893f11a041e32",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "6fdd269b9dd0b207511fa36113f95c596d3de86c659ce71bbaf0abbb8395aadc"
+    },
+    {
+      "id": "twin-07-denver-local-ai-gap-1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1722,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8342,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "2b10073780397ad6da5e58e24731b03a",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-gap-1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1907,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8351,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "00909d2b7f11018717e0bed0cd1b3b4b",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-gap-2-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 1913,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8267,
+        "output_tokens": 11
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "1eb9268175361b3c0a2424c34281e87b",
+      "answer_sha256": "1a0e7002fe122a7bac0c428a8f90306ffd531ae869b36dce1ddc9e063c450cfc",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-gap-2-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 1915,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8276,
+        "output_tokens": 11
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "6278f13ef3eee733a80ecc7379772645",
+      "answer_sha256": "1a0e7002fe122a7bac0c428a8f90306ffd531ae869b36dce1ddc9e063c450cfc",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-gap-3-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "contains 'client work'"
+      ],
+      "latency_ms": 1591,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7090,
+        "output_tokens": 12
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "047d81a135bfb559aa17ed37dc9da486",
+      "answer_sha256": "6663488ce4831ffc4ae233ccfb27a3dc17abfadfed25d6bde997ec08ae984b99",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-gap-3-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "contains 'client work'"
+      ],
+      "latency_ms": 1640,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7099,
+        "output_tokens": 12
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "edb3cd279b8504d9907cbbcc0fa49008",
+      "answer_sha256": "6663488ce4831ffc4ae233ccfb27a3dc17abfadfed25d6bde997ec08ae984b99",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q1-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'Denver'"
+      ],
+      "latency_ms": 2221,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8298,
+        "output_tokens": 43
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "8f3b0a11b3385552adcd3d23a5035177",
+      "answer_sha256": "0fda1e93ff0f5e0e398deb72b845570607fc552e42c05853f8e6a8f6232a1ceb",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q1-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'Denver'"
+      ],
+      "latency_ms": 2247,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8307,
+        "output_tokens": 43
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "7dba4ecb4e21dbcb3897ce163fcc8e92",
+      "answer_sha256": "0fda1e93ff0f5e0e398deb72b845570607fc552e42c05853f8e6a8f6232a1ceb",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2288,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8080,
+        "output_tokens": 55
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "1a7e7e132079bc6d3cee100d0d934a22",
+      "answer_sha256": "362d5e1e3dc749f35dc1bd8ecf8cfe92ba86c37f14d883d19a58e45da3e5a485",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2442,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8089,
+        "output_tokens": 55
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "b9172c8132fc3b83fada12e2bf2ddaee",
+      "answer_sha256": "362d5e1e3dc749f35dc1bd8ecf8cfe92ba86c37f14d883d19a58e45da3e5a485",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1265,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 5037,
+        "output_tokens": 49
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "50148e22f93959e5036ae754927370d0",
+      "answer_sha256": "ae57196eae13cd2978450676a14cbbe25fb0168a576ef9242e970a546d407ade",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1113,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 5046,
+        "output_tokens": 49
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "49aed3d2563e4a22fbeac1c8a71f4215",
+      "answer_sha256": "ae57196eae13cd2978450676a14cbbe25fb0168a576ef9242e970a546d407ade",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1364,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7090,
+        "output_tokens": 12
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "4dcf0037a299383a554618fab235a954",
+      "answer_sha256": "6663488ce4831ffc4ae233ccfb27a3dc17abfadfed25d6bde997ec08ae984b99",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1582,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7099,
+        "output_tokens": 12
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "bc0405206e572b8e66bfd969798f1ce2",
+      "answer_sha256": "6663488ce4831ffc4ae233ccfb27a3dc17abfadfed25d6bde997ec08ae984b99",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q5-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'PDF'"
+      ],
+      "latency_ms": 1967,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8264,
+        "output_tokens": 36
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "796a2bbd421aecec33e03a115cef205a",
+      "answer_sha256": "8dfd1ffc125107fefe7a8cf9e7ef487754e35e88bf7d9d58f4a15574fa70b7ab",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q5-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'PDF'"
+      ],
+      "latency_ms": 2181,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8273,
+        "output_tokens": 36
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "3fee88dfd4d0656f7dd23d2da686ee1f",
+      "answer_sha256": "8dfd1ffc125107fefe7a8cf9e7ef487754e35e88bf7d9d58f4a15574fa70b7ab",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2327,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8330,
+        "output_tokens": 61
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "c307f0b818d9f229e85cfc679c5746d9",
+      "answer_sha256": "a24ea5bf4359e916bf68d105c04e209bddb367e2bdb43aa7af6773ed39c630a2",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2368,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8339,
+        "output_tokens": 42
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "8be89a9817bffe6628bc3769ff9dd781",
+      "answer_sha256": "825935ba4e8fa884434911d6578e4c3440cf5b06e07d2ad9b8d285690961684b",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1856,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 6744,
+        "output_tokens": 44
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "244f8d4f45916ee38746c7cd5986fd36",
+      "answer_sha256": "e186a5d94d4d838137e433dedbea31c630806fa95b6eed2926f84f9b48de3672",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1789,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 6753,
+        "output_tokens": 44
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "c38f4eaa697af7bd2d6ac50f095b149a",
+      "answer_sha256": "e186a5d94d4d838137e433dedbea31c630806fa95b6eed2926f84f9b48de3672",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q8-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2264,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7858,
+        "output_tokens": 84
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "c8c9473f08d9441c21157dc2c7e905dc",
+      "answer_sha256": "bcbf0f7824617c952afb8c575253e3b6324bb2afe3deb3464ccad7c4bc29781d",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q8-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2386,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7867,
+        "output_tokens": 91
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "781ad88c23f38ebd5edf760ad6294956",
+      "answer_sha256": "bf0151a0976a2c21de724794770ec53902133a4e1ef775ba1f27660bec870dfb",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2004,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8306,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "c2f69ed2a987523aa30df39092caf330",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2144,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8315,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "9cbaccad088e6b5514cec5015362549e",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-10-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2134,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8190,
+        "output_tokens": 30
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "928d92be94d1fbba3969f27ec88ee0ca",
+      "answer_sha256": "baec433920e090381a12db1aeb1db7d6792d080af4323a5f1fbdfda95b584185",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-10-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2247,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8199,
+        "output_tokens": 30
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "9a1961b67a404f2df554f82abdb98665",
+      "answer_sha256": "baec433920e090381a12db1aeb1db7d6792d080af4323a5f1fbdfda95b584185",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-11-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2079,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8260,
+        "output_tokens": 29
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "43a907a5e0fa5bd6ea384e92ad84934e",
+      "answer_sha256": "f5b33184c775cba8d19a9103235930f9e9486a12f969f5770035c7532745336b",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-11-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2175,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8269,
+        "output_tokens": 29
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "4eafe071a1fc99a109105fccf98a0ca2",
+      "answer_sha256": "f5b33184c775cba8d19a9103235930f9e9486a12f969f5770035c7532745336b",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1980,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8286,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "c5af6788ed23cd5e3fe6762e674c676b",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1998,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8295,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "c3a4a0cfb0e445161f159ed82458c14f",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1877,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8279,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "69708b1349735adef682e3ad6bc2afa8",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1711,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8288,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "510bddfa05a11be47b2f345fd4055d55",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2109,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8148,
+        "output_tokens": 30
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "9c06d6eb2f055c7ae8ee08b7250d65c5",
+      "answer_sha256": "baec433920e090381a12db1aeb1db7d6792d080af4323a5f1fbdfda95b584185",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1917,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8157,
+        "output_tokens": 30
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "bdfad96f2a0f25eb27762761205e085a",
+      "answer_sha256": "baec433920e090381a12db1aeb1db7d6792d080af4323a5f1fbdfda95b584185",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1748,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8126,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "0f2bc42385584812859c1a1ff4eb39e8",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1798,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8135,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "a30141b3cb7f4d37bdd863ab63aeea2a",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2029,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8227,
+        "output_tokens": 31
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "5712af4a360d3ba881e795c199f6d45c",
+      "answer_sha256": "1d5d180ce18a5ec87893e9422fc2e4158ceec1dd2aae9d902c4967077e74abff",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2151,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8236,
+        "output_tokens": 31
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "ca86c747d6c210952c9a8e6161524736",
+      "answer_sha256": "1d5d180ce18a5ec87893e9422fc2e4158ceec1dd2aae9d902c4967077e74abff",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1880,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8229,
+        "output_tokens": 14
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "15a0196fce19e1478191f8b44374e619",
+      "answer_sha256": "a457d4d389a37f58fc06e5eadd91eafbbb36721bf23123f671381ce6d60bb2c0",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1752,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8238,
+        "output_tokens": 14
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "4dec1819f00a901a172a3955013be1cc",
+      "answer_sha256": "a457d4d389a37f58fc06e5eadd91eafbbb36721bf23123f671381ce6d60bb2c0",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-8-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1789,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8224,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "fa5d1f3d8f948177c61cc16763655655",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-8-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1811,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8233,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "6fe635b05e61a1389e52375f288ef5d1",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-9-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2064,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8122,
+        "output_tokens": 36
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "be6c0b570ff1ff3f757d6b895357e053",
+      "answer_sha256": "8dfd1ffc125107fefe7a8cf9e7ef487754e35e88bf7d9d58f4a15574fa70b7ab",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-9-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2064,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8131,
+        "output_tokens": 36
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "9ed7b5c5e28973b99dab85c3d5a9c755",
+      "answer_sha256": "8dfd1ffc125107fefe7a8cf9e7ef487754e35e88bf7d9d58f4a15574fa70b7ab",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2121,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7941,
+        "output_tokens": 39
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "09dc531cea852d866603776136747575",
+      "answer_sha256": "1ea785630a2ed3bba2b0902fa1d5e5fe81147156c2597c12588420ff3b16aae8",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2237,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 7950,
+        "output_tokens": 39
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "a4e56c83f63308cf5fde7c1a9bc16e64",
+      "answer_sha256": "1ea785630a2ed3bba2b0902fa1d5e5fe81147156c2597c12588420ff3b16aae8",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q10-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2484,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8461,
+        "output_tokens": 61
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "9c9a963a0b283da6b08f8a4e7435299f",
+      "answer_sha256": "6da814531f0e66a766b397eaac3b48db370811b0ece9532cf7ffe9426ce00ac6",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q10-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2491,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8470,
+        "output_tokens": 61
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "e333320ecb325432d598a1fb7f8052c2",
+      "answer_sha256": "6da814531f0e66a766b397eaac3b48db370811b0ece9532cf7ffe9426ce00ac6",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q11-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'data-flow'"
+      ],
+      "latency_ms": 2010,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8324,
+        "output_tokens": 13
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "5e85e84e4cdcc1bae52679eea2d18c16",
+      "answer_sha256": "b3e49dc13cad4c64a712ff8dd0f1bc4931f57604cdfab59b8a6fbee305af755d",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q11-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'data-flow'"
+      ],
+      "latency_ms": 2085,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8333,
+        "output_tokens": 13
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "9d1c65c135d77aa9adc5be0ada548684",
+      "answer_sha256": "b3e49dc13cad4c64a712ff8dd0f1bc4931f57604cdfab59b8a6fbee305af755d",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q12-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2349,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8241,
+        "output_tokens": 51
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "3ff8539bc2144d9ec2e16c7ec81bb991",
+      "answer_sha256": "32acace20ac8709720cc8f69f623f933205f449a65d0be98905e721fd847ee6f",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q12-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2107,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8250,
+        "output_tokens": 51
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "7453b16e712f896de0d64fcbafcc807c",
+      "answer_sha256": "32acace20ac8709720cc8f69f623f933205f449a65d0be98905e721fd847ee6f",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q13-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2237,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8246,
+        "output_tokens": 54
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "ec6b7243cafc857618c5147c60a78165",
+      "answer_sha256": "eb9cbd7dcfbced67ecffd57f7152b7d2ad695e121dc5f0104b1f60592cb1ae99",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q13-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2252,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8255,
+        "output_tokens": 54
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "1f80a3d78e6a15860c1e593bc31f4282",
+      "answer_sha256": "eb9cbd7dcfbced67ecffd57f7152b7d2ad695e121dc5f0104b1f60592cb1ae99",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q14-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2527,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8300,
+        "output_tokens": 52
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "a78541cc1d47f5ba9b1324434e69c790",
+      "answer_sha256": "250285085ce3457d62d6f6b2e28b28da18bc6fbdd9fcf629d85a1be0ace6f53b",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q14-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2373,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8309,
+        "output_tokens": 52
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "369ac2314af11b4efc722500dafb70d8",
+      "answer_sha256": "250285085ce3457d62d6f6b2e28b28da18bc6fbdd9fcf629d85a1be0ace6f53b",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q15-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2608,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8207,
+        "output_tokens": 71
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "863710751e424093125e3b149d04c722",
+      "answer_sha256": "90878474077aef83a642eeaf1f731ea6c004ae36a7b4d3788bc529e215b0e755",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q15-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2439,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8216,
+        "output_tokens": 71
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "1ce652d7a7acde3515ac035d4551b5ee",
+      "answer_sha256": "90878474077aef83a642eeaf1f731ea6c004ae36a7b4d3788bc529e215b0e755",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q16-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2085,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8190,
+        "output_tokens": 30
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "fa31fdeb0e12d0f7c2a8b06dc526f013",
+      "answer_sha256": "baec433920e090381a12db1aeb1db7d6792d080af4323a5f1fbdfda95b584185",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q16-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1984,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8199,
+        "output_tokens": 30
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "023d12ec28c44de19f06896b76b9f382",
+      "answer_sha256": "baec433920e090381a12db1aeb1db7d6792d080af4323a5f1fbdfda95b584185",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q17-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2021,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8260,
+        "output_tokens": 29
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "0912a9acfc73e55b7828fd1a7b768bfe",
+      "answer_sha256": "f5b33184c775cba8d19a9103235930f9e9486a12f969f5770035c7532745336b",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q17-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1983,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8269,
+        "output_tokens": 29
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "5631b5624bf61d99870186705e47122c",
+      "answer_sha256": "f5b33184c775cba8d19a9103235930f9e9486a12f969f5770035c7532745336b",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2554,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8414,
+        "output_tokens": 61
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "581ffb9b2aac2156efcb353af1c57269",
+      "answer_sha256": "7bb3486435f362f78d0ea555904895fdd6283b7b6f883ae4b4355996f55d26ac",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2235,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8423,
+        "output_tokens": 49
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "48eb05a7bf0e78f77025310f6c4b2b46",
+      "answer_sha256": "8744ac01cd8532f44e03d3454e483a6c8b96f8d536b140a8fcb300647bcd1151",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2549,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8090,
+        "output_tokens": 103
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "fd0c182731b081056db93742483f3a28",
+      "answer_sha256": "2138d6ef47ef48fd856093a11382ddbba5a15f56b8b61485a05af578b074664d",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2650,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8099,
+        "output_tokens": 103
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "1efca3def7206c276815b703c46d7eb6",
+      "answer_sha256": "2138d6ef47ef48fd856093a11382ddbba5a15f56b8b61485a05af578b074664d",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2204,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8220,
+        "output_tokens": 17
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "6ec66d999ebb9ff81484abc99c7ccc2c",
+      "answer_sha256": "4334090e280229424d9883239299b811881ae5060d4c2b7a402326eb6fc0b874",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2133,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8229,
+        "output_tokens": 17
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "95e011c90fd0ced3b52cf25e22176331",
+      "answer_sha256": "4334090e280229424d9883239299b811881ae5060d4c2b7a402326eb6fc0b874",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q5-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'Anthropic'"
+      ],
+      "latency_ms": 2217,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8329,
+        "output_tokens": 53
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "6f8eb71a493ab58b4363f6cb71a644f7",
+      "answer_sha256": "781d51f0b24e70606753d8e2c809f3c5f7bc052b02b8c25e8002bf39c6e7c6ed",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q5-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'Masking'",
+        "missing 'Anthropic'"
+      ],
+      "latency_ms": 2026,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8338,
+        "output_tokens": 27
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "691e63ae8bcfc85d873546cb49f18c8a",
+      "answer_sha256": "9082a449a1c46d85841e8d58a2a5878439441070c1054a923ff29857f59701f1",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2082,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8122,
+        "output_tokens": 36
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "f01abf2c993ca1fcd1603f707a213c64",
+      "answer_sha256": "8dfd1ffc125107fefe7a8cf9e7ef487754e35e88bf7d9d58f4a15574fa70b7ab",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2214,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8131,
+        "output_tokens": 36
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "916d439731c7b0c83519092ba07c9349",
+      "answer_sha256": "8dfd1ffc125107fefe7a8cf9e7ef487754e35e88bf7d9d58f4a15574fa70b7ab",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2207,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8347,
+        "output_tokens": 60
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "a216c88dd9bb90a621b15eb474983519",
+      "answer_sha256": "8c46cbb59221cf525eaaaf354c74c246d918276b7d4cf54c5bc054dfe1f4907c",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q7-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'AI-assisted'"
+      ],
+      "latency_ms": 2448,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8356,
+        "output_tokens": 67
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "d101d578f1e801b101eade42f3f07a07",
+      "answer_sha256": "68a48acc0f6104695d943d67f1607929f53ce3b1dec86b4bd853245d5027ccb6",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q8-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'Anything'"
+      ],
+      "latency_ms": 2010,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8189,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "a0040cbe782a34f34fd0ab2f8909ed7d",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q8-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'Anything'"
+      ],
+      "latency_ms": 1840,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8198,
+        "output_tokens": 7
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "35b47e0041f6c104e7c2852785033e46",
+      "answer_sha256": "5f8b8f9ae761d78d9c29c81ae0d60741b884034c931bab674ac90ac5a3f906e3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q9-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2402,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8319,
+        "output_tokens": 73
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "6896e4b99bbfee671d565fdc6093f9cc",
+      "answer_sha256": "52781cad3eb9abbc00b08e35a87339ee7301d3fda7eeb371803ee2a3b7c46125",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    },
+    {
+      "id": "twin-08-hareet-ai-q9-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2624,
+      "route": "local",
+      "provider": "local",
+      "model": "qwen3-30b-a3b-instruct-2507",
+      "usage": {
+        "input_tokens": 8328,
+        "output_tokens": 73
+      },
+      "cost_micro_usd": 0,
+      "trace_id": "6811bff5dc5e4a0021505b2a6562ed30",
+      "answer_sha256": "52781cad3eb9abbc00b08e35a87339ee7301d3fda7eeb371803ee2a3b7c46125",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a"
+    }
+  ],
+  "prompt_sha256": [
+    "4e6134e65ac936246362ac129d5ae3650ea244fc5c251fd333b4e7bdbe5e8949"
+  ]
+}

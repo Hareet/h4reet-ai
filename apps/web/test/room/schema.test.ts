@@ -1243,6 +1243,10 @@ describe("RI8 over the twin block (spec 016, T009)", () => {
     expect(ri8({ clips: { resting: "dance" } })).toEqual([`RI8 ${FILES.scene}:figures.twin.clips.resting`]);
   });
 
+  it("refuses fleeing as a key: a state the run sets, whose clip is the idle (spec 025, FR-011)", () => {
+    expect(ri8({ clips: { fleeing: "idle" } })).toEqual([`RI8 ${FILES.scene}:figures.twin.clips.fleeing`]);
+  });
+
   it("refuses a lean against a placement that isn't the desk's, or none", () => {
     expect(ri8({ lean: { against: "fx-board" } })).toEqual([`RI8 ${FILES.scene}:figures.twin.lean.against`]);
     expect(ri8({ lean: { against: "fx-nowhere" } })).toEqual([`RI8 ${FILES.scene}:figures.twin.lean.against`]);
@@ -1298,5 +1302,60 @@ describe("a live face's surface and the print renderer (spec 016, T052)", () => 
       `RI8 ${DESK}:live_faces[${(docOf(DESK).live_faces as unknown[] | undefined)?.length ?? 0}].surface`,
     ]);
     expect(ri8("apps/web/room/catalog/fx-twin.yaml")).toEqual([]);
+  });
+});
+
+// T-B03 (spec 028; FR-022; plan.md R-B4): the scene's figures block's optional `leave` block, the dinosaur's scene's
+// data: `meet` and `take_at` [x, z] in metres, `carry` [x, y, z], `path` at least two [x, z] points, `dog_mps`,
+// `walk_mps`, and `take_s` above 0 (at most 10). Every key required within the block; the block itself optional.
+// Read whole when good; RD2 and RD3 refuse the rest. Its geometry against the floors is RI12's (dino-scene-data.test.ts).
+describe("the figures' leave block (spec 028, T-B03)", () => {
+  const FULL = {
+    takes: "fx-desk",
+    meet: [0.4, 0.35],
+    take_at: [0.8, 0.25],
+    carry: [0.3, 0, 0.05],
+    path: [
+      [0.8, 0.5],
+      [1.6, 0.9],
+    ],
+    dog_mps: 1.2,
+    walk_mps: 1,
+    take_s: 0.8,
+  };
+  const withLeave = (leave: unknown): Uint8Array =>
+    variant(FILES.scene, (d) => {
+      d.figures = { ...(d.figures as Doc | undefined), leave: JSON.parse(JSON.stringify(leave)) as unknown };
+    });
+
+  it("reads a full block whole, and a scene without one has none", () => {
+    const full = judge("scene", withLeave(FULL));
+    expect(full.seen).toEqual([]);
+    expect(at(full.value as Doc, "figures", "leave")).toEqual(FULL);
+    const none = judge(
+      "scene",
+      variant(FILES.scene, () => undefined),
+    );
+    expect(at(none.value as Doc, "figures", "leave")).toBeUndefined();
+  });
+
+  it.each([
+    ["dog_mps", 0, "RD3 figures.leave.dog_mps"],
+    ["dog_mps", 11, "RD3 figures.leave.dog_mps"],
+    ["walk_mps", -0.5, "RD3 figures.leave.walk_mps"],
+    ["take_s", 0, "RD3 figures.leave.take_s"],
+    ["path", [[1.6, 0.9]], "RD3 figures.leave.path"],
+    ["meet", [0.4], "RD3 figures.leave.meet"],
+    ["carry", [0.3, 0], "RD3 figures.leave.carry"],
+    ["takes", 3, "RD3 figures.leave.takes"],
+  ])("refuses %s %j", (key, value, expected) => {
+    expect(judge("scene", withLeave({ ...FULL, [key]: value })).seen).toContain(expected);
+  });
+
+  it("refuses a block missing a key with RD3, and a key it doesn't define with RD2", () => {
+    const short: Partial<typeof FULL> = { ...FULL };
+    delete short.take_s;
+    expect(judge("scene", withLeave(short)).seen).toContain("RD3 figures.leave.take_s");
+    expect(judge("scene", withLeave({ ...FULL, door: 1 })).seen).toContain("RD2 figures.leave.door");
   });
 });

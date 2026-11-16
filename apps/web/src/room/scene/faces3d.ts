@@ -10,6 +10,10 @@
 // - The screens type once, from the first frame after their words come, redrawn at the quality level's typing rate,
 //   and hold. While the room doesn't animate (reduced motion, paused, or hidden; the motion store) or at quality 3,
 //   whose rate is 0, a screen shows its final frame, and never types again (FR-059; R-35).
+// - Spec 029 (FR-019; plan.md §R-C3): once typed, a screen with a blinking cursor is drawn again only when the cursor's
+//   phase changes, its phases counted from the first frame it blinks in, while the room animates and the level types;
+//   otherwise its cursor is held, shown, in its final frame, and it isn't drawn again (WCAG 2.2's 2.2.2: the pause stops
+//   it).
 // - The neon sign's counters are drawn again at once on each new state of the cost channel (setCost), whatever the
 //   motion store says: a pause stops only the glow's motion (FR-060).
 import {
@@ -98,6 +102,12 @@ interface FaceState {
   step: number;
   /** How far into its typing it was last drawn, in milliseconds, so a redraw keeps its place. */
   at: number;
+  /** Spec 029: its cursor's blink period once typed, read once its words come (0: no blink); undefined until then. */
+  period: number | undefined;
+  /** When its cursor began to blink, on the clock; null while it's held. */
+  blinkFrom: number | null;
+  /** Whether its cursor was drawn shown last. */
+  cursorOn: boolean;
 }
 
 /** A face canvas's texture: no mipmaps (R-37), filtered linearly, in sRGB. */
@@ -176,7 +186,19 @@ export function buildFaceQuads(options: FaceQuadOptions): FaceQuads {
     holder.add(quad);
     node.add(holder);
     quads.set(face.id, quad);
-    states.set(face.id, { face, quad, canvas, texture, start: null, typed: false, step: -1, at: 0 });
+    states.set(face.id, {
+      face,
+      quad,
+      canvas,
+      texture,
+      start: null,
+      typed: false,
+      step: -1,
+      at: 0,
+      period: undefined,
+      blinkFrom: null,
+      cursorOn: true,
+    });
   }
 
   /**
@@ -238,8 +260,40 @@ export function buildFaceQuads(options: FaceQuadOptions): FaceQuads {
 
   /** Draws every face as it stands now: its final frame once typed, else where its typing has reached. */
   const redraw = (): void => {
-    for (const s of states.values()) draw(s, s.typed ? Infinity : s.at);
+    for (const s of states.values()) {
+      draw(s, s.typed ? Infinity : s.at);
+      // The final frame shows a blinking cursor; its period is read again, from the words drawn now.
+      s.cursorOn = true;
+      s.period = undefined;
+    }
     for (const s of surfaces.values()) drawSurface(s);
+  };
+
+  /** Spec 029: a typed face's blinking cursor at `now`: drawn again only when its phase changes, held shown while the
+   *  room is still or the level types nothing. */
+  const blink = (s: FaceState, now: number): void => {
+    if (s.period === undefined) {
+      const layout = ready(s.face) ? faceLayout(s.face, sources()) : null;
+      if (layout === null) return;
+      s.period = layout.blinkMs ?? 0;
+    }
+    const period = s.period;
+    if (period <= 0) return;
+    if (!options.motion().animate || qualitySettings(level).typingFps <= 0) {
+      s.blinkFrom = null;
+      if (!s.cursorOn) {
+        s.cursorOn = true;
+        draw(s, Infinity);
+      }
+      return;
+    }
+    s.blinkFrom ??= now;
+    const on = Math.floor((now - s.blinkFrom) / period) % 2 === 0;
+    if (on === s.cursorOn) return;
+    s.cursorOn = on;
+    // The renderer counts the phases from the typing's end: an "off" frame is one period past it.
+    const typingMs = faceLayout(s.face, sources())?.typingMs ?? 0;
+    draw(s, on ? Infinity : typingMs + period);
   };
 
   /** Moves a face's typing on to `now`, ending it at once while the room is still or the level types nothing. */
@@ -292,7 +346,10 @@ export function buildFaceQuads(options: FaceQuadOptions): FaceQuads {
       redraw();
     },
     frame(now) {
-      for (const s of states.values()) type(s, now);
+      for (const s of states.values()) {
+        type(s, now);
+        if (s.typed) blink(s, now);
+      }
     },
     dispose() {
       unwatch?.();

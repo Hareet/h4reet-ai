@@ -22,7 +22,7 @@
 // folder. Spec 016's twin, at the end of this file, is read from assets/twin/ by its own reader.
 import { createHash } from "node:crypto";
 
-import { AVATARS, CLIP_ROLES } from "../../src/choice/avatars";
+import { AVATAR_SHAPES, AVATARS, CLIP_ROLES } from "../../src/choice/avatars";
 import type { AvatarId, ClipRole } from "../../src/choice/avatars";
 import { textureMemory } from "../../src/room/glb/fit";
 import { gzip9 } from "../../src/room/glb/gzip";
@@ -40,6 +40,65 @@ import type { Scene } from "./schema";
 import type { Tree } from "./source";
 
 export const VISITORS_DIR = "assets/visitors";
+
+/** Spec 021 (FR-003 to FR-005; plan.md §4; contracts/dinosaur-rig.md): the rig table, an avatar's required bones by
+ *  their raw glTF names, or null where its rig isn't checked. A row that isn't null runs RA10 (the bones), RA11 (the
+ *  box), and RA12 (the clips) on its model; the woman's, the man's, and the dog's are null (Q7). */
+export const RIG_BONES: Readonly<Record<AvatarId, readonly string[] | null>> = {
+  woman: null,
+  man: null,
+  dinosaur: [
+    "Hips",
+    "Spine",
+    "Chest",
+    "Neck",
+    "Head",
+    "Jaw",
+    "Tail1",
+    "Tail2",
+    "Tail3",
+    "Tail4",
+    "Arm.L",
+    "Arm.R",
+    "Leg.L",
+    "Leg.R",
+    "Shin.L",
+    "Shin.R",
+    "Foot.L",
+    "Foot.R",
+  ],
+  dog: null,
+};
+
+/** A required bone among a model's raw node names: named it exactly, or ending with `:` and it, as
+ *  scripts/studio/line.py's has_bone reads it. */
+const hasBone = (nodes: readonly string[], bone: string): boolean =>
+  nodes.some((n) => n === bone || n.endsWith(`:${bone}`));
+/** RA11's measures over the avatar table's box: each axis whose extent, scaled to the table's height, is over its
+ *  width with 5% slack; none where the height or an extent isn't known. */
+function boxOver(
+  id: AvatarId,
+  m: { readonly height: number | null; readonly extent_x: number | null; readonly extent_z: number | null } | null,
+): string[] {
+  const shape = AVATAR_SHAPES[id];
+  if (!m || m.height === null || !(m.height > 0)) return [];
+  const scale = shape.height / m.height;
+  const out: string[] = [];
+  for (const [axis, extent] of [
+    ["x", m.extent_x],
+    ["z", m.extent_z],
+  ] as const) {
+    if (extent === null) continue;
+    const scaled = extent * scale;
+    if (scaled > shape.width * 1.05)
+      out.push(`${axis} extent ${scaled.toFixed(2)} m at ${shape.height} m high, over ${shape.width} m (+5%)`);
+  }
+  return out;
+}
+
+/** The first three of a list, then how many more. */
+const firstFew = (names: readonly string[]): string =>
+  names.length > 3 ? `${names.slice(0, 3).join(", ")}, and ${names.length - 3} more` : names.join(", ");
 /** A folder's own files, which have no role and are no avatar's: the record and the notice. */
 const FOLDER_FILES = new Set(["records.json", "LICENSE.md"]);
 
@@ -81,6 +140,10 @@ export interface AvatarFile {
     readonly decoded_bytes: number;
     /** The rest pose's height by the reader's bounds, in the file's units; null with no vertex. */
     readonly height: number | null;
+    /** Spec 021 (plan.md §4): the rest pose's extents along x and z by the same bounds, in the file's units; null with
+     *  no vertex. */
+    readonly extent_x: number | null;
+    readonly extent_z: number | null;
     readonly animations: number;
   } | null;
   readonly bundled: boolean;
@@ -96,6 +159,9 @@ export interface Avatar {
   readonly clips: readonly AvatarFile[];
   /** Files with no role (RA5), in the folder's order. */
   readonly others: readonly AvatarFile[];
+  /** Spec 020 (FR-007): the likeness approval's line, for a model recorded as a likeness or from a photo that main
+   *  approves; null for every other avatar. */
+  readonly line: string | null;
 }
 
 export interface AvatarSet {
@@ -103,7 +169,7 @@ export interface AvatarSet {
   readonly figures: FigureBlock;
   /** Each avatar of the table whose folder holds a file, in the table's order. */
   readonly avatars: readonly Avatar[];
-  /** RA1 to RA4, by file, then rule. */
+  /** RA1 to RA4, spec 020's RA9, and spec 021's RA10 to RA12, by file, then rule. */
   readonly problems: readonly Problem[];
 }
 
@@ -220,6 +286,8 @@ function readFile(tree: Tree, avatar: AvatarId, dir: string, name: string, textu
         texture_bytes: own,
         decoded_bytes: decoded,
         height: bounds === null ? null : bounds.max[1] - bounds.min[1],
+        extent_x: bounds === null ? null : bounds.max[0] - bounds.min[0],
+        extent_z: bounds === null ? null : bounds.max[2] - bounds.min[2],
         animations: glb.json.animations?.length ?? 0,
       },
     },
@@ -265,6 +333,7 @@ export function readAvatars(tree: Tree, policy: RoomPolicy, scene: Scene | null)
     });
     const model = reads.find((r) => r.file.role === "model") ?? null;
     const rules = new Map<string, string[]>();
+    let likenessLine: TwinLine | null = null;
     // The checks run where main's caps would bundle the avatar: without per_asset.avatar nothing is bundled, so
     // nothing is left out, and a file is only reported, unbundled, for want of the caps.
     const checked = caps?.avatar !== undefined && caps.avatar !== null;
@@ -310,12 +379,50 @@ export function readAvatars(tree: Tree, policy: RoomPolicy, scene: Scene | null)
           standIn = null;
         }
       }
+      // RA9 (spec 020; FR-002): a visitor's likeness, recorded so or from a photo, bundled only with main's approval of
+      // the model's SHA-256 and a non-empty line. A clip rides with its model. The stand-in is RA3's.
+      if (role === "model" && entry && id !== block.stand_in) {
+        const source = isObject(entry.source as never) ? (entry.source as { type?: unknown }).type : undefined;
+        if (entry.likeness === true || source === "photo") {
+          likenessLine = lineFor(policy, r.file);
+          if (likenessLine === null)
+            refuse(
+              r,
+              "RA9",
+              "-",
+              "a likeness without main's approval naming its SHA-256 with a disclosure line (assets/policy/approvals.json)",
+            );
+        }
+      }
       // RA4: main's per-asset caps for its kind, as spec 003's F2 measures it.
       const cap = role === "model" ? caps?.avatar : caps?.animation;
       if (cap) {
         const over = overCaps(r.file as AvatarFile, cap, role === "model" ? "avatar" : "animation");
         if (over.length > 0) refuse(r, "RA4", "-", over.join("; "));
       }
+      // Spec 021's rules, only for an avatar with a rig-table row (FR-003 to FR-005).
+      const row = RIG_BONES[id];
+      if (role === "model" && row !== null) {
+        // RA10: each bone of the row among the model's raw node names (FR-005).
+        const lacking = row.filter((bone) => !hasBone(r.nodes, bone));
+        if (lacking.length > 0) refuse(r, "RA10", "-", `the ${id} rig lacks ${firstFew(lacking)}`);
+        // RA11: the rest pose's box, scaled uniformly to the table's height (spec 009's FR-016), within the table's
+        // width along x and z, with 5% slack (FR-004; plan.md R-03).
+        const over = boxOver(id, r.file.measures);
+        if (over.length > 0) refuse(r, "RA11", "-", over.join("; "));
+      }
+    }
+    // RA12 (spec 021; FR-003; plan.md R-04): a model with a rig-table row needs a usable idle and walk, a clip RA1,
+    // RA2, or RA4 stands on counting as missing; on the model, so it and its clips are left out. `take` is optional.
+    if (model !== null && model.unread === null && RIG_BONES[id] !== null) {
+      const usable = (role: ClipRole): boolean =>
+        reads.some(
+          (r) =>
+            r.file.role === role &&
+            !(rules.get(r.file.path) ?? []).some((rule) => rule === "RA1" || rule === "RA2" || rule === "RA4"),
+        );
+      const missing = (["idle", "walk"] as const).filter((role) => !usable(role));
+      if (missing.length > 0) refuse(model, "RA12", "-", missing.map((role) => `no usable ${role} clip`).join("; "));
     }
     // The bundled set: RA3 aside, a finding on a file leaves it out.
     const standing = (r: Read): string[] => (rules.get(r.file.path) ?? []).filter((rule) => rule !== "RA3");
@@ -342,6 +449,7 @@ export function readAvatars(tree: Tree, policy: RoomPolicy, scene: Scene | null)
       model: files.find((f) => f.role === "model") ?? null,
       clips: CLIP_ROLES.flatMap((role) => files.filter((f) => f.role === role)),
       others: files.filter((f) => f.role === null),
+      line: likenessLine?.line ?? null,
     });
   }
   return { figures: { ...block, stand_in: standIn }, avatars, problems };
@@ -363,6 +471,13 @@ export function avatarsOf(tree: Tree, policy: RoomPolicy, scene: Scene | null): 
 export function bundledFiles(avatar: Avatar): AvatarFile[] {
   if (!avatar.model?.bundled) return [];
   return [avatar.model, ...avatar.clips.filter((c) => c.bundled)];
+}
+
+/** Whether the bundle carries an avatar's model: the 3D part's `avatars` has it (emit.ts's avatarsPart). Spec 024
+ *  (FR-001; page Q247): a dinosaur visit's Eat box, its checks, and its report lines hang on the dinosaur's. */
+export function carriesModel(set: AvatarSet, id: AvatarId): boolean {
+  const avatar = set.avatars.find((a) => a.id === id);
+  return avatar !== undefined && bundledFiles(avatar).length > 0;
 }
 
 // ---- Spec 016: the twin's own avatar (its FR-009, FR-015, FR-045, FR-046, FR-048, FR-055; plan.md R-01 to R-04) ----
@@ -562,7 +677,7 @@ function readTwinFile(tree: Tree, name: string, texturePx: number): TwinRead | n
 }
 
 /** The twin's line: the likeness approval naming the model's current SHA-256 with a non-empty line (FR-015). */
-function lineFor(policy: RoomPolicy, model: Omit<TwinFile, "bundled" | "why"> | null): TwinLine | null {
+function lineFor(policy: RoomPolicy, model: { readonly sha256: string } | null): TwinLine | null {
   const likeness = policy.likeness;
   if (!model || !likeness) return null;
   const entry = likeness.approvals.find((a) => a.sha256 === model.sha256);

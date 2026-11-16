@@ -74,6 +74,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILE = "deploy/compose.yaml"
 LOCK_FILE = "deploy/images.lock"
+# A FROM a build argument names with no default, allowed only at these (file, argument) pairs: an image this repository
+# builds itself, from a Dockerfile this policy checks, so no registry pins it. The night shift's install (spec 017,
+# P-12) builds the toolchain from .devcontainer/Dockerfile first and passes its image by its tag here.
+LOCAL_BASES = {
+    # the toolchain image, built from .devcontainer/Dockerfile, which this policy checks as it checks every Dockerfile
+    ("deploy/night-shift/images/worker.Dockerfile", "TOOLCHAIN_IMAGE"),
+}
 DISCLOSURE_FILE = "docs/data-flow-disclosure.md"
 DEVCONTAINER_FILE = ".devcontainer/devcontainer.json"
 ENV_FILES = (
@@ -1186,6 +1193,9 @@ def check_dockerfile(path: Path, rel: str, lock: dict[str, LockEntry]) -> list[F
         if len(tokens) >= 3 and tokens[1].upper() == "AS":
             stages.add(tokens[2].lower())
         if ref.lower() in stages or ref == "scratch":
+            continue
+        bare = re.fullmatch(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?", ref)
+        if bare and (rel, bare.group(1)) in LOCAL_BASES:
             continue
         if "$" in ref:
             found.append(

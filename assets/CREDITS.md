@@ -401,6 +401,106 @@ No files yet.
 
 No files yet.
 
+## `assets/visitors/dinosaur`
+
+### `dinosaur-idle.glb`
+
+- Kind: animation
+- Source: an original design, `D-0003`
+- Made: 2026-11-14
+- A likeness of the Author: no
+- Step 1, `the concept, the Author's own design`, by hand
+- Step 2, `the Author's review of the concept`, by hand
+- Step 3, `the mesh and its base-colour texture, from the concept, by Pixal3D in ComfyUI`, by a model: `Pixal3D, int8` (`Comfy-Org/Pixal3D`, revision `f37641be`), primary, under `mit` `1`; `DINOv3 ViT-L, patch 16, with NAF` (`Comfy-Org/Pixal3D`, revision `f37641be`), auxiliary, under `dinov3` `2026-10-26`; `MoGe-2 ViT-L with normals` (`Comfy-Org/MoGe`, revision `14849852`), auxiliary, under `mit` `1`; `BiRefNet` (`ZhengPeng7/BiRefNet`, revision `e2bf8e44`), auxiliary, under `mit` `1`; `TRELLIS.2 shape VAE` (`Comfy-Org/TRELLIS.2`, revision `430a9d09`), auxiliary, under `mit` `1`; `TRELLIS.2 texture VAE` (`Comfy-Org/TRELLIS.2`, revision `430a9d09`), auxiliary, under `mit` `1`; with `ComfyUI` `0.42.5`, under `gpl-3.0` `3`
+- Step 4, `the Author's review of the mesh`, by hand
+- Step 5, `the build: cleaned, decimated and scaled, its texture resized, rigged and skinned to the dinosaur skeleton, its rest pose fitted to the room, marked and exported, by the studio's agent's script run in Blender`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `5.2.3`, under `gpl-3.0-or-later` `3`; `glTF exporter, bundled with Blender` `5.2.41`, under `apache-2.0` `2.0`; `numpy, bundled with Blender` `2.3.4`, under `bsd-3-clause` `1`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Step 6, `the idle, keyed on the build's skeleton and exported alone, by the studio's agent's script run in Blender`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `5.2.3`, under `gpl-3.0-or-later` `3`; `glTF exporter, bundled with Blender` `5.2.41`, under `apache-2.0` `2.0`; `numpy, bundled with Blender` `2.3.4`, under `bsd-3-clause` `1`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Media license: `all-rights-reserved-2026`
+
+### `dinosaur-take.glb`
+
+- Kind: animation
+- Source: an original design, `D-0003`
+- Made: 2026-11-14
+- A likeness of the Author: no
+- Step 1, `the concept, the Author's own design`, by hand
+- Step 2, `the Author's review of the concept`, by hand
+- Step 3, `the mesh and its base-colour texture, from the concept, by Pixal3D in ComfyUI`, by a model: `Pixal3D, int8` (`Comfy-Org/Pixal3D`, revision `f37641be`), primary, under `mit` `1`; `DINOv3 ViT-L, patch 16, with NAF` (`Comfy-Org/Pixal3D`, revision `f37641be`), auxiliary, under `dinov3` `2026-10-26`; `MoGe-2 ViT-L with normals` (`Comfy-Org/MoGe`, revision `14849852`), auxiliary, under `mit` `1`; `BiRefNet` (`ZhengPeng7/BiRefNet`, revision `e2bf8e44`), auxiliary, under `mit` `1`; `TRELLIS.2 shape VAE` (`Comfy-Org/TRELLIS.2`, revision `430a9d09`), auxiliary, under `mit` `1`; `TRELLIS.2 texture VAE` (`Comfy-Org/TRELLIS.2`, revision `430a9d09`), auxiliary, under `mit` `1`; with `ComfyUI` `0.42.5`, under `gpl-3.0` `3`
+- Step 4, `the Author's review of the mesh`, by hand
+- Step 5, `the build: cleaned, decimated and scaled, its texture resized, rigged and skinned to the dinosaur skeleton, its rest pose fitted to the room, marked and exported, by the studio's agent's script run in Blender`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `5.2.3`, under `gpl-3.0-or-later` `3`; `glTF exporter, bundled with Blender` `5.2.41`, under `apache-2.0` `2.0`; `numpy, bundled with Blender` `2.3.4`, under `bsd-3-clause` `1`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Step 6, `the take, keyed on the build's skeleton and exported alone, by the studio's agent's script run in Blender`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `5.2.3`, under `gpl-3.0-or-later` `3`; `glTF exporter, bundled with Blender` `5.2.41`, under `apache-2.0` `2.0`; `numpy, bundled with Blender` `2.3.4`, under `bsd-3-clause` `1`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Media license: `all-rights-reserved-2026`
+
+### `dinosaur-walk.glb`
+
+- Kind: animation
+- Source: an original design, `D-0003`
+- Made: 2026-11-14
+- A likeness of the Author: no
+- Step 1, `the concept, the Author's own design`, by hand
+- Step 2, `the Author's review of the concept`, by hand
+- Step 3, `the mesh and its base-colour texture, from the concept, by Pixal3D in ComfyUI`, by a model: `Pixal3D, int8` (`Comfy-Org/Pixal3D`, revision `f37641be`), primary, under `mit` `1`; `DINOv3 ViT-L, patch 16, with NAF` (`Comfy-Org/Pixal3D`, revision `f37641be`), auxiliary, under `dinov3` `2026-10-26`; `MoGe-2 ViT-L with normals` (`Comfy-Org/MoGe`, revision `14849852`), auxiliary, under `mit` `1`; `BiRefNet` (`ZhengPeng7/BiRefNet`, revision `e2bf8e44`), auxiliary, under `mit` `1`; `TRELLIS.2 shape VAE` (`Comfy-Org/TRELLIS.2`, revision `430a9d09`), auxiliary, under `mit` `1`; `TRELLIS.2 texture VAE` (`Comfy-Org/TRELLIS.2`, revision `430a9d09`), auxiliary, under `mit` `1`; with `ComfyUI` `0.42.5`, under `gpl-3.0` `3`
+- Step 4, `the Author's review of the mesh`, by hand
+- Step 5, `the build: cleaned, decimated and scaled, its texture resized, rigged and skinned to the dinosaur skeleton, its rest pose fitted to the room, marked and exported, by the studio's agent's script run in Blender`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `5.2.3`, under `gpl-3.0-or-later` `3`; `glTF exporter, bundled with Blender` `5.2.41`, under `apache-2.0` `2.0`; `numpy, bundled with Blender` `2.3.4`, under `bsd-3-clause` `1`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Step 6, `the walk, keyed on the build's skeleton and exported alone, by the studio's agent's script run in Blender`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `5.2.3`, under `gpl-3.0-or-later` `3`; `glTF exporter, bundled with Blender` `5.2.41`, under `apache-2.0` `2.0`; `numpy, bundled with Blender` `2.3.4`, under `bsd-3-clause` `1`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Media license: `all-rights-reserved-2026`
+
+### `dinosaur.glb`
+
+- Kind: avatar
+- Source: an original design, `D-0003`
+- Made: 2026-11-14
+- A likeness of the Author: no
+- Step 1, `the concept, the Author's own design`, by hand
+- Step 2, `the Author's review of the concept`, by hand
+- Step 3, `the mesh and its base-colour texture, from the concept, by Pixal3D in ComfyUI`, by a model: `Pixal3D, int8` (`Comfy-Org/Pixal3D`, revision `f37641be`), primary, under `mit` `1`; `DINOv3 ViT-L, patch 16, with NAF` (`Comfy-Org/Pixal3D`, revision `f37641be`), auxiliary, under `dinov3` `2026-10-26`; `MoGe-2 ViT-L with normals` (`Comfy-Org/MoGe`, revision `14849852`), auxiliary, under `mit` `1`; `BiRefNet` (`ZhengPeng7/BiRefNet`, revision `e2bf8e44`), auxiliary, under `mit` `1`; `TRELLIS.2 shape VAE` (`Comfy-Org/TRELLIS.2`, revision `430a9d09`), auxiliary, under `mit` `1`; `TRELLIS.2 texture VAE` (`Comfy-Org/TRELLIS.2`, revision `430a9d09`), auxiliary, under `mit` `1`; with `ComfyUI` `0.42.5`, under `gpl-3.0` `3`
+- Step 4, `the Author's review of the mesh`, by hand
+- Step 5, `the build: cleaned, decimated and scaled, its texture resized, rigged and skinned to the dinosaur skeleton, its rest pose fitted to the room, marked and exported, by the studio's agent's script run in Blender`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `5.2.3`, under `gpl-3.0-or-later` `3`; `glTF exporter, bundled with Blender` `5.2.41`, under `apache-2.0` `2.0`; `numpy, bundled with Blender` `2.3.4`, under `bsd-3-clause` `1`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Media license: `all-rights-reserved-2026`
+
+## `assets/visitors/dog`
+
+### `dog-idle.glb`
+
+- Kind: animation
+- Source: a photo
+- Made: 2026-11-14
+- A likeness of the Author's dog: no
+- Step 1, `the Author's review of an earlier mesh, which asked for the breed's white markings on the face, the under body, and the feet`, by hand
+- Step 2, `the Author's choice of a photograph of the breed as the concept's reference image, for its white markings; his words on it: "I own it", "it's free to use"`, by hand
+- Step 3, `the concept, from a text prompt and a photograph of the breed as its reference image; eight seeds drawn and one picked by the studio's agent, which wrote the prompt and drove ComfyUI`, by a model: `FLUX.2 [klein] 4B base` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), primary, under `apache-2.0` `2.0`; `Qwen3-4B, its text encoder` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), auxiliary, under `apache-2.0` `2.0`; `FLUX.2 VAE` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), auxiliary, under `apache-2.0` `2.0`; `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), auxiliary, under `anthropic-consumer-terms` `2025-10-08`; with `ComfyUI` `0.42.5`, under `gpl-3.0` `3`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Step 4, `the mesh and its base-colour texture, from the picked concept, run in ComfyUI by the studio's agent`, by a model: `Pixal3D, int8` (`Comfy-Org/Pixal3D`, revision `f37641be`), primary, under `mit` `1`; `DINOv3 ViT-L, patch 16, with NAF` (`Comfy-Org/Pixal3D`, revision `f37641be`), auxiliary, under `dinov3` `2026-10-26`; `MoGe-2 ViT-L with normals` (`Comfy-Org/MoGe`, revision `14849852`), auxiliary, under `mit` `1`; `BiRefNet` (`ZhengPeng7/BiRefNet`, revision `e2bf8e44`), auxiliary, under `mit` `1`; `TRELLIS.2 shape VAE` (`Comfy-Org/TRELLIS.2`, revision `430a9d09`), auxiliary, under `mit` `1`; `TRELLIS.2 texture VAE` (`Comfy-Org/TRELLIS.2`, revision `430a9d09`), auxiliary, under `mit` `1`; `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), auxiliary, under `anthropic-consumer-terms` `2025-10-08`; with `ComfyUI` `0.42.5`, under `gpl-3.0` `3`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Step 5, `the build, which cleaned, decimated and scaled the mesh, kept its texture layout and halved its base colour, and rigged and skinned the dog on its skeleton, by the studio's agent's script run in Blender`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `5.2.3`, under `gpl-3.0-or-later` `3`; `glTF exporter, bundled with Blender` `5.2.41`, under `apache-2.0` `2.0`; `numpy, bundled with Blender` `2.3.4`, under `bsd-3-clause` `1`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Step 6, `the idle, a breathing loop with small head and tail motion, keyed on the build's skeleton and exported alone, by the studio's agent's script run in Blender`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `5.2.3`, under `gpl-3.0-or-later` `3`; `glTF exporter, bundled with Blender` `5.2.41`, under `apache-2.0` `2.0`; `numpy, bundled with Blender` `2.3.4`, under `bsd-3-clause` `1`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Media license: `all-rights-reserved-2026`
+
+### `dog-walk.glb`
+
+- Kind: animation
+- Source: a photo
+- Made: 2026-11-14
+- A likeness of the Author's dog: no
+- Step 1, `the Author's review of an earlier mesh, which asked for the breed's white markings on the face, the under body, and the feet`, by hand
+- Step 2, `the Author's choice of a photograph of the breed as the concept's reference image, for its white markings; his words on it: "I own it", "it's free to use"`, by hand
+- Step 3, `the concept, from a text prompt and a photograph of the breed as its reference image; eight seeds drawn and one picked by the studio's agent, which wrote the prompt and drove ComfyUI`, by a model: `FLUX.2 [klein] 4B base` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), primary, under `apache-2.0` `2.0`; `Qwen3-4B, its text encoder` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), auxiliary, under `apache-2.0` `2.0`; `FLUX.2 VAE` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), auxiliary, under `apache-2.0` `2.0`; `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), auxiliary, under `anthropic-consumer-terms` `2025-10-08`; with `ComfyUI` `0.42.5`, under `gpl-3.0` `3`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Step 4, `the mesh and its base-colour texture, from the picked concept, run in ComfyUI by the studio's agent`, by a model: `Pixal3D, int8` (`Comfy-Org/Pixal3D`, revision `f37641be`), primary, under `mit` `1`; `DINOv3 ViT-L, patch 16, with NAF` (`Comfy-Org/Pixal3D`, revision `f37641be`), auxiliary, under `dinov3` `2026-10-26`; `MoGe-2 ViT-L with normals` (`Comfy-Org/MoGe`, revision `14849852`), auxiliary, under `mit` `1`; `BiRefNet` (`ZhengPeng7/BiRefNet`, revision `e2bf8e44`), auxiliary, under `mit` `1`; `TRELLIS.2 shape VAE` (`Comfy-Org/TRELLIS.2`, revision `430a9d09`), auxiliary, under `mit` `1`; `TRELLIS.2 texture VAE` (`Comfy-Org/TRELLIS.2`, revision `430a9d09`), auxiliary, under `mit` `1`; `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), auxiliary, under `anthropic-consumer-terms` `2025-10-08`; with `ComfyUI` `0.42.5`, under `gpl-3.0` `3`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Step 5, `the build, which cleaned, decimated and scaled the mesh, kept its texture layout and halved its base colour, and rigged and skinned the dog on its skeleton, by the studio's agent's script run in Blender`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `5.2.3`, under `gpl-3.0-or-later` `3`; `glTF exporter, bundled with Blender` `5.2.41`, under `apache-2.0` `2.0`; `numpy, bundled with Blender` `2.3.4`, under `bsd-3-clause` `1`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Step 6, `the walk, a four-legged walk-cycle loop in place, keyed on the build's skeleton and exported alone, by the studio's agent's script run in Blender`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `5.2.3`, under `gpl-3.0-or-later` `3`; `glTF exporter, bundled with Blender` `5.2.41`, under `apache-2.0` `2.0`; `numpy, bundled with Blender` `2.3.4`, under `bsd-3-clause` `1`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Media license: `all-rights-reserved-2026`
+
+### `dog.glb`
+
+- Kind: avatar
+- Source: a photo
+- Made: 2026-11-14
+- A likeness of the Author's dog: no
+- Step 1, `the Author's review of an earlier mesh, which asked for the breed's white markings on the face, the under body, and the feet`, by hand
+- Step 2, `the Author's choice of a photograph of the breed as the concept's reference image, for its white markings; his words on it: "I own it", "it's free to use"`, by hand
+- Step 3, `the concept, from a text prompt and a photograph of the breed as its reference image; eight seeds drawn and one picked by the studio's agent, which wrote the prompt and drove ComfyUI`, by a model: `FLUX.2 [klein] 4B base` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), primary, under `apache-2.0` `2.0`; `Qwen3-4B, its text encoder` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), auxiliary, under `apache-2.0` `2.0`; `FLUX.2 VAE` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), auxiliary, under `apache-2.0` `2.0`; `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), auxiliary, under `anthropic-consumer-terms` `2025-10-08`; with `ComfyUI` `0.42.5`, under `gpl-3.0` `3`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Step 4, `the mesh and its base-colour texture, from the picked concept, run in ComfyUI by the studio's agent`, by a model: `Pixal3D, int8` (`Comfy-Org/Pixal3D`, revision `f37641be`), primary, under `mit` `1`; `DINOv3 ViT-L, patch 16, with NAF` (`Comfy-Org/Pixal3D`, revision `f37641be`), auxiliary, under `dinov3` `2026-10-26`; `MoGe-2 ViT-L with normals` (`Comfy-Org/MoGe`, revision `14849852`), auxiliary, under `mit` `1`; `BiRefNet` (`ZhengPeng7/BiRefNet`, revision `e2bf8e44`), auxiliary, under `mit` `1`; `TRELLIS.2 shape VAE` (`Comfy-Org/TRELLIS.2`, revision `430a9d09`), auxiliary, under `mit` `1`; `TRELLIS.2 texture VAE` (`Comfy-Org/TRELLIS.2`, revision `430a9d09`), auxiliary, under `mit` `1`; `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), auxiliary, under `anthropic-consumer-terms` `2025-10-08`; with `ComfyUI` `0.42.5`, under `gpl-3.0` `3`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Step 5, `the build, which cleaned, decimated and scaled the mesh, kept its texture layout and halved its base colour, and rigged and skinned the dog on its skeleton, by the studio's agent's script run in Blender`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `5.2.3`, under `gpl-3.0-or-later` `3`; `glTF exporter, bundled with Blender` `5.2.41`, under `apache-2.0` `2.0`; `numpy, bundled with Blender` `2.3.4`, under `bsd-3-clause` `1`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Media license: `all-rights-reserved-2026`
+
 ## `assets/visitors/man`
 
 ### `man-idle-holding.glb`

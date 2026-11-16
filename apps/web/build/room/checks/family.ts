@@ -12,6 +12,7 @@
 //   (the loader's) and RT2's walk.
 import type { LoadedRoom } from "../load";
 import type { RoomPolicy } from "../policy";
+import type { ReadinessReasons } from "../readiness";
 import { compareBytewise } from "../source";
 import type { Tree } from "../source";
 
@@ -63,6 +64,7 @@ export const RULES = {
   RI9: rule("RI", read), // a corpus path outside its form
   RI10: rule("RI"), // lookdev.yaml naming a placement the scene lacks, or an avatar outside the table
   RI11: rule("RI"), // a label nothing references
+  RI12: rule("RI"), // spec 028: the dinosaur's scene's last path point in the shell, or a point off the chase floor
   RG1: rule("RG"), // mounts that aren't one tree
   RG2: rule("RG", readPart), // bounds, faces, glows, and stand-ins; unit vectors (the loader's); px's aspect
   RG3: rule("RG", read), // a stylized scale outside 1 to 4
@@ -125,6 +127,15 @@ export const RULES = {
   RA7: rule("RA", model), // the twin's lean off its spot: the desk not behind_m behind, turned, or short of right_m
   // RA8 (plan.md R-19): lenient, so a lenient build warns and keeps the twin; nothing in the bundle stands on it.
   RA8: rule("RA", model), // the twin's own model, at rest or in a clip it plays, reaching past a wall of the shell
+  // Spec 020's RA9 (its FR-002; plan.md R-01): lenient, so a lenient build leaves a visitor's likeness out, its figure on
+  // the cut-out, until main's approval names its model.
+  RA9: rule("RA", model), // a visitor's likeness without main's approval naming its model's SHA-256 with a line
+  // Spec 021's RA10 to RA12 (its FR-005, FR-004, FR-003; plan.md R-01, R-08; contracts/dinosaur-rig.md): lenient as
+  // RA1 to RA4, so a lenient build leaves the model and its clips out, its figure on the cut-out. Only for an avatar
+  // with a rig-table row.
+  RA10: rule("RA", model), // a model whose raw node names lack a bone of its rig-table row
+  RA11: rule("RA", model), // a rigged model whose rest-pose box, at the table's height, is over its width (+5%)
+  RA12: rule("RA", model), // a rigged model without a usable idle or walk clip
   RK1: rule("RK"), // a budget above the caps
   RK2: rule("RK", model), // a model over its budget
   RK3: rule("RK"), // the scene's texture memory over its cap
@@ -173,6 +184,9 @@ export interface ComposeOptions {
    *  the gateway's rule (build/room/readiness.ts) and hands in, so the compositor's own reads stay the room's data.
    *  Absent, nothing is ready. */
   readonly readiness?: { readonly topics: ReadonlyMap<string, boolean>; readonly freeTalk: boolean };
+  /** The same rule's reasons (spec 029, FR-014a; build/room/readiness.ts's readinessReasons), handed in the same way
+   *  for the room report's readiness section, which room:report prints. Absent, the report has no such section. */
+  readonly readinessReasons?: ReadinessReasons;
 }
 
 const RULE_PARTS = /^([A-Z]+)(\d+)$/;

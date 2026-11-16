@@ -542,9 +542,10 @@ describe("RG6: FR-064's carve-out for side-wall selectables", () => {
         action: { resume: {} },
       });
     });
-    // Spec 014: 7,158 sizes of frame area in place of spec 005's 7,080 clear areas.
+    // Spec 014: 7,158 sizes of frame area in place of spec 005's 7,080 clear areas; 7,182 since spec 026's human patch
+    // (r3) gives the dock's list two rows below 39rem, not 36rem, for its fifth entry.
     expect(reasons(t)).toContain(
-      "selectables[4]: its exclusive core overlaps a member of selectables[3] in 3D at 320 × 250 and 7157 others",
+      "selectables[4]: its exclusive core overlaps a member of selectables[3] in 3D at 320 × 250 and 7181 others",
     );
   });
 });

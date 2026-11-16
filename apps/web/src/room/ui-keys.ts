@@ -61,10 +61,16 @@ export const UI_KEYS = {
   "walk.entered": [],
   "walk.left": [],
   "walk.target": ["name"],
+  // Spec 024 (its FR-010, FR-012): the "Eat" tile's word, and the polite line at a piece's first bite in a visit, with
+  // the piece's label.
+  "eat.button": [],
+  "eat.first_bite": ["name"],
   // Spec 009's stand-in line (its FR-013, FR-039): in the stage's note and first in "Around the room" while the twin's
   // figure shows anything but the twin's own avatar. It states nothing about the Author but that the figure isn't the
   // Author's likeness.
   "twin.stand_in": [],
+  // Spec 026 (FR-024; plan.md R-10): the petting's line in the polite live region, said once as it starts.
+  "figures.pet_note": [],
   // Spec 005's HUD (its FR-023, FR-028, FR-065): the conversation log's header button, and the larger view's two words.
   "hud.log_toggle": [],
   "talk.larger": [],
@@ -90,6 +96,38 @@ export const UI_KEYS = {
   "hints.play": [],
   "hints.previous": [],
   "hints.next": [],
+  // Spec 018's split HUD: the list's label and the panel's close, the key caps' names, and the three stats' labels and tier words.
+  "hud.select": [],
+  "hud.back": [],
+  "hud.close": [],
+  "key.esc": [],
+  "key.enter": [],
+  "stat.serving": [],
+  "stat.call": [],
+  "stat.visit": [],
+  "stat.unknown": [],
+  "stat.tier.local": [],
+  "stat.tier.cloud": [],
+  "stat.tier.resting": [],
+  "stat.tier.budget": [],
+  "stat.tier.unavailable": [],
+  "stat.tier.unknown": [],
+  // Spec 025 (FR-025; plan.md R-07): the run's start and end in the polite live region, by the figures that move.
+  "chase.started_both": [],
+  "chase.started_twin": [],
+  "chase.started_dog": [],
+  "chase.ended_both": [],
+  "chase.ended_twin": [],
+  "chase.ended_dog": [],
+  // Spec 028 (FR-020, FR-021): the twin's call in the dinosaur's scene, in its bubble and the polite live region, and
+  // the scene's end there, by the figures that left. None states anything about the Author.
+  "figures.dino_call": [],
+  "figures.left_both": [],
+  "figures.left_twin": [],
+  // Spec 028 (FR-013): the Credits page's heading over the bundled models' likeness lines.
+  "credits.likeness": [],
+  // Spec 029 (FR-020): the word across the hand-off's paper, in 3D and in 2D (paper.ts).
+  "paper.word": [],
 } as const satisfies Record<string, readonly Slot[]>;
 
 export type UiKey = keyof typeof UI_KEYS;

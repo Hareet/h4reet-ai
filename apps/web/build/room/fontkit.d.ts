@@ -5,17 +5,36 @@
 declare module "fontkit" {
   /** A glyph's bounding box in font units, y up from the baseline. */
   export interface BBox {
+    readonly minX: number;
+    readonly minY: number;
+    readonly maxX: number;
     readonly maxY: number;
+  }
+
+  /** Spec 029 (build/room/lettering.ts): a glyph's outline, its commands in font units, y up from the baseline. */
+  export interface PathCommand {
+    readonly command: "moveTo" | "lineTo" | "quadraticCurveTo" | "bezierCurveTo" | "closePath";
+    readonly args: readonly number[];
   }
 
   export interface Glyph {
     readonly bbox: BBox;
+    readonly path: { readonly commands: readonly PathCommand[] };
+  }
+
+  /** Spec 029: where a shaped glyph stands, in font units. */
+  export interface GlyphPosition {
+    readonly xAdvance: number;
+    readonly xOffset: number;
+    readonly yOffset: number;
   }
 
   /** One font: TrueType or OpenType, WOFF, or WOFF2. */
   export interface Font {
     readonly type: "TTF" | "WOFF" | "WOFF2";
     readonly unitsPerEm: number;
+    /** Spec 029: the OS/2 cap height, in font units. */
+    readonly capHeight: number;
     /** Undefined when the font has no OS/2 table, or fontkit can't decode it. */
     readonly "OS/2"?: { readonly usWeightClass: number } | undefined;
     /** Undefined when the font has no post table, or fontkit can't decode it. */
@@ -29,6 +48,9 @@ declare module "fontkit" {
   /** A shaped text: its total advance width, in font units. */
   export interface GlyphRun {
     readonly advanceWidth: number;
+    /** Spec 029: its glyphs and their positions, in order. */
+    readonly glyphs: readonly Glyph[];
+    readonly positions: readonly GlyphPosition[];
   }
 
   /** A TrueType collection: several fonts in one file. */

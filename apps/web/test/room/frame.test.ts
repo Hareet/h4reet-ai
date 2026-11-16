@@ -31,7 +31,9 @@ const holds = (outer: Box, inner: Box): boolean =>
 
 const SCREEN = { w: 1920, h: 1200 };
 const CLEAR = hudBoxes(SCREEN).clear;
-/** A box the column's compact box covers at every step: its centre. */
+/** A box the HUD box at the column's place covers at every step: its centre. In the split layout (spec 018, R4), the
+ *  list's box; since spec 028 (T-A02; plan.md §R-B8), a protector without a wall keeps the column layout: the column's
+ *  compact box. */
 const UNDER = ((): Box => {
   const c = compactBoxes(SCREEN).column as Box;
   return { x: c.x + c.w / 2 - 22, y: c.y + c.h / 2 - 22, w: 44, h: 44 };

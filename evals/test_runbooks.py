@@ -269,6 +269,16 @@ def spec_010_runbooks() -> set[str]:
     return set(re.findall(r"`docs/runbooks/([a-z0-9-]+\.md)` \(new\)", line))
 
 
+SPEC_017_PLAN = REPO / "specs" / "017-the-night-shift" / "plan.md"
+
+
+def spec_017_runbooks() -> set[str]:
+    """The new pages spec 017's plan lists in its "Runbooks" paragraph (the night shift's)."""
+    text = SPEC_017_PLAN.read_text(encoding="utf-8")
+    (line,) = [ln for ln in text.splitlines() if ln.startswith("**Runbooks**:")]
+    return set(re.findall(r"`docs/runbooks/([a-z0-9-]+\.md)` \(new\)", line))
+
+
 SPEC_001 = REPO / "specs" / "001-cloud-elevation"
 SPEC_001_ALERTS = SPEC_001 / "contracts" / "aws-alerts.md"
 # Spec 001's group 4 (its tasks.md T036): the pages of its alerts, and the laptop's, whose first part is the Bedrock
@@ -421,6 +431,11 @@ def test_the_folder_holds_exactly_the_pages_plan_16_lists() -> None:
         "anthropic-unavailable.md"
     }  # not vacuous: spec 010's list parses
     later |= spec_010_runbooks()
+    # Spec 017 adds the night shift's page (its plan's "Runbooks" paragraph).
+    assert spec_017_runbooks() == {
+        "night-shift.md"
+    }  # not vacuous: spec 017's line parses
+    later |= spec_017_runbooks()
     # Spec 001 adds its pages with the groups that need them (contracts/aws-alerts.md §2; its tasks.md).
     assert (
         set(SPEC_001_GROUP_4) <= spec_001_runbooks()

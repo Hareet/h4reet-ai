@@ -1,0 +1,159 @@
+{
+  "schema": 1,
+  "tools": [
+    {
+      "id": "blender-5.2.3",
+      "kind": "application",
+      "version": "5.2.3",
+      "license": "gpl-3.0-or-later",
+      "outputs_ship": true
+    },
+    {
+      "id": "comfyui-core",
+      "kind": "application",
+      "version": "0.42.5",
+      "license": "gpl-3.0",
+      "outputs_ship": true
+    },
+    {
+      "id": "comfyui-manager",
+      "kind": "custom-node",
+      "version": "UNREVIEWED",
+      "license": "UNREVIEWED",
+      "outputs_ship": false
+    },
+    {
+      "id": "comfyui-flowty-triposr",
+      "kind": "custom-node",
+      "version": "UNREVIEWED",
+      "license": "UNREVIEWED",
+      "outputs_ship": false
+    },
+    {
+      "id": "comfyui-pulid-flux-ll",
+      "kind": "custom-node",
+      "version": "UNREVIEWED",
+      "license": "UNREVIEWED",
+      "outputs_ship": false
+    },
+    {
+      "id": "comfyui-gguf",
+      "kind": "custom-node",
+      "version": "UNREVIEWED",
+      "license": "UNREVIEWED",
+      "outputs_ship": false
+    },
+    {
+      "id": "qwen-image-2.1",
+      "kind": "weights",
+      "version": "2.1",
+      "license": "UNREVIEWED",
+      "outputs_ship": false
+    },
+    {
+      "id": "flux-dev",
+      "kind": "weights",
+      "version": "FLUX.1 [dev]",
+      "license": "UNREVIEWED",
+      "outputs_ship": false
+    },
+    {
+      "id": "birefnet",
+      "kind": "weights",
+      "version": "e2bf8e44",
+      "license": "mit",
+      "outputs_ship": true
+    },
+    {
+      "id": "blender",
+      "kind": "application",
+      "version": "5.2.3",
+      "license": "gpl-3.0-or-later",
+      "outputs_ship": true
+    },
+    {
+      "id": "claude-opus-5.5",
+      "kind": "weights",
+      "version": "claude-opus-5-5",
+      "license": "anthropic-consumer-terms",
+      "outputs_ship": true
+    },
+    {
+      "id": "comfyui",
+      "kind": "application",
+      "version": "0.42.5",
+      "license": "gpl-3.0",
+      "outputs_ship": true
+    },
+    {
+      "id": "dinov3-vit-l-patch-16-with-naf",
+      "kind": "weights",
+      "version": "f37641be",
+      "license": "dinov3",
+      "outputs_ship": true
+    },
+    {
+      "id": "flux.2-klein-4b-base",
+      "kind": "weights",
+      "version": "533c4cbc",
+      "license": "apache-2.0",
+      "outputs_ship": true
+    },
+    {
+      "id": "flux.2-vae",
+      "kind": "weights",
+      "version": "533c4cbc",
+      "license": "apache-2.0",
+      "outputs_ship": true
+    },
+    {
+      "id": "gltf-exporter-bundled-with-blender",
+      "kind": "application",
+      "version": "5.2.41",
+      "license": "apache-2.0",
+      "outputs_ship": true
+    },
+    {
+      "id": "moge-2-vit-l-with-normals",
+      "kind": "weights",
+      "version": "14849852",
+      "license": "mit",
+      "outputs_ship": true
+    },
+    {
+      "id": "numpy-bundled-with-blender",
+      "kind": "application",
+      "version": "2.3.4",
+      "license": "bsd-3-clause",
+      "outputs_ship": true
+    },
+    {
+      "id": "pixal3d-int8",
+      "kind": "weights",
+      "version": "f37641be",
+      "license": "mit",
+      "outputs_ship": true
+    },
+    {
+      "id": "qwen3-4b-its-text-encoder",
+      "kind": "weights",
+      "version": "533c4cbc",
+      "license": "apache-2.0",
+      "outputs_ship": true
+    },
+    {
+      "id": "trellis.2-shape-vae",
+      "kind": "weights",
+      "version": "430a9d09",
+      "license": "mit",
+      "outputs_ship": true
+    },
+    {
+      "id": "trellis.2-texture-vae",
+      "kind": "weights",
+      "version": "430a9d09",
+      "license": "mit",
+      "outputs_ship": true
+    }
+  ]
+}

@@ -258,7 +258,10 @@ describe("RG7's per-face exemption on the reference phone", () => {
 
   it("exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it", () => {
     // At spec 005's reference stages, the clear areas (28.1 and 16.1, 12.4 and 7.1 before it); since spec 014 the
-    // desktop's is its frame area (49.2 and 21.8 at the clear area), the phone's its clear area, at ease 1.
+    // desktop's is its frame area (49.2 and 21.8 at the clear area), the phone's its clear area, at ease 1. Since spec
+    // 018 (H-6), the reference desktop's window takes the split layout, whose boxes at rest the frame area eases against
+    // (52 and 23.1 before it). Since spec 028 (T-A05; plan.md §R-B8) the split layout needs the scene's shell framed,
+    // which this fixture's isn't, so the column layout's frame area is back: 52 and 23.1.
     expect(caps(countersTree()).filter((f) => f.face.startsWith("fx-neon."))).toEqual([
       { face: "fx-neon.panel", desktop: 52, phone: 16.8, phone_exempt: false },
       { face: "fx-neon.counters", desktop: 23.1, phone: 7.4, phone_exempt: true },
@@ -272,6 +275,7 @@ describe("RG7's per-face exemption on the reference phone", () => {
     // exempt there.
     const found = rg7(countersTree(), floorOf(24));
     expect(found).toContain(
+      // Spec 028 (T-A05): 23.1 since the fixture's reference desktop is the column layout's frame area again.
       "placements[3].faces.counters: cap height 23.1 px on the desktop stage, under the floor of 24",
     );
     expect(found.filter((f) => f.startsWith("placements[3].faces.counters:"))).toHaveLength(1);
@@ -304,6 +308,7 @@ describe("RG7's per-face exemption on the reference phone", () => {
 
   it("holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable", () => {
     const t = counters({ readable: "readable: false" });
+    // Spec 028 (T-A05): 23.1 since the fixture's reference desktop is the column layout's frame area again.
     expect(counterCaps(t)).toEqual({ face: "fx-neon.counters", desktop: 23.1, phone: 7.4, phone_exempt: false });
     expect(rg7(t)).toEqual([
       "placements[3].faces.counters: cap height 7.4 px on the phone stage, under the floor of 9",

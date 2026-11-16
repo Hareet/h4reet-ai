@@ -32,6 +32,7 @@ import { loadRoom, pathOf } from "./load";
 import { WORK_ORDERS_DIR } from "./orders";
 import { capsOf, readRoomPolicy } from "./policy";
 import type { RoomPolicy } from "./policy";
+import { readinessReasons } from "./readiness";
 import type { CatalogEntry } from "./schema";
 import { compareBytewise, fileTree, isTreePath } from "./source";
 import type { Tree } from "./source";
@@ -185,7 +186,13 @@ function check(io: CliIo, policy: RoomPolicy): number {
 // ---- The report and the scan ----
 
 function report(io: CliIo, policy: RoomPolicy): number {
-  const result = compose(fileTree(io.root), policy, { mode: "strict", drafts: false });
+  // Spec 029 (FR-014a): the twin's readiness and why, read here from the tree's own files by the build's rule and
+  // handed in, so the compositor's reads stay the room's data.
+  const result = compose(fileTree(io.root), policy, {
+    mode: "strict",
+    drafts: false,
+    readinessReasons: readinessReasons(fileTree(io.root)),
+  });
   io.out(result.report.markdown.replace(/\n$/, ""));
   return 0;
 }

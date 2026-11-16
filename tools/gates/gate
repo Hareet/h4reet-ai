@@ -97,8 +97,10 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
      h4reet-web:<SHA> without drafts and with the Dockerfile's own empty policy; then the compose images;
    - matrix-e: stage E, when the branch touches deploy/agents-engine/ or .claude/settings.json. It is Heavy, so it
      waits (PENDING) for --prove, which runs deploy/agents-engine/engine.sh prove;
-   - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/, or the Claude
-     Code pin (spec 006 FR-004): the main tree's evals/agent-config/behavioral.py,
+   - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/, the night shift's
+     settings layers, prompts, and image pins (deploy/night-shift/claude/, deploy/night-shift/runner/prompts/, and
+     deploy/night-shift/images/pins.json, spec 017 Q13), or the Claude Code pin (spec 006 FR-004): the main tree's
+     evals/agent-config/behavioral.py,
      loaded into this process like check_corpus, whose status reads the export's cases, thresholds, history, and
      trigger files as data and starts nothing; in export mode it walks the tree and never runs git. An entry counts
      only when this machine attests its exact bytes (make evals-agent-config writes the SHA-256 under
@@ -207,6 +209,14 @@ CONTAINER_TARGETS = (
     ("credits", "credits-check"),
 )
 STAGE_E_PATHS = ("deploy/agents-engine/", ".claude/settings.json")
+# The night shift's agent configuration outside .claude/ (spec 017, Q13; its P-10): each worker's Claude Code settings
+# layer, the role prompts it runs, and the images' pins, which name the Claude Code every night session runs (the
+# devcontainer's pin triggers the evals too), each a trigger as .claude/ is.
+NIGHT_SHIFT_TRIGGERS = (
+    "deploy/night-shift/claude/",
+    "deploy/night-shift/runner/prompts/",
+    "deploy/night-shift/images/pins.json",
+)
 # The room's content policy on main (spec 002, contracts/resume-source.md §5): each file's path there, and its name in
 # the directory the room's build reads; and that build, without drafts, with no pre- or post-scripts (T080). Spec 004
 # adds main's caps, so the release-like build applies main's caps and legibility floor, as prod's image does; a file
@@ -1731,7 +1741,11 @@ def agent_config_evals(
             "no merge base with main, so the branch's changes can't be read"
         )
     touched = sorted(
-        p for p in paths if p in ("CLAUDE.md", "REVIEW.md") or p.startswith(".claude/")
+        p
+        for p in paths
+        if p in ("CLAUDE.md", "REVIEW.md")
+        or p.startswith(".claude/")
+        or p.startswith(NIGHT_SHIFT_TRIGGERS)
     )
     # Spec 006 FR-004: a change to the runner, its checks, the cases, or the thresholds alone is held to its own tests,
     # and the tier's next run exercises it. The trigger hash still covers it, so each entry names what it tested.
@@ -1755,7 +1769,8 @@ def agent_config_evals(
         )
         return step.set(
             "SKIP",
-            "the branch touches none of the triggers: CLAUDE.md, REVIEW.md, .claude/, the Claude Code pin"
+            "the branch touches none of the triggers: CLAUDE.md, REVIEW.md, .claude/, the night shift's "
+            "deploy/night-shift/claude/, runner/prompts/, and images/pins.json, the Claude Code pin"
             + held,
         )
     shown = ", ".join(touched[:3]) + (", ..." if len(touched) > 3 else "")

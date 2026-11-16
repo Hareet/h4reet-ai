@@ -8,8 +8,11 @@
 //   `{feature, path, turns: []}` (spec 007, FR-032; provisional, Q4); the active conversation's own piece sends nothing;
 //   another piece aborts the turn in flight first.
 // - Typed text is a visitor turn of the active conversation, or of a new free-talk conversation while free talk is
-//   ready; otherwise cannot_talk.unavailable, the text left in the box. A turn goes only while the turn route exists
-//   (the index's live.turn is `site`) and a sender was given, which main.ts gives (src/talk/turn-client.ts).
+//   ready; otherwise cannot_talk.free_talk_closed while a topic is ready, and cannot_talk.unavailable while none is
+//   (spec 029, FR-012; Q20, provisional), the text left in the box. A turn goes only while the turn route exists (the
+//   index's live.turn is `site`) and a sender was given, which main.ts gives (src/talk/turn-client.ts); without them,
+//   cannot_talk.unavailable, checked before free talk. While the room doesn't take input (the hand-off and its offer),
+//   typed text shows turn_wait.room and stays in the box: a send never shows nothing.
 // - One turn at a time (FR-033): its request carries the newest turns within the limits, oldest dropped first; within
 //   100 ms the visitor's words show under "You", the box clears, the status says twin_answering, and Send becomes Stop
 //   (FR-034). Escape or Stop aborts it, drops it, and shows turn_stopped.
@@ -72,6 +75,14 @@ export interface TalkPanel {
    *  line; its header buttons hide with that empty sheet, so no stop of the Tab order is out of view (the review of
    *  60b51de4, finding 1). */
   setDocked(on: boolean): void;
+  /** Spec 018: ends the larger view, as its toggle does, without moving focus. */
+  closeLarger(): void;
+  /** Spec 018: whether a turn is out, which Escape stops before it closes the panel. */
+  turnOut(): boolean;
+  /** Spec 026 (R-02): the active conversation's feature (a piece's ID, or free talk), or null: read only, so the room's
+   *  selection pets the dog unless its piece's conversation is already the active one, as `topicSelected` sends nothing
+   *  then. */
+  readonly active: string | null;
   /** A selectable whose action is talk was selected (FR-023; spec 004, FR-037, FR-038; spec 007, FR-032): an unready
    *  topic shows the fixed message naming it by its own phrase, from the bundle's index; a ready one opens its
    *  conversation, unless it is the active conversation's own. */
@@ -107,6 +118,10 @@ export function renderTalk(
     turns: Turn[];
     /** Whether free talk is ready (room-manifest.json's free_talk.ready). */
     freeTalkReady: boolean;
+    /** Whether any topic of the room is ready (the index's topics' `ready`; spec 029, FR-012, Q20): typed text with
+     *  free talk closed points to the pieces only then. Absent, false: the panel never points to a piece it can't
+     *  vouch for. */
+    topicReady?: boolean;
     /** Whether the turn route exists: the index's live.turn is `site` (contracts/tier-signal.md §1). */
     turnRoute: boolean;
     /** The twin's sender; absent, no turn goes anywhere. */
@@ -125,6 +140,12 @@ export function renderTalk(
      *  else: whether the text box holds unsent text, a turn's going and ending, the twin's answer's words, and a
      *  piece's selection. No activity carries a word, a topic, a feature, a cost, or a time. */
     onActivity?(activity: TalkActivity): void;
+    /** Spec 018 (FR-006): a conversation begins (the piece's ID, or free talk) or a line appears in the log, which the split layout's
+     *  panel opens for. Nothing they carry is a word of the visitor's. */
+    onConversation?(feature: string): void;
+    onLine?(): void;
+    /** The larger view turned on or off, by its toggle or Escape: the split layout's panel opens and closes with it. */
+    onLarger?(on: boolean): void;
   },
 ): TalkPanel {
   const activity = (a: TalkActivity): void => options.onActivity?.(a);
@@ -223,6 +244,7 @@ export function renderTalk(
     log.append(node);
     while (log.children.length > LOG_LIMIT) log.firstElementChild?.remove();
     element.setAttribute("data-log", "lines");
+    options.onLine?.();
     showHead();
     tabbable();
     // The newest line stays in view (spec 007, FR-042; spec 005, FR-028).
@@ -319,6 +341,7 @@ export function renderTalk(
     if (sender === undefined || path === null) return;
     const f: Flight = { controller: new AbortController(), feature, visitor, stopped: false };
     flight = f;
+    options.onConversation?.(feature);
     waiting(true);
     activity({ kind: "turn", out: true });
     let reported = false;
@@ -346,12 +369,24 @@ export function renderTalk(
     event.preventDefault();
     if (flight !== null) return; // Enter while a turn is out does nothing; Stop and Escape stop it
     const words = textBox.value.trim();
-    if (!options.enabled() || words === "") return;
+    if (words === "") return;
+    // Never nothing (spec 029, FR-012): each refusal says why, and the text stays with the visitor.
+    if (!options.enabled()) {
+      // The room doesn't take input yet (the hand-off and its offer).
+      show("turn_wait.room");
+      return;
+    }
     options.emit({ kind: "turn_sent" });
-    const feature = conversation ?? (options.freeTalkReady ? FREE_TALK : null);
-    if (feature === null || !canSend()) {
-      // Not ready, or no route or sender: the turn goes nowhere, and the text stays with the visitor.
+    if (!canSend()) {
+      // No route or no sender: no turn goes anywhere, a piece's neither, so this comes first.
       show("cannot_talk.unavailable");
+      return;
+    }
+    const feature = conversation ?? (options.freeTalkReady ? FREE_TALK : null);
+    if (feature === null) {
+      // Free talk is closed and no conversation is open: point to the pieces while one may talk; with none ready,
+      // cannot_talk.unavailable, so no message points to a piece that would refuse (Q20, provisional).
+      show(options.topicReady === true ? "cannot_talk.free_talk_closed" : "cannot_talk.unavailable");
       return;
     }
     conversation = feature;
@@ -376,13 +411,16 @@ export function renderTalk(
     }
   });
 
-  logToggle.addEventListener("click", () => {
-    collapsed = !collapsed;
+  const setCollapsed = (on: boolean): void => {
+    collapsed = on;
     if (collapsed && log.contains(doc.activeElement)) logToggle.focus();
     log.classList.toggle("visually-hidden", collapsed);
     tabbable();
     logToggle.setAttribute("aria-expanded", String(!collapsed));
     options.onPanel?.("log", collapsed ? "collapsed" : "open");
+  };
+  logToggle.addEventListener("click", () => {
+    setCollapsed(!collapsed);
   });
   let larger = false;
   const setLarger = (on: boolean): void => {
@@ -391,6 +429,7 @@ export function renderTalk(
     largerWords.textContent = on ? words.smaller : words.larger;
     element.setAttribute("data-larger", on ? "on" : "off");
     options.onPanel?.("larger", on ? "open" : "collapsed");
+    options.onLarger?.(on);
   };
   largerToggle.addEventListener("click", () => setLarger(!larger));
   // Escape closes the larger view, focus back on its toggle, unless the form's Escape stopped a turn first.
@@ -448,6 +487,13 @@ export function renderTalk(
   return {
     element,
     textBox,
+    turnOut: () => flight !== null && !flight.stopped,
+    get active() {
+      return conversation;
+    },
+    closeLarger() {
+      if (larger) setLarger(false);
+    },
     setDocked(on) {
       docked = on;
       showHead();

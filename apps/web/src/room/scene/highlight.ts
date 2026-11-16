@@ -45,7 +45,7 @@ import {
   Vector2,
   Vector3,
 } from "three";
-import type { Camera } from "three";
+import type { Camera, Object3D } from "three";
 
 import type { Highlight as HighlightStyle } from "../compose/bundle";
 import { REFERENCE_DESKTOP } from "../compose/stages";
@@ -233,6 +233,9 @@ export interface HighlightOptions {
   readonly style: HighlightStyle;
   /** A selectable's members, by its ID: the index's; none for an ID it doesn't list. */
   members(id: string): readonly string[];
+  /** Spec 026 (R-09): the pictures of a selectable's figure that show now (the room's dog's), whose meshes it borders
+   *  with its members'; none by default. */
+  figures?(id: string): readonly Object3D[];
 }
 
 export interface Highlight {
@@ -342,7 +345,7 @@ export function createHighlight(options: HighlightOptions): Highlight {
     for (const { proxies } of pairs) for (const p of proxies) p.removeFromParent();
     pairs = [];
     if (target === null) return;
-    for (const source of memberDraws(room, options.members(target))) {
+    for (const source of memberDraws(room, options.members(target), options.figures?.(target) ?? [])) {
       const proxies = [
         proxy(source.geometry, mask.material),
         proxy(ringGeometry(source.geometry), ring.material),

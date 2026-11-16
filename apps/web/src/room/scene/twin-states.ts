@@ -4,16 +4,20 @@
 // and a test drives it on numbers alone.
 
 /** The twin's clip roles, by their files' names under assets/twin/, in the closed list's order (FR-009). */
-export const TWIN_CLIP_ROLES = ["idle", "talking", "listening", "greeting", "desk-lean"] as const;
+/** `petting` is spec 026's (FR-009): the studio's clip, which plays where it is bundled; else the idle with the reach. */
+export const TWIN_CLIP_ROLES = ["idle", "talking", "listening", "greeting", "desk-lean", "petting"] as const;
 export type TwinClipRole = (typeof TWIN_CLIP_ROLES)[number];
 
-/** The twin's states, in FR-021's order of precedence. */
-export const TWIN_STATES = ["arriving", "answering", "listening", "resting", "present"] as const;
+/** The twin's states, in FR-021's order of precedence; `fleeing` first, the run's (spec 025, FR-011); `petting` after
+ *  `arriving`, before `answering` (spec 026, FR-009). */
+export const TWIN_STATES = ["fleeing", "arriving", "petting", "answering", "listening", "resting", "present"] as const;
 export type TwinState = (typeof TWIN_STATES)[number];
 
 /** The state-to-clip map's defaults (FR-020; Clarifications, Q1): the greeting, talking, listening, the lean, the idle. */
 export const TWIN_CLIPS_DEFAULT: Readonly<Record<TwinState, TwinClipRole>> = Object.freeze({
+  fleeing: "idle",
   arriving: "greeting",
+  petting: "petting",
   answering: "talking",
   listening: "listening",
   resting: "desk-lean",
@@ -30,7 +34,13 @@ export type TwinActivity =
   | { readonly kind: "draft"; readonly holds: boolean }
   | { readonly kind: "turn"; readonly out: boolean }
   | { readonly kind: "answer"; readonly words: number }
-  | { readonly kind: "selected" };
+  | { readonly kind: "selected" }
+  /** The run (spec 025, FR-011, FR-012): on while the twin's figure moves for it; set by the room, never read from
+   *  the conversation. */
+  | { readonly kind: "flee"; readonly on: boolean }
+  /** The petting (spec 026, FR-009): on while the twin pets the dog; set by the pet director, never read from the
+   *  conversation. */
+  | { readonly kind: "pet"; readonly on: boolean };
 
 /** The block's timings the states take (contracts/twin-data.md §1). */
 export interface TwinTimings {
@@ -43,6 +53,9 @@ export interface TwinStates {
   /** The arrival: the hand-off's start where the twin shows then, else its first show; once a visit. `length_s` is the
    *  greeting clip's length. */
   arrive(now: number, length_s: number): void;
+  /** Spec 028 (FR-020; plan.md R-B3, R-3): the dinosaur's scene's call, the greeting once more (the wave), for its
+   *  `length_s`; once a visit, apart from `arrive`'s once. An amendment of contracts/twin-states.md §2. */
+  wave(now: number, length_s: number): void;
   /** The greeting clip has finished playing: arriving ends at once, whatever the clock says (§3). */
   arrived(now: number): void;
   signal(activity: TwinActivity, now: number): void;
@@ -63,9 +76,12 @@ export function createTwinStates(block: TwinTimings): TwinStates {
   const [least, most] = block.speak_s;
   let arrival: { from: number; until: number } | null = null;
   let arrivedOnce = false;
+  let wavedOnce = false;
   let answerUntil = -Infinity;
   let drafting = false;
   let turnOut = false;
+  let fleeing = false;
+  let petting = false;
   /** The last moment arriving, answering, or listening held, or a selection came: the quiet counts from it. */
   let busy = 0;
   let state: TwinState = "present";
@@ -83,7 +99,9 @@ export function createTwinStates(block: TwinTimings): TwinStates {
 
   const compute = (now: number): TwinState => {
     settle(now);
+    if (fleeing) return "fleeing";
     if (arriving(now)) return "arriving";
+    if (petting) return "petting";
     if (answering(now)) return "answering";
     if (listening()) return "listening";
     if (now - busy >= block.rest_after_s * 1000) return "resting";
@@ -94,6 +112,13 @@ export function createTwinStates(block: TwinTimings): TwinStates {
     arrive(now, length_s) {
       if (arrivedOnce) return;
       arrivedOnce = true;
+      arrival = { from: now, until: now + Math.max(0, length_s) * 1000 };
+      state = compute(now);
+    },
+    wave(now, length_s) {
+      if (wavedOnce) return;
+      wavedOnce = true;
+      settle(now);
       arrival = { from: now, until: now + Math.max(0, length_s) * 1000 };
       state = compute(now);
     },
@@ -120,6 +145,14 @@ export function createTwinStates(block: TwinTimings): TwinStates {
         }
         case "selected":
           busy = Math.max(busy, now);
+          break;
+        case "flee":
+          // The timers keep running under it (spec 025, User Story 4): it moves no busy moment.
+          fleeing = activity.on;
+          break;
+        case "pet":
+          // As the run's (spec 026, FR-009): the timers keep running under it, and it moves no busy moment.
+          petting = activity.on;
           break;
       }
       state = compute(now);

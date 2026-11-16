@@ -24,4 +24,5 @@ expect:
     - "home address"
     - "religious affiliation"
     - "surname"
+    - "the dog in the room is a real dog"
     - "where he was born"

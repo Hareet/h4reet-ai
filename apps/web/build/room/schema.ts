@@ -19,6 +19,8 @@ import {
   TURN_COST_PARTS,
   TYPEFACE_USES,
 } from "../../src/room/compose/vocabulary";
+import { CHASE_DEFAULTS } from "../../src/room/scene/chase-steer";
+import { PET_DEFAULTS, PET_TURN_MAX_DEG_CEILING } from "../../src/room/scene/pet-config";
 import { isUiKey } from "../../src/room/ui-keys";
 import { AVATARS } from "../../src/choice/avatars";
 
@@ -353,16 +355,35 @@ const faceBinding = z
       ctx.addIssue({ code: "custom", message: "RD3: max_chars is required with atmosphere", path: ["max_chars"] });
   });
 
-/** A placement: `frame` "default false"; `label` a `label.<name>` key; `role` twin or visitor; `faces`. */
-const placement = z.strictObject({
-  id: name("a placement's ID"),
-  piece: z.string(),
-  mount: mount.optional(),
-  frame: z.boolean().default(false),
-  label: labelKey.optional(),
-  role: z.enum(ROLES).optional(),
-  faces: z.record(z.string(), faceBinding).optional(),
-});
+/** Spec 024 (FR-002; plan.md §5.1): `edible`, the chunks a piece's model splits into for the dinosaur's bite, an
+ *  integer from 2 to 12. */
+const edible = z.strictObject({ chunks: z.number().int().min(2).max(12) });
+
+/** A placement: `frame` "default false"; `label` a `label.<name>` key; `role` twin or visitor; `faces`; since spec
+ *  024, `edible`, never on the root placement (the room's shell, which has no mount) or a figure (a `role`, whose
+ *  model is an avatar's, no piece's to eat). */
+const placement = z
+  .strictObject({
+    id: name("a placement's ID"),
+    piece: z.string(),
+    mount: mount.optional(),
+    frame: z.boolean().default(false),
+    label: labelKey.optional(),
+    role: z.enum(ROLES).optional(),
+    faces: z.record(z.string(), faceBinding).optional(),
+    edible: edible.optional(),
+  })
+  .superRefine((p, ctx) => {
+    if (p.edible === undefined) return;
+    if (p.mount === undefined)
+      ctx.addIssue({
+        code: "custom",
+        message: "RD3: edible on the root placement, the room's shell",
+        path: ["edible"],
+      });
+    else if (p.role !== undefined)
+      ctx.addIssue({ code: "custom", message: "RD3: edible on a figure, which has no piece to eat", path: ["edible"] });
+  });
 
 /** A pose: its mount, and the glow levels it sets on other placements. */
 const pose = z.strictObject({
@@ -401,6 +422,12 @@ const selectable = z.strictObject({
   id: name("a selectable's ID"),
   name: z.string().min(1).max(40),
   members: z.array(z.string()).min(1),
+  /** Spec 018 (FR-005; D-V3): the conversation panel's emblem, a name src/room/hud/icons.ts draws; any other name, or
+   *  none, has the speech glyph. */
+  emblem: name("an emblem's name").optional(),
+  /** Spec 026 (FR-013, FR-014; plan.md R-09): a room figure the selectable also picks, at its home, front-only; `dog`,
+   *  the one value allowed now. */
+  figure: z.literal("dog").optional(),
   action: z
     .strictObject({
       talk: z
@@ -567,6 +594,75 @@ const twinBlock = z.strictObject({
     .optional(),
 });
 
+/** Spec 024 (FR-011): the eating block's default, the regrowth's 20 s. */
+export const EATING_DEFAULTS = { regrow_s: 20 } as const;
+
+/** `figures.dog` (spec 025, FR-018; plan.md R-09): the room's dog's home, `at` two finite numbers [x, z] in metres
+ *  and `heading_deg` within ±360, and `footprint_m` above 0. */
+const dogBlock = z.strictObject({
+  home: z.strictObject({
+    at: z.tuple([z.number(), z.number()]),
+    heading_deg: z.number().min(-360).max(360).default(0),
+  }),
+  footprint_m: z.number().positive(),
+});
+
+const C = CHASE_DEFAULTS;
+/** `figures.chase` (spec 025, FR-005, FR-007, FR-008; plan.md R-09, §3): the run's figures, every key optional with
+ *  plan §3's default (chase-steer.ts's CHASE_DEFAULTS). The run speeds against the walking speed are FR-005's refine on
+ *  the whole scene, below, since the walking block is the scene's. */
+const chaseBlock = z.strictObject({
+  flee_end_delay_s: z.number().min(0).max(30).default(C.flee_end_delay_s),
+  flee_m: z.number().positive().max(10).default(C.flee_m),
+  safe_m: z.number().positive().max(10).default(C.safe_m),
+  separation_m: z.number().min(0).max(5).default(C.separation_m),
+  twin_run_mps: z.number().positive().max(10).default(C.twin_run_mps),
+  dog_run_mps: z.number().positive().max(10).default(C.dog_run_mps),
+  speed_margin_mps: z.number().min(0).max(5).default(C.speed_margin_mps),
+  turn_rate_rad_s: z.number().positive().max(100).default(C.turn_rate_rad_s),
+  lookahead_s: z.number().positive().max(5).default(C.lookahead_s),
+  headings: z.number().int().min(4).max(64).default(C.headings),
+  clip_thresholds: z
+    .strictObject({ walk_mps: z.number().min(0), run_mps: z.number().positive() })
+    .refine((t) => t.walk_mps < t.run_mps, own("RD3", "a walk threshold not below the run threshold"))
+    .default(() => ({ ...C.clip_thresholds })),
+});
+
+const P = PET_DEFAULTS;
+/** `figures.pet` (spec 026; plan.md §3, R-08): the petting's tunables, every key optional with plan §3's default
+ *  (pet-config.ts's PET_DEFAULTS). `turn_max_deg` at most 90°, spec 025's director's ceiling (chase.ts's FACE_MAX_RAD);
+ *  `reach_m` against the chase block's `separation_m` is R-08's refine on the whole scene, below. */
+const petBlock = z.strictObject({
+  reach_m: z.number().positive().max(2).default(P.reach_m),
+  cooldown_s: z.number().min(0).max(600).default(P.cooldown_s),
+  turn_max_deg: z.number().min(0).max(PET_TURN_MAX_DEG_CEILING).default(P.turn_max_deg),
+  crouch_max_m: z.number().min(0).max(0.6).default(P.crouch_max_m),
+  lean_max_deg: z.number().min(0).max(75).default(P.lean_max_deg),
+  stroke_m: z.number().min(0).max(0.3).default(P.stroke_m),
+  stroke_n: z.number().int().min(1).max(10).default(P.stroke_n),
+  pet_s: z.number().min(0.5).max(30).default(P.pet_s),
+  elbow_deg: z.number().min(0).max(180).default(P.elbow_deg),
+});
+
+/** `figures.leave` (spec 028, FR-021, FR-022; plan.md R-B4): the dinosaur's scene's data, each an estimate the Author's
+ *  look places: `takes` the placement taken, `meet` and `take_at` [x, z] on the floor plane, `carry` the bicycle's [x, y, z] offset in the
+ *  twin's picture's frame, `path` at least two [x, z] points out of the room, the dog's and the walkers' speeds, and
+ *  the take's seconds, each above 0 and at most 10. Their geometry against the floors is RI12's. */
+const floorPoint = z.tuple([z.number(), z.number()]);
+const leaveBlock = z.strictObject({
+  // The placement whose picture the twin takes (the bicycle), by its ID, so no room ID stands in the code (spec 004's
+  // FR-007); RI12 holds it to a placement of the scene.
+  takes: z.string(),
+  meet: floorPoint,
+  take_at: floorPoint,
+  carry: z.tuple([z.number(), z.number(), z.number()]),
+  path: z.array(floorPoint).min(2),
+  dog_mps: z.number().positive().max(10),
+  walk_mps: z.number().positive().max(10),
+  take_s: z.number().positive().max(10),
+});
+export type LeaveBlock = z.infer<typeof leaveBlock>;
+
 /** `figures` (spec 009, FR-037; plan.md §3.1): `twin_stand_in` an avatar of the room's table, which RI8 holds to it,
  *  absent for none; `texture_px` "a power of two from 256 to 4,096", 1,024 by default; `wait_ms` "an integer from 0 to
  *  3,000", 1,500 by default. */
@@ -584,24 +680,59 @@ const figures = z
     grips: grips.optional(),
     // Spec 016 (FR-054): the twin's own block, optional, its defaults resolved by the compositor.
     twin: twinBlock.optional(),
+    // Spec 025 (FR-018): the room's dog, optional; absent, no room dog.
+    dog: dogBlock.optional(),
+    // Spec 025 (FR-005; R-09): the run's block, optional; absent, the run takes CHASE_DEFAULTS.
+    chase: chaseBlock.optional(),
+    // Spec 026 (plan.md §3): the petting's block, optional; absent, the pet director takes PET_DEFAULTS.
+    pet: petBlock.optional(),
+    // Spec 028 (FR-022): the dinosaur's scene's block, optional; absent, no scene (the eating offered at once).
+    leave: leaveBlock.optional(),
   })
   .default(() => ({ ...FIGURES_DEFAULTS }));
 
 /** `apps/web/room/scene.yaml` (§5), with spec 008's optional `walking` block (Amendment M12) and spec 009's optional
- *  `figures` block. */
-export const sceneSchema = z.strictObject({
-  version: version(),
-  look: z.string(),
-  live,
-  walking,
-  placements: z.array(placement),
-  switches: z.array(switchSchema).default(() => []),
-  selectables: z.array(selectable).default(() => []),
-  handoff: z.strictObject({ from: anchorRef, to: anchorRef }),
-  survey: z.strictObject({ desk_corner: anchorRef }),
-  retired: z.array(retired).default(() => []),
-  figures,
-});
+ *  `figures` block. Spec 025's FR-005: a `figures.chase` whose `twin_run_mps` or `dog_run_mps` isn't above
+ *  `walking.speed_mps` + `speed_margin_mps` is refused (RD3, at the run speed's path), the dinosaur's speed being the
+ *  visitor's walking speed. */
+export const sceneSchema = z
+  .strictObject({
+    version: version(),
+    look: z.string(),
+    live,
+    walking,
+    placements: z.array(placement),
+    switches: z.array(switchSchema).default(() => []),
+    selectables: z.array(selectable).default(() => []),
+    handoff: z.strictObject({ from: anchorRef, to: anchorRef }),
+    survey: z.strictObject({ desk_corner: anchorRef }),
+    retired: z.array(retired).default(() => []),
+    figures,
+    // Spec 024 (FR-011): the seconds a chunk takes to grow back, an integer from 5 to 120, 20 by default.
+    eating: z.strictObject({ regrow_s: z.number().int().min(5).max(120) }).default(() => ({ ...EATING_DEFAULTS })),
+  })
+  .superRefine((s, ctx) => {
+    // Spec 026's R-08: spec 025's R-09 keeps the dog's home at least `separation_m` from the twin's, so a `reach_m`
+    // below it leaves no home in reach.
+    const pet = s.figures.pet;
+    const separation = s.figures.chase?.separation_m ?? CHASE_DEFAULTS.separation_m;
+    if (pet !== undefined && pet.reach_m > 0 && pet.reach_m < separation)
+      ctx.addIssue({
+        code: "custom",
+        message: `RD3: below figures.chase.separation_m, ${separation} m (spec 026, R-08)`,
+        path: ["figures", "pet", "reach_m"],
+      });
+    const chase = s.figures.chase;
+    if (chase === undefined) return;
+    const least = s.walking.speed_mps + chase.speed_margin_mps;
+    for (const key of ["twin_run_mps", "dog_run_mps"] as const)
+      if (!(chase[key] > least))
+        ctx.addIssue({
+          code: "custom",
+          message: `RD3: not above walking.speed_mps + speed_margin_mps, ${least} m/s (FR-005)`,
+          path: ["figures", "chase", key],
+        });
+  });
 
 // ---- Topics, room text, outlines, UI words, looks, fixtures, and lookdev.yaml (§6 to §12; T077) ----
 
@@ -688,8 +819,18 @@ export const roomTextSchema = z
     words_from: z.array(quoteRef).optional(),
     exclude: z.array(z.string()).min(1).optional(),
     lines: z.array(textLine).min(1),
+    // Spec 029 (FR-019; plan.md §R-C3): a terminal block's ink, the terminal's green, and its cursor, held and blinking
+    // once typed; absent, the terminal's own ink and its typing cursor.
+    ink: z.enum(["green"]).optional(),
+    cursor: z.enum(["blink"]).optional(),
   })
   .superRefine((b, ctx) => {
+    if (b.renderer !== "terminal" && (b.ink !== undefined || b.cursor !== undefined))
+      ctx.addIssue({
+        code: "custom",
+        message: "RD3: ink and cursor on a block other than a terminal's",
+        path: ["ink"],
+      });
     if (b.renderer !== "chalk" && (b.words_from === undefined || b.words_from.length === 0))
       ctx.addIssue({
         code: "custom",

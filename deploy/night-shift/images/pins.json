@@ -1,0 +1,137 @@
+{
+  "schema": 1,
+  "claude_code": "2.1.322",
+  "bases": {
+    "node:24.21.0-trixie-slim": {
+      "image": "public.ecr.aws/docker/library/node",
+      "tag": "24.21.0-trixie-slim",
+      "digest": "sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66"
+    },
+    "python:3.12.15-slim-trixie": {
+      "image": "public.ecr.aws/docker/library/python",
+      "tag": "3.12.15-slim-trixie",
+      "digest": "sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1"
+    },
+    "ubuntu:24.04": {
+      "image": "public.ecr.aws/docker/library/ubuntu",
+      "tag": "24.04",
+      "digest": "sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55"
+    },
+    "docker:28.3.3-cli": {
+      "image": "docker.io/library/docker",
+      "tag": "28.3.3-cli",
+      "digest": "sha256:0135662b510037ea581d99c2e5929c5e01185139c0b86986a418bd4da0b98a44"
+    }
+  },
+  "toolchain": {
+    "dockerfile": ".devcontainer/Dockerfile",
+    "context": [
+      ".devcontainer/Dockerfile",
+      ".devcontainer/requirements-tools.txt",
+      "tools/gates/lint-node/package.json",
+      "tools/gates/lint-node/package-lock.json",
+      "tools/gates/lint-node/eslint.config.mjs",
+      "tools/gates/lint-node/prettier.config.json"
+    ],
+    "args": {
+      "WITH_CLAUDE": "1",
+      "CLAUDE_CODE_VERSION": "2.1.322"
+    }
+  },
+  "blender": {
+    "version": "5.2.3",
+    "url": "https://download.blender.org/release/Blender5.2/blender-5.2.3-linux-x64.tar.xz",
+    "sha256": ["78486c018b4443efe5e75ab54c290ed8", "c15abafd249b862c2c9ce2530a918eec"]
+  },
+  "images": {
+    "worker": {
+      "dockerfile": "deploy/night-shift/images/worker.Dockerfile",
+      "bases": {
+        "TOOLCHAIN_IMAGE": "toolchain",
+        "DOCKER_CLI_IMAGE": "docker:28.3.3-cli"
+      },
+      "args": {
+        "CLAUDE_CODE_VERSION": {
+          "from": "claude_code"
+        },
+        "NIGHT_UID": {
+          "from": "facts.UID"
+        },
+        "NIGHT_GID": {
+          "from": "facts.GID"
+        }
+      },
+      "context": [
+        "deploy/night-shift/images/worker.Dockerfile",
+        "deploy/night-shift/images/entrypoint.sh",
+        "deploy/night-shift/claude/managed-settings.json",
+        "deploy/night-shift/claude/supervisor.settings.json",
+        "deploy/night-shift/claude/spec-writer.settings.json",
+        "deploy/night-shift/claude/implementer.settings.json",
+        "deploy/night-shift/claude/reviewer.settings.json",
+        "deploy/night-shift/claude/red-teamer.settings.json",
+        "deploy/night-shift/claude/ops.settings.json",
+        "deploy/night-shift/claude/gate-runner.settings.json"
+      ]
+    },
+    "studio": {
+      "dockerfile": "deploy/night-shift/images/studio.Dockerfile",
+      "bases": {
+        "NODE_IMAGE": "node:24.21.0-trixie-slim"
+      },
+      "args": {
+        "CLAUDE_CODE_VERSION": {
+          "from": "claude_code"
+        },
+        "BLENDER_URL": {
+          "from": "blender.url"
+        },
+        "BLENDER_SHA256": {
+          "from": "blender.sha256",
+          "join": ""
+        },
+        "NIGHT_UID": {
+          "from": "facts.UID"
+        },
+        "NIGHT_GID": {
+          "from": "facts.GID"
+        }
+      },
+      "context": [
+        "deploy/night-shift/images/studio.Dockerfile",
+        "deploy/night-shift/claude/managed-settings.json",
+        "deploy/night-shift/claude/studio.settings.json"
+      ]
+    },
+    "comfyui": {
+      "dockerfile": "deploy/night-shift/images/comfyui.Dockerfile",
+      "bases": {
+        "UBUNTU_IMAGE": "ubuntu:24.04"
+      },
+      "args": {
+        "NIGHT_UID": {
+          "from": "facts.UID"
+        },
+        "NIGHT_GID": {
+          "from": "facts.GID"
+        }
+      },
+      "context": ["deploy/night-shift/images/comfyui.Dockerfile", "deploy/night-shift/claude/managed-settings.json"]
+    },
+    "egress": {
+      "dockerfile": "deploy/night-shift/images/egress.Dockerfile",
+      "bases": {
+        "PYTHON_IMAGE": "python:3.12.15-slim-trixie"
+      },
+      "context": [
+        "deploy/night-shift/images/egress.Dockerfile",
+        "deploy/night-shift/claude/managed-settings.json",
+        "deploy/agents-engine/egress-proxy.py"
+      ],
+      "context_from_main": ["deploy/agents-engine/egress-proxy.py"]
+    }
+  },
+  "x-h4": {
+    "note": "Read by install.sh (G4) and checked by P-8. Each base is a line of deploy/images.lock, which make check's policy gate requires of every Dockerfile FROM: node, python, and ubuntu are the lock's base: lines, and docker-cli's line holds the digest the Author read on his engine on 2026-11-12 (T090 round 2): the install refuses to build while any is null, and pulls each base as image@digest. Read a digest with: docker image inspect --format '{{index .RepoDigests 0}}' <image:tag>. ubuntu:24.04 is the same image .devcontainer/Dockerfile pins by digest. The toolchain is the devcontainer image, built first from .devcontainer/Dockerfile with these args; its own bases are pinned by digest there. Each image's context is written from git show <sha>:<path> at the same relative paths (a repository-shaped folder), but context_from_main, which comes from refs/heads/main (tasks.md T033). BLENDER_SHA256 is the two halves joined: the published checksum, kept in halves so no 64-hex string sits in a file. Contexts are built with --build-arg NAME=value for each base (image@digest) and arg. An arg whose from is facts.KEY takes that key from the facts file (the Author's uid and gid, for the passwd entry each session image bakes)."
+  }
+}

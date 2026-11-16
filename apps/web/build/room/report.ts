@@ -26,19 +26,24 @@
 // - spec 009's avatars (its FR-040): each file of each avatar's folder with its measures and whether it's bundled, the
 //   scale its reader's bounds imply, which avatar the twin shows, each file with no role (RA5), RK3's figures with the
 //   stand-in, and the first visit with both figures' files (RK5) beside spec 003's F3 view;
+// - spec 029's readiness (its FR-014a): how many of the twin's topics, and whether free talk, are ready, by the build's
+//   own rule (readiness.ts's readinessReasons, which room:report hands in), and for each one closed, why;
 // - the findings, each line, a lenient one marked warn in a lenient build, or "none".
 // Bytes are integers with thousands separators and glyph heights are to 0.1 px. Nothing in it is a time, a path
 // outside the repository, or a data string: pieces, placements, faces, switches, and poses are named by IDs, each only
 // where RT2 passed it.
+
 import { AVATAR_SHAPES } from "../../src/choice/avatars";
 import { TIER_VALUES } from "../../src/room/compose/vocabulary";
 import { gzipBytes } from "../../src/room/glb/gzip";
 import { count, fixed } from "../../src/room/glb/rules";
+import { carriesModel } from "./avatars";
 import type { AvatarFile } from "./avatars";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import { framing } from "../../src/room/compose/framing";
 import type { Box as WorldBox } from "../../src/room/compose/framing";
-import { layoutFor } from "../../src/room/compose/hud";
+import { DEFAULT_METRICS, EAT_CONTROL, layoutFor, wallBoxes } from "../../src/room/compose/hud";
+import { EATER } from "../../src/room/eat/available";
 import { memberRect } from "../../src/room/compose/pick";
 import {
   REFERENCE_DESKTOP,
@@ -53,7 +58,7 @@ import type { FloorEdge } from "../../src/room/compose/floor";
 import type { Composed, RoomReport } from "./emit";
 import { formatPath } from "./checks/family";
 import { faceCaps, pickSweep, poseSeparations, sideWallPicks, stagesPhrase } from "./checks/rg";
-import type { FaceCaps } from "./checks/rg";
+import type { FaceCaps, Geometry } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
 import { contrastText, figureStart, highlightContrasts } from "./checks/rw";
 import { leanMeasure } from "./checks/ra";
@@ -61,6 +66,7 @@ import { reachLine, twinReachOf } from "./reach";
 import { figuresVisit, sceneTextureTotal, TWIN_DIR, VISITORS_DIR } from "./checks/rk";
 import type { SceneTextureMemory } from "./checks/rk";
 import type { Switch } from "./schema";
+import type { ReadinessReasons } from "./readiness";
 import { compareBytewise } from "./source";
 import type { Tree } from "./source";
 
@@ -230,7 +236,11 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
   lines.push(stagesLine(), "");
 
   // Spec 014's frame areas (its FR-060, FR-061): the stages RG5 to RG7 run at since, each screen's ease, and the growth.
-  lines.push(...frameLines(c), "");
+  lines.push(...frameLines(c.geometry), "");
+
+  // Spec 024's dinosaur visit (Q150, Q-R3a): its frame areas with the "Eat" tile's box, and what that box holds; only
+  // where the bundle carries the dinosaur's model, without which no such visit happens (page Q247).
+  if (carriesModel(c.avatars, EATER)) lines.push(...dinosaurLines(c), "");
 
   // The switches: their cases, and their poses' separation (RG8).
   lines.push(...switches(c), "");
@@ -240,6 +250,9 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
 
   // Spec 008's walking lines: the figure's start, RW1's measure, and spec 005's reserved boxes, RG6's.
   lines.push(...walking(c), "");
+
+  // Spec 029's readiness (its FR-014a): the twin's topics and free talk, ready or closed and why.
+  if (c.options.readinessReasons !== undefined) lines.push(...readinessLines(c.options.readinessReasons), "");
 
   // The findings.
   if (c.findings.length === 0) lines.push("Findings: none.");
@@ -308,6 +321,16 @@ function avatars(c: Composed, memory: SceneTextureMemory, share: number, f3: num
   else if (named !== undefined && c.reader.printable(named))
     out.push(`The twin shows its capsule: RA3 or RI8 refuses its stand-in \`${named}\`.`);
   else out.push("The twin shows its capsule: the scene names no stand-in.");
+  // Spec 020 (FR-002, FR-003): a visitor's likeness, whether main's approval holds (its line) or RA9 leaves it out.
+  for (const a of set.avatars) {
+    if (a.line !== null)
+      out.push(`Likeness \`${a.id}\`: main's approval holds for its model, with the line "${a.line}"`);
+    else if (a.model && c.findings.some((f) => f.rule === "RA9" && f.file === a.model?.path))
+      out.push(
+        `Likeness \`${a.id}\`: no approval on main names its model's SHA-256 with a line (RA9), so none of its files ` +
+          "is bundled and its figure shows the cut-out.",
+      );
+  }
   for (const a of set.avatars)
     for (const f of a.others)
       out.push(`RA5: \`${f.path}\` has no role: reported, never refused, never bundled or fetched.`);
@@ -323,7 +346,7 @@ function avatars(c: Composed, memory: SceneTextureMemory, share: number, f3: num
       `${stand === null ? "" : "other "}visitor avatar at ${px} px.`,
   );
   // RK5's sum, and spec 003's F3, which counts the largest visitor folder alone (arrival-check.md §3; M13).
-  const visit = figuresVisit(set, c.twin);
+  const visit = figuresVisit(set, c.twin, c.scene?.figures.dog !== undefined);
   const tree = c.reader.tree;
   const glbsUnder = (dir: string): number =>
     filesUnder(tree, dir)
@@ -332,11 +355,12 @@ function avatars(c: Composed, memory: SceneTextureMemory, share: number, f3: num
   const largestFolder = Math.max(0, ...tree.list(VISITORS_DIR).map((name) => glbsUnder(`${VISITORS_DIR}/${name}`)));
   // assets/animations/ aside, which the compositor never reads (contracts/room-data-files.md §1).
   const f3View = f3 + glbsUnder(TWIN_DIR) + largestFolder;
-  const total = share + visit.twin + visit.stand_in + visit.other;
+  const total = share + visit.twin + visit.stand_in + visit.dog + visit.other;
   const twinShare = visit.twin > 0 ? `${count(visit.twin)} of the twin's own files, ` : "";
+  const dogShare = visit.dog > 0 ? `${count(visit.dog)} of the room's dog's files, ` : "";
   out.push(
     `First visit with both figures' files (RK5): ${count(total)} gzip-9 bytes, ${count(share)} of the room's placed ` +
-      `models and cards, ${twinShare}${count(visit.stand_in)} of the stand-in's files, and ${count(visit.other)} of ` +
+      `models and cards, ${twinShare}${count(visit.stand_in)} of the stand-in's files, ${dogShare}and ${count(visit.other)} of ` +
       `the largest ${visit.twin > 0 ? "" : "other "}visitor avatar's${visit.other_id === null ? "" : ` (\`${visit.other_id}\`)`}, against the phase-3 ` +
       `budget of ${count(c.policy.phase3_bytes)}; spec 003's F3 view, which counts one visitor folder (assets/animations/ ` +
       `aside): ${count(f3View)}.`,
@@ -553,26 +577,36 @@ function roomHeight(framed: readonly WorldBox[], stage: { readonly w: number; re
 
 /** Spec 014's frame lines (FR-060, FR-061; plan.md §11): the frame areas' count with their reserved boxes; each screen
  *  class's eases, at 0, between, and at 1, with the median; and the reference stages' ease, frame area, and the room's
- *  growth on screen over spec 005's frame. */
-function frameLines(c: Composed): string[] {
-  const g = c.geometry;
-  const head = "Frame (spec 014, FR-060, FR-061)";
+ *  growth on screen over spec 005's frame. Spec 028 (FR-006, FR-010; rv-028a-2's A2-1): the split layout's screens,
+ *  chosen as the room chooses them (`wallBoxes` with the stage's protector), are a class of their own, framed in the
+ *  wall area with no ease; the column and dock classes hold the rest. */
+export function frameLines(g: Pick<Geometry, "protect" | "framed"> | null): string[] {
+  const head = "Frame (spec 014, FR-060, FR-061; spec 028, FR-006)";
   if (!g) return [`${head}: none, the scene having no geometry to frame.`];
   const made = framedStages(g.protect);
   const n = (x: number): string => x.toLocaleString("en-US");
   const sixteenths = (e: number): string => (e === 0 ? "0" : e === 1 ? "1" : `${Math.round(e * 16)}/16`);
-  const classes: readonly [string, (s: { readonly w: number; readonly h: number }) => boolean][] = [
-    ["the dock layout", (s) => layoutFor(s) === "dock"],
-    ["the column layout under 1280 × 720", (s) => layoutFor(s) === "column" && (s.w < 1280 || s.h < 720)],
-    ["the column layout from 1280 × 720", (s) => layoutFor(s) === "column" && s.w >= 1280 && s.h >= 720],
-  ];
+  const classes = [
+    "the split layout (spec 028)",
+    "the dock layout",
+    "the column layout under 1280 × 720",
+    "the column layout from 1280 × 720 (no split)",
+  ] as const;
+  /** A screen's class: the split layout where the room takes it, else its layout's, by its size. */
+  const classOf = (x: (typeof made.screens)[number]): (typeof classes)[number] => {
+    if (wallBoxes(x.screen, x.state, DEFAULT_METRICS, { wall: g.protect }) !== null) return classes[0];
+    if (layoutFor(x.screen) === "dock") return classes[1];
+    return x.screen.w < 1280 || x.screen.h < 720 ? classes[2] : classes[3];
+  };
+  const of = made.screens.map((x) => ({ x, name: classOf(x) }));
   const out = [
-    `${head}: the frame areas over the same screens, eased from the window toward each clear area only as far as ` +
-      `keeps every pressable selectable's core and both figures 0.5rem clear of the HUD's compact boxes; ` +
+    `${head}: the frame areas over the same screens: in the split layout (spec 028, FR-006), the wall area beside ` +
+      `the room's walls, with no ease; elsewhere eased from the window toward each clear area only as far as keeps ` +
+      `every pressable selectable's core and both figures 0.5rem clear of the HUD's compact boxes; ` +
       `${n(made.stages.length)} stages, each with the HUD boxes over it reserved.`,
   ];
-  for (const [name, holds] of classes) {
-    const eases = made.screens.filter((x) => holds(x.screen)).map((x) => x.stage.ease ?? 1);
+  for (const name of classes) {
+    const eases = of.filter((c) => c.name === name).map((c) => c.x.stage.ease ?? 1);
     if (eases.length === 0) continue;
     const sorted = [...eases].sort((a, b) => a - b);
     const median = sorted[Math.floor((sorted.length - 1) / 2)] ?? 1;
@@ -593,6 +627,51 @@ function frameLines(c: Composed): string[] {
         `${plainSize(framed.stage.w)} × ${plainSize(framed.stage.h)} over spec 005's ${plainSize(r.stage.w)} × ` +
         `${plainSize(r.stage.h)}, the room ${(growth * 100).toFixed(1)}% larger on screen.`,
     );
+  }
+  return out;
+}
+
+/** Spec 024's dinosaur visit (FR-012; plan.md §5.5; Q150, Q-R3a): the variant sweep's stage count and eases, each
+ *  reference stage's ease, and the side-wall selectables the "Eat" tile's box leaves to the list, as the reserved-box
+ *  line names the walking control's. The plain visit's lines above are unchanged; the bundle is the plain visit's. */
+function dinosaurLines(c: Composed): string[] {
+  const g = c.geometry;
+  const head = "A 3D dinosaur visit (spec 024, Q150)";
+  if (!g) return [`${head}: none, the scene having no geometry to frame.`];
+  const made = framedStages(g.protectEat);
+  const n = (x: number): string => x.toLocaleString("en-US");
+  const sixteenths = (e: number): string => (e === 0 ? "0" : e === 1 ? "1" : `${Math.round(e * 16)}/16`);
+  const eases = made.screens.map((x) => x.stage.ease ?? 1);
+  const at0 = eases.filter((e) => e === 0).length;
+  const at1 = eases.filter((e) => e === 1).length;
+  const out = [
+    `${head}: the "Eat" tile's box, ${EAT_CONTROL.widthRem}rem × ${EAT_CONTROL.heightRem}rem beside the walking ` +
+      `control, reserved for the whole visit; ${n(made.stages.length)} stages over the same screens, checked by RG6 and ` +
+      `RG7 and not emitted; ${n(eases.length)} screens and states, ${n(at0)} at ease 0, ` +
+      `${n(eases.length - at0 - at1)} between, ${n(at1)} at ease 1.`,
+  ];
+  for (const r of g.referenceEat) {
+    const screen = r.name === "desktop" ? REFERENCE_DESKTOP.screen : REFERENCE_PHONE.screen;
+    const framed = made.screens.find((x) => x.screen === screen);
+    if (!framed) continue;
+    out.push(
+      `- The reference ${r.name} (${screen.w} × ${screen.h}): ease ${sixteenths(framed.stage.ease ?? 1)}, a frame ` +
+        `area of ${plainSize(r.stage.w)} × ${plainSize(r.stage.h)}.`,
+    );
+  }
+  const { boxHolds } = pickSweep(g).dinosaur;
+  const plain = new Set(pickSweep(g).boxHolds.map((h) => h.index));
+  const own = boxHolds.filter((h) => !plain.has(h.index));
+  if (own.length === 0)
+    out.push("- The \"Eat\" tile's box holds no side-wall selectable the walking control's doesn't.");
+  else {
+    const named = own.flatMap((h) => {
+      const [first] = h.stages;
+      if (!first) return [];
+      const name = c.reader.printable(h.id) ? `\`${h.id}\`` : `selectables[${h.index}]`;
+      return [`${name} at ${stagesPhrase(first, h.stages.length - 1)}`];
+    });
+    out.push(`- The "Eat" tile's box leaves to the list ${named.join("; ")}, FR-064's carve-out.`);
   }
   return out;
 }
@@ -671,5 +750,38 @@ function highlights(c: Composed): string[] {
       `| ${name} | ${r.band}, ${plain(r.band_px)} px | ${r.edge}, ${plain(r.edge_px)} px | ${lowest} | ${against} |`,
     );
   }
+  return out;
+}
+
+// ---- Spec 029's readiness (its FR-014a; plan.md §R-B4) ----
+
+/** A topic ID as the readiness file may name one; any other is not printed. */
+const TOPIC_ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+
+/**
+ * Spec 029's readiness section (its FR-014a; plan.md §R-B4; B0's §5; rv-spec-029's S-4): "N of M topics ready; free
+ * talk ready|closed", then one line per closed topic, and free talk if closed, with its reason; or, where a file every
+ * entry needs is missing or unusable, the one line that says so. From the build's own rule's reasons
+ * (readiness.ts's readinessReasons), which the caller reads and hands in (ComposeOptions.readinessReasons), never a
+ * second reading of the files: the compositor's reads stay the room's data. Nothing in it is a hash or a file's words.
+ */
+export function readinessLines(reasons: ReadinessReasons): string[] {
+  const out = ["### The twin's readiness (spec 029, FR-014a)", ""];
+  if (reasons.kind === "closed") {
+    out.push("No topic ready; free talk closed.", "", `Nothing is ready: ${reasons.reason} (\`${reasons.file}\`).`);
+    return out;
+  }
+  const ready = [...reasons.topics.values()].filter((why) => why === "ready").length;
+  out.push(
+    `${ready} of ${reasons.topics.size} topics ready; free talk ${reasons.freeTalk === "ready" ? "ready" : "closed"}.`,
+  );
+  const closed: string[] = [];
+  for (const [id, why] of reasons.topics) {
+    if (why === "ready") continue;
+    const name = TOPIC_ID.test(id) ? `\`${id}\`` : "(a topic ID the readiness file can't name)";
+    closed.push(`- ${name}: closed, ${why}.`);
+  }
+  if (reasons.freeTalk !== "ready") closed.push(`- free talk: closed, ${reasons.freeTalk}.`);
+  if (closed.length > 0) out.push("", ...closed);
   return out;
 }

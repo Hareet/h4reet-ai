@@ -34,6 +34,9 @@ export interface TextBlock {
   readonly state: "approved" | "draft";
   readonly lines: readonly string[];
   readonly outline: OutlineData | null;
+  /** Spec 029 (FR-019): a terminal block's ink and cursor, room-data.json's optional `ink` and `cursor`; null without. */
+  readonly ink: "green" | null;
+  readonly cursor: "blink" | null;
 }
 
 /** What room-data.json gives the faces: its room text by ID, and the resume's section titles while it's published. */
@@ -68,7 +71,16 @@ function blockOf(v: unknown): TextBlock | null {
   if (!lines.every((l) => l !== null)) return null;
   const outline = outlineOf(v.outline);
   if (outline === false) return null;
-  return { id: v.id, state: v.state, lines: lines as string[], outline };
+  if (v.ink !== undefined && v.ink !== "green") return null;
+  if (v.cursor !== undefined && v.cursor !== "blink") return null;
+  return {
+    id: v.id,
+    state: v.state,
+    lines: lines as string[],
+    outline,
+    ink: v.ink === "green" ? "green" : null,
+    cursor: v.cursor === "blink" ? "blink" : null,
+  };
 }
 
 /** room-data.json's room text and the resume's titles, as the page fetched it. A room_text that isn't the build's
@@ -142,7 +154,14 @@ function regionInput(face: IndexFace, region: IndexRegion, sources: FaceSources)
     const outlined = region.renderer === "sign" || region.renderer === "print";
     const outline = outlined ? block.outline : null;
     if (outlined ? outline === null : block.lines.length === 0) return null;
-    return { ...base, lines: [...block.lines], badge: draftBadge(sources, block.state === "draft"), outline };
+    return {
+      ...base,
+      lines: [...block.lines],
+      badge: draftBadge(sources, block.state === "draft"),
+      outline,
+      ...(block.ink ? { ink: block.ink } : {}),
+      ...(block.cursor ? { cursor: block.cursor } : {}),
+    };
   }
   if ("resume_titles" in source) {
     const titles = sources.text?.titles;
@@ -167,9 +186,9 @@ export function regionInputs(face: IndexFace, sources: FaceSources): (RegionInpu
 export function faceLayout(
   face: IndexFace,
   sources: FaceSources,
-): { words: string[]; copy: string[]; typingMs: number; glyph: number } | null {
+): { words: string[]; copy: string[]; typingMs: number; glyph: number; blinkMs?: number } | null {
   const inputs = regionInputs(face, sources);
-  let out: { words: string[]; copy: string[]; typingMs: number; glyph: number } | null = null;
+  let out: { words: string[]; copy: string[]; typingMs: number; glyph: number; blinkMs?: number } | null = null;
   face.regions.forEach((r, k) => {
     const input = inputs[k];
     if (!input) return;
@@ -179,6 +198,8 @@ export function faceLayout(
     out.copy.push(...layout.copy);
     out.typingMs = Math.max(out.typingMs, layout.typingMs);
     out.glyph = Math.min(out.glyph, layout.glyph);
+    // Spec 029 (FR-019): a blinking cursor's period, the longest of the face's.
+    if (layout.blinkMs && layout.blinkMs > (out.blinkMs ?? 0)) out.blinkMs = layout.blinkMs;
   });
   return out;
 }

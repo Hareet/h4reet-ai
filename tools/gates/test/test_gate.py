@@ -2568,6 +2568,12 @@ def test_a_change_confined_to_evals_agent_config_is_held_to_its_own_tests(
     [
         {".claude/agents/reviewer.md": "# the reviewer, changed\n"},
         {"REVIEW.md": "# review, changed\n", **HARNESS_CHANGE},
+        # Spec 017's P-10 (Q13): the night shift's settings layers, prompts, and image pins are agent configuration too.
+        {"deploy/night-shift/claude/ops.settings.json": "{}\n"},
+        {
+            "deploy/night-shift/runner/prompts/supervisor.md": "# the supervisor, changed\n"
+        },
+        {"deploy/night-shift/images/pins.json": '{"claude_code": "2.1.330"}\n'},
     ],
 )
 def test_a_change_to_the_agent_configuration_still_waits_for_its_run(
@@ -2580,6 +2586,40 @@ def test_a_change_to_the_agent_configuration_still_waits_for_its_run(
     assert done.returncode == 1
     assert status_of(done, "agent-config-evals") == "PENDING"
     assert "failing: agent-config-evals PENDING" in summary(done)
+
+
+def test_the_night_shifts_other_files_dont_trigger_the_evals(fx: Fixture) -> None:
+    # Spec 017's P-10: only its settings layers, prompts, and image pins are agent configuration; its runner, specs, and
+    # Dockerfiles are code.
+    fx.branch(
+        {
+            "deploy/night-shift/runner/night.py": "# the runner, changed\n",
+            "deploy/night-shift/containers/ops.json": "{}\n",
+            "deploy/night-shift/runner/prompts-notes.md": "# a neighbour\n",
+            "deploy/night-shift/images/worker.Dockerfile": "FROM scratch\n",
+        }
+    )
+    tier(fx, NO_RUN_STUB)
+    done = gate(fx, "feature")
+    assert status_of(done, "agent-config-evals") == "SKIP", done.stdout
+    assert "deploy/night-shift/claude/, runner/prompts/, and images/pins.json" in row(
+        done, "agent-config-evals"
+    )
+
+
+def test_a_night_shift_prompt_names_the_step_it_triggered(fx: Fixture) -> None:
+    fx.branch({"deploy/night-shift/runner/prompts/ops.md": "# ops, changed\n"})
+    tier(
+        fx,
+        [
+            "PASS  behavioral tier: 2026-11-12T120000Z-feature-0123abc passed for trigger hash 0123abcd4567"
+        ],
+    )
+    done = gate(fx, "feature")
+    assert status_of(done, "agent-config-evals") == "PASS", done.stdout
+    assert row(done, "agent-config-evals").endswith(
+        "triggered by deploy/night-shift/runner/prompts/ops.md"
+    )
 
 
 def test_a_triggered_branch_is_named_by_its_triggers_alone(fx: Fixture) -> None:

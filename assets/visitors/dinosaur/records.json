@@ -1,0 +1,661 @@
+{
+  "schema": 1,
+  "directory": "assets/visitors/dinosaur",
+  "license": "all-rights-reserved-2026",
+  "entries": [
+    {
+      "file": "dinosaur-idle.glb",
+      "sha256": "dc2f84a64f03ee2e58f53845c33edf38ede46ca303a2e11c8198acdd59e7ce31",
+      "kind": "animation",
+      "made": "2026-11-14",
+      "source": {
+        "type": "design",
+        "id": "D-0003"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "the concept, the Author's own design",
+          "by": "hand"
+        },
+        {
+          "name": "the Author's review of the concept",
+          "by": "hand"
+        },
+        {
+          "name": "the mesh and its base-colour texture, from the concept, by Pixal3D in ComfyUI",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of the mesh",
+          "by": "hand"
+        },
+        {
+          "name": "the build: cleaned, decimated and scaled, its texture resized, rigged and skinned to the dinosaur skeleton, its rest pose fitted to the room, marked and exported, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "9af35d7fe20ee5625ab5e5d0fda0af65b15b9def9aa2ba6629f504694d1ab77a"
+        },
+        {
+          "name": "the idle, keyed on the build's skeleton and exported alone, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "9af35d7fe20ee5625ab5e5d0fda0af65b15b9def9aa2ba6629f504694d1ab77a"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026"
+    },
+    {
+      "file": "dinosaur-take.glb",
+      "sha256": "3bca518b1706f58e41108fa00689bdd2343dbc3651e78480356d0fd5f658a046",
+      "kind": "animation",
+      "made": "2026-11-14",
+      "source": {
+        "type": "design",
+        "id": "D-0003"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "the concept, the Author's own design",
+          "by": "hand"
+        },
+        {
+          "name": "the Author's review of the concept",
+          "by": "hand"
+        },
+        {
+          "name": "the mesh and its base-colour texture, from the concept, by Pixal3D in ComfyUI",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of the mesh",
+          "by": "hand"
+        },
+        {
+          "name": "the build: cleaned, decimated and scaled, its texture resized, rigged and skinned to the dinosaur skeleton, its rest pose fitted to the room, marked and exported, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "9af35d7fe20ee5625ab5e5d0fda0af65b15b9def9aa2ba6629f504694d1ab77a"
+        },
+        {
+          "name": "the take, keyed on the build's skeleton and exported alone, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "9af35d7fe20ee5625ab5e5d0fda0af65b15b9def9aa2ba6629f504694d1ab77a"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026"
+    },
+    {
+      "file": "dinosaur-walk.glb",
+      "sha256": "d895b608773e0ad39a05dda325f409afea4441e26187abd8400432bb57a213b8",
+      "kind": "animation",
+      "made": "2026-11-14",
+      "source": {
+        "type": "design",
+        "id": "D-0003"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "the concept, the Author's own design",
+          "by": "hand"
+        },
+        {
+          "name": "the Author's review of the concept",
+          "by": "hand"
+        },
+        {
+          "name": "the mesh and its base-colour texture, from the concept, by Pixal3D in ComfyUI",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of the mesh",
+          "by": "hand"
+        },
+        {
+          "name": "the build: cleaned, decimated and scaled, its texture resized, rigged and skinned to the dinosaur skeleton, its rest pose fitted to the room, marked and exported, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "9af35d7fe20ee5625ab5e5d0fda0af65b15b9def9aa2ba6629f504694d1ab77a"
+        },
+        {
+          "name": "the walk, keyed on the build's skeleton and exported alone, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "9af35d7fe20ee5625ab5e5d0fda0af65b15b9def9aa2ba6629f504694d1ab77a"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026"
+    },
+    {
+      "file": "dinosaur.glb",
+      "sha256": "1aa8075bf5cc9ebfd226cd8e5492295cee23b790a3bb61a7caf68e46cf62fae8",
+      "kind": "avatar",
+      "made": "2026-11-14",
+      "source": {
+        "type": "design",
+        "id": "D-0003"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "the concept, the Author's own design",
+          "by": "hand"
+        },
+        {
+          "name": "the Author's review of the concept",
+          "by": "hand"
+        },
+        {
+          "name": "the mesh and its base-colour texture, from the concept, by Pixal3D in ComfyUI",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of the mesh",
+          "by": "hand"
+        },
+        {
+          "name": "the build: cleaned, decimated and scaled, its texture resized, rigged and skinned to the dinosaur skeleton, its rest pose fitted to the room, marked and exported, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "9af35d7fe20ee5625ab5e5d0fda0af65b15b9def9aa2ba6629f504694d1ab77a"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026"
+    }
+  ]
+}

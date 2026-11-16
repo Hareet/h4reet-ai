@@ -1,0 +1,145 @@
+diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/config/twin/corpus.json b/config/twin/corpus.json
+--- a/config/twin/corpus.json
++++ b/config/twin/corpus.json
+@@ -2223,20 +2223,21 @@
+       "text": "14. *What runs in the stack?* — On the laptop's production stack: the edge, the gateway, the site, the meter's database, the model server, the OpenTelemetry collector, Prometheus, Loki, Grafana, and Langfuse with its own databases. Only the edge listens. [P]"
+     },
+     {
+-      "chars": 294,
++      "chars": 341,
+       "file": "corpus/08-hareet-ai.md",
+       "golden": {
+-        "answer": "It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, a clean-room gate runs every check, and only a person merges.",
++        "answer": "It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, and a clean-room gate runs every check. AI agents in named roles do most of the typing, and only I merge.",
+         "n": 15,
+         "question": "How is a change made?",
+         "tags": [
+-          "[P]"
++          "[P]",
++          "[A]"
+         ]
+       },
+       "heading": "Golden Q&A 15",
+       "id": "08-hareet-ai#q15",
+       "kind": "golden",
+-      "text": "15. *How is a change made?* — It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, a clean-room gate runs every check, and only a person merges. [P]"
++      "text": "15. *How is a change made?* — It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, and a clean-room gate runs every check. AI agents in named roles do most of the typing, and only I merge. [P][A]"
+     },
+     {
+       "chars": 183,
+@@ -2313,7 +2314,7 @@
+       "topic": "hobbies-and-travel"
+     }
+   ],
+-  "sha256": "c18b20c6dcd28ac786547fa1aad047ff58fc49a79f0045d4aa448fbe6af18c91",
++  "sha256": "dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a",
+   "topics": [
+     {
+       "files": [
+diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/corpus/08-hareet-ai.md b/corpus/08-hareet-ai.md
+--- a/corpus/08-hareet-ai.md
++++ b/corpus/08-hareet-ai.md
+@@ -137,6 +137,6 @@
+ 12. *How do you know the twin isn't making things up?* — It's tested every time it changes, with cases drawn from the corpus and graded by code, never by another model. In production, guards in the gateway check numbers, amounts, ownership, and privacy, and a failed guard withholds the answer. [P]
+ 13. *Does it run on local models?* — Local models first. On the laptop, every question tries llama.cpp on its GPU, and a local answer costs nothing; only when it's down does the capped paid fallback answer. On the cloud server, which has no GPU, the Anthropic API answers first. [P]
+ 14. *What runs in the stack?* — On the laptop's production stack: the edge, the gateway, the site, the meter's database, the model server, the OpenTelemetry collector, Prometheus, Loki, Grafana, and Langfuse with its own databases. Only the edge listens. [P]
+-15. *How is a change made?* — It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, a clean-room gate runs every check, and only a person merges. [P]
++15. *How is a change made?* — It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, and a clean-room gate runs every check. AI agents in named roles do most of the typing, and only I merge. [P][A]
+ 16. *What don't you know about how it's tested?* — I don't know yet how many evaluation cases there are, their latest pass rates, or what a run costs; those change with every run. [?]
+ 17. *What isn't built yet?* — A daily summary of the CPU metrics and deploys that only pull aren't built yet, so I don't know more about them yet. [?]
+diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/docs/corpus-size.json b/docs/corpus-size.json
+--- a/docs/corpus-size.json
++++ b/docs/corpus-size.json
+@@ -6,9 +6,9 @@
+   "files": {
+     "topic": {
+       "files": 9,
+-      "bytes": 114800,
+-      "words": 17660,
+-      "chars": 114229
++      "bytes": 114847,
++      "words": 17670,
++      "chars": 114276
+     },
+     "facts": {
+       "files": 11,
+@@ -18,9 +18,9 @@
+     },
+     "total": {
+       "files": 20,
+-      "bytes": 133722,
+-      "words": 20179,
+-      "chars": 133138
++      "bytes": 133769,
++      "words": 20189,
++      "chars": 133185
+     },
+     "by_file": [
+       {
+@@ -73,9 +73,9 @@
+       },
+       {
+         "path": "corpus/08-hareet-ai.md",
+-        "bytes": 23047,
+-        "words": 3403,
+-        "chars": 22895
++        "bytes": 23094,
++        "words": 3413,
++        "chars": 22942
+       },
+       {
+         "path": "corpus/facts/awards.yaml",
+@@ -266,22 +266,22 @@
+     },
+     {
+       "file": "corpus/08-hareet-ai.md",
+-      "rendered": 21711,
+-      "grounding": 34098,
+-      "share": 1.6098,
+-      "margin": -12916,
++      "rendered": 21755,
++      "grounding": 34142,
++      "share": 1.6118,
++      "margin": -12960,
+       "in_topics": []
+     }
+   ],
+   "free_talk": {
+     "room": 8795,
+-    "rankable": 95893,
++    "rankable": 95937,
+     "share": 0.0917
+   },
+   "pack": {
+     "sections": 150,
+-    "bytes": 179436,
+-    "rendered": 102082,
++    "bytes": 179544,
++    "rendered": 102126,
+     "longest_section": 3140
+   },
+   "thresholds": {
+diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q15-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q15-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q15-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q15-engineer.yaml
+@@ -10,7 +10,7 @@
+   turns:
+     - role: "visitor"
+       text: "How is a change made?"
+-fake_response: "It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, a clean-room gate runs every check, and only a person merges."
++fake_response: "It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, and a clean-room gate runs every check. AI agents in named roles do most of the typing, and only I merge."
+ expect:
+   contains:
+     - "clean-room"
+diff -ruN '--exclude=node_modules' '--exclude=__pycache__' a/evals/product/cases/twin-08-hareet-ai-q15-non-engineer.yaml b/evals/product/cases/twin-08-hareet-ai-q15-non-engineer.yaml
+--- a/evals/product/cases/twin-08-hareet-ai-q15-non-engineer.yaml
++++ b/evals/product/cases/twin-08-hareet-ai-q15-non-engineer.yaml
+@@ -10,7 +10,7 @@
+   turns:
+     - role: "visitor"
+       text: "How is a change made?"
+-fake_response: "It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, a clean-room gate runs every check, and only a person merges."
++fake_response: "It starts as an intent, then a spec, a plan, and tasks, checked against each other before any code exists. An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, and a clean-room gate runs every check. AI agents in named roles do most of the typing, and only I merge."
+ expect:
+   contains:
+     - "clean-room"

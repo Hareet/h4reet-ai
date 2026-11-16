@@ -23,29 +23,29 @@ thresholds:
 topics:
   hobbies-and-travel:
     ready: true
-    pack_sha256: 777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71
+    pack_sha256: d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507
     prompt_sha256: 4e6134e65ac936246362ac129d5ae3650ea244fc5c251fd333b4e7bdbe5e8949
     evidence:
-      - evals/product/history/2026-11-09T175245Z-local.json
-      - evals/product/history/2026-11-10T063144Z-anthropic.json
-      - redteam/history/20261109T175353Z-local.json
-      - redteam/history/20261110T063621Z-anthropic.json
+      - evals/product/history/2026-11-16T194605Z-local.json
+      - evals/product/history/2026-11-16T195038Z-anthropic.json
+      - redteam/history/20261116T195039Z-local.json
+      - redteam/history/20261116T195203Z-anthropic.json
   mission:
     ready: true
-    pack_sha256: 73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5
+    pack_sha256: c028c92d9303beebeae8b32bdd8213dd112a057ea238886638ae39cc22a568ad
     prompt_sha256: 4e6134e65ac936246362ac129d5ae3650ea244fc5c251fd333b4e7bdbe5e8949
     evidence:
-      - evals/product/history/2026-11-09T175245Z-local.json
-      - evals/product/history/2026-11-10T063144Z-anthropic.json
-      - redteam/history/20261109T175353Z-local.json
-      - redteam/history/20261110T063621Z-anthropic.json
+      - evals/product/history/2026-11-16T194605Z-local.json
+      - evals/product/history/2026-11-16T195038Z-anthropic.json
+      - redteam/history/20261116T195039Z-local.json
+      - redteam/history/20261116T195203Z-anthropic.json
   work-projects:
     ready: true
-    pack_sha256: 2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d
+    pack_sha256: 6fdd269b9dd0b207511fa36113f95c596d3de86c659ce71bbaf0abbb8395aadc
     prompt_sha256: 4e6134e65ac936246362ac129d5ae3650ea244fc5c251fd333b4e7bdbe5e8949
     evidence:
-      - evals/product/history/2026-11-09T175245Z-local.json
-      - evals/product/history/2026-11-10T063144Z-anthropic.json
-      - redteam/history/20261109T175353Z-local.json
-      - redteam/history/20261110T063621Z-anthropic.json
+      - evals/product/history/2026-11-16T194605Z-local.json
+      - evals/product/history/2026-11-16T195038Z-anthropic.json
+      - redteam/history/20261116T195039Z-local.json
+      - redteam/history/20261116T195203Z-anthropic.json
 free_talk: { ready: false }

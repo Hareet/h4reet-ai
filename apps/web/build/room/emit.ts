@@ -41,6 +41,7 @@ import { isAvatarId } from "../../src/choice/avatars";
 import type { AvatarId } from "../../src/choice/avatars";
 import type {
   Highlight,
+  LeaveData,
   Look,
   Matrix2D,
   Prim,
@@ -75,6 +76,8 @@ import type { FigureBlock, TwinFileRole, TwinSet } from "./avatars";
 import type { AvatarSet, FileRole } from "./avatars";
 import { TWIN_DEFAULTS } from "./schema";
 import { isTwinClipRole, TWIN_CLIPS_DEFAULT, TWIN_STATES } from "../../src/room/scene/twin-states";
+import type { ChaseConfig } from "../../src/room/scene/chase-steer";
+import type { PetConfig } from "../../src/room/scene/pet-config";
 import type { TwinClipRole, TwinState } from "../../src/room/scene/twin-states";
 import type { TwinBlock } from "../../src/room/compose/bundle";
 import { RULE_IDS } from "./checks/family";
@@ -90,10 +93,11 @@ import { PHOTO_GUIDE, photoGuide, workOrder, WORK_ORDERS_DIR } from "./orders";
 import { capsOf } from "./policy";
 import type { CapsSource, RoomCaps, RoomPolicy } from "./policy";
 import { roomReport } from "./report";
-import { HEX, HIGHLIGHT_DEFAULTS, WALKING_DEFAULTS } from "./schema";
+import { EATING_DEFAULTS, HEX, HIGHLIGHT_DEFAULTS, WALKING_DEFAULTS } from "./schema";
 import type {
   CatalogEntry,
   DrawingPrimitive,
+  LeaveBlock,
   LookFile,
   Placement,
   Pose,
@@ -104,6 +108,7 @@ import type {
 } from "./schema";
 import { compareBytewise } from "./source";
 import type { Tree } from "./source";
+import { factsIn } from "../content";
 import type { Typeface } from "./typefaces";
 
 /** A fixture, typed by the signals: `virtual:room-fixtures` (§3.3). */
@@ -150,6 +155,9 @@ export interface RoomText {
     readonly sha256: string;
     readonly state: "approved" | "draft";
     readonly lines: readonly { readonly text: string }[];
+    /** Spec 029 (FR-019): a terminal block's ink and cursor, only where the block sets them. */
+    readonly ink?: "green";
+    readonly cursor?: "blink";
     readonly outline?: {
       readonly view_box: readonly [number, number, number, number];
       readonly cap_height: number;
@@ -260,6 +268,51 @@ const m6 = (n: number): number => quantize(n, 1e6);
 /** View-box units and CSS pixels: to 1e-4. */
 const u4 = (n: number): number => quantize(n, 1e4);
 const vec = (v: readonly number[]): [number, number, number] => [m6(v[0] ?? 0), m6(v[1] ?? 0), m6(v[2] ?? 0)];
+/** Spec 025's run block (plan.md R-09), each figure to 1e-6 and `headings` whole. */
+function chaseOf(c: ChaseConfig): ChaseConfig {
+  return {
+    flee_end_delay_s: m6(c.flee_end_delay_s),
+    flee_m: m6(c.flee_m),
+    safe_m: m6(c.safe_m),
+    separation_m: m6(c.separation_m),
+    twin_run_mps: m6(c.twin_run_mps),
+    dog_run_mps: m6(c.dog_run_mps),
+    speed_margin_mps: m6(c.speed_margin_mps),
+    turn_rate_rad_s: m6(c.turn_rate_rad_s),
+    lookahead_s: m6(c.lookahead_s),
+    headings: c.headings,
+    clip_thresholds: { walk_mps: m6(c.clip_thresholds.walk_mps), run_mps: m6(c.clip_thresholds.run_mps) },
+  };
+}
+/** Spec 028 (FR-022): the leave block, each figure to 1e-6. */
+function leaveOf(l: LeaveBlock): LeaveData {
+  const p2 = (p: readonly [number, number]): [number, number] => [m6(p[0]), m6(p[1])];
+  return {
+    takes: l.takes,
+    meet: p2(l.meet),
+    take_at: p2(l.take_at),
+    carry: [m6(l.carry[0]), m6(l.carry[1]), m6(l.carry[2])],
+    path: l.path.map(p2),
+    dog_mps: m6(l.dog_mps),
+    walk_mps: m6(l.walk_mps),
+    take_s: m6(l.take_s),
+  };
+}
+
+/** Spec 026's pet block (plan.md §3), each figure to 1e-6 and `stroke_n` whole. */
+function petOf(p: PetConfig): PetConfig {
+  return {
+    reach_m: m6(p.reach_m),
+    cooldown_s: m6(p.cooldown_s),
+    turn_max_deg: m6(p.turn_max_deg),
+    crouch_max_m: m6(p.crouch_max_m),
+    lean_max_deg: m6(p.lean_max_deg),
+    stroke_m: m6(p.stroke_m),
+    stroke_n: p.stroke_n,
+    pet_s: m6(p.pet_s),
+    elbow_deg: m6(p.elbow_deg),
+  };
+}
 const turnOf = (t: Turn | undefined): Turn => ({ x: m6(t?.x ?? 0), y: m6(t?.y ?? 0), z: m6(t?.z ?? 0) });
 const boxOf = (b: Box): Box => ({ min: vec(b.min), max: vec(b.max) });
 const point = (p: readonly [number, number]): [number, number] => [u4(p[0]), u4(p[1])];
@@ -1048,12 +1101,15 @@ function claimsOf(piece: CatalogEntry | undefined): { claims?: { local: string; 
 
 /** The text copy's order (§3.1): the twin's line slot, the bound faces, the switches, the sign's figures, and the
  *  fixed lines. Spec 016 (FR-014; contracts/twin-data.md §4): the slot, first, which the room resolves to the twin's
- *  line while its own picture shows and to spec 009's stand-in line otherwise (spec 009's FR-013, as M9 amends it). */
+ *  line while its own picture shows and to spec 009's stand-in line otherwise (spec 009's FR-013, as M9 amends it).
+ *  Spec 020 (FR-007): the likeness line slot after it. */
 function copyOf(faces: RoomIndex["faces"], switches: RoomIndex["switches"]): RoomIndex["copy"] {
   const regions = faces.flatMap((f) => f.regions);
   const has = (test: (r: IndexRegion) => boolean): boolean => regions.some(test);
   return [
     { twin_line: true as const },
+    // Spec 020 (FR-007; plan.md R-02): the likeness line slot, which the room fills only while a figure shows one.
+    { visitor_line: true as const },
     ...faces.map((f) => ({ face: f.id })),
     ...switches.map((s) => ({ switch: s.id })),
     ...(has((r) => "signal" in r.source) ? [{ figures: true as const }] : []),
@@ -1121,6 +1177,9 @@ function indexBody(c: Composed, placeholders: boolean, models: readonly string[]
       name: x.name,
       members: [...x.members],
       action: x.action.talk ? { kind: "talk" as const, topic: x.action.talk.topic } : { kind: "resume" as const },
+      ...(x.emblem !== undefined ? { emblem: x.emblem } : {}),
+      // Spec 026 (R-09): the figure it also picks, as the scene gives it.
+      ...(x.figure !== undefined ? { figure: x.figure } : {}),
       side_wall: sideWall[k] ?? false,
     })),
     // Ready only as the twin's readiness says, by FR-030's rule (spec 007, FR-037); nothing without it.
@@ -1148,7 +1207,29 @@ function indexBody(c: Composed, placeholders: boolean, models: readonly string[]
       c.options.readiness?.freeTalk ?? false,
     ),
     twin: twinIndexOf(c, flat),
+    dog_visitor_intro: dogVisitorIntro(c.reader.tree),
   };
+}
+
+/** Spec 028 (FR-027; plan.md R-B7): a dog visitor's introduction, the Author's words from the corpus slot
+ *  `hobbies.dog_visitor_intro` (`corpus/facts/*.yaml`, read as the twin's pack reads a slot, build/content.ts's
+ *  `factsIn`): its value only where it is a string and `public_safe` is true; null otherwise. Nothing else fills it. */
+export const DOG_VISITOR_INTRO = "hobbies.dog_visitor_intro";
+function dogVisitorIntro(tree: Tree): string | null {
+  for (const name of tree.list("corpus/facts")) {
+    if (!name.endsWith(".yaml")) continue;
+    const data = tree.read(`corpus/facts/${name}`);
+    if (data === null) continue;
+    let facts: ReturnType<typeof factsIn>;
+    try {
+      facts = factsIn(new TextDecoder().decode(data), name);
+    } catch {
+      continue;
+    }
+    const slot = facts.find((f) => f.id === DOG_VISITOR_INTRO);
+    if (slot) return slot.public_safe === true && typeof slot.value === "string" ? slot.value : null;
+  }
+  return null;
 }
 
 // ---- Spec 016's twin (its FR-014, FR-015, FR-034, FR-044, FR-048, FR-054; contracts/twin-data.md §1, §4) ----
@@ -1414,6 +1495,8 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
       frame_box: boxOf(c.frames.get(p.id) ?? ZERO_BOX),
       label: p.label ?? null,
       model: modelOf(c, p),
+      // Spec 024 (FR-002): the chunks a piece splits into for the dinosaur's bite, or null.
+      edible: p.edible ? { chunks: p.edible.chunks } : null,
     })),
     switches: (scene?.switches ?? []).map((sw) => ({
       id: sw.id,
@@ -1451,6 +1534,24 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
       twin_height: m6((twin && c.pieces.get(twin.piece)?.value.size.h) ?? 0),
       // Spec 014 (FR-039): the grips, each avatar of the table's and each hand's, as the scene gives them.
       ...(c.avatars.figures.grips === undefined ? {} : { grips: gripsOf(c.avatars.figures.grips) }),
+      // Spec 025 (FR-018; plan.md R-09): the room's dog's block, as the scene gives it.
+      ...(scene?.figures.dog === undefined
+        ? {}
+        : {
+            dog: {
+              home: {
+                at: [m6(scene.figures.dog.home.at[0]), m6(scene.figures.dog.home.at[1])] as [number, number],
+                heading_deg: m6(scene.figures.dog.home.heading_deg),
+              },
+              footprint_m: m6(scene.figures.dog.footprint_m),
+            },
+          }),
+      // Spec 025 (FR-005; plan.md R-09): the run's block, resolved, as the scene gives it.
+      ...(scene?.figures.chase === undefined ? {} : { chase: chaseOf(scene.figures.chase) }),
+      // Spec 026 (plan.md §3): the petting's block, resolved, as the scene gives it.
+      ...(scene?.figures.pet === undefined ? {} : { pet: petOf(scene.figures.pet) }),
+      // Spec 028 (FR-022; plan.md R-B4): the dinosaur's scene's block, each figure to 1e-6, as the scene gives it.
+      ...(scene?.figures.leave === undefined ? {} : { leave: leaveOf(scene.figures.leave) }),
     },
     handoff: {
       from: { placement: scene?.handoff.from.placement ?? "", anchor: scene?.handoff.from.anchor ?? "" },
@@ -1459,6 +1560,8 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
     load_order: loadOrder(entries),
     scene_texture_bytes: c.caps.scene_texture_bytes,
     walking: walkingOf(scene),
+    // Spec 024 (FR-011): the regrowth's seconds, the scene's or the default.
+    eating: { regrow_s: scene?.eating.regrow_s ?? EATING_DEFAULTS.regrow_s },
     avatars: avatarsPart(c),
     twin: twinPartOf(c),
   };
@@ -1504,6 +1607,8 @@ function avatarsPart(c: Composed): RoomScene["avatars"] {
         texture_bytes: model.measures?.decoded_bytes ?? 0,
       },
       clips,
+      // Spec 020 (FR-007): a likeness's line, where main's approval gives one; absent for every other avatar.
+      ...(avatar.line === null ? {} : { line: avatar.line }),
     };
   }
   return out;
@@ -1620,6 +1725,8 @@ function roomTextOf(c: Composed): RoomText {
       sha256: sha,
       state,
       lines: b.value.lines.filter((l) => !l.pending).map((l) => ({ text: l.text })),
+      ...(b.value.ink ? { ink: b.value.ink } : {}),
+      ...(b.value.cursor ? { cursor: b.value.cursor } : {}),
     }));
   for (const o of c.room.outlines)
     add(o.file, (sha, state) => {

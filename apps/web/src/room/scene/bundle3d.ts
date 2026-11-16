@@ -21,14 +21,25 @@
 // The 3D part holds a label's key and a switch's poses, so the index gives the words and the cases (plan.md §10). A
 // part that isn't the index's (its digest differs) or doesn't build whole (a mount, an anchor, or a figure that
 // doesn't resolve) is refused with an error, and the room falls to 2D as for a chunk that fails to load.
+//
+// Spec 029 (FR-020; plan.md §R-C4): given a document, the paper's two materials share one canvas texture of paper.ts's
+// drawing, its word the UI word `paper.word` in the look's chalk face, drawn again when that face's family changes;
+// their colour and opacities stay, so the hand-off's cross-fade is unchanged. Without one, the sheet is plain white, as
+// before. Drawn, the materials draw the sheet's front, and each sheet holds a back of its own whose map is the canvas
+// turned over in u, at its front's opacity, so "RESUME" reads lower left to upper right from behind as well (back-029c;
+// Q38's recommended answer, provisionally; rv-impl-029c's C-1).
 import {
+  BackSide,
+  CanvasTexture,
   Color,
   DoubleSide,
+  FrontSide,
   Group,
   Mesh,
   MeshBasicMaterial,
   Object3D,
   PlaneGeometry,
+  SRGBColorSpace,
   Scene,
   Shape as Polygon,
   ShapeGeometry,
@@ -44,6 +55,7 @@ import { LABEL_HEIGHT, framing } from "../compose/framing";
 import { IDENTITY, add, invert, origin, transformDirection, transformPoint } from "../compose/math";
 import type { Mat4, Turn, Vec3 } from "../compose/math";
 import { anchorWorld, mountWorld, resolveMounts } from "../compose/mount";
+import { dogBoxAt } from "../compose/dog-box";
 import { listOnly, memberRect, pick, pickAreas } from "../compose/pick";
 import type { PickArea } from "../compose/pick";
 import { toStage } from "../compose/project";
@@ -51,8 +63,10 @@ import type { Camera } from "../compose/project";
 import { reservedBoxes } from "../compose/hud";
 import type { Stage } from "../compose/stages";
 import { VISITOR_TURN, handOffset, sideOf, visitorTurnShare } from "../handoff";
+import type { TypefaceLoader } from "../faces/fonts";
 import type { Side } from "../handoff";
 import type { Ndc } from "../objects";
+import { drawPaper, paperLayout } from "../paper";
 import { uiWord } from "../ui-keys";
 import type { UiKey } from "../ui-keys";
 import { buildCases } from "./cables";
@@ -66,6 +80,9 @@ const BACKDROP = "#20252b";
 /** The paper the twin hands over, an A4 sheet in metres; its arc's height over the hand-off; and how far the twin turns
  *  toward the visitor, in radians: spec 002's. */
 const SHEET: readonly [number, number] = [0.21, 0.297];
+/** Spec 029: the paper's canvas, in pixels, the sheet's aspect. */
+const PAPER_PX: readonly [number, number] = [512, 724];
+const PAPER_WORD: UiKey = "paper.word";
 const PAPER_ARC = 0.35;
 const TWIN_TURN = 0.45;
 const STANDIN_LABEL: UiKey = "standin.label";
@@ -78,8 +95,11 @@ export interface RoomOptions {
   readonly avatar: AvatarId;
   readonly label: LabelFactory;
   /** The index composed with the part: its digest, which the part's must equal; its UI words, for the labels; and its
-   *  switches' cases. */
-  readonly index: Pick<RoomIndex, "digest" | "ui" | "switches">;
+   *  switches' cases; spec 029: its typefaces, for the paper's word, where it has them. */
+  readonly index: Pick<RoomIndex, "digest" | "ui" | "switches"> & Partial<Pick<RoomIndex, "typefaces">>;
+  /** Spec 029 (FR-020): the document the paper's canvas is made in, and the typefaces' loader, whose chalk family its
+   *  word is drawn in once it has arrived; absent, the sheet is plain white. */
+  readonly paper?: { readonly doc: Document; readonly typefaces?: Pick<TypefaceLoader, "family" | "onChange"> };
 }
 
 export interface Room3D {
@@ -157,6 +177,47 @@ function cutout(avatar: AvatarId, materials: Materials): Group {
     group.add(mesh);
   }
   return group;
+}
+
+/** Spec 029 (FR-020): the paper's textures, paper.ts's drawing on one canvas, drawn again when the chalk face's family
+ *  changes; before it has one, the index's chalk family and its fallback, or the generic sans-serif. `front` maps it as
+ *  drawn; `back` (back-029c, Q38) is the same canvas turned over in u, so the sheet's back, whose UVs run the other
+ *  way to a viewer behind it, shows the drawing unmirrored. One canvas, so both upload once. */
+function paperFace(
+  paper: NonNullable<RoomOptions["paper"]>,
+  index: RoomOptions["index"],
+): { readonly front: CanvasTexture; readonly back: CanvasTexture } {
+  const [w, h] = PAPER_PX;
+  const canvas = paper.doc.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  const back = texture.clone();
+  back.repeat.x = -1;
+  back.offset.x = 1;
+  const chalk = index.typefaces?.find((t) => t.use === "chalk");
+  const fallback = chalk ? `${chalk.family}, ${chalk.fallback}` : "sans-serif";
+  const layout = paperLayout(uiWord(index.ui, PAPER_WORD) ?? "", w, h);
+  const draw = (): void => {
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    drawPaper(ctx, layout, w, h, paper.typefaces?.family("chalk") ?? fallback);
+    texture.needsUpdate = true;
+    back.needsUpdate = true;
+  };
+  draw();
+  paper.typefaces?.onChange(draw);
+  return { front: texture, back };
+}
+
+/** A drawn sheet's back (back-029c, Q38): the plane again, its back face only, with the drawing turned over, so it
+ *  moves with its sheet wherever a hand holds it. Its opacity is its front's, read whenever it is drawn, since the
+ *  hand-off (showHandoff) and the avatars' keeping of the paper (scene/avatars.ts) write only the front materials. */
+function sheetBack(sheet: PlaneGeometry, front: MeshBasicMaterial, map: CanvasTexture): Mesh {
+  const material = new MeshBasicMaterial({ color: "#ffffff", transparent: true, side: BackSide, map });
+  Object.defineProperty(material, "opacity", { get: () => front.opacity, set: () => undefined });
+  return new Mesh(sheet, material);
 }
 
 /** The room's object tree from the 3D part, with no renderer. */
@@ -269,13 +330,29 @@ export function buildRoom(part: RoomScene, options: RoomOptions): Room3D {
 
   // The paper: one sheet that travels from the twin's hand (or fades out there), one that fades in at the visitor's.
   const sheet = new PlaneGeometry(SHEET[0], SHEET[1]);
+  const face = options.paper ? paperFace(options.paper, options.index) : null;
+  // Drawn, each material draws the front, and each sheet holds a back of its own (back-029c; Q38's recommended answer,
+  // provisionally; rv-impl-029c's C-1): the walking view's camera stands behind the figure and sees the held sheet's
+  // back, where one double-sided map reads mirrored. Plain, each is white on both sides, as before.
   const paperMaterial = (opacity: number): MeshBasicMaterial =>
-    new MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity, side: DoubleSide });
+    new MeshBasicMaterial({
+      color: "#ffffff",
+      transparent: true,
+      opacity,
+      side: face ? FrontSide : DoubleSide,
+      ...(face ? { map: face.front } : {}),
+    });
   const [atTwin, atVisitor] = [paperMaterial(1), paperMaterial(0)];
   const paper = new Mesh(sheet, atTwin);
   paper.position.copy(anchors.twinHand);
   const kept = new Mesh(sheet, atVisitor);
   kept.position.copy(anchors.visitorHand);
+  if (face)
+    for (const [mesh, front] of [
+      [paper, atTwin],
+      [kept, atVisitor],
+    ] as const)
+      mesh.add(sheetBack(sheet, front, face.back));
   scene.add(paper, kept);
 
   // The look's lights, over the pieces the shell holds (the shell itself, in a room of one).
@@ -312,8 +389,15 @@ const PICTURE_NODES: ReadonlySet<string> = new Set(["standin", "model", "cutout"
  * laptop), and no label, face, or glow. The lookdev page's vignette reads a placement much the same way, but keeps its
  * switch cases, which a highlight mustn't.
  */
-export function memberDraws(room: Room3D, members: readonly string[]): Mesh[] {
+export function memberDraws(room: Room3D, members: readonly string[], figures: readonly Object3D[] = []): Mesh[] {
   const out: Mesh[] = [];
+  // Spec 026 (R-09): a selectable's figure (the room's dog) draws as its members do, every mesh of its picture, after
+  // the members'.
+  const tail: Mesh[] = [];
+  for (const figure of figures)
+    figure.traverse((node) => {
+      if ((node as Mesh).isMesh) tail.push(node as Mesh);
+    });
   for (const id of new Set(members)) {
     for (const child of room.placements.get(id)?.children ?? []) {
       if (!PICTURE_NODES.has(child.name)) continue;
@@ -322,7 +406,7 @@ export function memberDraws(room: Room3D, members: readonly string[]): Mesh[] {
       });
     }
   }
-  return out;
+  return [...out, ...tail];
 }
 
 /** The framed placements' boxes, which the room frames and picks from: never loaded geometry (R-18). */
@@ -341,17 +425,24 @@ export function pickAreasOn(
 ): PickArea[] {
   const boxes = new Map<string, Box>();
   for (const p of part.placements) if (!boxes.has(p.id)) boxes.set(p.id, p.frame_box);
+  // Spec 026 (R-09): the room's dog's box at its home, the `dog` figure's front-only rectangle, as RG6 measures it.
+  const dog = part.figures.dog ? dogBoxAt(part.figures.dog, AVATAR_SHAPES.dog) : null;
   return pickAreas(
-    index.selectables.map((s) => ({
-      id: s.id,
-      members: s.members.flatMap((m) => {
+    index.selectables.map((s) => {
+      const members = s.members.flatMap((m) => {
         const box = boxes.get(m);
         const rect = box && memberRect(box, camera, stage);
         return rect ? [rect] : [];
-      }),
-    })),
+      });
+      const rect = s.figure === "dog" && dog ? memberRect(dog, camera, stage) : null;
+      return rect ? { id: s.id, members, front: [rect] } : { id: s.id, members };
+    }),
   );
 }
+
+/** The areas without their front rectangles: what the picker picks from while no figure is pickable. */
+const withoutFront = (areas: readonly PickArea[]): PickArea[] =>
+  areas.map((a) => (a.front ? { id: a.id, members: a.members, union: a.union, core: a.core } : a));
 
 /** The pointer's picker on the 3D stage (R-20). */
 export interface SelectablePicker {
@@ -365,12 +456,20 @@ export interface SelectablePicker {
 }
 
 /** Picks the index's selectables from the part's frame boxes, framed as frameCamera frames them (compose/pick.ts). At
- *  each stage size it holds the side-wall selectables FR-064's carve-out leaves to the list there (see listOnly). */
-export function selectablePicker(part: RoomScene, index: Pick<RoomIndex, "selectables">): SelectablePicker {
+ *  each stage size it holds the side-wall selectables FR-064's carve-out leaves to the list there (see listOnly).
+ *  Spec 026 (R-09): a selectable's figure rectangle (its `front`) is picked only while `pickable(figure)` says so, the
+ *  stage's: the figure shows its model at home; with no callback, never. */
+export function selectablePicker(
+  part: RoomScene,
+  index: Pick<RoomIndex, "selectables">,
+  pickable?: (figure: "dog") => boolean,
+): SelectablePicker {
   const boxes = framedBoxes(part);
   const sideWall = new Set(index.selectables.filter((s) => s.side_wall).map((s) => s.id));
   let stage: Stage | null = null;
   let areas: readonly PickArea[] = [];
+  /** The same areas with no front rectangle, made once a measure. */
+  let bare: readonly PickArea[] = [];
   let held: ReadonlySet<string> = new Set();
   /** The follow camera the walking view set, or none: the production framing's. */
   let following: Camera | null = null;
@@ -378,6 +477,7 @@ export function selectablePicker(part: RoomScene, index: Pick<RoomIndex, "select
     stage = { w: next.w, h: next.h };
     const camera = following ?? framing(next.w / next.h, boxes);
     areas = next.w > 0 && next.h > 0 ? pickAreasOn(part, index, camera, stage) : [];
+    bare = withoutFront(areas);
     // The walking control's box reserved, as RG6 reserves it: a side-wall selectable whose core lies under it is held
     // here exactly where the compositor's report lists it (spec 008, FR-021; plan.md §2); and at the follow camera,
     // where the control still stands, the carve-out applied there (FR-035).
@@ -396,7 +496,8 @@ export function selectablePicker(part: RoomScene, index: Pick<RoomIndex, "select
       following = camera;
       measure(next);
     },
-    pick: (ndc) => (stage === null ? null : pick(areas, toStage([ndc.x, ndc.y, 0], stage), held)),
+    pick: (ndc) =>
+      stage === null ? null : pick(pickable?.("dog") ? areas : bare, toStage([ndc.x, ndc.y, 0], stage), held),
   };
 }
 

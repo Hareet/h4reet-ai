@@ -34,6 +34,7 @@ import {
   Sprite,
   SpriteMaterial,
   SRGBColorSpace,
+  Vector3,
   WebGLRenderer,
 } from "three";
 import type { Material, Mesh } from "three";
@@ -52,6 +53,7 @@ import {
   showHandoff as drawHandoff,
 } from "./scene/bundle3d";
 import { floorOfPart } from "./compose/floor";
+import { reservedBoxes } from "./compose/hud";
 import type { Box } from "./compose/hud";
 import { bufferRatio, clearNdc, fillsCanvas, viewOffsetFor } from "./fit";
 import { reservedIn } from "./compose/frame";
@@ -66,6 +68,19 @@ import { cutoutDriver, figureDriverFor } from "./scene/figure";
 import { createWalking } from "./scene/walking";
 import { createWalkInput } from "./walk/input";
 import { reachTargets } from "./walk/reach";
+import type { Pose } from "./walk/movement";
+import { AVATAR_SHAPES } from "../choice/avatars";
+import { EATER, eatingAvailable } from "./eat/available";
+import { SPEAK_DEFAULTS, createBubble, speakingSeconds } from "./bubble";
+import type { Bubble } from "./bubble";
+import { createDinoFigures } from "./scene/dino-scene-figures";
+import type { DinoFigures } from "./scene/dino-scene-figures";
+import { uiWord } from "./ui-keys";
+import { createEat3d } from "./eat/eat3d";
+import type { Eat3d } from "./eat/eat3d";
+import { createMeal } from "./eat/meal";
+import type { Meal } from "./eat/meal";
+import { availabilityFor, eatTarget, edibleReach, edibleTargets } from "./eat/press";
 import type { LabelFactory } from "./scene/bundle3d";
 import type { AvatarFigures } from "./scene/avatars";
 import { buildFaceQuads, dressSurface } from "./scene/faces3d";
@@ -216,7 +231,13 @@ export function createLabels(doc: Document): Labels {
 export function createScene(options: SceneOptions): Stage3D {
   const { win, doc, clock } = options;
   const labels = createLabels(doc);
-  const room = buildRoom(part, { avatar: options.avatar, label: labels.factory, index: options.room });
+  // Spec 029 (FR-020): the paper's drawing, in the document, its word in the chalk face once it has arrived.
+  const room = buildRoom(part, {
+    avatar: options.avatar,
+    label: labels.factory,
+    index: options.room,
+    paper: { doc, ...(options.typefaces ? { typefaces: options.typefaces } : {}) },
+  });
   // The live faces and the glow cards (spec 004, T185): each read the motion store on every frame, so a pause or reduced
   // motion stills them mid-visit, and the faces' words come when room-data.json does (setText).
   const animating = (): { animate: boolean } => ({
@@ -255,7 +276,13 @@ export function createScene(options: SceneOptions): Stage3D {
   ink.prepare(room.scene);
   // Spec 008's highlight: the target's members' draws bordered in the look's highlight, its passes after the look's.
   const members = new Map(options.room.selectables.map((s) => [s.id, s.members] as const));
-  const highlight = createHighlight({ room, style: part.look.highlight, members: (id) => members.get(id) ?? [] });
+  // Spec 026 (R-09) bordered the dog's picture for a selectable with `figure: dog` while the dog stood at home; since
+  // spec 028 (FR-028; Q17) no room dog stands at home, so a selectable's members alone are bordered.
+  const highlight = createHighlight({
+    room,
+    style: part.look.highlight,
+    members: (id) => members.get(id) ?? [],
+  });
 
   // The studio models the 3D part sets, loaded as R-28 has it (scene/loader.ts): above ADR 0010's floor, which the room
   // read behind the choice (app.ts), so nothing here asks the device during the hand-off; after the hand-off; under the
@@ -271,6 +298,9 @@ export function createScene(options: SceneOptions): Stage3D {
   // loaded first, with the loader, by scene/avatars.ts's controllers, which show each in its figure once ready. Until
   // then, and for good where one fails, the figures keep buildRoom's fallbacks.
   let figures: AvatarFigures | null = null;
+  /** Spec 028 (FR-019 to FR-026; plan.md R-B3): the dinosaur's scene, made once in a dinosaur visit after the hand-off,
+   *  where the scene has `figures.leave`; its director waits for the dinosaur's model to show (Q11). */
+  let dino: DinoFigures | null = null;
   let leaving = false;
   const bundled = (id: string | null): boolean => id !== null && Object.hasOwn(part.avatars, id);
   // Spec 016 (FR-044): the twin's own model counts as the twin's figure's avatar where the part has it.
@@ -290,6 +320,12 @@ export function createScene(options: SceneOptions): Stage3D {
   };
   void options.gaveWay?.then(close, close);
   const handoffEnded = options.handoff ?? Promise.resolve();
+  // Spec 028 (FR-019; plan.md R-B3): the hand-off has ended, so the dinosaur's scene may take the figures' homes (as
+  // spec 025's run did, B-1: no home holds the hand-off's mid-turn rotation).
+  let handedOff = false;
+  void handoffEnded.then(() => {
+    handedOff = true;
+  });
   const gate = (): Promise<unknown> => (closed ? handoffEnded : Promise.resolve());
   // What the stage will load (spec 012): resolved once the loader's chunk has built the entries; never rejected.
   let sayExpected: (files: readonly ExpectedFile[]) => void = () => undefined;
@@ -409,7 +445,9 @@ export function createScene(options: SceneOptions): Stage3D {
   camera.layers.enable(LABEL_LAYER);
   const boxes = framedBoxes(part);
   frameCamera(camera, 16 / 9, boxes);
-  const picker = selectablePicker(part, options.room);
+  // Spec 026 (R-09): the dog figure's rectangle picked only while the dog showed its model at home; since spec 028
+  // (FR-028; Q17) none does, so it never picks.
+  const picker = selectablePicker(part, options.room, () => false);
   // Spec 008's walking view (T051): the walkable floor and the figure's driver from the 3D part, the input over the
   // canvas, and the orchestrator, which reach and the walking control's room callbacks reach the room through. Where
   // the part gives no floor or no figure, there is no walking view, and entering does nothing.
@@ -425,8 +463,89 @@ export function createScene(options: SceneOptions): Stage3D {
   const input = createWalkInput(canvas, win);
   const rates = { turn: (part.walking.turn_dps * Math.PI) / 180, tilt: (part.walking.tilt_dps * Math.PI) / 180 };
   let returning = false;
+  // Spec 024 (FR-001, FR-012; plan.md §5.4 to §5.6): the dinosaur's eating, only for a 3D dinosaur visit over a part
+  // with an edible placement. The meal ledger on the room's clock, the 3D side over each placement's model, and the
+  // press's gate (eat/press.ts) over the edible placements' frame boxes, which key B and the "Eat" tile both take.
+  const eatingRoom = options.eating;
+  // Only where the bundle carries the dinosaur's model (page Q247): without it the figure shows no dinosaur to eat.
+  const eats = options.avatar === EATER && bundled(EATER) && part.placements.some((p) => p.edible !== null);
+  const edible = eats ? edibleTargets(part) : [];
+  const eatReach = {
+    reach: part.walking.reach_m,
+    cone: (part.walking.reach_cone_deg * Math.PI) / 180,
+    radius: part.walking.radius_m,
+  };
+  /** A placement's model as the loader shows it: its node's child the loader names `model` (scene/loader.ts's
+   *  MODEL_NODE, not imported, so the loader's chunk stays its own). */
+  const modelOf = (id: string): Object3D | null =>
+    room.placements.get(id)?.children.find((c) => c.name === "model") ?? null;
+  let meal: Meal | null = null;
+  let eat3d: Eat3d | null = null;
+  if (eats) {
+    meal = createMeal({ regrow_s: part.eating.regrow_s, now: () => clock.now() });
+    eat3d = createEat3d({
+      part,
+      model: modelOf,
+      figure: () => ({ root: room.visitor, height: AVATAR_SHAPES[options.avatar].height }),
+      meal,
+      highlight,
+      now: () => clock.now(),
+      reduced: () => (options.motion ? options.motion.reducedMotion : options.reducedMotion),
+      ...(eatingRoom?.said
+        ? { said: (id: string) => eatingRoom.said?.(id, part.placements.find((p) => p.id === id)?.label ?? null) }
+        : {}),
+    });
+  }
+  /** The availability's parts the room and the stage know, apart from the reached piece. */
+  const eatBase = () => {
+    const state = eatingRoom?.state() ?? { paused: false, loading: false };
+    return {
+      view: "3d" as const,
+      avatar: options.avatar as string,
+      figureModel: figures?.shows("visitor") ?? false,
+      paused: state.paused,
+      loading: state.loading,
+      failed: eat3d?.disabled() ?? true,
+      // Spec 028 (FR-025; plan.md R-B6): only once the dinosaur's scene has ended or been cut, or at once where the
+      // scene has no `figures.leave`; the Eat box stays reserved from the visit's start (spec 024's FR-012, Q150).
+      sceneDone: part.figures.leave === undefined || dino?.scene.phase === "gone" || dino?.scene.phase === "cut",
+    };
+  };
+  /** The edible placement the walking figure reaches, or null. */
+  const eatReached = (pose: Pose | null): string | null => (pose && eats ? edibleReach(pose, edible, eatReach) : null);
+  /** A press, by key B or the tile: a bite where the gate takes it. */
+  const eatPress = (pose: Pose | null): void => {
+    if (!meal || !eat3d) return;
+    const piece = eatTarget(eatBase(), eatReached(pose), meal, (id) => modelOf(id) !== null);
+    if (piece !== null) eat3d.bite(piece);
+  };
+  let eatOffered = false;
+  /** FR-009: the eating's one pause, while the room is paused (the toggle, or the page hidden) or the loader shows; the
+   *  3D side reads it too. The room calls it on each change (eat.sync()), since a hidden page draws no frames while the
+   *  clock runs on (rv-rework-024's I-A); each frame reads it again, as a backstop. */
+  const eatSync = (): void => {
+    if (!meal) return;
+    const base = eatBase();
+    if (base.paused || base.loading) meal.pause();
+    else meal.resume();
+  };
+  /** Each frame: the meal's pause, the flights and regrowths, and the tile's availability, told on a change. */
+  const eatFrame = (): void => {
+    if (!meal || !eat3d) return;
+    eatSync();
+    const base = eatBase();
+    eat3d.frame();
+    const pose = walking?.on ? walking.pose : null;
+    const on = eatingAvailable(availabilityFor(base, eatReached(pose), meal, (id) => modelOf(id) !== null));
+    if (on !== eatOffered) {
+      eatOffered = on;
+      eatingRoom?.available?.(on);
+    }
+  };
   const leaveWalk = (): void => {
     if (!walking?.on) return;
+    // Spec 024's edge case: leaving walking during a flight lands the chunk at once (rework-024, nit 1).
+    eat3d?.settle();
     input.unbind();
     walking.leave(clock.now());
     returning = true;
@@ -458,6 +577,7 @@ export function createScene(options: SceneOptions): Stage3D {
             return nearsEdge(box, hud, size, rem);
           },
           held: (state, cause) => options.walkHeld?.(state, cause),
+          ...(eats ? { eat: (pose: Pose) => eatPress(pose) } : {}),
         })
       : null;
   /** The box the room is framed into, in the canvas's CSS pixels: since spec 014 the room's frame area (its FR-009 to
@@ -499,6 +619,7 @@ export function createScene(options: SceneOptions): Stage3D {
   /** A step that threw: the walk ends at the production framing, the figure at its place, and the room is told
    *  (FR-005), so the scene is never left blank or frozen. */
   const failWalk = (): void => {
+    eat3d?.settle();
     input.unbind();
     try {
       walking?.leave(clock.now());
@@ -570,7 +691,18 @@ export function createScene(options: SceneOptions): Stage3D {
       given.area.h > 0;
     const next: Box = fits ? given.area : { x: 0, y: 0, w, h };
     const nextHud: readonly Box[] = fits && framed ? framed.hud : [];
-    const nextReserved = fits && framed ? reservedIn(next, nextHud) : undefined;
+    // Spec 024 (rework-024, I-1; page Q215): in the stacked layout, where the room gives neither a frame nor a clear area
+    // and the canvas is its own stage, a dinosaur visit reserves the "Eat" tile's box beside the walking control's, where
+    // room.css puts the tile. A HUD layout mid-resize (its frame given for another window) also frames the whole canvas
+    // until the re-fit, but its tile sits at the HUD's Eat box, so it reserves as every other visit does: the picker's
+    // fallback, the walking control's box alone, as before (rework2-024, N-3).
+    const stacked = given === null;
+    const nextReserved =
+      fits && framed
+        ? reservedIn(next, nextHud)
+        : stacked && eats
+          ? reservedBoxes(next, undefined, { eat: true })
+          : undefined;
     if (
       w === size.w &&
       h === size.h &&
@@ -596,6 +728,43 @@ export function createScene(options: SceneOptions): Stage3D {
   let frame = 0;
   let level = 0;
   let last: number | null = null;
+  /** Spec 028 (FR-020, FR-027; plan.md R-B5): the speech bubble over the twin, made at its first words. */
+  let bubble: Bubble | null = null;
+  const reducedNow = (): boolean => (options.motion ? options.motion.reducedMotion : options.reducedMotion);
+  /** The twin's speaking time for a line (spec 016's speak_wpm within speak_s; the defaults where the part has no twin
+   *  block). */
+  const speaking = (text: string): number =>
+    speakingSeconds(
+      text,
+      part.twin?.block.speak_wpm ?? SPEAK_DEFAULTS.speak_wpm,
+      part.twin?.block.speak_s ?? SPEAK_DEFAULTS.speak_s,
+    );
+  /** Shows a line in the bubble over the twin for `seconds`, its host the canvas's container. */
+  const say = (text: string, seconds: number): void => {
+    if (disposed) return;
+    const host = canvas.parentElement;
+    if (!host) return;
+    if (!bubble || bubble.element.parentElement !== host) {
+      bubble?.dispose();
+      bubble = createBubble(doc, host);
+    }
+    bubble.show(text, seconds, clock.now(), { reduced: reducedNow() });
+  };
+  const head = new Vector3();
+  /** The bubble at the twin's head, projected by the room's camera, clamped inside the frame area. */
+  const placeBubble = (): void => {
+    if (!bubble?.shown) return;
+    bubble.tick(clock.now());
+    if (!bubble.shown) return;
+    const picture = figures?.pictureOf("twin") ?? room.twin;
+    picture.updateWorldMatrix(true, false);
+    head.setFromMatrixPosition(picture.matrixWorld);
+    head.y += part.figures.twin_height + 0.1;
+    head.project(camera);
+    const x = canvas.offsetLeft + ((head.x + 1) / 2) * size.w;
+    const y = canvas.offsetTop + ((1 - head.y) / 2) * size.h;
+    bubble.place(x, y, { x: canvas.offsetLeft + area.x, y: canvas.offsetTop + area.y, w: area.w, h: area.h });
+  };
   const loop = (time: number): void => {
     if (disposed) return;
     options.onFrame(time);
@@ -630,6 +799,34 @@ export function createScene(options: SceneOptions): Stage3D {
         }
       }
     }
+    // Spec 025's run (its FR-001 to FR-024) and spec 026's petting (its FR-001) no longer start in the room (spec 028,
+    // FR-028; Q10, Q17): the run's shell and the pet director aren't made for any visit; their modules stay, unwired.
+    // Spec 028 (FR-019 to FR-026; plan.md R-B3): the dinosaur's scene in their place, after the walking view's pose and
+    // before the figures' clips; paused (or a hidden page) apart from reduced motion, which cuts it.
+    const leave = part.figures.leave;
+    if (!dino && figures && handedOff && options.avatar === EATER && leave) {
+      const avatars = figures;
+      dino = createDinoFigures({
+        leave,
+        avatars,
+        takenNode: room.placements.get(leave.takes) ?? null,
+        root: room.scene,
+        chosen: options.avatar,
+        handedOff: () => handedOff,
+        callSeconds: () =>
+          Math.max(
+            speaking(uiWord(options.room.ui, "figures.dino_call") ?? ""),
+            avatars.clipOf("twin", "greeting")?.duration ?? 0,
+          ),
+        call: () => {
+          const words = uiWord(options.room.ui, "figures.dino_call");
+          if (words) say(words, Math.max(speaking(words), avatars.clipOf("twin", "greeting")?.duration ?? 0));
+          options.onFigure?.({ kind: "dino-call" });
+        },
+        left: (who) => options.onFigure?.({ kind: "dino-left", who }),
+      });
+    }
+    dino?.frame(dt, { animate: moving, paused: !moving && !reducedNow(), level, reduced: reducedNow() });
     const sway = settings.animations && moving && !figures?.shows("twin");
     room.twin.rotation.z = sway ? Math.sin(time / 900) * 0.015 : 0;
     // The figures' clips advance only while the motion store animates (spec 009, FR-025 to FR-027).
@@ -637,6 +834,8 @@ export function createScene(options: SceneOptions): Stage3D {
     last = time;
     faces.frame(time);
     glows.frame(time);
+    eatFrame();
+    placeBubble();
     // The highlight after the look's frame, whatever the quality level does to its ink lines (spec 008, FR-017), and
     // the labels after the highlight (FR-019).
     drawFrame({
@@ -657,7 +856,9 @@ export function createScene(options: SceneOptions): Stage3D {
     element: canvas,
     canvas,
     // Spec 014 (FR-010, FR-016): the frame area's protector over this part, which the room's re-fit takes.
-    protect: protectorFor(protectSceneOf(part, options.room)),
+    // Spec 024 (Q150, A2): a dinosaur visit's protector reserves the "Eat" tile's box from the visit's start, so the
+    // framing doesn't move when the tile shows or hides.
+    protect: protectorFor(protectSceneOf(part, options.room), undefined, { eat: eats }),
     showHandoff(progress) {
       // Its first call is the hand-off's start: no figure file or set model parses from then until it ends (R-10), if
       // the loader's giving way hasn't closed the gate already (spec 012).
@@ -668,6 +869,10 @@ export function createScene(options: SceneOptions): Stage3D {
     figures: figuresReady,
     waitMs: part.figures.wait_ms,
     expected,
+    // Spec 028 (FR-027; plan.md R-B5, R-B7): a line in the bubble over the twin, for its seconds.
+    say(text, seconds) {
+      say(text, seconds ?? speaking(text));
+    },
     // Spec 016 (FR-022): the conversation's activity, to the twin's states; nothing before the figures' chunk loads.
     twinActivity(activity) {
       figures?.twinActivity(activity);
@@ -704,6 +909,8 @@ export function createScene(options: SceneOptions): Stage3D {
       },
       leave: leaveWalk,
     },
+    // Spec 024 (FR-012): the "Eat" tile's press, the key's gate; absent where the visit can't eat.
+    ...(eats ? { eat: { press: () => eatPress(walking?.on ? walking.pose : null), sync: eatSync } } : {}),
     setQuality(next) {
       const before = settings.shadows;
       level = next;
@@ -731,10 +938,15 @@ export function createScene(options: SceneOptions): Stage3D {
       input.unbind();
       loader?.stop();
       figures?.dispose();
+      dino?.dispose();
+      bubble?.dispose();
       canvas.removeEventListener("webglcontextrestored", restored);
       faces.dispose();
       glows.dispose();
       highlight.dispose();
+      // Spec 024 (rework-024, nit 3): what the eating built, a split out of the scene included, which disposeRoom's
+      // walk of the scene can't reach.
+      eat3d?.dispose();
       disposeRoom(room);
       renderer.dispose();
       canvas.remove();

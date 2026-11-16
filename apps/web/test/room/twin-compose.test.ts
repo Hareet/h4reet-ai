@@ -75,7 +75,8 @@ function onBranch(): { tree: Tree; policy: RoomPolicy; result: ComposeResult } {
 
 describe("the twin's files, read by the convention (FR-009; plan.md R-01)", () => {
   it("are the model twin.glb, the five clips by role, and still.png, in the closed list's order", () => {
-    expect([...TWIN_CLIP_ROLES]).toEqual([...TWIN_ROLES]);
+    // Spec 026 (FR-009): the closed list gains `petting`, the studio's clip, which the fixture's folder doesn't hold.
+    expect([...TWIN_CLIP_ROLES]).toEqual([...TWIN_ROLES, "petting"]);
     const tree = twinTree();
     const scene = loadRoom(tree).scene?.value ?? null;
     const twin = readTwin(tree, twinPolicy(), scene);

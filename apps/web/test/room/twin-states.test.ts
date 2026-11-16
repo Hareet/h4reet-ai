@@ -6,7 +6,7 @@
 // - resting after 20 s of quiet, within 50 ms; left on a draft, a turn, a selection, or an answer.
 import { describe, expect, it } from "vitest";
 
-import { createTwinStates } from "../../src/room/scene/twin-states";
+import { TWIN_CLIPS_DEFAULT, TWIN_CLIP_ROLES, TWIN_STATES, createTwinStates } from "../../src/room/scene/twin-states";
 import type { TwinState } from "../../src/room/scene/twin-states";
 
 const BLOCK = { rest_after_s: 20, speak_wpm: 150, speak_s: [3, 20] as [number, number] };
@@ -129,5 +129,114 @@ describe("the twin's states (FR-021; SC-004)", () => {
     expect(t.tick(5 * S + 50)).toBe("present");
     expect(t.tick(15 * S + 50)).toBe("resting");
     expect(t.state).toBe("resting");
+  });
+});
+
+// T003 (spec 025; FR-011, FR-012; plan.md R-04): `fleeing`, first in the order, set by `{ kind: "flee", on }`, its clip
+// the idle; the machine's timers keep running under it, so what holds after the run is what they say then.
+describe("fleeing, the run's state (spec 025, FR-011)", () => {
+  it("is first in the order and the map's default plays the idle", () => {
+    expect(TWIN_STATES[0]).toBe("fleeing");
+    expect(TWIN_CLIPS_DEFAULT.fleeing).toBe("idle");
+    expect([...TWIN_CLIP_ROLES]).toEqual(["idle", "talking", "listening", "greeting", "desk-lean", "petting"]);
+  });
+
+  it("outranks arriving, answering, listening, and resting while it's on, and ends with its signal", () => {
+    const t = createTwinStates(BLOCK);
+    t.arrive(0, 2.47);
+    t.signal({ kind: "flee", on: true }, 100);
+    expect(t.tick(100)).toBe("fleeing");
+    t.signal({ kind: "answer", words: 10 }, 200);
+    t.signal({ kind: "draft", holds: true }, 300);
+    expect(t.tick(300)).toBe("fleeing");
+    t.signal({ kind: "flee", on: false }, 1000);
+    expect(t.tick(1000)).toBe("arriving");
+  });
+
+  it("keeps the timers running: an answer during the run talks for what is left of it after", () => {
+    const t = createTwinStates(BLOCK);
+    t.signal({ kind: "flee", on: true }, 0);
+    t.signal({ kind: "answer", words: 10 }, 0);
+    expect(t.tick(2 * S)).toBe("fleeing");
+    t.signal({ kind: "flee", on: false }, 2 * S);
+    expect(t.tick(2 * S)).toBe("answering");
+    expect(t.tick(4 * S + 50)).toBe("present");
+  });
+
+  it("rests after the run where the quiet's time passed under it", () => {
+    const t = createTwinStates(BLOCK);
+    t.signal({ kind: "flee", on: true }, 0);
+    expect(t.tick(25 * S)).toBe("fleeing");
+    t.signal({ kind: "flee", on: false }, 25 * S);
+    expect(t.tick(25 * S)).toBe("resting");
+  });
+});
+
+// T005 (spec 026; FR-009; plan.md R-05; SC-004): `petting`, after fleeing and arriving and before answering, set by
+// `{ kind: "pet", on }`; the order table above, with the pet input added, and every earlier state's case unchanged.
+describe("petting, the twin's petting of the dog (spec 026, FR-009)", () => {
+  it("orders petting after fleeing and arriving, before answering, listening, and resting", () => {
+    const t = createTwinStates(BLOCK);
+    const steps: [number, Parameters<typeof t.signal>[0] | "arrive" | null, TwinState][] = [
+      [0, "arrive", "arriving"],
+      [500, { kind: "pet", on: true }, "arriving"],
+      [2600, null, "petting"],
+      [2700, { kind: "answer", words: 5 }, "petting"],
+      [2800, { kind: "draft", holds: true }, "petting"],
+      [2900, { kind: "flee", on: true }, "fleeing"],
+      [3000, { kind: "flee", on: false }, "petting"],
+      [3100, { kind: "pet", on: false }, "answering"],
+      [5800, null, "listening"],
+      [5900, { kind: "draft", holds: false }, "present"],
+      [25_950, null, "resting"],
+      [26_000, { kind: "pet", on: true }, "petting"],
+      [27_000, { kind: "pet", on: false }, "resting"],
+    ];
+    for (const [at, activity, state] of steps) {
+      if (activity === "arrive") t.arrive(at, 2.47);
+      else if (activity) t.signal(activity, at);
+      expect(t.tick(at), `at ${at}`).toBe(state);
+    }
+  });
+});
+
+// T-B04 (spec 028; FR-020; plan.md R-B3, R-3): `wave`, the dinosaur's scene's call, plays the greeting once more: an
+// amendment of spec 016's contract, whose cases above stay as they are.
+describe("wave, the dinosaur's scene's call (spec 028, FR-020)", () => {
+  it("greets again for the greeting's length after the arrival's greeting, once a visit", () => {
+    const t = createTwinStates(BLOCK);
+    t.arrive(0, 2.47);
+    expect(t.tick(3 * S)).toBe("present");
+    t.wave(10 * S, 2.47);
+    expect(t.tick(10 * S)).toBe("arriving");
+    expect(t.tick(10 * S + 2.47 * S - 1)).toBe("arriving");
+    expect(t.tick(10 * S + 2.47 * S)).toBe("present");
+    // Once a visit: a second wave does nothing.
+    t.wave(20 * S, 2.47);
+    expect(t.tick(20 * S)).toBe("present");
+  });
+
+  it("greets without an arrival before it, and leaves arrive's once-a-visit as it was", () => {
+    const t = createTwinStates(BLOCK);
+    t.wave(0, 1);
+    expect(t.tick(500)).toBe("arriving");
+    expect(t.tick(1000)).toBe("present");
+    t.arrive(2 * S, 2.47);
+    expect(t.tick(2 * S)).toBe("arriving");
+  });
+
+  it("ends at once when the greeting's clip has finished, as the arrival's does", () => {
+    const t = createTwinStates(BLOCK);
+    t.arrive(0, 2.47);
+    t.wave(5 * S, 2.47);
+    t.arrived(6 * S);
+    expect(t.tick(6 * S)).toBe("present");
+  });
+
+  it("starts the quiet after it, as after the arrival's greeting", () => {
+    const t = createTwinStates(BLOCK);
+    t.wave(0, 2);
+    expect(t.tick(2 * S + 20 * S - 1)).toBe("present");
+    expect(t.tick(2 * S + 20 * S)).toBe("resting");
   });
 });

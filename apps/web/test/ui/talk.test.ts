@@ -457,6 +457,9 @@ describe("the fixed messages", () => {
       "turn_refused.slow_down",
       "turn_refused.unreadable",
       "turn_stopped",
+      // Spec 029's two (its FR-012, Q4): free talk closed, and the room not yet taking input.
+      "cannot_talk.free_talk_closed",
+      "turn_wait.room",
     ]);
     for (const id of MESSAGE_IDS) expect(messages[id].trim(), id).not.toBe("");
     expect(messages.topic_not_ready).toContain("{topic}");

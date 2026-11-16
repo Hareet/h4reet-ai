@@ -1,0 +1,210 @@
+# Implementation Plan: A Better HUD, From the Author's Examples, and a Load Screen to Match
+
+**Approved provisionally by the Author's order of 2026-11-13**, in his words:
+
+> "I'd like them to keep going beyond the plan and approval and finish implementation and keep merging down to as few patches and gates as we've seen the difficulty there. Ensure there are small tests that can be run instead of the whole suite over and over"
+
+and: "Okay, we want the night-shift, in order of importance, from the"improvements, in your words" section: a) "better HUD with examples provided, and load screen", …". The order's rule 1, the supervisor's statement of his order and not his words: the spec-writer takes the recommended answer at clarify and at the plan. Q1 to Q5 and D1 to D8 stand as taken. Q53 to Q60 are recorded on the night's page as "Answered: recommended, the Author 2026-11-13", and R1 to R7 are taken at their recommended answers. Each is on the morning page, and an overturned answer is reworked before he merges.
+
+**Reworked 2026-11-14 by rule 6** (the Opus re-reviews rv-spec-018 and rv2-impl-018, both blocking), on `night/rework-spec-018/rework-spec-018` from impl-018's tip (b9378980). What changed is in §2, §3, §7, §13, and the rework's decisions, R-1 to R-7. The code it needs is tasks.md's T021 to T030, on `night/rework-018/rework-018`.
+
+**Branch**: `night/hud-spec/spec-018` (first documents), `night/impl-018/impl-018` (code), this rework | **Spec**: [spec.md](spec.md) | **Created**: 2026-11-14
+
+## Summary
+
+Refine the column layout into a **split** layout (D-I1, Q53), on the windows FR-001 selects: those where the open conversation panel still leaves spec 005's floor, 304 × 196, beside it, and the HUD at rest covers at most 25%. At the compositor's metrics that is from 1392 px wide. On those windows the conversation rests as one row at the bottom bar's left and opens as a panel over the scene's left. The list stands at the column band's top right and the walking control at its foot. The type and colours are the room's own. The frame and strokes come from a seeded path generator, and the key caps are drawn in code. Restyle spec 012's loader card in the same frame. The clear area, the frame area, and the stages stay the column layout's at every window. No layout on another window changes. The one request is the twin's still, now also fetched in 3D (row V1). No telemetry.
+
+## Technical Context
+
+TypeScript, Vite, Three.js (existing); vitest with jsdom for the room's tests (`apps/web`); eslint and `tsc` through `make lint`. No new dependency (FR-011, D4). Storage: none. Target: the room's browsers, 320 px to a large monitor. Constraints:
+- the CSP's `style-src 'self'`: sizes go through `style.setProperty` and classes only, as `layout.ts` does;
+- `img-src 'self'`: the frame and strokes are inline SVG elements built by script, with no data: image except the still's verified data: URL, which spec 016's 2D drawing already uses;
+- spec 005's FR-022: the text box is never collapsed;
+- spec 012's behaviour is unchanged;
+- spec 014's FR-016: one kernel function gives the frame area to the room and the compositor.
+
+## Constitution Check
+
+As the spec's: I (one disclosed same-origin fetch in 3D, row V1), V, VI, VII satisfied. II is met by the tests below, and its telemetry and cost-measurement deviation is named in the spec's Assumptions, with Workflow step 7's. III by the provisional record above. IV: no human-only path is in the file map. VIII: the stand-in line and the AI disclosure are never covered (§2, geometry test).
+
+## Project Structure
+
+Documentation: `spec.md`, `plan.md`, `tasks.md`, `analysis.md`, this folder; the intent in `intent/018-better-hud-and-load-screen.md`.
+
+**The file map**: every file a task changes, T001 to T030, under `apps/web/` unless named. **new** marks a file a task creates; (impl-018) marks a file T001 to T020 changed; (rework) marks a file T021 to T030 change.
+
+| File | Tasks | What |
+|---|---|---|
+| `src/room/compose/hud.ts` | T007 (impl-018), T023 (rework) | `HUD_PLACEMENTS.split`; `splitBoxes` with FR-001's rule (a) to (e); the rest row, list, and walking control boxes (FR-004); `compactBoxes` split-aware (its `split` field, `all`, `walk`); `alwaysOnCoverage` follows |
+| `src/room/compose/frame.ts` | none | Spec 014's frame area. It takes the HUD boxes at rest through `compactBoxes(…).all`, so T023 changes what it eases against with no edit here. The brief names `compose/framing.ts`, which is the camera's framing (spec 004) and doesn't change. |
+| `src/room/compose/stages.ts` | none | `stageFor`'s reserved boxes come through `compactBoxes(…).all` and follow T023; its sweep and stages are unchanged, since the clear area is (Q53, Q59) |
+| `src/room/hud/frame.ts` **new** | T002 (impl-018) | `roughFramePath`, `brushStrokePath` |
+| `src/room/hud/keycap.ts` **new** | T003 (impl-018) | `keycap(doc, name)` |
+| `src/room/hud/stats.ts` **new** | T004 (impl-018) | `statsFrom(tier, cost, words)` |
+| `src/room/hud/split.ts` **new** | T009, T010, T012, T015, T018 (impl-018); T025, T026 (rework) | the panel's and the list's parts; Escape's order (FR-009); focus to the opener (FR-045); the emblem from `hud/icons.ts` (Q60) |
+| `src/room/hud/split.css` **new** | T012, T014 (impl-018); T025, T027, T028 (rework); verify-018 | the split layout's rules; the rest row in the bar's band; glass behind the title row (B2); the keyboard inset (B1); the rest row's text box may shrink (`min-width: 0`, I-2) |
+| `src/room/layout.ts` | T009 (impl-018), T025 (rework) | `--split-*` properties (the rest row's replace the bar's); `data-split`; the walking control's place from `compact.walk` |
+| `src/room/app.ts` | T009, T018 (impl-018); T025, T028 (rework) | wiring; a sent turn opens the panel; the opener recorded; the keyboard inset passed to the split layout |
+| `src/talk/talk.ts` | T009 (impl-018); T025 (rework) if the opener needs a hook | `onConversation`, `onLarger`; the sent turn's hook |
+| `src/room/flat.ts` | T010 (impl-018) | `fetchStill` exported, spec 016's verified fetch, the panel's only path (D-I4); no behaviour change |
+| `src/room/loading/view.ts`, `loading/loading.css` | T017 (impl-018) | the loader's frame and title |
+| `src/room/hud/icons.ts` | T026 (rework); verify-018 | gains an icon for each of the scene's four pieces and a speech glyph (Q60, R6); keyed by the emblem's name the data gives, the speech glyph for none (D-V3) |
+| `room/scene.yaml`, `room/README.md`, `build/room/schema.ts`, `build/room/emit.ts`, `src/room/compose/bundle.ts`, `src/room/hud/split.ts` (`emblem` option) | verify-018 | a selectable's optional `emblem`, through the index to the panel (D-V3) |
+| `test/room/emblem-data.test.ts` **new** | verify-018 | D-V3: the committed scene names an emblem icons.ts draws for each piece |
+| `room/ui-words.yaml`, `src/room/ui-keys.ts` | T005 (impl-018) | §6's words |
+| `test/fixtures/room/good/apps/web/room/ui-words.yaml` | T005 (impl-018) | the fixture's words, kept equal to the room's |
+| `room.css` | none | named by the first plan; impl-018 didn't need it, and the rework doesn't |
+| `test/room/hud-frame.test.ts`, `hud-stats.test.ts` **new** | T001, T004 (impl-018) | |
+| `test/room/hud-split-geometry.test.ts` **new** | T006 (impl-018), T021 (rework) | FR-001, FR-004, SC-001 (§13) |
+| `test/ui/hud-split-model.test.ts` **new** | T021 (rework) | the rest row's least width and the list's height, from the words |
+| `test/ui/hud-model.ts` | T023 (rework) | the layout model's helper gains the split layout's measures (§2) |
+| `test/room/frame.test.ts` | T022 (rework) | spec 014's: two cases measured from the list's box (R4, §13) |
+| `test/room/hud.test.ts`, `test/room/__snapshots__/protect.test.ts.snap` | verify-018 | spec 014's: D-R4's amendment, applied under Q94 (§13) |
+| `test/ui/hud-split.test.ts` **new** | T003, T008, T010, T011 (impl-018); T024, T026, T028 (rework) | |
+| `test/ui/hud-split-rest-row.test.ts` **new** | verify-018 | I-2: the rest row's text box has a least width of 0 (FR-004, D-R1) |
+| `test/ui/hud-split-a11y.test.ts`, `hud-split-contrast.test.ts` **new** | T013 (impl-018); T024, T027 (rework) | |
+| `test/ui/hud-split-fallback.test.ts`, `loading-style.test.ts` **new** | T015, T016 (impl-018) | |
+| `test/ui/hud-look.test.ts` | T012 (impl-018) | D-I3, Q55 |
+| `test/room/vocabulary.test.ts` | T005 (impl-018) | the new words' keys |
+| `docs/data-flow-disclosure.md` | T029 (rework) | row V1's **Carries** (FR-003, H-11) |
+| `docs/merge-requests/2026-11-14-night-stack.md` | T019 (impl-018), T029 (rework) | the stack note's item 1 section |
+
+## 1. Decisions
+
+| # | Decision | Why |
+|---|---|---|
+| P1 | A refinement of the column layout, not a fourth layout or a rewrite (as D-I1 settled, Q53) | Spec 005/014's layouts are pinned by many tests and are the degraded mode (FR-001). |
+| P2 | Panel states `data-panel="bar"` (the rest row; impl-018's attribute value, kept) and `"open"`, one DOM | One text box, one log, one Tab stop. The rest row is a CSS state, so the log and text survive a resize (edge case). |
+| P3 | Frame and strokes are SVG built by script from a seeded path | CSP-safe, no file, no filter, testable by string (D3, D6). |
+| P4 | Key caps are small spans in code, `aria-hidden`, their names in the buttons' accessible names | FR-013, FR-016. |
+| P5 | The stats read the signals the neon sign reads (`signals/turn-cost.ts`, the tier signal) | FR-010, no new source. |
+| P6 | The portrait is spec 016's still, through `flat.ts`'s `fetchStill` (D-I4) | Q4. One fetch, disclosed in row V1 (FR-003). |
+| P7 | The selected entry is focus, else hover, else the open piece. Rows keep their size, and the enlarged type sits in a fixed-height row. | FR-008, no layout shift. |
+
+## 2. Geometry (`HUD_PLACEMENTS.split`, `splitBoxes`), reworked
+
+All sizes in rem of the window's root font size, except the floor's pixels. `t` is the table, `clear`, `band`, `bar` the column layout's boxes from `hudBoxes`, unchanged (D-I1).
+
+The table: `split: { panel: { shareMax: 0.5, maxRem: 40, minWidthRem: 18, minHeightRem: 14, titleRem: 2.75 }, rest: { minRem: <the model's finding>, gapRem: 0.25 }, list: { widthRem: 24, heightRem: 25 }, walkGapRem: 0.25, coverMax: 0.25 }`. impl-018's `minWidthRem: 48` and `panel.gapRem` go. The first is replaced by the rule, and the second, which kept the panel off the walking control's corner, is subsumed by (c): the floor's 304 px is wider than the corner's 9rem. (As amended by spec 026's human patch, r4, provisional on the page's Q39 of 2026-11-15: `heightRem` 22 → 25, the model's 24.72rem for the five entries with the dog's sign. Since spec 028 the list's box is the column's top, its FR-007, so 25rem sizes no box; `test/ui/hud-split-model.test.ts` holds the list's content to it at scale 1.)
+
+`splitBoxes(screen, state, metrics)` returns null unless every condition holds, in this order:
+1. **(a)** `layoutFor` is "column" and `fitsHud` holds.
+2. **The panel**: `x = clear.x`, `y = clear.y + notesReserve(clear)`, `w = min(40rem, 0.5 · screen.w − clear.x)`, `h = clear.y + clear.h − y`. **(b)** `w ≥ 18rem` and `h ≥ 14rem`.
+3. **(c)** `clear.w − panel.w ≥ minimum.w` (304) and `clear.h ≥ minimum.h` (196).
+4. **The rest row**: `x = safe.left`, `y = bar.y`, `h = bar.h`, `w = min(panel.w, cluster.x − 0.25rem − safe.left)`, with `cluster` the bar's tile cluster from the compact boxes. **(d)** `w ≥ rest.minRem`.
+5. **The walking control**: `x = band.x + band.w − safe.right − 0.25rem − 8rem`, `y = band.y + band.h − 0.25rem − 2.75rem`, `w = 8rem`, `h = 2.75rem`.
+6. **The list**: `w = min(24rem, band.w − safe.right)`, `x = band.x + band.w − safe.right − w`, `y = band.y`, `h = min(25rem, walk.y − 0.25rem − band.y)` (22rem before spec 026's human patch, r4; provisional, the page's Q39 of 2026-11-15; spec 028's `wallBoxes` replaces this box).
+7. **(e)** `unionArea([strip, cluster, rest, list, walk, notesBox(clear)]) / (screen.w · screen.h) ≤ coverMax`, with the strip and cluster from the compact boxes.
+
+`SplitBoxes` is `{ panel, rest, frame, list, walk }`, where `frame` is the panel's box with the rest row below it (`panel.y` to `rest.y + rest.h`), the box the open panel's frame is drawn round. `compactBoxes` calls `splitBoxes` and, where it isn't null, returns `split`, `walk` (the split walk), `walkPlace: "column"`, and `all: [strip, cluster, rest, list, walk]`. `column` stays the column layout's compact box, computed but not shown, so spec 014's `hud-model.test.ts` case on the column's content holds as written. `frameArea`, `stageFor`, `framedStage`, and `alwaysOnCoverage` take the split boxes through `all`, with no edit of their own.
+
+The model (`test/ui/hud-model.ts`): `rest.minRem` is the rest row's contents at their sizes, rounded up to a whole rem: the title toggle's words, the "Larger conversation" tile, the label's words inline, the text box's least width (`talk.inputMinRem`), Send's words, and the talk tile, with their gaps. `list.heightRem` must hold the label, "Back", and every entry at its 3.25rem row. `test/ui/hud-split-model.test.ts` holds both to the words.
+
+**Computed at the compositor's metrics** (16-pixel root, no safe areas). The review's windows are in spec FR-001's table. The rest of SC-001's:
+
+| Window | Panel (open) | Scene beside it | Rest row | List | Walking control | At rest |
+|---|---|---|---|---|---|---|
+| 1392 × 783 | (0, 109.5) 640 × 621.5 | 304 × 703.5 | (0, 731) 640 × 52 | (1008, 27.5) 384 × 352 | (1260, 683) | 23.0% |
+| 1920 × 1080 | (0, 109.5) 640 × 918.5 | 832 × 1000.5 | (0, 1028) 640 × 52 | (1536, 27.5) 384 × 352 | (1788, 980) | 12.1% |
+| 1920 × 1200 | (0, 109.5) 640 × 1038.5 | 832 × 1120.5 | (0, 1148) 640 × 52 | (1536, 27.5) 384 × 352 | (1788, 1100) | 10.9% |
+| 2560 × 1440 | (0, 109.5) 640 × 1278.5 | 1472 × 1360.5 | (0, 1388) 640 × 52 | (2176, 27.5) 384 × 352 | (2428, 1340) | 6.8% |
+
+These are the spec-writer's arithmetic from the table, with `rest.minRem` taken as 30 (non-binding at these windows: the rest row is 640 wide). T021 writes them as the geometry test's expectations, and T023 makes the kernel give them. A difference is the kernel's to explain in the task's notes, not the test's to absorb.
+
+## 3. The panel (`hud/split.ts`, `talk.ts`), reworked
+
+DOM, in order: the title (a heading-less `div` label at the panel's top-left, with the panel's glass behind it, B2; the room's h1 is unchanged); the frame (`svg`, `aria-hidden`, drawn round `SplitBoxes.frame`); the hint (a button: key cap + "Close"); the emblem (the open piece's icon from `hud/icons.ts`, or the speech glyph in free talk, Q60) and the stats (`dl`: label `dt`, value `dd`); the body (the log, spec 002's, restyled); the portrait slot. The rest row is the existing text box row, with the conversation's head (the title toggle and "Larger conversation") inline before it, placed by CSS at `--split-rest-*` in the bar's band. The log, text box, Send, and talk button are the existing elements, moved by CSS and never recreated (`talk.ts` keeps its API).
+
+**Opening and closing (FR-006)**: `open` when a piece is chosen (list or scene), a turn is sent (free talk included), a line arrives in the log, or "Larger conversation" is pressed (D-I2). `rest` on Back, the hint, Escape's step 7, or "Smaller conversation". The opener is recorded at each opening (the entry, the toggle, or the text box) for FR-045's focus return.
+
+**Escape (FR-009)**: one listener, at capture on the document, as impl-018's. It returns at once on `defaultPrevented` or `browserOwnsEscape(doc)`. It leaves the event to its owner when a turn is out, the walking view is on, the resume is open, or the larger view is on with focus in the conversation. Else, with the panel open, it closes the panel and calls `preventDefault`.
+
+**The keyboard (B1)**: the rest row and the panel's foot take the inset `layout.ts` already applies to the column's text box row (`m.keyboard`), so they stay above it.
+
+## 4. The list (`hud/split.ts`)
+
+The list's existing buttons keep their handlers; the label, "Back", and the strokes are added around them. `aria-current` follows P7 (Q56). The strokes are two `svg` elements positioned above and below the selected row by CSS classes. Arrow keys: no roving behaviour is added, since the tab order is spec 005's.
+
+## 5. The look and the loader
+
+Type and colours from `room.css`'s variables; `split.css` holds the rules. The loader card (`loading/view.ts`) gains the frame element and the title, and `loading.css` the type. The bar, tints, hints, and timing code is not edited, so spec 012's tests are its guard. Contrast: `hud-split-contrast.test.ts` follows `loading-contrast.test.ts`, and gains the title row's glass (B2).
+
+## 6. Words
+
+New keys, plain and about the machine only: `hud.select`, "Select a piece"; `hud.back`, "Back"; `hud.close`, "Close"; `key.esc`, "Esc"; `key.enter`, "Enter"; `stat.serving`, "Serving"; `stat.call`, "This call"; `stat.visit`, "This visit"; `stat.unknown`, "—"; and `stat.tier.local|cloud|resting|budget|unavailable|unknown`: "Local", "Cloud", "Resting", "Budget", "Unavailable", "Unknown". Labels are capitals by CSS; the words are sentence case. They are added to `ui-words.yaml` and `ui-keys.ts`'s closed list; `test/room/words.test.ts` and `vocabulary.test.ts` are their guards. The rework adds none.
+
+## 7. Telemetry, cost, disclosure
+
+No telemetry (spec D7; the deviation named in its Assumptions). Cost: $0. Disclosure: row V1's **Carries** gains "or, in a 3D visit, once, when the conversation panel first opens in the split layout (spec 018)" (FR-003, H-11). It is written by T029 in the same branch as the code that fetches the still. impl-018 shipped that fetch without the row, which rv-spec-018 found.
+
+## 8. Accessibility
+
+As FR-016 to FR-018. `hud-split-a11y.test.ts` runs axe on the open and rest states and asserts the Tab order and the accessible names. FR-045's focus return is asserted for each opener (T024).
+
+## 9. Fault handling
+
+`split.ts` builds each decoration (frame, strokes, portrait, key caps, emblem) in its own try, which falls back to the plain form (FR-002). `hud-split-fallback.test.ts` forces each to throw.
+
+## 10. Tests
+
+Test-first. Small runs, per task: `cd apps/web && npx vitest run <files>` and `make lint`. The covering existing tests are run with the task that changes their subject: `test/room/hud.test.ts`, `stages.test.ts`, `frame.test.ts`, `test/ui/hud-notes.test.ts`, `hud-model.test.ts` for `hud.ts`; `test/ui/hud.test.ts`, `hud-a11y.test.ts`, `hud-pointer.test.ts`, `hud-look.test.ts`, `pause.test.ts` for `layout.ts`, `split.ts`, `split.css`, and `app.ts`; `loading-*.test.ts` for the loader's files. The full suite is **not** run in this item: the stack's last task runs it once (the order's rule 4). `twin-2d.test.ts` is known flaky under load.
+
+## 11. The Author's look approval
+
+A dev-cpu stack (`make up ENV=dev-cpu`) shows the room. The implementer records screenshots' paths in the note if its sandbox can take them, at 1920 × 1080 (split, rest and open) and 1280 × 720 (column). His look approval is his, at the morning; a change from it is rework.
+
+## 12. Stack and gate
+
+This is item 1: its tip, after rework-018 and its review (rv-rework-018), is the base the line merges before impl-021 (the supervisor's queue). The note, `docs/merge-requests/2026-11-14-night-stack.md`, carries this item's section; the last item names the stack once. No human-only patch comes from this item.
+
+## 13. Existing tests whose expectations change, and what each then holds
+
+The test files spec 018 itself added change where FR-001's rule moved 1280 × 720 out of the split layout. Of the other specs' tests, three of spec 014's change: `frame.test.ts` (T022), and `hud.test.ts` and `protect.test.ts`'s snapshot (D-R4's amendment, applied by verify-018 under Q94). Every other covering test keeps its expectations: that is SC-002.
+
+| Test | Today (impl-018) | After the rework, it holds |
+|---|---|---|
+| `test/room/hud-split-geometry.test.ts` (018) | split for every landscape window ≥ 48rem whose left half holds a panel; split at 1280 × 720; boxes at 1280 × 720, 800 × 500, 1024 × 600; the rest bar inside the panel | over the sweep, split exactly where FR-001's (a) to (e) hold, the column layout's boxes elsewhere; null at 1280 × 720, 1366 × 768, 844 × 390, 768 × 432, 800 × 500, 1024 × 600, 700 × 400; §2's boxes at 1392 × 783, 1920 × 1080, 1920 × 1200, 2560 × 1440; the scene beside the panel ≥ 304 × 196; the rest row in the bar's band, clear of the cluster; the list above the walking control; at rest ≤ 25%; the clear area equal to `hudBoxes`' |
+| `test/ui/hud-split.test.ts` (018) | `WIDE` = 1280 × 720; the bar's contents inside the panel's foot; "a resize under 48rem and back" | `WIDE` = 1920 × 1080; the rest row's contents in the bar's band; "a resize to 1280 × 720 (no split) and back" keeps the log and the text; a sent turn opens the panel; focus returns to the opener |
+| `test/ui/hud-split-a11y.test.ts` (018) | viewport 1280 × 720; 200% zoom as 640 × 360 under 48rem; `t.minWidthRem` is 48 | viewport 1920 × 1080; 200% zoom as 960 × 540, where `splitBoxes` is null; no `minWidthRem` |
+| `test/room/frame.test.ts` (**spec 014**) | at 1920 × 1200, `UNDER` is the column's compact box's centre, and the 0.5rem case measures 7.9 and 8 px (10 and 9 px at a 20-pixel root) from the column's compact box | the same rules, measured from the HUD box at the column's place, the list (`compactBoxes(SCREEN).split.list`), at 1920 × 1200 and at a 20-pixel root, where the split layout also holds (R4). Its other cases are unchanged, since the clear area is |
+| `test/room/hud.test.ts` (**spec 014**) | "gives the strip, the bar, the column or the dock, and the walking control" counts four boxes at rest everywhere; "puts it at the column's head … from 1280 × 720" pins W19's place (the column's head, above its compact box) and `all` at every column window | where `compactBoxes(…).split` isn't null, five boxes at rest (the rest row and the list stand for the column's content), and the walking control inside the column's band, equal to `split.walk`, with `all` = strip, bar, rest row, list, walking control (FR-004, H-8). Where the split is null, both cases are unchanged. Applied from `docs/merge-requests/proposed/018-spec-014-test-amendments.patch` by verify-018 (Q94, D-R4) |
+| `test/room/__snapshots__/protect.test.ts.snap` (**spec 014**) | "records the boxes at the reference desktop's window" snapshots `compactBoxes(1920 × 1200).all` with the column's compact box (1472, 781, 448 × 367) and the walking control at (1788, 733) | re-recorded: the rest row (0, 1148, 640 × 52) and the list (1536, 27.5, 384 × 352) in place of the column's compact box, and the walking control at the band's foot (1788, 1100). Applied from the same patch (Q94, D-R4) |
+| `test/room/stages.test.ts` (spec 005, 014) | "the walking control's box is always among them" (reserved ≥ 1) at 1920 × 1200, 2560 × 1440, 5120 × 1440 | expected unchanged. The case passes today, and at those windows no compact box overlaps the clear area, so the frame area's ease there is under 1 and it reaches into the band, where the list and the walking control now stand. If T023's run shows an ease of 1 there, the reserved list is empty. Then the task **stops** and reports the ease, and does not edit the case. |
+| `test/ui/hud-look.test.ts` (014, amended by D-I3) | its skip at `data-split="on"`, run at 1920 × 1200 | unchanged: 1920 × 1200 still takes the split |
+| `test/ui/hud.test.ts`, `hud-a11y.test.ts`, `hud-pointer.test.ts`, `pause.test.ts` (005) at 1280 × 720 | passed with the split layout on | unchanged, and now in the column layout as before spec 018 |
+| `test/ui/hud-model.test.ts` (014, FR-019) | the cap over landscape windows 1280 × 720 to 3840 × 2160 | unchanged: on split windows `alwaysOnCoverage` is the split's, ≤ 25% by FR-001 (e); the column's compact box is still computed for its content case |
+| `test/room/legacy-stages.test.ts`, `stages-checks.test.ts`, `test/lookdev/page.test.ts`, `fit.test.ts`, `flat-frame.test.ts` | the reference desktop's 1472 × 1120.5 | unchanged: the clear area and the stages are the column layout's (H-5) |
+
+## Departures from this plan (the implementation's, recorded with the commit that makes them)
+
+- **D-I1 (T007): the split layout is a refinement of the column layout, not a fourth `HudLayout`.** `layoutFor` and `HudLayout` are unchanged. `compose/hud.ts` gains `HUD_PLACEMENTS.split` and `splitBoxes(screen, state, metrics)`, which returns the panel's, its resting bar's, and the list's boxes, or null. It returns null for a window under 48rem, a portrait one, a non-column one, or one whose left half can't hold an 18rem × 14rem panel clear of the notes' reserve and the walking control. Why: `data-hud="column"` at 1280 × 720 is pinned by spec 005's and 014's tests, which T007 requires to pass unchanged. The bands, the clear area, and the compositor's checks (`stages.ts`) then stay the column layout's and need no new sweep. The root carries `data-split="on"` beside `data-hud="column"`. The open panel is within the clear area's left, under the notes' reserve; the list is within the column's right 24rem, at most 22rem tall. **Reconciled by the rework (Q53, R-1, R-2)**: the refinement, `layoutFor`, the bands, the clear area, and the stages stand. Its selection rule (48rem) and its resting bar inside the clear area do not. The rule is FR-001's, and the rest row is in the bar's band (§2). So the clear area really is unchanged at rest, which D-I1's own reason needs.
+- **D-I2 (T009): the title is the log's own toggle, unchanged, and the panel opens from the bar by the larger toggle.** §3 had the title toggle the panel. Spec 005's tests (`hud.test.ts`, `hud-a11y.test.ts`) pin the log toggle's collapse at 1280 × 720, then in the split layout, and require them to pass unchanged. So the toggle keeps collapsing the log. The panel opens by a conversation starting, a line in the log, a piece chosen, or the existing "Larger conversation" toggle (`talk.onLarger`). It closes by Back, the hint, Escape, or "Smaller conversation". The panel's decoration (hint, emblem, stats, frame, portrait) exists only while it is open. Kept by Q54. After the rework, 1280 × 720 is no longer split, but the toggle's role stays as Q54 answered.
+- **D-I3 (T012): one pinned test is amended.** `test/ui/hud-look.test.ts` (spec 014's FR-022: every HUD control a tile) now skips the list's entries and the conversation's title where the root says `data-split="on"`. Spec 018's FR-007 and FR-008 make them right-aligned text on the glass, selected by colour and strokes. Every other control in the split layout, and every control in the other layouts, is still checked. Accepted by Q55; named as the spec's Amendment H-9.
+- **D-I4 (T010, T018): the portrait is the silhouette in 2D.** §P6 and T010 say the panel fetches the still "if the room is in 3D". In 2D the drawing already shows the twin, so the panel keeps the silhouette there. `fetchStill` (spec 016's verified fetch) is now exported from `flat.ts` and is the panel's only path. No new network path was needed, so T010's stop condition did not apply. **Rework**: the 3D fetch is a new moment for a disclosed flow, and row V1 is amended (FR-003, T029).
+- **D-I5 (T018): the review's fixes.** Escape outside the conversation closes the panel even with the larger view on. The panel's parts are each built in their own try and recorded as added. `aria-current` is the target's alone once the split layout goes. A resize redraws the frame in place. A conversation in a window the split layout doesn't take leaves the bar for a later, wider window. Left as it is, named in the note: the loader's frame scrolls with the card where the card scrolls (short windows), and `Split.dispose()` has no caller (the room has no teardown).
+
+- **D-R1 (T023): `rest.minRem` is 40, the model's finding.** `test/ui/hud-model.ts`'s `splitModel` measures the rest row's contents at the sizes `hud/split.css` gives them in the rest row: the title toggle's words at 1rem, "Smaller conversation" at the bar's tile type (0.8125rem), both chevrons hidden; the label inline at 0.875rem; the text box's 6rem; Send and the talk button at 1rem. That is 636.2 px at a 16-pixel root, 39.76rem, so 40rem rounded up, not §2's working 30. It is still non-binding at §2's windows, whose rest rows are 640 wide, and at every window (c) admits, since (c) needs the panel at its 40rem cap: §2's table stands. At the cap, a larger word in `ui-words.yaml` for those controls would make (d) fail and the window keep the column layout, which `hud-split-model.test.ts` would show.
+- **D-R2 (T023): `SplitBoxes` gains `title`**, the title row's box at the panel's top (`panel.titleRem`). The frame is drawn below it, and `split.ts` takes its height from here instead of a fixed 44 px (the brief's "the title height from `splitBoxes`, not `TITLE_PX`").
+- **D-R3 (T023): `layout.ts`'s `--split-rest-*`, `--split-frame-*`, and `--split-title-h` are set in T023**, not T025, since `SplitBoxes.bar` is gone and `tsc` needs it. The walking control's place already came from `compact.walk`, which is now the split's (R-3), with no edit.
+- **D-R4 (T023): §13 missed three expectations of spec 014's tests, and they are not edited (tasks.md's stop rule).** `test/room/hud.test.ts`'s "gives the strip, the bar, the column or the dock, and the walking control" counts four boxes at rest, and "puts it at the column's head … from 1280 × 720" pins W19's place and `all` at 1920 × 1080, 1920 × 1200, and 2560 × 1440. `test/room/protect.test.ts`'s "records the boxes at the reference desktop's window" snapshots `compactBoxes(1920 × 1200).all`. All three follow from FR-004 and Amendments H-6 and H-8 as written, so the kernel is the spec's and those three fail until the Author answers. The amendment, ready to apply, is `docs/merge-requests/proposed/018-spec-014-test-amendments.patch`: the count is five where `compactBoxes(…).split` isn't null, W19's case asserts H-8's place there, and the snapshot is re-recorded. The question is on the page (R8). **Applied by verify-018** under Q94 (taken as recommended under the orders file's rule; the Author's to confirm): `git apply` of that patch, in the same commit as §13's rows for the two files.
+
+- **D-R5 (T025): how the opener is recorded.** `Split.openPanel(opener, focusHint)` records the control at the opening and `closePanel(true)` sends focus back to it, or to the selected entry where it is gone, hidden, inert, or disabled. `app.ts` passes the list's entry from `selectObject`, now called before `talk.topicSelected` so the entry is recorded before the opening turn's `onConversation`; the text box from `onConversation` and `onLine`; and "Larger conversation" from `onLarger`. `talk.ts` needed no hook: a sent turn already reaches `onConversation`. `SplitOptions` gains `resumeOpen` for FR-009's step 5. Escape is one capture listener, as §3 says; impl-018's second, bubbling listener is gone.
+
+- **D-R6 (T026): the emblem and the portrait's speaker.** `hud/icons.ts` gains `PIECE_ICONS` (snowboard, bicycle, laptop, chalkboard), `SPEECH_ICON`, and `emblemIcon(id)`; `SplitDraw.emblem(doc, piece)` draws it, so FR-002's fallback test can force it to throw, and an open panel's emblem follows `setConversation`. From the brief, not tasks.md: `SplitDraw.portrait` and `SplitOptions.portrait` take the speaker, and `SplitOptions.speaker` names it ("twin" where absent; the slot carries `data-speaker`), so item d's dog is a new speaker with no change to `split.ts`. `app.ts` fetches the twin's still alone.
+- **D-V1 (verify-018; rv-rework-018's I-2): the rest row's text box gets `min-width: 0`.** talk.css's `.talk-row input` has `flex: 1 1 6rem` and no `min-width`, so in the rest row (`flex-wrap: nowrap`, 640 px at §2's windows) its least width was the input's intrinsic width, not the 6rem D-R1's model counts, and the row's contents could overflow its glass. split.css now sets `min-width: 0` on the rest row's input only; the column layout's form is unchanged. `test/ui/hud-split-rest-row.test.ts` pins it.
+- **D-V2 (verify-018): §13 missed six expectations of other specs' tests, and they are not edited (tasks.md's stop rule).** Each passes on main's tip and fails on the line, and each follows from the spec as written. (1) Row V1's **Carries** with T029's H-11 clause (FR-003): spec 002's and 016's `evals/test_disclosure.py` (`test_the_rooms_rows_are_in_its_own_section_with_the_specs_words`) and `apps/web/test/disclosure.test.ts` ("gives the room's rows what the spec's entries carry …", "names the avatar files in V1 …") pin it to spec 002's words and spec 016's M17 exactly. (2) The reference desktop's frame area, which since H-6 eases against the split layout's boxes at rest (the reason T022 amended `frame.test.ts`): spec 004's and 014's `test/room/legibility.test.ts` (RG7's three per-face cases: the desktop's caps 52 → 52.7 and 23.1 → 23.4 px) and `test/room/report.test.ts` ("marks the counter face exempt on the phone …": 52.1 → 52.7 and 23.1 → 23.4 px); the phone's caps are unchanged. So R-2's "the frame area's end … unchanged" holds for the clear area and the stages, not for the frame area at split windows. The amendment, ready to apply, is `docs/merge-requests/proposed/018-verify-test-amendments.patch` (all four files). With it applied to a copy of the line's tree, those files pass: vitest `Test Files 3 passed (3) · Tests 56 passed (56)`, pytest 80 passed. The question is on the page.
+- **D-V3 (verify-018): the emblem is named by the room's data, not keyed by the selectable's id.** T026 keyed `hud/icons.ts`'s `PIECE_ICONS` by the four selectables' ids, as FR-005 and R-7 said, and its tests held the same ids. Spec 002's FR-007 keeps every ID only the room's data defines out of the room's code and tests, and `test/room/scan.test.ts`'s "finds 0 IDs only the room's data defines in the room's code" failed with 16 hits (it passes on main's tip). The fix: a selectable may carry `emblem` (`build/room/schema.ts`, `name()` grammar, optional), the index carries it where present (`emit.ts`, `bundle.ts`), `room/scene.yaml` names `board`, `wheels`, `screen`, `slate` for the four pieces, `icons.ts`'s `EMBLEM_ICONS` keys the same paths by those names (`emblemIcon(name)`, own keys only), and `createSplit` takes `emblem(piece)`, which `app.ts` reads from the index. The speech glyph stands for free talk, a piece with no `emblem`, and a name icons.ts doesn't draw. Item 1's own tests (`hud-split.test.ts`'s emblem cases, `hud-split-fallback.test.ts`) now name synthetic pieces; `test/room/emblem-data.test.ts` holds the committed scene to an emblem icons.ts draws for each piece. No other spec's test changes: the index carries `emblem` only where the data names one, so `data-only.test.ts`'s added selectable is unchanged. A scene edit: the Author gives the selectables, so the four names are his to rename.
+
+## The rework's decisions (rule 6; tasks T021 to T030)
+
+- **R-1 (FR-001; Q57, R1)**: the split layout's rule is computed (§2 (a) to (e)), not a width. At the compositor's metrics it starts at 1392 px (87rem). Q57's "about 83rem" counted the list's 24rem as the right band, and D-I1 keeps the column's 28rem.
+- **R-2 (FR-004; Q53, Q59, R2)**: the conversation's rest form is one row in the bar's band at its left, not a 7.4rem bar inside the clear area. So the clear area, the frame area's end, and every stage are unchanged, and spec 014's framing answer holds at rest by construction.
+- **R-3 (FR-004; R3)**: the walking control in the split layout is at the band's foot, at its right, and the list ends above it. impl-018 left it at the head of a column content the split layout doesn't show, under the list at 1366 × 768.
+- **R-4 (FR-004, H-6, H-7)**: `compactBoxes` is the one place that knows the split layout's boxes at rest, so the frame area, the stages' reserved boxes, the coverage, and `layout.ts` take them from one kernel function (spec 014's FR-016). `frame.ts` and `stages.ts` need no edit.
+- **R-5 (FR-009; R5)**: Escape's order is written out (defaultPrevented, `browserOwnsEscape`, the turn, walking, the resume, the larger view, the panel). Focus follows spec 005's FR-045 to the opener.
+- **R-6 (FR-003, H-11)**: row V1 is amended in the same branch as the fetch's code.
+- **R-7 (FR-005; Q60, R6)**: the emblem's icons are drawn in `hud/icons.ts`, one per selectable id of the scene and a speech glyph, which also stands in for any piece without one. **Revised by D-V3**: keyed by the emblem's name the selectable's data gives, not by its id.
+
+## Complexity Tracking
+
+One refinement beside three layouts, and one more input to `compactBoxes`: the cost, named, of P1 and R-4, for the degraded mode, the tests' stability, and one kernel function for the frame.

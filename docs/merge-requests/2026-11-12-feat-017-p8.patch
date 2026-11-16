@@ -1,0 +1,272 @@
+P-8 (spec 017, the night shift; plan.md §10; tasks.md T070): tools/gates/toolchain_check.py checks the night images'
+Claude Code pin.
+
+What it changes:
+  - deploy/night-shift/images/pins.json pins one Claude Code for every night image: claude_code, which the toolchain
+    image's CLAUDE_CODE_VERSION build argument repeats. Beside a .devcontainer/toolchain.vars (make toolchain-check's,
+    and the gate's export's, which the gate passes), the check adds a row, "claude code (night images)", held to the
+    floor the installed Claude Code is (ADR 0023): at the floor or in its series OK, newer WARN (a row and a "WARN:"
+    line that don't fail), older DRIFT. A file that can't say one version (the two disagree, no argument, not a
+    version, not JSON) is DRIFT. No row while the file is absent, so main before the night shift's merge is unchanged.
+    H4_NIGHT_PINS names another file; a pins file anywhere but a repository's .devcontainer/ gets no row, so the
+    existing tests' scratch pins files are unaffected.
+  - tools/gates/test/test_toolchain_check.py: eight tests (the floor, five malformed files, no file, where the pins sit,
+    main end to end, and the repository's own pins.json once it exists); the host fixture clears H4_NIGHT_PINS.
+
+On today's branch, pins.json says 2.1.322 and toolchain.vars' floor is 2.1.296, so the row is WARN, as the host's own
+claude code row is: the gate's toolchain step is WARN, not FAIL. Moving the floor to 2.1.322 clears both, and runs the
+agent-config evals again (the pin is in their trigger hash).
+
+Spec IDs: tasks.md T002 ("The pins are read by install.sh and checked by P-8"), research.md R-16's pin.
+
+Needed for: the merge.
+
+How to apply, on your own branch, from the repository's root (one line each):
+  B=feat/017-g5-patches
+  F=docs/merge-requests/2026-11-12-feat-017-p8.patch
+  git show "refs/heads/$B:$F" > /tmp/p8.patch
+  sha256sum /tmp/p8.patch
+  patch -p1 --dry-run < /tmp/p8.patch
+  patch -p1 < /tmp/p8.patch
+
+Verified on a fresh `git archive refs/heads/main` export (main d4870ec8): dry run and apply clean; `pytest
+tools/gates/test/test_toolchain_check.py`: 29 passed, 1 skipped (the repository's pins.json isn't on main yet). With
+the branch's deploy/night-shift/images/pins.json copied into the export: 30 passed; and the check itself printed
+"claude code (night images)  2.1.296  2.1.322  WARN" beside the host's own claude code row.
+
+--- a/tools/gates/test/test_toolchain_check.py
++++ b/tools/gates/test/test_toolchain_check.py
+@@ -92,6 +92,7 @@
+         lint, "node", "v24.21.0"
+     )  # the link make tools leaves for the post-edit hook
+     monkeypatch.setenv("PATH", str(bin_dir))
++    monkeypatch.delenv("H4_NIGHT_PINS", raising=False)
+     return bin_dir, lint
+ 
+ 
+@@ -328,3 +329,129 @@
+     fake.chmod(0o755)
+     rows = tc.check({**PINS, **SPEC_001}, lint, False, mirror=tmp_path / "none")
+     assert status(rows, "terraform") == "OK"
++
++
++# Spec 017's P-8: the night images' Claude Code, pinned once in deploy/night-shift/images/pins.json, is held to the
++# floor the installed Claude Code is.
++def night_pins(folder: Path, claude_code: str, arg: str | None = None) -> Path:
++    path = folder / "pins.json"
++    path.write_text(
++        json.dumps(
++            {
++                "schema": 1,
++                "claude_code": claude_code,
++                "toolchain": {
++                    "args": {
++                        "WITH_CLAUDE": "1",
++                        "CLAUDE_CODE_VERSION": arg or claude_code,
++                    }
++                },
++            }
++        ),
++        encoding="utf-8",
++    )
++    return path
++
++
++def test_the_night_images_pin_is_held_to_claude_codes_floor(
++    host: tuple[Path, Path], tmp_path: Path
++) -> None:
++    _, lint = host
++    night = tc.NIGHT_TOOL
++    path = night_pins(tmp_path, "2.1.294")
++    assert status(tc.check(PINS, lint, False, night_pins=path), night) == "OK"
++    night_pins(tmp_path, "2.1.322")
++    assert status(tc.check(PINS, lint, False, night_pins=path), night) == "WARN"
++    night_pins(tmp_path, "2.1.293")
++    assert status(tc.check(PINS, lint, False, night_pins=path), night) == "DRIFT"
++
++
++@pytest.mark.parametrize(
++    "text",
++    [
++        '{"claude_code": "2.1.294", "toolchain": {"args": {"CLAUDE_CODE_VERSION": "2.1.301"}}}',
++        '{"claude_code": "2.1.294"}',
++        '{"claude_code": "latest", "toolchain": {"args": {"CLAUDE_CODE_VERSION": "latest"}}}',
++        '["2.1.294"]',
++        "{not json",
++    ],
++    ids=[
++        "two-versions",
++        "no-toolchain-arg",
++        "not-a-version",
++        "not-an-object",
++        "not-json",
++    ],
++)
++def test_a_night_pins_file_that_cant_say_one_version_drifts(
++    host: tuple[Path, Path], tmp_path: Path, text: str
++) -> None:
++    _, lint = host
++    path = tmp_path / "pins.json"
++    path.write_text(text, encoding="utf-8")
++    rows = tc.check(PINS, lint, False, night_pins=path)
++    assert status(rows, tc.NIGHT_TOOL) == "DRIFT"
++
++
++def test_no_night_row_without_its_file(host: tuple[Path, Path], tmp_path: Path) -> None:
++    _, lint = host
++    for path in (None, tmp_path / "absent.json"):
++        rows = tc.check(PINS, lint, False, night_pins=path)
++        assert tc.NIGHT_TOOL not in [r.tool for r in rows]
++
++
++def test_the_night_pins_sit_beside_a_repositorys_toolchain_vars(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    monkeypatch.delenv("H4_NIGHT_PINS", raising=False)
++    vars_path = tmp_path / ".devcontainer" / "toolchain.vars"
++    assert (
++        tc.night_pins_for(vars_path) == tmp_path / "deploy/night-shift/images/pins.json"
++    )
++    assert tc.night_pins_for(tmp_path / "toolchain.vars") is None
++    monkeypatch.setenv("H4_NIGHT_PINS", str(tmp_path / "other.json"))
++    assert tc.night_pins_for(vars_path) == tmp_path / "other.json"
++
++
++def test_main_checks_the_night_pins_beside_the_vars(
++    host: tuple[Path, Path],
++    tmp_path: Path,
++    monkeypatch: pytest.MonkeyPatch,
++    capsys: pytest.CaptureFixture[str],
++) -> None:
++    _, lint = host
++    repo = tmp_path / "repo"
++    vars_path = repo / ".devcontainer" / "toolchain.vars"
++    vars_path.parent.mkdir(parents=True)
++    vars_path.write_text(
++        "".join(f"{k}={v}\n" for k, v in PINS.items()), encoding="utf-8"
++    )
++    images = repo / "deploy" / "night-shift" / "images"
++    images.mkdir(parents=True)
++    monkeypatch.setenv("H4_LINT_NODE", str(lint))
++    monkeypatch.delenv("H4_DEVCONTAINER", raising=False)
++    night_pins(images, "2.1.322")
++    assert tc.main(["toolchain_check.py", str(vars_path)]) == 0
++    (warn,) = [
++        ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("WARN:")
++    ]
++    assert "claude code (night images) 2.1.322" in warn and "floor, 2.1.294" in warn
++    night_pins(images, "2.1.290")
++    assert tc.main(["toolchain_check.py", str(vars_path)]) == 1
++    assert (
++        "differ from their pins (claude code (night images))" in capsys.readouterr().out
++    )
++
++
++def test_the_repositorys_night_pins_hold_one_version_at_the_floor_or_above() -> None:
++    path = REPO / tc.NIGHT_PINS
++    if not path.exists():
++        pytest.skip(
++            "no deploy/night-shift/images/pins.json in this tree yet (spec 017)"
++        )
++    pinned = tc.read_vars(REPO / ".devcontainer" / "toolchain.vars")[
++        "CLAUDE_CODE_VERSION"
++    ]
++    found, where = tc.night_pin(path)
++    assert found is not None, where
++    assert tc.matches(pinned, found) or tc.newer(pinned, found), (pinned, found)
+--- a/tools/gates/toolchain_check.py
++++ b/tools/gates/toolchain_check.py
+@@ -13,6 +13,12 @@
+ DISABLE_AUTOUPDATER doesn't reach, so a newer release is WARN: a row, and a line starting "WARN:", that don't fail the
+ check. An older release is DRIFT. The agent-config evals record the version each run used, and a moved floor is in
+ their trigger hash.
++
++The night shift's images (spec 017, P-8) install one Claude Code, pinned in deploy/night-shift/images/pins.json: its
++claude_code, which the toolchain image's CLAUDE_CODE_VERSION argument must repeat. Beside a .devcontainer/toolchain.vars
++(make toolchain-check's, or the gate's export's), that pin is a row of its own, "claude code (night images)", held to
++the same floor: the floor or its series is OK, newer is WARN, older is DRIFT, and a file that can't say one version is
++DRIFT. No row while the file is absent. H4_NIGHT_PINS names another file.
+ """
+ 
+ from __future__ import annotations
+@@ -35,6 +41,9 @@
+ VERSION_RE = re.compile(r"(\d+(?:\.\d+)+)")
+ # Pins that are floors (ADR 0023): a newer release is WARN, not DRIFT.
+ FLOORS = frozenset({"CLAUDE_CODE_VERSION"})
++# The night shift's image pins (spec 017, P-8), relative to the repository a toolchain.vars sits in.
++NIGHT_PINS = Path("deploy") / "night-shift" / "images" / "pins.json"
++NIGHT_TOOL = "claude code (night images)"
+ 
+ 
+ @dataclass
+@@ -152,11 +161,46 @@
+     return (pinned if pinned in versions else versions[-1]), str(folder)
+ 
+ 
++def night_pin(path: Path) -> tuple[str | None, str]:
++    """The night images' Claude Code (spec 017, P-8): pins.json's claude_code, when the toolchain image's
++    CLAUDE_CODE_VERSION argument repeats it, so every image installs that one. (None, why) when the file can't say."""
++    try:
++        doc = json.loads(path.read_text(encoding="utf-8"))
++    except (OSError, ValueError) as exc:
++        return None, f"{path}: {exc.__class__.__name__}"
++    if not isinstance(doc, dict):
++        return None, f"{path} isn't an object"
++    pin = doc.get("claude_code")
++    if not isinstance(pin, str) or not VERSION_RE.fullmatch(pin):
++        return None, f"{path}: claude_code isn't a version"
++    toolchain = doc.get("toolchain")
++    args = toolchain.get("args") if isinstance(toolchain, dict) else None
++    arg = args.get("CLAUDE_CODE_VERSION") if isinstance(args, dict) else None
++    if arg != pin:
++        return (
++            None,
++            f"{path}: the toolchain image's CLAUDE_CODE_VERSION isn't claude_code ({pin}), so the images would differ",
++        )
++    return pin, str(path)
++
++
++def night_pins_for(vars_path: Path) -> Path | None:
++    """The night images' pins beside a repository's .devcontainer/toolchain.vars, or H4_NIGHT_PINS; None for a pins
++    file anywhere else, such as a test's."""
++    named = os.environ.get("H4_NIGHT_PINS")
++    if named:
++        return Path(named)
++    if vars_path.name == "toolchain.vars" and vars_path.parent.name == ".devcontainer":
++        return vars_path.parent.parent / NIGHT_PINS
++    return None
++
++
+ def check(
+     pins: dict[str, str],
+     lint_node: Path,
+     in_devcontainer: bool,
+     mirror: Path | None = None,
++    night_pins: Path | None = None,
+ ) -> list[Row]:
+     rows: list[Row] = []
+ 
+@@ -209,6 +253,14 @@
+         )
+     else:
+         add("claude code", "CLAUDE_CODE_VERSION", found, where)
++    # The night images' pin (spec 017, P-8), held to the same floor as the installed Claude Code, once the file exists.
++    if night_pins is not None and night_pins.exists():
++        found, where = night_pin(night_pins)
++        if found is None:
++            pinned = pins.get("CLAUDE_CODE_VERSION") or "(no pin)"
++            rows.append(Row(NIGHT_TOOL, pinned, "-", where, "DRIFT"))
++        else:
++            add(NIGHT_TOOL, "CLAUDE_CODE_VERSION", found, where)
+ 
+     # Spec 001's pins (its research.md R-02; tasks.md T008), each a row only once toolchain.vars names it. Terraform and
+     # the AWS CLI run in the Author's terminal, so each is SKIP where it isn't installed, and DRIFT where another release
+@@ -280,7 +332,7 @@
+     lint_node = Path(os.environ.get("H4_LINT_NODE") or DEFAULT_LINT_NODE)
+     in_devcontainer = os.environ.get("H4_DEVCONTAINER") == "1"
+     mirror = Path(os.environ.get("H4_TERRAFORM_MIRROR") or DEFAULT_MIRROR)
+-    rows = check(pins, lint_node, in_devcontainer, mirror)
++    rows = check(pins, lint_node, in_devcontainer, mirror, night_pins_for(vars_path))
+     print(render(rows))
+     above = [r for r in rows if r.status == "WARN"]
+     for r in above:

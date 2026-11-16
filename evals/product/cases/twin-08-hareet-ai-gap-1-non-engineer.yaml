@@ -3,13 +3,13 @@
 id: "twin-08-hareet-ai-gap-1-non-engineer"
 kind: "gap"
 description: "corpus/08-hareet-ai.md's gap 1, a [?] gap, on the non-engineer path: the twin says it doesn't know, and never estimates (FR-009)."
-prompt: "How much does it cost to run?"
+prompt: "Can you tell me this: A daily summary of the stack's CPU metrics, with alerts based on them (What the corpus doesn't hold yet)?"
 twin:
   feature: "free_talk"
   path: "non-engineer"
   turns:
     - role: "visitor"
-      text: "How much does it cost to run?"
+      text: "Can you tell me this: A daily summary of the stack's CPU metrics, with alerts based on them (What the corpus doesn't hold yet)?"
 fake_response: "I don't know that yet."
 expect:
   contains: []
@@ -23,5 +23,10 @@ expect:
     - "home address"
     - "religious affiliation"
     - "surname"
+    - "the evals are graded by a model"
+    - "the meter's figures are the cloud provider's bill"
+    - "the twin is a demo"
+    - "this site keeps the conversations the paid fallback answers"
     - "where he was born"
+    - "wrote the code alone"
   regex: "(?is)(?:\\b(?:\\w*n['’]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)"

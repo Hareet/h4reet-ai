@@ -4,6 +4,8 @@
 // pack hash (the whole pack's for free talk) and the prompt hash over config/twin/prompt.md and lines.yaml. A missing or
 // invalid readiness file, pack, prompt, or fixed lines makes nothing ready, and the build goes on. The shared readiness
 // matrix (services/gateway/test/fixtures/twin-readiness-matrix.json) holds both sides to the same answers.
+// Spec 029 (FR-014a; rv-spec-029's S-4): readinessReasons is the rule, with each answer's reason, and twinReadiness its
+// projection, so the room report says why a topic is closed from the same rule, never a copy of it.
 //
 // It also carries config/budgets.yaml's `limits.twin` to the room (FR-027, FR-041), FR-027's defaults when it has none,
 // so the text box's limit and the history window match the route's.
@@ -112,22 +114,65 @@ const linesUsable = (lines: string): boolean => {
   );
 };
 
-/** FR-030's rule over the tree's files. */
-export function twinReadiness(tree: Pick<Tree, "read">): TwinReadiness {
+/** Why an entry is ready or closed, in the order FR-030's rule tests them (spec 029, FR-014a). */
+export type EntryReason =
+  "ready" | "not in the readiness file" | "not marked ready" | "pack hash changed" | "prompt hash changed";
+
+/** Why nothing is ready: a file every entry needs is missing or fails its checks (spec 029, FR-014a). */
+export type WholeReason =
+  | "pack missing or unusable"
+  | "prompt missing or unusable"
+  | "lines missing or unusable"
+  | "readiness file missing"
+  | "readiness file unparsable";
+
+/** FR-030's rule's answer with its reasons: a whole-file reason, with the file, that closes every topic and free talk;
+ *  or one reason per topic of the pack, and free talk's. twinReadiness is its projection. */
+export type ReadinessReasons =
+  | { readonly kind: "closed"; readonly reason: WholeReason; readonly file: string }
+  | {
+      readonly kind: "entries";
+      readonly topics: ReadonlyMap<string, EntryReason>;
+      readonly freeTalk: EntryReason;
+    };
+
+const closed = (reason: WholeReason, file: string): ReadinessReasons => ({ kind: "closed", reason, file });
+
+/** FR-030's rule over the tree's files, with each answer's reason (spec 029, FR-014a): the one rule the build and the
+ *  room report read. */
+export function readinessReasons(tree: Pick<Tree, "read">): ReadinessReasons {
   const pack = packOf(text(tree, PACK_FILE));
+  if (pack === null) return closed("pack missing or unusable", PACK_FILE);
   const prompt = text(tree, PROMPT_FILE);
+  if (prompt === null || !promptUsable(prompt)) return closed("prompt missing or unusable", PROMPT_FILE);
   const lines = text(tree, LINES_FILE);
+  if (lines === null || !linesUsable(lines)) return closed("lines missing or unusable", LINES_FILE);
   const source = text(tree, READINESS_PATH);
-  if (pack === null || prompt === null || lines === null || source === null) return NOTHING;
-  if (!promptUsable(prompt) || !linesUsable(lines)) return NOTHING;
+  if (source === null) return closed("readiness file missing", READINESS_PATH);
   const parsed = READINESS.safeParse(yamlOf(source));
-  if (!parsed.success) return NOTHING;
+  if (!parsed.success) return closed("readiness file unparsable", READINESS_PATH);
   const running = promptHash(prompt, lines);
-  const ready = (entry: z.infer<typeof ENTRY> | undefined, packSha: string): boolean =>
-    entry !== undefined && entry.ready && entry.pack_sha256 === packSha && entry.prompt_sha256 === running;
+  const why = (entry: z.infer<typeof ENTRY> | undefined, packSha: string): EntryReason => {
+    if (entry === undefined) return "not in the readiness file";
+    if (!entry.ready) return "not marked ready";
+    if (entry.pack_sha256 !== packSha) return "pack hash changed";
+    if (entry.prompt_sha256 !== running) return "prompt hash changed";
+    return "ready";
+  };
+  const topics = new Map<string, EntryReason>();
+  // Object.hasOwn: a topic named like an Object.prototype key is "not in the readiness file", never the prototype's.
+  for (const t of pack.topics)
+    topics.set(t.id, why(Object.hasOwn(parsed.data.topics, t.id) ? parsed.data.topics[t.id] : undefined, t.sha256));
+  return { kind: "entries", topics, freeTalk: why(parsed.data.free_talk, pack.sha256) };
+}
+
+/** FR-030's rule over the tree's files: readinessReasons's booleans. */
+export function twinReadiness(tree: Pick<Tree, "read">): TwinReadiness {
+  const reasons = readinessReasons(tree);
+  if (reasons.kind === "closed") return NOTHING;
   const topics = new Map<string, boolean>();
-  for (const t of pack.topics) topics.set(t.id, ready(parsed.data.topics[t.id], t.sha256));
-  return { topics, freeTalk: ready(parsed.data.free_talk, pack.sha256) };
+  for (const [id, why] of reasons.topics) topics.set(id, why === "ready");
+  return { topics, freeTalk: reasons.freeTalk === "ready" };
 }
 
 /** A topic's readiness, for a topic the pack doesn't name too: never ready. */

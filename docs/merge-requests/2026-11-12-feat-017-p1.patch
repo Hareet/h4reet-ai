@@ -1,0 +1,89 @@
+P-1 (spec 017, the night shift; plan.md §10; tasks.md T064): deploy/night-shift/ becomes human-only, and the night
+shift's sign-in token is denied by name.
+
+What it changes, in every layer the repository uses for a human-only path:
+  - .claude/settings.json: permissions.deny gains Edit(/deploy/night-shift/**); sandbox.filesystem.denyWrite gains
+    ./deploy/night-shift; sandbox.credentials.envVars gains CLAUDE_CODE_OAUTH_TOKEN, mode deny (FR-036; plan §13's
+    first risk: where Claude Code's own sandbox runs, no command it starts can read the token).
+  - .claude/hooks/protected-paths.sh: deploy/night-shift and everything under it is refused to every Edit, Write,
+    MultiEdit, and NotebookEdit, by both path resolutions and in linked worktrees, like deploy/agents-engine.
+
+Spec IDs: decision 4 ("Live copy stays outside, and we can have an example copy inside under a human-only path"),
+FR-016 (the example copy at deploy/night-shift/containers/), FR-036, and the Assumptions' "Agent configuration outside
+.claude/" deviation, which this patch and P-10 hold.
+
+Needed for: the merge of feat/017-the-night-shift (plan.md §10). Apply it before P-5, whose matrix rows prove it.
+
+WHEN: only on a branch that already holds feat/017's deploy/night-shift/ (or on main after feat/017 merges), never on
+main before. A sandbox denyWrite entry for a path that doesn't exist makes Claude Code leave an empty, read-only
+(0444) placeholder file at that path in the checkout, here a file named deploy/night-shift, which would then block
+the merge that brings the folder. To check for one, and remove it, in your terminal (one line each):
+  P=deploy/night-shift
+  test -f "$P" && ! test -s "$P" && echo stray
+  rm -f -- "$P"
+Run the rm only when the test printed "stray": a placeholder is an empty regular file; the real one is a folder.
+
+How to apply, on your own branch, from the repository's root (one line each):
+  B=feat/017-g5-patches
+  F=docs/merge-requests/2026-11-12-feat-017-p1.patch
+  git show "refs/heads/$B:$F" > /tmp/p1.patch
+  sha256sum /tmp/p1.patch
+  patch -p1 --dry-run < /tmp/p1.patch
+  patch -p1 < /tmp/p1.patch
+The SHA-256 to compare is in docs/merge-requests/2026-11-12-feat-017-patches.md.
+
+Verified on a fresh `git archive refs/heads/main` export (main d4870ec8), never a worktree: patch -p1 --dry-run, then
+patch -p1, both clean; `jq . .claude/settings.json` parses; `bash -n` and `shellcheck -x` on the hook are clean. With
+P-5 and P-3 applied too, `bash redteam/forbidden-actions.sh` on that export: 1023 passed, 25 failed, 66 known gaps,
+"every listed row ran". The 25 failures are stage S's, the same 25 the unpatched export fails (an export isn't the
+sandboxed checkout, so its masks don't apply there); every new row passes, and the one new known gap is P-5's.
+
+--- a/.claude/hooks/protected-paths.sh
++++ b/.claude/hooks/protected-paths.sh
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env bash
+ # PreToolUse(Edit|Write|MultiEdit|NotebookEdit): agents may not modify the enforcement layer, the constitution,
+-# the review policy, git internals, cost/edge/kill-switch configuration, the asset policy, the studio's folders (its
+-# photos, outputs, workflows, and blinding key), or test files during a fix task.
++# the review policy, git internals, cost/edge/kill-switch configuration, the asset policy, the night shift, the studio's
++# folders (its photos, outputs, workflows, and blinding key), or test files during a fix task.
+ set -Eeuo pipefail
+ # Fail closed: in Claude Code only exit 2 blocks, so a missing dependency or an unexpected
+ # error must become exit 2 — otherwise the gate silently disappears. -E carries the trap into
+@@ -56,6 +56,7 @@
+     assets/policy/content-approvals.json | assets/policy/resume-header.json) block "the room's content approvals or the PDF's header, which only the Author changes, on main (spec 002, contracts/resume-source.md §5)" ;;
+     GNUmakefile | makefile) block "a makefile that make would run instead of the Makefile" ;;
+     deploy/agents-engine | deploy/agents-engine/*) block "the agents' engine (the FR-039 boundary; parts of it run with sudo)" ;;
++    deploy/night-shift | deploy/night-shift/*) block "the night shift: its runner, container specs, images, prompts, and settings layers, which run outside every sandbox or set its walls (spec 017 decision 4, FR-016)" ;;
+     .gitleaks* | */.gitleaksignore) block "the secret scanner's rules or an ignore list (research.md R-36)" ;;
+     .mcp.json | */.mcp.json) block "MCP server configuration (it gives every session new tools)" ;;
+     tools/gates | tools/gates/* | evals/agent-config | evals/agent-config/*) block "the local gates or the agent-config evals (the gate runs in the Author's terminal, and the evals decide what merges; plan §15's governance patch)" ;;
+--- a/.claude/settings.json
++++ b/.claude/settings.json
+@@ -58,6 +58,7 @@
+       "Edit(/GNUmakefile)",
+       "Edit(/makefile)",
+       "Edit(/deploy/agents-engine/**)",
++      "Edit(/deploy/night-shift/**)",
+       "Edit(/.gitleaks.toml)",
+       "Edit(/.gitleaksignore)",
+       "Edit(/tools/gates/**)",
+@@ -134,6 +135,7 @@
+         "./GNUmakefile",
+         "./makefile",
+         "./deploy/agents-engine",
++        "./deploy/night-shift",
+         "./.gitleaks.toml",
+         "./.gitleaksignore",
+         "./tools/gates",
+@@ -459,6 +461,10 @@
+         {
+           "name": "AWS_BEARER_TOKEN_BEDROCK",
+           "mode": "deny"
++        },
++        {
++          "name": "CLAUDE_CODE_OAUTH_TOKEN",
++          "mode": "deny"
+         }
+       ]
+     }

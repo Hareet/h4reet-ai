@@ -42,7 +42,10 @@ words:
   walk.entered: Walking. Escape stops.
   walk.left: Walking stopped.
   walk.target: "{name}: press Enter to open."
+  eat.button: Eat
+  eat.first_bite: "The dinosaur ate part of the {name}."
   twin.stand_in: The twin's figure is a stand-in, not the Author's likeness.
+  figures.pet_note: The twin pets the dog.
   hud.log_toggle: Conversation
   talk.larger: Larger conversation
   talk.smaller: Smaller conversation
@@ -71,3 +74,32 @@ words:
   label.fx-slate: fixture slate
   label.fx-lettering: fixture lettering
   label.fx-power: fixture power
+  hud.select: Select a piece
+  hud.back: Back
+  hud.close: Close
+  key.esc: Esc
+  key.enter: Enter
+  stat.serving: Serving
+  stat.call: This call
+  stat.visit: This visit
+  stat.unknown: "—"
+  stat.tier.local: Local
+  stat.tier.cloud: Cloud
+  stat.tier.resting: Resting
+  stat.tier.budget: Budget
+  stat.tier.unavailable: Unavailable
+  stat.tier.unknown: Unknown
+  chase.started_both: The twin and the dog are running from the dinosaur.
+  chase.started_twin: The twin is running from the dinosaur.
+  chase.started_dog: The dog is running from the dinosaur.
+  chase.ended_both: The twin and the dog are back in their places.
+  chase.ended_twin: The twin is back in its place.
+  chase.ended_dog: The dog is back in its place.
+  # Spec 028 (FR-020, FR-021): the twin's call in the dinosaur's scene, and the scene's end, by the figures that left.
+  figures.dino_call: There is a dinosaur in the room!
+  figures.left_both: The twin and the dog took the bicycle and left.
+  figures.left_twin: The twin took the bicycle and left.
+  # Spec 028 (FR-013): the Credits page's heading over the bundled models' likeness lines.
+  credits.likeness: The AI-made figures
+  # Spec 029 (FR-020): the word across the hand-off's paper.
+  paper.word: RESUME
