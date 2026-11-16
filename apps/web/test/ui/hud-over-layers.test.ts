@@ -797,7 +797,8 @@ function lowestOpacity(el: Element, s: MediaState): number {
   for (const a of animations(el, sure)) {
     const frames = (SCOPED.keyframes.get(a.name) ?? []).filter((k) => conditions(k.media, s) === true).at(-1)?.frames;
     if (!frames) continue; // a name with no keyframes in this state animates nothing
-    const at = (o: number): string | undefined => frames.find((f) => f.at.includes(o) && f.opacity !== undefined)?.opacity;
+    const at = (o: number): string | undefined =>
+      frames.find((f) => f.at.includes(o) && f.opacity !== undefined)?.opacity;
     if (a.infinite) {
       const values = frames.filter((f) => f.opacity !== undefined).map((f) => Number(f.opacity));
       if (at(0) === undefined || at(100) === undefined) values.push(base);
@@ -820,7 +821,11 @@ function fadedRatio(status: Element, part: Element, room: Rgb, opacity: number):
 /** The outermost marked part holding an element, or null where none does. */
 function outermostPart(el: Element): Element | null {
   let part = el.closest('[data-over="room"]');
-  for (let up = part?.parentElement?.closest('[data-over="room"]'); up; up = up.parentElement?.closest('[data-over="room"]'))
+  for (
+    let up = part?.parentElement?.closest('[data-over="room"]');
+    up;
+    up = up.parentElement?.closest('[data-over="room"]')
+  )
     part = up;
   return part;
 }
@@ -886,7 +891,12 @@ describe("the waiting status over the room, at its pulse's lowest opacity (pulse
     const pulse = SCOPED.rules.filter((r) => r.selector === ".talk-status:not(:empty)" && r.decls.has("animation"));
     expect(pulse.map((r) => r.media)).toEqual([["@media (prefers-reduced-motion: no-preference)"]]);
     const name = /^([\w-]+)/.exec(pulse[0]?.decls.get("animation") ?? "")?.[1] ?? "";
-    expect(SCOPED.keyframes.get(name)?.flatMap((k) => k.frames).some((f) => f.opacity !== undefined)).toBe(true);
+    expect(
+      SCOPED.keyframes
+        .get(name)
+        ?.flatMap((k) => k.frames)
+        .some((f) => f.opacity !== undefined),
+    ).toBe(true);
   });
 
   const judged: { layout: string; c: PulseCase }[] = [];
@@ -908,7 +918,9 @@ describe("the waiting status over the room, at its pulse's lowest opacity (pulse
       const { unsure } = rulesIn(state);
       expect(
         chain.flatMap((n) =>
-          unsure.filter((r) => ["animation", "animation-name"].some((p) => r.decls.has(p)) && matches(n, r.selector, false)),
+          unsure.filter(
+            (r) => ["animation", "animation-name"].some((p) => r.decls.has(p)) && matches(n, r.selector, false),
+          ),
         ),
       ).toEqual([]);
       expect(chain.slice(1).map((n) => lowestOpacity(n, state))).toEqual(chain.slice(1).map(() => 1));
