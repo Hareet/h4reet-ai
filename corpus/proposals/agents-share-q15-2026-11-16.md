@@ -59,6 +59,10 @@ The five `[P]` section lines 022 added to `08` that pair an agent word with "wri
 
 It doesn't re-mark any topic in `config/twin-readiness.yaml` (Q17): only your hand does that.
 
+## What it does to the readiness hashes
+
+None of the three ready topics' hashes moves. `08` is in no topic (`docs/corpus-size.json` gives it `"in_topics": []`), and the line is a Golden answer, not a "Do not claim" line, so it isn't in the rules every topic's hash covers. Measured on the patched export against `f411d8e1`'s `config/twin/corpus.json`, the topic hashes are identical: hobbies-and-travel `d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507`, mission `c028c92d9303beebeae8b32bdd8213dd112a057ea238886638ae39cc22a568ad`, work-projects `6fdd269b9dd0b207511fa36113f95c596d3de86c659ce71bbaf0abbb8395aadc`. The patch doesn't touch `config/twin/prompt.md` or `config/twin/lines.yaml`, so `prompt_sha256` doesn't move either. Only the whole pack's hash changes, `c18b20c6dcd28ac786547fa1aad047ff58fc49a79f0045d4aa448fbe6af18c91` to `dd8872be9890f423c0deaa2dad1c3a9cd33febfdd759c1f0e2bcfc9b42e87b2a`, and that is free talk's (`free_talk: { ready: false }`). So Q17's re-marking doesn't have to wait for this patch. The order is in `docs/merge-requests/human-patches/029-q15.md`.
+
 ## The patch
 
 `docs/merge-requests/2026-11-16-q15-agents-share.patch`, built from plain copies of `f411d8e1` and checked there; how, and its IDs, in `docs/merge-requests/human-patches/029-q15.md`.
