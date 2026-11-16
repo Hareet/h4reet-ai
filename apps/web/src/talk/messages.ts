@@ -19,6 +19,9 @@ export const MESSAGE_IDS = [
   "turn_refused.slow_down",
   "turn_refused.unreadable",
   "turn_stopped",
+  // Spec 029's two (its FR-012, Q4): free talk closed, and the room not yet taking input.
+  "cannot_talk.free_talk_closed",
+  "turn_wait.room",
 ] as const;
 
 export type MessageId = (typeof MESSAGE_IDS)[number];

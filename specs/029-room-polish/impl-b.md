@@ -152,3 +152,57 @@ AssertionError: expected [ 'topic_not_ready', …(11) ] to deeply equal [ 'topic
 ```
 
 (Lines sorted and deduplicated from the run's output.)
+
+## T-B02 GREEN: the fix
+
+Files (plan §R-B3): `apps/web/src/room/hud/split.css` (the panel's block only), `src/talk/talk.ts`,
+`src/talk/messages.ts`, `content/messages.yaml`. No test edited in this commit.
+
+- `split.css:273`: `> :not(:where(.split-frame, .visually-hidden))`. **rv-chat-029's CH-1:** B0's
+  `:not(.split-frame, .visually-hidden)` is 0,5,1, since a `:not()` takes its most specific argument's specificity.
+  `:not(:where(…))` is 0,4,1, the `> *` rule's. I chose `:where()` to keep spec 018's specificity. No winner changes
+  either way. §R-B3's words are corrected in this commit. FR-013's parenthesis in spec.md still says
+  "`> :not(.split-frame, .visually-hidden)`, its specificity kept". That file is the spec-writer's, so it's left for
+  `rv-spec-029` or the spec's next pass.
+- A rule after it: `.talk[data-panel="open"] > .talk-sheet > * { z-index: 1; }` (the frame behind the body; T-B01's
+  last clause; §R-B3; Q-B-2 on the page).
+- `talk.ts`'s submit handler (FR-012), in order:
+  1. An empty field does nothing, as before.
+  2. While `enabled()` is false (the hand-off and its offer): `turn_wait.room`, the words left in the field, no
+     `turn_sent` (there was none before either).
+  3. Then `turn_sent`, as before.
+  4. No route or no sender: `cannot_talk.unavailable`, unchanged.
+  5. Free talk closed and no conversation open: `cannot_talk.free_talk_closed`.
+
+  The header comment says so.
+- `messages.ts`'s `MESSAGE_IDS` and `content/messages.yaml` gain `cannot_talk.free_talk_closed` ("The twin isn't
+  taking open questions yet. Select a piece in the room to talk about it.") and `turn_wait.room` ("The twin will answer
+  once you're in the room."), the spec's drafts (Q4), for his words. `cannot_talk.free_talk_closed` is a
+  `cannot_talk.*` message, so the resume and the PDF links follow it on screen, as the file's header says of every one.
+- FR-014: the turn's request, its route, and the sender are unchanged (`turn-client.ts` not touched).
+
+```
+$ cd apps/web && npx vitest run --maxWorkers=2 test/ui/talk-answer-shows.test.ts test/ui/talk.test.ts test/ui/talk-turns.test.ts test/ui/talk-activity.test.ts test/ui/hud-split*.test.ts test/ui/hud-look.test.ts test/ui/hud-a11y.test.ts test/manifest.test.ts test/room/data-only.test.ts test/ui/a11y.test.ts test/ui/hud-wall-dom.test.ts test/room/hud-wall-geometry.test.ts
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-16/impl-029b/apps/web
+
+ Test Files  19 passed (19)
+      Tests  355 passed (355)
+   Start at  05:08:35
+   Duration  385.44s (tests 74%, import 26%)
+```
+
+`test/ui/hud-split*.test.ts` expands to eight files (`-a11y`, `-contrast`, `-dog`, `-fallback`, `-list`, `-model`,
+`-rest-row`, the base file). The messages' tests: no `test/content/*messages*` exists, so `test/manifest.test.ts` (its
+`content/messages.yaml` block) and `test/room/data-only.test.ts` (which reads the file) ran in their place. Beside
+tasks.md's list, `test/ui/hud-wall-dom.test.ts` and `test/room/hud-wall-geometry.test.ts` read `split.css`'s rules, so
+they ran too. T-B01's file passed unchanged, all 36 cases, in the twelve layout-and-mode runs (SC-003).
+
+```
+$ make lint
+…
+ruff format --check --no-cache --extend-exclude corpus .
+879 files already formatted
+…
+make lint exit 0
+```

@@ -8,8 +8,10 @@
 //   `{feature, path, turns: []}` (spec 007, FR-032; provisional, Q4); the active conversation's own piece sends nothing;
 //   another piece aborts the turn in flight first.
 // - Typed text is a visitor turn of the active conversation, or of a new free-talk conversation while free talk is
-//   ready; otherwise cannot_talk.unavailable, the text left in the box. A turn goes only while the turn route exists
-//   (the index's live.turn is `site`) and a sender was given, which main.ts gives (src/talk/turn-client.ts).
+//   ready; otherwise cannot_talk.free_talk_closed (spec 029, FR-012), the text left in the box. A turn goes only while
+//   the turn route exists (the index's live.turn is `site`) and a sender was given, which main.ts gives
+//   (src/talk/turn-client.ts); without them, cannot_talk.unavailable. While the room doesn't take input (the hand-off
+//   and its offer), typed text shows turn_wait.room and stays in the box: a send never shows nothing.
 // - One turn at a time (FR-033): its request carries the newest turns within the limits, oldest dropped first; within
 //   100 ms the visitor's words show under "You", the box clears, the status says twin_answering, and Send becomes Stop
 //   (FR-034). Escape or Stop aborts it, drops it, and shows turn_stopped.
@@ -362,12 +364,23 @@ export function renderTalk(
     event.preventDefault();
     if (flight !== null) return; // Enter while a turn is out does nothing; Stop and Escape stop it
     const words = textBox.value.trim();
-    if (!options.enabled() || words === "") return;
+    if (words === "") return;
+    // Never nothing (spec 029, FR-012): each refusal says why, and the text stays with the visitor.
+    if (!options.enabled()) {
+      // The room doesn't take input yet (the hand-off and its offer).
+      show("turn_wait.room");
+      return;
+    }
     options.emit({ kind: "turn_sent" });
-    const feature = conversation ?? (options.freeTalkReady ? FREE_TALK : null);
-    if (feature === null || !canSend()) {
-      // Not ready, or no route or sender: the turn goes nowhere, and the text stays with the visitor.
+    if (!canSend()) {
+      // No route or no sender: no turn goes anywhere, a piece's neither, so this comes first.
       show("cannot_talk.unavailable");
+      return;
+    }
+    const feature = conversation ?? (options.freeTalkReady ? FREE_TALK : null);
+    if (feature === null) {
+      // Free talk is closed and no conversation is open: a ready piece may still talk.
+      show("cannot_talk.free_talk_closed");
       return;
     }
     conversation = feature;
