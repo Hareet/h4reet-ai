@@ -59,7 +59,7 @@ Taken provisionally under rule 1: the page's Q11 (native radio groups as cards),
 
 - **The arrow keys' synthetic click.** That an arrow key in the role group fires `click` with `event.detail` 0 (so focus stays in step 1) in Chrome, Firefox, and Safari. jsdom can't fire it; the test dispatches it by hand.
 - **The pointer's click and the label's activation.** That a mouse click and a tap on a role card land focus on step 2's card (the label's activation focuses the radio in step 1 first; the move runs a task later). Also a tap's `click` carrying `detail` 1 on iOS Safari and Android Chrome.
-- **Space.** That Space on a role radio checks it and moves focus once keyup is done, in each browser (Chrome activates on keyup; the move is a task later, so either order works).
+- **Space.** That Space on an unchecked role radio (Tab into step 1, then Space) checks it, shows the outcome card, and then moves focus to step 2, in Chrome, Firefox, and Safari. The page checks the radio in its own `keyup` listener because the engines' `click` is `keyup`'s default action, after the listeners (`rv-rework-spec-029cd`'s RC-1). jsdom fires no click on `keyup` Space, so the real engines' order is only on this list. Check, too, that the engine's later `click` on the checked radio doesn't uncheck it or send a second `change`.
 - **A screen reader**: the step's legend, the card's name, its checked state, and the description (the role's from the hidden outcome paragraph); "Selected" not read twice.
 - **Forced colours** (Windows High Contrast): the chosen card's `Highlight` border and its check and word.
 - **Hover and the 2 px lift**, and none under reduced motion.
@@ -213,9 +213,84 @@ ruff format --check --no-cache --extend-exclude corpus .
 
 None: no hook or bash-gate refusal in this session.
 
+## Rework: `rework-029d` (after `rv-rework-spec-029cd`)
+
+Night 4, implementer `rework-029d`, branch `night/rework-029d/rework-029d`, from impl-029d's tip `d7a2f6e8` (`git merge-base --is-ancestor refs/heads/night/impl-029d/impl-029d HEAD`: true, so no merge). impl-029d had already finished T-D01 to T-D04, and none was left open. The review of the reworked spec, `rv-rework-spec-029cd` (the decision page, the eleventh wake), blocks on RC-1 and RC-2. Its findings, as it wrote them, are in the brief. Here is what each one came to.
+
+### RC-1 (Space): the plan was wrong, the code was already right
+
+Plan §R-D3 said that on `keyup` Space "the browser has checked it". That's false: the engines' `click` is `keyup`'s default action, which runs after the page's listeners. But impl-029d's `choice.ts` (`356eb7ba`) never relied on that reading: its `keyup` Space handler already called `choose(input)` (check the radio if it isn't checked, dispatch its `change`) before `toStep2()`. That is the fix RC-1 asks for. So:
+
+- **The test** (`a9ce8dcd`, a commit of its own): T-D01's Space case is reworked as RC-1 writes it. An unchecked role radio ("Engineer") is focused, and only `keydown` and `keyup` Space are dispatched (the old case also dispatched the browser's `click`, `detail: 0`, between them, which made it pass on the plan's wrong reading). It asserts the radio checked and the outcome card's description right after `keyup`, then, after the pending task, the same two and focus in step 2. **Old case replaced:** "moves on Space on a role card (the browser's own click, detail 0, between keydown and keyup)". **New name:** "moves on Space on a role card, checking it on keyup itself (the browser's click is keyup's default action, after the page's listeners)". The hook allowed the edit to the existing file, so no new test file.
+- **Not RED on the shipped code, and why that's honest.** RC-1 expected the case to "fail before the fix". The fix was already in the code, so it passes there. To show it guards RC-1, I built the plan's old reading in the working tree (removed `choose(input)` from the `keyup` handler, so Space only moves focus). The case failed on it (output below). Then I put the file back with `git checkout -- apps/web/src/choice/choice.ts`, and none of that was committed.
+- **The plan and tasks** (`252d4e11`): §R-D3's Space bullet now reads as RC-1 writes it ("if it isn't checked, check it and dispatch its `change`; then move"), with the reason. §R-D5 and T-D01 describe the new Space case. `choice.ts` gains only a two-line comment on the `keyup` handler saying why it checks the radio itself. No behaviour changed.
+- **His look:** the real engines' order is on the list above. jsdom fires no click on `keyup` Space.
+
+### RC-2 (pointer): the clause and the case
+
+"Still in step 1 after `pointerup` alone" can't hold in a browser, because a label isn't focusable. The old case got around that by focusing the radio by hand before `pointerdown`, with the comment "A mouse's press focuses the card's radio in a browser", which isn't so. The case now drops that `role.focus()` and asserts `inStep(v, 2)` false after `pointerdown`, `pointerup`, and a task. The rest of the case is unchanged: the click (`detail: 1`), the label's activation focusing the radio, focus on step 2's first card after the task, and the outcome card. §R-D5 and T-D01's clause read "not in step 2 after `pointerup` alone" (`252d4e11`). No code change.
+
+### RC-4 (advisory): nothing to scope
+
+`choice-cards.test.ts` never calls `vi.useFakeTimers()`. The pending task runs on the jsdom window's own timers (`tasks(v)`), per impl-029d's departure 2 above, so axe runs on real timers already. Nothing changed.
+
+### Commands and their output (rework)
+
+Every vitest run is from `apps/web/`, after `make setup` (`node_modules` was missing in this worktree; it ended "git hooks: … isn't writable here (the agent sandbox); the Author runs make git-hooks").
+
+The reworked focus cases, on impl-029d's `choice.ts` (after `a9ce8dcd`):
+
+```
+$ npx --no-install vitest run --maxWorkers=2 test/ui/choice-cards.test.ts -t "focus move"
+ Test Files  1 passed (1)
+      Tests  6 passed | 20 skipped (26)
+   Duration  79.26s (tests 94%, transform 3%, import 3%)
+```
+
+The Space case on the plan's old reading (the `choose(input)` line removed from the `keyup` handler in the working tree, then restored, not committed):
+
+```
+$ npx --no-install vitest run --maxWorkers=2 test/ui/choice-cards.test.ts -t "Space"
+     × moves on Space on a role card, checking it on keyup itself (the browser's click is keyup's default action, after the page's listeners) 17809ms
+ FAIL  test/ui/choice-cards.test.ts > the focus move to step 2 (FR-032, Q10, rework-cd.md S-9) > moves on Space on a role card, checking it on keyup itself (the browser's click is keyup's default action, after the page's listeners)
+AssertionError: expected false to be true // Object.is equality
+ Test Files  1 failed (1)
+      Tests  1 failed | 25 skipped (26)
+```
+
+At `252d4e11`, the changed test file, the files covering `choice.ts` (T-D02's list), and the source scan:
+
+```
+$ npx --no-install vitest run --maxWorkers=2 test/ui/choice-cards.test.ts test/ui/choice.test.ts test/ui/a11y.test.ts test/ui/pdf-download.test.ts test/ui/loading.test.ts test/room/quality.test.ts test/ui/pause.test.ts test/room/scan.test.ts
+ Test Files  8 passed (8)
+      Tests  167 passed (167)
+   Duration  146.24s (tests 65%, import 34%, transform 1%)
+```
+
+(`test/room/hints.test.ts` was left out: this rework doesn't touch `hints.yaml` or spec 012.)
+
+`make lint` from the worktree's root, at `252d4e11`: exit 0, shellcheck's file list cut:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+880 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- …
+```
+
+`make test` and `make evals` were not run: rule 4 of the brief gives the one full `make check` to T-INT.
+
+**Refusals:** none. No hook or bash-gate refusal in this session, and the edit to the existing test file went through. **Questions:** none new. RC-1 and RC-2 change no answer on the page (FR-032, SC-005, and Q10 stand; so does Q12's answer). **Files:** `test/ui/choice-cards.test.ts`, `src/choice/choice.ts` (a comment), `plan.md`, `tasks.md`, this note. All are group D's (plan §9). No human-only path.
+
 ## What's left
 
-- The review, by a worker who wrote none of it.
+- The review of this rework, by a worker who wrote none of it.
 - The Author's answers on the page: Q11 to Q16 and Q19, and the three questions above (the "Not an engineer" wording; the intro's "path"; the dinosaur's line). An overturned answer is reworked before he merges.
 - His look (SC-008), with the real-browser list above.
 - T-INT: the merge with groups A to C (no file shared with them) and the one `make check`.
