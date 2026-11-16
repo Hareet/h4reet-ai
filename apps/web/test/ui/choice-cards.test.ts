@@ -216,12 +216,12 @@ describe("the focus move to step 2 (FR-032, Q10, rework-cd.md S-9)", () => {
     await flush();
     const role = radio(v.doc, "path", "non-engineer");
     const label = card(role);
-    // A mouse's press focuses the card's radio in a browser; the release alone moves nothing.
-    role.focus();
+    // A press and a release alone move nothing to step 2. A label isn't focusable, so focus after them is on the
+    // body, not in step 1 (rv-rework-spec-029cd's RC-2): the case asserts only that it isn't in step 2.
     pointer(v, label, "pointerdown");
     pointer(v, label, "pointerup");
     await tasks(v);
-    expect(inStep(v, 1)).toBe(true);
+    expect(inStep(v, 2)).toBe(false);
     // The pointer's own click on the label (a click, detail 1), then the label's activation, which focuses the radio
     // in step 1 as a browser does (jsdom doesn't).
     pointer(v, label, "pointerdown");
@@ -264,18 +264,23 @@ describe("the focus move to step 2 (FR-032, Q10, rework-cd.md S-9)", () => {
     expect(v.events).toEqual([]);
   });
 
-  it("moves on Space on a role card (the browser's own click, detail 0, between keydown and keyup)", async () => {
+  it("moves on Space on a role card, checking it on keyup itself (the browser's click is keyup's default action, after the page's listeners)", async () => {
     const v = start();
     await flush();
-    const role = radio(v.doc, "path", "non-engineer");
+    // A keyboard visitor Tabs into step 1: no role checked, focus on a role radio. Only keydown and keyup Space are
+    // dispatched, since a browser's click on the radio comes after keyup's listeners (and jsdom fires none), so the
+    // page checks the radio itself, sends its change, and only then moves (rv-rework-spec-029cd's RC-1).
+    const role = radio(v.doc, "path", "engineer");
     role.focus();
+    expect(role.checked).toBe(false);
     key(v, role, "keydown", " ");
-    click(v, role, 0);
-    await tasks(v);
-    expect(inStep(v, 1)).toBe(true);
     key(v, role, "keyup", " ");
+    expect(role.checked).toBe(true);
+    expect(shown(outcome(v.doc))).toEqual([ROLES[0].description, ROLE_COMMON]);
     await tasks(v);
     expect(role.checked).toBe(true);
+    expect(shown(outcome(v.doc))).toEqual([ROLES[0].description, ROLE_COMMON]);
+    expect(inStep(v, 2)).toBe(true);
     expect(v.doc.activeElement).toBe(radio(v.doc, "avatar", "woman"));
   });
 
