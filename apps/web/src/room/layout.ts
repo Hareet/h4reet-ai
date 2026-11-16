@@ -29,6 +29,8 @@
 // since spec 028, FR-012) are never tinted or covered: the card sits below the strip and the notes' reserve, or first in
 // the page's flow when stacked.
 import type { Box, HudLayout, HudMetrics, HudState, SplitBoxes } from "./compose/hud";
+import { hudParts, overRoom, roomBox } from "./compose/over";
+import type { PartId } from "./compose/over";
 import { h } from "./dom";
 import { icon } from "./hud/icons";
 import type { IconName } from "./hud/icons";
@@ -69,6 +71,11 @@ export interface HudApplied {
   readonly keyboard: number;
   /** Spec 018 (FR-001, FR-004): the split layout's boxes where the window takes it; absent or null, today's layout. */
   readonly split?: SplitBoxes | null;
+  /** Spec 029 (FR-001; plan.md §R-A2): the room's box at its framing, the frame area's protector's wall box at `frame`;
+   *  absent or null, the frame area. */
+  readonly room?: Box | null;
+  /** Spec 029: the stage's box, the window in a HUD layout, which the walking view fills; absent, the frame area. */
+  readonly stage?: Box;
 }
 
 export interface RoomLayout {
@@ -286,6 +293,44 @@ export function renderRoom(
     const placed = (hud !== "column" && hud !== "dock") || root.getAttribute("data-eat-place") === "on";
     eatButton.hidden = !eatWanted || eatWords === "" || !placed;
   };
+  /** Spec 029 (FR-001; plan.md §R-A2): the last layout applied, and whether the walking view is on, which the over-room
+   *  flag is computed from at every re-fit and at the walking view's start and end. */
+  let lastApplied: HudApplied | null = null;
+  let walking = false;
+  const sheet = parts.talk.querySelector<HTMLElement>(".talk-sheet");
+  const partElements: readonly [PartId, HTMLElement | null][] = [
+    ["talk", parts.talk],
+    ["list", parts.list],
+    ["bar", toolbar],
+    ["walk", walkButton],
+    ["eat", eatButton],
+    ["column", panels],
+    ["dock", panels],
+    ["sheet", sheet],
+    ["larger", sheet],
+  ];
+  /** Marks each part over the room with data-over="room" and takes the mark from every other (compose/over.ts). */
+  const markOver = (): void => {
+    const a = lastApplied;
+    const over = a
+      ? overRoom(
+          hudParts({
+            layout: a.layout,
+            split: a.layout === "column" ? (a.split ?? null) : null,
+            compact: a.compact,
+            dock: a.dock,
+            clear: a.clear,
+            notes: a.notes,
+          }),
+          roomBox({ walking, stage: a.stage ?? a.frame, wall: a.room ?? null, frame: a.frame }),
+        )
+      : new Set<PartId>();
+    const on = new Set<HTMLElement>();
+    for (const [id, el] of partElements) if (el && over.has(id)) on.add(el);
+    for (const [, el] of partElements)
+      if (el && on.has(el)) el.setAttribute("data-over", "room");
+      else el?.removeAttribute("data-over");
+  };
 
   return {
     element,
@@ -336,6 +381,9 @@ export function renderRoom(
     setWalking(on) {
       walkLabel.textContent = on ? walkWords.leave : walkWords.enter;
       walkHelp.hidden = !on;
+      // Spec 029 (FR-001): the walking view's room fills the stage, so every part meets it while walking.
+      walking = on;
+      markOver();
       // The view takes focus while walking: its name, its instructions, and a role that passes the keys through, never
       // the canvas inside it, which stays aria-hidden (R-13).
       if (on) {
@@ -427,6 +475,9 @@ export function renderRoom(
       // The stacked layout's header is sticky in the page's flow, its own height: the scroll padding takes its 4rem
       // fallback there, as before spec 005.
       if (applied.layout === "stacked") root.style.removeProperty("--strip-h");
+      // Spec 029 (FR-001): the parts over the room at this layout.
+      lastApplied = applied;
+      markOver();
     },
     setStage(what) {
       view.setAttribute("data-stage", what);

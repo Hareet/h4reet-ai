@@ -161,7 +161,10 @@ describe("the over-room look draws what the test judges (FR-002, FR-003)", () =>
   });
 
   it("puts every run of words on a plate of the glass at --over-plate-alpha", () => {
-    const plated = OVER.filter((r) => r.declarations.get("background") === PLATE).map((r) => r.selector);
+    // Each selector read without its mark, so a part marked itself (".room-list[data-over] li") reads as its rows.
+    const plated = OVER.filter((r) => r.declarations.get("background") === PLATE).map((r) =>
+      r.selector.replaceAll('[data-over="room"]', ""),
+    );
     for (const part of [
       ".talk-entry",
       ".talk-message",
@@ -187,11 +190,24 @@ describe("the over-room look draws what the test judges (FR-002, FR-003)", () =>
           expect(r.selector.includes('[data-over="room"]') || r.selector === ":root", r.selector).toBe(true);
   });
 
-  it("draws the focus ring inside its control over the room, never on the bare glass", () => {
+  it("draws the focus ring inside its control over the room, or on a plate, never on the bare glass", () => {
     const rings = OVER.filter((r) => r.selector.includes(":focus-visible") && r.declarations.has("outline-offset"));
-    expect(rings.length).toBeGreaterThan(0);
-    for (const r of rings)
-      expect(Number.parseFloat(r.declarations.get("outline-offset") ?? "0")).toBeLessThanOrEqual(-4);
+    const offset = (r: (typeof rings)[number]): number =>
+      Number.parseFloat(r.declarations.get("outline-offset") ?? "0");
+    // The tiles (the bar's, the walking control, the "Eat" tile) and the panels' tile buttons: inside, on the face.
+    for (const part of [".hud-tile:focus-visible", '.hud-tile[data-over="room"]:focus-visible', "button:focus-visible"])
+      expect(
+        rings.some((r) => r.selector.endsWith(part) && offset(r) <= -4),
+        part,
+      ).toBe(true);
+    // Any other ring stays outside its control only where a plate backs it: the link-like button in a message.
+    for (const r of rings.filter((x) => offset(x) > -4))
+      expect(r.selector, r.selector).toMatch(/\.talk-link:focus-visible$/);
+    // A plate reaches 0.25rem past its box, so a ring 2px outside a control on it, 2px wide, lies on it; the entries'
+    // rows, where no ring reaches past the row, have none.
+    const plates = OVER.filter((r) => r.declarations.get("background") === PLATE && !/ li$/.test(r.selector));
+    expect(plates.length).toBeGreaterThan(0);
+    for (const r of plates) expect(r.declarations.get("box-shadow"), r.selector).toBe(`0 0 0 0.25rem ${PLATE}`);
   });
 });
 

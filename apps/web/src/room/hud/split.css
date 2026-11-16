@@ -516,3 +516,31 @@ html[data-split="on"][data-hud="column"] .room-eat {
     background: Canvas;
   }
 }
+
+/* ---- Spec 029, group A: the split layout's parts over the room (FR-001 to FR-006; plan.md §R-A3) ----
+   Appended after every rule above, none of which it edits: in the walking view the panel, the list, and the bar lie
+   over the room (data-over="room", compose/over.ts), so their glass drops to --over-glass-alpha (room.css's :root) and
+   each run of words takes a plate at --over-plate-alpha, as room.css's last block does for the other layouts; at the
+   room's framing they stand in the grey bands, unmarked, and nothing here applies (FR-005). Under the visitor's asks
+   both alphas are 1 (room.css). The title row's plate outranks its glass above; the entries' rows are plates with no
+   shadow, so adjacent rows don't darken each other; "Back" is a plate with its ring on it. */
+
+html[data-split="on"][data-hud="column"] .talk[data-over="room"],
+html[data-split="on"][data-hud="column"] .room-list[data-over="room"],
+html[data-split="on"][data-hud="column"] .hud-bar[data-over="room"] {
+  --split-glass-alpha: var(--over-glass-alpha);
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-over="room"] .talk-head,
+html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-top,
+html[data-split="on"][data-hud="column"] .room-list[data-over="room"] .split-label,
+html[data-split="on"][data-hud="column"] .room-list[data-over="room"] .split-back {
+  background: rgb(var(--glass) / var(--over-plate-alpha));
+  box-shadow: 0 0 0 0.25rem rgb(var(--glass) / var(--over-plate-alpha));
+  border-radius: 0.25rem;
+}
+
+html[data-split="on"][data-hud="column"] .room-list[data-over="room"] li {
+  background: rgb(var(--glass) / var(--over-plate-alpha));
+  border-radius: 0.25rem;
+}

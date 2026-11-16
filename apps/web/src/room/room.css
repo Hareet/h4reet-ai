@@ -142,6 +142,13 @@ body.in-room .disclosure p {
   --frame-h: 0px;
   --walk-x: 0px;
   --walk-y: 0px;
+  /* Spec 029 (FR-002, FR-003, FR-008; plan.md §R-A3): a part over the room (data-over="room", compose/over.ts): its glass
+     at --over-glass-alpha, so the room shows through, and each run of words on a plate at --over-plate-alpha over it.
+     test/ui/hud-over-contrast.test.ts computes both: the glass's the lowest 5% step at which the tiles' faces keep
+     their words, icons, and rings, the plate's the lowest at which every text and mark on it holds over white and black
+     beneath. Data for the Author's look (FR-008), within that bound. */
+  --over-glass-alpha: 0.3;
+  --over-plate-alpha: 0.5;
 }
 
 /* The glass is opaque, with no blur, where the visitor asks for less transparency or more contrast, and where the
@@ -1272,4 +1279,64 @@ html[data-hud="stacked"] .resume-panel {
     animation: none !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ---- Spec 029, group A: a part over the room (FR-001 to FR-006; Q1, Q2; plan.md §R-A1 to §R-A3) ----
+   layout.ts marks each HUD part whose box meets the room's box with data-over="room" (compose/over.ts): in the walking
+   view every part, else those over the wall box at the room's framing, in the column, dock, and larger layouts. The
+   split layout's variants are hud/split.css's last block, which outranks these. A part not marked is untouched: every
+   rule here names [data-over="room"] (FR-005). Over the room the part's glass drops to --over-glass-alpha, its blur as
+   today; each run of words sits on a plate of the glass at --over-plate-alpha, whose shadow carries it 0.25rem beyond
+   its box, so the focus ring drawn 2px outside a control on a plate lies on it, and nothing moves; the tiles keep their
+   faces, which carry their words, and draw their ring inside; the text box stays white with dark text (FR-006). */
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
+  :root {
+    --over-glass-alpha: 1;
+    --over-plate-alpha: 1;
+  }
+}
+
+html[data-hud="column"] .hud-panels[data-over="room"],
+html[data-hud="dock"] .hud-panels[data-over="room"],
+html[data-hud="column"] .hud-bar[data-over="room"],
+html[data-hud="dock"] .hud-bar[data-over="room"],
+html[data-hud="column"] .talk-sheet[data-over="room"],
+html[data-hud="dock"] .talk-sheet[data-over="room"] {
+  --glass-alpha: var(--over-glass-alpha);
+}
+
+html[data-hud="column"] [data-over="room"] .talk-entry,
+html[data-hud="dock"] [data-over="room"] .talk-entry,
+html[data-hud="column"] [data-over="room"] .talk-message,
+html[data-hud="dock"] [data-over="room"] .talk-message,
+html[data-hud="column"] [data-over="room"] .talk-status:not(:empty),
+html[data-hud="dock"] [data-over="room"] .talk-status:not(:empty),
+html[data-hud="column"] [data-over="room"] .talk-form,
+html[data-hud="dock"] [data-over="room"] .talk-form,
+html[data-hud="column"] [data-over="room"] .talk-head,
+html[data-hud="dock"] [data-over="room"] .talk-head,
+html[data-hud="column"] [data-over="room"] .room-list-heading,
+html[data-hud="dock"] [data-over="room"] .room-list-heading {
+  background: rgb(var(--glass) / var(--over-plate-alpha));
+  box-shadow: 0 0 0 0.25rem rgb(var(--glass) / var(--over-plate-alpha));
+  border-radius: 0.25rem;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* The tiles' ring inside the tile, on its face, never on the translucent glass beside it: the bar's tiles, the walking
+   control, the "Eat" tile, and every panel's button but the link-like one, whose ring lies on its message's plate. */
+html[data-hud="column"] [data-over="room"] .hud-tile:focus-visible,
+html[data-hud="dock"] [data-over="room"] .hud-tile:focus-visible,
+html[data-hud="column"] .hud-tile[data-over="room"]:focus-visible,
+html[data-hud="dock"] .hud-tile[data-over="room"]:focus-visible,
+html[data-hud="column"] .hud-panels[data-over="room"] button:focus-visible,
+html[data-hud="dock"] .hud-panels[data-over="room"] button:focus-visible {
+  outline-offset: -4px;
+}
+
+html[data-hud="column"] .hud-panels[data-over="room"] .talk-link:focus-visible,
+html[data-hud="dock"] .hud-panels[data-over="room"] .talk-link:focus-visible {
+  outline-offset: 2px;
 }
