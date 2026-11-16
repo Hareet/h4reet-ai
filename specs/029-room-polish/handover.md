@@ -451,3 +451,41 @@ No refusal by the permission layer, a hook, or the bash gate in this task. One q
 recommended: yes; blocks nothing.
 
 ## 6. `make lint`
+
+Run at `0deb9c3d787e3230704957023723c0c0784d48fb` (this file through §5, the note with its pointer to it; `git status`
+clean), after `make setup` and the docs tests. Only this section came after it.
+
+```text
+$ make lint > /tmp/ho029-logs/lint.log 2>&1; echo "make lint exit $?"; cat /tmp/ho029-logs/lint.log
+make lint exit 0
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+900 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+```
+
+`ruff format` counts 900 files where the note's earlier runs (§6, rework-int-029's) count 897. Since `f718ac2e` three
+files were added, all Markdown:
+
+```text
+$ git diff --name-only --diff-filter=A f718ac2e HEAD
+specs/029-room-polish/handover.md
+specs/029-room-polish/merge-3.md
+specs/029-room-polish/pulse-a.md
+```
+
+My reading: `ruff format` counts these Markdown files too; 897 + 3 = 900. I didn't prove that rule from ruff's code.
+
+`make lint` runs once more on the final tree, with this section in place, before the last commit; that commit's message
+records its exit code.
+
+**Result: green.** The merge kept both sides whole; the hand-over's lines run as written (with `HEAD:` for the name),
+in each order it gives, with the exit codes it claims; every SHA-256 matches; the docs tests, the links check, and
+`make lint` pass. The stack's tip is this branch's last commit, which the page records.
