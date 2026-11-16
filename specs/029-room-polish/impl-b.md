@@ -751,3 +751,73 @@ The `wip(rework-029b): …` save points between them hold no changes.
   Recommended: yes, as plan §R-B4 has it.
 
 Q20 and Q21 stand on the page as they are. This line takes both recommended answers, provisionally.
+
+---
+
+# rework2-029b: group B after rv-029b-1 (documents only)
+
+Night 2026-11-16, task `rework2-029b` (implementer), branch `night/rework2-029b/rework2-029b`, from rework-029b's tip
+`8fac0474`. Documents only: no code file and no test file changed. Every tracked file was written with the Edit tool
+(Q40's recommended answer, provisional), never a script or a redirect.
+
+## What each finding got
+
+| Finding | Where | Commit |
+|---|---|---|
+| R-1 (blocking): the readiness step promised `cannot_talk.free_talk_closed` while no topic is ready | `impl-b.md`, T-B04 §2: until he marks the hashes, typed text shows `cannot_talk.unavailable`, as on `f411d8e1`, with the code's lines (`talk.ts:389`, `app.ts:809`); `cannot_talk.free_talk_closed` moves to "After he marks the three hashes", the one state where a topic is ready | `b3c7190b` |
+| R-1, the rest of the check | Every other line that promised the new message with no topic ready, now marked superseded by Q20 and pointing to the line that holds: `impl-b.md` T-B01's third case, the first row of impl-029b's rewrite table, step 5 of impl-029b's refusals; `tasks.md`'s first T-B01; plan §R-B2's 36-case sentence. Made exact where "says so" was vague: plan §10's readiness step and spec.md's Assumptions (a piece: `topic_not_ready`; typed text: `cannot_talk.unavailable` while no topic is ready, Q20) | `b3c7190b` |
+| R-2: §R-B3's rework text under §R-B4's heading | plan.md: the merge had put impl-029b's §R-B4 (its heading and two paragraphs) inside §R-B3. Those paragraphs now sit under §R-B4's heading, labelled "As planned at `c743e2da` and built by impl-029b", then "After rv-spec-029", as §R-B3's two sides are. §R-B3 reads impl-029b's side, then the rework's. impl-029b's two §R-B3 bullets (the rows at `z-index: 1` alone; the new message unconditional) are marked "Superseded by the rework's route and Q20" | `630c76df` |
+| R-5: the selector and its specificity | spec.md FR-013 and plan §R-B3's rework text: `> :not(:where(.split-frame, .visually-hidden))` (`split.css:279`), 0,4,1 because `:where()` adds none; B0's bare `:not(…)` would be 0,5,1. impl-029b's note that FR-013 was left for the spec's next pass says it is done | `20ffbd75` |
+| R-8: the page's numbers | beside each of the notes' own IDs: Q-B-1 (Q22), Q-B-2 (Q23), Q-B-3 (Q29), Q-RB-1 (Q35), Q-RB-2 (Q36). The brief named the last three; the first two are from the page's headings (Q22, Q23). plan.md's one Q-B-2 too | `92f15768` |
+| R-3: the refused `Monitor` wait | rework-029b's Refusals: running it as a Bash `until` loop is on the page under Q39 | `92f15768` |
+| R-6, R-7 | not mine: the stack's backlog, as the brief says | — |
+
+### How the R-2 move was checked
+
+Sorting both versions' lines and comparing them (`comm -23` of `git show HEAD:…/plan.md` against the new file, before
+the commit) gave three lines found only in the old:
+- The `### R-B4` heading. The merge had it twice, and the same line once remains.
+- The two impl-029b bullets. They are still there, each now starting with its "Superseded" mark.
+
+So no line either side added is lost. The one change beyond moving lines is the duplicate heading, kept once so that
+§R-B4 has one heading, as §R-B3 does.
+
+## make lint
+
+`make lint` first stopped at `node_modules is missing: run make setup` (exit 2). `make setup` ran (exit 0; the git
+hooks line says `.git/hooks` isn't writable here, the Author runs `make git-hooks`), and `git status` was clean after
+it. Then:
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+880 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+make lint exit 0
+```
+
+(The run's whole output, as the runner printed it. The last line is the shell's `echo` of the exit status.) A second
+run after these notes were written, on the tree this commit holds, printed the same lines (compared with `diff`), exit
+0.
+
+## Not run, and why
+
+- No test: this pass changes no code and no test file, and the brief gives the one full check to T-INT. `make test` and
+  `make evals` weren't run for the same reason.
+- The image stage (night 3's Q46 and Q48) stays with his gate.
+
+## Refusals
+
+None this session: no hook, bash-gate, or permission refusal.
+
+## Questions
+
+None new. Q20, Q22, Q23, Q29, Q35, Q36, Q39 and Q40 stand on the page as they are.
