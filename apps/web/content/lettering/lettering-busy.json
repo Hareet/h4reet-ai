@@ -1,0 +1,18 @@
+{
+  "converter": "set",
+  "sign": "lettering-busy",
+  "words": "I AM VERY BUSY",
+  "set_as": [
+    "I AM",
+    "VERY BUSY"
+  ],
+  "words_from": "the Author's review of 2026-11-15, quoted in intent/029-room-polish.md: let's add \"I AM VERY BUSY\" to the desk-sign",
+  "intent_ref": "intent-029",
+  "source_id": "D-0004",
+  "typeface": {
+    "family": "IBM Plex Sans Bold",
+    "file": "IBMPlexSans-Bold.woff",
+    "sha256": "5c8bcd6be12df67acd529819b92f36febeff4df059a9603c4ecd578f01cf4062",
+    "license": "SIL OFL 1.1, vendored by apps/web/fonts/fonts.lock"
+  }
+}

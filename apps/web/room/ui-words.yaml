@@ -116,3 +116,6 @@ words:
   figures.left_twin: The twin took the bicycle and left.
   # Spec 028 (FR-013): the Credits page's heading over the bundled models' likeness lines.
   credits.likeness: The AI-made figures
+  # Spec 029 (FR-020): the word set diagonally across the paper the twin hands over and the visitor keeps. A label, not
+  # a fact about the Author.
+  paper.word: RESUME

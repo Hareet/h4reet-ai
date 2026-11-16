@@ -46,6 +46,10 @@ export interface RegionInput {
   readonly outline: OutlineData | null;
   /** A neon counter panel, drawn plain in the counters' typeface, rather than the neon word's tube. */
   readonly counter: boolean;
+  /** Spec 029 (FR-019): a terminal block's ink, the terminal's green, and its cursor, held and blinking once typed;
+   *  absent, the terminal's own ink and its typing cursor. */
+  readonly ink?: "green";
+  readonly cursor?: "blink";
 }
 
 export interface RegionLayout {
@@ -57,6 +61,8 @@ export interface RegionLayout {
   readonly typingMs: number;
   /** Its smallest glyph: the cap height in the face's pixels (FR-052). */
   readonly glyph: number;
+  /** Spec 029 (FR-019): how long a blinking cursor is shown and then hidden, in milliseconds; absent, no blink. */
+  readonly blinkMs?: number;
 }
 
 export interface FaceRenderer {

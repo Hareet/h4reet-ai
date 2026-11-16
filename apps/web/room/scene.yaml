@@ -48,6 +48,15 @@ placements:
     mount: { on: work-desk, anchor: top, offset: [-0.154, 0, -0.22], estimated: true }
     frame: true
     label: label.monitor
+    # Spec 029 (FR-019; the page's Q26, its recommended answer taken provisionally): a readable face, "Applied" then
+    # "AI Engineer" and the green cursor on a 12 × 2 grid, 32.6 px desktop and 10.4 px phone against RG7's floor of 9
+    # (room:report; specs/029-room-polish/plan.md §R-C8); a release build leaves it plain until the Author approves its
+    # block's SHA-256.
+    faces:
+      screen:
+        label: label.monitor
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: terminal, grid: { cols: 12, rows: 2 }, text: monitor-line }
   - id: neon-sign
     piece: neon-sign
     mount: { on: desk-screen, anchor: top-edge }
@@ -89,6 +98,16 @@ placements:
     frame: true
     label: label.busy-sign
     edible: { chunks: 4 }
+    # Spec 029 (FR-016; the page's Q26, provisional): an atmosphere face, as the neon sign's second line and the
+    # twin's shirt are, since no layout of its words reaches RG7's floor on the reference phone (3.4 px measured,
+    # measure-c.md); its words also in "Around the room" under its label; max_chars its outline's words, 14.
+    faces:
+      lettering:
+        label: label.busy-sign
+        atmosphere: true
+        max_chars: 14
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: sign, text: lettering-busy }
   - id: dog-sign
     piece: dog-sign
     # Spec 026 (T019; as amended, the page's Q297, answered: recommended, his to confirm or overturn): on the right
@@ -99,6 +118,16 @@ placements:
     mount: { on: room-shell, anchor: right-wall, offset: [-0.1, 0.46, 0.0375], estimated: true }
     frame: true
     label: label.dog-sign
+    # Spec 029 (FR-017, FR-018; the page's Q26, provisional): an atmosphere face, as the busy sign's (3.2 px measured
+    # on the reference phone on three lines, measure-c.md); its words also in "Around the room" under its label, the
+    # paw adding none; max_chars its outline's words, 22.
+    faces:
+      lettering:
+        label: label.dog-sign
+        atmosphere: true
+        max_chars: 22
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: sign, text: lettering-cool }
   - id: chalkboard
     piece: chalkboard
     mount: { on: room-shell, anchor: left-wall, offset: [-0.2876, 1.65, 0], estimated: true }

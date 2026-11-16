@@ -58,6 +58,7 @@ import { faceSvg } from "./faces/svg";
 import type { SvgNode } from "./faces/svg";
 import { faceList } from "./faces/words";
 import type { RoomText } from "./faces/words";
+import { paperLayout } from "./paper";
 import { caseFor } from "./signals/tier";
 import type { TierValue } from "./signals/tier";
 import type { CostState } from "./signals/turn-cost";
@@ -93,6 +94,9 @@ export interface FlatDrawing {
   readonly visitor: SVGElement;
   /** The hand-off's paper in its three still frames: in the twin's hand, between the hands, in the visitor's. */
   readonly papers: readonly SVGElement[];
+  /** Spec 029 (FR-020): each paper's drawing over it, its rule border and its word along its diagonal, a group shown
+   *  exactly when its paper is. */
+  readonly paperFaces: readonly SVGElement[];
 }
 
 /** A selectable's highlight in the 2D drawing (spec 008, FR-046; plan.md R-08). */
@@ -432,6 +436,11 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId): Flat
   // in the view box).
   const [, , atVisitor] = flat.papers;
   const [dx, dy] = handOffset(avatar, sideOf(atVisitor[0] - feet));
+  // Spec 029 (FR-020): paper.ts's layout over each paper, its word the UI word paper.word in the look's chalk face.
+  const sheet = paperLayout(uiWord(room.ui, "paper.word") ?? "", PAPER.w, PAPER.h);
+  const chalk = room.typefaces.find((t) => t.use === "chalk");
+  const paperFamily = chalk ? `${chalk.family}, ${chalk.fallback}` : "sans-serif";
+  const paperFaces: SVGElement[] = [];
   const papers = flat.papers.map(([x, y], k) => {
     const share = k / (FLAT_FRAMES - 1);
     const [cx, cy] = [x + dx * flat.visitor.scale * share, y - dy * flat.visitor.scale * share];
@@ -445,6 +454,42 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId): Flat
       "stroke-width": 1,
     });
     root.append(paper);
+    const { border, word } = sheet;
+    const [cos, sin] = [Math.cos(word.angle), Math.sin(word.angle)];
+    const face = node(
+      doc,
+      "g",
+      {},
+      node(doc, "rect", {
+        x: cx - PAPER.w / 2 + border.x,
+        y: cy - PAPER.h / 2 + border.y,
+        width: border.w,
+        height: border.h,
+        fill: "none",
+        stroke: sheet.ink,
+        "stroke-width": border.width,
+      }),
+      ...(word.text === ""
+        ? []
+        : [
+            node(
+              doc,
+              "text",
+              {
+                x: 0,
+                y: word.baseline,
+                "font-family": paperFamily,
+                "font-size": word.size,
+                "text-anchor": "middle",
+                fill: sheet.ink,
+                transform: [cos, sin, -sin, cos, cx, cy],
+              },
+              word.text,
+            ),
+          ]),
+    );
+    root.append(face);
+    paperFaces.push(face);
     return paper;
   });
 
@@ -474,7 +519,7 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId): Flat
     root.append(area, name);
   }
 
-  return { root, items, switches, labels, faces, cues, highlights, visitor, papers };
+  return { root, items, switches, labels, faces, cues, highlights, visitor, papers, paperFaces };
 }
 
 /**
@@ -671,6 +716,7 @@ export function renderFlat(
     element.setAttribute("data-handoff-frame", String(k));
     const paperAt = stillShown ? FLAT_FRAMES - 1 : k;
     drawing.papers.forEach((paper, i) => show(paper, i === paperAt));
+    drawing.paperFaces.forEach((face, i) => show(face, i === paperAt));
     turnTo(drawing.visitor, reduced() ? null : (moving[k] ?? null));
   };
   // Outside the hand-off, the paper is in the visitor's hands.
