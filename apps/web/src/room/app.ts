@@ -285,6 +285,10 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       notes: notesReserve(boxes.clear, m.rem),
       keyboard: m.keyboard,
       split: splitAt,
+      // Spec 029 (FR-001; plan.md §R-A2): the room's box at its framing, the wall box from the protector the split
+      // layout's wall comes from, and the stage, the window, which the walking view fills.
+      room: framed ? (hudOption.wall.wall?.(framed.area) ?? null) : null,
+      stage: { x: 0, y: 0, w: screen.w, h: screen.h },
     });
     if (splitAt) split?.setSize(splitAt.frame.w, splitAt.frame.h, splitAt.title.h);
     split?.setActive(splitAt !== null);
