@@ -1,9 +1,12 @@
-# The monitor's screen (spec 029; FR-019, FR-021; plan.md §R-C3): one line, "Applied AI Engineer", the Author's words in
-# his review of 2026-11-15 (intent-029), then a block cursor, the line and the cursor in the terminal's green; the cursor
-# blinks while the room animates and is held, shown, otherwise. The line is his role at Denver Local AI in the corpus's
-# words; the claim quotes the longer span of that sentence, so the claim stays out of what the site publishes. A drafts
-# build shows it marked "Draft"; a release build shows it only once the Author approves this file's SHA-256 on main with
-# the kind room-text.
+# The monitor's screen (spec 029; FR-019, FR-021; plan.md §R-C3): "Applied AI Engineer", the Author's words in his
+# review of 2026-11-15 (intent-029), on two rows, "Applied" then "AI Engineer", so the scene's 12 × 2 grid holds them
+# and the cursor and RG7 measures them over its floor on both reference stages (the page's Q26, provisional;
+# specs/029-room-polish/plan.md §R-C8; never a row the site's code holds anyway, as "Engineer" alone, a role's name,
+# would be); then a block cursor, the words and the cursor in the terminal's
+# green; the cursor blinks while the room animates and is held, shown, otherwise. The words are his role at Denver
+# Local AI in the corpus's words; each row's claim quotes the longer span of that sentence, so the claim stays out of
+# what the site publishes. A drafts build shows it marked "Draft"; a release build shows it only once the Author
+# approves this file's SHA-256 on main with the kind room-text.
 version: 1
 block: monitor-line
 renderer: terminal
@@ -13,7 +16,12 @@ words_from:
   - file: intent/029-room-polish.md
     quote: The monitor should say "Applied AI Engineer" with the cursor in green font
 lines:
-  - text: Applied AI Engineer
+  - text: Applied
+    about_author: true
+    claims:
+      - file: corpus/07-denver-local-ai.md
+        quote: 'His resume label for the company, in his words: "(co-owner, Applied AI Engineer)".'
+  - text: AI Engineer
     about_author: true
     claims:
       - file: corpus/07-denver-local-ai.md

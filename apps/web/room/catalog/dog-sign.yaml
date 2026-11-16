@@ -1,6 +1,7 @@
 # The desk sign "My dog thinks I'm cool" with a paw print (FR-032; answer 4; spec 029, FR-017, FR-018, its Q6 read as
 # a typo of his "My dog things I'm cool", provisional until he answers): the Author's own design, a plate on a foot
-# whose lettering area is a readable live face, drawn from its outline, content/room/outlines/lettering-cool.outline.json,
+# whose lettering area is an atmosphere live face (spec 029, the page's Q26, provisional: no layout of its words reaches
+# RG7's floor on the reference phone; its words also in "Around the room"), drawn from its outline, content/room/outlines/lettering-cool.outline.json,
 # which spec 029 sets in code (his answer: "Drawn in the room's code (Recommended)"), once the scene binds it and he
 # approves the outline; until then it stays plain. The face is the card's, leaning back 4°, as the studio's hand-back of 2026-11-07 gives it: its facing and
 # up are (0, sin 4°, cos 4°) and (0, cos 4°, −sin 4°) to 7 places, since the hand-back's 4 places miss a unit vector by
@@ -22,7 +23,7 @@ live_faces:
     facing: [0, 0.0697565, 0.9975641]
     up: [0, 0.9975641, -0.0697565]
     px: [1024, 700]
-    readable: true
+    readable: false
 standin:
   - { shape: box, size: [0.16, 0.02, 0.05], at: [0, 0.01, 0], color: sign-wood }
   - { shape: box, size: [0.16, 0.1, 0.008], at: [0, 0.07, 0], color: sign-cream }

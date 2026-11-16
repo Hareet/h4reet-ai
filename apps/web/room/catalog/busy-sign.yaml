@@ -1,6 +1,7 @@
 # The desk sign "I AM VERY BUSY" (FR-032; answer 4; spec 029, FR-016): the Author's own design, a solid purple A-frame
 # whose front leans back 12.16°, as the studio's hand-back of 2026-11-07 gives it (tasks.md T313). Its lettering area,
-# on that slope, is a readable live face, drawn from its outline, content/room/outlines/lettering-busy.outline.json,
+# on that slope, is an atmosphere live face (spec 029, the page's Q26, provisional: no layout of its words reaches
+# RG7's floor on the reference phone; its words also in "Around the room"), drawn from its outline, content/room/outlines/lettering-busy.outline.json,
 # which spec 029 sets in code from his review's words (his answer: "Drawn in the room's code (Recommended)"), once the
 # scene binds it and he approves the outline; until then it stays plain. The face's centre and size are the hand-back's, given at the model's scale, divided by the stylized scale,
 # since the catalog's figures are at scale 1 and the work order multiplies them back (contracts/room-data-files.md §2);
@@ -23,7 +24,7 @@ live_faces:
     facing: [0, 0.2106424, 0.9775632]
     up: [0, 0.9775632, -0.2106424]
     px: [1024, 327]
-    readable: true
+    readable: false
 standin:
   - { shape: box, size: [0.22, 0.02, 0.05], at: [0, 0.01, 0], color: sign-purple }
   - { shape: box, size: [0.22, 0.07, 0.008], at: [0, 0.055, 0], color: sign-purple }

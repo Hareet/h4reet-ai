@@ -3,7 +3,8 @@
   "sign": "lettering-cool",
   "words": "My dog thinks I'm cool",
   "set_as": [
-    "My dog thinks",
+    "My dog",
+    "thinks",
     "I'm cool"
   ],
   "words_from": "the Author's review of 2026-11-15 (\"My dog things I'm cool\" with a paw print), read as \"My dog thinks I'm cool\", intent/029-room-polish.md; spec 029's Q6, provisional until his answer",
@@ -24,7 +25,7 @@
       17,
       16.5
     ],
-    "line": 1,
+    "line": 2,
     "height": 1.2
   }
 }
