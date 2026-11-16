@@ -3,9 +3,13 @@
 // stays idle, no room's dog file is fetched and no room's dog shows, the twin's picture stays at its place, no "Eat"
 // tile is offered, and spec 024's off state is as it was (no Eat box reserved, no `eat` on the stage). Staged on the
 // real 3D stage with a stand-in renderer, as chase-stage.test.ts stages it.
+// premise-028 (spec 028, page Q49; probe-dino.md §4 T-c): the bundle without the model is built on purpose, the
+// repository's part with `avatars.dinosaur` taken out, and the stage draws it (`virtual:room-scene`, as
+// eat-model.test.ts swaps it), since his intake (a556a933) puts the model in the repository.
 import { JSDOM } from "jsdom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { RoomScene } from "../../src/room/compose/bundle";
 import { createScene } from "../../src/room/scene";
 import { DOG_NODE } from "../../src/room/scene/avatars";
 import type { DinoFigures } from "../../src/room/scene/dino-scene-figures";
@@ -16,6 +20,24 @@ const made = vi.hoisted(() => ({
   renderer: null as ((parameters: unknown) => unknown) | null,
   scenes: [] as DinoFigures[],
 }));
+
+/** The repository's 3D part without the dinosaur's model. */
+const withoutModel = (part: RoomScene): RoomScene =>
+  ({
+    ...part,
+    avatars: Object.fromEntries(Object.entries(part.avatars).filter(([id]) => id !== "dinosaur")),
+  }) as RoomScene;
+
+const swapped = vi.hoisted(() => ({ part: null as RoomScene | null }));
+
+vi.mock("virtual:room-scene", async (importOriginal) => {
+  const own = await importOriginal<{ default: RoomScene }>();
+  return {
+    get default() {
+      return swapped.part ?? own.default;
+    },
+  };
+});
 
 vi.mock("three", async (importOriginal) => {
   const three = await importOriginal<typeof import("three")>();
@@ -40,11 +62,13 @@ vi.mock("../../src/room/scene/dino-scene-figures", async (importOriginal) => {
 afterEach(() => {
   made.renderer = null;
   made.scenes = [];
+  swapped.part = null;
 });
 
 describe("a dinosaur visit with its cut-out (Q11; FR-019, FR-025)", () => {
   it("runs no scene, fetches and shows no room's dog, keeps the twin at its place, and offers no tile", async () => {
-    const { scene: part, index } = repositoryBundle();
+    const { scene: repo, index } = repositoryBundle();
+    const part = (swapped.part = withoutModel(repo));
     expect(part.avatars.dinosaur).toBeUndefined();
     expect(part.figures.leave).toBeDefined();
     let drawn: import("three").Scene | null = null;
