@@ -261,6 +261,7 @@ Terms: **a part**: one of the HUD's boxes over the stage: the conversation panel
 ## Assumptions
 
 - B0's note decided group B's fix (Readings): the layout's fault is code (FR-013); the readiness is his content and his hand (B0's Q-B0-1): until he re-runs his evaluations and marks the regenerated pack's hashes in `config/twin-readiness.yaml`, a release build of this line sends no turn, and its panel says so (FR-012).
+- **Departure named for group B** (CLAUDE.md, "Do not edit test files during a fix task"): FR-012 changes what two earlier tests pin, `test/ui/talk-turns.test.ts:357-366` (typed text with topics ready and free talk closed) and `test/manifest.test.ts:215-234` (the exact list of message ids). T-B01, a test task before the fix, rewrites both test-first, each named in its notes; T-B02, the fix task, edits no test (plan §R-B2a).
 - The alphas, the plate's shape, the paw print's shapes, the paper's look, and the cards' look are estimates, data, his at his look (SC-008).
 - No asset changes: no `assets/**`, no `assets/policy/**` write; the busy sign's and the dog sign's models keep their `lettering` meshes, which the loader already hides where a face is declared. The three room-text approvals (two outlines, the monitor's block) are a patch for his hand (plan §7), after his answer to Q6 for the dog sign's.
 - `make check` runs once, in T-INT; each group runs its own files and `make lint`.
