@@ -219,8 +219,10 @@ describe("the room report's readiness section (FR-014a)", () => {
     expect(at).toBeLessThan(md.lastIndexOf("\nFindings:"));
     expect(md).toContain(`\n${readinessLines(reasons).join("\n")}\n`);
     // The compositor's own reads stay the room's data (ComposeOptions.readiness; contracts/room-data-files.md §1):
-    // the twin's files are read by the caller, never through the compositor's tree.
-    expect(t.log.filter((path) => path.startsWith("config/twin"))).toEqual([]);
+    // the twin's files are read by the caller, never through the compositor's tree. (config/twin-readiness.yaml is
+    // read there already, as a session hint's source, which test/room/data-only.test.ts allows; the pack, the prompt,
+    // and the fixed lines aren't.)
+    expect(t.log.filter((path) => path.startsWith("config/twin/"))).toEqual([]);
   });
 
   it("has no readiness section where no reasons were handed in, as the room's bundle composes", () => {
