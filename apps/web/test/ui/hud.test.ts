@@ -45,7 +45,7 @@ const shown = (el: Element | null): boolean =>
   el !== null && el.closest("[hidden], [inert], [aria-hidden='true']") === null;
 
 describe("the HUD's places (FR-019, FR-020)", () => {
-  it("lays the bar at the foot holding the toolbar's tiles in order, and the column the list then the conversation", async () => {
+  it("lays the bar at the foot holding the toolbar's tiles in order, and the column the list then the conversation; no note on the stage (spec 028)", async () => {
     const { v } = await room(WIDE);
     expect(root(v).getAttribute("data-hud")).toBe("column");
     const bar = v.doc.querySelector(".hud-bar");
@@ -56,9 +56,10 @@ describe("the HUD's places (FR-019, FR-020)", () => {
     expect(tiles.slice(-2)).toEqual(["How data flows", "Credits"]);
     const panels = v.doc.querySelector(".hud-panels");
     expect([...(panels?.children ?? [])].map((el) => el.className.split(" ")[0])).toEqual(["room-list", "talk"]);
-    // The stand-in line, where the index's copy holds it, in the clear box's notes at its top left.
-    const standIn = v.doc.querySelector(".room-stand-in");
-    expect(standIn?.closest(".room-notes")?.parentElement?.classList.contains("room-clear")).toBe(true);
+    // Spec 028 (T-A06, FR-012; plan.md §R-B8): the stand-in line is no longer in the clear box's notes, which hold
+    // nothing; it is "Around the room"'s first line.
+    expect(v.doc.querySelectorAll(".room-notes > *")).toHaveLength(0);
+    expect(v.doc.querySelector('.room-around [data-line="twin"]')).not.toBeNull();
   });
 
   it("docks the list's strip and the text box's row above the bar on a window held upright", async () => {
@@ -139,14 +140,17 @@ describe("the collapsing parts (FR-023)", () => {
 });
 
 describe("what never hides (FR-021, FR-022)", () => {
-  it("keeps the AI disclosure and the stand-in line in view in every panel state", async () => {
+  it("keeps the AI disclosure in view in every panel state, and the stand-in line in Around the room, in no panel (spec 028)", async () => {
     const { v } = await room(UPRIGHT);
     const check = (what: string): void => {
       const strip = v.doc.getElementById("ai-disclosure");
       expect(textOf(strip), what).toBe(AI_DISCLOSURE);
       expect(shown(strip), what).toBe(true);
-      const line = v.doc.querySelector(".room-stand-in");
-      if (line && textOf(line) !== "") expect(shown(line), what).toBe(true);
+      // Spec 028 (FR-012, FR-015): the stand-in line is "Around the room"'s, off the stage.
+      const line = v.doc.querySelector('.room-around [data-line="twin"]');
+      expect(textOf(line), what).not.toBe("");
+      // rv-028a-4's A4-1 (T-INT): and a screen reader reaches it (FR-015).
+      expect(line?.closest("[hidden], [inert], [aria-hidden='true']") ?? null, what).toBeNull();
       expect(shown(v.doc.querySelector("#talk-text")), `${what}: the text box`).toBe(true);
       // Nothing that collapses holds either.
       expect(strip?.closest(".room-list, .talk-sheet, .resume-panel"), what).toBeNull();

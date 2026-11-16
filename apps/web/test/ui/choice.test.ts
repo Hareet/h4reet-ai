@@ -42,8 +42,9 @@ describe("the choice screen", () => {
       expect(preview?.getAttribute("aria-hidden")).toBe("true");
     }
     expect([...v.doc.querySelectorAll("fieldset > legend")].map((l) => textOf(l))).toEqual([
-      "Your path",
-      "Your avatar",
+      // Spec 029 (FR-024; a named departure, its Assumptions): the two numbered steps, in the Author's words.
+      "Step 1: Select your role",
+      "Step 2: Select your avatar",
     ]);
     // Nothing is chosen for the visitor.
     expect([...radios(v.doc, "path"), ...radios(v.doc, "avatar")].some((r) => r.checked)).toBe(false);

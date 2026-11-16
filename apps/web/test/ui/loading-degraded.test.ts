@@ -217,7 +217,7 @@ describe("giving way when every part has ended (FR-019)", () => {
     expect(v.scene.handoff.length).toBeGreaterThan(0);
   });
 
-  it("counts a failed and a skipped file as ended, and shows the placeholder note as today", async () => {
+  it("counts a failed and a skipped file as ended, and gives the placeholder words as today, in Around the room (spec 028)", async () => {
     const { v } = await entered({ list: files });
     ended(v, "fx-desk", "retried");
     await flush();
@@ -226,8 +226,9 @@ describe("giving way when every part has ended (FR-019)", () => {
     ended(v, "fx-sign", "skipped");
     await flush();
     expect(loading(v)).toBe(false);
-    const note = v.doc.querySelector<HTMLElement>(".room-note:not(.room-stand-in)");
-    expect(note?.hidden).toBe(!roomIndex().build.placeholders);
+    // Spec 028 (T-A06; plan.md §R-B8): the placeholder words are "Around the room"'s line, no longer a stage note.
+    const note = v.doc.querySelector<HTMLElement>('.room-around li[data-line="placeholders"]');
+    expect(note === null).toBe(!roomIndex().build.placeholders);
   });
 
   it("gives way below ADR 0010's floor when the steps end, every file skipped before the list arrived", async () => {

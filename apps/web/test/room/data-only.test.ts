@@ -27,6 +27,7 @@ import { describe, expect, it } from "vitest";
 import { parse, stringify } from "yaml";
 
 import { readMessages, ROOM_EVENTS_PATH } from "../../build/manifest";
+import { avatarsOf, carriesModel } from "../../build/room/avatars";
 import { compose, formatFinding } from "../../build/room/compose";
 import type { ComposeResult } from "../../build/room/compose";
 import { loadRoom, namespaceIds, pathOf, SCENE_FILE, TOPICS_FILE, UI_WORDS_FILE } from "../../build/room/load";
@@ -53,7 +54,8 @@ import {
   smallestFlatStage,
   supportedStages,
 } from "../../src/room/compose/stages";
-import { reservedBoxes } from "../../src/room/compose/hud";
+import { DEFAULT_METRICS, reservedBoxes } from "../../src/room/compose/hud";
+import { protectSceneOf, protectorFor } from "../../src/room/compose/protect";
 import type { Stage } from "../../src/room/compose/stages";
 import { TIER_VALUES, isSideWallAnchor } from "../../src/room/compose/vocabulary";
 import type { RoomEvent } from "../../src/room/events";
@@ -299,7 +301,8 @@ interface View {
   readonly grid: boolean;
   /** The selectables FR-064's carve-out holds there, by the kernel's listOnly. */
   readonly held: ReadonlySet<string>;
-  /** What no core may lie under there: in 3D the walking control's box (spec 008); nothing in 2D. */
+  /** What no core may lie under there: in 3D the walking control's box (spec 008), and in a 3D dinosaur visit's view
+   *  the "Eat" tile's box too (spec 024, Q150); nothing in 2D. */
   readonly reserved: readonly Rect[];
 }
 
@@ -321,6 +324,19 @@ function views(): View[] {
     const held = listOnly(others, [0, 0, stage.w, stage.h], sideWall, reserved);
     return { camera, stage, others, core: CORE_PX, grid: false, held, reserved };
   });
+  // premise-028 (spec 028, page Q49; probe-dino.md §4 T-b): a 3D dinosaur visit's views too, whenever the bundle carries
+  // the dinosaur's model, as RG6 sweeps them (rg.ts's pickSweep over `supportedStages(g.protectEat)`): each stage with
+  // its own reserved boxes, the "Eat" tile's among them.
+  if (carriesModel(avatarsOf(fileTree(REPO), policy, SCENE), "dinosaur")) {
+    const protectEat = protectorFor(protectSceneOf(base.scene, base.index), DEFAULT_METRICS.rem, { eat: true });
+    for (const stage of supportedStages(protectEat)) {
+      const camera = framing(stage.w / stage.h, framed);
+      const others = pickAreasOn(base.scene, base.index, camera, stage);
+      const reserved = stage.reserved ?? reservedBoxes(stage, DEFAULT_METRICS.rem, { eat: true });
+      const held = listOnly(others, [0, 0, stage.w, stage.h], sideWall, reserved);
+      out.push({ camera, stage, others, core: CORE_PX, grid: false, held, reserved });
+    }
+  }
   const flat = framing(FLAT_VIEW.w / FLAT_VIEW.h, framed);
   const seen = new Map<string, View>();
   for (const stage of supportedStages()) {

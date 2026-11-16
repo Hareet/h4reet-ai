@@ -9,3 +9,10 @@ facts:
     source: "The Author's resume, 2026-10-29 (the kill-switch line); config/budgets.yaml (envs.prod.daily_usd: 5.00)"
     public_safe: true
     phrasing: "{value}"
+  - id: site.prod_containers
+    label: "The laptop's production stack's containers (ENV=prod, COMPOSE_PROFILES=gpu), as of 2026-11-13, from deploy/compose.yaml, before the tunnel profile is added"
+    value: 15
+    tag: C
+    source: "deploy/compose.yaml (the services that run under ENV=prod with COMPOSE_PROFILES=gpu, deploy/env.example/prod.env.example:15); films/SCRIPTS.md §5, line 1"
+    public_safe: true
+    phrasing: "{value} containers"

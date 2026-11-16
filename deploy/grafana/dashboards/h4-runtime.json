@@ -3213,7 +3213,7 @@
       "type": "stat",
       "id": 78,
       "title": "Visits whose avatar failed",
-      "description": "The share of visits in which a figure's avatar file failed to load after its retry, so the figure showed its fallback (spec 009, FR-032, FR-034): the twin's own model or one of its clips among them since spec 016 (its FR-050, FR-051), the twin then showing the stand-in, the room's dog's model or one of its clips since spec 025 (its FR-026), the dog then not showing, and the visitors' avatars' files: avatar_failed events, at most one a visit and with no identifier, over resume_opened plus resume_kept, a stand-in for visits, read as the 2D share is read. A visit that keeps the resume and opens it later counts twice, so the share reads low rather than high; with no visit in the range it has no value.",
+      "description": "The share of visits in which a figure's avatar file failed to load after its retry, so the figure showed its fallback (spec 009, FR-032, FR-034): the twin's own model or one of its clips among them since spec 016 (its FR-050, FR-051), the twin then showing the stand-in, the room's dog's model or one of its clips since spec 025 (its FR-026), in dinosaur visits since spec 028 (its FR-018), the dog then not showing, and the visitors' avatars' files: avatar_failed events, at most one a visit and with no identifier, over resume_opened plus resume_kept, a stand-in for visits, read as the 2D share is read. A visit that keeps the resume and opens it later counts twice, so the share reads low rather than high; with no visit in the range it has no value.",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"

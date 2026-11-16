@@ -492,7 +492,7 @@ describe("every chunk of the four pieces eaten (US2; SC-002)", () => {
 
   it(`${DESK}: no placement or switch pose mounted on it loses the top under it`, () => {
     const boxes = keepOutBoxes(scene, DESK);
-    expect(boxes).toHaveLength(9);
+    expect(boxes).toHaveLength(8); // 9 until spec 026's human patch (T019, Q297) moved the dog sign off the desk
     const prims = standing(DESK);
     for (const box of boxes) {
       const centre: V3 = [(box.min[0] + box.max[0]) / 2, 2, (box.min[2] + box.max[2]) / 2];

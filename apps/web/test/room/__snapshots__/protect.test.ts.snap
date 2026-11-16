@@ -28,6 +28,12 @@ exports[`the protector from the room's own bundle (protectSceneOf) > records the
       44,
     ],
     [
+      1089.9,
+      786.5,
+      44,
+      44,
+    ],
+    [
       849.1,
       279.8,
       355.7,
@@ -54,20 +60,14 @@ exports[`the protector from the room's own bundle (protectSceneOf) > records the
       52,
     ],
     [
-      0,
-      1148,
-      640,
-      52,
-    ],
-    [
-      1536,
-      27.5,
-      384,
-      352,
+      1472,
+      781,
+      448,
+      367,
     ],
     [
       1788,
-      1100,
+      733,
       128,
       44,
     ],
@@ -94,6 +94,12 @@ exports[`the protector from the room's own bundle (protectSceneOf) > records the
     [
       479.4,
       335,
+      44,
+      44,
+    ],
+    [
+      1340.6,
+      814.4,
       44,
       44,
     ],

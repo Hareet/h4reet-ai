@@ -49,14 +49,18 @@ function bundles(): { with: ComposeResult; without: ComposeResult } {
   if (composed) return composed;
   const base = fileTree(REPO);
   const text = new TextDecoder().decode(base.read(SCENE_PATH) ?? new Uint8Array());
+  // The scene's selectables without the one that holds the dog's sign (spec 026's human patch, T019, puts one in
+  // scene.yaml; Q297; its r3 gives it the sign's ID), so the comparison holds whether or not the shipped scene holds it.
   const doc = parse(text) as { selectables: unknown[] };
+  doc.selectables = doc.selectables.filter((s) => !((s as { members?: unknown[] }).members ?? []).includes(SIGN));
+  const less = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]]));
   doc.selectables = [...doc.selectables, DOG_SELECTABLE];
   const tree = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]]));
   const policy = readRoomPolicy({ env: {}, root: REPO });
   const options = { mode: "strict" as const, drafts: false };
   composed = {
     with: compose(tree, policy, { ...options }),
-    without: compose(base, policy, { ...options }),
+    without: compose(less, policy, { ...options }),
   };
   return composed;
 }

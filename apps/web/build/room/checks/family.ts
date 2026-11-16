@@ -12,6 +12,7 @@
 //   (the loader's) and RT2's walk.
 import type { LoadedRoom } from "../load";
 import type { RoomPolicy } from "../policy";
+import type { ReadinessReasons } from "../readiness";
 import { compareBytewise } from "../source";
 import type { Tree } from "../source";
 
@@ -63,6 +64,7 @@ export const RULES = {
   RI9: rule("RI", read), // a corpus path outside its form
   RI10: rule("RI"), // lookdev.yaml naming a placement the scene lacks, or an avatar outside the table
   RI11: rule("RI"), // a label nothing references
+  RI12: rule("RI"), // spec 028: the dinosaur's scene's last path point in the shell, or a point off the chase floor
   RG1: rule("RG"), // mounts that aren't one tree
   RG2: rule("RG", readPart), // bounds, faces, glows, and stand-ins; unit vectors (the loader's); px's aspect
   RG3: rule("RG", read), // a stylized scale outside 1 to 4
@@ -182,6 +184,9 @@ export interface ComposeOptions {
    *  the gateway's rule (build/room/readiness.ts) and hands in, so the compositor's own reads stay the room's data.
    *  Absent, nothing is ready. */
   readonly readiness?: { readonly topics: ReadonlyMap<string, boolean>; readonly freeTalk: boolean };
+  /** The same rule's reasons (spec 029, FR-014a; build/room/readiness.ts's readinessReasons), handed in the same way
+   *  for the room report's readiness section, which room:report prints. Absent, the report has no such section. */
+  readonly readinessReasons?: ReadinessReasons;
 }
 
 const RULE_PARTS = /^([A-Z]+)(\d+)$/;

@@ -72,6 +72,8 @@ export const EMBLEM_ICONS: Readonly<Record<string, string>> = {
   screen: "M5 5h14v9H5z M3 17h18l-1.5 2h-15z",
   // A board on two legs, two lines of chalk.
   slate: "M3 4h18v12H3z M8 16l-2 4 M16 16l2 4 M6 8h6 M6 11h9",
+  // A paw print: the pad, and four toes over it.
+  paw: "M12 12c-3 0-5.5 3.5-5.5 5.5s2 2.5 5.5 2.5 5.5-.5 5.5-2.5S15 12 12 12z M3.5 10.5a1.5 2 0 1 0 3 0a1.5 2 0 1 0-3 0z M7.5 5.5a1.5 2 0 1 0 3 0a1.5 2 0 1 0-3 0z M13.5 5.5a1.5 2 0 1 0 3 0a1.5 2 0 1 0-3 0z M17.5 10.5a1.5 2 0 1 0 3 0a1.5 2 0 1 0-3 0z",
 };
 
 /** The speech glyph: a speech bubble, for free talk and a piece with no emblem of its own. */

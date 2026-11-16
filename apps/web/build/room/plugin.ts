@@ -64,7 +64,7 @@ export interface RoomBundleOptions {
 }
 
 /** The Vite plugin: the room's bundle, composed once a build. */
-export function roomBundle(options: RoomBundleOptions): Plugin {
+export function roomBundle(options: RoomBundleOptions): Plugin & { api: { composed(): ComposeResult } } {
   let composed: ComposeResult | null = null;
   let limits: ReturnType<typeof talkLimits> | null = null;
   const result = (): ComposeResult => {
@@ -73,6 +73,9 @@ export function roomBundle(options: RoomBundleOptions): Plugin {
   };
   return {
     name: "h4-room-bundle",
+    // Spec 028 (FR-013): the composed bundle, for the Credits page's AI-made figures' lines (build/credits.ts), read
+    // once the room is composed at buildStart.
+    api: { composed: (): ComposeResult => result() },
     buildStart() {
       const tree = options.tree?.() ?? fileTree(options.root);
       const policy = options.policy?.() ?? readRoomPolicy({ env: process.env, root: options.root });

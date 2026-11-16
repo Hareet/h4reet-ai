@@ -48,6 +48,15 @@ placements:
     mount: { on: work-desk, anchor: top, offset: [-0.154, 0, -0.22], estimated: true }
     frame: true
     label: label.monitor
+    # Spec 029 (FR-019; the page's Q26, its recommended answer taken provisionally): a readable face, "Applied" then
+    # "AI Engineer" and the green cursor on a 12 × 2 grid, 32.6 px desktop and 10.4 px phone against RG7's floor of 9
+    # (room:report; specs/029-room-polish/plan.md §R-C8); a release build leaves it plain until the Author approves its
+    # block's SHA-256.
+    faces:
+      screen:
+        label: label.monitor
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: terminal, grid: { cols: 12, rows: 2 }, text: monitor-line }
   - id: neon-sign
     piece: neon-sign
     mount: { on: desk-screen, anchor: top-edge }
@@ -89,11 +98,36 @@ placements:
     frame: true
     label: label.busy-sign
     edible: { chunks: 4 }
+    # Spec 029 (FR-016; the page's Q26, provisional): an atmosphere face, as the neon sign's second line and the
+    # twin's shirt are, since no layout of its words reaches RG7's floor on the reference phone (3.4 px measured,
+    # measure-c.md); its words also in "Around the room" under its label; max_chars its outline's words, 14.
+    faces:
+      lettering:
+        label: label.busy-sign
+        atmosphere: true
+        max_chars: 14
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: sign, text: lettering-busy }
   - id: dog-sign
     piece: dog-sign
-    mount: { on: work-desk, anchor: top, offset: [0.27, 0, -0.04], turn: { y: -10 }, estimated: true }
+    # Spec 026 (T019; as amended, the page's Q297, answered: recommended, his to confirm or overturn): on the right
+    # wall, no turn, where RG6 passes (specs/026-twin-pets-dog/dog-sign-offset.md, "Off the desk"); Q287's floor
+    # mount put the sign under the "Eat" tile's box for a 3D dinosaur visit. Rebuilt as r3 (patch6-026): 0.1 m further
+    # toward the front and 6 cm higher than r2's [-0.2, 0.4, 0.0375], where the walking control's box and the "Eat"
+    # tile's hold it at no stage, and its box on the floor leaves the bicycle reachable in the walking view.
+    mount: { on: room-shell, anchor: right-wall, offset: [-0.1, 0.46, 0.0375], estimated: true }
     frame: true
     label: label.dog-sign
+    # Spec 029 (FR-017, FR-018; the page's Q26, provisional): an atmosphere face, as the busy sign's (3.2 px measured
+    # on the reference phone on three lines, measure-c.md); its words also in "Around the room" under its label, the
+    # paw adding none; max_chars its outline's words, 22.
+    faces:
+      lettering:
+        label: label.dog-sign
+        atmosphere: true
+        max_chars: 22
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: sign, text: lettering-cool }
   - id: chalkboard
     piece: chalkboard
     mount: { on: room-shell, anchor: left-wall, offset: [-0.2876, 1.65, 0], estimated: true }
@@ -227,6 +261,16 @@ selectables:
     emblem: slate
     members: [chalkboard]
     action: { talk: { topic: mission } }
+  # Spec 026 (FR-016): the dog's sign. As reworked for spec 028 (its Q20, taken: recommended, his to confirm or
+  # overturn): the sign alone opens the topic, with no `figure: dog`, since the room's dog never stands at home
+  # (spec 028's Q9, FR-018), so spec 026's FR-014 figure pick has nothing to pick. Rebuilt as r3 (patch6-026): its ID is
+  # its sign's, as the snowboard's and the bicycle's are their members', since the room's code names `dog` (the
+  # figure), which spec 004's FR-007 scan refuses for an ID only the data defines; its emblem is a paw (FR-005).
+  - id: dog-sign
+    name: Dog
+    emblem: paw
+    members: [dog-sign]
+    action: { talk: { topic: hobbies-and-travel, lead: The dog first. } }
 # Spec 024 (FR-011): the seconds an eaten chunk takes to grow back.
 eating: { regrow_s: 20 }
 handoff: { from: { placement: twin-figure, anchor: hand }, to: { placement: visitor-figure, anchor: hand } }
@@ -316,3 +360,18 @@ figures:
     stroke_n: 3
     pet_s: 3.5
     elbow_deg: 150
+  # Spec 028's dinosaur's scene (its FR-021, FR-022; plan.md R-B4; Q13): each an estimate the Author's look places,
+  # placed by T-B03's printed points: the chase floor's bounds x ±0.947, z −0.49 to 0.585; the work desk's obstacle to
+  # z 0.312 and the bicycle's from x 0.769, so the floor below the bicycle is the strip in front of the desk short of
+  # the bicycle's obstacle; the twin's home (0.66, 0.469); the shell's floor x ±1.0668, z ±0.6096, open at the front.
+  # `carry` is the bicycle's origin (midway between its hubs, 0.259 m up: its catalog bounds) beside the twin; the path
+  # goes out of the open front and past the right wall's front edge. RI12 holds the points to the floors.
+  leave:
+    takes: bicycle # the placement whose picture the twin and the dog take out
+    meet: [0.42, 0.45] # estimated: beside the twin, at the dog's home's side
+    take_at: [0.74, 0.52] # estimated
+    carry: [0.3, 0.26, 0.05] # estimated
+    path: [[0.8, 0.75], [1.3, 0.9], [1.7, 0.9]] # estimated
+    dog_mps: 1.2 # estimated
+    walk_mps: 1.0 # estimated
+    take_s: 0.8 # estimated

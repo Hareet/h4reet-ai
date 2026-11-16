@@ -10,11 +10,12 @@ twin:
   turns:
     - role: "visitor"
       text: "What happens to what I say here?"
-fake_response: "We disclose every data flow, your conversation is not saved and you can look at the GitHub repo for how all the code works. Langfuse keeps only costs and usage, and we use Masking. We come from a background of open source, public software."
+fake_response: "We disclose every data flow, your conversation is not saved and you can look at the GitHub repo for how all the code works. Langfuse keeps only costs and usage, and we use Masking. We come from a background of open source, public software. \"this site saves none of it, and Anthropic may keep a turn it answered for up to 30 days, never for training\""
 expect:
   contains:
     - "GitHub"
     - "Masking"
+    - "Anthropic"
   not_contains:
     - "a degree"
     - "any spend"
@@ -25,4 +26,9 @@ expect:
     - "home address"
     - "religious affiliation"
     - "surname"
+    - "the evals are graded by a model"
+    - "the meter's figures are the cloud provider's bill"
+    - "the twin is a demo"
+    - "this site keeps the conversations the paid fallback answers"
     - "where he was born"
+    - "wrote the code alone"

@@ -10,7 +10,7 @@ import { compose } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import type { Protect } from "../../src/room/compose/frame";
-import { hudBoxes } from "../../src/room/compose/hud";
+import { hudBoxes, wallArea } from "../../src/room/compose/hud";
 import type { Box } from "../../src/room/compose/hud";
 import type { StatusResult } from "../../src/room/signals/tier";
 import {
@@ -40,8 +40,13 @@ async function expectWhole(v: Visit, what: string): Promise<void> {
   const strip = v.doc.getElementById("ai-disclosure");
   expect(textOf(strip), what).toBe(AI_DISCLOSURE);
   expect(strip?.closest("[hidden], [inert], [aria-hidden='true']"), what).toBeNull();
-  const standIn = v.doc.querySelector(".room-stand-in");
-  if (standIn && textOf(standIn) !== "") expect(standIn.closest("[hidden], [inert]"), what).toBeNull();
+  // Spec 028 (T-A06, FR-012, FR-015; plan.md §R-B8): the stand-in line is no longer on the stage; "Around the room"
+  // keeps it for a screen reader.
+  expect(v.doc.querySelector(".room-stand-in"), what).toBeNull();
+  const line = v.doc.querySelector('.room-around [data-line="twin"]');
+  expect(textOf(line), what).not.toBe("");
+  // rv-028a-4's A4-1 (T-INT): and a screen reader reaches it (FR-015).
+  expect(line?.closest("[hidden], [inert], [aria-hidden='true']") ?? null, what).toBeNull();
   for (const part of v.doc.querySelectorAll(".hud-bar, .hud-panels, .room-list, .talk"))
     expect(part.hasAttribute("inert"), `${what}: ${part.className}`).toBe(false);
   const view = v.doc.querySelector(".room-stage-view");
@@ -209,7 +214,10 @@ describe("the frame under every fault (spec 014, T021)", () => {
     const px = (name: string): number => Number.parseFloat(root.style.getPropertyValue(name));
     const frame = { x: px("--frame-x"), y: px("--frame-y"), w: px("--frame-w"), h: px("--frame-h") };
     for (const value of Object.values(frame)) expect(Number.isFinite(value), `${what}: --frame-*`).toBe(true);
-    expect(holds(frame, clear), `${what}: the frame holds the clear area`).toBe(true);
+    // Spec 028 (T-A06's run, after T-A03; plan.md §R-B8): where the window takes the split layout the frame is its wall
+    // area, beside the panel and the column; elsewhere it holds the clear area, as spec 014 has it.
+    if (root.getAttribute("data-split") === "on") expect(frame, `${what}: the split's frame`).toEqual(wallArea(W));
+    else expect(holds(frame, clear), `${what}: the frame holds the clear area`).toBe(true);
     expect(holds({ x: 0, y: 0, ...W }, frame), `${what}: the frame lies in the window`).toBe(true);
     if (v.room.visit.mode !== "2d") {
       const given = v.scene.created[0]?.frame?.();

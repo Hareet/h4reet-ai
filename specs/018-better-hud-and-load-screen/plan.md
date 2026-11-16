@@ -85,7 +85,7 @@ Documentation: `spec.md`, `plan.md`, `tasks.md`, `analysis.md`, this folder; the
 
 All sizes in rem of the window's root font size, except the floor's pixels. `t` is the table, `clear`, `band`, `bar` the column layout's boxes from `hudBoxes`, unchanged (D-I1).
 
-The table: `split: { panel: { shareMax: 0.5, maxRem: 40, minWidthRem: 18, minHeightRem: 14, titleRem: 2.75 }, rest: { minRem: <the model's finding>, gapRem: 0.25 }, list: { widthRem: 24, heightRem: 22 }, walkGapRem: 0.25, coverMax: 0.25 }`. impl-018's `minWidthRem: 48` and `panel.gapRem` go. The first is replaced by the rule, and the second, which kept the panel off the walking control's corner, is subsumed by (c): the floor's 304 px is wider than the corner's 9rem.
+The table: `split: { panel: { shareMax: 0.5, maxRem: 40, minWidthRem: 18, minHeightRem: 14, titleRem: 2.75 }, rest: { minRem: <the model's finding>, gapRem: 0.25 }, list: { widthRem: 24, heightRem: 25 }, walkGapRem: 0.25, coverMax: 0.25 }`. impl-018's `minWidthRem: 48` and `panel.gapRem` go. The first is replaced by the rule, and the second, which kept the panel off the walking control's corner, is subsumed by (c): the floor's 304 px is wider than the corner's 9rem. (As amended by spec 026's human patch, r4, provisional on the page's Q39 of 2026-11-15: `heightRem` 22 → 25, the model's 24.72rem for the five entries with the dog's sign. Since spec 028 the list's box is the column's top, its FR-007, so 25rem sizes no box; `test/ui/hud-split-model.test.ts` holds the list's content to it at scale 1.)
 
 `splitBoxes(screen, state, metrics)` returns null unless every condition holds, in this order:
 1. **(a)** `layoutFor` is "column" and `fitsHud` holds.
@@ -93,7 +93,7 @@ The table: `split: { panel: { shareMax: 0.5, maxRem: 40, minWidthRem: 18, minHei
 3. **(c)** `clear.w − panel.w ≥ minimum.w` (304) and `clear.h ≥ minimum.h` (196).
 4. **The rest row**: `x = safe.left`, `y = bar.y`, `h = bar.h`, `w = min(panel.w, cluster.x − 0.25rem − safe.left)`, with `cluster` the bar's tile cluster from the compact boxes. **(d)** `w ≥ rest.minRem`.
 5. **The walking control**: `x = band.x + band.w − safe.right − 0.25rem − 8rem`, `y = band.y + band.h − 0.25rem − 2.75rem`, `w = 8rem`, `h = 2.75rem`.
-6. **The list**: `w = min(24rem, band.w − safe.right)`, `x = band.x + band.w − safe.right − w`, `y = band.y`, `h = min(22rem, walk.y − 0.25rem − band.y)`.
+6. **The list**: `w = min(24rem, band.w − safe.right)`, `x = band.x + band.w − safe.right − w`, `y = band.y`, `h = min(25rem, walk.y − 0.25rem − band.y)` (22rem before spec 026's human patch, r4; provisional, the page's Q39 of 2026-11-15; spec 028's `wallBoxes` replaces this box).
 7. **(e)** `unionArea([strip, cluster, rest, list, walk, notesBox(clear)]) / (screen.w · screen.h) ≤ coverMax`, with the strip and cluster from the compact boxes.
 
 `SplitBoxes` is `{ panel, rest, frame, list, walk }`, where `frame` is the panel's box with the rest row below it (`panel.y` to `rest.y + rest.h`), the box the open panel's frame is drawn round. `compactBoxes` calls `splitBoxes` and, where it isn't null, returns `split`, `walk` (the split walk), `walkPlace: "column"`, and `all: [strip, cluster, rest, list, walk]`. `column` stays the column layout's compact box, computed but not shown, so spec 014's `hud-model.test.ts` case on the column's content holds as written. `frameArea`, `stageFor`, `framedStage`, and `alwaysOnCoverage` take the split boxes through `all`, with no edit of their own.

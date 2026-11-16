@@ -245,7 +245,12 @@ function protectSceneFrom(
     const p = scene.placements.find((x) => x.role === role);
     return p ? of([p.id]) : [];
   });
+  // Spec 028 (FR-005, FR-010): the shell, the one placement mounted on nothing, whose near face is the wall box the
+  // split layout's stages are framed beside, as the room's protector reads it from the bundle (protectSceneOf).
+  const roots = scene.placements.filter((p) => p.mount === undefined);
+  const shell = roots.length === 1 && roots[0] ? boxes.get(roots[0].id) : undefined;
   return {
+    ...(shell ? { shell } : {}),
     framed,
     selectables: scene.selectables.map((x, k) => ({
       id: String(k),

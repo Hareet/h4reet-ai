@@ -17,6 +17,7 @@ import type { Box, EatOption } from "./hud";
 import { CORE_PX, flatCore, listOnly, memberRect, pickAreas } from "./pick";
 import type { PickInput, Rect } from "./pick";
 import { FLAT_VIEW, flatPlacement } from "./stages";
+import { wallBox } from "./wall";
 
 /** The protector's input: the framing's boxes, the selectables in scene order with their members' framed boxes and
  *  whether each hangs on a side wall (FR-064's carve-out), and the two figures' framed boxes, all in world metres. */
@@ -28,6 +29,9 @@ export interface ProtectScene {
     readonly sideWall: boolean;
   }[];
   readonly figures: readonly WorldBox[];
+  /** Spec 028 (FR-005; plan.md §R-A1): the shell's frame box, the placement mounted on nothing, whose near face is the
+   *  wall box the split layout stands beside; absent, the protector gives no wall, and the split layout isn't taken. */
+  readonly shell?: WorldBox;
 }
 
 /** Each selectable's members projected on a stage at the production framing at its aspect. */
@@ -61,6 +65,10 @@ export function protectorFor(scene: ProtectScene, rem: number = DEFAULT_METRICS.
   return {
     key: `3d:${rem}${eat ? ":eat" : ""}:${JSON.stringify(scene)}`,
     ...(eat ? { eat: true } : {}),
+    wall(area) {
+      const shell = scene.shell;
+      return shell ? wallBox({ shell, framed: scene.framed }, area) : null;
+    },
     boxes(area, clear) {
       const held = heldAt(clear);
       const stage = { w: area.w, h: area.h };
@@ -92,10 +100,14 @@ export function protectSceneOf(part: RoomScene, index: Pick<RoomIndex, "selectab
       const b = boxes.get(id);
       return b ? [b] : [];
     });
+  // Spec 028: the shell, the one placement mounted on nothing (compose/wall.ts's wallSceneOf reads it the same way).
+  const roots = part.placements.filter((p) => p.mount === null);
+  const shell = roots.length === 1 ? roots[0]?.frame_box : undefined;
   return {
     framed: part.placements.filter((p) => p.framed).map((p) => p.frame_box),
     selectables: index.selectables.map((s) => ({ id: s.id, boxes: of(s.members), sideWall: s.side_wall })),
     figures: of([part.figures.twin, part.figures.visitor]),
+    ...(shell ? { shell } : {}),
   };
 }
 
@@ -118,6 +130,13 @@ export function flatProtectorFor(index: Pick<RoomIndex, "flat" | "selectables">)
     return held;
   };
   return {
+    // Spec 028 (FR-005): in 2D the room shows as the drawing, so its wall box is the drawing's view box as placed in the
+    // area (contain, centred), which the split layout's panel and column stand beside.
+    wall(area) {
+      if (![area.x, area.y, area.w, area.h].every(Number.isFinite) || !(area.w > 0) || !(area.h > 0)) return null;
+      const p = flatPlacement(area);
+      return { x: p.x, y: p.y, w: FLAT_VIEW.w * p.scale, h: FLAT_VIEW.h * p.scale };
+    },
     boxes(area, clear) {
       const held = heldAt(clear);
       const p = flatPlacement(area);

@@ -1,7 +1,7 @@
 # Hobbies and travel
 Priority: none yet (his to set) · Status: draft from his interview of 2026-11-06, for Hareet's final read · Last verified: 2026-11-06
 
-Tags as defined in `01-ai-strategy-and-cht.md`. His interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`. The document is filed as he pasted it in `intake/interview-2026-11-06-hobbies-mission-work.md`, and he approved each Golden Q&A below. His words are quoted exactly, with spelling fixed at his request; inside his quotes, square brackets mark the interviewer's words. Untagged lines are pointers to other files. The numbers are in `facts/hobbies-and-travel.yaml`. In the room, the snowboard and the bicycle open this topic, and the snowboard leads with winter.
+Tags as defined in `01-ai-strategy-and-cht.md`. His interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`; the line about the room's dog carries his order's date and his approval's. The document is filed as he pasted it in `intake/interview-2026-11-06-hobbies-mission-work.md`, and he approved each Golden Q&A below. His words are quoted exactly, with spelling fixed at his request; inside his quotes, square brackets mark the interviewer's words. Untagged lines are pointers to other files. The numbers are in `facts/hobbies-and-travel.yaml`. In the room, the snowboard, the bicycle, and the dog's desk sign open this topic, and the snowboard leads with winter.
 
 ## Snowboarding
 
@@ -17,6 +17,7 @@ Tags as defined in `01-ai-strategy-and-cht.md`. His interview of 2026-11-06 is h
 ## Arya
 
 - `[A 2026-11-06]` His dog, in his words: "Arya is a Nova Scotia Duck Tolling Retriever, known as a Duck Toller. When I used to stay in Minneapolis, one of my colleagues invited me up to a cabin at Lake of the Woods, which is a State Park at the border of Minnesota and Canada. My first time going up to a cabin, I thought we were camping outside in the cold and brought a ton of appropriate equipment. Instead, the cabin was essentially a second home, full of furnishings, isolated deep in Lake of the Woods. One of the neighbors during that stay was on a hunting trip, and had {{slot:hobbies.cabin_tollers}} duck tollers with him. I ended up playing with the dogs for the entire time we were there, that my friend offered me the keys to the cabin and told me I should come back and grab a dog or puppy from the neighbor. Within weeks, I had brought Arya back home and my life forever changed. She has kept me outside, active, walking, and playing when most of my hobbies and work life revolved around computers or tinkering with hardware. She introduced me to most of my friends, and especially my wife. Arya is now {{slot:hobbies.arya_age}} years old, and has went camping across the country and across Canada several times with me. She's always up for an adventure, but certainly enjoys a snooze in her senior years. <3"
+- `[A 2026-11-13]` The dog in the room, in his words: "it's okay that we use the likeness of my dog". `[A 2026-11-14]` In his words: "The dog is an AI-made, stylized Nova Scotia Duck Tolling Retriever, a dog of the breed and not a likeness of the Author's dog, shown by his choice."
 
 ## Travel
 
@@ -30,7 +31,9 @@ None from this interview.
 
 ## Do not claim
 
-None named for this topic: asked whether there was anything about his hobbies, travel, or Arya the twin should refuse to say or claim, he said "No" `[A 2026-11-06]`. The list in `00-profile.md` still holds here, its location line among them.
+None named by him for this topic: asked whether there was anything about his hobbies, travel, or Arya the twin should refuse to say or claim, he said "No" `[A 2026-11-06]`. The list in `00-profile.md` still holds here, its location line among them.
+
+- That the dog in the room is a real dog: it is an AI-made likeness, not a photo or a recording.
 
 ## Golden Q&A
 

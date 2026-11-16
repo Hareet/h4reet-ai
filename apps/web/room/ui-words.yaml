@@ -110,3 +110,12 @@ words:
   chase.ended_both: The twin and the dog are back in their places.
   chase.ended_twin: The twin is back in its place.
   chase.ended_dog: The dog is back in its place.
+  # Spec 028 (FR-020, FR-021): the twin's call in the dinosaur's scene, and the scene's end, by the figures that left.
+  figures.dino_call: There is a dinosaur in the room!
+  figures.left_both: The twin and the dog took the bicycle and left.
+  figures.left_twin: The twin took the bicycle and left.
+  # Spec 028 (FR-013): the Credits page's heading over the bundled models' likeness lines.
+  credits.likeness: The AI-made figures
+  # Spec 029 (FR-020): the word set diagonally across the paper the twin hands over and the visitor keeps. A label, not
+  # a fact about the Author.
+  paper.word: RESUME

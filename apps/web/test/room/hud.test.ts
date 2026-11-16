@@ -73,7 +73,7 @@ describe("the boxes and the clear area (compose/hud.ts's hudBoxes and clearArea)
   it("docks the list, the text box's row, and the bar at the foot of a window held upright", () => {
     const b = hudBoxes({ w: 384, h: 740 });
     expect(b.layout).toBe("dock");
-    // Under 27rem the strip's words take two lines; under 35rem the bar's tiles take two rows; under 36rem the list's
+    // Under 27rem the strip's words take two lines; under 35rem the bar's tiles take two rows; under 39rem the list's
     // names take two rows beside its header button.
     expect(b.strip).toEqual({ x: 0, y: 0, w: 384, h: STRIP.two });
     expect(b.bar).toEqual({ x: 0, y: 740 - BAR.two, w: 384, h: BAR.two });
@@ -390,11 +390,12 @@ describe("the walking control at the column's head (spec 014, T053)", () => {
       expect(c.layout, where).toBe("column");
       expect(c.walkPlace, where).toBe("column");
       // Spec 018 (FR-004, H-8): where the window takes the split layout, the column's content is moved out, and the
-      // walking control stands at the band's foot, the column's head with nothing under it.
+      // walking control stands at the band's foot, the column's head with nothing under it. Spec 028 (T-A03; plan.md
+      // §R-B8): the split layout is taken only with a wall source, which this sweep gives none; its boxes at rest are
+      // the strip, the panel, and the column.
       if (c.split) {
-        expect(inside(bands.column, c.walk), where).toBe(true);
         expect(c.walk, where).toEqual(c.split.walk);
-        expect(c.all, where).toEqual([c.strip, c.bar, c.split.rest, c.split.list, c.walk]);
+        expect(c.all, where).toEqual([c.strip, c.split.panel, c.split.column]);
         continue;
       }
       expect(inside(bands.column, c.walk), where).toBe(true);

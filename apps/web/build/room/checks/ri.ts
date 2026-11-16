@@ -6,7 +6,7 @@
 // assets/room/, off its piece's ID, or not recorded with the kind room and its SHA-256; RI8 the root, the figures, and
 // the hand-off, each hand on the side the other figure's lies on, and spec 009's stand-in, an avatar of the table;
 // RI10 lookdev.yaml's placements, and since spec 014 its hands view's avatars, in a drafts build; RI11 a label nothing
-// references.
+// references; spec 028's RI12 the dinosaur's scene's points against the floors (ri-leave.ts).
 // A reference into a file the loader refused (or a required file that is missing) isn't reported again: that file's
 // finding is the one to fix. No reason holds a value from the data.
 import { createHash } from "node:crypto";
@@ -24,6 +24,7 @@ import type { Loaded } from "../load";
 import { HEX } from "../schema";
 import type { AnchorRef, CatalogEntry, Mount, Placement } from "../schema";
 import type { Context, Family } from "./family";
+import { leave } from "./ri-leave";
 
 /** The gateway's cap on event objects, so on selectables (B7). */
 export const MAX_SELECTABLES = 64;
@@ -523,4 +524,6 @@ export const ri: Family = (ctx) => {
   figures(ctx);
   lookdev(ctx);
   labels(ctx);
+  // Spec 028 (FR-022; T-B03): RI12, the dinosaur's scene's points.
+  leave(ctx);
 };

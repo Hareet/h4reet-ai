@@ -41,8 +41,9 @@
 //   A selection, on any path, clears it in the same call (FR-011); the fall to 2D resets it. A target sends nothing:
 //   no event, request, or storage, and no log line outside a drafts build's frame log (FR-013).
 // - Spec 009's avatars: before the hand-off the room waits for both figures' avatars, at most the scene's wait_ms from
-//   the 3D stage's mount (Phase 2); the stage's note shows the stand-in line, the UI word twin.stand_in, while the
-//   index's copy holds it, which in that spec is always, in 3D and 2D (its FR-013); the 3D stage reports its figures
+//   the 3D stage's mount (Phase 2); the stage's note showed the stand-in line, the UI word twin.stand_in (since spec
+//   028, FR-012, "Around the room" alone holds it), while the index's copy holds it, which in that spec is always, in
+//   3D and 2D (its FR-013); the 3D stage reports its figures
 //   (onFigure), and the room sends avatar_failed once a visit, with no identifier, on the first figure file that
 //   failed after its retry, never for a skip, a missing file, the floor, or 2D (FR-032), and logs each picture's and
 //   clip's change in a drafts build's frame log (FR-035).
@@ -79,7 +80,7 @@ import { h } from "./dom";
 import { noEvents } from "./events";
 import type { EventSink } from "./events";
 import { bufferRatio } from "./fit";
-import { fetchStill, renderFlat } from "./flat";
+import { renderFlat } from "./flat";
 import { browserOwnsEscape, createFullscreen } from "./fullscreen";
 import { loadTypefaces } from "./faces/fonts";
 import type { TypefaceLoader } from "./faces/fonts";
@@ -245,17 +246,23 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     // Spec 014: the frame area, from the drawing stage's protector, or the clear area where there is none yet; never a
     // throw, since frameArea falls back to the clear area (FR-004).
     const protect = protector();
-    const framed: FrameArea | null = fits
-      ? protect
-        ? frameArea(screen, hudState, metrics, protect)
-        : { area: boxes.clear, ease: 1, fellBack: false }
-      : null;
     // Spec 024 (FR-012; plan.md §5.5, Q150): a 3D dinosaur visit's protector carries the "Eat" tile's box, which the
     // compact boxes and the split layout's then hold, from the visit's start, so the tile showing moves nothing.
-    const eatOption = { eat: protect?.eat };
-    const compact = compactBoxes(screen, hudState, metrics, eatOption);
-    // Spec 018 (FR-001): the split layout's boxes, where the window takes it; its parts follow.
-    const splitAt = fits ? splitBoxes(screen, hudState, metrics, eatOption) : null;
+    // Spec 028 (FR-005, FR-009; plan.md §R-A2): the split layout's wall box is the drawing stage's protector's (a stage
+    // whose protector gives none keeps spec 014's framing), or, before a stage frames the room, the 2D drawing's, from
+    // the index, so the first re-fit already stands the panel and the column beside the room.
+    const hudOption = { eat: protect?.eat, wall: protect ?? flatProtect };
+    const compact = compactBoxes(screen, hudState, metrics, hudOption);
+    // Spec 018 (FR-001), as spec 028's FR-009 places it: the split layout's boxes, where the window takes it; its parts
+    // follow, and the room is framed into its area with no ease (FR-006).
+    const splitAt = fits ? splitBoxes(screen, hudState, metrics, hudOption) : null;
+    const framed: FrameArea | null = !fits
+      ? null
+      : splitAt
+        ? { area: splitAt.area, ease: 0, fellBack: false }
+        : protect
+          ? frameArea(screen, hudState, metrics, protect)
+          : { area: boxes.clear, ease: 1, fellBack: false };
     layout.applyHud({
       layout: fits ? boxes.layout : "stacked",
       state: hudState,
@@ -278,6 +285,10 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       notes: notesReserve(boxes.clear, m.rem),
       keyboard: m.keyboard,
       split: splitAt,
+      // Spec 029 (FR-001; plan.md §R-A2): the room's box at its framing, the wall box from the protector the split
+      // layout's wall comes from, and the stage, the window, which the walking view fills.
+      room: framed ? (hudOption.wall.wall?.(framed.area) ?? null) : null,
+      stage: { x: 0, y: 0, w: screen.w, h: screen.h },
     });
     if (splitAt) split?.setSize(splitAt.frame.w, splitAt.frame.h, splitAt.title.h);
     split?.setActive(splitAt !== null);
@@ -449,29 +460,28 @@ export function startRoom(deps: RoomDeps): RoomHandle {
    *  a load that fell back, and the visitor's figure while the 3D room shows its flat shape. */
   const placeholders = { pieces: deps.room.build.placeholders, figure: false };
   function showPlaceholders(): void {
-    room?.setPlaceholders({ pieces: placeholders.pieces, figure: placeholders.figure && visit.mode !== "2d" });
+    // Spec 028 (FR-012, FR-015, Q23): "Around the room"'s item, no longer the stage's note; the argument main gave
+    // layout.ts's setPlaceholders (rv-rework-spec-028's N-1).
+    copy?.setPlaceholders({ pieces: placeholders.pieces, figure: placeholders.figure && visit.mode !== "2d" });
   }
 
-  /** Spec 016 (FR-014; contracts/twin-states.md §4): the line slot, the stage's note's second paragraph and the text
-   *  copy's first line: the twin's line while its own picture shows (its model in 3D, its still in 2D), the stand-in
-   *  line otherwise, swapped in place on each picture signal of the twin's figure. */
+  /** Spec 016 (FR-014; contracts/twin-states.md §4): the line slot, since spec 028 the text copy's first line alone:
+   *  the twin's line while its own picture shows (its model in 3D, its still in 2D), the stand-in line otherwise,
+   *  swapped in place on each picture signal of the twin's figure. */
   let twinOwn = false;
   function showLine(): void {
-    const stand = uiWord(deps.room.ui, "twin.stand_in") ?? "";
-    const own = twinOwn && deps.room.twin ? deps.room.twin.line : stand;
-    room?.setLine(own);
+    // Spec 028 (FR-012): "Around the room"'s first line alone; the stage's note is no longer drawn.
     copy?.setTwinOwn(twinOwn);
   }
 
-  /** Spec 020 (FR-007; plan.md R-02): the likeness line of a visitor-avatar model, in the stage's notes and the text
-   *  copy's slot, once, while any figure but the twin's shows a model whose bundle entry has one (the visitor's, or a
+  /** Spec 020 (FR-007; plan.md R-02): the likeness line of a visitor-avatar model, since spec 028 in the text copy's
+   *  slot alone, once, while any figure but the twin's shows a model whose bundle entry has one (the visitor's, or a
    *  room figure's: spec 025's dog); away otherwise. The twin's likeness has its own slot (spec 016), so its figure's
    *  pictures never reach this one. */
   const likeness = createLikenessLine();
   function showVisitorLine(): void {
-    const line = likeness.line;
-    room?.setVisitorLine(line ?? "");
-    copy?.setVisitorLine(line);
+    // Spec 028 (FR-012): "Around the room"'s slot alone.
+    copy?.setVisitorLine(likeness.line);
   }
 
   /** Spec 009's figures as the 3D stage reports them: avatar_failed once a visit (FR-032), and the frame log (FR-035). */
@@ -508,6 +518,18 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     if (signal.kind === "twin-pet") {
       const r = signal.record;
       log?.record("twin-pet", { start_ms: r.start_ms, end_ms: r.end_ms, path: r.path, outcome: r.outcome });
+      return;
+    }
+    // Spec 028 (FR-020, FR-021; plan.md R-B5): the dinosaur's scene's call and its end, said once each in the polite
+    // live region (the 3D stage shows the call in its bubble). No usage event: ADR 0055's deviation.
+    if (signal.kind === "dino-call") {
+      const said = uiWord(deps.room.ui, "figures.dino_call");
+      if (said) announcer.say(said);
+      return;
+    }
+    if (signal.kind === "dino-left") {
+      const said = uiWord(deps.room.ui, signal.who === "both" ? "figures.left_both" : "figures.left_twin");
+      if (said) announcer.say(said);
       return;
     }
     if (signal.kind === "failed") {
@@ -788,6 +810,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       path: () => visit.path,
       turns: visit.turns,
       freeTalkReady: content.manifest.free_talk.ready,
+      topicReady: deps.room.topics.some((t) => t.ready),
       turnRoute: deps.room.live.turn === "site",
       ...(deps.sendTurn ? { sendTurn: deps.sendTurn } : {}),
       onTurnOutcome: (result) => cost.report(classifyTurn(result), "turn"),
@@ -824,8 +847,6 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       list,
       talk: talk.element,
       around: around.element,
-      note: uiWord(deps.room.ui, "standin.note") ?? "",
-      noteAvatar: uiWord(deps.room.ui, "standin.avatar") ?? "",
       pause: uiWord(deps.room.ui, "pause.button") ?? "",
       credits: uiWord(deps.room.ui, "toolbar.credits") ?? "Credits",
       // Spec 024 (FR-012): the "Eat" tile's words.
@@ -846,10 +867,6 @@ export function startRoom(deps: RoomDeps): RoomHandle {
             },
           }
         : {}),
-      // Spec 009's stand-in line, while the index's copy holds it (its FR-013; plan.md R-13).
-      standIn: deps.room.copy.some((e) => ("line" in e && e.line === "twin.stand_in") || "twin_line" in e)
-        ? (uiWord(deps.room.ui, "twin.stand_in") ?? "")
-        : "",
     });
     room = layout;
     split = createSplit(doc, {
@@ -865,14 +882,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       stats: () =>
         statsFrom(live.tier.tier, cost.state, { ui: deps.room.ui, drafts: deps.room.build.kind === "drafts" }),
       onClose: () => talk?.closeLarger(),
-      // Spec 018 (Q4; FR-003): the twin's still, through spec 016's verified fetch, once, at the first opening in 3D.
-      // The twin is the one speaker with a still today; item d's dog adds its own here (the speaker seam).
-      portrait: (speaker) => {
-        const still = speaker === "twin" ? (deps.room.twin?.still ?? null) : null;
-        return still && visit.mode !== "2d"
-          ? fetchStill(still, (url, init) => win.fetch(url, init))
-          : Promise.resolve(null);
-      },
+      // Spec 028 (FR-001, FR-002; Q1): no portrait, so no still is fetched for the panel; the 2D room alone fetches it.
       turnOut: () => talk?.turnOut() ?? false,
       walking: () => walker(stage)?.walk.walking === true,
       resumeOpen: () => resumeOpen,
@@ -1220,11 +1230,24 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     emit({ kind: "mode_2d" });
   }
 
+  /** Spec 028 (FR-027; plan.md R-B7): a dog visitor's introduction, the Author's words from the index, said once a
+   *  visit at the hand-off's end: in the 3D stage's bubble over the twin and in the polite live region, in the 2D room
+   *  in the live region. No turn: nothing in the conversation's log or history, no request. */
+  let introduced = false;
+  function introduceDogVisitor(): void {
+    const line = deps.room.dog_visitor_intro;
+    if (introduced || line === null || visit.avatar !== "dog") return;
+    introduced = true;
+    announcer.say(line);
+    if (stage?.mode === "3d") (stage as Stage3D).say?.(line);
+  }
+
   function offerResume(): void {
     handoffEnded();
     const layout = room;
     if (!layout) return;
     visit.stage = "room";
+    introduceDogVisitor();
     offering = true;
     const settle = (): void => {
       offering = false;

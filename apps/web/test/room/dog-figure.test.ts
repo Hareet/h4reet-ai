@@ -8,6 +8,10 @@
 // - rv-rework2-spec-025's I-1: the paths beside `place`, `clip`, and `missed` that the dog needs too: a reset puts it
 //   back to nothing and it shows again on a reload; one ready during the hand-off shows at its end; and `update`
 //   advances its mixer at quality level 0 and not above.
+// Spec 028 (T-B02; FR-017, FR-018, SC-005; Q9, Q11; plan.md R-B1, R-B8, the named departure): the room's dog is wanted
+// only in a dinosaur visit whose bundle carries the dinosaur's model, and its picture is hidden until the dinosaur's
+// scene shows it at its entry; a dog visitor is the only dog in its room; the loader lists the room's dog's files only
+// for such a visit. The cases that set up a woman or a man visitor to have a room's dog now set up a dinosaur visit.
 import { createHash } from "node:crypto";
 
 import { Box3, Object3D } from "three";
@@ -30,6 +34,7 @@ import type { FigureSignal } from "../../src/room/stage";
 import { avatarGlb, clipGlb, IDLE_TRACKS } from "../helpers/glb";
 import { overlay } from "../helpers/room-fixtures";
 import { avatarFolder, sceneWith, SCENE } from "../helpers/room-avatars";
+import { dinosaurFolder } from "../helpers/room-dinosaur";
 import type { RecordEntry } from "../helpers/room-avatars";
 import { twinPolicy } from "../helpers/room-twin";
 
@@ -54,7 +59,7 @@ const records = (e: RecordEntry[]): void => {
     }
   }
 };
-const tree = (o: { dog?: boolean; block?: boolean } = {}): Tree =>
+const tree = (o: { dog?: boolean; block?: boolean; dino?: boolean } = {}): Tree =>
   overlay({
     [SCENE]: sceneWith({
       twin_stand_in: "man",
@@ -69,6 +74,8 @@ const tree = (o: { dog?: boolean; block?: boolean } = {}): Tree =>
           clips: { idle: idleBytes, walk: walkBytes, run: runBytes, "idle-holding": null, take: null },
           records,
         })),
+    // Spec 028 (Q11): the dinosaur's model bundled, as a visit with the room's dog needs; `dino: false` leaves it out.
+    ...(o.dino === false ? {} : dinosaurFolder()),
   });
 const approved = (): RoomPolicy => twinPolicy({ likeness: [{ id: "A-fx-dog", sha256: sha256(dogBytes), line: LINE }] });
 
@@ -81,7 +88,7 @@ interface Setup {
   readonly room: Room3D;
   readonly signals: FigureSignal[];
 }
-function setup(chosen: AvatarId, o: { dog?: boolean; block?: boolean } = {}): Setup {
+function setup(chosen: AvatarId, o: { dog?: boolean; block?: boolean; dino?: boolean } = {}): Setup {
   const composed = compose(tree(o), approved(), LENIENT);
   const room = buildRoom(composed.scene, { avatar: chosen, label: () => new Object3D(), index: composed.index });
   const signals: FigureSignal[] = [];
@@ -100,53 +107,73 @@ const dogPictures = (signals: FigureSignal[]): FigureSignal[] =>
   signals.filter((s) => s.kind === "picture" && s.figure === "dog");
 
 describe("the room's dog at its home (FR-018, FR-019)", () => {
-  for (const chosen of ["woman", "man", "dog", "dinosaur"] as const)
-    it(`is wanted and shows for a visitor who chose the ${chosen}`, async () => {
-      const { figures, room } = setup(chosen);
-      expect(figures.wants.dog).toBe("dog");
-      figures.handoffEnded();
-      await loadDog(figures);
-      expect(figures.shows("dog")).toBe(true);
-      expect(figures.playing("dog")).toBe("idle");
-      const node = dogNode(room);
-      if (!node) throw new Error("no room dog");
-      node.updateWorldMatrix(true, true);
-      const at = node.getWorldPosition(node.position.clone());
-      expect(at.x).toBeCloseTo(HOME.at[0], 6);
-      expect(at.z).toBeCloseTo(HOME.at[1], 6);
-      const instance = dogInstance(room);
-      if (!instance) throw new Error("no instance");
-      // Its rest pose's height scaled to the dog's (the idle moves its hips, so the posed box isn't the measure).
-      const rest = new Box3().setFromObject((await parsed(dogBytes)).scene, true);
-      expect((rest.max.y - rest.min.y) * instance.scale.y).toBeCloseTo(AVATAR_SHAPES.dog.height, 6);
-      expect(instance.position.y).toBeCloseTo(-rest.min.y * instance.scale.y, 6);
+  // Spec 028 (FR-017; Q9): was "is wanted and shows for a visitor who chose the {woman, man, dog, dinosaur}".
+  for (const chosen of ["woman", "man", "dog"] as const)
+    it(`isn't wanted, and nothing is at its home, for a visitor who chose the ${chosen} (spec 028, FR-017)`, () => {
+      const { figures, room, signals } = setup(chosen);
+      expect(figures.wants.dog).toBeNull();
+      expect(dogNode(room)).toBeUndefined();
+      expect(dogPictures(signals)).toEqual([]);
     });
 
-  it("shows two dogs where the visitor chose the dog, one model parsed, two instances", async () => {
+  it("isn't wanted for a dinosaur visit whose bundle lacks the dinosaur's model (spec 028, Q11)", () => {
+    const { figures, room } = setup("dinosaur", { dino: false });
+    expect(figures.wants.dog).toBeNull();
+    expect(dogNode(room)).toBeUndefined();
+  });
+
+  it("is wanted for a visitor who chose the dinosaur, shows at its home, and stays hidden until the scene's entry (spec 028, FR-018)", async () => {
+    const { figures, room } = setup("dinosaur");
+    expect(figures.wants.dog).toBe("dog");
+    figures.handoffEnded();
+    await loadDog(figures);
+    expect(figures.shows("dog")).toBe(true);
+    expect(figures.playing("dog")).toBe("idle");
+    const node = dogNode(room);
+    if (!node) throw new Error("no room dog");
+    // Hidden: the dinosaur's scene shows it at its entry (FR-021).
+    expect(node.visible).toBe(false);
+    expect(figures.pictureOf("dog")).toBe(node);
+    node.updateWorldMatrix(true, true);
+    const at = node.getWorldPosition(node.position.clone());
+    expect(at.x).toBeCloseTo(HOME.at[0], 6);
+    expect(at.z).toBeCloseTo(HOME.at[1], 6);
+    const instance = dogInstance(room);
+    if (!instance) throw new Error("no instance");
+    // Its rest pose's height scaled to the dog's (the idle moves its hips, so the posed box isn't the measure).
+    const rest = new Box3().setFromObject((await parsed(dogBytes)).scene, true);
+    expect((rest.max.y - rest.min.y) * instance.scale.y).toBeCloseTo(AVATAR_SHAPES.dog.height, 6);
+    expect(instance.position.y).toBeCloseTo(-rest.min.y * instance.scale.y, 6);
+  });
+
+  // Spec 028 (FR-017; Q9): was "shows two dogs where the visitor chose the dog, one model parsed, two instances".
+  it("shows one dog where the visitor chose the dog: the visitor's own (spec 028, FR-017)", async () => {
     const { figures, room } = setup("dog");
     figures.handoffEnded();
     await loadDog(figures);
-    expect(figures.shows("visitor") && figures.shows("dog")).toBe(true);
-    expect(dogInstance(room)).not.toBe(room.visitor.getObjectByName("avatar"));
+    expect(figures.shows("visitor")).toBe(true);
+    expect(figures.shows("dog")).toBe(false);
+    expect(dogNode(room)).toBeUndefined();
+    expect(figures.pictureOf("dog")).toBeNull();
   });
 
   it("isn't in the hand-off's wait: the room settles with the dog still loading", async () => {
-    const { figures } = setup("woman");
-    for (const avatar of [figures.wants.twin, "man", "woman"] as const)
+    const { figures } = setup("dinosaur");
+    for (const avatar of [figures.wants.twin, "man", "dinosaur"] as const)
       if (avatar !== null) figures.missed(avatar, null, "failed");
     await expect(figures.settled).resolves.toBeUndefined();
     expect(figures.shows("dog")).toBe(false);
   });
 
   it("carries the approval's line on its picture signal while its model shows (FR-020)", async () => {
-    const { figures, signals } = setup("man");
+    const { figures, signals } = setup("dinosaur");
     figures.handoffEnded();
     await loadDog(figures);
     expect(dogPictures(signals)).toEqual([{ kind: "picture", figure: "dog", shows: "avatar", why: null, line: LINE }]);
   });
 
   it("plays its walk and run by role, and its idle for a role it hasn't", async () => {
-    const { figures } = setup("man");
+    const { figures } = setup("dinosaur");
     figures.handoffEnded();
     await loadDog(figures);
     figures.dogPlays("run");
@@ -159,21 +186,23 @@ describe("the room's dog at its home (FR-018, FR-019)", () => {
 });
 
 describe("no room dog (FR-018)", () => {
+  // Spec 028 (rv-028b-1's B1-3, rework-028b): these two stage a dinosaur visit, the only one that wants the room's dog
+  // (FR-017, FR-018); with the man they passed for spec 028's reason, not their own. Names kept.
   it("with no figures.dog: wants.dog null, nothing at its home, no signal", () => {
-    const { figures, room, signals } = setup("man", { block: false });
+    const { figures, room, signals } = setup("dinosaur", { block: false });
     expect(figures.wants.dog).toBeNull();
     expect(dogInstance(room)).toBeUndefined();
     expect(dogPictures(signals)).toEqual([]);
   });
 
   it("with no bundled dog: wants.dog null, nothing at its home", () => {
-    const { figures, room } = setup("man", { dog: false });
+    const { figures, room } = setup("dinosaur", { dog: false });
     expect(figures.wants.dog).toBeNull();
     expect(dogInstance(room)).toBeUndefined();
   });
 
   it("a failed model: one fallback signal, failed, and nothing at its home", async () => {
-    const { figures, room, signals } = setup("man");
+    const { figures, room, signals } = setup("dinosaur");
     figures.handoffEnded();
     figures.missed("dog", null, "failed");
     expect(dogPictures(signals)).toEqual([{ kind: "picture", figure: "dog", shows: "fallback", why: "failed" }]);
@@ -185,7 +214,7 @@ describe("no room dog (FR-018)", () => {
 describe("the loader's entries (FR-021)", () => {
   it("lists the dog's files after the twin's and the visitor's", () => {
     const scene = compose(tree(), approved(), LENIENT).scene;
-    const entries = figureEntries(scene, "woman");
+    const entries = figureEntries(scene, "dinosaur");
     const dog = entries.filter((e) => e.figure.avatar === "dog");
     expect(dog.map((e) => e.figure.role)).toEqual([null, "idle", "walk", "run"]);
     const first = entries.findIndex((e) => e.figure.avatar === "dog");
@@ -201,14 +230,23 @@ describe("the loader's entries (FR-021)", () => {
   it("lists none with no figures.dog, or with the dog not bundled", () => {
     for (const o of [{ block: false }, { dog: false }]) {
       const scene = compose(tree(o), approved(), LENIENT).scene;
-      expect(figureEntries(scene, "woman").some((e) => e.figure.avatar === "dog")).toBe(false);
+      expect(figureEntries(scene, "dinosaur").some((e) => e.figure.avatar === "dog")).toBe(false);
     }
+  });
+
+  it("lists none for the woman or the man, or for a dinosaur visit without the dinosaur's model (spec 028, SC-005)", () => {
+    const scene = compose(tree(), approved(), LENIENT).scene;
+    for (const chosen of ["woman", "man"] as const)
+      expect(figureEntries(scene, chosen).some((e) => e.figure.avatar === "dog")).toBe(false);
+    const noDino = compose(tree({ dino: false }), approved(), LENIENT).scene;
+    expect(noDino.avatars.dinosaur).toBeUndefined();
+    expect(figureEntries(noDino, "dinosaur").some((e) => e.figure.avatar === "dog")).toBe(false);
   });
 });
 
 describe("the paths beside place, clip, and missed (rv-rework2-spec-025, I-1)", () => {
   it("reset() puts the dog back to nothing at its home, still wanting it, and a reload shows it again", async () => {
-    const { figures, room } = setup("man");
+    const { figures, room } = setup("dinosaur");
     figures.handoffEnded();
     await loadDog(figures);
     figures.reset();
@@ -220,7 +258,7 @@ describe("the paths beside place, clip, and missed (rv-rework2-spec-025, I-1)", 
   });
 
   it("one ready during the hand-off waits, and shows at its end (handoffEnded's retry)", async () => {
-    const { figures } = setup("man");
+    const { figures } = setup("dinosaur");
     figures.showHandoff(0.1, false);
     await loadDog(figures);
     expect(figures.shows("dog")).toBe(false);
@@ -229,7 +267,7 @@ describe("the paths beside place, clip, and missed (rv-rework2-spec-025, I-1)", 
   });
 
   it("update() advances its mixer at quality level 0, not at 1", async () => {
-    const { figures, room } = setup("man");
+    const { figures, room } = setup("dinosaur");
     figures.handoffEnded();
     await loadDog(figures);
     const instance = dogInstance(room);

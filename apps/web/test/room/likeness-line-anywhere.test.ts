@@ -54,7 +54,10 @@ function signal(v: Visit, s: FigureSignal): void {
   if (!options) throw new Error("no 3D stage was made");
   options.onFigure?.(s);
 }
-const notes = (v: Visit): HTMLElement[] => [...v.doc.querySelectorAll<HTMLElement>(".room-visitor-line")];
+/** The visitor's line: since spec 028 (T-A06; plan.md §R-B8) "Around the room"'s slot, no longer a stage note. */
+const notes = (v: Visit): HTMLElement[] => [
+  ...v.doc.querySelectorAll<HTMLElement>('.room-around [data-line="visitor"]'),
+];
 const aroundLines = (v: Visit): string[] => [...v.doc.querySelectorAll(".room-around li")].map((li) => textOf(li));
 const count = (lines: string[]): number => lines.filter((l) => l === LINE).length;
 const dogAt = (figure: FigureId): FigureSignal => ({ kind: "picture", figure, shows: "avatar", why: null, line: LINE });
@@ -117,15 +120,15 @@ describe("the room's likeness line, from any figure (FR-007)", () => {
     const v = start({ webgl: true });
     await intoRoom(v);
     const before = aroundLines(v)[0];
-    const standIn = textOf(v.doc.querySelector(".room-stand-in"));
+    const standIn = textOf(v.doc.querySelector('.room-around [data-line="twin"]'));
     signal(v, dogAt(ROOM_DOG));
     await flush();
     expect(aroundLines(v)[0]).toBe(before);
-    expect(textOf(v.doc.querySelector(".room-stand-in"))).toBe(standIn);
+    expect(textOf(v.doc.querySelector('.room-around [data-line="twin"]'))).toBe(standIn);
     signal(v, fallbackAt(ROOM_DOG));
     await flush();
     expect(aroundLines(v)[0]).toBe(before);
-    expect(textOf(v.doc.querySelector(".room-stand-in"))).toBe(standIn);
+    expect(textOf(v.doc.querySelector('.room-around [data-line="twin"]'))).toBe(standIn);
   });
 
   it("shows no line in a 2D room, though a room figure had shown it", async () => {

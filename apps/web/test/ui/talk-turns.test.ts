@@ -354,12 +354,12 @@ describe("free talk from the text box (T050; FR-032)", () => {
     expect(entries(v).map((e) => e.speaker)).toEqual(["You", "AI twin", "You"]);
   });
 
-  it("shows cannot_talk.unavailable, sends nothing, and leaves the words in the box when free talk isn't ready", async () => {
+  it("shows cannot_talk.free_talk_closed, sends nothing, and leaves the words in the box when free talk isn't ready (spec 029, FR-012)", async () => {
     for (const freeTalk of [false, undefined]) {
       const { v, sent } = await room(ready(), freeTalk === undefined ? {} : { freeTalk });
       say(v, "What drives him?");
       expect(sent).toEqual([]);
-      expect(talkLog(v.doc).lastElementChild?.getAttribute("data-message")).toBe("cannot_talk.unavailable");
+      expect(talkLog(v.doc).lastElementChild?.getAttribute("data-message")).toBe("cannot_talk.free_talk_closed");
       expect(box(v).value).toBe("What drives him?");
       expect(entries(v)).toEqual([]);
     }
@@ -599,10 +599,11 @@ describe("when the twin can't answer (T060; FR-036, FR-054)", () => {
     select(v, first);
     await flush();
     expect(message(v)?.getAttribute("data-message")).toBe("topic_not_ready");
-    // The conversation ended: typed text doesn't carry it on, and free talk isn't ready.
+    // The conversation ended: typed text doesn't carry it on, and free talk isn't ready, which it says (spec 029,
+    // FR-012).
     say(v, "Tell me more.");
     await flush();
     expect(calls).toHaveLength(1);
-    expect(message(v)?.getAttribute("data-message")).toBe("cannot_talk.unavailable");
+    expect(message(v)?.getAttribute("data-message")).toBe("cannot_talk.free_talk_closed");
   });
 });

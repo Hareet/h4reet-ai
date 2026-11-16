@@ -23,3 +23,8 @@ selectables:
     corpus:
       - "corpus/05-mission.md"
     lead: null
+  - id: "dog-sign"
+    topic: "hobbies-and-travel"
+    corpus:
+      - "corpus/04-hobbies-and-travel.md"
+    lead: "The dog first."

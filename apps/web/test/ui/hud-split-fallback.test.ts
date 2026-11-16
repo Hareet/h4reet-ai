@@ -38,7 +38,7 @@ function build(draw: Partial<SplitDraw>) {
 const talk = (doc: Document): Element => doc.querySelector(".talk") as Element;
 
 describe("a decoration that throws shows its plain form (FR-002)", () => {
-  it("the frame: the panel's plain border, and every control still there", () => {
+  it("the frame: the panel's plain border, and every control still there; the hint closes the conversation, the panel standing (spec 028)", () => {
     const { doc, s } = build({ frame: boom });
     expect(() => s.openPanel()).not.toThrow();
     expect(doc.querySelector(".split-frame")).toBeNull();
@@ -46,7 +46,10 @@ describe("a decoration that throws shows its plain form (FR-002)", () => {
     expect(doc.querySelectorAll(".split-stats dd")).toHaveLength(3);
     expect(doc.querySelector(".split-hint")).not.toBeNull();
     (doc.querySelector(".split-hint") as HTMLButtonElement).click();
-    expect(talk(doc).getAttribute("data-panel")).toBe("bar");
+    expect(s.open).toBe(false);
+    expect(talk(doc).getAttribute("data-panel")).toBe("open");
+    expect(talk(doc).classList.contains("split-plain")).toBe(true);
+    s.setActive(false);
     expect(talk(doc).classList.contains("split-plain")).toBe(false);
   });
 
@@ -73,11 +76,10 @@ describe("a decoration that throws shows its plain form (FR-002)", () => {
     expect(doc.querySelector('[data-object-id="a"]')?.getAttribute("aria-current")).toBe("true");
   });
 
-  it("the portrait: nothing in its slot, the body and the controls untouched", () => {
-    const { doc, s } = build({ portrait: boom });
+  it("the portrait: none since spec 028 (FR-001), the body and the controls untouched", () => {
+    const { doc, s } = build({});
     expect(() => s.openPanel()).not.toThrow();
-    expect(doc.querySelector(".split-portrait")?.childElementCount).toBe(0);
-    expect(doc.querySelector(".split-silhouette")).toBeNull();
+    expect(doc.querySelector(".split-portrait, .split-silhouette, .split-still")).toBeNull();
     expect(doc.getElementById("talk-text")).not.toBeNull();
   });
 
@@ -94,7 +96,7 @@ describe("a decoration that throws shows its plain form (FR-002)", () => {
   });
 
   it("everything at once: still opens, closes, selects, and Escape closes", () => {
-    const { doc, s } = build({ frame: boom, stroke: boom, keycap: boom, portrait: boom, emblem: boom });
+    const { doc, s } = build({ frame: boom, stroke: boom, keycap: boom, emblem: boom });
     s.openPanel();
     s.setTarget("a");
     expect(doc.querySelectorAll(".split-stats dt")).toHaveLength(3);

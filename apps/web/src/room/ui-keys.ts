@@ -119,6 +119,15 @@ export const UI_KEYS = {
   "chase.ended_both": [],
   "chase.ended_twin": [],
   "chase.ended_dog": [],
+  // Spec 028 (FR-020, FR-021): the twin's call in the dinosaur's scene, in its bubble and the polite live region, and
+  // the scene's end there, by the figures that left. None states anything about the Author.
+  "figures.dino_call": [],
+  "figures.left_both": [],
+  "figures.left_twin": [],
+  // Spec 028 (FR-013): the Credits page's heading over the bundled models' likeness lines.
+  "credits.likeness": [],
+  // Spec 029 (FR-020): the word across the hand-off's paper, in 3D and in 2D (paper.ts).
+  "paper.word": [],
 } as const satisfies Record<string, readonly Slot[]>;
 
 export type UiKey = keyof typeof UI_KEYS;

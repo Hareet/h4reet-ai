@@ -199,3 +199,44 @@ describe("petting, the twin's petting of the dog (spec 026, FR-009)", () => {
     }
   });
 });
+
+// T-B04 (spec 028; FR-020; plan.md R-B3, R-3): `wave`, the dinosaur's scene's call, plays the greeting once more: an
+// amendment of spec 016's contract, whose cases above stay as they are.
+describe("wave, the dinosaur's scene's call (spec 028, FR-020)", () => {
+  it("greets again for the greeting's length after the arrival's greeting, once a visit", () => {
+    const t = createTwinStates(BLOCK);
+    t.arrive(0, 2.47);
+    expect(t.tick(3 * S)).toBe("present");
+    t.wave(10 * S, 2.47);
+    expect(t.tick(10 * S)).toBe("arriving");
+    expect(t.tick(10 * S + 2.47 * S - 1)).toBe("arriving");
+    expect(t.tick(10 * S + 2.47 * S)).toBe("present");
+    // Once a visit: a second wave does nothing.
+    t.wave(20 * S, 2.47);
+    expect(t.tick(20 * S)).toBe("present");
+  });
+
+  it("greets without an arrival before it, and leaves arrive's once-a-visit as it was", () => {
+    const t = createTwinStates(BLOCK);
+    t.wave(0, 1);
+    expect(t.tick(500)).toBe("arriving");
+    expect(t.tick(1000)).toBe("present");
+    t.arrive(2 * S, 2.47);
+    expect(t.tick(2 * S)).toBe("arriving");
+  });
+
+  it("ends at once when the greeting's clip has finished, as the arrival's does", () => {
+    const t = createTwinStates(BLOCK);
+    t.arrive(0, 2.47);
+    t.wave(5 * S, 2.47);
+    t.arrived(6 * S);
+    expect(t.tick(6 * S)).toBe("present");
+  });
+
+  it("starts the quiet after it, as after the arrival's greeting", () => {
+    const t = createTwinStates(BLOCK);
+    t.wave(0, 2);
+    expect(t.tick(2 * S + 20 * S - 1)).toBe("present");
+    expect(t.tick(2 * S + 20 * S)).toBe("resting");
+  });
+});

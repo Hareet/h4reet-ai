@@ -22,6 +22,9 @@ export interface EatAvailability {
   readonly loading: boolean;
   /** The eating turned itself off for the visit (Degraded Mode). */
   readonly failed: boolean;
+  /** Spec 028 (FR-025; plan.md R-B6): the dinosaur's scene has ended (`gone`) or been cut, or the scene has no
+   *  `figures.leave`; absent, as spec 024's callers give it, true. */
+  readonly sceneDone?: boolean;
 }
 
 export const EATER = "dinosaur";
@@ -37,6 +40,7 @@ export function eatingAvailable(s: EatAvailability): boolean {
     s.reached.canBite &&
     !s.paused &&
     !s.loading &&
-    !s.failed
+    !s.failed &&
+    s.sceneDone !== false
   );
 }

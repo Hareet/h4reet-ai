@@ -8,6 +8,8 @@
 //   with the scene's dog, the shell is made once for each non-dinosaur visitor after the hand-off ends, never while it
 //   is pending, and it signals no `chase` and starts no run (FR-001). With a scene without `figures.dog`, another
 //   chosen avatar never makes it, the hand-off ended.
+// - Spec 028 (T-B02; FR-028; Q10, Q17; plan.md R-B8, the named departure): the run no longer starts in the room and the
+//   petting is dormant, so the stage makes the shell for no visitor, the dinosaur among them, once the hand-off ends.
 import { JSDOM } from "jsdom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -140,25 +142,27 @@ describe("the stage's use of chaseDue (rv-rework-025's Nit-3; B-1 (b); FR-001)",
     r.stage.dispose();
   });
 
-  it("makes the shell once the hand-off's promise resolves, and only once", async () => {
+  // Spec 028 (FR-028; Q10): was "makes the shell once the hand-off's promise resolves, and only once".
+  it("makes no shell for the dinosaur once the hand-off's promise resolves (spec 028, FR-028)", async () => {
     const r = staged("dinosaur");
     await r.ready();
     expect(swapped.made).toEqual([]);
     r.end();
-    // The promise's `then` runs before the next frame, which makes the shell.
     await flush();
     await r.frames(1);
-    expect(swapped.made).toEqual(["dinosaur"]);
+    expect(swapped.made).toEqual([]);
     r.stage.walk.enter(r.view);
     await r.frames(30);
-    expect(swapped.made).toEqual(["dinosaur"]);
+    expect(swapped.made).toEqual([]);
+    expect(chased(r.signals)).toEqual([]);
     r.stage.dispose();
   });
 
   // Spec 026 (Q282, Q296; rv-rework3-026's B-1): the departure from this case's earlier "never makes it", named in
-  // spec 026's plan.md R-07.
+  // spec 026's plan.md R-07. Spec 028 (FR-028; Q17; plan.md R-B8): was "with the scene's dog, makes it once for the %s
+  // after the hand-off ends, never while it's pending, and signals no chase"; the petting is dormant, so never again.
   it.each(["woman", "man", "dog"] as const)(
-    "with the scene's dog, makes it once for the %s after the hand-off ends, never while it's pending, and signals no chase",
+    "with the scene's dog, never makes it for the %s, the hand-off ended, and signals no chase (spec 028, FR-028)",
     async (avatar) => {
       expect(repositoryBundle().scene.figures.dog).toBeDefined();
       const r = staged(avatar);
@@ -169,9 +173,9 @@ describe("the stage's use of chaseDue (rv-rework-025's Nit-3; B-1 (b); FR-001)",
       r.end();
       await flush();
       await r.frames(1);
-      expect(swapped.made).toEqual([avatar]);
+      expect(swapped.made).toEqual([]);
       await r.frames(60);
-      expect(swapped.made).toEqual([avatar]);
+      expect(swapped.made).toEqual([]);
       expect(chased(r.signals)).toEqual([]);
       r.stage.dispose();
     },

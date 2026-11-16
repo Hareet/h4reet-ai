@@ -8,6 +8,8 @@
 //   builds: a test's geometry judges it whole);
 // - the 3D stage (scene.ts's `eats`): the Eat box reserved, and the eating's `eat` given to the room.
 // The dinosaur's folder is spec 021's test folder (helpers/room-dinosaur.ts), never the asset (spec 009's FR-043).
+// premise-028 (spec 028, page Q49): the 3D stage's case without the model builds its bundle on purpose, as the
+// repository no longer stands in for it (his intake, a556a933, bundles the model).
 import { JSDOM } from "jsdom";
 import { describe, expect, it, vi } from "vitest";
 
@@ -211,7 +213,13 @@ describe("the 3D stage (scene.ts's eats)", () => {
   }
 
   it("reserves no Eat box and gives no eating to a dinosaur visit whose bundle has no dinosaur's model", () => {
-    const part = repositoryBundle().scene;
+    // premise-028 (spec 028, page Q49; probe-dino.md §4 T-a): the bundle without the model is built on purpose, the
+    // repository's part with `avatars.dinosaur` taken out, since his intake (a556a933) puts the model in the repository.
+    const repo = repositoryBundle().scene;
+    const part = {
+      ...repo,
+      avatars: Object.fromEntries(Object.entries(repo.avatars).filter(([id]) => id !== "dinosaur")),
+    } as RoomScene;
     expect(Object.hasOwn(part.avatars, "dinosaur")).toBe(false);
     expect(part.placements.some((p) => p.edible !== null)).toBe(true);
     const stage = stageOver(part);

@@ -506,9 +506,9 @@ describe("the chunker on the four real pieces (FR-003, FR-004, FR-015, SC-001)",
     expect(asideCount(r, holder)).toBeGreaterThan(0);
   });
 
-  it(`${DESK}: sets aside the top under each of its 9 mounts (7 placements and the ${CHARGER}'s two desk poses)`, () => {
+  it(`${DESK}: sets aside the top under each of its 8 mounts (6 placements and the ${CHARGER}'s two desk poses)`, () => {
     const r = of(DESK);
-    expect(r.input.keepOuts).toHaveLength(9);
+    expect(r.input.keepOuts).toHaveLength(8); // 9 until spec 026's human patch (T019, Q297) moved the dog sign off the desk
     for (const box of r.input.keepOuts) {
       const centre: V3 = [(box.min[0] + box.max[0]) / 2, 2, (box.min[2] + box.max[2]) / 2];
       const hit = firstHit(r.input.primitives, centre, [0, -1, 0]);

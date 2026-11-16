@@ -92,12 +92,14 @@ function signal(v: Visit, s: FigureSignal): void {
   if (!options) throw new Error("no 3D stage was made");
   options.onFigure?.(s);
 }
-const noteLine = (v: Visit): HTMLElement | null => v.doc.querySelector<HTMLElement>(".room-visitor-line");
+/** The visitor's line: since spec 028 (T-A06; plan.md §R-B8) "Around the room"'s slot, no longer a stage note. */
+const noteLine = (v: Visit): HTMLElement | null =>
+  v.doc.querySelector<HTMLElement>('.room-around [data-line="visitor"]');
 const aroundLines = (v: Visit): string[] => [...v.doc.querySelectorAll(".room-around li")].map((li) => textOf(li));
 const DOG = { kind: "picture", figure: "visitor", shows: "avatar", why: null, line: LINE } as FigureSignal;
 
 describe("the room's visitor line (FR-003, FR-007)", () => {
-  it("shows in the stage's note and after the twin's line in Around the room while the dog's model shows", async () => {
+  it("shows after the twin's line in Around the room, and not on the stage, while the dog's model shows (spec 028)", async () => {
     const v = start({ webgl: true });
     await intoRoom(v);
     expect(noteLine(v)).toBeNull();
@@ -108,7 +110,8 @@ describe("the room's visitor line (FR-003, FR-007)", () => {
     expect(textOf(noteLine(v))).toBe(LINE);
     expect(noteLine(v)?.hidden).toBe(false);
     expect(noteLine(v)?.closest("[aria-hidden='true']")).toBeNull();
-    expect(noteLine(v)?.closest(".room-notes")).not.toBeNull();
+    expect(noteLine(v)?.closest(".room-around")).not.toBeNull();
+    expect(v.doc.querySelector(".room-stage")?.textContent ?? "").not.toContain(LINE);
     expect(aroundLines(v).slice(0, 2)).toEqual([twinLine, LINE]);
   });
 
@@ -137,13 +140,13 @@ describe("the room's visitor line (FR-003, FR-007)", () => {
     gone();
   });
 
-  it("adds no line to the 320 × 568 layout while the cut-out shows", async () => {
+  it("adds no line to the 320 × 568 layout while the cut-out shows; the stage holds no note (spec 028)", async () => {
     const view = stubViewport({ w: 320, h: 568 });
     const v = start({ webgl: true, viewport: view.factory });
     await intoRoom(v);
     signal(v, { kind: "picture", figure: "visitor", shows: "fallback", why: "no-file" });
     await flush();
     expect(noteLine(v)).toBeNull();
-    expect(v.doc.querySelectorAll(".room-notes > p")).toHaveLength(2);
+    expect(v.doc.querySelectorAll(".room-notes > p")).toHaveLength(0);
   });
 });

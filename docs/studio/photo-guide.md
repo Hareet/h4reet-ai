@@ -61,7 +61,6 @@ On the desk, from its front-left corner:
 - [ ] Laptop stand: x 1.3, y 0, z -0.5 (estimated)
 - [ ] Laptop: x 1.3, y 0.12, z -0.5 (estimated)
 - [ ] Desk sign, busy: x 0.2, y 0, z -0.43 (estimated)
-- [ ] Desk sign, dog: x 1.02, y 0, z -0.44 (estimated)
 - [ ] `split-keyboard`: x 0.61, y 0, z -0.19 (estimated)
 - [ ] `vertical-mouse`: x 0.91, y 0, z -0.17 (estimated)
 - [ ] `notebook`: x 0.28, y 0, z -0.19 (estimated)
@@ -69,6 +68,7 @@ On the desk, from its front-left corner:
 On the shell, at its anchors:
 
 - [ ] Desk: on the anchor `back-wall`, offset x 0, y 0, z 0.4 (estimated)
+- [ ] Desk sign, dog: on the anchor `right-wall`, its origin (below the centre of the sign's foot) 0.5096 from the back wall and 0.46 above the floor, 0.0375 out from the wall (estimated)
 - [ ] Chalkboard: on the anchor `left-wall`, its origin (the centre of the board's back, against the wall) 0.8972 from the back wall and 1.65 above the floor, 0 out from the wall (estimated)
 - [ ] Snowboard: on the anchor `left-wall`, its origin (the centre of the board, midway along its length and across its width, in the middle of its thickness) 0.2096 from the back wall and 0.775 above the floor, 0.035 out from the wall (estimated)
 - [ ] Bicycle: on the anchor `right-wall`, its origin (midway between the two wheels' hubs) 0.8317 from the back wall and 1.49 above the floor, 0.09 out from the wall (estimated)
