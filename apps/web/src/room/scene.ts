@@ -231,7 +231,13 @@ export function createLabels(doc: Document): Labels {
 export function createScene(options: SceneOptions): Stage3D {
   const { win, doc, clock } = options;
   const labels = createLabels(doc);
-  const room = buildRoom(part, { avatar: options.avatar, label: labels.factory, index: options.room });
+  // Spec 029 (FR-020): the paper's drawing, in the document, its word in the chalk face once it has arrived.
+  const room = buildRoom(part, {
+    avatar: options.avatar,
+    label: labels.factory,
+    index: options.room,
+    paper: { doc, ...(options.typefaces ? { typefaces: options.typefaces } : {}) },
+  });
   // The live faces and the glow cards (spec 004, T185): each read the motion store on every frame, so a pause or reduced
   // motion stills them mid-visit, and the faces' words come when room-data.json does (setText).
   const animating = (): { animate: boolean } => ({

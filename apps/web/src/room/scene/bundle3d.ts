@@ -21,7 +21,13 @@
 // The 3D part holds a label's key and a switch's poses, so the index gives the words and the cases (plan.md §10). A
 // part that isn't the index's (its digest differs) or doesn't build whole (a mount, an anchor, or a figure that
 // doesn't resolve) is refused with an error, and the room falls to 2D as for a chunk that fails to load.
+//
+// Spec 029 (FR-020; plan.md §R-C4): given a document, the paper's two materials share one canvas texture of paper.ts's
+// drawing, its word the UI word `paper.word` in the look's chalk face, drawn again when that face's family changes;
+// their colour, opacities, and both sides stay, so the hand-off's cross-fade is unchanged. Without one, the sheet is
+// plain white, as before. Seen from behind, the word reads mirrored, as on a sheet of paper.
 import {
+  CanvasTexture,
   Color,
   DoubleSide,
   Group,
@@ -29,6 +35,7 @@ import {
   MeshBasicMaterial,
   Object3D,
   PlaneGeometry,
+  SRGBColorSpace,
   Scene,
   Shape as Polygon,
   ShapeGeometry,
@@ -52,8 +59,10 @@ import type { Camera } from "../compose/project";
 import { reservedBoxes } from "../compose/hud";
 import type { Stage } from "../compose/stages";
 import { VISITOR_TURN, handOffset, sideOf, visitorTurnShare } from "../handoff";
+import type { TypefaceLoader } from "../faces/fonts";
 import type { Side } from "../handoff";
 import type { Ndc } from "../objects";
+import { drawPaper, paperLayout } from "../paper";
 import { uiWord } from "../ui-keys";
 import type { UiKey } from "../ui-keys";
 import { buildCases } from "./cables";
@@ -67,6 +76,9 @@ const BACKDROP = "#20252b";
 /** The paper the twin hands over, an A4 sheet in metres; its arc's height over the hand-off; and how far the twin turns
  *  toward the visitor, in radians: spec 002's. */
 const SHEET: readonly [number, number] = [0.21, 0.297];
+/** Spec 029: the paper's canvas, in pixels, the sheet's aspect. */
+const PAPER_PX: readonly [number, number] = [512, 724];
+const PAPER_WORD: UiKey = "paper.word";
 const PAPER_ARC = 0.35;
 const TWIN_TURN = 0.45;
 const STANDIN_LABEL: UiKey = "standin.label";
@@ -79,8 +91,11 @@ export interface RoomOptions {
   readonly avatar: AvatarId;
   readonly label: LabelFactory;
   /** The index composed with the part: its digest, which the part's must equal; its UI words, for the labels; and its
-   *  switches' cases. */
-  readonly index: Pick<RoomIndex, "digest" | "ui" | "switches">;
+   *  switches' cases; spec 029: its typefaces, for the paper's word, where it has them. */
+  readonly index: Pick<RoomIndex, "digest" | "ui" | "switches"> & Partial<Pick<RoomIndex, "typefaces">>;
+  /** Spec 029 (FR-020): the document the paper's canvas is made in, and the typefaces' loader, whose chalk family its
+   *  word is drawn in once it has arrived; absent, the sheet is plain white. */
+  readonly paper?: { readonly doc: Document; readonly typefaces?: Pick<TypefaceLoader, "family" | "onChange"> };
 }
 
 export interface Room3D {
@@ -158,6 +173,29 @@ function cutout(avatar: AvatarId, materials: Materials): Group {
     group.add(mesh);
   }
   return group;
+}
+
+/** Spec 029 (FR-020): the paper's texture, paper.ts's drawing on a canvas, drawn again when the chalk face's family
+ *  changes; before it has one, the index's chalk family and its fallback, or the generic sans-serif. */
+function paperFace(paper: NonNullable<RoomOptions["paper"]>, index: RoomOptions["index"]): CanvasTexture {
+  const [w, h] = PAPER_PX;
+  const canvas = paper.doc.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  const chalk = index.typefaces?.find((t) => t.use === "chalk");
+  const fallback = chalk ? `${chalk.family}, ${chalk.fallback}` : "sans-serif";
+  const layout = paperLayout(uiWord(index.ui, PAPER_WORD) ?? "", w, h);
+  const draw = (): void => {
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    drawPaper(ctx, layout, w, h, paper.typefaces?.family("chalk") ?? fallback);
+    texture.needsUpdate = true;
+  };
+  draw();
+  paper.typefaces?.onChange(draw);
+  return texture;
 }
 
 /** The room's object tree from the 3D part, with no renderer. */
@@ -270,8 +308,15 @@ export function buildRoom(part: RoomScene, options: RoomOptions): Room3D {
 
   // The paper: one sheet that travels from the twin's hand (or fades out there), one that fades in at the visitor's.
   const sheet = new PlaneGeometry(SHEET[0], SHEET[1]);
+  const face = options.paper ? paperFace(options.paper, options.index) : null;
   const paperMaterial = (opacity: number): MeshBasicMaterial =>
-    new MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity, side: DoubleSide });
+    new MeshBasicMaterial({
+      color: "#ffffff",
+      transparent: true,
+      opacity,
+      side: DoubleSide,
+      ...(face ? { map: face } : {}),
+    });
   const [atTwin, atVisitor] = [paperMaterial(1), paperMaterial(0)];
   const paper = new Mesh(sheet, atTwin);
   paper.position.copy(anchors.twinHand);
