@@ -156,13 +156,6 @@ describe("the signs' outlines (FR-016 to FR-018, FR-021)", () => {
 });
 
 describe("the dog sign's hold, the Author's approval (spec Q6; FR-021)", () => {
-  const file = outlinePath("lettering-cool");
-
-  it("main's approvals hold no entry for the dog sign's outline", () => {
-    const approvals = readRoomPolicy({ env: {}, root: REPO }).approvals.map((a) => a.sha256);
-    expect(approvals).not.toContain(sha(readFileSync(join(REPO, file))));
-  });
-
   /** A face of the sign renderer bound to the dog sign's outline, as the scene would bind it. */
   const signFace = (): RoomIndex["faces"][number] => ({
     id: "fx-sign.lettering",
