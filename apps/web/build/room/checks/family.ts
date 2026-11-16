@@ -12,6 +12,7 @@
 //   (the loader's) and RT2's walk.
 import type { LoadedRoom } from "../load";
 import type { RoomPolicy } from "../policy";
+import type { ReadinessReasons } from "../readiness";
 import { compareBytewise } from "../source";
 import type { Tree } from "../source";
 
@@ -183,6 +184,9 @@ export interface ComposeOptions {
    *  the gateway's rule (build/room/readiness.ts) and hands in, so the compositor's own reads stay the room's data.
    *  Absent, nothing is ready. */
   readonly readiness?: { readonly topics: ReadonlyMap<string, boolean>; readonly freeTalk: boolean };
+  /** The same rule's reasons (spec 029, FR-014a; build/room/readiness.ts's readinessReasons), handed in the same way
+   *  for the room report's readiness section, which room:report prints. Absent, the report has no such section. */
+  readonly readinessReasons?: ReadinessReasons;
 }
 
 const RULE_PARTS = /^([A-Z]+)(\d+)$/;

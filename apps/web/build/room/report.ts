@@ -26,10 +26,13 @@
 // - spec 009's avatars (its FR-040): each file of each avatar's folder with its measures and whether it's bundled, the
 //   scale its reader's bounds imply, which avatar the twin shows, each file with no role (RA5), RK3's figures with the
 //   stand-in, and the first visit with both figures' files (RK5) beside spec 003's F3 view;
+// - spec 029's readiness (its FR-014a): how many of the twin's topics, and whether free talk, are ready, by the build's
+//   own rule (readiness.ts's readinessReasons, which room:report hands in), and for each one closed, why;
 // - the findings, each line, a lenient one marked warn in a lenient build, or "none".
 // Bytes are integers with thousands separators and glyph heights are to 0.1 px. Nothing in it is a time, a path
 // outside the repository, or a data string: pieces, placements, faces, switches, and poses are named by IDs, each only
 // where RT2 passed it.
+
 import { AVATAR_SHAPES } from "../../src/choice/avatars";
 import { TIER_VALUES } from "../../src/room/compose/vocabulary";
 import { gzipBytes } from "../../src/room/glb/gzip";
@@ -63,6 +66,7 @@ import { reachLine, twinReachOf } from "./reach";
 import { figuresVisit, sceneTextureTotal, TWIN_DIR, VISITORS_DIR } from "./checks/rk";
 import type { SceneTextureMemory } from "./checks/rk";
 import type { Switch } from "./schema";
+import type { ReadinessReasons } from "./readiness";
 import { compareBytewise } from "./source";
 import type { Tree } from "./source";
 
@@ -246,6 +250,9 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
 
   // Spec 008's walking lines: the figure's start, RW1's measure, and spec 005's reserved boxes, RG6's.
   lines.push(...walking(c), "");
+
+  // Spec 029's readiness (its FR-014a): the twin's topics and free talk, ready or closed and why.
+  if (c.options.readinessReasons !== undefined) lines.push(...readinessLines(c.options.readinessReasons), "");
 
   // The findings.
   if (c.findings.length === 0) lines.push("Findings: none.");
@@ -743,5 +750,38 @@ function highlights(c: Composed): string[] {
       `| ${name} | ${r.band}, ${plain(r.band_px)} px | ${r.edge}, ${plain(r.edge_px)} px | ${lowest} | ${against} |`,
     );
   }
+  return out;
+}
+
+// ---- Spec 029's readiness (its FR-014a; plan.md §R-B4) ----
+
+/** A topic ID as the readiness file may name one; any other is not printed. */
+const TOPIC_ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+
+/**
+ * Spec 029's readiness section (its FR-014a; plan.md §R-B4; B0's §5; rv-spec-029's S-4): "N of M topics ready; free
+ * talk ready|closed", then one line per closed topic, and free talk if closed, with its reason; or, where a file every
+ * entry needs is missing or unusable, the one line that says so. From the build's own rule's reasons
+ * (readiness.ts's readinessReasons), which the caller reads and hands in (ComposeOptions.readinessReasons), never a
+ * second reading of the files: the compositor's reads stay the room's data. Nothing in it is a hash or a file's words.
+ */
+export function readinessLines(reasons: ReadinessReasons): string[] {
+  const out = ["### The twin's readiness (spec 029, FR-014a)", ""];
+  if (reasons.kind === "closed") {
+    out.push("No topic ready; free talk closed.", "", `Nothing is ready: ${reasons.reason} (\`${reasons.file}\`).`);
+    return out;
+  }
+  const ready = [...reasons.topics.values()].filter((why) => why === "ready").length;
+  out.push(
+    `${ready} of ${reasons.topics.size} topics ready; free talk ${reasons.freeTalk === "ready" ? "ready" : "closed"}.`,
+  );
+  const closed: string[] = [];
+  for (const [id, why] of reasons.topics) {
+    if (why === "ready") continue;
+    const name = TOPIC_ID.test(id) ? `\`${id}\`` : "(a topic ID the readiness file can't name)";
+    closed.push(`- ${name}: closed, ${why}.`);
+  }
+  if (reasons.freeTalk !== "ready") closed.push(`- free talk: closed, ${reasons.freeTalk}.`);
+  if (closed.length > 0) out.push("", ...closed);
   return out;
 }

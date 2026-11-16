@@ -30,3 +30,10 @@ messages:
     text: The twin couldn't read that message. Try a shorter one.
   - id: turn_stopped
     text: Stopped. Ask again whenever you like.
+  # Spec 029's two (its FR-012, Q4): drafts for the Author's words. Typed text while free talk is closed and no
+  # conversation is open, in place of cannot_talk.unavailable, which isn't why; and a send while the room doesn't take
+  # input yet (the hand-off and its offer), which showed nothing before.
+  - id: cannot_talk.free_talk_closed
+    text: The twin isn't taking open questions yet. Select a piece in the room to talk about it.
+  - id: turn_wait.room
+    text: The twin will answer once you're in the room.

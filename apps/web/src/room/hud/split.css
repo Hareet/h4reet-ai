@@ -270,7 +270,18 @@ html[data-split="on"][data-hud="column"] .talk[data-panel="open"] {
   background: none;
 }
 
-html[data-split="on"][data-hud="column"] .talk[data-panel="open"] > * {
+/* The panel's rows above its frame (spec 029, FR-011, FR-013; B0's finding). The frame and the visually hidden heading
+   keep their own position: absolute, out of the grid's flow, so neither takes a row from the log; :where() keeps the
+   rule's specificity at 0,4,1. The sheet makes no box (display: contents), so its own z-index makes nothing: its
+   children, the grid's items, are lifted as the panel's own are, positioned at z-index 1, and paint above the frame
+   (absolute, z-index 0) in .talk's stacking context, whose glass is then behind the title row, the stats, the log, and
+   the status (rv-spec-029's S-1; plan §R-B3's route). */
+html[data-split="on"][data-hud="column"] .talk[data-panel="open"] > :not(:where(.split-frame, .visually-hidden)) {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-split="on"][data-hud="column"] .talk[data-panel="open"] > .talk-sheet > * {
   position: relative;
   z-index: 1;
 }

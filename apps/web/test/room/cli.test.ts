@@ -35,6 +35,7 @@ import { compose, formatFinding } from "../../build/room/compose";
 import type { ComposeResult } from "../../build/room/compose";
 import { loadRoom, namespaceIds } from "../../build/room/load";
 import { CAPS_DEFAULTS, noPolicy } from "../../build/room/policy";
+import { readinessReasons } from "../../build/room/readiness";
 import { fileTree } from "../../build/room/source";
 import { fit } from "../../src/room/glb/fit";
 import { gzipBytes } from "../../src/room/glb/gzip";
@@ -268,8 +269,14 @@ describe("check (contracts/room-bundle.md §12, §13; contracts/room-data-files.
 describe("report and scan (contracts/room-bundle.md §10, §12; contracts/room-data-files.md §16)", () => {
   it("report prints FR-073's report of a release build in strict mode, and exits 0, its findings in it", async () => {
     const root = repository(badCase("RI4").changes);
-    const report = composed(root, "strict", false).report.markdown;
+    // Spec 029 (FR-014a): the command hands in the twin's readiness reasons, read from the tree by the build's rule.
+    const report = compose(fileTree(root), noPolicy(), {
+      mode: "strict",
+      drafts: false,
+      readinessReasons: readinessReasons(fileTree(root)),
+    }).report.markdown;
     expect(report).toContain("RI4 ");
+    expect(report).toContain("### The twin's readiness (spec 029, FR-014a)");
     const { code, out } = await cli(root, ["report"]);
     expect(code).toBe(0);
     expect(`${out.join("\n")}\n`).toBe(report);
