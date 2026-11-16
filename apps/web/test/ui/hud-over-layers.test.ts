@@ -20,7 +20,8 @@
 //   sheet's rows (impl-a.md, for the integration).
 // - Text: 4.5:1, or 3:1 at 24 px or more (bold not counted, so the floor is never too low). Marks, 3:1: each focus ring
 //   over what lies beneath it (inside the control if its offset puts it there, else outside, on the control's own
-//   spread shadow where that reaches past the ring, else on its parent's layers); each border (a key cap's, a tile's)
+//   spread shadow where that reaches past the ring, else on its parent's layers; and where the ring's band leaves its
+//   parent's box, judged over what lies beyond the parent, rework3-029a's RR-1); each border (a key cap's, a tile's)
 //   against the colour on either side of it; each icon's and stroke's paint. The panel's drawn frame is a layer, not a
 //   mark. Disabled controls (aria-disabled) are exempt, as WCAG has it.
 import { readFileSync } from "node:fs";
@@ -268,10 +269,10 @@ function shown(el: Element): boolean {
 }
 
 /** The layers beneath what an element draws, the topmost first, up to and including the marked part. */
-function layersUnder(el: Element, part: Element): Rgba[] {
+function layersUnder(el: Element, part: Element, withFrame = true): Rgba[] {
   const out: Rgba[] = [];
   for (let n: Element | null = el; n; n = n.parentElement) {
-    if (n === part) {
+    if (n === part && withFrame) {
       const frame = part.querySelector(":scope > .split-frame path");
       if (frame && shown(frame) && !el.closest(".talk-head")) {
         const fill = declared(frame, ["fill"]);
@@ -285,6 +286,88 @@ function layersUnder(el: Element, part: Element): Rgba[] {
   }
   throw new Error("not inside its part");
 }
+
+// ---- Where a ring's band lies against its parent's box (rework3-029a, rv-029a-2's RR-1) ----
+// The sizes are the declared ones: a box's height is its grid track's where its row is a fixed length in the nearest
+// grid container (display: contents passed through), else its `height`, raised to its `min-height`; a control's is its
+// `min-height` (or `height`). A parent with neither grows around its controls, and the band is taken to fit in it.
+// Vertical only: the parents here (the title row among them) pad their sides by the band or more.
+
+/** A declared length, var()s resolved, or null for none or one this test doesn't read (auto, fr, %, minmax). */
+function lengthOf(el: Element, prop: string): number | null {
+  const d = declared(el, [prop]);
+  if (!d) return null;
+  try {
+    return length(substitute(el, d.value), el);
+  } catch {
+    return null;
+  }
+}
+
+/** Splits a track list at its top-level spaces. */
+function tracks(s: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let cur = "";
+  for (const ch of s) {
+    if (ch === "(") depth += 1;
+    else if (ch === ")") depth -= 1;
+    if (/\s/.test(ch) && depth === 0) {
+      if (cur) out.push(cur);
+      cur = "";
+    } else cur += ch;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+/** A box's height from its declared sizes, or null where none fixes it. */
+function fixedHeight(el: Element): number | null {
+  let track: number | null = null;
+  const row = declared(el, ["grid-row"])?.value.trim();
+  let grid = el.parentElement;
+  while (grid && declared(grid, ["display"])?.value === "contents") grid = grid.parentElement;
+  if (row && /^\d+$/.test(row) && grid) {
+    const t = declared(grid, ["grid-template-rows"]);
+    const token = t ? tracks(substitute(grid, t.value))[Number(row) - 1] : undefined;
+    if (token) {
+      try {
+        track = length(token, grid);
+      } catch {
+        track = null;
+      }
+    }
+  }
+  const base = track ?? lengthOf(el, "height");
+  if (base === null) return null;
+  return Math.max(base, lengthOf(el, "min-height") ?? 0);
+}
+
+/** A box's top padding, from `padding-top` or the `padding` shorthand, whichever the cascade puts last. */
+function paddingTop(el: Element): number {
+  const d = declared(el, ["padding-top", "padding"]);
+  if (!d) return 0;
+  const v = substitute(el, d.value);
+  return length((d.prop === "padding" ? tracks(v)[0] : v) ?? "0", el);
+}
+
+/** Whether a ring `band` pixels past its control leaves the parent's box above or below the control: the control
+ *  centred in it where the parent is a row (flex, not column) that centres its items, else at its padding's top. */
+function bandLeaves(el: Element, parent: Element, band: number): boolean {
+  const own = Math.max(lengthOf(el, "min-height") ?? 0, lengthOf(el, "height") ?? 0);
+  const box = fixedHeight(parent);
+  if (box === null || own === 0) return false;
+  const column = /^column/.test(declared(parent, ["flex-direction"])?.value.trim() ?? "");
+  const centred = !column && declared(parent, ["align-items"])?.value.trim() === "center";
+  const top = centred ? (box - own) / 2 : paddingTop(parent);
+  const bottom = box - own - top;
+  return Math.min(top, bottom) < band;
+}
+
+/** The layers beyond a parent's box: its ancestors' up to the part, the split layout's frame not counted (it starts at
+ *  the title row's foot, and above the row lies the panel's top edge), so never more than really lies there. */
+const layersBeyond = (parent: Element, part: Element): Rgba[] =>
+  parent === part ? [] : layersUnder(parent.parentElement as Element, part, false);
 
 /** An SVG paint, inherited as SVG has it: the path's rule or presentation attribute, else its ancestors' up to the svg;
  *  else the initial value (fill black, stroke none). */
@@ -346,7 +429,13 @@ function pairsOf(part: Element): Pair[] {
             const parts = v.split(/\s+/);
             const spread = !v.startsWith("inset") && parts.length >= 5 ? length(parts[3] ?? "0", el) : 0;
             const own = spread >= offset + width ? colourIn(v) : null;
-            const beneathRing = el === part ? [] : layersUnder(el.parentElement as Element, part);
+            const parent = el.parentElement as Element;
+            const beneathRing =
+              el === part
+                ? []
+                : bandLeaves(el, parent, offset + width)
+                  ? layersBeyond(parent, part)
+                  : layersUnder(parent, part);
             layers = own ? [own, ...beneathRing] : beneathRing;
           }
           const bd = composite(layers, room);
@@ -481,6 +570,20 @@ describe("over the room, each text and mark over the layers really beneath it (R
     const walking = look();
     talk.removeAttribute("data-over");
     expect(walking).toEqual(look());
+  });
+
+  it("finds the title row's controls as tall as the row or taller, so a ring outside them leaves it (RR-1)", async () => {
+    // The model above is only as good as these sizes: the hint's min-height is the row's track, and the title's
+    // toggle (44 px) meets the row's edge wherever the row is under 52 px, every split window at 1366 × 768.
+    const v = await walkingInConversation({ w: 1366, h: 768 });
+    const head = v.doc.querySelector(".talk-head") as Element;
+    const row = fixedHeight(head);
+    expect(row).not.toBeNull();
+    for (const sel of [".split-hint", ".talk-log-toggle"]) {
+      const el = v.doc.querySelector(sel) as Element;
+      expect(el.parentElement, sel).toBe(head);
+      expect(bandLeaves(el, head, 4), sel).toBe(true);
+    }
   });
 
   it("models the split layout's frame as the paint beneath the rows but the title row", () => {
