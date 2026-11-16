@@ -217,7 +217,7 @@ exit=2
   - 8 rows: the studio's photos, outputs, workflows, and blinding-key folders, "nothing at its path from inside the sandbox".
   - 2 rows: `~/.config/h4reet-ai` and `~/.local/state/h4reet`, which have "no mask: open writable /night/home".
   - 1 row: "an AF_UNIX socket was allowed (expected EPERM)".
-- **image**: docker's first request to the agents' engine failed before any build step read the tree. The error differs from night 2's ("error during connect … EOF"): the engine's endpoint now answers HTTPS to the container's HTTP client. That is the runner's and the engine's configuration, not the stack's. **For his look**, beside the runner's mounts.
+- **image**: docker's first request to the agents' engine failed before any build step read the tree. The error differs from night 2's ("error during connect … EOF"): the engine's endpoint answered HTTPS to the container's HTTP client. **The cause, found after the run:** this container's environment sets `DOCKER_CONFIG=~/.config/h4reet/agents-engine/docker` with the tilde unexpanded (`echo "$DOCKER_CONFIG"` prints it so), and `docker-relay` keeps `${DOCKER_CONFIG:-…}` as given. So docker read its config from a relative folder named `~` in the worktree, found no TLS client config there, and wrote its buildx state into it (`./~/.config/h4reet/agents-engine/docker/buildx/current`, holding only the engine's address, and `.lock`; untracked; I removed the folder after reading it, since it was this run's artifact and inside the worktree, not `/tmp`). That is the runner's container environment, not the stack's. **For his look**, beside the runner's mounts.
 - **evals: WARN**: the behavioral tier's run is the Author's. Its note says the gate waits for it "only for a branch that changes CLAUDE.md, REVIEW.md, .claude/, or the Claude Code pin", and this stack changes none of them.
 
 The stack changes nothing the matrix, the image, or the agent-config evals read:
@@ -251,7 +251,7 @@ exit=0
 
 ## Refusals
 
-One, a false match on text I was writing, ~00:20Z (2026-11-16). Writing this note's Runs section to a scratch file through a bash heredoc, the bash gate refused it: "Blocked by .claude/hooks/bash-gate.sh — an Author-only make target. Route: make publish-check, make tools, make matrix-canary, and make evals-agent-config: the Author runs it (spec 000 plan §13); ask the Author". The heredoc ran no target: its text held `make check`'s pasted WARN line, which names that target. I didn't respell it. The section was written with the Edit tool instead. No other refusal: every commit's hooks passed (gitleaks "no leaks found"; "arrival-check: 0 findings"). Nothing was deleted in `/tmp`.
+One, a false match on text I was writing, ~00:37Z (2026-11-16), after `make check` ended. Writing this note's Runs section to a scratch file through a bash heredoc, the bash gate refused it: "Blocked by .claude/hooks/bash-gate.sh — an Author-only make target. Route: make publish-check, make tools, make matrix-canary, and make evals-agent-config: the Author runs it (spec 000 plan §13); ask the Author". The heredoc ran no target: its text held `make check`'s pasted WARN line, which names that target. I didn't respell it. The section was written with the Edit tool instead. No other refusal: every commit's hooks passed (gitleaks "no leaks found"; "arrival-check: 0 findings"). Nothing was deleted in `/tmp`.
 
 ## Questions
 
