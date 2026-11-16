@@ -5,9 +5,10 @@
 // - Its ranges (RD3), a key it doesn't define (RD2), and R-08's refine: a `reach_m` below `figures.chase.separation_m`
 //   (or its default where the scene has no chase block) is refused, since no dog's home could then be in reach.
 // - `selectables[].figure`: `dog`, the one value allowed now; any other refused; the bundle carries it.
-// - The shipped `scene.yaml`: `figures.pet` at plan §3's defaults, `figures.twin.clips.petting: petting`, no `dog`
-//   selectable (FR-016: it is the human patch's), and the dog's home (`figures.dog.home.at`, spec 025's, moved by
-//   impl-025's T011) within `reach_m` of the twin's; the aim's heading and side printed for his look.
+// - The shipped `scene.yaml`: `figures.pet` at plan §3's defaults, `figures.twin.clips.petting: petting`, the human
+//   patch's "Dog" selectable (FR-016; as reworked for spec 028's Q20, the sign alone, with no figure), and the dog's
+//   home (`figures.dog.home.at`, spec 025's, moved by impl-025's T011) within `reach_m` of the twin's; the aim's
+//   heading and side printed for his look.
 import { describe, expect, it } from "vitest";
 import { parse, stringify } from "yaml";
 
@@ -20,6 +21,7 @@ import { resolveMounts } from "../../src/room/compose/mount";
 import { CHASE_DEFAULTS } from "../../src/room/scene/chase-steer";
 import { PET_DEFAULTS, inReach, petAim } from "../../src/room/scene/pet";
 import { repositoryBundle } from "../helpers/room";
+import { placementLabelled } from "../helpers/room-ids";
 import { SCENE } from "../helpers/room-avatars";
 import { goodFiles, overlay } from "../helpers/room-fixtures";
 
@@ -144,8 +146,10 @@ describe("the shipped scene.yaml's petting data (plan §3; R-08)", () => {
     expect(part.twin?.block.clips.petting).toBe("petting");
   });
 
-  it("has no dog selectable: its line is the human patch's (FR-016)", () => {
-    expect(bundle.index.selectables.map((s) => s.id)).not.toContain("dog");
+  it("has the human patch's Dog selectable, its sign alone and no figure (FR-016; spec 028's Q20)", () => {
+    const dog = bundle.index.selectables.filter((s) => s.name === "Dog");
+    expect(dog).toHaveLength(1);
+    expect(dog[0]?.members).toEqual([placementLabelled("Desk sign, dog")]);
     expect(bundle.index.selectables.filter((s) => s.figure !== undefined)).toEqual([]);
   });
 

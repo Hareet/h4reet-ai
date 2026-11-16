@@ -91,7 +91,12 @@ placements:
     edible: { chunks: 4 }
   - id: dog-sign
     piece: dog-sign
-    mount: { on: work-desk, anchor: top, offset: [0.27, 0, -0.04], turn: { y: -10 }, estimated: true }
+    # Spec 026 (T019; as amended, the page's Q297, answered: recommended, his to confirm or overturn): on the right
+    # wall, no turn, where RG6 passes (specs/026-twin-pets-dog/dog-sign-offset.md, "Off the desk"); Q287's floor
+    # mount put the sign under the "Eat" tile's box for a 3D dinosaur visit. Rebuilt as r3 (patch6-026): 0.1 m further
+    # toward the front and 6 cm higher than r2's [-0.2, 0.4, 0.0375], where the walking control's box and the "Eat"
+    # tile's hold it at no stage, and its box on the floor leaves the bicycle reachable in the walking view.
+    mount: { on: room-shell, anchor: right-wall, offset: [-0.1, 0.46, 0.0375], estimated: true }
     frame: true
     label: label.dog-sign
   - id: chalkboard
@@ -227,6 +232,16 @@ selectables:
     emblem: slate
     members: [chalkboard]
     action: { talk: { topic: mission } }
+  # Spec 026 (FR-016): the dog's sign. As reworked for spec 028 (its Q20, taken: recommended, his to confirm or
+  # overturn): the sign alone opens the topic, with no `figure: dog`, since the room's dog never stands at home
+  # (spec 028's Q9, FR-018), so spec 026's FR-014 figure pick has nothing to pick. Rebuilt as r3 (patch6-026): its ID is
+  # its sign's, as the snowboard's and the bicycle's are their members', since the room's code names `dog` (the
+  # figure), which spec 004's FR-007 scan refuses for an ID only the data defines; its emblem is a paw (FR-005).
+  - id: dog-sign
+    name: Dog
+    emblem: paw
+    members: [dog-sign]
+    action: { talk: { topic: hobbies-and-travel, lead: The dog first. } }
 # Spec 024 (FR-011): the seconds an eaten chunk takes to grow back.
 eating: { regrow_s: 20 }
 handoff: { from: { placement: twin-figure, anchor: hand }, to: { placement: visitor-figure, anchor: hand } }

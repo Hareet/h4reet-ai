@@ -134,7 +134,10 @@ export const HUD_PLACEMENTS = {
   split: {
     panel: { shareMax: 0.5, maxRem: 40, minWidthRem: 18, minHeightRem: 14, titleRem: 2.75 },
     rest: { minRem: 40, gapRem: 0.25 },
-    list: { widthRem: 24, heightRem: 22 },
+    // Spec 026's human patch, r4 (provisional, the page's Q39): 25rem, the model's 24.72rem at scale 1 for "Back", the
+    // label, and the five entries with the dog's sign (22rem held four). Since spec 028 it sizes no box: the list's box
+    // is the column's top (wallBoxes), and test/ui/hud-split-dog.test.ts holds the five entries to that box.
+    list: { widthRem: 24, heightRem: 25 },
     walkGapRem: 0.25,
     coverMax: 0.25,
   },
@@ -171,7 +174,9 @@ export const HUD_PLACEMENTS = {
     gapRem: 0.25,
     iconRem: 1,
     iconGapRem: 0.25,
-    rows: [{ belowRem: 36, n: 2 }] as readonly Band[],
+    // Spec 026's human patch, r4 (provisional, the page's Q39): two rows below 39rem, where the model's five entries
+    // with the dog's sign need them, up to 608 px wide (36rem held four).
+    rows: [{ belowRem: 39, n: 2 }] as readonly Band[],
   },
   /** The text box's row: its label over the text box, Send, and the talk button, never collapsed (FR-022); and the
    *  waiting status's line, in the column. */

@@ -21,6 +21,7 @@ objects:
   - "bicycle"
   - "laptop"
   - "chalkboard"
+  - "dog-sign"
 items:
   - "ai-strategy"
   - "change-management"

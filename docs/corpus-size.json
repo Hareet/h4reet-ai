@@ -6,21 +6,21 @@
   "files": {
     "topic": {
       "files": 9,
-      "bytes": 96567,
-      "words": 15089,
-      "chars": 96128
+      "bytes": 114800,
+      "words": 17660,
+      "chars": 114229
     },
     "facts": {
       "files": 11,
-      "bytes": 17556,
-      "words": 2312,
-      "chars": 17544
+      "bytes": 18922,
+      "words": 2519,
+      "chars": 18909
     },
     "total": {
       "files": 20,
-      "bytes": 114123,
-      "words": 17401,
-      "chars": 113672
+      "bytes": 133722,
+      "words": 20179,
+      "chars": 133138
     },
     "by_file": [
       {
@@ -49,9 +49,9 @@
       },
       {
         "path": "corpus/04-hobbies-and-travel.md",
-        "bytes": 9822,
-        "words": 1727,
-        "chars": 9804
+        "bytes": 10307,
+        "words": 1822,
+        "chars": 10289
       },
       {
         "path": "corpus/05-mission.md",
@@ -73,9 +73,9 @@
       },
       {
         "path": "corpus/08-hareet-ai.md",
-        "bytes": 5299,
-        "words": 927,
-        "chars": 5279
+        "bytes": 23047,
+        "words": 3403,
+        "chars": 22895
       },
       {
         "path": "corpus/facts/awards.yaml",
@@ -103,15 +103,15 @@
       },
       {
         "path": "corpus/facts/hareet-ai.yaml",
-        "bytes": 467,
-        "words": 55,
-        "chars": 467
+        "bytes": 916,
+        "words": 101,
+        "chars": 915
       },
       {
         "path": "corpus/facts/hobbies-and-travel.yaml",
-        "bytes": 1632,
-        "words": 224,
-        "chars": 1632
+        "bytes": 2549,
+        "words": 385,
+        "chars": 2549
       },
       {
         "path": "corpus/facts/medic-context.yaml",
@@ -159,9 +159,9 @@
     "room": 21182
   },
   "base": {
-    "rules": 5833,
+    "rules": 6198,
     "profile": 6189,
-    "base": 12022
+    "base": 12387
   },
   "topics": [
     {
@@ -169,12 +169,12 @@
       "files": [
         "corpus/04-hobbies-and-travel.md"
       ],
-      "rendered": 8894,
-      "grounding": 20916,
-      "share": 0.9874,
-      "margin": 266,
+      "rendered": 9177,
+      "grounding": 21564,
+      "share": 1.018,
+      "margin": -382,
       "lead": 41,
-      "margin_after_lead": 225
+      "margin_after_lead": -423
     },
     {
       "id": "mission",
@@ -182,11 +182,11 @@
         "corpus/05-mission.md"
       ],
       "rendered": 9023,
-      "grounding": 21045,
-      "share": 0.9935,
-      "margin": 137,
+      "grounding": 21410,
+      "share": 1.0108,
+      "margin": -228,
       "lead": 0,
-      "margin_after_lead": 137
+      "margin_after_lead": -228
     },
     {
       "id": "work-projects",
@@ -194,44 +194,44 @@
         "corpus/06-work-projects.md"
       ],
       "rendered": 7621,
-      "grounding": 19643,
-      "share": 0.9273,
-      "margin": 1539,
+      "grounding": 20008,
+      "share": 0.9446,
+      "margin": 1174,
       "lead": 0,
-      "margin_after_lead": 1539
+      "margin_after_lead": 1174
     }
   ],
   "by_file": [
     {
       "file": "corpus/01-ai-strategy-and-cht.md",
       "rendered": 30059,
-      "grounding": 42081,
-      "share": 1.9866,
-      "margin": -20899,
+      "grounding": 42446,
+      "share": 2.0039,
+      "margin": -21264,
       "in_topics": []
     },
     {
       "file": "corpus/02-production-infrastructure-national-scale.md",
       "rendered": 7456,
-      "grounding": 19478,
-      "share": 0.9196,
-      "margin": 1704,
+      "grounding": 19843,
+      "share": 0.9368,
+      "margin": 1339,
       "in_topics": []
     },
     {
       "file": "corpus/03-grants-and-credits.md",
       "rendered": 2049,
-      "grounding": 14071,
-      "share": 0.6643,
-      "margin": 7111,
+      "grounding": 14436,
+      "share": 0.6815,
+      "margin": 6746,
       "in_topics": []
     },
     {
       "file": "corpus/04-hobbies-and-travel.md",
-      "rendered": 8894,
-      "grounding": 20916,
-      "share": 0.9874,
-      "margin": 266,
+      "rendered": 9177,
+      "grounding": 21564,
+      "share": 1.018,
+      "margin": -382,
       "in_topics": [
         "hobbies-and-travel"
       ]
@@ -239,9 +239,9 @@
     {
       "file": "corpus/05-mission.md",
       "rendered": 9023,
-      "grounding": 21045,
-      "share": 0.9935,
-      "margin": 137,
+      "grounding": 21410,
+      "share": 1.0108,
+      "margin": -228,
       "in_topics": [
         "mission"
       ]
@@ -249,9 +249,9 @@
     {
       "file": "corpus/06-work-projects.md",
       "rendered": 7621,
-      "grounding": 19643,
-      "share": 0.9273,
-      "margin": 1539,
+      "grounding": 20008,
+      "share": 0.9446,
+      "margin": 1174,
       "in_topics": [
         "work-projects"
       ]
@@ -259,29 +259,29 @@
     {
       "file": "corpus/07-denver-local-ai.md",
       "rendered": 8797,
-      "grounding": 20819,
-      "share": 0.9829,
-      "margin": 363,
+      "grounding": 21184,
+      "share": 1.0001,
+      "margin": -2,
       "in_topics": []
     },
     {
       "file": "corpus/08-hareet-ai.md",
-      "rendered": 4303,
-      "grounding": 16325,
-      "share": 0.7707,
-      "margin": 4857,
+      "rendered": 21711,
+      "grounding": 34098,
+      "share": 1.6098,
+      "margin": -12916,
       "in_topics": []
     }
   ],
   "free_talk": {
-    "room": 9160,
-    "rankable": 78202,
-    "share": 0.1171
+    "room": 8795,
+    "rankable": 95893,
+    "share": 0.0917
   },
   "pack": {
-    "sections": 131,
-    "bytes": 153697,
-    "rendered": 84391,
+    "sections": 150,
+    "bytes": 179436,
+    "rendered": 102082,
     "longest_section": 3140
   },
   "thresholds": {
@@ -293,10 +293,10 @@
     "t3_band": 0.5
   },
   "stage": {
-    "stage": 0,
-    "crossed": [],
-    "band": [
+    "stage": 1,
+    "crossed": [
       "T1"
-    ]
+    ],
+    "band": []
   }
 }

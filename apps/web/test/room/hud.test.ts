@@ -73,7 +73,7 @@ describe("the boxes and the clear area (compose/hud.ts's hudBoxes and clearArea)
   it("docks the list, the text box's row, and the bar at the foot of a window held upright", () => {
     const b = hudBoxes({ w: 384, h: 740 });
     expect(b.layout).toBe("dock");
-    // Under 27rem the strip's words take two lines; under 35rem the bar's tiles take two rows; under 36rem the list's
+    // Under 27rem the strip's words take two lines; under 35rem the bar's tiles take two rows; under 39rem the list's
     // names take two rows beside its header button.
     expect(b.strip).toEqual({ x: 0, y: 0, w: 384, h: STRIP.two });
     expect(b.bar).toEqual({ x: 0, y: 740 - BAR.two, w: 384, h: BAR.two });

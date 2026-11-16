@@ -15,15 +15,15 @@ Model the sign's shape from the Author's own design and the dimension sheet. The
 
 - The sign's width, height, and thickness, and its foot's depth.
 - The lettering area's width and height, and its position on the face.
-- Where the sign stands on the desk, from the desk's front-left corner.
+- Where the sign hangs on the room's right wall, from the back wall, above the floor, and out from the wall.
 - Measure: the size, now estimated at 0.16 × 0.12 × 0.05 m (w × h × d).
-- Measure: where `dog-sign` sits, now estimated: on `work-desk`'s anchor `top`, offset (0.27, 0, -0.04) m.
+- Measure: where `dog-sign` sits, now estimated: on `room-shell`'s anchor `right-wall`, offset (-0.1, 0.46, 0.0375) m.
 
 ## Size, origin, and bounds
 
 - The size: 0.16 × 0.12 × 0.05 m (w × h × d), estimated.
 - The stylized scale: 1.5, so the model is made at 0.24 × 0.18 × 0.075 m (FR-051).
-- The origin: on the desk, below the centre of the sign's foot.
+- The origin: below the centre of the sign's foot.
 - The expected bounds at that scale: from (-0.12, 0, -0.0375) to (0.12, 0.18, 0.0375) m.
 - Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.02 m, y 0.02 m, z 0.02 m (FR-019).
 

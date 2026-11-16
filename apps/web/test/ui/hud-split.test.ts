@@ -628,7 +628,8 @@ describe("the emblem (T026; FR-005, Q60; named by the room's data, D-V3)", () =>
   const path = (u: ReturnType<typeof unit>) => emblem(u)?.querySelector("path")?.getAttribute("d");
 
   it("draws one icon per emblem the scene names, on the 24-unit grid, none the speech glyph", () => {
-    expect([...NAMES].sort()).toEqual(["board", "screen", "slate", "wheels"]);
+    // Spec 026's human patch (r3): the dog's sign takes the paw.
+    expect([...NAMES].sort()).toEqual(["board", "paw", "screen", "slate", "wheels"]);
     const all = [...Object.values(EMBLEM_ICONS), SPEECH_ICON];
     expect(new Set(all).size).toBe(all.length);
     for (const d of all) {

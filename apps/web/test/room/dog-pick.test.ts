@@ -49,6 +49,11 @@ const DOG_SELECTABLE = {
   figure: "dog",
   action: { talk: { topic: topicPhrased("hobbies and travel adventures"), lead: "The dog first." } },
 };
+/** The scene's selectables without the one that holds the dog's sign (spec 026's human patch, T019, puts one in
+ *  scene.yaml; Q297; its r3 gives it the sign's ID), so a test that adds its own works whether or not the shipped scene
+ *  holds it. */
+const lessDog = (selectables: unknown[]): unknown[] =>
+  selectables.filter((s) => !((s as { members?: unknown[] }).members ?? []).includes(DOG_SELECTABLE.members[0]));
 
 const corners = (dog: { home: { at: [number, number]; heading_deg: number }; footprint_m: number }) => {
   const h = (dog.home.heading_deg * Math.PI) / 180;
@@ -156,7 +161,7 @@ function withDog(): { tree: Tree; result: ComposeResult } {
   const base = fileTree(REPO);
   const text = new TextDecoder().decode(base.read(SCENE_PATH) ?? new Uint8Array());
   const doc = parse(text) as { selectables: unknown[] };
-  doc.selectables = [...doc.selectables, DOG_SELECTABLE];
+  doc.selectables = [...lessDog(doc.selectables), DOG_SELECTABLE];
   const tree = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]]));
   const policy = readRoomPolicy({ env: {}, root: REPO });
   shipped = { tree, result: compose(tree, policy, STRICT) };
@@ -294,10 +299,14 @@ describe("RG6 measures the dog's box at its home (R-09; Q160)", () => {
 
   it("gives no front without the selectable's figure, or without figures.dog", () => {
     const base = fileTree(REPO);
-    expect(figureFronts(geometryWith(base), { w: 1280, h: 800 }).size).toBe(0);
     const text = new TextDecoder().decode(base.read(SCENE_PATH) ?? new Uint8Array());
+    // The scene without a `dog` selectable: no front.
+    const bare = parse(text) as { selectables: unknown[] };
+    bare.selectables = lessDog(bare.selectables);
+    const withoutDog = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(bare))]]));
+    expect(figureFronts(geometryWith(withoutDog), { w: 1280, h: 800 }).size).toBe(0);
     const doc = parse(text) as { selectables: unknown[]; figures: Record<string, unknown> };
-    doc.selectables = [...doc.selectables, DOG_SELECTABLE];
+    doc.selectables = [...lessDog(doc.selectables), DOG_SELECTABLE];
     delete doc.figures.dog;
     const tree = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]]));
     expect(figureFronts(geometryWith(tree), { w: 1280, h: 800 }).size).toBe(0);
@@ -315,7 +324,7 @@ describe("RG6 measures the dog's box at its home (R-09; Q160)", () => {
     const doc = parse(text) as { selectables: unknown[] };
     const { figure: dropped, ...signOnly } = DOG_SELECTABLE;
     void dropped;
-    doc.selectables = [...doc.selectables, signOnly];
+    doc.selectables = [...lessDog(doc.selectables), signOnly];
     const bare = geometryWith(overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]])));
     const withoutFigure = pickSweep(bare).problems.map(key).sort();
     console.log(
@@ -347,7 +356,7 @@ describe("RG6 measures the dog's box at its home (R-09; Q160)", () => {
       void dropped;
       // The dog piece's member the bicycle, on the side wall, away from the desk.
       d.selectables = [
-        ...d.selectables,
+        ...lessDog(d.selectables),
         { ...(figure ? DOG_SELECTABLE : signOnly), members: [placementLabelled("Bicycle")] },
         FIXTURE,
       ];

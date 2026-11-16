@@ -11,7 +11,7 @@ name: "Desk sign: my dog thinks i'm cool"
 size: { w: 0.16, h: 0.12, d: 0.05, estimated: true }
 stylized_scale: 1.5
 origin:
-  point: on the desk, below the centre of the sign's foot.
+  point: below the centre of the sign's foot.
   bounds: { min: [-0.08, 0, -0.025], max: [0.08, 0.12, 0.025] }
 live_faces:
   - role: lettering
@@ -37,7 +37,7 @@ work_order:
   measurements:
     - The sign's width, height, and thickness, and its foot's depth.
     - The lettering area's width and height, and its position on the face.
-    - Where the sign stands on the desk, from the desk's front-left corner.
+    - Where the sign hangs on the room's right wall, from the back wall, above the floor, and out from the wall.
   studio_notes: >-
     The Author's own design (answer 4): its non-word graphics may stay in the texture, but no letter of its lettering
     may (FR-016, FR-032). The lettering's outline comes to the room separately, never through the studio's textures.
