@@ -33,17 +33,16 @@ locals {
   # Each function's image in ECR, by digest, once the Author has built and pushed it (tasks.md T040): a function is
   # made only once its digest is set, so the first apply makes the registry the images go to.
   lambda_images = {
-    # The bridge's is gate A's image, but W1's patches changed bridge.py (P-I3, P-I7, P-I6), so T174 pushes it again
-    # and T175 writes its new digest here; until then it is stale, though it has a digest's form (W2's review, N1).
-    alert_bridge     = "sha256:d245392171b5432b2f159f202e2ed753b793c120388802d1bb2a79dc146ad1b2" # PLACEHOLDER: stale until T174
+    # The bridge's again, since W1's patches changed bridge.py (P-I3, P-I7, P-I6): the Author's T174 push, from main
+    # 5932748c, 2026-11-16, written here by T175.
+    alert_bridge     = "sha256:e0f5e03b15b620a0bcaff76e16cc1d1594c1dd2bc45dc399f76dc44d4051b95a"
     probe            = "sha256:85e0a4e0a428482e9f10829f8fde23313762cce3fc06410b3fd87ca460e7f205"
     credential_audit = "sha256:dd899845f873e200d23db827797e8e556588f5c4c74aee2c4e4e1f0d71264494"
-    # Group 9's (tasks.md T122). PLACEHOLDER until T174: "" is the one form handover.tf's preconditions refuse, so
-    # with P-W2's switch on no plan runs until the Author pushes each image to the repository W1's apply made, reports
-    # its digest, and the session writes it here (T175). A named placeholder string would pass `!= ""` and reach the
-    # plan as an image URI, so the slot stays empty, and this comment names it.
-    ec2_start = "" # PLACEHOLDER: h4-ec2-start's digest, from the Author's T174 report
-    ec2_guard = "" # PLACEHOLDER: h4-ec2-guard's digest, from the Author's T174 report
+    # Group 9's (tasks.md T122), pushed by the Author's T174 to the repositories W1's apply made, from main 5932748c,
+    # 2026-11-16, and written here by T175. "" was the one form handover.tf's preconditions refuse, so no plan ran
+    # before these digests were in.
+    ec2_start = "sha256:bd6a6a044d5d0c8353db65066bdbfa86627bef972d567c08850646f85df93a8a"
+    ec2_guard = "sha256:0172b6d16564624020224dd73a8212d990e7e54acbf739b549239d146f76fdd6"
   }
 
   # One repository per function, and one per service the cloud hosts run (contracts/env-cloud.md §3): EC2's whole

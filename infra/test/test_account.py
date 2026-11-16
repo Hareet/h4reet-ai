@@ -1663,8 +1663,9 @@ def test_each_functions_digest_is_empty_or_an_image_digest() -> None:
 
 # W2's review, N1: the slots T174's images fill, each marked PLACEHOLDER on its line until T175 writes the Author's
 # reported digest and drops it from this set: the two new functions', and the alert bridge's, whose source W1's
-# patches changed (P-I3, P-I7, P-I6), so its gate-A digest is stale though it has a digest's form.
-T174_PENDING = {"ec2_start", "ec2_guard", "alert_bridge"}
+# patches changed (P-I3, P-I7, P-I6), so its gate-A digest was stale though it had a digest's form. T175 wrote all
+# three from the Author's T174 report (2026-11-16), so none is pending.
+T174_PENDING: set[str] = set()
 
 
 def test_each_slot_t174_fills_is_marked_a_placeholder_and_has_a_digests_form() -> None:
