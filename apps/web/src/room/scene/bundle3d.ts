@@ -24,12 +24,16 @@
 //
 // Spec 029 (FR-020; plan.md §R-C4): given a document, the paper's two materials share one canvas texture of paper.ts's
 // drawing, its word the UI word `paper.word` in the look's chalk face, drawn again when that face's family changes;
-// their colour, opacities, and both sides stay, so the hand-off's cross-fade is unchanged. Without one, the sheet is
-// plain white, as before. Seen from behind, the word reads mirrored, as on a sheet of paper.
+// their colour and opacities stay, so the hand-off's cross-fade is unchanged. Without one, the sheet is plain white, as
+// before. Drawn, the materials draw the sheet's front, and each sheet holds a back of its own whose map is the canvas
+// turned over in u, at its front's opacity, so "RESUME" reads lower left to upper right from behind as well (back-029c;
+// Q38's recommended answer, provisionally; rv-impl-029c's C-1).
 import {
+  BackSide,
   CanvasTexture,
   Color,
   DoubleSide,
+  FrontSide,
   Group,
   Mesh,
   MeshBasicMaterial,
@@ -175,15 +179,23 @@ function cutout(avatar: AvatarId, materials: Materials): Group {
   return group;
 }
 
-/** Spec 029 (FR-020): the paper's texture, paper.ts's drawing on a canvas, drawn again when the chalk face's family
- *  changes; before it has one, the index's chalk family and its fallback, or the generic sans-serif. */
-function paperFace(paper: NonNullable<RoomOptions["paper"]>, index: RoomOptions["index"]): CanvasTexture {
+/** Spec 029 (FR-020): the paper's textures, paper.ts's drawing on one canvas, drawn again when the chalk face's family
+ *  changes; before it has one, the index's chalk family and its fallback, or the generic sans-serif. `front` maps it as
+ *  drawn; `back` (back-029c, Q38) is the same canvas turned over in u, so the sheet's back, whose UVs run the other
+ *  way to a viewer behind it, shows the drawing unmirrored. One canvas, so both upload once. */
+function paperFace(
+  paper: NonNullable<RoomOptions["paper"]>,
+  index: RoomOptions["index"],
+): { readonly front: CanvasTexture; readonly back: CanvasTexture } {
   const [w, h] = PAPER_PX;
   const canvas = paper.doc.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
+  const back = texture.clone();
+  back.repeat.x = -1;
+  back.offset.x = 1;
   const chalk = index.typefaces?.find((t) => t.use === "chalk");
   const fallback = chalk ? `${chalk.family}, ${chalk.fallback}` : "sans-serif";
   const layout = paperLayout(uiWord(index.ui, PAPER_WORD) ?? "", w, h);
@@ -192,10 +204,20 @@ function paperFace(paper: NonNullable<RoomOptions["paper"]>, index: RoomOptions[
     if (!ctx) return;
     drawPaper(ctx, layout, w, h, paper.typefaces?.family("chalk") ?? fallback);
     texture.needsUpdate = true;
+    back.needsUpdate = true;
   };
   draw();
   paper.typefaces?.onChange(draw);
-  return texture;
+  return { front: texture, back };
+}
+
+/** A drawn sheet's back (back-029c, Q38): the plane again, its back face only, with the drawing turned over, so it
+ *  moves with its sheet wherever a hand holds it. Its opacity is its front's, read whenever it is drawn, since the
+ *  hand-off (showHandoff) and the avatars' keeping of the paper (scene/avatars.ts) write only the front materials. */
+function sheetBack(sheet: PlaneGeometry, front: MeshBasicMaterial, map: CanvasTexture): Mesh {
+  const material = new MeshBasicMaterial({ color: "#ffffff", transparent: true, side: BackSide, map });
+  Object.defineProperty(material, "opacity", { get: () => front.opacity, set: () => undefined });
+  return new Mesh(sheet, material);
 }
 
 /** The room's object tree from the 3D part, with no renderer. */
@@ -309,19 +331,28 @@ export function buildRoom(part: RoomScene, options: RoomOptions): Room3D {
   // The paper: one sheet that travels from the twin's hand (or fades out there), one that fades in at the visitor's.
   const sheet = new PlaneGeometry(SHEET[0], SHEET[1]);
   const face = options.paper ? paperFace(options.paper, options.index) : null;
+  // Drawn, each material draws the front, and each sheet holds a back of its own (back-029c; Q38's recommended answer,
+  // provisionally; rv-impl-029c's C-1): the walking view's camera stands behind the figure and sees the held sheet's
+  // back, where one double-sided map reads mirrored. Plain, each is white on both sides, as before.
   const paperMaterial = (opacity: number): MeshBasicMaterial =>
     new MeshBasicMaterial({
       color: "#ffffff",
       transparent: true,
       opacity,
-      side: DoubleSide,
-      ...(face ? { map: face } : {}),
+      side: face ? FrontSide : DoubleSide,
+      ...(face ? { map: face.front } : {}),
     });
   const [atTwin, atVisitor] = [paperMaterial(1), paperMaterial(0)];
   const paper = new Mesh(sheet, atTwin);
   paper.position.copy(anchors.twinHand);
   const kept = new Mesh(sheet, atVisitor);
   kept.position.copy(anchors.visitorHand);
+  if (face)
+    for (const [mesh, front] of [
+      [paper, atTwin],
+      [kept, atVisitor],
+    ] as const)
+      mesh.add(sheetBack(sheet, front, face.back));
   scene.add(paper, kept);
 
   // The look's lights, over the pieces the shell holds (the shell itself, in a room of one).
