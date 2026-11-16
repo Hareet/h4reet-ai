@@ -1,30 +1,38 @@
-// T-B01 (spec 029; FR-010, FR-011, FR-012, FR-013; plan.md §R-B2; SC-003): the Author's "we can't see the chat output
-// in the box below the input text field of "your message"" (his review of 2026-11-15), as a test through the real
-// panel. The room starts as main.ts starts it, with the real renderTalk, app.ts, split.ts, layout.ts, and the real
-// sender (createTurnSender) over a fake fetch at the network boundary that answers as /api/room/turn does; nothing of
-// the panel is a stub. The room's stylesheets go into the document in the bundle's order (vitest loads a CSS import as
-// empty), so getComputedStyle gives the cascade's position, display, grid-row, and z-index.
-// - The visitor focuses "Your message", types, sends by Enter (the form's implicit submission) and by "Send"; within
-//   100 ms (no clock step) their words show under "You" and the field is empty; at the answer, its text shows in the
-//   log under "AI twin". Each failure (a network failure, the 35-second timeout on the room's fake clock, 503 degraded
-//   with each cause, 429, 400, 409) shows its fixed message and gives the words back to the field.
-// - No send shows nothing (FR-012): while the room doesn't take input (the hand-off's offer, app.ts's open() false),
-//   turn_wait.room; with every topic and free talk closed (the repository's readiness at f411d8e1), typed text shows
-//   cannot_talk.free_talk_closed, in place of cannot_talk.unavailable; each with the words left in the field and no
-//   request.
+// T-B01 (spec 029; FR-010, FR-011, FR-012, FR-013; plan.md §R-B2 and §R-B2a, which wins where they differ; SC-003): the
+// Author's "we can't see the chat output in the box below the input text field of "your message"" (his review of
+// 2026-11-15), as a test through the real panel. The room starts as main.ts starts it, with the real renderTalk,
+// app.ts, split.ts, layout.ts, and the real sender (createTurnSender) over a fake fetch at the network boundary that
+// answers as /api/room/turn does; nothing of the panel is a stub. The room's stylesheets go into the document in the
+// bundle's order (vitest loads a CSS import as empty), so getComputedStyle gives the cascade's position, display,
+// grid-row, and z-index (jsdom cascades z-index as it does position; an unset one reads "auto", and "" is read so too).
+// - Two rooms (rv-spec-029's S-2): (a) free talk ready; (b) a topic ready with free talk closed, the repository's shape
+//   once the Author re-marks the pack hashes, where the visitor selects that topic's piece, sees the opening answer
+//   under "AI twin", then types and sends. In each the visitor focuses "Your message", types, sends by Enter (the
+//   form's implicit submission) and by "Send"; within 100 ms (no clock step) their words show under "You" and the
+//   field is empty; at the answer, its text shows in the log under "AI twin". Each failure (a network failure, the
+//   35-second timeout on the room's fake clock, 503 degraded with each cause, 429, 400, 409) shows its fixed message
+//   and gives the words back to the field.
+// - No send shows nothing (FR-012; Q20, provisional): while the room doesn't take input (the hand-off's offer, app.ts's
+//   open() false), turn_wait.room; typed text with no conversation open and free talk closed shows
+//   cannot_talk.free_talk_closed while a topic is ready, and cannot_talk.unavailable while none is (the repository's
+//   readiness at f411d8e1), so no message points to a piece that would refuse; each with the words left in the field
+//   and no request.
 // - The log shown (FR-011, FR-013): in the open split panel, every box the grid places without a row of its own is out
 //   of the grid's flow (position absolute or fixed) — the boxes the grid places, with each `display: contents` child
 //   expanded into its children, as B0's harness's items() does (plan.md §R-B2's reading of "every child that holds no
 //   grid row of its own": the frame's SVG and the visually hidden heading; the sheet itself makes no box); every box
-//   it places in a row paints above the frame (a z-index over the frame's: "behind the body"); the log's row comes
-//   before the text box row's. In every layout, nothing hides the log: no hidden or inert ancestor, and no
-//   display: none, visibility: hidden, visually-hidden declarations, or zero height or max-height on it or an ancestor.
-// - Where (Q3): the split layout at 1920 × 1080 and 1366 × 768, the split layout in the walking view, the column
-//   layout (1280 × 720), the dock (390 × 844), and the stacked layout (300 × 400), each in 3D and in 2D. The walking
-//   view is 3D's (spec 008): in 2D its run is the split layout's at the same window, with the walking control not
-//   offered.
+//   it places in a row, `.talk-sheet`'s rows among them, paints above the frame within `.talk`'s stacking context
+//   (rv-spec-029's S-1, §R-B2a): the row positioned with a z-index over the frame's, or the frame's z-index negative,
+//   and `.talk` a stacking context; the log's row comes before the text box row's. In every layout, nothing hides the
+//   log: no hidden or inert ancestor, and no display: none, visibility: hidden, visually-hidden declarations, or zero
+//   height or max-height on it or an ancestor. jsdom computes no paint order, so this is the cascade's reading; the
+//   paint itself is the DevTools snippet's document.elementFromPoint (plan §10).
+// - Where (Q3; N-2): the split layout at 1920 × 1080 and 1366 × 768, the split layout in the walking view, the column
+//   layout (1280 × 720), the dock (390 × 844), and the stacked layout (300 × 400), each in 3D, and in 2D all but the
+//   walking view, which is offered in 3D alone (layout.ts:98): eleven runs.
 // On f411d8e1 the layout's clause fails in the split runs (svg.split-frame and h2#talk-heading are position:
-// relative, B0 §2b), and the two messages don't exist. Not edited after T-B01 (Development Workflow 4).
+// relative, B0 §2b), the sheet's rows are static, and the two messages don't exist. Not edited after T-B01
+// (Development Workflow 4); rework-029b's T-B01 rewrote it, test-first, for rv-spec-029's S-1, S-2, S-3, and N-2.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -84,6 +92,10 @@ const LAYOUTS: readonly Layout[] = [
   { name: "the stacked layout (300 × 400)", screen: { w: 300, h: 400 }, hud: "stacked", split: false, walk: false },
 ];
 const MODES = ["3D", "2D"] as const;
+/** The runs (N-2): every layout in 3D; in 2D, all but the walking view. */
+const RUNS = LAYOUTS.flatMap((layout) =>
+  MODES.filter((mode) => mode === "3D" || !layout.walk).map((mode) => ({ layout, mode })),
+);
 
 /** How the fake gateway answers one request. */
 type Reply = { status: number; body: unknown } | "network" | "never";
@@ -157,12 +169,9 @@ async function intoTheRoom(v: Visit, layout: Layout, mode: (typeof MODES)[number
   expect(root.getAttribute("data-hud") ?? "stacked", "the layout").toBe(layout.hud);
   expect(root.getAttribute("data-split") === "on", "the split layout").toBe(layout.split);
   if (!layout.walk) return;
+  // The walking view is the 3D room's (spec 008): its runs are 3D's alone (N-2).
+  expect(mode).toBe("3D");
   const walk = v.doc.querySelector<HTMLButtonElement>("button.room-walk");
-  if (mode === "2D") {
-    // The walking view is the 3D room's (spec 008): not offered in 2D.
-    expect(walk?.hidden ?? true).toBe(true);
-    return;
-  }
   if (!walk) throw new Error("no walking control");
   walk.click();
   await flush();
@@ -215,9 +224,9 @@ function words(id: string): string {
   return text ?? "";
 }
 
-/** Asserts the last fixed message is `id`'s, by its words. */
-function expectMessage(v: Visit, id: string): void {
-  const text = words(id);
+/** Asserts the last fixed message is `id`'s, by its words (`topic` fills topic_not_ready's {topic}). */
+function expectMessage(v: Visit, id: string, topic?: string): void {
+  const text = topic === undefined ? words(id) : words(id).replace("{topic}", topic);
   const last = lastMessage(v);
   expect(last?.id, `the message shown for ${id}`).toBe(id);
   expect(last?.text.startsWith(text), `${id}'s words`).toBe(true);
@@ -230,11 +239,13 @@ const gridRow = (v: Visit, el: Element): string => {
 };
 const rowLess = (row: string): boolean => row === "" || /^auto(\s*\/\s*auto)?$/.test(row);
 const outOfFlow = (v: Visit, el: Element): boolean => ["absolute", "fixed"].includes(css(v, el).position);
+/** The computed z-index, "" read as "auto" (rv-rework-spec-029ab's RA-5). */
+const zOf = (v: Visit, el: Element): string => css(v, el).zIndex.trim() || "auto";
 /** The boxes a grid places among an element's children: each `display: contents` child expanded into its own. */
 const items = (v: Visit, el: Element): Element[] =>
   [...el.children].flatMap((c) => (css(v, c).display === "contents" ? items(v, c) : [c]));
 const describeBox = (v: Visit, el: Element): string =>
-  `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}${[...el.classList].map((c) => `.${c}`).join("")}: position=${css(v, el).position} grid-row=${gridRow(v, el)} z-index=${css(v, el).zIndex}`;
+  `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}${[...el.classList].map((c) => `.${c}`).join("")}: position=${css(v, el).position} grid-row=${gridRow(v, el)} z-index=${zOf(v, el)}`;
 
 /** FR-011 and FR-013: the log shown in this layout, by the stylesheets' cascade. */
 function expectLogShown(v: Visit, layout: Layout): void {
@@ -248,17 +259,36 @@ function expectLogShown(v: Visit, layout: Layout): void {
     // The RED assertion (B0 §5): nothing the grid would put in a row of its own making is in its flow.
     const strays = placed.filter((el) => rowLess(gridRow(v, el)) && !outOfFlow(v, el)).map((el) => describeBox(v, el));
     expect(strays, "boxes in the grid's flow without a row of their own").toEqual([]);
-    // The frame behind the body: each box in a row paints above it.
+    // The frame behind the body (S-1, §R-B2a): in `.talk`'s stacking context, each box in a row, `.talk-sheet`'s rows
+    // among them, is positioned with a z-index over the frame's, or the frame's z-index is negative.
     const frame = talk.querySelector(":scope > svg.split-frame");
     expect(frame, "the split panel's frame").not.toBeNull();
     if (frame) {
       expect(outOfFlow(v, frame)).toBe(true);
-      const behind = Number.parseInt(css(v, frame).zIndex, 10);
-      const under = placed
-        .filter((el) => !outOfFlow(v, el))
-        .filter((el) => !(Number.parseInt(css(v, el).zIndex, 10) > behind))
+      const own = css(v, talk);
+      expect(
+        (own.position !== "static" && zOf(v, talk) !== "auto") || own.isolation === "isolate",
+        `.talk a stacking context: position=${own.position} z-index=${zOf(v, talk)} isolation=${own.isolation}`,
+      ).toBe(true);
+      const frameZ = zOf(v, frame);
+      const frameBehind = frameZ !== "auto" && Number.parseInt(frameZ, 10) < 0;
+      const above = (el: Element): boolean =>
+        frameBehind ||
+        (css(v, el).position !== "static" &&
+          zOf(v, el) !== "auto" &&
+          Number.parseInt(zOf(v, el), 10) > (frameZ === "auto" ? 0 : Number.parseInt(frameZ, 10)));
+      const sheet = talk.querySelector(":scope > .talk-sheet");
+      if (!sheet) throw new Error("no conversation sheet");
+      const rows = [...sheet.children];
+      for (const sel of [".talk-head", ".split-top", "#talk-log", ".talk-status"])
+        expect(
+          rows.some((el) => el.matches(sel)),
+          `${sel} among .talk-sheet's rows`,
+        ).toBe(true);
+      const under = [...new Set([...rows, ...placed.filter((el) => !outOfFlow(v, el))])]
+        .filter((el) => !above(el))
         .map((el) => describeBox(v, el));
-      expect(under, "boxes the frame would paint over").toEqual([]);
+      expect(under, `boxes the frame (z-index=${frameZ}) would paint over`).toEqual([]);
     }
     const form = talk.querySelector(".talk-form");
     if (!form) throw new Error("no text box row");
@@ -286,7 +316,7 @@ function expectLogShown(v: Visit, layout: Layout): void {
 }
 
 /** One send that fails: the words show under "You" at once, then the message, and they come back to the field. */
-async function sendFailing(v: Visit, id: string, by: "Enter" | "Send", step = 0): Promise<void> {
+async function sendFailing(v: Visit, id: string, by: "Enter" | "Send", step = 0, topic?: string): Promise<void> {
   const box = type(v, WORDS);
   const sent = mark(v);
   if (by === "Enter") pressEnter(v, box);
@@ -298,65 +328,117 @@ async function sendFailing(v: Visit, id: string, by: "Enter" | "Send", step = 0)
     v.clock.advance(step);
     await flush();
   }
-  expectMessage(v, id);
+  expectMessage(v, id, topic);
   expect(field(v).value, `${id}: the words given back`).toBe(WORDS);
 }
 
-describe.each(LAYOUTS.flatMap((layout) => MODES.map((mode) => ({ layout, mode }))))(
+/** The room's first piece that talks about a topic, with the topic's phrase. */
+function talkingPiece(): { id: string; topic: string; phrase: string } {
+  const index = roomIndex();
+  for (const s of index.selectables) {
+    if (s.action.kind !== "talk") continue;
+    const { topic } = s.action;
+    const phrase = index.topics.find((t) => t.id === topic)?.phrase;
+    if (phrase !== undefined) return { id: s.id, topic, phrase };
+  }
+  throw new Error("the room has no piece that talks");
+}
+
+/** Selects a piece from the room's list, as a visitor does. */
+function select(v: Visit, id: string): void {
+  const b = [...v.doc.querySelectorAll<HTMLButtonElement>(".room-list button")].find(
+    (x) => x.getAttribute("data-object-id") === id,
+  );
+  if (!b) throw new Error(`no button for ${id}`);
+  b.click();
+}
+
+/** The feature each request to the fake gateway named. */
+const features = (calls: { init: RequestInit }[]): unknown[] =>
+  calls.map((c) => (JSON.parse(String(c.init.body)) as { feature?: unknown }).feature);
+
+/** The two answers (by Enter, then by "Send") and every failure, in the open conversation; `topic` is the piece's
+ *  phrase in a topic's conversation, where a 409 ends it with topic_not_ready, or undefined in free talk. */
+async function answersAndFailures(
+  v: Visit,
+  layout: Layout,
+  gateway: ReturnType<typeof fakeGateway>,
+  topic?: string,
+): Promise<void> {
+  const calls = gateway.calls.length;
+  // By Enter: the visitor's line within 100 ms, then the answer under "AI twin".
+  gateway.replies.push({ status: 200, body: { text: ANSWER } });
+  const box = type(v, WORDS);
+  expect(v.doc.activeElement).toBe(box);
+  const before = mark(v);
+  pressEnter(v, box);
+  expect(entries(v, before)).toEqual([{ speaker: "You", words: WORDS }]);
+  expect(field(v).value).toBe("");
+  await flush();
+  expect(gateway.calls.slice(calls).map((c) => `${c.init.method} ${c.url}`)).toEqual(["POST /api/room/turn"]);
+  expect(entries(v, before)).toEqual([
+    { speaker: "You", words: WORDS },
+    { speaker: "AI twin", words: ANSWER },
+  ]);
+  expectLogShown(v, layout);
+
+  // By "Send": the same.
+  gateway.replies.push({ status: 200, body: { text: `${ANSWER} Again.` } });
+  type(v, WORDS);
+  const again = mark(v);
+  button(v.doc, "Send").click();
+  expect(entries(v, again)).toEqual([{ speaker: "You", words: WORDS }]);
+  await flush();
+  expect(entries(v, again)).toEqual([
+    { speaker: "You", words: WORDS },
+    { speaker: "AI twin", words: `${ANSWER} Again.` },
+  ]);
+  expectLogShown(v, layout);
+
+  // Each failure: its fixed message, the words back in the field; a 409 last, since it ends a topic's conversation.
+  gateway.replies.push("network");
+  await sendFailing(v, "cannot_talk.unavailable", "Enter");
+  gateway.replies.push("never");
+  await sendFailing(v, "cannot_talk.unavailable", "Send", TURN_TIMEOUT_MS);
+  for (const cause of [...RESTING_CAUSES, ...BUDGET_CAUSES, "no_path_available"]) {
+    gateway.replies.push({ status: 503, body: { state: "degraded", cause } });
+    await sendFailing(v, cannotTalkFor(cause), "Enter");
+  }
+  for (const [status, id] of [
+    [429, "turn_refused.slow_down"],
+    [400, "turn_refused.unreadable"],
+    [409, topic === undefined ? "cannot_talk.unavailable" : "topic_not_ready"],
+  ] as const) {
+    gateway.replies.push({ status, body: { error: "refused" } });
+    await sendFailing(v, id, "Send", 0, id === "topic_not_ready" ? topic : undefined);
+  }
+  expect(gateway.calls.length - calls).toBe(2 + 2 + RESTING_CAUSES.length + BUDGET_CAUSES.length + 1 + 3);
+  expectLogShown(v, layout);
+}
+
+describe.each(RUNS)(
   "the conversation shows its answer in $layout.name, $mode (FR-010 to FR-013)",
   ({ layout, mode }) => {
-    it("types, sends by Enter and by Send, and shows each answer and each failure's message in the log, the log shown", async () => {
+    it("(a) free talk ready: types, sends by Enter and by Send, and shows each answer and each failure's message in the log, the log shown", async () => {
       const { v, gateway } = await toOffer(layout, mode, { freeTalk: true, topics: true });
       await intoTheRoom(v, layout, mode);
+      await answersAndFailures(v, layout, gateway);
+      expect(new Set(features(gateway.calls))).toEqual(new Set(["free_talk"]));
+    });
 
-      // By Enter: the visitor's line within 100 ms, then the answer under "AI twin".
-      gateway.replies.push({ status: 200, body: { text: ANSWER } });
-      const box = type(v, WORDS);
-      expect(v.doc.activeElement).toBe(box);
+    it("(b) a topic ready, free talk closed: selects its piece, shows the opening answer, then types, sends, and shows each answer and each failure's message", async () => {
+      const piece = talkingPiece();
+      const { v, gateway } = await toOffer(layout, mode, { freeTalk: false, topics: true });
+      await intoTheRoom(v, layout, mode);
+      gateway.replies.push({ status: 200, body: { text: "The twin's opening, from the fake gateway." } });
       const before = mark(v);
-      pressEnter(v, box);
-      expect(entries(v, before)).toEqual([{ speaker: "You", words: WORDS }]);
-      expect(field(v).value).toBe("");
+      select(v, piece.id);
       await flush();
-      expect(gateway.calls.map((c) => `${c.init.method} ${c.url}`)).toEqual(["POST /api/room/turn"]);
-      expect(entries(v, before)).toEqual([
-        { speaker: "You", words: WORDS },
-        { speaker: "AI twin", words: ANSWER },
-      ]);
+      expect(entries(v, before)).toEqual([{ speaker: "AI twin", words: "The twin's opening, from the fake gateway." }]);
       expectLogShown(v, layout);
-
-      // By "Send": the same.
-      gateway.replies.push({ status: 200, body: { text: `${ANSWER} Again.` } });
-      type(v, WORDS);
-      const again = mark(v);
-      button(v.doc, "Send").click();
-      expect(entries(v, again)).toEqual([{ speaker: "You", words: WORDS }]);
-      await flush();
-      expect(entries(v, again)).toEqual([
-        { speaker: "You", words: WORDS },
-        { speaker: "AI twin", words: `${ANSWER} Again.` },
-      ]);
-      expectLogShown(v, layout);
-
-      // Each failure: its fixed message, the words back in the field.
-      gateway.replies.push("network");
-      await sendFailing(v, "cannot_talk.unavailable", "Enter");
-      gateway.replies.push("never");
-      await sendFailing(v, "cannot_talk.unavailable", "Send", TURN_TIMEOUT_MS);
-      for (const cause of [...RESTING_CAUSES, ...BUDGET_CAUSES, "no_path_available"]) {
-        gateway.replies.push({ status: 503, body: { state: "degraded", cause } });
-        await sendFailing(v, cannotTalkFor(cause), "Enter");
-      }
-      for (const [status, id] of [
-        [429, "turn_refused.slow_down"],
-        [400, "turn_refused.unreadable"],
-        [409, "cannot_talk.unavailable"],
-      ] as const) {
-        gateway.replies.push({ status, body: { error: "refused" } });
-        await sendFailing(v, id, "Send");
-      }
-      expect(gateway.calls).toHaveLength(2 + 2 + RESTING_CAUSES.length + BUDGET_CAUSES.length + 1 + 3);
-      expectLogShown(v, layout);
+      await answersAndFailures(v, layout, gateway, piece.phrase);
+      // Every turn went to the piece's conversation (its ID is the feature, spec 007's FR-032), none to free talk.
+      expect(new Set(features(gateway.calls))).toEqual(new Set([piece.id]));
     });
 
     it("says why while the room doesn't take input yet, keeps the words, and sends them once the visitor is in the room", async () => {
@@ -379,13 +461,23 @@ describe.each(LAYOUTS.flatMap((layout) => MODES.map((mode) => ({ layout, mode })
       expectLogShown(v, layout);
     });
 
-    it("says free talk is closed, not that the service is unavailable, when every topic and free talk are closed", async () => {
-      const { v, gateway } = await toOffer(layout, mode, { freeTalk: false, topics: false });
+    it("says free talk is closed, not that the service is unavailable, when free talk is closed and a topic is ready (Q20)", async () => {
+      const { v, gateway } = await toOffer(layout, mode, { freeTalk: false, topics: true });
       await intoTheRoom(v, layout, mode);
-      const box = type(v, WORDS);
-      pressEnter(v, box);
+      pressEnter(v, type(v, WORDS));
       expectMessage(v, "cannot_talk.free_talk_closed");
       expect(lastMessage(v)?.text.startsWith(words("cannot_talk.unavailable"))).toBe(false);
+      expect(field(v).value).toBe(WORDS);
+      expect(gateway.calls).toHaveLength(0);
+      expectLogShown(v, layout);
+    });
+
+    it("says the service is unavailable, never that a piece would talk, when free talk and every topic are closed (Q20)", async () => {
+      const { v, gateway } = await toOffer(layout, mode, { freeTalk: false, topics: false });
+      await intoTheRoom(v, layout, mode);
+      pressEnter(v, type(v, WORDS));
+      expectMessage(v, "cannot_talk.unavailable");
+      expect(lastMessage(v)?.text.startsWith(words("cannot_talk.free_talk_closed"))).toBe(false);
       expect(field(v).value).toBe(WORDS);
       expect(gateway.calls).toHaveLength(0);
       expectLogShown(v, layout);
