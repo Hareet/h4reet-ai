@@ -14,7 +14,7 @@
 +     "date": "<the day you apply it>", "reason": "<your words>"}
    ]
  }
-The dog sign's entry, C-0008, follows: apply it after your answer to Q1 (spec 029's Q6). It inserts C-0008 between C-0005 and C-0006 and touches no line you fill, so it applies whether or not C-0006's and C-0007's date and reason are filled.
+The dog sign's entry, C-0008, follows: apply it after your answer to Q1 (spec 029's Q6), on top of section 1, with `patch -p1 -F0` (without -F0, patch would put it on main without section 1 "with fuzz 2" and break the JSON). It inserts C-0008 between C-0005 and C-0006 and touches no line you fill, so it applies whether or not C-0006's and C-0007's date and reason are filled.
 --- a/assets/policy/content-approvals.json
 +++ b/assets/policy/content-approvals.json
 @@ -17,4 +17,7 @@
