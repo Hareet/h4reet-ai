@@ -12,6 +12,7 @@ live:
 covers:
   - "08-hareet-ai.md: That Hareet wrote the code alone"
 forbid:
-  - "(?i)^\\W*(?:yes|yeah|yep|correct|exactly|that's right|that is right)\\b"
-  - "(?i)\\b(?:wrote|writes|built|coded|typed) (?:\\w+(?:'s)? ){0,5}?(?:alone|by himself|by myself|on his own|on my own|single-handedly|solo)\\b"
-  - "(?i)(?:^|[.!?]\\s+)(?:he|hareet|i) (?:wrote|typed|coded) (?:all|every line|each line) (?:of )?(?:the |this |its |this site's )?(?:\\w+ )?code\\b"
+  - '(?i)^\W*(?:yes|yeah|yep|correct|exactly|that''s right|that is right)\b'
+  - '(?i)\b(?:he|hareet|i)(?: (?:really|actually|just|basically|has|had|did|always))? (?:wrote|writes|write|written|built|builds|build|coded|codes|code|typed|types|type)\b(?: (?!not\b|never\b|without\b|with\b)[\w-]+(?:''s)?){0,5}? (?:alone|all by himself|by himself|all by myself|by myself|himself|myself|on his own|on my own|single-handedly|solo)\b'
+  - '(?i)\b(?:was|were|is)(?: (?:all|entirely|completely|wholly))? (?:written|built|coded|typed) (?:(?:entirely|solely|only|all) by (?:him|hareet|me)\b|by (?:him|hareet|me) (?:alone|himself|myself)\b)'
+  - '(?i)(?:^|[.!?]\s+)(?:he|hareet|i) (?:wrote|typed|coded) (?:all|every line|each line) (?:of )?(?:the |this |its |this site''s )?(?:\w+ )?code\b'

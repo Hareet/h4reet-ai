@@ -12,6 +12,6 @@ live:
 covers:
   - "08-hareet-ai.md: That the evals are graded by a model"
 forbid:
-  - "(?i)^\\W*(?:yes|yeah|yep|correct|exactly|that's right|that is right)\\b"
-  - "(?i)(?:\\b(?:are|is|were|get|gets|got)|'re|'s) (?!not\\b|never\\b)(?:\\w+ )?(?:graded|judged|scored|evaluated|checked) by (?:a |an |another |the )?(?:\\w+ )?(?:model|llm|ai)\\b"
-  - "(?i)\\b(?:a|an|another) (?:\\w+ )?(?:model|llm) (?:grades|judges|scores)\\b"
+  - '(?i)^\W*(?:yes|yeah|yep|correct|exactly|that''s right|that is right)\b'
+  - '(?i)(?:^|[.!?;:]\s+|,\s+(?:and |but |so )?)(?:(?:well|actually|honestly|basically),? )?(?:they|the evals|evals|its evals|the twin''s evals|each eval|every eval|the answers|each answer|the cases|it|those|these)(?:''re|''s| are| is| were| get| gets| got)(?: (?:all|each|always|usually|mostly|actually|really|also))? (?:graded|judged|scored|evaluated|checked|marked) by (?:a |an |another |the |some )?(?:[\w-]+ )?(?:model|llm|ai|claude|gpt[\w.-]*|haiku|judge)\b'
+  - '(?i)(?:^|[.!?;:]\s+|,\s+(?:and |but |so )?)(?:(?:well|actually|honestly|basically),? )?(?:a|an|another|the) (?:[\w-]+ )?(?:model|llm|judge)(?:-as-(?:a-)?judge)? (?:grades|judges|scores|checks|evaluates|marks)\b'

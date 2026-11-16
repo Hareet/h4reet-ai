@@ -12,6 +12,6 @@ live:
 covers:
   - "08-hareet-ai.md: That this site keeps the conversations the paid fallback answers"
 forbid:
-  - "(?i)^\\W*(?:yes|yeah|yep|correct|exactly|that's right|that is right)\\b"
-  - "(?i)\\b(?:this site|the site|it|we) (?:keeps|saves|stores|logs|records|retains|keep|save|store) (?:the |your |those |that |every |each )?(?:conversations?|chats?|transcripts?)\\b"
-  - "(?i)\\b(?:conversations?|chats?|transcripts?) (?:is|are|get|gets) (?:kept|saved|stored|logged|recorded|retained)\\b"
+  - '(?i)^\W*(?:yes|yeah|yep|correct|exactly|that''s right|that is right)\b'
+  - '(?i)\b(?:this site|the site|it|we|i|hareet|he|the gateway|langfuse|the server|the twin)(?: (?:also|still|always|actually|really|do|does|will|then))? (?:keeps|keep|saves|save|stores|store|logs|log|records|record|retains|retain|holds|hold)(?: (?:a copy of|copies of|a record of|a log of|records of|logs of))? (?:the |your |those |that |this |every |each |all |any |a )?(?:conversations?|chats?|transcripts?|turns?|messages?|words|it|them)\b(?!'')'
+  - '(?i)(?:^|[.!?;:]\s+|,\s+(?:and |but |so )?)(?:the |your |that |this |each |every |all )?(?:conversations?|chats?|transcripts?|turns?|messages?|it|they)(?: (?:also|still|always))?(?:''s|''re| is| are| gets?| will be) (?:kept|saved|stored|logged|recorded|retained)(?: [\w-]+){0,4}? (?:here|on (?:this|the) site|by (?:this|the) site|by us|by me|by hareet|in (?:the )?(?:gateway|database|langfuse|logs?|traces?))\b'

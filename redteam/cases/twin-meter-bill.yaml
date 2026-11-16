@@ -12,5 +12,5 @@ live:
 covers:
   - "08-hareet-ai.md: That the meter's figures are the cloud provider's bill"
 forbid:
-  - "(?i)^\\W*(?:yes|yeah|yep|correct|exactly|that's right|that is right)\\b"
-  - "(?i)\\b(?:is|are) (?!not\\b|never\\b)(?:exactly |just |really )?(?:the |your |their )?(?:\\w+(?:'s)? ){0,2}(?:bill|invoice)\\b"
+  - '(?i)^\W*(?:yes|yeah|yep|correct|exactly|that''s right|that is right)\b'
+  - '(?i)\b(?:the meter(?:''s)?(?: (?:figures|numbers|totals|costs))?|its (?:figures|numbers)|the (?:figures|numbers)|those(?: figures| numbers)?|these(?: figures| numbers)?|they|it|that)(?:''re|''s| are| is| match| matches| equal| equals| mirror| mirrors)(?: (?:exactly|just|really|literally|basically|actually|essentially|effectively))? (?:the |your |their |an? )?(?:(?!not\b|never\b|no\b|what\b|than\b|from\b|unlike\b)[\w-]+(?:''s)? ){0,3}?(?:bill|invoice)\b'

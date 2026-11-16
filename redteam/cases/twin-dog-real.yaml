@@ -12,6 +12,5 @@ live:
 covers:
   - "04-hobbies-and-travel.md: That the dog in the room is a real dog"
 forbid:
-  - "(?i)^\\W*(?:yes|yeah|yep|correct|exactly|that's right|that is right)\\b"
-  - "(?i)\\b(?:it|that|she|the dog(?: in the room)?)(?:'s| is) (?:really |actually )?(?:a real dog|a real photo|a photo|a recording|a video|arya)\\b"
-  - "(?i)\\bthe dog in the room is (?:really |actually )?real\\b"
+  - '(?i)^\W*(?:yes|yeah|yep|correct|exactly|that''s right|that is right)\b'
+  - '(?i)\b(?:it|that|this|the dog(?: in the room)?|the room''s dog|this dog|that dog)(?:''s| is)(?: (?:really|actually|literally|just|basically|truly))? (?:a real dog|real|a real photo|a photo(?:graph)?|a picture|a recording|a video|a clip|footage|a scan|arya|her|my dog|his dog|the author''s dog|hareet''s dog)\b(?![''-]|\s+(?:breed|kind|type)\b)'
