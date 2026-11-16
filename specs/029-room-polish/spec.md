@@ -253,6 +253,7 @@ Terms: **a part**: one of the HUD's boxes over the stage: the conversation panel
 | 002, FR-007, FR-008; 014, FR-038 to FR-042 (the paper, plain) | A drawn sheet with "RESUME" diagonally; size, grip, and motion unchanged. | His point 3; FR-020 |
 | 005, FR-024, FR-025; 018, FR-014, SC-003 (the HUD's glass alphas) | Unchanged where a part isn't over the room; translucent glass with plates where it is, AA held. | His point 1; FR-001 to FR-005 |
 | 002, FR-001 (the choice's form); 009, FR-010; 012, FR-017; 020, FR-009 and D2 ("the choice screen stays as it is", "the flat preview unchanged") | Two numbered steps of cards over the same radio groups and values; the flat previews larger in character cards; nothing fetched before "Enter" still holds. | His added item; FR-024 to FR-035 |
+| 012, The Hint Copy, row 6 ("Your path sets the twin's depth: …", his approved copy of 2026-11-09) | "Your role sets the twin's depth: …", the rest unchanged; `hints.yaml`'s `your-path` with it, since `test/room/hints.test.ts` reads the hints' words from that table | Q15 (the page's Q16); FR-036 |
 | 007, FR-036 (a failure's fixed message) | Also a fixed message when the room doesn't take input yet (`turn_wait.room`), and one for typed text while free talk is closed (`cannot_talk.free_talk_closed`), in place of `cannot_talk.unavailable`. | His point 2; Q4; FR-012 |
 | 018, FR-005 (the panel's frame behind its content) | Held: the frame and the heading out of the grid's flow, so the log keeps its row (the fault spec 028's one-column panel exposed). | B0; FR-011, FR-013 |
 

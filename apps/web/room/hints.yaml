@@ -39,7 +39,7 @@ hints:
       - config/twin-readiness.yaml
   - id: your-path
     by: session
-    text: 'Your path sets the twin''s depth: "Engineer" for each topic''s detail, "Not an engineer" for the overview, with the same facts in both.'
+    text: 'Your role sets the twin''s depth: "Engineer" for each topic''s detail, "Not an engineer" for the overview, with the same facts in both.'
     sources:
       - apps/web/src/choice/visit.ts
       - specs/007-twin-conversation/spec.md
