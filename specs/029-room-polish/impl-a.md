@@ -211,3 +211,88 @@ exit 0
 
 - No departure from the reworked plan beyond the one recorded in §R-A2: the stacked layout's `room` is null. No new question for the page. impl-029a's two are still open there (the `app.ts` edit, recommended: keep; `npx --no-install`).
 - For the reviewer: in the stacked layout the walking control and the "Eat" tile are `position: absolute` in the stage's corner, so they lie over the room, and they are not marked. That follows plan §R-A3 as built: these two tiles keep their opaque white face over the scene in every layout, and only their focus ring would change when marked. The stacked layout has no `[data-over]` rule, so a mark there would change nothing. His look (SC-008) can say otherwise.
+
+## rework2-029a: rv-029a-1's R-1, R-2, R-7, and R-5 (T-A05)
+
+Branch `night/rework2-029a/rework2-029a`, based on `refs/heads/night/rework-029a/rework-029a` (tip `4022f482`, impl-029a then rework-029a). Before running anything: `make setup` (exit 0, last line "git hooks: … isn't writable here (the agent sandbox); the Author runs make git-hooks"). Every run used `npx --no-install`.
+
+### Why T-A01's test passed
+
+`hud-over-contrast.test.ts`'s `pairs()` puts every plate on the 0.3 glass and has no key cap. The split layout's title row has no glass under its plate. impl-029a's over-room rule `.talk[data-over="room"] .talk-head` has the specificity of the row's own glass (`split.css`'s `.talk[data-panel="open"] .talk-head`), and it comes later, so it replaced the glass. `.talk` is `background: none`, the sheet is `display: contents`, and the frame starts at the row's foot. The 12 px caps were in no pair at all.
+
+### RED (`b048c5ea`): `apps/web/test/ui/hud-over-layers.test.ts`, new
+
+A new file by choice: T-A01's two files stay as committed, and no hook refused anything. The file takes each backdrop from the stylesheets' own layers, not from a model of them. It runs a cascade over `room.css`, `talk.css`, and `hud/split.css`, in the order the page loads them. It covers importance, specificity, order, the style attribute, `var()` through inherited custom properties, `display: contents`, and the browser's ButtonFace and Field faces. It runs on the real room's DOM (`test/helpers/room.ts`), walking, in a conversation, with the "Eat" tile offered, at 1366 × 768, 1440 × 900, 1920 × 1080 (split), 1280 × 720 (column), and 390 × 844 (dock).
+
+- Text: its element's and its ancestors' backgrounds up to the outermost marked part, plus the panel's frame under its rows but the title row, over white and black. The floor is 4.5:1, or 3:1 at 24 px.
+- Marks, 3:1: every focus ring, every border (against either side), and every icon's and stroke's paint.
+- The plate's step: `--over-plate-alpha` lower by 5% must fail a pair.
+- R-7: the title row's corners and shadow must be the same walking as at rest.
+
+Two flaws in my first draft of the model, fixed before the RED commit; neither is in the CSS. SVG `fill` and `stroke` inherit, so the emblem's 1.08 was wrong. A text box with no rule has the white Field face, and a part marked inside another (the column's sheet) takes the outer part's layers. The "Eat" tile shows with the drawing's protector as the stage's, plus `eat: true`. `PROTECT_SCENE`'s protector took the split layout away.
+
+```
+$ npx --no-install vitest run --maxWorkers=2 test/ui/hud-over-layers.test.ts      # from apps/web/, at b048c5ea
+ × holds every ratio at 1366 × 768 (split), walking, in a conversation, the key caps included
+ × holds every ratio at 1440 × 900 (split), …      × … at 1920 × 1080 (split), …
+   + "span.hud-keycap \"B\" text over white: 3.81 under 4.5",
+   + "span.hud-keycap \"Esc\" text over white: 4.39 under 4.5",
+   + "span.hud-keycap.split-confirm \"Enter\" text over white: 4.39 under 4.5",
+   + "button.hud-toggle.talk-log-toggle \"Conversation\" focus ring over white: 2.41 under 3",
+   + "span. \"Conversation\" text over white: 3.48 under 4.5",
+   + "button.split-hint \"EscClose\" focus ring over white: 2.41 under 3",
+ × holds every ratio at 1280 × 720 (column), …   + "span.hud-keycap \"B\" text over white: 3.81 under 4.5"
+ × holds every ratio at 390 × 844 (dock), …      (the same one)
+ × takes --over-plate-alpha's step as the lowest at which all of them hold (FR-003)   (the six above, at 0.5)
+ × keeps the title row's own corners and shadow while walking (R-7; FR-002)
+   - [ "0.75rem 0.75rem 0 0", "none" ]   + [ "0.25rem", "0 0 0 0.25rem rgb(var(--glass) / var(--over-plate-alpha))" ]
+ ✓ models the split layout's frame as the paint beneath the rows but the title row
+ Test Files  1 failed (1)
+      Tests  7 failed | 1 passed (8)
+```
+
+The review's numbers come back exactly: 3.48, 2.41, and 4.39 (and 2.91 for "Esc" on the lone plate, by the same formula). One failure the review didn't name: the "Eat" tile's "B" cap while walking, 3.81:1 over white, in every layout. It lies on the tile's own glass (`--glass-alpha` 0.6), not on a plate. It is R-2's class, so the same fix takes it.
+
+### GREEN (`6f003f2e`), group A's CSS only (plan §9)
+
+- `hud/split.css`'s appended block: the plates move from `.talk-head` to its words, `.talk-log-toggle` and `.split-hint`, each with the 0.25rem shadow its ring lies on. A new last rule gives the row `box-shadow: none` over the room, so `room.css`'s `.talk-head` plate shadow (the other layouts') doesn't reach it. The row keeps its glass (at `--over-glass-alpha`, through `--split-glass-alpha`) and its corners. That undoes R-7. No rule above the block is edited.
+- `room.css`'s over-room block: `[data-over="room"] .hud-keycap` takes the palette's `--tile-face` (column and dock; the split layout is `data-hud="column"` too). The cap's border and lip are unchanged.
+- No alpha changes, and no new one. I chose the cap's face over raising the plate: at 0.55 the plates' caps reach 5.02:1, but "B" is on no plate. `--over-plate-alpha` stays 0.5, still the lowest step with the caps counted (`--split-muted` is 4.01:1 at 0.45).
+
+| over white | before | after |
+|---|---|---|
+| the title, on its toggle's plate on the row's glass | 3.48 (a lone plate) | 5.74 |
+| the toggle's and the hint's focus rings | 2.41 | 3.98 |
+| "Esc" (hint, "Back"), "Enter" | 4.39 (hint's "Esc": 2.91) | 10.32 |
+| the "Eat" tile's "B" | 3.81 | 9.24 |
+| a cap's border against its plate | 3.88 | 3.88 |
+
+Over black, every pair is above 13:1 before and after. plan.md §R-A3 (a "Reworked by rework2-029a" paragraph), §R-A4, and tasks.md's T-A05 record this in `0f9874db`.
+
+### R-5
+
+`HudApplied.stage` (the window the walking view fills; RA-2, impl-029a's) is now named in plan §R-A1's S-10 paragraph, in T-A02, and in §9's ownership line (`0f9874db`).
+
+### For the item's note (not code), as the brief asks
+
+- **R-3 (Important, backlog).** In the column layout the closed conversation's sheet is marked from the larger view's reach (`compose/over.ts`, `hudParts`: `parts.set("larger", reach)`, mapped to `.talk-sheet`). So its lines may take plates where the column stands beside the room, not over it. The reviewer couldn't show a real window where it differs, and neither did this session. The cost is a look, not a contrast: an extra plate only darkens the backdrop. `hud-over-layers.test.ts` judges the sheet at 1280 × 720 and 390 × 844 with the column's or dock's layers, and both pass. It belongs to his look (SC-008) or a later spec.
+- **R-4 (nit).** The stacked layout's comment (`over.ts`'s `hudParts`, "The stacked layout lays nothing over the stage: no part") and `hud-over-walking.test.ts`'s case name ("… which lays no part over the stage") say more than holds. The walking control and the "Eat" tile are `position: absolute` in the stage's corner there, so they lie over the room, unmarked. They keep their opaque tile faces (plan §R-A3), and the stacked layout has no `[data-over]` rule, so a mark would change nothing. The words should read "marks no part: the stacked layout's tiles over the stage keep their own faces". Left as is: the test file is rework-029a's, and the brief keeps this to the note. His look can say otherwise.
+- **R-6 (nit).** rework-029a's RED for S-10 was shown by putting each fault back in scratch, never committed, because impl-029a's code already did what S-10 asked. Its output is in the section above. This rework's RED is a commit: `b048c5ea` fails 7 of 8, and `6f003f2e` passes them.
+- **For the integration (T-INT).** Until group B's S-1 fix lifts the sheet's rows above the frame, `.split-top` and the log sit under the frame's fill: the frame is positioned with `z-index: 0`, the sheet is `display: contents`, and its rows are in flow. Group B's paint-order test holds that. `hud-over-layers.test.ts` takes the paint order B's fix sets (the frame under the rows), as its header says. On this branch alone, the stats and the log are seen through the frame's 0.3 fill. T-INT reruns this file on the merged tree.
+
+### Runs (from `apps/web/`, GREEN at `6f003f2e`)
+
+```
+$ npx --no-install vitest run --maxWorkers=2 test/ui/hud-over-layers.test.ts test/ui/hud-over-contrast.test.ts
+ Test Files  2 passed (2)
+      Tests  19 passed (19)
+   Duration  82.05s (tests 92%, transform 5%, import 4%)
+```
+
+COVERING-RUN-PLACEHOLDER
+
+### Departures and the page
+
+- No departure from the plan beyond what §R-A3's rework paragraph records: the cap's face over the room, not a raised plate step, and the title row's words plated in place of the row.
+- No hook or bash-gate refusal of a command. One refusal by the permission layer: a Monitor whose script waited on the covering run's log with a shell loop needed approval. I didn't rephrase it; I waited for the background run's own notice. It goes on the page.
+- No new question.
