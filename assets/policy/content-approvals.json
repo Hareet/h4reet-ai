@@ -16,11 +16,14 @@
     {"id": "C-0005", "path_when_approved": "apps/web/content/resume-author.pdf", "kind": "resume",
      "sha256": "5de0e7eeaed34587d4d79e29f0cbfb7c577a224ce31616f1d75fcbe4e0ff21fb",
      "date": "2026-11-15", "reason": "I figured that would have existed as we know what the link on the repo will be"},
+    {"id": "C-0008", "path_when_approved": "apps/web/content/room/outlines/lettering-cool.outline.json",
+     "kind": "room-text", "sha256": "e62c10989645eea491355105ab7917658b61c7f39ca13e020bb295881d6ccaca",
+     "date": "2026-11-16", "reason": "monsters"},
     {"id": "C-0006", "path_when_approved": "apps/web/content/room/outlines/lettering-busy.outline.json",
      "kind": "room-text", "sha256": "a0442aa53e370f321692b0d6b5e0ec366ad227dc0a9ff2be0c41a752445e81ad",
-     "date": "<the day you apply it>", "reason": "<your words>"},
+     "date": "2026-11-16", "reason": "ah"},
     {"id": "C-0007", "path_when_approved": "apps/web/content/room/monitor-line.yaml", "kind": "room-text",
      "sha256": "8d5464d93aa0833e2c016bd55f7421e02bd7156c98b1160410175d1c3bc611eb",
-     "date": "<the day you apply it>", "reason": "<your words>"}
+     "date": "2026-11-16", "reason": "real"}
   ]
 }
