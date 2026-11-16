@@ -38,13 +38,14 @@ export const ROLE_COMMON = "You choose once for this visit; reload the page to c
 export const ROLE_EMPTY = "Choose a role to see how the twin will talk with you.";
 
 /** Each avatar card's line. The dinosaur's eating is held to the composed room by test/ui/choice-cards.test.ts
- *  (FR-031); its scene isn't named. The dog's names no breed and no likeness: the approval's disclosure line stays
- *  whole on the credits page (build/credits.ts). */
+ *  (FR-031); its scene isn't named, and no piece is named by its ID (spec 004's FR-007: the source scan refuses one in
+ *  code, and the choice screen has no bundle data to take the edible pieces' names from before "Enter"). The dog's
+ *  names no breed and no likeness: the approval's disclosure line stays whole on the credits page (build/credits.ts). */
 export const AVATAR_LINES: Readonly<Record<AvatarId, string>> = {
   woman: "A generic woman. She takes the twin's paper and, in the 3D room, walks where you steer.",
   man: "A generic man. He takes the twin's paper and, in the 3D room, walks where you steer.",
   dinosaur:
-    "A generic dinosaur. In the 3D room it can eat chunks of the desk, the laptop, the busy sign, and the chalkboard, and they grow back.",
+    "A generic dinosaur. In the 3D room it can eat chunks of the desk and a few other things in the room, and they grow back.",
   dog: "A dog. It walks the room and talks with the twin like any visitor.",
 };
 
