@@ -1,0 +1,1543 @@
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/apps/web/room/catalog/dog-sign.yaml b/apps/web/room/catalog/dog-sign.yaml
+--- a/apps/web/room/catalog/dog-sign.yaml
++++ b/apps/web/room/catalog/dog-sign.yaml
+@@ -11,7 +11,7 @@
+ size: { w: 0.16, h: 0.12, d: 0.05, estimated: true }
+ stylized_scale: 1.5
+ origin:
+-  point: on the desk, below the centre of the sign's foot.
++  point: below the centre of the sign's foot.
+   bounds: { min: [-0.08, 0, -0.025], max: [0.08, 0.12, 0.025] }
+ live_faces:
+   - role: lettering
+@@ -37,7 +37,7 @@
+   measurements:
+     - The sign's width, height, and thickness, and its foot's depth.
+     - The lettering area's width and height, and its position on the face.
+-    - Where the sign stands on the desk, from the desk's front-left corner.
++    - Where the sign hangs on the room's right wall, from the back wall, above the floor, and out from the wall.
+   studio_notes: >-
+     The Author's own design (answer 4): its non-word graphics may stay in the texture, but no letter of its lettering
+     may (FR-016, FR-032). The lettering's outline comes to the room separately, never through the studio's textures.
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/apps/web/room/scene.yaml b/apps/web/room/scene.yaml
+--- a/apps/web/room/scene.yaml
++++ b/apps/web/room/scene.yaml
+@@ -91,7 +91,12 @@
+     edible: { chunks: 4 }
+   - id: dog-sign
+     piece: dog-sign
+-    mount: { on: work-desk, anchor: top, offset: [0.27, 0, -0.04], turn: { y: -10 }, estimated: true }
++    # Spec 026 (T019; as amended, the page's Q297, answered: recommended, his to confirm or overturn): on the right
++    # wall, no turn, where RG6 passes (specs/026-twin-pets-dog/dog-sign-offset.md, "Off the desk"); Q287's floor
++    # mount put the sign under the "Eat" tile's box for a 3D dinosaur visit. Rebuilt as r3 (patch6-026): 0.1 m further
++    # toward the front and 6 cm higher than r2's [-0.2, 0.4, 0.0375], where the walking control's box and the "Eat"
++    # tile's hold it at no stage, and its box on the floor leaves the bicycle reachable in the walking view.
++    mount: { on: room-shell, anchor: right-wall, offset: [-0.1, 0.46, 0.0375], estimated: true }
+     frame: true
+     label: label.dog-sign
+   - id: chalkboard
+@@ -227,6 +232,16 @@
+     emblem: slate
+     members: [chalkboard]
+     action: { talk: { topic: mission } }
++  # Spec 026 (FR-016): the dog's sign. As reworked for spec 028 (its Q20, taken: recommended, his to confirm or
++  # overturn): the sign alone opens the topic, with no `figure: dog`, since the room's dog never stands at home
++  # (spec 028's Q9, FR-018), so spec 026's FR-014 figure pick has nothing to pick. Rebuilt as r3 (patch6-026): its ID is
++  # its sign's, as the snowboard's and the bicycle's are their members', since the room's code names `dog` (the
++  # figure), which spec 004's FR-007 scan refuses for an ID only the data defines; its emblem is a paw (FR-005).
++  - id: dog-sign
++    name: Dog
++    emblem: paw
++    members: [dog-sign]
++    action: { talk: { topic: hobbies-and-travel, lead: The dog first. } }
+ # Spec 024 (FR-011): the seconds an eaten chunk takes to grow back.
+ eating: { regrow_s: 20 }
+ handoff: { from: { placement: twin-figure, anchor: hand }, to: { placement: visitor-figure, anchor: hand } }
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/apps/web/src/room/compose/hud.ts b/apps/web/src/room/compose/hud.ts
+--- a/apps/web/src/room/compose/hud.ts
++++ b/apps/web/src/room/compose/hud.ts
+@@ -134,7 +134,10 @@
+   split: {
+     panel: { shareMax: 0.5, maxRem: 40, minWidthRem: 18, minHeightRem: 14, titleRem: 2.75 },
+     rest: { minRem: 40, gapRem: 0.25 },
+-    list: { widthRem: 24, heightRem: 22 },
++    // Spec 026's human patch, r4 (provisional, the page's Q39): 25rem, the model's 24.72rem at scale 1 for "Back", the
++    // label, and the five entries with the dog's sign (22rem held four). Since spec 028 it sizes no box: the list's box
++    // is the column's top (wallBoxes), and test/ui/hud-split-dog.test.ts holds the five entries to that box.
++    list: { widthRem: 24, heightRem: 25 },
+     walkGapRem: 0.25,
+     coverMax: 0.25,
+   },
+@@ -171,7 +174,9 @@
+     gapRem: 0.25,
+     iconRem: 1,
+     iconGapRem: 0.25,
+-    rows: [{ belowRem: 36, n: 2 }] as readonly Band[],
++    // Spec 026's human patch, r4 (provisional, the page's Q39): two rows below 39rem, where the model's five entries
++    // with the dog's sign need them, up to 608 px wide (36rem held four).
++    rows: [{ belowRem: 39, n: 2 }] as readonly Band[],
+   },
+   /** The text box's row: its label over the text box, Send, and the talk button, never collapsed (FR-022); and the
+    *  waiting status's line, in the column. */
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/apps/web/src/room/hud/icons.ts b/apps/web/src/room/hud/icons.ts
+--- a/apps/web/src/room/hud/icons.ts
++++ b/apps/web/src/room/hud/icons.ts
+@@ -72,6 +72,8 @@
+   screen: "M5 5h14v9H5z M3 17h18l-1.5 2h-15z",
+   // A board on two legs, two lines of chalk.
+   slate: "M3 4h18v12H3z M8 16l-2 4 M16 16l2 4 M6 8h6 M6 11h9",
++  // A paw print: the pad, and four toes over it.
++  paw: "M12 12c-3 0-5.5 3.5-5.5 5.5s2 2.5 5.5 2.5 5.5-.5 5.5-2.5S15 12 12 12z M3.5 10.5a1.5 2 0 1 0 3 0a1.5 2 0 1 0-3 0z M7.5 5.5a1.5 2 0 1 0 3 0a1.5 2 0 1 0-3 0z M13.5 5.5a1.5 2 0 1 0 3 0a1.5 2 0 1 0-3 0z M17.5 10.5a1.5 2 0 1 0 3 0a1.5 2 0 1 0-3 0z",
+ };
+ 
+ /** The speech glyph: a speech bubble, for free talk and a piece with no emblem of its own. */
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/apps/web/test/room/__snapshots__/protect.test.ts.snap b/apps/web/test/room/__snapshots__/protect.test.ts.snap
+--- a/apps/web/test/room/__snapshots__/protect.test.ts.snap
++++ b/apps/web/test/room/__snapshots__/protect.test.ts.snap
+@@ -28,6 +28,12 @@
+       44,
+     ],
+     [
++      1089.9,
++      786.5,
++      44,
++      44,
++    ],
++    [
+       849.1,
+       279.8,
+       355.7,
+@@ -91,6 +97,12 @@
+       44,
+       44,
+     ],
++    [
++      1340.6,
++      814.4,
++      44,
++      44,
++    ],
+     [
+       1081.2,
+       270.2,
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/apps/web/test/room/dog-pick.test.ts b/apps/web/test/room/dog-pick.test.ts
+--- a/apps/web/test/room/dog-pick.test.ts
++++ b/apps/web/test/room/dog-pick.test.ts
+@@ -49,6 +49,11 @@
+   figure: "dog",
+   action: { talk: { topic: topicPhrased("hobbies and travel adventures"), lead: "The dog first." } },
+ };
++/** The scene's selectables without the one that holds the dog's sign (spec 026's human patch, T019, puts one in
++ *  scene.yaml; Q297; its r3 gives it the sign's ID), so a test that adds its own works whether or not the shipped scene
++ *  holds it. */
++const lessDog = (selectables: unknown[]): unknown[] =>
++  selectables.filter((s) => !((s as { members?: unknown[] }).members ?? []).includes(DOG_SELECTABLE.members[0]));
+ 
+ const corners = (dog: { home: { at: [number, number]; heading_deg: number }; footprint_m: number }) => {
+   const h = (dog.home.heading_deg * Math.PI) / 180;
+@@ -156,7 +161,7 @@
+   const base = fileTree(REPO);
+   const text = new TextDecoder().decode(base.read(SCENE_PATH) ?? new Uint8Array());
+   const doc = parse(text) as { selectables: unknown[] };
+-  doc.selectables = [...doc.selectables, DOG_SELECTABLE];
++  doc.selectables = [...lessDog(doc.selectables), DOG_SELECTABLE];
+   const tree = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]]));
+   const policy = readRoomPolicy({ env: {}, root: REPO });
+   shipped = { tree, result: compose(tree, policy, STRICT) };
+@@ -294,10 +299,14 @@
+ 
+   it("gives no front without the selectable's figure, or without figures.dog", () => {
+     const base = fileTree(REPO);
+-    expect(figureFronts(geometryWith(base), { w: 1280, h: 800 }).size).toBe(0);
+     const text = new TextDecoder().decode(base.read(SCENE_PATH) ?? new Uint8Array());
++    // The scene without a `dog` selectable: no front.
++    const bare = parse(text) as { selectables: unknown[] };
++    bare.selectables = lessDog(bare.selectables);
++    const withoutDog = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(bare))]]));
++    expect(figureFronts(geometryWith(withoutDog), { w: 1280, h: 800 }).size).toBe(0);
+     const doc = parse(text) as { selectables: unknown[]; figures: Record<string, unknown> };
+-    doc.selectables = [...doc.selectables, DOG_SELECTABLE];
++    doc.selectables = [...lessDog(doc.selectables), DOG_SELECTABLE];
+     delete doc.figures.dog;
+     const tree = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]]));
+     expect(figureFronts(geometryWith(tree), { w: 1280, h: 800 }).size).toBe(0);
+@@ -315,7 +324,7 @@
+     const doc = parse(text) as { selectables: unknown[] };
+     const { figure: dropped, ...signOnly } = DOG_SELECTABLE;
+     void dropped;
+-    doc.selectables = [...doc.selectables, signOnly];
++    doc.selectables = [...lessDog(doc.selectables), signOnly];
+     const bare = geometryWith(overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]])));
+     const withoutFigure = pickSweep(bare).problems.map(key).sort();
+     console.log(
+@@ -347,7 +356,7 @@
+       void dropped;
+       // The dog piece's member the bicycle, on the side wall, away from the desk.
+       d.selectables = [
+-        ...d.selectables,
++        ...lessDog(d.selectables),
+         { ...(figure ? DOG_SELECTABLE : signOnly), members: [placementLabelled("Bicycle")] },
+         FIXTURE,
+       ];
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/apps/web/test/room/dog-selectable.test.ts b/apps/web/test/room/dog-selectable.test.ts
+--- a/apps/web/test/room/dog-selectable.test.ts
++++ b/apps/web/test/room/dog-selectable.test.ts
+@@ -49,14 +49,18 @@
+   if (composed) return composed;
+   const base = fileTree(REPO);
+   const text = new TextDecoder().decode(base.read(SCENE_PATH) ?? new Uint8Array());
++  // The scene's selectables without the one that holds the dog's sign (spec 026's human patch, T019, puts one in
++  // scene.yaml; Q297; its r3 gives it the sign's ID), so the comparison holds whether or not the shipped scene holds it.
+   const doc = parse(text) as { selectables: unknown[] };
++  doc.selectables = doc.selectables.filter((s) => !((s as { members?: unknown[] }).members ?? []).includes(SIGN));
++  const less = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]]));
+   doc.selectables = [...doc.selectables, DOG_SELECTABLE];
+   const tree = overlayTree(base, new Map([[SCENE_PATH, new TextEncoder().encode(stringify(doc))]]));
+   const policy = readRoomPolicy({ env: {}, root: REPO });
+   const options = { mode: "strict" as const, drafts: false };
+   composed = {
+     with: compose(tree, policy, { ...options }),
+-    without: compose(base, policy, { ...options }),
++    without: compose(less, policy, { ...options }),
+   };
+   return composed;
+ }
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/apps/web/test/room/eat-3d.test.ts b/apps/web/test/room/eat-3d.test.ts
+--- a/apps/web/test/room/eat-3d.test.ts
++++ b/apps/web/test/room/eat-3d.test.ts
+@@ -492,7 +492,7 @@
+ 
+   it(`${DESK}: no placement or switch pose mounted on it loses the top under it`, () => {
+     const boxes = keepOutBoxes(scene, DESK);
+-    expect(boxes).toHaveLength(9);
++    expect(boxes).toHaveLength(8); // 9 until spec 026's human patch (T019, Q297) moved the dog sign off the desk
+     const prims = standing(DESK);
+     for (const box of boxes) {
+       const centre: V3 = [(box.min[0] + box.max[0]) / 2, 2, (box.min[2] + box.max[2]) / 2];
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/apps/web/test/room/eat-chunker.test.ts b/apps/web/test/room/eat-chunker.test.ts
+--- a/apps/web/test/room/eat-chunker.test.ts
++++ b/apps/web/test/room/eat-chunker.test.ts
+@@ -506,9 +506,9 @@
+     expect(asideCount(r, holder)).toBeGreaterThan(0);
+   });
+ 
+-  it(`${DESK}: sets aside the top under each of its 9 mounts (7 placements and the ${CHARGER}'s two desk poses)`, () => {
++  it(`${DESK}: sets aside the top under each of its 8 mounts (6 placements and the ${CHARGER}'s two desk poses)`, () => {
+     const r = of(DESK);
+-    expect(r.input.keepOuts).toHaveLength(9);
++    expect(r.input.keepOuts).toHaveLength(8); // 9 until spec 026's human patch (T019, Q297) moved the dog sign off the desk
+     for (const box of r.input.keepOuts) {
+       const centre: V3 = [(box.min[0] + box.max[0]) / 2, 2, (box.min[2] + box.max[2]) / 2];
+       const hit = firstHit(r.input.primitives, centre, [0, -1, 0]);
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/apps/web/test/room/geometry.test.ts b/apps/web/test/room/geometry.test.ts
+--- a/apps/web/test/room/geometry.test.ts
++++ b/apps/web/test/room/geometry.test.ts
+@@ -542,9 +542,10 @@
+         action: { resume: {} },
+       });
+     });
+-    // Spec 014: 7,158 sizes of frame area in place of spec 005's 7,080 clear areas.
++    // Spec 014: 7,158 sizes of frame area in place of spec 005's 7,080 clear areas; 7,182 since spec 026's human patch
++    // (r3) gives the dock's list two rows below 39rem, not 36rem, for its fifth entry.
+     expect(reasons(t)).toContain(
+-      "selectables[4]: its exclusive core overlaps a member of selectables[3] in 3D at 320 × 250 and 7157 others",
++      "selectables[4]: its exclusive core overlaps a member of selectables[3] in 3D at 320 × 250 and 7181 others",
+     );
+   });
+ });
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/apps/web/test/room/hud.test.ts b/apps/web/test/room/hud.test.ts
+--- a/apps/web/test/room/hud.test.ts
++++ b/apps/web/test/room/hud.test.ts
+@@ -73,7 +73,7 @@
+   it("docks the list, the text box's row, and the bar at the foot of a window held upright", () => {
+     const b = hudBoxes({ w: 384, h: 740 });
+     expect(b.layout).toBe("dock");
+-    // Under 27rem the strip's words take two lines; under 35rem the bar's tiles take two rows; under 36rem the list's
++    // Under 27rem the strip's words take two lines; under 35rem the bar's tiles take two rows; under 39rem the list's
+     // names take two rows beside its header button.
+     expect(b.strip).toEqual({ x: 0, y: 0, w: 384, h: STRIP.two });
+     expect(b.bar).toEqual({ x: 0, y: 740 - BAR.two, w: 384, h: BAR.two });
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/apps/web/test/room/pet-homes.test.ts b/apps/web/test/room/pet-homes.test.ts
+--- a/apps/web/test/room/pet-homes.test.ts
++++ b/apps/web/test/room/pet-homes.test.ts
+@@ -5,9 +5,10 @@
+ // - Its ranges (RD3), a key it doesn't define (RD2), and R-08's refine: a `reach_m` below `figures.chase.separation_m`
+ //   (or its default where the scene has no chase block) is refused, since no dog's home could then be in reach.
+ // - `selectables[].figure`: `dog`, the one value allowed now; any other refused; the bundle carries it.
+-// - The shipped `scene.yaml`: `figures.pet` at plan §3's defaults, `figures.twin.clips.petting: petting`, no `dog`
+-//   selectable (FR-016: it is the human patch's), and the dog's home (`figures.dog.home.at`, spec 025's, moved by
+-//   impl-025's T011) within `reach_m` of the twin's; the aim's heading and side printed for his look.
++// - The shipped `scene.yaml`: `figures.pet` at plan §3's defaults, `figures.twin.clips.petting: petting`, the human
++//   patch's "Dog" selectable (FR-016; as reworked for spec 028's Q20, the sign alone, with no figure), and the dog's
++//   home (`figures.dog.home.at`, spec 025's, moved by impl-025's T011) within `reach_m` of the twin's; the aim's
++//   heading and side printed for his look.
+ import { describe, expect, it } from "vitest";
+ import { parse, stringify } from "yaml";
+ 
+@@ -20,6 +21,7 @@
+ import { CHASE_DEFAULTS } from "../../src/room/scene/chase-steer";
+ import { PET_DEFAULTS, inReach, petAim } from "../../src/room/scene/pet";
+ import { repositoryBundle } from "../helpers/room";
++import { placementLabelled } from "../helpers/room-ids";
+ import { SCENE } from "../helpers/room-avatars";
+ import { goodFiles, overlay } from "../helpers/room-fixtures";
+ 
+@@ -144,8 +146,10 @@
+     expect(part.twin?.block.clips.petting).toBe("petting");
+   });
+ 
+-  it("has no dog selectable: its line is the human patch's (FR-016)", () => {
+-    expect(bundle.index.selectables.map((s) => s.id)).not.toContain("dog");
++  it("has the human patch's Dog selectable, its sign alone and no figure (FR-016; spec 028's Q20)", () => {
++    const dog = bundle.index.selectables.filter((s) => s.name === "Dog");
++    expect(dog).toHaveLength(1);
++    expect(dog[0]?.members).toEqual([placementLabelled("Desk sign, dog")]);
+     expect(bundle.index.selectables.filter((s) => s.figure !== undefined)).toEqual([]);
+   });
+ 
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/apps/web/test/ui/hud-split-dog.test.ts b/apps/web/test/ui/hud-split-dog.test.ts
+--- a/apps/web/test/ui/hud-split-dog.test.ts
++++ b/apps/web/test/ui/hud-split-dog.test.ts
+@@ -0,0 +1,108 @@
++// Spec 026's human patch, r4 (patch7-026; the page's Q39 and Q42, and patch7-026's question on the list box, each
++// provisional): the "Dog" piece is the list's fifth entry, and since spec 028 the split list's box is the column's top
++// (compose/hud.ts's wallBoxes; spec 028's FR-007), not spec 018's table height. The list's content is spec 018's model
++// (test/ui/hud-model.ts's splitModel: the padding, "Back", the heading's toggle, the "Select a piece" label, a row per
++// entry, and the gaps), with each of split.css's em sizes at the column's scale (spec 028's FR-008; --wall-scale-right).
++// Held here: at spec 028's split windows of its plan table that hold the whole list, the five entries fit with "Dog";
++// over every split stage room:report lists (framedStages of the scene's protector, where wallBoxes takes the window),
++// the five fit at no fewer than the screens measured when r4 was built, a floor never loosened; and wherever they
++// don't, split.css lets the entries scroll inside the list, "Back" and the label in view (spec 028's FR-007: "the
++// entries, scrolling inside the list where they don't fit").
++import { describe, expect, it } from "vitest";
++
++import { DEFAULT_METRICS, wallBoxes } from "../../src/room/compose/hud";
++import { protectSceneOf, protectorFor } from "../../src/room/compose/protect";
++import { framedStages } from "../../src/room/compose/stages";
++import { parseCss, repositoryBundle, roomIndex, stylesheets } from "../helpers/room";
++import { hudWords, splitModel } from "./hud-model";
++
++const WORDS = hudWords(roomIndex());
++const REM = DEFAULT_METRICS.rem;
++const { scene, index } = repositoryBundle();
++const WALL = protectorFor(protectSceneOf(scene, index));
++const CSS = parseCss(stylesheets().find((s) => s.path.endsWith("src/room/hud/split.css"))?.text ?? "");
++
++/** A declaration for a selector in the split layout: the last of split.css's rules naming it that declares the
++ *  property, as the cascade takes it. */
++function splitRule(selector: string, property: string): string | undefined {
++  const full = `html[data-split="on"][data-hud="column"] ${selector}`;
++  const rules = CSS.rules.filter(
++    (r) =>
++      r.selector
++        .split(",")
++        .map((s) => s.trim())
++        .includes(full) && r.declarations.has(property),
++  );
++  return rules.at(-1)?.declarations.get(property);
++}
++
++/** The list's content height for `n` entries at the column's scale `s`: split.css's padding (0.5rem above and below)
++ *  and gaps (0.25rem, three between "Back", the heading, the label, and the entries) in rem; "Back" (2.75em), the
++ *  heading's toggle (counted as "Back", 2.75em, at least room.css's 2.75rem), the label (0.8125em at a line height of
++ *  1.5), and each entry's row (3.25em) in the list's em, which is 1rem times the scale. */
++function listContent(n: number, s: number, rem = REM): number {
++  return 2 * 0.5 * rem + 2.75 * s * rem + 2.75 * s * rem + 0.8125 * 1.5 * s * rem + n * 3.25 * s * rem + 3 * 0.25 * rem;
++}
++
++/** The split screens room:report lists, with their list boxes and the column's scale. */
++function splitScreens(): { name: string; h: number; scale: number }[] {
++  const out: { name: string; h: number; scale: number }[] = [];
++  for (const x of framedStages(WALL).screens) {
++    const b = wallBoxes(x.screen, x.state, DEFAULT_METRICS, { wall: WALL });
++    if (b !== null) out.push({ name: `${x.screen.w}x${x.screen.h}`, h: b.list.h, scale: b.scaleRight });
++  }
++  return out;
++}
++
++describe("the split list holds \"Dog\" (spec 026's human patch, r4; spec 028's FR-007)", () => {
++  it('has the five entries, "Dog" last, and the model is spec 018\'s at scale 1', () => {
++    expect(WORDS.names).toEqual(["Snowboard", "Bicycle", "Laptop and screen", "Chalkboard", "Dog"]);
++    for (const rem of [16, 20])
++      expect(listContent(WORDS.names.length, 1, rem)).toBeCloseTo(
++        splitModel(WORDS, { ...DEFAULT_METRICS, rem }).listH,
++        9,
++      );
++  });
++
++  it("reads the sizes the model counts from split.css", () => {
++    expect(splitRule(".room-list", "padding")).toBe("0.5rem 0.75rem");
++    expect(splitRule(".room-list", "gap")).toBe("0.25rem");
++    expect(splitRule(".room-list", "font-size")).toBe("calc(1rem * var(--wall-scale-right))");
++    expect(splitRule(".room-list li", "height")).toBe("3.25em");
++    expect(splitRule(".split-back", "min-height")).toBe("2.75em");
++    expect(splitRule(".room-list .split-label", "font")).toMatch(/^0\.8125em\/1\.5 /);
++  });
++
++  it("fits the five at spec 028's split windows that hold the whole list", () => {
++    for (const s of [
++      { w: 1920, h: 1080 },
++      { w: 2560, h: 1440 },
++      { w: 1920, h: 1200 },
++      { w: 1680, h: 1050 },
++    ]) {
++      const b = wallBoxes(s, undefined, DEFAULT_METRICS, { wall: WALL });
++      expect(b, `${s.w}x${s.h}`).not.toBeNull();
++      if (b === null) continue;
++      expect(b.list.h, `${s.w}x${s.h}`).toBeGreaterThanOrEqual(listContent(WORDS.names.length, b.scaleRight));
++    }
++  });
++
++  it("fits the five at no fewer split stages than when r4 was built, each one row more than the four", () => {
++    const screens = splitScreens();
++    const n = WORDS.names.length;
++    const five = screens.filter((x) => x.h >= listContent(n, x.scale) - 1e-9);
++    const four = new Set(screens.filter((x) => x.h >= listContent(n - 1, x.scale) - 1e-9).map((x) => x.name));
++    // Measured on the tree after the 028 stack's merge, 022, and r4 (patch7-026): 1,601 of 3,329 split screens.
++    expect(five.length).toBeGreaterThanOrEqual(1601);
++    for (const x of five) expect(four.has(x.name), x.name).toBe(true);
++    for (const x of screens)
++      expect(listContent(n, x.scale) - listContent(n - 1, x.scale)).toBeCloseTo(3.25 * x.scale * REM, 9);
++  });
++
++  it("scrolls the entries inside the list where they don't fit, the head kept in view (FR-007)", () => {
++    expect(splitRule(".room-list ul", "overflow-y")).toBe("auto");
++    expect(splitRule(".room-list ul", "min-height")).toBe("0");
++    expect(splitRule(".room-list ul", "flex")).toBe("1 1 auto");
++    expect(splitRule(".room-list", "overflow-y")).toBe("hidden");
++  });
++});
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/apps/web/test/ui/hud-split.test.ts b/apps/web/test/ui/hud-split.test.ts
+--- a/apps/web/test/ui/hud-split.test.ts
++++ b/apps/web/test/ui/hud-split.test.ts
+@@ -628,7 +628,8 @@
+   const path = (u: ReturnType<typeof unit>) => emblem(u)?.querySelector("path")?.getAttribute("d");
+ 
+   it("draws one icon per emblem the scene names, on the 24-unit grid, none the speech glyph", () => {
+-    expect([...NAMES].sort()).toEqual(["board", "screen", "slate", "wheels"]);
++    // Spec 026's human patch (r3): the dog's sign takes the paw.
++    expect([...NAMES].sort()).toEqual(["board", "paw", "screen", "slate", "wheels"]);
+     const all = [...Object.values(EMBLEM_ICONS), SPEECH_ICON];
+     expect(new Set(all).size).toBe(all.length);
+     for (const d of all) {
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/config/room-events.yaml b/config/room-events.yaml
+--- a/config/room-events.yaml
++++ b/config/room-events.yaml
+@@ -21,6 +21,7 @@
+   - "bicycle"
+   - "laptop"
+   - "chalkboard"
++  - "dog-sign"
+ items:
+   - "ai-strategy"
+   - "change-management"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/config/room-topics.yaml b/config/room-topics.yaml
+--- a/config/room-topics.yaml
++++ b/config/room-topics.yaml
+@@ -23,3 +23,8 @@
+     corpus:
+       - "corpus/05-mission.md"
+     lead: null
++  - id: "dog-sign"
++    topic: "hobbies-and-travel"
++    corpus:
++      - "corpus/04-hobbies-and-travel.md"
++    lead: "The dog first."
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/config/twin/corpus.json b/config/twin/corpus.json
+--- a/config/twin/corpus.json
++++ b/config/twin/corpus.json
+@@ -153,6 +153,10 @@
+         "text": "That Hareet won anything personally; Medic won on his pitch and design."
+       },
+       {
++        "file": "corpus/04-hobbies-and-travel.md",
++        "text": "That the dog in the room is a real dog: it is an AI-made likeness, not a photo or a recording."
++      },
++      {
+         "file": "corpus/05-mission.md",
+         "text": "That he personally won the AWS Imagine Momentum to Modernize Award (2025). Medic won it; he was the author and creator of the project Medic pitched and built for it."
+       },
+@@ -1176,13 +1180,13 @@
+       "text": "- `[A 2026-11-06]` The riding he does, in his words: \"Commuter riding around the city. I ride to my parents' house to have lunch weekly, I also ride a one-wheel and love exploring the extended city neighborhoods on a bicycle.\"\n- `[A 2026-11-06]` What he loves about getting around the city by bike, in his words: \"The weather is usually sunny and gorgeous, and biking allows you to take more of the outside in. I don't like driving at all, and only drive if I'm going hiking in the mountains and taking my dog. I even enjoy winter biking and layering up in clothes to keep warm and enjoying the crisp air.\""
+     },
+     {
+-      "chars": 1272,
++      "chars": 1555,
+       "file": "corpus/04-hobbies-and-travel.md",
+       "golden": null,
+       "heading": "Arya",
+       "id": "04-hobbies-and-travel#3",
+       "kind": "section",
+-      "text": "- `[A 2026-11-06]` His dog, in his words: \"Arya is a Nova Scotia Duck Tolling Retriever, known as a Duck Toller. When I used to stay in Minneapolis, one of my colleagues invited me up to a cabin at Lake of the Woods, which is a State Park at the border of Minnesota and Canada. My first time going up to a cabin, I thought we were camping outside in the cold and brought a ton of appropriate equipment. Instead, the cabin was essentially a second home, full of furnishings, isolated deep in Lake of the Woods. One of the neighbors during that stay was on a hunting trip, and had 3 duck tollers with him. I ended up playing with the dogs for the entire time we were there, that my friend offered me the keys to the cabin and told me I should come back and grab a dog or puppy from the neighbor. Within weeks, I had brought Arya back home and my life forever changed. She has kept me outside, active, walking, and playing when most of my hobbies and work life revolved around computers or tinkering with hardware. She introduced me to most of my friends, and especially my wife. Arya is now 13 years old, and has went camping across the country and across Canada several times with me. She's always up for an adventure, but certainly enjoys a snooze in her senior years. <3\""
++      "text": "- `[A 2026-11-06]` His dog, in his words: \"Arya is a Nova Scotia Duck Tolling Retriever, known as a Duck Toller. When I used to stay in Minneapolis, one of my colleagues invited me up to a cabin at Lake of the Woods, which is a State Park at the border of Minnesota and Canada. My first time going up to a cabin, I thought we were camping outside in the cold and brought a ton of appropriate equipment. Instead, the cabin was essentially a second home, full of furnishings, isolated deep in Lake of the Woods. One of the neighbors during that stay was on a hunting trip, and had 3 duck tollers with him. I ended up playing with the dogs for the entire time we were there, that my friend offered me the keys to the cabin and told me I should come back and grab a dog or puppy from the neighbor. Within weeks, I had brought Arya back home and my life forever changed. She has kept me outside, active, walking, and playing when most of my hobbies and work life revolved around computers or tinkering with hardware. She introduced me to most of my friends, and especially my wife. Arya is now 13 years old, and has went camping across the country and across Canada several times with me. She's always up for an adventure, but certainly enjoys a snooze in her senior years. <3\"\n- `[A 2026-11-13]` The dog in the room, in his words: \"it's okay that we use the likeness of my dog\". `[A 2026-11-14]` In his words: \"The dog is an AI-made, stylized Nova Scotia Duck Tolling Retriever, a dog of the breed and not a likeness of the Author's dog, shown by his choice.\""
+     },
+     {
+       "chars": 1007,
+@@ -2299,30 +2303,38 @@
+       "id": "chalkboard",
+       "lead": null,
+       "topic": "mission"
++    },
++    {
++      "files": [
++        "corpus/04-hobbies-and-travel.md"
++      ],
++      "id": "dog-sign",
++      "lead": "The dog first.",
++      "topic": "hobbies-and-travel"
+     }
+   ],
+-  "sha256": "a2a1655d4b2da434c7eeb71a5cd36194003df52f8767349d500eada86cfe0251",
++  "sha256": "c18b20c6dcd28ac786547fa1aad047ff58fc49a79f0045d4aa448fbe6af18c91",
+   "topics": [
+     {
+       "files": [
+         "corpus/04-hobbies-and-travel.md"
+       ],
+       "id": "hobbies-and-travel",
+-      "sha256": "2d340b13a793674d88496615b7a25981270e82f07813ee145da3cd408c1777c5"
++      "sha256": "d574f1fa248e8f1814687338cf9c7d1008e1441a343ab29290ef5dd57b350507"
+     },
+     {
+       "files": [
+         "corpus/05-mission.md"
+       ],
+       "id": "mission",
+-      "sha256": "30d25e4aa1997f8201c671561c5dce8a17acebdd4e59ebd6ca01ee0e97940d32"
++      "sha256": "c028c92d9303beebeae8b32bdd8213dd112a057ea238886638ae39cc22a568ad"
+     },
+     {
+       "files": [
+         "corpus/06-work-projects.md"
+       ],
+       "id": "work-projects",
+-      "sha256": "037bae3cb62c565dd5d81658c2fa4b415493e798b15891de3e005652a832dbde"
++      "sha256": "6fdd269b9dd0b207511fa36113f95c596d3de86c659ce71bbaf0abbb8395aadc"
+     }
+   ]
+ }
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/corpus/04-hobbies-and-travel.md b/corpus/04-hobbies-and-travel.md
+--- a/corpus/04-hobbies-and-travel.md
++++ b/corpus/04-hobbies-and-travel.md
+@@ -1,7 +1,7 @@
+ # Hobbies and travel
+ Priority: none yet (his to set) · Status: draft from his interview of 2026-11-06, for Hareet's final read · Last verified: 2026-11-06
+ 
+-Tags as defined in `01-ai-strategy-and-cht.md`. His interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`. The document is filed as he pasted it in `intake/interview-2026-11-06-hobbies-mission-work.md`, and he approved each Golden Q&A below. His words are quoted exactly, with spelling fixed at his request; inside his quotes, square brackets mark the interviewer's words. Untagged lines are pointers to other files. The numbers are in `facts/hobbies-and-travel.yaml`. In the room, the snowboard and the bicycle open this topic, and the snowboard leads with winter.
++Tags as defined in `01-ai-strategy-and-cht.md`. His interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`; the line about the room's dog carries his order's date and his approval's. The document is filed as he pasted it in `intake/interview-2026-11-06-hobbies-mission-work.md`, and he approved each Golden Q&A below. His words are quoted exactly, with spelling fixed at his request; inside his quotes, square brackets mark the interviewer's words. Untagged lines are pointers to other files. The numbers are in `facts/hobbies-and-travel.yaml`. In the room, the snowboard, the bicycle, and the dog's desk sign open this topic, and the snowboard leads with winter.
+ 
+ ## Snowboarding
+ 
+@@ -17,6 +17,7 @@
+ ## Arya
+ 
+ - `[A 2026-11-06]` His dog, in his words: "Arya is a Nova Scotia Duck Tolling Retriever, known as a Duck Toller. When I used to stay in Minneapolis, one of my colleagues invited me up to a cabin at Lake of the Woods, which is a State Park at the border of Minnesota and Canada. My first time going up to a cabin, I thought we were camping outside in the cold and brought a ton of appropriate equipment. Instead, the cabin was essentially a second home, full of furnishings, isolated deep in Lake of the Woods. One of the neighbors during that stay was on a hunting trip, and had {{slot:hobbies.cabin_tollers}} duck tollers with him. I ended up playing with the dogs for the entire time we were there, that my friend offered me the keys to the cabin and told me I should come back and grab a dog or puppy from the neighbor. Within weeks, I had brought Arya back home and my life forever changed. She has kept me outside, active, walking, and playing when most of my hobbies and work life revolved around computers or tinkering with hardware. She introduced me to most of my friends, and especially my wife. Arya is now {{slot:hobbies.arya_age}} years old, and has went camping across the country and across Canada several times with me. She's always up for an adventure, but certainly enjoys a snooze in her senior years. <3"
++- `[A 2026-11-13]` The dog in the room, in his words: "it's okay that we use the likeness of my dog". `[A 2026-11-14]` In his words: "The dog is an AI-made, stylized Nova Scotia Duck Tolling Retriever, a dog of the breed and not a likeness of the Author's dog, shown by his choice."
+ 
+ ## Travel
+ 
+@@ -30,7 +31,9 @@
+ 
+ ## Do not claim
+ 
+-None named for this topic: asked whether there was anything about his hobbies, travel, or Arya the twin should refuse to say or claim, he said "No" `[A 2026-11-06]`. The list in `00-profile.md` still holds here, its location line among them.
++None named by him for this topic: asked whether there was anything about his hobbies, travel, or Arya the twin should refuse to say or claim, he said "No" `[A 2026-11-06]`. The list in `00-profile.md` still holds here, its location line among them.
++
++- That the dog in the room is a real dog: it is an AI-made likeness, not a photo or a recording.
+ 
+ ## Golden Q&A
+ 
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/docs/corpus-size.json b/docs/corpus-size.json
+--- a/docs/corpus-size.json
++++ b/docs/corpus-size.json
+@@ -6,21 +6,21 @@
+   "files": {
+     "topic": {
+       "files": 9,
+-      "bytes": 96567,
+-      "words": 15089,
+-      "chars": 96128
++      "bytes": 114800,
++      "words": 17660,
++      "chars": 114229
+     },
+     "facts": {
+       "files": 11,
+-      "bytes": 17556,
+-      "words": 2312,
+-      "chars": 17544
++      "bytes": 18005,
++      "words": 2358,
++      "chars": 17992
+     },
+     "total": {
+       "files": 20,
+-      "bytes": 114123,
+-      "words": 17401,
+-      "chars": 113672
++      "bytes": 132805,
++      "words": 20018,
++      "chars": 132221
+     },
+     "by_file": [
+       {
+@@ -49,9 +49,9 @@
+       },
+       {
+         "path": "corpus/04-hobbies-and-travel.md",
+-        "bytes": 9822,
+-        "words": 1727,
+-        "chars": 9804
++        "bytes": 10307,
++        "words": 1822,
++        "chars": 10289
+       },
+       {
+         "path": "corpus/05-mission.md",
+@@ -73,9 +73,9 @@
+       },
+       {
+         "path": "corpus/08-hareet-ai.md",
+-        "bytes": 5299,
+-        "words": 927,
+-        "chars": 5279
++        "bytes": 23047,
++        "words": 3403,
++        "chars": 22895
+       },
+       {
+         "path": "corpus/facts/awards.yaml",
+@@ -103,9 +103,9 @@
+       },
+       {
+         "path": "corpus/facts/hareet-ai.yaml",
+-        "bytes": 467,
+-        "words": 55,
+-        "chars": 467
++        "bytes": 916,
++        "words": 101,
++        "chars": 915
+       },
+       {
+         "path": "corpus/facts/hobbies-and-travel.yaml",
+@@ -159,9 +159,9 @@
+     "room": 21182
+   },
+   "base": {
+-    "rules": 5833,
++    "rules": 6198,
+     "profile": 6189,
+-    "base": 12022
++    "base": 12387
+   },
+   "topics": [
+     {
+@@ -169,12 +169,12 @@
+       "files": [
+         "corpus/04-hobbies-and-travel.md"
+       ],
+-      "rendered": 8894,
+-      "grounding": 20916,
+-      "share": 0.9874,
+-      "margin": 266,
++      "rendered": 9177,
++      "grounding": 21564,
++      "share": 1.018,
++      "margin": -382,
+       "lead": 41,
+-      "margin_after_lead": 225
++      "margin_after_lead": -423
+     },
+     {
+       "id": "mission",
+@@ -182,11 +182,11 @@
+         "corpus/05-mission.md"
+       ],
+       "rendered": 9023,
+-      "grounding": 21045,
+-      "share": 0.9935,
+-      "margin": 137,
++      "grounding": 21410,
++      "share": 1.0108,
++      "margin": -228,
+       "lead": 0,
+-      "margin_after_lead": 137
++      "margin_after_lead": -228
+     },
+     {
+       "id": "work-projects",
+@@ -194,44 +194,44 @@
+         "corpus/06-work-projects.md"
+       ],
+       "rendered": 7621,
+-      "grounding": 19643,
+-      "share": 0.9273,
+-      "margin": 1539,
++      "grounding": 20008,
++      "share": 0.9446,
++      "margin": 1174,
+       "lead": 0,
+-      "margin_after_lead": 1539
++      "margin_after_lead": 1174
+     }
+   ],
+   "by_file": [
+     {
+       "file": "corpus/01-ai-strategy-and-cht.md",
+       "rendered": 30059,
+-      "grounding": 42081,
+-      "share": 1.9866,
+-      "margin": -20899,
++      "grounding": 42446,
++      "share": 2.0039,
++      "margin": -21264,
+       "in_topics": []
+     },
+     {
+       "file": "corpus/02-production-infrastructure-national-scale.md",
+       "rendered": 7456,
+-      "grounding": 19478,
+-      "share": 0.9196,
+-      "margin": 1704,
++      "grounding": 19843,
++      "share": 0.9368,
++      "margin": 1339,
+       "in_topics": []
+     },
+     {
+       "file": "corpus/03-grants-and-credits.md",
+       "rendered": 2049,
+-      "grounding": 14071,
+-      "share": 0.6643,
+-      "margin": 7111,
++      "grounding": 14436,
++      "share": 0.6815,
++      "margin": 6746,
+       "in_topics": []
+     },
+     {
+       "file": "corpus/04-hobbies-and-travel.md",
+-      "rendered": 8894,
+-      "grounding": 20916,
+-      "share": 0.9874,
+-      "margin": 266,
++      "rendered": 9177,
++      "grounding": 21564,
++      "share": 1.018,
++      "margin": -382,
+       "in_topics": [
+         "hobbies-and-travel"
+       ]
+@@ -239,9 +239,9 @@
+     {
+       "file": "corpus/05-mission.md",
+       "rendered": 9023,
+-      "grounding": 21045,
+-      "share": 0.9935,
+-      "margin": 137,
++      "grounding": 21410,
++      "share": 1.0108,
++      "margin": -228,
+       "in_topics": [
+         "mission"
+       ]
+@@ -249,9 +249,9 @@
+     {
+       "file": "corpus/06-work-projects.md",
+       "rendered": 7621,
+-      "grounding": 19643,
+-      "share": 0.9273,
+-      "margin": 1539,
++      "grounding": 20008,
++      "share": 0.9446,
++      "margin": 1174,
+       "in_topics": [
+         "work-projects"
+       ]
+@@ -259,29 +259,29 @@
+     {
+       "file": "corpus/07-denver-local-ai.md",
+       "rendered": 8797,
+-      "grounding": 20819,
+-      "share": 0.9829,
+-      "margin": 363,
++      "grounding": 21184,
++      "share": 1.0001,
++      "margin": -2,
+       "in_topics": []
+     },
+     {
+       "file": "corpus/08-hareet-ai.md",
+-      "rendered": 4303,
+-      "grounding": 16325,
+-      "share": 0.7707,
+-      "margin": 4857,
++      "rendered": 21711,
++      "grounding": 34098,
++      "share": 1.6098,
++      "margin": -12916,
+       "in_topics": []
+     }
+   ],
+   "free_talk": {
+-    "room": 9160,
+-    "rankable": 78202,
+-    "share": 0.1171
++    "room": 8795,
++    "rankable": 95893,
++    "share": 0.0917
+   },
+   "pack": {
+-    "sections": 131,
+-    "bytes": 153697,
+-    "rendered": 84391,
++    "sections": 150,
++    "bytes": 179436,
++    "rendered": 102082,
+     "longest_section": 3140
+   },
+   "thresholds": {
+@@ -293,10 +293,10 @@
+     "t3_band": 0.5
+   },
+   "stage": {
+-    "stage": 0,
+-    "crossed": [],
+-    "band": [
++    "stage": 1,
++    "crossed": [
+       "T1"
+-    ]
++    ],
++    "band": []
+   }
+ }
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/docs/studio/photo-guide.md b/docs/studio/photo-guide.md
+--- a/docs/studio/photo-guide.md
++++ b/docs/studio/photo-guide.md
+@@ -61,7 +61,6 @@
+ - [ ] Laptop stand: x 1.3, y 0, z -0.5 (estimated)
+ - [ ] Laptop: x 1.3, y 0.12, z -0.5 (estimated)
+ - [ ] Desk sign, busy: x 0.2, y 0, z -0.43 (estimated)
+-- [ ] Desk sign, dog: x 1.02, y 0, z -0.44 (estimated)
+ - [ ] `split-keyboard`: x 0.61, y 0, z -0.19 (estimated)
+ - [ ] `vertical-mouse`: x 0.91, y 0, z -0.17 (estimated)
+ - [ ] `notebook`: x 0.28, y 0, z -0.19 (estimated)
+@@ -69,6 +68,7 @@
+ On the shell, at its anchors:
+ 
+ - [ ] Desk: on the anchor `back-wall`, offset x 0, y 0, z 0.4 (estimated)
++- [ ] Desk sign, dog: on the anchor `right-wall`, its origin (below the centre of the sign's foot) 0.5096 from the back wall and 0.46 above the floor, 0.0375 out from the wall (estimated)
+ - [ ] Chalkboard: on the anchor `left-wall`, its origin (the centre of the board's back, against the wall) 0.8972 from the back wall and 1.65 above the floor, 0 out from the wall (estimated)
+ - [ ] Snowboard: on the anchor `left-wall`, its origin (the centre of the board, midway along its length and across its width, in the middle of its thickness) 0.2096 from the back wall and 0.775 above the floor, 0.035 out from the wall (estimated)
+ - [ ] Bicycle: on the anchor `right-wall`, its origin (midway between the two wheels' hubs) 0.8317 from the back wall and 1.49 above the floor, 0.09 out from the wall (estimated)
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/docs/studio/work-orders/dog-sign.md b/docs/studio/work-orders/dog-sign.md
+--- a/docs/studio/work-orders/dog-sign.md
++++ b/docs/studio/work-orders/dog-sign.md
+@@ -15,15 +15,15 @@
+ 
+ - The sign's width, height, and thickness, and its foot's depth.
+ - The lettering area's width and height, and its position on the face.
+-- Where the sign stands on the desk, from the desk's front-left corner.
++- Where the sign hangs on the room's right wall, from the back wall, above the floor, and out from the wall.
+ - Measure: the size, now estimated at 0.16 × 0.12 × 0.05 m (w × h × d).
+-- Measure: where `dog-sign` sits, now estimated: on `work-desk`'s anchor `top`, offset (0.27, 0, -0.04) m.
++- Measure: where `dog-sign` sits, now estimated: on `room-shell`'s anchor `right-wall`, offset (-0.1, 0.46, 0.0375) m.
+ 
+ ## Size, origin, and bounds
+ 
+ - The size: 0.16 × 0.12 × 0.05 m (w × h × d), estimated.
+ - The stylized scale: 1.5, so the model is made at 0.24 × 0.18 × 0.075 m (FR-051).
+-- The origin: on the desk, below the centre of the sign's foot.
++- The origin: below the centre of the sign's foot.
+ - The expected bounds at that scale: from (-0.12, 0, -0.0375) to (0.12, 0.18, 0.0375) m.
+ - Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.02 m, y 0.02 m, z 0.02 m (FR-019).
+ 
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-agent-orchestrator-engineer.yaml b/evals/narration/cases/narration-agent-orchestrator-engineer.yaml
+--- a/evals/narration/cases/narration-agent-orchestrator-engineer.yaml
++++ b/evals/narration/cases/narration-agent-orchestrator-engineer.yaml
+@@ -42,6 +42,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml b/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
+--- a/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
++++ b/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
+@@ -39,6 +39,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-agent-watchdog-engineer.yaml b/evals/narration/cases/narration-agent-watchdog-engineer.yaml
+--- a/evals/narration/cases/narration-agent-watchdog-engineer.yaml
++++ b/evals/narration/cases/narration-agent-watchdog-engineer.yaml
+@@ -43,6 +43,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml b/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
+--- a/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
++++ b/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-ai-strategy-engineer.yaml b/evals/narration/cases/narration-ai-strategy-engineer.yaml
+--- a/evals/narration/cases/narration-ai-strategy-engineer.yaml
++++ b/evals/narration/cases/narration-ai-strategy-engineer.yaml
+@@ -44,6 +44,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-ai-strategy-non-engineer.yaml b/evals/narration/cases/narration-ai-strategy-non-engineer.yaml
+--- a/evals/narration/cases/narration-ai-strategy-non-engineer.yaml
++++ b/evals/narration/cases/narration-ai-strategy-non-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-change-management-engineer.yaml b/evals/narration/cases/narration-change-management-engineer.yaml
+--- a/evals/narration/cases/narration-change-management-engineer.yaml
++++ b/evals/narration/cases/narration-change-management-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-change-management-non-engineer.yaml b/evals/narration/cases/narration-change-management-non-engineer.yaml
+--- a/evals/narration/cases/narration-change-management-non-engineer.yaml
++++ b/evals/narration/cases/narration-change-management-non-engineer.yaml
+@@ -39,6 +39,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml b/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
+--- a/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
++++ b/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
+@@ -42,6 +42,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml b/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
+--- a/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
+@@ -39,6 +39,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-cht-agent-engineer.yaml b/evals/narration/cases/narration-cht-agent-engineer.yaml
+--- a/evals/narration/cases/narration-cht-agent-engineer.yaml
++++ b/evals/narration/cases/narration-cht-agent-engineer.yaml
+@@ -46,6 +46,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-cht-agent-non-engineer.yaml b/evals/narration/cases/narration-cht-agent-non-engineer.yaml
+--- a/evals/narration/cases/narration-cht-agent-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-agent-non-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-cht-codebase-engineer.yaml b/evals/narration/cases/narration-cht-codebase-engineer.yaml
+--- a/evals/narration/cases/narration-cht-codebase-engineer.yaml
++++ b/evals/narration/cases/narration-cht-codebase-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-cht-codebase-non-engineer.yaml b/evals/narration/cases/narration-cht-codebase-non-engineer.yaml
+--- a/evals/narration/cases/narration-cht-codebase-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-codebase-non-engineer.yaml
+@@ -38,6 +38,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml b/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
+--- a/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
++++ b/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
+@@ -39,6 +39,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml b/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
+--- a/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
+@@ -39,6 +39,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-cht-skills-engineer.yaml b/evals/narration/cases/narration-cht-skills-engineer.yaml
+--- a/evals/narration/cases/narration-cht-skills-engineer.yaml
++++ b/evals/narration/cases/narration-cht-skills-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-cht-skills-non-engineer.yaml b/evals/narration/cases/narration-cht-skills-non-engineer.yaml
+--- a/evals/narration/cases/narration-cht-skills-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-skills-non-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-claude-medic-aws-engineer.yaml b/evals/narration/cases/narration-claude-medic-aws-engineer.yaml
+--- a/evals/narration/cases/narration-claude-medic-aws-engineer.yaml
++++ b/evals/narration/cases/narration-claude-medic-aws-engineer.yaml
+@@ -43,6 +43,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml b/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
+--- a/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
++++ b/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-cloud-data-centers-engineer.yaml b/evals/narration/cases/narration-cloud-data-centers-engineer.yaml
+--- a/evals/narration/cases/narration-cloud-data-centers-engineer.yaml
++++ b/evals/narration/cases/narration-cloud-data-centers-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml b/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
+--- a/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
++++ b/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
+@@ -38,6 +38,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-denver-local-ai-engineer.yaml b/evals/narration/cases/narration-denver-local-ai-engineer.yaml
+--- a/evals/narration/cases/narration-denver-local-ai-engineer.yaml
++++ b/evals/narration/cases/narration-denver-local-ai-engineer.yaml
+@@ -43,6 +43,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml b/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
+--- a/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
++++ b/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-hareet-ai-engineer.yaml b/evals/narration/cases/narration-hareet-ai-engineer.yaml
+--- a/evals/narration/cases/narration-hareet-ai-engineer.yaml
++++ b/evals/narration/cases/narration-hareet-ai-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-hareet-ai-non-engineer.yaml b/evals/narration/cases/narration-hareet-ai-non-engineer.yaml
+--- a/evals/narration/cases/narration-hareet-ai-non-engineer.yaml
++++ b/evals/narration/cases/narration-hareet-ai-non-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-kenya-localization-engineer.yaml b/evals/narration/cases/narration-kenya-localization-engineer.yaml
+--- a/evals/narration/cases/narration-kenya-localization-engineer.yaml
++++ b/evals/narration/cases/narration-kenya-localization-engineer.yaml
+@@ -39,6 +39,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-kenya-localization-non-engineer.yaml b/evals/narration/cases/narration-kenya-localization-non-engineer.yaml
+--- a/evals/narration/cases/narration-kenya-localization-non-engineer.yaml
++++ b/evals/narration/cases/narration-kenya-localization-non-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-national-benchmarking-engineer.yaml b/evals/narration/cases/narration-national-benchmarking-engineer.yaml
+--- a/evals/narration/cases/narration-national-benchmarking-engineer.yaml
++++ b/evals/narration/cases/narration-national-benchmarking-engineer.yaml
+@@ -39,6 +39,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml b/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
+--- a/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
++++ b/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
+@@ -39,6 +39,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-national-scale-engineer.yaml b/evals/narration/cases/narration-national-scale-engineer.yaml
+--- a/evals/narration/cases/narration-national-scale-engineer.yaml
++++ b/evals/narration/cases/narration-national-scale-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-national-scale-non-engineer.yaml b/evals/narration/cases/narration-national-scale-non-engineer.yaml
+--- a/evals/narration/cases/narration-national-scale-non-engineer.yaml
++++ b/evals/narration/cases/narration-national-scale-non-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-no-code-configuration-engineer.yaml b/evals/narration/cases/narration-no-code-configuration-engineer.yaml
+--- a/evals/narration/cases/narration-no-code-configuration-engineer.yaml
++++ b/evals/narration/cases/narration-no-code-configuration-engineer.yaml
+@@ -42,6 +42,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml b/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
+--- a/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
++++ b/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-other-deployments-engineer.yaml b/evals/narration/cases/narration-other-deployments-engineer.yaml
+--- a/evals/narration/cases/narration-other-deployments-engineer.yaml
++++ b/evals/narration/cases/narration-other-deployments-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-other-deployments-non-engineer.yaml b/evals/narration/cases/narration-other-deployments-non-engineer.yaml
+--- a/evals/narration/cases/narration-other-deployments-non-engineer.yaml
++++ b/evals/narration/cases/narration-other-deployments-non-engineer.yaml
+@@ -39,6 +39,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-powersync-postgres-engineer.yaml b/evals/narration/cases/narration-powersync-postgres-engineer.yaml
+--- a/evals/narration/cases/narration-powersync-postgres-engineer.yaml
++++ b/evals/narration/cases/narration-powersync-postgres-engineer.yaml
+@@ -44,6 +44,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml b/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
+--- a/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
++++ b/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml b/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
+--- a/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
++++ b/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml b/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
+--- a/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
++++ b/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
+@@ -40,6 +40,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-tools-engineer.yaml b/evals/narration/cases/narration-tools-engineer.yaml
+--- a/evals/narration/cases/narration-tools-engineer.yaml
++++ b/evals/narration/cases/narration-tools-engineer.yaml
+@@ -43,6 +43,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-tools-non-engineer.yaml b/evals/narration/cases/narration-tools-non-engineer.yaml
+--- a/evals/narration/cases/narration-tools-non-engineer.yaml
++++ b/evals/narration/cases/narration-tools-non-engineer.yaml
+@@ -38,6 +38,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-voice-for-cht-engineer.yaml b/evals/narration/cases/narration-voice-for-cht-engineer.yaml
+--- a/evals/narration/cases/narration-voice-for-cht-engineer.yaml
++++ b/evals/narration/cases/narration-voice-for-cht-engineer.yaml
+@@ -45,6 +45,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml b/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
+--- a/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
++++ b/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
+@@ -41,6 +41,7 @@
+     - "any sre-jd bullet as an accomplishment until confirmed"
+     - "any amount"
+     - "won anything personally"
++    - "the dog in the room is a real dog"
+     - "personally won the aws imagine momentum to modernize award"
+     - "implemented smart task prioritization"
+     - "wrote the medic ai strategy alone"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/product/cases/twin-04-hobbies-and-travel-q1-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q1-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q1-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q1-engineer.yaml
+@@ -25,4 +25,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/product/cases/twin-04-hobbies-and-travel-q1-non-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q1-non-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q1-non-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q1-non-engineer.yaml
+@@ -25,4 +25,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/product/cases/twin-04-hobbies-and-travel-q2-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q2-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q2-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q2-engineer.yaml
+@@ -24,4 +24,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/product/cases/twin-04-hobbies-and-travel-q2-non-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q2-non-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q2-non-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q2-non-engineer.yaml
+@@ -24,4 +24,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/product/cases/twin-04-hobbies-and-travel-q3-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q3-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q3-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q3-engineer.yaml
+@@ -23,4 +23,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/product/cases/twin-04-hobbies-and-travel-q3-non-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q3-non-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q3-non-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q3-non-engineer.yaml
+@@ -23,4 +23,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/product/cases/twin-04-hobbies-and-travel-q4-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q4-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q4-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q4-engineer.yaml
+@@ -23,4 +23,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/product/cases/twin-04-hobbies-and-travel-q4-non-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q4-non-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q4-non-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q4-non-engineer.yaml
+@@ -23,4 +23,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/product/cases/twin-04-hobbies-and-travel-q5-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q5-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q5-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q5-engineer.yaml
+@@ -25,4 +25,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/product/cases/twin-04-hobbies-and-travel-q5-non-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q5-non-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q5-non-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q5-non-engineer.yaml
+@@ -25,4 +25,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/product/cases/twin-04-hobbies-and-travel-q6-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q6-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q6-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q6-engineer.yaml
+@@ -25,4 +25,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/product/cases/twin-04-hobbies-and-travel-q6-non-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q6-non-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q6-non-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q6-non-engineer.yaml
+@@ -25,4 +25,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/product/cases/twin-04-hobbies-and-travel-q7-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q7-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q7-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q7-engineer.yaml
+@@ -25,4 +25,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/product/cases/twin-04-hobbies-and-travel-q7-non-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q7-non-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q7-non-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q7-non-engineer.yaml
+@@ -25,4 +25,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/product/cases/twin-04-hobbies-and-travel-q8-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q8-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q8-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q8-engineer.yaml
+@@ -23,4 +23,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/evals/product/cases/twin-04-hobbies-and-travel-q8-non-engineer.yaml b/evals/product/cases/twin-04-hobbies-and-travel-q8-non-engineer.yaml
+--- a/evals/product/cases/twin-04-hobbies-and-travel-q8-non-engineer.yaml
++++ b/evals/product/cases/twin-04-hobbies-and-travel-q8-non-engineer.yaml
+@@ -23,4 +23,5 @@
+     - "home address"
+     - "religious affiliation"
+     - "surname"
++    - "the dog in the room is a real dog"
+     - "where he was born"
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/specs/005-full-window-room/plan.md b/specs/005-full-window-room/plan.md
+--- a/specs/005-full-window-room/plan.md
++++ b/specs/005-full-window-room/plan.md
+@@ -715,7 +715,7 @@
+ | B1 | §6.8, PD-14; T001 | A clarification, not a change of design: where a browser resizes the layout viewport for the on-screen keyboard (Firefox for Android, as T001 records it), the window got shorter, so the room re-fits as for any resize, the dock staying at the window's foot above the keyboard, and the keyboard's inset reads 0 there. Where the browser resizes the visual viewport alone (iOS Safari; Chrome for Android since 108), the keyboard lifts the HUD's foot by its inset and nothing re-fits, as planned | T001's facts; FR-050 holds either way |
+ | B2 | §5.4, §6.1 | The 2D drawing, the loading line, and flat-failed's line stay in the stage's view element (`layout.view`), which room.css places at the clear area while it holds them (`data-stage` `loading` or `2d`) and at the whole window in 3D; the clear box holds the notes, the offer, and the walking control. The stage's element keeps one home, `show()` is unchanged, and spec 004's and 008's tests that read `.room-stage-view` hold | One element for the canvas and the drawing, as before |
+ | B3 | §4.1, §6.1, §2.3 | The window-sized block is `.room-block`, inside `.room`, which keeps holding "Around the room" and the resume after it, so the Tab order and spec 002's `.room` rules hold. The data attributes and the CSS properties are set on the page's root, `<html>`, the room's root, since the strip is `index.html`'s header, outside `.room`. `--strip-h` is left unset outside the HUD, so the scroll padding keeps its 4rem fallback (today's 5rem) on the choice screen and in the stacked layout | The strip reads the properties; the choice screen's scroll padding unchanged |
+-| B4 | §2.1 | The table's first values, settled by the model (T008): the strip's two lines below 27rem; the bar's two rows below 35rem in either layout (a landscape window from 32rem to 35rem wide needs two too, though the sweep holds none); the dock's list in two rows below 36rem, its header button floated beside its first row; and the HUD's minimum includes a window at least 20rem wide (FR-007's "under 320 CSS pixels wide") | The model at every screen of the sweep |
++| B4 | §2.1 | The table's first values, settled by the model (T008): the strip's two lines below 27rem; the bar's two rows below 35rem in either layout (a landscape window from 32rem to 35rem wide needs two too, though the sweep holds none); the dock's list in two rows below 39rem, its header button floated beside its first row (as amended by spec 026's human patch, r4, provisional on the page's Q39 of 2026-11-15: 36rem → 39rem, where the model's five entries with the dog's sign need two rows, up to 608 px wide); and the HUD's minimum includes a window at least 20rem wide (FR-007's "under 320 CSS pixels wide") | The model at every screen of the sweep |
+ | B5 | §10.3; tasks.md T014 | The side-wall overlay (`test/fixtures/room/side-wall/`, and `bad/RG6-side-wall/`) moves its lower sign from 1.0515 to 1.074 m, so its carve-out still bites at the new narrowest stages; the report's new lines move to T027, after T025's test | The overlay's cores met nowhere at the new stages |
+ | B6 | §4.3, §4.4, §5; tasks.md T015, T017 | `SceneOptions.clear()` gives the clear area with the window it was computed for (`ClearArea`), and the 3D stage frames into it only while its canvas is that window, within a pixel; otherwise, the stacked layout or a frame between a resize and its re-fit, into the whole canvas. `frameCamera(camera, aspect, boxes)` keeps its signature; the stage shifts the projection after it (`fit.ts`'s `viewOffsetFor`), and the picker keeps taking the clear area's normalized points, the stage moving a canvas point into them (`clearNdc`). T015's 3D stage cases sit in `test/room/scene-fit.test.ts`, beside `scene.test.ts`, since they wrap the ink's and the highlight's factories with mocks of their own | Spec 008's tests that size the real stage's canvas themselves pass unchanged (SC-014); the stage never frames into a clear area that isn't its canvas's |
+ | B7 | §6.5, §6.1 | No sheet covers the walking control: while it's offered (`data-walk="on"` on the page's root), the dock's log sheet stops short of the clear area's bottom-right corner (`right: 9rem`), the column's larger view ends 3.75rem above the bar, and the resume, over the clear area, stops above the walking control's row. The walking control is itself a glass tile, since no panel lies behind it over the scene | The plan's sheet above the dock spans the window's width and would cover the walking control, which is a HUD control that must stay in view when focused (WCAG 2.4.11) |
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/specs/018-better-hud-and-load-screen/plan.md b/specs/018-better-hud-and-load-screen/plan.md
+--- a/specs/018-better-hud-and-load-screen/plan.md
++++ b/specs/018-better-hud-and-load-screen/plan.md
+@@ -85,7 +85,7 @@
+ 
+ All sizes in rem of the window's root font size, except the floor's pixels. `t` is the table, `clear`, `band`, `bar` the column layout's boxes from `hudBoxes`, unchanged (D-I1).
+ 
+-The table: `split: { panel: { shareMax: 0.5, maxRem: 40, minWidthRem: 18, minHeightRem: 14, titleRem: 2.75 }, rest: { minRem: <the model's finding>, gapRem: 0.25 }, list: { widthRem: 24, heightRem: 22 }, walkGapRem: 0.25, coverMax: 0.25 }`. impl-018's `minWidthRem: 48` and `panel.gapRem` go. The first is replaced by the rule, and the second, which kept the panel off the walking control's corner, is subsumed by (c): the floor's 304 px is wider than the corner's 9rem.
++The table: `split: { panel: { shareMax: 0.5, maxRem: 40, minWidthRem: 18, minHeightRem: 14, titleRem: 2.75 }, rest: { minRem: <the model's finding>, gapRem: 0.25 }, list: { widthRem: 24, heightRem: 25 }, walkGapRem: 0.25, coverMax: 0.25 }`. impl-018's `minWidthRem: 48` and `panel.gapRem` go. The first is replaced by the rule, and the second, which kept the panel off the walking control's corner, is subsumed by (c): the floor's 304 px is wider than the corner's 9rem. (As amended by spec 026's human patch, r4, provisional on the page's Q39 of 2026-11-15: `heightRem` 22 → 25, the model's 24.72rem for the five entries with the dog's sign. Since spec 028 the list's box is the column's top, its FR-007, so 25rem sizes no box; `test/ui/hud-split-model.test.ts` holds the list's content to it at scale 1.)
+ 
+ `splitBoxes(screen, state, metrics)` returns null unless every condition holds, in this order:
+ 1. **(a)** `layoutFor` is "column" and `fitsHud` holds.
+@@ -93,7 +93,7 @@
+ 3. **(c)** `clear.w − panel.w ≥ minimum.w` (304) and `clear.h ≥ minimum.h` (196).
+ 4. **The rest row**: `x = safe.left`, `y = bar.y`, `h = bar.h`, `w = min(panel.w, cluster.x − 0.25rem − safe.left)`, with `cluster` the bar's tile cluster from the compact boxes. **(d)** `w ≥ rest.minRem`.
+ 5. **The walking control**: `x = band.x + band.w − safe.right − 0.25rem − 8rem`, `y = band.y + band.h − 0.25rem − 2.75rem`, `w = 8rem`, `h = 2.75rem`.
+-6. **The list**: `w = min(24rem, band.w − safe.right)`, `x = band.x + band.w − safe.right − w`, `y = band.y`, `h = min(22rem, walk.y − 0.25rem − band.y)`.
++6. **The list**: `w = min(24rem, band.w − safe.right)`, `x = band.x + band.w − safe.right − w`, `y = band.y`, `h = min(25rem, walk.y − 0.25rem − band.y)` (22rem before spec 026's human patch, r4; provisional, the page's Q39 of 2026-11-15; spec 028's `wallBoxes` replaces this box).
+ 7. **(e)** `unionArea([strip, cluster, rest, list, walk, notesBox(clear)]) / (screen.w · screen.h) ≤ coverMax`, with the strip and cluster from the compact boxes.
+ 
+ `SplitBoxes` is `{ panel, rest, frame, list, walk }`, where `frame` is the panel's box with the rest row below it (`panel.y` to `rest.y + rest.h`), the box the open panel's frame is drawn round. `compactBoxes` calls `splitBoxes` and, where it isn't null, returns `split`, `walk` (the split walk), `walkPlace: "column"`, and `all: [strip, cluster, rest, list, walk]`. `column` stays the column layout's compact box, computed but not shown, so spec 014's `hud-model.test.ts` case on the column's content holds as written. `frameArea`, `stageFor`, `framedStage`, and `alwaysOnCoverage` take the split boxes through `all`, with no edit of their own.
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/specs/018-better-hud-and-load-screen/spec.md b/specs/018-better-hud-and-load-screen/spec.md
+--- a/specs/018-better-hud-and-load-screen/spec.md
++++ b/specs/018-better-hud-and-load-screen/spec.md
+@@ -133,7 +133,7 @@
+ - **FR-004**: IN the split layout, at a window's metrics (`rem`, safe areas), with `clear` the column layout's clear area, `band` its column, and `bar` its bar (unchanged, D-I1):
+   - the panel SHALL be at `clear.x`, from the notes' reserve's foot to the clear area's foot, at most 40rem wide and at most half the window less `clear.x`;
+   - the rest row SHALL be in the bar's band at its left: from `safe.left`, as tall as the bar, as wide as the panel, and short of the bar's tile cluster by 0.25rem. While the panel is open, the rest row is its foot, inside the frame;
+-  - the list SHALL be in the band's right 24rem, from the strip down, at most 22rem tall, and ending 0.25rem above the walking control;
++  - the list SHALL be in the band's right 24rem, from the strip down, at most 25rem tall, and ending 0.25rem above the walking control (as amended by spec 026's human patch, r4, provisional on the page's Q39 of 2026-11-15: 22rem → 25rem, the model's 24.72rem for the five entries with the dog's sign; since spec 028, whose FR-007 makes the list's box the column's top, 25rem is the list's content at scale 1, which sizes no box);
+   - the walking control SHALL be at the band's foot, at its right, 0.25rem in from each. With the column's content moved out, that is where W19 put it, the column's head;
+   - the clear area, the frame area, and the stages SHALL be the column layout's (Q53, Q59). The open panel lies over the scene and never re-frames the room, like spec 005's larger view (FR-028). The notes' reserve stays above the panel.
+   `compactBoxes` SHALL give these boxes as the always-on interface at rest: the strip, the bar's cluster, the rest row, the list, and the walking control. So the frame area, the stages' reserved boxes, and the coverage take them through the one kernel function, as spec 014's FR-016 requires.
+diff -ruN '--exclude=__pycache__' '--exclude=node_modules' '--exclude=zz-p7-*' a/specs/026-twin-pets-dog/spec.md b/specs/026-twin-pets-dog/spec.md
+--- a/specs/026-twin-pets-dog/spec.md
++++ b/specs/026-twin-pets-dog/spec.md
+@@ -162,9 +162,9 @@
+ **The dog-intro conversation**
+ 
+ - **FR-013**: A selectable `dog`, named "Dog", with the member `dog-sign`, MUST open the topic `hobbies-and-travel` with the lead "The dog first." (scene data; the lead is this spec's reading of "dog-intro", his to rewrite), through spec 004's one path: `object_selected` with ID `dog`, then the topic's action.
+-- **FR-014**: In 3D, the room's dog figure, while it shows its model and stands at home (spec 025's phase `home`; not `fleeing` or `returning`), MUST be a pick target for the selectable `dog` and for no other, highlighted as the selectable's members are; selecting it is selecting the sign. Its pick rectangle is the dog's box at its home (from `figures.dog.home`, `footprint_m`, and `AVATAR_SHAPES.dog`, never loaded geometry, so the build measures exactly what the visitor can hit: the axis-aligned bounds of the box turned by `heading_deg`), projected as members' frame boxes are (`memberRect`). It MUST count only under `pick`'s rule "the frontmost member rectangle under the point" (`compose/pick.ts`), and MUST stay out of the "Dog" piece's union and exclusive core, which stay the sign's (the page's Q160): a point outside the dog's rectangle, or inside it where another piece's member is in front, picks exactly what it picks without the dog. The twin's figure has no pick area (no selectable holds `twin-figure`, a placement framed for RG4, not a member): a point on it picks what `pick`'s second rule gives there, the nearest piece whose union or core holds the point, or nothing, and the dog's rectangle changes that only inside its own rectangle, where the dog is the frontmost member. The compositor's spacing check (RG6) MUST measure the dog's box at its home as a member rectangle of the `dog` piece, against the pieces' areas only (no twin box enters it): another piece's core over it is refused, as a core over any member is (M4). `memberRect` gives no rectangle for a box any corner of which isn't in front of the camera; the build checks the dog's has one at every stage RG6 sweeps (plan R-09), and a home where it hasn't goes to the page before the patch is built. It gains nothing else of a placement: no label, frame box, obstacle, or reach target (spec 025's FR-018, as M5 amends it; the page's Q140). In 2D and the list of pieces, only the sign. Without a `dog` selectable whose `figure` names the room's dog (the room's data on the line, until the patch), the figure has no pick area, as spec 025's FR-018 has it. **As amended (Q297, Q304; amend-026, 2026-11-15):** with the sign on the right wall (the patch's mount, Q297), the sign is a side-wall member, so RG6 passes the `dog` selectable only through spec 004's FR-064 carve-out, and at some stages the carve-out holds the dog piece to the "In the room" list, where the figure isn't a pick target. `dog-sign-offset.md` ("Off the desk", measure2-026), in its words: "the carve-out leaves the dog to the "In the room" list … At those stages neither the sign nor the dog figure is pickable (`pick` returns null for a held selectable's front rectangle too), against FR-014's figure pick wherever the dog stands at home". Its row "right wall | [-0.2, 0.4, 0.0375]" reads "16 / 240" in its "List-only" column, which, in its words, "counts the stages where the carve-out holds the dog"; its counts are stages, "3D / 2D", "out of the row's sweep (7,671 unless noted)". Where those counts come from, in rv-patch3-026's words (its verify note 3): "The held-stage counts (16 in 3D, 240 in 2D) come from probes, not from patch3-026's exports. They come from measure2-026's probe and floorrun-026's /tmp probe. patch3-026 didn't re-run `pickSweep`'s side-wall count on its patched export." amend-026's reading beside it: the two numbers are in measure2-026's run 2 (`dog-sign-offset.md`, "Run 2: the side walls and the floor": "list-only (held) 3D 16 / 2D 240 · … of 7671"); floorrun-026's /tmp probe ran spec 024's `eat-*` tests with this mount (in its words, "`eat-checks` passes"), not the count. The page's Q304, answered: recommended (his to confirm or overturn), in rv-patch3-026's words: "yes. Accept it and record it as an amendment to FR-014 and plan §7. At those stages the visitor still reaches the dog through the "In the room" list, which is FR-064's designed fallback. The floor, which kept every stage, fails spec 024's `eat-checks` under the "Eat" tile". So the MUST above holds at every stage RG6 sweeps except those the carve-out holds; there, the "In the room" list is the way to the dog. The text above stands as the record of what was first specified.
++- **FR-014**: In 3D, the room's dog figure, while it shows its model and stands at home (spec 025's phase `home`; not `fleeing` or `returning`), MUST be a pick target for the selectable `dog` and for no other, highlighted as the selectable's members are; selecting it is selecting the sign. Its pick rectangle is the dog's box at its home (from `figures.dog.home`, `footprint_m`, and `AVATAR_SHAPES.dog`, never loaded geometry, so the build measures exactly what the visitor can hit: the axis-aligned bounds of the box turned by `heading_deg`), projected as members' frame boxes are (`memberRect`). It MUST count only under `pick`'s rule "the frontmost member rectangle under the point" (`compose/pick.ts`), and MUST stay out of the "Dog" piece's union and exclusive core, which stay the sign's (the page's Q160): a point outside the dog's rectangle, or inside it where another piece's member is in front, picks exactly what it picks without the dog. The twin's figure has no pick area (no selectable holds `twin-figure`, a placement framed for RG4, not a member): a point on it picks what `pick`'s second rule gives there, the nearest piece whose union or core holds the point, or nothing, and the dog's rectangle changes that only inside its own rectangle, where the dog is the frontmost member. The compositor's spacing check (RG6) MUST measure the dog's box at its home as a member rectangle of the `dog` piece, against the pieces' areas only (no twin box enters it): another piece's core over it is refused, as a core over any member is (M4). `memberRect` gives no rectangle for a box any corner of which isn't in front of the camera; the build checks the dog's has one at every stage RG6 sweeps (plan R-09), and a home where it hasn't goes to the page before the patch is built. It gains nothing else of a placement: no label, frame box, obstacle, or reach target (spec 025's FR-018, as M5 amends it; the page's Q140). In 2D and the list of pieces, only the sign. Without a `dog` selectable whose `figure` names the room's dog (the room's data on the line, until the patch), the figure has no pick area, as spec 025's FR-018 has it. **As amended (Q297, Q304; amend-026, 2026-11-15):** with the sign on the right wall (the patch's mount, Q297), the sign is a side-wall member, so RG6 passes the `dog` selectable only through spec 004's FR-064 carve-out, and at some stages the carve-out holds the dog piece to the "In the room" list, where the figure isn't a pick target. `dog-sign-offset.md` ("Off the desk", measure2-026), in its words: "the carve-out leaves the dog to the "In the room" list … At those stages neither the sign nor the dog figure is pickable (`pick` returns null for a held selectable's front rectangle too), against FR-014's figure pick wherever the dog stands at home". Its row "right wall | [-0.2, 0.4, 0.0375]" reads "16 / 240" in its "List-only" column, which, in its words, "counts the stages where the carve-out holds the dog"; its counts are stages, "3D / 2D", "out of the row's sweep (7,671 unless noted)". Where those counts come from, in rv-patch3-026's words (its verify note 3): "The held-stage counts (16 in 3D, 240 in 2D) come from probes, not from patch3-026's exports. They come from measure2-026's probe and floorrun-026's /tmp probe. patch3-026 didn't re-run `pickSweep`'s side-wall count on its patched export." amend-026's reading beside it: the two numbers are in measure2-026's run 2 (`dog-sign-offset.md`, "Run 2: the side walls and the floor": "list-only (held) 3D 16 / 2D 240 · … of 7671"); floorrun-026's /tmp probe ran spec 024's `eat-*` tests with this mount (in its words, "`eat-checks` passes"), not the count. The page's Q304, answered: recommended (his to confirm or overturn), in rv-patch3-026's words: "yes. Accept it and record it as an amendment to FR-014 and plan §7. At those stages the visitor still reaches the dog through the "In the room" list, which is FR-064's designed fallback. The floor, which kept every stage, fails spec 024's `eat-checks` under the "Eat" tile". So the MUST above holds at every stage RG6 sweeps except those the carve-out holds; there, the "In the room" list is the way to the dog. The text above stands as the record of what was first specified. **As amended for the human patch's r4 (patch7-026, 2026-11-15; provisional on the page's Q41, and Q38 for the mount):** the selectable this requirement names `dog` is `dog-sign` in the patch (r3's rename, kept in r4): spec 004's FR-007 scan refuses `dog`, which the room's code names for the dog figure, as an ID only the room's data defines, and the sign's own ID follows the snowboard's and the bicycle's, whose IDs are their members'. The piece is `id: dog-sign`, `name: Dog`, `emblem: paw`, `members: [dog-sign]`, with no `figure` (spec 028's Q20), so the figure pick above has nothing to pick while no selectable names the room's dog. The sign hangs on the right wall at `[-0.1, 0.46, 0.0375]` (Q38), where, on the tree after the 028 stack's merge with 022 and r4 applied, the carve-out holds the piece to the "In the room" list at 71 stages in 3D and 595 in 2D, and no reserved box holds it (patch7-026's probe).
+ - **FR-015**: The conversation, the panel, the guards, and the twin's answers MUST NOT change; the twin's opening is spec 007's, grounded in the topic's files and the lead. The petting reads no conversation text and sends nothing.
+-- **FR-016**: The `dog` selectable's line in `apps/web/room/scene.yaml`, and the files `npm run room:generate` and `npm run twin:pack` regenerate from it, MUST travel in the human patch with the corpus (Q7), not merge on the line. The code that reads the selectable and picks the figure merges on the line and is tested on a fixture scene that holds it.
++- **FR-016**: The `dog` selectable's line in `apps/web/room/scene.yaml`, and the files `npm run room:generate` and `npm run twin:pack` regenerate from it, MUST travel in the human patch with the corpus (Q7), not merge on the line. The code that reads the selectable and picks the figure merges on the line and is tested on a fixture scene that holds it. **As amended for the human patch's r4 (patch7-026, 2026-11-15; provisional on the page's Q41):** the selectable's line is `dog-sign`'s, not `dog`'s (FR-014's amendment gives why), and its emblem `paw`, one 24-unit path in `apps/web/src/room/hud/icons.ts`'s `EMBLEM_ICONS` (spec 018's FR-005: every piece has an emblem of its own), travels in the same patch with the tests the patched scene makes true.
+ 
+ **The corpus proposal (for his hand)**
+ 
