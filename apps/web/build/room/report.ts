@@ -27,12 +27,11 @@
 //   scale its reader's bounds imply, which avatar the twin shows, each file with no role (RA5), RK3's figures with the
 //   stand-in, and the first visit with both figures' files (RK5) beside spec 003's F3 view;
 // - spec 029's readiness (its FR-014a): how many of the twin's topics, and whether free talk, are ready, by the build's
-//   own rule (readiness.ts's twinReadiness, over the compose's tree), and for each one closed, why;
+//   own rule (readiness.ts's readinessReasons, which room:report hands in), and for each one closed, why;
 // - the findings, each line, a lenient one marked warn in a lenient build, or "none".
 // Bytes are integers with thousands separators and glyph heights are to 0.1 px. Nothing in it is a time, a path
 // outside the repository, or a data string: pieces, placements, faces, switches, and poses are named by IDs, each only
 // where RT2 passed it.
-import { parse as parseYaml } from "yaml";
 
 import { AVATAR_SHAPES } from "../../src/choice/avatars";
 import { TIER_VALUES } from "../../src/room/compose/vocabulary";
@@ -67,7 +66,7 @@ import { reachLine, twinReachOf } from "./reach";
 import { figuresVisit, sceneTextureTotal, TWIN_DIR, VISITORS_DIR } from "./checks/rk";
 import type { SceneTextureMemory } from "./checks/rk";
 import type { Switch } from "./schema";
-import { LINES_FILE, PACK_FILE, PROMPT_FILE, READINESS_PATH, promptHash, twinReadiness } from "./readiness";
+import type { ReadinessReasons } from "./readiness";
 import { compareBytewise } from "./source";
 import type { Tree } from "./source";
 
@@ -253,7 +252,7 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
   lines.push(...walking(c), "");
 
   // Spec 029's readiness (its FR-014a): the twin's topics and free talk, ready or closed and why.
-  lines.push(...readinessLines(c.reader.tree), "");
+  if (c.options.readinessReasons !== undefined) lines.push(...readinessLines(c.options.readinessReasons), "");
 
   // The findings.
   if (c.findings.length === 0) lines.push("Findings: none.");
@@ -756,88 +755,33 @@ function highlights(c: Composed): string[] {
 
 // ---- Spec 029's readiness (its FR-014a; plan.md §R-B4) ----
 
-/** A readiness entry as config/twin-readiness.yaml may hold it, read loosely: the rule's own schema decides. */
-interface LooseEntry {
-  readonly ready?: unknown;
-  readonly pack_sha256?: unknown;
-  readonly prompt_sha256?: unknown;
-}
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-/** A file's text, or null where it's missing or not UTF-8, as the rule reads it. */
-function textAt(tree: Pick<Tree, "read">, path: string): string | null {
-  const bytes = tree.read(path);
-  if (bytes === null) return null;
-  try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-  } catch {
-    return null;
-  }
-}
-
-function parsed(source: string | null, as: "json" | "yaml"): Record<string, unknown> | null {
-  if (source === null) return null;
-  try {
-    const value: unknown = as === "json" ? JSON.parse(source) : parseYaml(source);
-    return isRecord(value) ? value : null;
-  } catch {
-    return null;
-  }
-}
-
 /** A topic ID as the readiness file may name one; any other is not printed. */
 const TOPIC_ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 /**
- * Spec 029's readiness section (its FR-014a; plan.md §R-B4; B0's §5): "N of M topics ready; free talk ready|closed",
- * then one line per closed topic, and free talk if closed, with why: not marked ready; its pack hash changed; its
- * prompt hash changed (both, where both did). Whether each is ready is the build's own rule, twinReadiness over the
- * same tree, never a second reading of it; the reasons compare the readiness file's entries with the tree's hashes as
- * that rule does, and a missing input is named, since it closes everything. Nothing in it is a hash or a file's words.
+ * Spec 029's readiness section (its FR-014a; plan.md §R-B4; B0's §5; rv-spec-029's S-4): "N of M topics ready; free
+ * talk ready|closed", then one line per closed topic, and free talk if closed, with its reason; or, where a file every
+ * entry needs is missing or unusable, the one line that says so. From the build's own rule's reasons
+ * (readiness.ts's readinessReasons), which the caller reads and hands in (ComposeOptions.readinessReasons), never a
+ * second reading of the files: the compositor's reads stay the room's data. Nothing in it is a hash or a file's words.
  */
-export function readinessLines(tree: Pick<Tree, "read">): string[] {
-  const verdict = twinReadiness(tree);
-  const sources = new Map([PACK_FILE, PROMPT_FILE, LINES_FILE, READINESS_PATH].map((p) => [p, textAt(tree, p)]));
-  const pack = parsed(sources.get(PACK_FILE) ?? null, "json");
-  const file = parsed(sources.get(READINESS_PATH) ?? null, "yaml");
-  const prompt = sources.get(PROMPT_FILE) ?? null;
-  const lines = sources.get(LINES_FILE) ?? null;
-  const running = prompt !== null && lines !== null ? promptHash(prompt, lines) : null;
-
-  // The pack's topics: the rule's own where it read the pack, else the pack's as written.
-  const packTopics = new Map<string, unknown>();
-  for (const t of Array.isArray(pack?.topics) ? (pack.topics as unknown[]) : [])
-    if (isRecord(t) && typeof t.id === "string") packTopics.set(t.id, t.sha256);
-  const ids = verdict.topics.size > 0 ? [...verdict.topics.keys()] : [...packTopics.keys()];
-  const entries = isRecord(file?.topics) ? file.topics : {};
-  const entryOf = (value: unknown): LooseEntry | undefined => (isRecord(value) ? value : undefined);
-
-  const why = (entry: LooseEntry | undefined, packSha: unknown): string => {
-    if (entry?.ready !== true) return "not marked ready";
-    const changed: string[] = [];
-    if (entry.pack_sha256 !== packSha) changed.push("pack hash changed");
-    if (entry.prompt_sha256 !== running) changed.push("prompt hash changed");
-    return changed.length > 0 ? changed.join(", ") : "its files fail the build's checks";
-  };
-
-  const ready = ids.filter((id) => verdict.topics.get(id) === true).length;
-  const out = [
-    "### The twin's readiness (spec 029, FR-014a)",
-    "",
-    `${ready} of ${ids.length} topics ready; free talk ${verdict.freeTalk ? "ready" : "closed"}.`,
-  ];
-  for (const [path, source] of sources)
-    if (source === null) out.push(`Nothing is ready: \`${path}\` is missing.`);
-    else if (path === READINESS_PATH && file === null) out.push(`Nothing is ready: \`${path}\` can't be read.`);
-  const closed: string[] = [];
-  for (const id of ids) {
-    if (verdict.topics.get(id) === true) continue;
-    const name = TOPIC_ID.test(id) ? `\`${id}\`` : "(a topic ID the readiness file can't name)";
-    closed.push(`- ${name}: closed, ${why(entryOf(entries[id]), packTopics.get(id))}.`);
+export function readinessLines(reasons: ReadinessReasons): string[] {
+  const out = ["### The twin's readiness (spec 029, FR-014a)", ""];
+  if (reasons.kind === "closed") {
+    out.push("No topic ready; free talk closed.", "", `Nothing is ready: ${reasons.reason} (\`${reasons.file}\`).`);
+    return out;
   }
-  if (!verdict.freeTalk) closed.push(`- free talk: closed, ${why(entryOf(file?.free_talk), pack?.sha256)}.`);
+  const ready = [...reasons.topics.values()].filter((why) => why === "ready").length;
+  out.push(
+    `${ready} of ${reasons.topics.size} topics ready; free talk ${reasons.freeTalk === "ready" ? "ready" : "closed"}.`,
+  );
+  const closed: string[] = [];
+  for (const [id, why] of reasons.topics) {
+    if (why === "ready") continue;
+    const name = TOPIC_ID.test(id) ? `\`${id}\`` : "(a topic ID the readiness file can't name)";
+    closed.push(`- ${name}: closed, ${why}.`);
+  }
+  if (reasons.freeTalk !== "ready") closed.push(`- free talk: closed, ${reasons.freeTalk}.`);
   if (closed.length > 0) out.push("", ...closed);
   return out;
 }
