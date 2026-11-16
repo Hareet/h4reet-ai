@@ -48,7 +48,13 @@ const sha = (text: string | Uint8Array): string => createHash("sha256").update(t
 /** The two signs' stems (T-C01) and what each outline holds. */
 const SIGNS = [
   { stem: "lettering-busy", words: "I AM VERY BUSY", lines: ["I AM", "VERY BUSY"], id: "D-0004", paths: 11 },
-  { stem: "lettering-cool", words: "My dog thinks I'm cool", lines: ["My dog thinks", "I'm cool"], id: "D-0005", paths: 19 },
+  {
+    stem: "lettering-cool",
+    words: "My dog thinks I'm cool",
+    lines: ["My dog thinks", "I'm cool"],
+    id: "D-0005",
+    paths: 19,
+  },
 ] as const;
 const MONITOR = "apps/web/content/room/monitor-line.yaml";
 
@@ -102,8 +108,7 @@ describe("the signs' outlines (FR-016 to FR-018, FR-021)", () => {
     expect(letters(paw)).toBe(letters(EMBLEM_ICONS.paw ?? ""));
     expect(paw.match(/z/gi)).toHaveLength(5);
     // It starts inside the view box.
-    const xs = (d: string): number[] =>
-      [...d.matchAll(/^M ([-\d.]+)|M([-\d.]+)/g)].map((m) => Number(m[1] ?? m[2]));
+    const xs = (d: string): number[] => [...d.matchAll(/^M ([-\d.]+)|M([-\d.]+)/g)].map((m) => Number(m[1] ?? m[2]));
     const [pawX] = xs(paw);
     expect(pawX).toBeGreaterThan(0);
     expect(pawX).toBeLessThan(outline.view_box[2]);
@@ -169,7 +174,7 @@ describe("the dog sign's hold, the Author's approval (spec Q6; FR-021)", () => {
     expect(faceList(signFace(), { index: release.index, text })).toBeNull();
   });
 
-  it("a drafts build publishes it, marked \"Draft\"", () => {
+  it('a drafts build publishes it, marked "Draft"', () => {
     const drafts = repositoryBundle({ drafts: true, policy: "empty" });
     const block = drafts.roomText.blocks.find((b) => b.id === "lettering-cool");
     expect(block?.state).toBe("draft");

@@ -68,7 +68,10 @@ describe("the sheet's layout (paper.ts; FR-020)", () => {
     const ctx = new Proxy(
       {},
       {
-        get: (_t, name: string) => (...args: unknown[]) => calls.push(`${name}(${args.map(String).join(", ")})`),
+        get:
+          (_t, name: string) =>
+          (...args: unknown[]) =>
+            calls.push(`${name}(${args.map(String).join(", ")})`),
         set: (_t, name: string, value: unknown) => {
           calls.push(`${name}=${String(value)}`);
           return true;
@@ -132,9 +135,11 @@ describe("the sheet in 3D (scene/bundle3d.ts; FR-020)", () => {
     const ctx = new Proxy(
       {},
       {
-        get: (_t, name: string) => (...args: unknown[]) => {
-          if (name === "fillText") fillTexts.push(String(args[0]));
-        },
+        get:
+          (_t, name: string) =>
+          (...args: unknown[]) => {
+            if (name === "fillText") fillTexts.push(String(args[0]));
+          },
         set: (_t, name: string, value: unknown) => {
           if (name === "font") fonts.push(String(value));
           return true;

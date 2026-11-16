@@ -155,6 +155,9 @@ export interface RoomText {
     readonly sha256: string;
     readonly state: "approved" | "draft";
     readonly lines: readonly { readonly text: string }[];
+    /** Spec 029 (FR-019): a terminal block's ink and cursor, only where the block sets them. */
+    readonly ink?: "green";
+    readonly cursor?: "blink";
     readonly outline?: {
       readonly view_box: readonly [number, number, number, number];
       readonly cap_height: number;
@@ -1722,6 +1725,8 @@ function roomTextOf(c: Composed): RoomText {
       sha256: sha,
       state,
       lines: b.value.lines.filter((l) => !l.pending).map((l) => ({ text: l.text })),
+      ...(b.value.ink ? { ink: b.value.ink } : {}),
+      ...(b.value.cursor ? { cursor: b.value.cursor } : {}),
     }));
   for (const o of c.room.outlines)
     add(o.file, (sha, state) => {

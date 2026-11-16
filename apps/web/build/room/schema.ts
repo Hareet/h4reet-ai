@@ -819,8 +819,18 @@ export const roomTextSchema = z
     words_from: z.array(quoteRef).optional(),
     exclude: z.array(z.string()).min(1).optional(),
     lines: z.array(textLine).min(1),
+    // Spec 029 (FR-019; plan.md §R-C3): a terminal block's ink, the terminal's green, and its cursor, held and blinking
+    // once typed; absent, the terminal's own ink and its typing cursor.
+    ink: z.enum(["green"]).optional(),
+    cursor: z.enum(["blink"]).optional(),
   })
   .superRefine((b, ctx) => {
+    if (b.renderer !== "terminal" && (b.ink !== undefined || b.cursor !== undefined))
+      ctx.addIssue({
+        code: "custom",
+        message: "RD3: ink and cursor on a block other than a terminal's",
+        path: ["ink"],
+      });
     if (b.renderer !== "chalk" && (b.words_from === undefined || b.words_from.length === 0))
       ctx.addIssue({
         code: "custom",

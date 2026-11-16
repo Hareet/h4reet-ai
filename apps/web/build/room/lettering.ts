@@ -345,7 +345,12 @@ export function setLettering(source: SetSource, fontBytes: Uint8Array): Letterin
   const paths = drawn.map((d) =>
     "glyph" in d
       ? glyphPath(d.glyph, d.x - ox, d.y - oy, k)
-      : placePath(mark?.path ?? "", markS, d.x - ox - (mark?.box[0] ?? 0) * markS, d.y - oy - (mark?.box[1] ?? 0) * markS),
+      : placePath(
+          mark?.path ?? "",
+          markS,
+          d.x - ox - (mark?.box[0] ?? 0) * markS,
+          d.y - oy - (mark?.box[1] ?? 0) * markS,
+        ),
   );
   const w = Number(num(maxX - minX + 2 * PAD * EM));
   const h = Number(num(maxY - minY + 2 * PAD * EM));
@@ -373,7 +378,10 @@ export function setStems(root: string): string[] {
     .sort()
     .filter((n) => {
       try {
-        return (JSON.parse(readFileSync(join(root, LETTERING_DIR, n), "utf8")) as { converter?: unknown }).converter === "set";
+        return (
+          (JSON.parse(readFileSync(join(root, LETTERING_DIR, n), "utf8")) as { converter?: unknown }).converter ===
+          "set"
+        );
       } catch {
         return false;
       }
