@@ -199,9 +199,11 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "figures.left_both": [],
       "figures.left_twin": [],
       "credits.likeness": [],
+      // Spec 029 (FR-020; T-C05): the word across the hand-off's paper.
+      "paper.word": [],
     });
-    // Merged (patch-026): 83 on the base, spec 026's one, and spec 024's two; spec 028's four.
-    expect(Object.keys(UI_KEYS)).toHaveLength(90);
+    // Merged (patch-026): 83 on the base, spec 026's one, and spec 024's two; spec 028's four; spec 029's one.
+    expect(Object.keys(UI_KEYS)).toHaveLength(91);
   });
 
   // T013 (spec 012; FR-051; D8): the loader's twelve words join the closed list, two with their live counts' slots, and
