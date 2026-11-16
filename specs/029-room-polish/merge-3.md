@@ -193,6 +193,10 @@ ruff format --check --no-cache --extend-exclude corpus .
 shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
 ```
 
+After the stack's note took its three additions (§6a, Q59 in §7, the block at §8's end; commit `wip(merge-029-3): the
+stack's note…`), `make lint > /tmp/merge-029-3-lint2.log 2>&1` ran once more on that tree: `make lint exit 0`, the same
+lines as above (prettier "All matched files use Prettier code style!"). After it, only this paragraph changed.
+
 ## 6. Not run
 
 - **The full `make check`.** int-029 ran the stack's one, on `f718ac2e`'s tree without pulse-029a (the stack's note, §5).
