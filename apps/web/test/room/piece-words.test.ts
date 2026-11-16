@@ -99,9 +99,9 @@ describe("the signs' outlines (FR-016 to FR-018, FR-021)", () => {
     const paw = outline.paths.at(-1) ?? "";
     // Its commands are the paw's own, in order: a pad and four toes, each closed.
     const letters = (d: string): string => d.replace(/[^A-Za-z]/g, "");
-    expect(letters(paw)).toBe(letters(EMBLEM_ICONS.paw));
+    expect(letters(paw)).toBe(letters(EMBLEM_ICONS.paw ?? ""));
     expect(paw.match(/z/gi)).toHaveLength(5);
-    // It stands to the right of every glyph of its line, inside the view box.
+    // It starts inside the view box.
     const xs = (d: string): number[] =>
       [...d.matchAll(/^M ([-\d.]+)|M([-\d.]+)/g)].map((m) => Number(m[1] ?? m[2]));
     const [pawX] = xs(paw);

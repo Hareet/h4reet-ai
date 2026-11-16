@@ -1,7 +1,8 @@
-# The desk sign "I am very busy" (FR-032; answer 4): the Author's own design, a solid purple A-frame whose front leans
-# back 12.16°, as the studio's hand-back of 2026-11-07 gives it (tasks.md T313). Its lettering area, on that slope, is
-# a readable live face, drawn live from its approved outline once the outline arrives (T202); until then it stays
-# plain. The face's centre and size are the hand-back's, given at the model's scale, divided by the stylized scale,
+# The desk sign "I AM VERY BUSY" (FR-032; answer 4; spec 029, FR-016): the Author's own design, a solid purple A-frame
+# whose front leans back 12.16°, as the studio's hand-back of 2026-11-07 gives it (tasks.md T313). Its lettering area,
+# on that slope, is a readable live face, drawn from its outline, content/room/outlines/lettering-busy.outline.json,
+# which spec 029 sets in code from his review's words (his answer: "Drawn in the room's code (Recommended)"), once the
+# scene binds it and he approves the outline; until then it stays plain. The face's centre and size are the hand-back's, given at the model's scale, divided by the stylized scale,
 # since the catalog's figures are at scale 1 and the work order multiplies them back (contracts/room-data-files.md §2);
 # its facing and up are the slope's, (0, sin 12.16°, cos 12.16°) and (0, cos 12.16°, −sin 12.16°) to 7 places, since
 # the hand-back's 4 places miss a unit vector by 2.7e-5 and RG2 holds one within 1e-6; its canvas keeps the face's
@@ -9,7 +10,7 @@
 # measured; the stylized scale is lookdev's to set.
 version: 1
 id: busy-sign
-name: "Desk sign: I am very busy"
+name: "Desk sign: I AM VERY BUSY"
 size: { w: 0.22, h: 0.09, d: 0.05, estimated: true }
 stylized_scale: 1.5
 origin:

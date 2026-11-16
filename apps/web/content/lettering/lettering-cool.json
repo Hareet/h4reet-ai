@@ -1,0 +1,30 @@
+{
+  "converter": "set",
+  "sign": "lettering-cool",
+  "words": "My dog thinks I'm cool",
+  "set_as": [
+    "My dog thinks",
+    "I'm cool"
+  ],
+  "words_from": "the Author's review of 2026-11-15 (\"My dog things I'm cool\" with a paw print), read as \"My dog thinks I'm cool\", intent/029-room-polish.md; spec 029's Q6, provisional until his answer",
+  "intent_ref": "intent-029",
+  "source_id": "D-0005",
+  "typeface": {
+    "family": "IBM Plex Sans Bold",
+    "file": "IBMPlexSans-Bold.woff",
+    "sha256": "5c8bcd6be12df67acd529819b92f36febeff4df059a9603c4ecd578f01cf4062",
+    "license": "SIL OFL 1.1, vendored by apps/web/fonts/fonts.lock"
+  },
+  "mark": {
+    "path": "M12 12c-3 0-5.5 3.5-5.5 5.5s2 2.5 5.5 2.5 5.5-.5 5.5-2.5S15 12 12 12z M3.5 10.5a1.5 2 0 1 0 3 0a1.5 2 0 1 0-3 0z M7.5 5.5a1.5 2 0 1 0 3 0a1.5 2 0 1 0-3 0z M13.5 5.5a1.5 2 0 1 0 3 0a1.5 2 0 1 0-3 0z M17.5 10.5a1.5 2 0 1 0 3 0a1.5 2 0 1 0-3 0z",
+    "from": "apps/web/src/room/hud/icons.ts, EMBLEM_ICONS.paw: a pad and four toes on a 24-unit grid",
+    "box": [
+      3.5,
+      3.5,
+      17,
+      16.5
+    ],
+    "line": 1,
+    "height": 1.2
+  }
+}
