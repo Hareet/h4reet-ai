@@ -338,3 +338,34 @@ The fix would edit a test file: `services/gateway/test/unit/twin-guards-golden.t
 ### Recommendation
 
 **(a)**, his words in Golden Q&A 15, from the draft above, by his hand. Neither `make evals` nor `make redteam` sees the failure (§2.5). Only `make test` does, through the three gateway files, and his live product runs would through the q15 cases.
+
+## 4. If it isn't fixed tonight: the lines the integration's note must carry
+
+The fix is his hand, so tonight's stack will still fail on it. The integration's note should carry these lines word for word under its `make check` output (fill in the bracketed parts from its own run):
+
+```
+- **Known failure, not tonight's: 5 tests in `services/gateway`, all G8's agents' share on Golden `08-hareet-ai#q15`.**
+  `make check` [exit N]: @h4reet/gateway Test Files 3 failed | 99 passed (102); Tests 5 failed | [N] passed | 13 skipped (1770)
+    × twin-guards-golden.test.ts     passes 08-hareet-ai#q15
+    × twin-guards.test.ts            never fires on a generated case's answer with its own question, and a place question's approved answer has no place word
+    × twin-guards-sentences.test.ts  passes twin-08-hareet-ai-q15-engineer as written, and its reworded variants
+    × twin-guards-sentences.test.ts  passes twin-08-hareet-ai-q15-non-engineer as written, and its reworded variants
+    × twin-guards-sentences.test.ts  delivers every Golden answer a model copied with its claim tags as the answer alone
+  Each: expected `kind: pass`, received `kind: withheld, guard: agents_share`, text "AI agents in named roles do most of the typing, and only I merge."
+  Cause: your corpus commit f411d8e1 (022's Golden Q&A 15, `corpus/08-hareet-ai.md:140`, "… An implementer agent writes it with tests, a reviewer agent that didn't write it checks it, a clean-room gate runs every check, and only a person merges. [P]"), not tonight's work. The three files fail at f411d8e1 (5 failed | 383 passed) and pass at its parent e904389a (341 passed). G8 is right to fire (spec 007 FR-014). The fix is your corpus words, not the guard or the tests. See `specs/029-room-polish/probe-guard.md` (branch night/probe-guard2-029/probe-guard2-029) §1 to §3, and the question on the page.
+  `make evals` doesn't see it (the fake adapter never runs the guards), and `make redteam`'s suite doesn't either (71 passed, 0 failed). A live product run would: the q15 cases would fail `contains: clean-room`, "withheld by agents_share".
+  Your gate (`tools/gates/gate <branch>`) will show the same 5 failures until q15 changes. Once you edit line 140 and run `npm run twin:pack -w apps/web`, the three files pass (388 passed on a scratch export).
+```
+
+If he lands the q15 change on the base before the integration runs, the block isn't needed. The integration should then say which commit fixed it.
+
+## 5. Questions written to `/night/io/out/questions.md`
+
+1. Will he change Golden Q&A 15 to carry his `[A]` words, as drafted in §3 (a)? Recommended: yes, the drafted line, then `npm run twin:pack -w apps/web`. Blocks: this probe and the integration's `make check`.
+2. Should a proposal reword the five `[P]` section lines in §2.4 before free talk opens? Recommended: yes, as a backlog item before free talk's `ready: true`. Blocks: nothing tonight.
+
+## 6. Refusals
+
+- `git worktree add --detach /tmp/pg2-{base,parent} <commit>`: "fatal: could not create directory of '/home/h4reet/h4reet-ai/h4reet-ai/.git/worktrees/…': Read-only file system" (§1). This came from the filesystem, not a hook or the bash gate. I didn't retry the command another way. I used another route, a `git archive` export of each commit into its own `mktemp -d` under `/tmp`.
+- `make setup` in each export: `git-hooks` stopped with "fatal: not a git repository" (Makefile:205), after `npm ci --ignore-scripts` had finished (§1). That's expected in an export and has no effect on the tests.
+- No hook or bash-gate refusal happened in this session.
