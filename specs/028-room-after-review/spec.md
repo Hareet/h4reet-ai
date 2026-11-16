@@ -301,6 +301,7 @@ Terms: **the split layout**: spec 018's, placed by this spec beside the walls (F
 - Q292 and Q294 stand as night 2 took them (Q16); if he takes Q16's option B, the dog's approval line is his to change first, and spec 026's patch is rebuilt.
 - The candidate PDF stays unpublished by this spec; publishing it is his P8, in the morning, not after the repository is public (Q19, his answer).
 - His pending human patch 026 is held for a rework (Q20) that is not a task of this spec; the dog-visitor-intro patch applies after 022 and the reworked 026 (FR-033).
+- **Deviation named** (CLAUDE.md, "If a test fails, fix the code, not the test"): task `premise-028` changes three tests whose premise his intake (`a556a933`) made false, "the repository has no dinosaur model" (`test/room/eat-model.test.ts`, `test/room/data-only.test.ts`'s `freeSpot()`, `test/room/dino-cutout-visit.test.ts`), keeping every assertion and case name and no code changed, by the night page's Q49 (2026-11-15), a recommendation taken provisionally under his rule 1, which his answer may overturn (`premise.md`).
 
 ## Expected Cost Impact
 
