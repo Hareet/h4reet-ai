@@ -9,7 +9,7 @@ locals {
   # The switch (plan.md §16): false in W1, whose three plan blocks are made before any of W1's applies, so nothing here
   # may need another root's W1 apply. The Author's P-W2 sets it true for W2, whose blocks follow W1's applies. Each
   # resource behind it is written `count = local.wired ? 1 : 0`.
-  wired = false
+  wired = true
 }
 
 # AWS's two-minute warning before it stops the tunnel end (spec FR-076, "You get an alert"): the rule names the
