@@ -19,7 +19,7 @@ His rule for night 4, from the brief's words: "**Approval, given ahead.** The sp
 Four groups beside each other, each from this branch's tip on its own branch, and one integration task:
 
 - **T-A, the side panels see-through**: a pure function marks each HUD part whose box meets the room's on-screen box (the whole stage in the walking view, the wall box otherwise) with `data-over="room"`; under it the part's glass goes translucent and each run of words sits on its own plate, every text at WCAG AA over white and black beneath; parts in the grey bands are unchanged.
-- **T-B, the conversation**: from B0's note, a failing test first (type, send, see the answer in the log, through the real room and the real sender over a fake `fetch`, in five layouts and two modes), then the fix that makes it pass unchanged, and no silent send.
+- **T-B, the conversation**: B0 found two faults: his regenerated pack closed every topic (content, his: re-mark readiness), and the split panel's frame took the log's grid row (code). A failing test first (type, send, see the answer in the log, the panel's row-less children out of flow, through the real room and the real sender over a fake `fetch`, in six layouts and two modes), then B0's one-selector fix, no silent send (two new fixed messages), and a readiness section in the room report.
 - **T-C, the words on the pieces**: two sign outlines set in code by the repository's converter (the paw in the dog sign's), a green `terminal` line with a blinking cursor on the monitor, and a drawn sheet with "RESUME" across it; data only, approved by his hash.
 - **T-D, the selection screen**: two numbered steps of cards over the same native radio groups, an outcome card, character cards with the flat previews, a focus move to step 2 on a confirming choice.
 - **T-INT**: merges A, B, C, D in that order, resolves the named shared files, runs the one full `make check`, and writes the stack's note.
@@ -28,7 +28,7 @@ Four groups beside each other, each from this branch's tip on its own branch, an
 
 | Probe | Branch | Note | What this plan takes from it |
 |---|---|---|---|
-| B0, `probe-chat-029` | `night/probe-chat-029/probe-chat-029` | `specs/029-room-polish/probe-chat.md` | §R-B1: the cause, or that his stack is needed (and its script) |
+| B0, `probe-chat-029` | `night/probe-chat-029/probe-chat-029` (`0c641530`) | `specs/029-room-polish/probe-chat.md` | §R-B1 to §R-B5: the two faults (readiness, his; the log's row, code), the RED assertion, the stylesheets in the test's document, no ops batch, the DevTools snippet, the browser test's needs |
 | `probe-words-029` | `night/probe-words-029/probe-words-029` (`84f3d45a`) | `specs/029-room-polish/probe-words.md` | §R-C1 to §R-C6: the room-text route, RT13, the converter, the paw's path (`hud/icons.ts:76`), the terminal's cursor, the paper's two materials, spec 024's set-aside face, the scan's rule on IDs |
 | `probe-pick-029` | `night/probe-pick-029/probe-pick-029` (`928916b7`) | `specs/029-room-polish/probe-pick.md` | §R-D1 to §R-D6: native radios kept, the card drafts, the focus move, no narration approved for release, the files D touches and shares |
 
@@ -66,36 +66,38 @@ See spec.md's table. Gate: passes, with one named deviation (Principle II and De
 
 ## 6. Group B design
 
-### R-B1. B0's result (`probe-chat-029`)
+### R-B1. B0's result (`probe-chat-029`, `0c641530`)
 
-B0 runs the panel's send path against a fake gateway on exports of `f411d8e1` and of `main`'s `a36f98ec` (spec FR-009). **Its finding is recorded here by T-B01, verbatim from the note, before T-B02 starts** (see §R-B1's addendum below, if the note had landed when this plan was committed). Two cases:
+Its words: "Two separate faults, and one display that isn't a fault. His stack isn't needed to explain the screenshot."
 
-- **(i) The page broke it**: the note names the commit and the line (a candidate this spec's readings leave open: `app.ts`'s `open()` false where the visitor can type, the split panel's grid squeezing or hiding the log, a walking-view rule hiding the sheet, `room.css:972`'s `html[data-hud="dock"][data-walk="on"] .talk-sheet`). T-B01 writes the failing test that shows it; T-B02 fixes that line.
-- **(ii) His stack is needed** (the page sends and shows answers on both trees): T-B01 still writes FR-010's test, which then passes on the page and pins it; T-B02 ships FR-011 and FR-012 (the log shown, no silent send), which make a failing stack visible as a message; the note's batched script goes to his morning (§10), and the cause's fix waits for its output.
+- **Fault 1, content, his:** `f411d8e1` regenerated `config/twin/corpus.json`; the three topics' pack hashes no longer match `config/twin-readiness.yaml`, so the build closes every topic, and free talk is closed on both commits. Spec 007's FR-030 working as designed. The file is his alone (its header: "only his hand changes it"; `.claude/settings.json:52` denies its edit). His step: re-run his evaluations and the red-team on the regenerated pack and mark the three new hashes (B0's Q-B0-1; §10). Group B adds FR-012's message and FR-015's report line, so that state is visible, not silent.
+- **Fault 2, code:** `hud/split.css:273`, `.talk[data-panel="open"] > * { position: relative }` (0,4,1, spec 018's `bbe6c98f`), outranks `.split-frame { position: absolute }` (`:357`) and `.visually-hidden`, so the frame's SVG (`split.ts:264`, `d4e0b83d`) and `h2#talk-heading` are in-flow grid items without a row; auto-placement puts them after the form; spec 028's `055ec7fc` (one column, always open) gives the frame's auto row the height the log's `minmax(0, 1fr)` row needed: the log is 0 px, and the empty frame below the form is "the box below the input text field".
+- **"SERVING Unknown":** `scene.yaml:25`'s `live.source: off` → `not-live` → "Unknown". Not a fault; no change.
+- **No ops batch.** B0's read-only DevTools snippet (its §4, boxes and computed styles only) confirms fault 2 in his browser; the stack's note carries it for his morning.
 
 ### R-B2. The test (`test/ui/talk-answer-shows.test.ts`, new; T-B01)
 
-- Through the real room: `intoRoom` with `deps.sendTurn = createTurnSender({ fetch: fake, clock })`, `fake` answering as `/api/room/turn` does (`200 {"text": "…"}`; a rejected promise; never, for the 35-second timeout on the room's fake clock; `503 {"state":"degraded","cause":…}` for each cause; `429`; `400`; `409`), so `renderTalk`, `app.ts`, `split.ts`, `layout.ts`, and `turn-client.ts` run as they ship. No module of the panel is mocked.
-- The visitor's act: focus `#talk-text`, type "What is this" (input events), press Enter on it (a `submit` from the form's implicit submission, as `test/ui/talk.test.ts` does), and again by clicking "Send".
-- What it sees: within 100 ms (fake clock) "You: What is this" in `#talk-log` and the field empty; at the answer, an `.talk-entry[data-speaker="twin"]` whose words are the answer's text; for each failure, the `.talk-message[data-message=…]` of spec 007's classes and the words back in the field; while `open()` is false, `turn_wait.room`'s.
-- The log is shown (FR-011): for `#talk-log` and each ancestor up to `html`, no `hidden`, no `.visually-hidden` in effect, and no rule of `room.css`, `hud/split.css`, or `talk/talk.css` that matches it (the sheets parsed with `test/helpers/room.ts`'s `parseCss`, matched with `Element.matches`, as `test/ui/around.test.ts` does) sets `display: none`, `visibility: hidden`, the visually-hidden declarations, or `height`/`max-height: 0`.
-- Where: `describe.each` over the split layout (1920 × 1080), the split layout in the walking view, the column layout (1280 × 720), the dock (390 × 844), and the stacked layout (a 300 × 400 window), each in 3D and 2D.
-- It is committed seen failing on the tree before T-B02 (case (i)), or seen failing for FR-012's case alone (case (ii): `turn_wait.room` doesn't exist yet), and is then not edited (Development Workflow 4).
+- Through the real room: `test/helpers/room.ts`'s room with free talk ready (the fixture's readiness, as `test/ui/talk-turns.test.ts`'s `room({ freeTalk: true })`), `deps.sendTurn = createTurnSender({ fetch: fake, clock })`, `fake` answering as `/api/room/turn` does (`200 {"text": "…"}`; a rejected promise; never, for the 35-second timeout on the room's fake clock; `503 {"state":"degraded","cause":…}` for each cause; `429`; `400`; `409`), so `renderTalk`, `app.ts`, `split.ts`, `layout.ts`, and `turn-client.ts` run as they ship. No module of the panel is mocked.
+- The stylesheets in the document (B0's harness: vitest loads CSS imports as empty, so the test inserts `room.css`, `hud/split.css`, `talk/talk.css`, and `style.css` as `<style>` elements), so `getComputedStyle` gives the cascade's `position`, `display`, and `grid-row`.
+- The visitor's act: focus `#talk-text` (by its label "Your message"), type "What is this", press Enter (the form's implicit submission), and again by "Send".
+- What it sees: within 100 ms "You: What is this" in `[role="log"]` and the field empty; at the answer, the answer's text under "AI twin"; for each failure, its fixed message and the words back in the field; with free talk closed (every topic closed, as the repository's readiness at `f411d8e1`), `cannot_talk.free_talk_closed`'s words; while `open()` is false, `turn_wait.room`'s.
+- The log shown (FR-011): in the open split panel, every child whose computed `grid-row` is `auto` has `position` `absolute` or `fixed` (**the RED assertion on `f411d8e1`**: `svg.split-frame` and `h2#talk-heading` are `relative`); the log's `grid-row` before `.talk-form`'s; no `hidden` or `inert` ancestor, and no `display: none`, `visibility: hidden`, visually-hidden declarations, or zero `height`/`max-height` in effect on the log or an ancestor.
+- Where: `describe.each` over the split layout (1920 × 1080, 1366 × 768), the split layout in the walking view, the column layout (1280 × 720), the dock (390 × 844), and the stacked layout (300 × 400), each in 3D and 2D.
+- Committed seen failing on the tree (the RED assertion, and the two new messages), then not edited (Development Workflow 4).
 
-### R-B3. The fix and no silent send (T-B02)
+### R-B3. The fix (T-B02)
 
-- The cause's line, as B0 names it (case (i)).
-- FR-012: `talk.ts`'s submit handler, where `!options.enabled()` returns silently today, shows `turn_wait.room` (a new message id in `content/messages.yaml` and `talk/messages.ts`'s `MessageId`), leaving the words in the field. `messages.yaml` is content, not corpus; its build checks (the messages' schema, spec 007's) take the new id.
-- FR-011: whatever B0 finds hides the log, removed; the `.talk-log` stays the log in every layout.
-- Files: `src/talk/talk.ts`, `src/talk/messages.ts`, `src/talk/talk.css`, `content/messages.yaml`, and where B0's cause is, `src/room/app.ts` or `src/room/hud/split.ts` or the panel's block of `hud/split.css` (lines 225 to 380 at `f411d8e1`) or `room.css`'s walking rules (lines 960 to 990); §9.
+- `hud/split.css:273`: `html[data-split="on"][data-hud="column"] .talk[data-panel="open"] > :not(.split-frame, .visually-hidden)` (B0's line; `:not()` keeps the 0,4,1 specificity). The frame then takes its own absolute box from `split.css:357-367` behind the body; the title row keeps its own glass (`:284`). No other rule of the panel's block changes.
+- FR-012: `talk.ts`'s submit handler: where `!options.enabled()` returns silently, show `turn_wait.room`; where the feature is null because free talk is closed and no conversation is open, show `cannot_talk.free_talk_closed` (in place of `cannot_talk.unavailable`; the no-route and no-sender cases keep `cannot_talk.unavailable`); the words stay in the field. Two new message ids in `content/messages.yaml` and `talk/messages.ts`'s `MessageId`; the messages' build checks take them.
+- Files: `src/room/hud/split.css` (one selector), `src/talk/talk.ts`, `src/talk/messages.ts`, `content/messages.yaml`.
 
-### R-B4. A real-browser test, for a later spec (Q5)
+### R-B4. The room report's readiness line (T-B03; FR-015)
 
-Not added tonight. What it needs on the page: a pinned Playwright (a dev dependency) and its Chromium baked into the devcontainer image (CI builds the image; his approval of the image change); `vite preview` of the built site with a fake `/api/room/turn` (a small Node handler in the test, never the gateway); one target, `make test-browser`, and a line in `tools/gates/gate` (human-only: his patch). It would type, send, and assert the answer's text is visible by layout (bounding box non-zero, inside the viewport, not covered: `elementFromPoint` at its centre returns the line), which jsdom can't.
+`build/room/report.ts`, with `build/room/readiness.ts`'s rule read, not changed: a "Readiness" section, "N of M topics ready; free talk ready|closed", then one line per closed topic, and free talk if closed, with its reason (`not marked ready`, `pack hash changed`, `prompt hash changed`), from `twinReadiness`'s inputs. Test: `test/room/report-readiness.test.ts` (new) on fixture trees (all ready; one pack hash changed; free talk not marked), and on the repository's tree, where at `f411d8e1` it names the three topics' `pack hash changed`. `test/room/report.test.ts` unchanged (a section of its own, after the existing ones).
 
-### R-B5. His morning script (case (ii) only)
+### R-B5. A real-browser test, for a later spec (Q5; B0's Q-B0-4)
 
-The note's script, in `.claude/agents/ops.md`'s form: one bash file he runs from his checkout, read-only, printing only names, states, status codes, and timings: `make ps ENV=prod`-style service states; the relay's and the gateway's health routes' status codes; the tier signal's state as the page reads it; one `POST /api/room/turn` with a fixed test body (`{"feature":"free_talk","path":"engineer","turns":[{"role":"visitor","text":"What is this"}]}`) and its status code, its `content-type`, its body's keys (never its values), and its time; `config/routing.yaml`'s active route names for the laptop host. Nothing secret: no environment value, key, token, header value, or answer text. T-B02 copies it to `docs/merge-requests/2026-11-16-029-chat-diagnosis.sh` and names it in the stack's note.
+Not added tonight. What it needs: Playwright with a Chromium pinned in the devcontainer image (`.devcontainer/`, his change, and its download his network rule); a test-build input that marks readiness, refused in a release build like the drafts flag (readiness is computed at build from the tree, `virtual:room-content`); the turn route faked by `page.route("/api/room/turn", …)`; one new target in the Makefile for it, and a line in `tools/gates/gate` (human-only: his patch). The page needs nothing new: `role="log"`, `#talk-text` with its label "Your message", and the "Enter" button are its hooks. It would assert that the answer's text node has a client rect inside the log's and the viewport's, with non-zero height, at 1920 × 1080 and at the smallest split window.
 
 ## 7. Group C design
 
@@ -168,28 +170,28 @@ Each group edits only the files its tasks list. Where two touch one file:
 
 | File | First | Second | How |
 |---|---|---|---|
-| `src/room/hud/split.css` | **B** (only if B0's cause is in the panel's block, lines 225 to 380 at `f411d8e1`) | **A** (a new block appended at the end) | disjoint regions; T-INT merges A after B |
-| `src/room/room.css` | **B** (only if B0's cause is a walking rule, lines 960 to 990) | **A** (`:root`'s two alphas, the over-room block appended before the media blocks) | disjoint regions; T-INT merges |
+| `src/room/hud/split.css` | **B** (one selector, line 273, T-B02) | **A** (a new block appended at the end, T-A02) | disjoint regions; T-INT merges B, then A; A's contrast test reads the frame as B leaves it |
 | `apps/web/room/ui-words.yaml`, `src/room/ui-keys.ts` | **C** (`paper.word`) | none | — |
-| `content/messages.yaml`, `src/talk/messages.ts` | **B** (`turn_wait.room`) | none | — |
-| `src/room/layout.ts` | **A** | none (B only if B0's cause is there: then B first, A merges B's commit named in its notes) | — |
-| `src/room/app.ts` | **B** (only if B0's cause is there) | none | — |
+| `content/messages.yaml`, `src/talk/messages.ts` | **B** (`turn_wait.room`, `cannot_talk.free_talk_closed`) | none | — |
 
-Group A owns: `compose/over.ts`, `layout.ts`, the appended blocks of `room.css` and `hud/split.css`, its two tests. Group B owns: `talk/*`, `content/messages.yaml`, the cause's line, its test, the diagnosis script. Group C owns: `build/room/lettering.ts`, `build/room/schema.ts` (the two keys), `content/lettering/*`, `content/room/outlines/*` (new files), `content/room/monitor-line.yaml`, `room/scene.yaml`, `room/catalog/busy-sign.yaml`, `dog-sign.yaml` (comments, names), `room/looks/inked-cel.yaml`, `faces/terminal.ts`, `scene/faces3d.ts`, `src/room/paper.ts`, `scene/bundle3d.ts`, `flat.ts`, `ui-words.yaml`, `ui-keys.ts`, its tests. Group D owns: `src/choice/choice.ts`, `choice.css`, `cards.ts`, `room/hints.yaml`, `test/ui/choice-cards.test.ts`, `test/ui/choice.test.ts`.
+No other file is edited by two groups: `room.css` is A's alone, `layout.ts` A's, `app.ts` no group's (B's messages are in `talk.ts`; C's blink in `faces3d.ts`; D's screen in `choice.ts`), `build/room/report.ts` B's.
+
+Group A owns: `compose/over.ts`, `layout.ts`, `room.css` (`:root`'s two alphas, the over-room block), the appended block of `hud/split.css`, its two tests. Group B owns: `talk/talk.ts`, `talk/messages.ts`, `content/messages.yaml`, `hud/split.css:273`, `build/room/report.ts` (the readiness section), its two tests. Group C owns: `build/room/lettering.ts`, `build/room/schema.ts` (the two keys), `content/lettering/*`, `content/room/outlines/*` (new files), `content/room/monitor-line.yaml`, `room/scene.yaml`, `room/catalog/busy-sign.yaml`, `dog-sign.yaml` (comments, names), `room/looks/inked-cel.yaml`, `faces/terminal.ts`, `scene/faces3d.ts`, `src/room/paper.ts`, `scene/bundle3d.ts`, `flat.ts`, `ui-words.yaml`, `ui-keys.ts`, its tests. Group D owns: `src/choice/choice.ts`, `choice.css`, `cards.ts`, `room/hints.yaml`, `test/ui/choice-cards.test.ts`, `test/ui/choice.test.ts`.
 
 ## 10. What waits for his hand
 
 - **The room-text approvals** (R-C5): three SHA-256 entries in `assets/policy/content-approvals.json`, a patch for him; the dog sign's after his answer to Q6, recorded verbatim in the intent.
 - **The intent's move**: on accepting it, `git mv intent/029-room-polish.md specs/029-room-polish/intent.md` and the two outlines' `intent_ref` in the same commit (R-1 below).
-- **His morning script** (case (ii) of §R-B1): `docs/merge-requests/2026-11-16-029-chat-diagnosis.sh`, run in his terminal; its output to the page.
+- **The twin's readiness** (B0's fault 1, Q-B0-1): re-run his evaluations and the red-team on `f411d8e1`'s regenerated pack and mark the three new pack hashes in `config/twin-readiness.yaml` (his file alone); until then the room sends no turn and, after T-B02, says so. FR-015's report line shows the state in his terminal.
+- **B0's DevTools snippet** (its §4): read-only, in his browser, after one send in a wide window; it confirms the log's 0 px row before the fix and its height after.
 - **His look** (SC-008): the panels over the room while walking, the alphas, the signs, the paw, the paper, the monitor's green, the cards.
-- **The real-browser test** (R-B4): a later spec, with his approval of the devcontainer image.
+- **The real-browser test** (R-B5): a later spec, with his approval of the devcontainer image.
 
 ## 11. Risks
 
 - **R-1** The intent's move breaks RT13 (R-C1): the stack's note gives him the one commit.
 - **R-2** RG7 fails for a sign's small type at a reference stage (FR-022): stop and ask; never lower the floor (recommended then: the sign's words on two lines larger, else fewer words is his call).
-- **R-3** B0's cause is in a file group A also edits (`layout.ts`, `room.css`, `split.css`): §9's order; T-INT resolves the rest.
+- **R-3** `hud/split.css` is edited by B (line 273) and A (its appended block): §9's order; and the frame, out of flow after B's fix, changes what lies behind the log, so A's contrast test runs on the merged tree in T-INT too.
 - **R-4** The plates make a busy panel look striped: the alphas are data for his look (FR-008).
 - **R-5** `apps/web/test/room/twin-2d.test.ts` flakes under load: rerun it alone before reporting a failure.
 - **R-6** A test elsewhere pins the choice screen's old words (beyond `choice.test.ts:44-47`): T-D01's first run of the whole `test/ui` and `test/room` finds it; each is named in its notes and rewritten test-first, or asked on the page.
