@@ -62,7 +62,7 @@ const AVATARS = [
   {
     value: "dinosaur",
     name: "Dinosaur",
-    line: "A generic dinosaur. In the 3D room it can eat chunks of the desk, the laptop, the busy sign, and the chalkboard, and they grow back.",
+    line: "A generic dinosaur. In the 3D room it can eat chunks of the desk and a few other things in the room, and they grow back.",
   },
   { value: "dog", name: "Dog", line: "A dog. It walks the room and talks with the twin like any visitor." },
 ] as const;
@@ -562,22 +562,40 @@ describe("the layouts (FR-035)", () => {
 });
 
 describe("the dinosaur's line, held to the composed room (FR-031)", () => {
-  it("names eating only while the room's bundle carries its model, and names the pieces it can eat", () => {
+  it("names eating only while the room's bundle carries its model and the desk is edible, with others besides", () => {
     const bundle = repositoryBundle();
     expect(Object.hasOwn(bundle.scene.avatars, "dinosaur")).toBe(true);
     const ui = bundle.index.ui as Readonly<Record<string, string>>;
     const edible = bundle.scene.placements
       .filter((p) => p.edible)
-      .map((p) => (p.label ? (ui[p.label] ?? p.label) : p.id))
-      .sort();
-    expect(edible).toEqual(["Chalkboard", "Desk", "Desk sign, busy", "Laptop"]);
+      .map((p) => (p.label ? (ui[p.label] ?? p.label) : p.id));
+    // "the desk and a few other things in the room": the desk, and at least two more.
+    expect(edible).toContain("Desk");
+    expect(edible.length).toBeGreaterThanOrEqual(3);
     const v = start();
     const line = described(radio(v.doc, "avatar", "dinosaur"));
-    expect(line).toContain("the desk, the laptop, the busy sign, and the chalkboard");
-    expect(line).toContain("In the 3D room");
-    // The scene with the bicycle stays a surprise; the dog's line names no breed and no likeness.
-    expect(line).not.toMatch(/bicycle|run off/);
+    expect(line).toContain("In the 3D room it can eat chunks of the desk and a few other things in the room");
+    // The scene with the twin and the dog leaving stays a surprise; the dog's line names no breed and no likeness.
+    expect(line).not.toMatch(/run off|leave/);
     const dog = described(radio(v.doc, "avatar", "dog"));
     expect(dog).not.toMatch(/Retriever|Toller|likeness|breed/i);
+  });
+
+  it("names no piece or placement by its ID on any card (spec 004's FR-007: a piece's move stays a data edit)", () => {
+    const scene = repositoryBundle().scene;
+    const ids = new Set([...scene.placements.map((p) => p.id), ...Object.keys(scene.pieces)]);
+    expect(ids.size).toBeGreaterThan(0);
+    const v = start();
+    const words = [
+      ...radios(v.doc, "path").map((r) => described(r)),
+      ...radios(v.doc, "avatar").map((r) => described(r)),
+      textOf(v.doc.querySelector(".choice")),
+    ];
+    for (const text of words) {
+      for (const id of ids) {
+        const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        expect(new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`).test(text), `${id} in "${text}"`).toBe(false);
+      }
+    }
   });
 });
