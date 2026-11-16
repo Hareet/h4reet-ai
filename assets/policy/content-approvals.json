@@ -12,6 +12,9 @@
      "date": "2026-11-10", "reason": "official website is up"},
     {"id": "C-0004", "path_when_approved": "apps/web/content/room/outlines/twin-shirt-lettering.outline.json",
      "kind": "room-text", "sha256": "961d566167bf452adf9e387bb3a2a3d5508063ee4e98bd1c1cce4badb391567d",
-     "date": "2026-11-11", "reason": "company website is up, might as well wear it!"}
+     "date": "2026-11-11", "reason": "company website is up, might as well wear it!"},
+    {"id": "C-0005", "path_when_approved": "apps/web/content/resume-author.pdf", "kind": "resume",
+     "sha256": "5de0e7eeaed34587d4d79e29f0cbfb7c577a224ce31616f1d75fcbe4e0ff21fb",
+     "date": "2026-11-15", "reason": "I figured that would have existed as we know what the link on the repo will be"}
   ]
 }
