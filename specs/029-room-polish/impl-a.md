@@ -289,7 +289,45 @@ $ npx --no-install vitest run --maxWorkers=2 test/ui/hud-over-layers.test.ts tes
    Duration  82.05s (tests 92%, transform 5%, import 4%)
 ```
 
-COVERING-RUN-PLACEHOLDER
+The files covering the two changed sheets: every test file that reads `room.css`, `split.css`, or the helpers' `stylesheets()` (37, found by `grep -lE 'split\.css|room\.css|stylesheets\(\)' apps/web/test/*/*.test.ts`), plus plan §R-A4's list and the walking view's files not among them (`hud-over-walking`, `hud-split-fallback`, `hud-split-model`, `stages-checks`, `stages-floor`, `resize`, `walking`):
+
+```
+$ npx --no-install vitest run --maxWorkers=2 test/room/events.test.ts test/room/flat.test.ts test/room/hud-contrast.test.ts test/room/hud-wall-geometry.test.ts \
+    test/room/loading-contrast.test.ts test/room/objects.test.ts test/room/stages.test.ts test/ui/a11y.test.ts \
+    test/ui/around.test.ts test/ui/avatars.test.ts test/ui/degraded.test.ts test/ui/eat-button.test.ts \
+    test/ui/eat-place.test.ts test/ui/flat-frame.test.ts test/ui/hud-a11y.test.ts test/ui/hud-look.test.ts \
+    test/ui/hud-notes.test.ts test/ui/hud-over-contrast.test.ts test/ui/hud-over-layers.test.ts test/ui/hud-over-room.test.ts \
+    test/ui/hud-pointer.test.ts test/ui/hud-split-a11y.test.ts test/ui/hud-split-contrast.test.ts test/ui/hud-split-dog.test.ts \
+    test/ui/hud-split-list.test.ts test/ui/hud-split-rest-row.test.ts test/ui/hud-split.test.ts test/ui/hud-wall-dom.test.ts \
+    test/ui/hud.test.ts test/ui/loading-a11y.test.ts test/ui/loading-notes.test.ts test/ui/loading-page.test.ts \
+    test/ui/loading-style.test.ts test/ui/narration-room.test.ts test/ui/pick.test.ts test/ui/resume-room.test.ts \
+    test/ui/text-copy.test.ts test/ui/hud-over-walking.test.ts test/ui/hud-split-fallback.test.ts test/ui/hud-split-model.test.ts \
+    test/room/stages-checks.test.ts test/room/stages-floor.test.ts test/ui/resize.test.ts test/ui/walking.test.ts
+ RUN  v5.0.3 …/rework2-029a/apps/web
+ Test Files  44 passed (44)
+      Tests  610 passed (610)
+   Duration  466.81s (tests 66%, import 33%)
+exit 0
+```
+
+`twin-2d.test.ts` (the flaky one) isn't among them. No source file but the two sheets changed, so no other file covers this rework.
+
+```
+$ make lint      # from the worktree's root
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+879 files already formatted
+… shellcheck -- … (no output)
+exit 0
+```
+
+`make test`, `make evals`, and `make check` are T-INT's, once, on the merged tree (the night's rule 4). The image stage fails in the workers' containers (night 3's Q46 and Q48); that is left to his gate.
 
 ### Departures and the page
 
