@@ -3452,6 +3452,46 @@ def test_the_image_step_asks_the_agents_engine_for_its_version_before_it_builds(
     assert status_of(done, "image") == "PASS"
 
 
+# The tunnel's image installs from Ubuntu's archive, which the agents' engine's proxy doesn't admit, so the compose
+# build there names every built service but it, and the Author's engine builds it (W2's release, 2026-11-16).
+COMPOSE_WITH_TUNNEL = (
+    "services:\n"
+    "  web:\n"
+    "    image: h4reet-web:working-tree\n"
+    "  breach-probe:\n"
+    "    build: deploy/breach\n"
+    "  tunnel:\n"
+    "    build: deploy/tunnel\n"
+)
+
+
+def test_the_image_step_leaves_the_tunnel_to_the_authors_engine_and_builds_the_rest(
+    fx: Fixture,
+) -> None:
+    fx.branch({"deploy/compose.yaml": COMPOSE_WITH_TUNNEL})
+    done = gate(fx, "feature")
+    (compose,) = by_kind(on_engine(fx.docker()), "compose")
+    assert compose["argv"][-2:] == ["build", "breach-probe"]
+    assert "tunnel" not in compose["argv"]
+    assert (
+        "image: tunnel isn't built on the agents' engine: deploy/tunnel/Dockerfile"
+        in done.stdout
+    )
+    assert status_of(done, "image") == "PASS"
+    assert "tunnel left to the Author's engine" in row(done, "image")
+
+
+def test_the_image_step_builds_no_compose_image_when_the_tunnel_is_the_only_one(
+    fx: Fixture,
+) -> None:
+    fx.branch(
+        {"deploy/compose.yaml": "services:\n  tunnel:\n    build: deploy/tunnel\n"}
+    )
+    done = gate(fx, "feature")
+    assert [c["argv"][:1] for c in on_engine(fx.docker())] == [["version"], ["buildx"]]
+    assert status_of(done, "image") == "PASS"
+
+
 def test_an_engine_that_refuses_fails_the_image_step_with_dockers_reason_and_builds_nothing(
     fx: Fixture,
 ) -> None:
