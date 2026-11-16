@@ -65,4 +65,8 @@ None of the three ready topics' hashes moves. `08` is in no topic (`docs/corpus-
 
 ## The patch
 
-`docs/merge-requests/2026-11-16-q15-agents-share.patch`, built from plain copies of `f411d8e1` and checked there; how, and its IDs, in `docs/merge-requests/human-patches/029-q15.md`.
+`docs/merge-requests/2026-11-16-q15-agents-share.patch`, built from plain copies of `f411d8e1` and checked there; how, in `docs/merge-requests/human-patches/029-q15.md`.
+
+## The patch's IDs
+
+`docs/merge-requests/2026-11-16-q15-agents-share.patch`: 8,085 bytes, git blob `78c0b34f51eba3558e1a3fc61e024f7f1296d8e6`, SHA-256 `0a5d790eed2163ce31201cd6ba00c34271612347497ac066ec5e969e42e3a64e`.
