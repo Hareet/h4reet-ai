@@ -241,3 +241,206 @@ Notes for `bind-029c`:
 ## Questions written to `/night/io/out/questions.md`
 
 - **Q26 on the page:** RG7 refuses the three new faces. How should they ship? Recommended: atmosphere faces, as the neon sign's second line and the shirt are. The page has since narrowed it, after `measure-029c`, to the monitor readable on two rows and the two signs as atmosphere. It blocks only the bindings (`bind-029c`).
+
+## `bind-029c`: the three bindings, on Q26's recommended answer (provisional)
+
+Night 4 (2026-11-16), implementer, on impl-029c's tip `f2686864`. I merged `night/measure-029c/measure-029c` first (`54a7e9d5`, its one note `measure-c.md`). Then I read the page's Q26, rv-probes-029's W-1 to W-6 (the twelfth wake), the eighteenth wake, this note, and `measure-c.md`. I took Q26's recommended answer provisionally (the Author's rule 1). Paths are under `apps/web/` unless they start otherwise.
+
+### What it holds
+
+- **The bindings** (`room/scene.yaml`). Each face carries its placement's `label`, as RD3 requires.
+  - `desk-screen`'s `screen` is a **readable** face: `{ rect: [0, 0, 1, 1], renderer: terminal, grid: { cols: 12, rows: 2 }, text: monitor-line }`.
+  - `busy-sign`'s and `dog-sign`'s `lettering` are **atmosphere** faces: `atmosphere: true`, `max_chars` 14 and 22 (each outline's `words`, as RG7's `characters` counts them), `renderer: sign`, their outlines.
+  - Their catalogs' `lettering` faces are `readable: false` (`room/catalog/busy-sign.yaml`, `dog-sign.yaml`), with the header comments saying so. `desk-screen.yaml` is unchanged (`readable: true`).
+- **The monitor's rows** (`content/room/monitor-line.yaml`): "Applied" and "AI Engineer", each `about_author: true` with D-C2's claim. The cursor follows "AI Engineer". This is **not** Q26's "Applied AI" / "Engineer"; the next section says why.
+- **The dog sign on three lines** (`content/lettering/lettering-cool.json`): `set_as` is "My dog / thinks / I'm cool" and `mark.line` is 2, so the paw comes after the third line, as `measure-c.md` recommended. I regenerated it with `npm run room:lettering -w apps/web`. The shirt's and the busy sign's outlines came out byte for byte the same.
+- **The documents, in the same commit as the code** (`4d059f6f`):
+  - spec 029's Assumptions name the departure from its FR-022 and spec 004's FR-052, citing Q26;
+  - plan §R-C2's "As bound" and the new §R-C8 (D-C8 the bindings, D-C9 the rows);
+  - tasks.md T-C03 and T-C04 marked done.
+- **Not changed:**
+  - the 9 px floor, `build/room/checks/rg.ts`, and the neon sign's scene entry (`piece-words.test.ts` pins its SHA-256);
+  - the shirt's lettering;
+  - the cursor's hold under reduced motion (T-C04's code, untouched);
+  - `assets/policy/content-approvals.json`, and every human-only path.
+
+### Why the monitor reads "Applied" / "AI Engineer", not "Applied AI" / "Engineer"
+
+I bound measure-c's 10 × 2 break first. `room:check` passed (39.1 / 12.5 px), and so did `piece-words.test.ts`. But the wider run failed two of spec 004's release-build cases:
+
+```text
+$ npx --no-install vitest run --maxWorkers=2 test/room/dist.test.ts test/room/text.test.ts -t "draft room text|nowhere in dist"
+ FAIL  test/room/dist.test.ts > the site's release build (FR-066; R-43) > holds no lookdev page, no drafts-only module, no fixture, and no draft room text
++   "assets/index-DCrAebVH.js holds a draft's line",
+ FAIL  test/room/text.test.ts > the site's builds of the committed room text (FR-029, FR-030; SC-008) > leaves a draft's face plain in the release build, its words nowhere in dist/
++   "assets/index-DCrAebVH.js holds \"Engineer\"",
+ Test Files  2 failed (2)
+      Tests  2 failed | 32 skipped (34)
+```
+
+"Engineer" alone is a draft line, and the site's code ships the selection screen's role "Engineer". The tests are right, since a reader of `dist/` can't tell the two apart, so I changed the break and not them. "Applied" and "AI Engineer" are in no built file. "AI Engineer" and the cursor take 12 cells, so the grid is 12 × 2. I measured it with a scratch edit first, then committed the test change test-first (RED 2):
+
+```text
+$ npm run room:report -w apps/web     # 12 x 2, "Applied" / "AI Engineer" (scratch)
+| `desk-screen.screen` | yes | 32.6 px | 10.4 px | 9 | 1.4 px | readable |
+Findings: none.
+$ npx --no-install vitest run --maxWorkers=2 test/room/dist.test.ts test/room/text.test.ts -t "draft room text|nowhere in dist"
+ Test Files  2 passed (2)
+      Tests  2 passed | 32 skipped (34)
+```
+
+This is on the page as a question, with its recommended answer.
+
+### Commits
+
+| Commit | Step |
+|---|---|
+| `54a7e9d5` | merge `measure-029c` |
+| `f3489b92` | RED: `piece-words.test.ts`'s binding cases, the dog sign's three lines (seen failing: 15 failed, 14 passed) |
+| `13fe5944` | RED 2: the monitor's rows "Applied" / "AI Engineer" on 12 × 2 (seen failing against the 10 × 2 data: 4 failed, 25 passed) |
+| `4d059f6f` | GREEN: the bindings, the catalogs' flags, the monitor's block, the dog sign's source and outline, spec/plan/tasks. No test file. |
+| (this commit) | these notes |
+
+Each step has a `wip(bind-029c): …` save point before it.
+
+### The tests (`test/room/piece-words.test.ts`, feature-task cases, not a fix)
+
+**Changed cases:**
+- the dog sign's `set_as` is three lines, and the paw follows the third (`mark.line` 2);
+- the monitor's block has two rows, each with the corpus's claim, and the rows read "Applied AI Engineer" joined;
+- the drafts build publishes those two rows.
+
+**New cases**, in "the three bindings":
+- each face is bound once, as its piece's role, under its placement's label (by its label words, "Monitor", "Desk sign, busy", "Desk sign, dog");
+- the monitor is readable on 12 × 2;
+- each sign is atmosphere, with catalog `readable: false` and `max_chars` its outline's characters;
+- **RG7 in a strict build:**
+  - no RG7 finding, and no finding for `scene.yaml`;
+  - the floor read from policy is 9;
+  - every one of the three faces is measured on both stages, never null, so none slips through measure-c §6's second gap;
+  - none of them is phone-exempt;
+  - the monitor is at or over 9 on both stages;
+- "Around the room":
+  - its copy has an entry for each face and `around.illustration`;
+  - its words in a drafts build are `["Applied", "AI Engineer", "[Draft]"]`, `["I AM VERY BUSY", "[Draft]"]`, and `["My dog thinks I'm cool", "[Draft]"]`;
+- **2D (SC-004, W-6):** each face has a frame in `index.flat.faces`, and its final frame's drawn words are its text-copy words;
+- a release build without his approvals leaves all three plain, keeping the illustration line;
+- the busy sign's bound face is the live face the chunker sets aside (FR-023). `eat-chunker.test.ts` passes in the run below.
+
+Spec 004's FR-007 scan covers test files: my first draft named the piece IDs and the scan case failed on it. So the faces are found by their words' files (`monitor-line`, `lettering-busy`, `lettering-cool`), as `eat-chunker.test.ts` finds its pieces by label words.
+
+The first RED run:
+
+```text
+$ npx --no-install vitest run --maxWorkers=2 test/room/piece-words.test.ts
+ Test Files  1 failed (1)
+      Tests  15 failed | 14 passed (29)
+```
+
+The second RED run, against the 10 × 2 data (put back from copies, then restored):
+
+```text
+$ npx --no-install vitest run --maxWorkers=2 test/room/piece-words.test.ts
+     × is a terminal block of two rows, green, with a blinking cursor, its words from intent-029 and its claims the corpus's
+     × is published in a drafts build with its ink and its cursor, and in a release build only once approved
+     × keeps the monitor's screen readable, on a terminal grid of 12 columns and 2 rows
+     × puts each face's words in "Around the room", marked "Draft" in a drafts build, and the monitor's illustration line
+ Test Files  1 failed (1)
+      Tests  4 failed | 25 passed (29)
+```
+
+### Runs at GREEN (the tree of `4d059f6f`)
+
+```text
+$ npm run room:lettering -w apps/web
+lettering: wrote apps/web/content/room/outlines/twin-shirt-lettering.outline.json, 22 paths
+lettering: wrote apps/web/content/room/outlines/lettering-busy.outline.json, 11 paths
+lettering: wrote apps/web/content/room/outlines/lettering-cool.outline.json, 19 paths
+$ npm run room:generate -w apps/web
+room: 0 written, 0 removed, 26 unchanged
+$ npm run room:check -w apps/web
+> @h4reet/web@0.1.0 room:check
+> node --import tsx build/room/cli.ts check
+
+room: 0 findings in 0 files
+$ npm run room:scan -w apps/web
+room: 0 hits
+$ npm run room:report -w apps/web      # exit 0; the legibility rows
+| Face | Readable | Desktop | Phone | Floor | Margin | Status |
+| `desk-screen.screen` | yes | 32.6 px | 10.4 px | 9 | 1.4 px | readable |
+| `neon-sign.word` | yes | 30.5 px | 9.7 px | 9 | 0.7 px | readable |
+| `neon-sign.call` | yes | 20.1 px | 6.4 px | 9 | -2.6 px | exempt on the phone, carried by the text copy's "Around the room" |
+| `neon-sign.visit` | yes | 20.1 px | 6.4 px | 9 | -2.6 px | exempt on the phone, carried by the text copy's "Around the room" |
+| `neon-sign.second-line` | no | 10.5 px | 3.4 px | 9 | -5.6 px | atmosphere (max 43) |
+| `busy-sign.lettering` | no | 9.2 px | 2.9 px | 9 | -6.1 px | atmosphere (max 14) |
+| `dog-sign.lettering` | no | 9.3 px | 2.9 px | 9 | -6.1 px | atmosphere (max 22) |
+| `chalkboard.slate` | yes | 30.7 px | 9.7 px | 9 | 0.7 px | readable |
+| `twin-figure.twin-shirt-lettering` | no | 6.9 px | 2.1 px | 9 | -6.9 px | atmosphere (max 25) |
+Findings: none.
+```
+
+The neon sign's, the chalkboard's, and the shirt's rows are the same as at measure-c's baseline. The dog sign on three lines measures 9.3 / 2.9 px with the real converter, against two lines' 7.3 / 2.3 px.
+
+The test files I changed, and those covering the files I changed. `scene.yaml` feeds most of the room's tests, so this is all of `test/room/` and the room's UI tests:
+
+```text
+$ cd apps/web && npx --no-install vitest run --maxWorkers=2 test/room test/ui/around.test.ts test/ui/text-copy.test.ts test/ui/a11y.test.ts test/ui/pause.test.ts test/ui/degraded.test.ts
+room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
+ Test Files  177 passed (177)
+      Tests  3500 passed | 1 skipped (3501)
+   Duration  1609.37s (tests 72%, import 28%)
+exit 0
+```
+
+That run includes `test/room/twin-2d.test.ts`, which passed without a rerun. An earlier run of the same list, on the 10 × 2 break, was stopped at the background tool's 30-minute limit. Before the stop it had reported only the two failures above.
+
+`make lint`, on the tree of `4d059f6f`:
+
+```text
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+881 files already formatted
+… | xargs -0 -t shellcheck -- … (shellcheck over the repository's scripts, no finding)
+make lint exit 0
+```
+
+The full `make check` is T-INT's. The image stage fails in the workers' containers (night 3's Q46 and Q48), so I didn't run it and left the image to his gate.
+
+### The room-text hashes, for T-INT's approvals patch (these supersede the T-C06 table)
+
+| File | SHA-256 |
+|---|---|
+| `apps/web/content/room/outlines/lettering-busy.outline.json` | `a0442aa53e370f321692b0d6b5e0ec366ad227dc0a9ff2be0c41a752445e81ad` (unchanged) |
+| `apps/web/content/room/outlines/lettering-cool.outline.json` | `e62c10989645eea491355105ab7917658b61c7f39ca13e020bb295881d6ccaca` (three lines) |
+| `apps/web/content/room/monitor-line.yaml` | `8d5464d93aa0833e2c016bd55f7421e02bd7156c98b1160410175d1c3bc611eb` ("Applied" / "AI Engineer") |
+
+T-INT takes them again at the merged tip. The dog sign's entry is still the hunk he applies after his answer to Q1/Q6. `assets/policy/content-approvals.json` is his, and I didn't edit it.
+
+### For his look and the review
+
+- **Which build (W-3).** His look needs a **drafts build** (`ROOM_DRAFTS=1`) to see the three faces before he approves their hashes. A release build, which `make up` serves, shows them plain until the three approvals are on main: no words on the signs or the monitor, and no entries for them in "Around the room". The "scripted illustration" line shows in both builds, since the monitor's face is bound.
+- **W-1** is answered by Q26's mix. The monitor's readable face is over the floor on both stages, and the signs are atmosphere. **W-2:** the words and the cursor are both green (T-C04's `ink: green`), unchanged. **W-6:** the 2D faces are tested above, and the 2D paper is T-C05's.
+- **RG7's two gaps (measure-c §6).** No face relies on either:
+  - every face is measured on both stages, which the test asserts;
+  - the readable face is the terminal, measured by its grid, not by an outline's single `cap_height`;
+  - the signs' outlines set every line at one cap height anyway.
+- **For the stack's note:**
+  - `label.dog-sign` still reads "Desk sign, dog", though spec 026 put the sign on the right wall (a UI word outside group C's FRs, not changed);
+  - the busy sign's comment line 5 in its catalog is over the repository's usual width, as impl-029c left it.
+
+### Refusals
+
+- **A permission refusal.** A `Monitor` call waiting for the test log, `until grep -q "^exit " <log>; do sleep 10; done; grep …`, was refused: "This Bash command contains multiple operations. The following part requires approval". I didn't send that wait another way. I waited for the background run's own notice instead.
+- **The bash gate** refused a command as "an Author-only make target (spec 001)". The command was a `python3 -I -` heredoc that rewrote prose in `scene.yaml`, `monitor-line.yaml`, spec.md, plan.md, and tasks.md; it ran no make target. It is a false match on the text I was writing, the same kind as the page's Q29. I made the same edits with the Edit tool and didn't respell the command.
+
+### Questions written to `/night/io/out/questions.md` (each with its recommended answer)
+
+- The dog sign on three lines ("My dog / thinks / I'm cool"), in place of plan §R-C1's two. Recommended: yes, three lines (9.3 px desktop, against two lines' 7.3).
+- The monitor's rows "Applied" / "AI Engineer" on 12 × 2, in place of Q26's "Applied AI" / "Engineer". Recommended: yes, since the other break makes "Engineer" a draft line found in a release build's `dist/`; the tests stay unchanged.
