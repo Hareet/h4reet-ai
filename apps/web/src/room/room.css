@@ -1325,7 +1325,18 @@ html[data-hud="dock"] [data-over="room"] .room-list-heading {
   box-decoration-break: clone;
 }
 
-/* A key cap over the room (rework2-029a, rv-029a-1's R-2): its face is a tile's, --tile-face, in place of its light
+/* The waiting status over the room stays still (pulse-029a; rv-line-029's L-1, the page's Q59): spec 007's pulse
+   (talk.css, talk-waiting) fades the whole status, its plate with its words, and at its low point, opacity 0.6, the
+   words over a white pixel beneath fall to 2.79:1, under FR-003's 4.5:1 (5.74:1 still). The split layout is
+   data-hud="column", so these two cover its panel too. Outside the room the pulse is as spec 007 has it, and under
+   reduced motion there is none; the words alone carry the state (spec 007's FR-034).
+   test/ui/hud-over-layers.test.ts judges the status at its pulse's lowest opacity. */
+html[data-hud="column"] [data-over="room"] .talk-status,
+html[data-hud="dock"] [data-over="room"] .talk-status {
+  animation: none;
+}
+
+/* A key cap over the room (rework2-029a, rv-029a-1's R-2):its face is a tile's, --tile-face, in place of its light
    tint, which put its 12 px key name under 4.5:1 over white beneath, on a plate ("Back"'s and the hint's "Esc", the
    selected entry's "Enter") and on the "Eat" tile's glass ("B"). Every layout's, the split's too; its border and its
    lip stay as they are. test/ui/hud-over-layers.test.ts judges it over its real layers. */
