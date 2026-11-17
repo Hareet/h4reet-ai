@@ -296,10 +296,29 @@ Not done, and not this branch's:
   (`:831` after F's line's merge), `web_contexts()` reads `wi.ASSET_CONTEXTS` unguarded, so an export without it
   raises `AttributeError`, not a refusal. `check_self` pins `release.py` to main's blob and the export is main's
   commit, which holds the list. `rework3-spec-030` writes its guard into the plan for `impl-030ds` (Q90).
+  **Done by `impl-030dsb-r5`**: RED `e6fd9076` (`deploy/scripts/test_release.py` only: no list, eight malformed
+  lists, and `rl.run` on that export; 10 failed for the reason, `AttributeError`/`TypeError`/`ValueError` or
+  `DID NOT RAISE Refused`, 33 passed), GREEN `5ad70a02` (`web_contexts()` reads `getattr(wi, "ASSET_CONTEXTS", None)`
+  and, missing or not a tuple of (folder, context) string pairs, raises the plan's `Refused` before the policy folder
+  and any build; nothing else in `release.py`).
 - **N-1** (nit): `deploy/scripts/web_image.py:116`, `WITHOUT` is a second list that `ASSET_CONTEXTS`
   (`web_image.py:109`) can drift from: a fifth context is two lines, not plan §R-D4's one. Fix with a third field or a
   one-line test.
 - **N-2** (nit): this note's lines 63-64 said the over-width docstring lines were rewrapped, but `web_image.py:57` grew
   from 148 to 157 characters. Those two lines now say so; the rewrap is left to the integration.
+  **Done by `impl-030dsb-r5`** in GREEN `5ad70a02`: rewrapped to 116 + 40 characters, words unchanged
+  (`git diff --word-diff` shows none).
 
 From `rv-030dsb`'s and `rv2-030dsb`'s reviews (not blocking), folded in by `verify-030dsb`.
+
+`impl-030dsb-r5` built T-DS01 (c)'s R-5 case and T-DS02's guard here, on DSB's verify tip (`4b64ac73`), from
+`01999312`'s `plan.md` §R-D4 and `tasks.md` T-DS01 (c) and T-DS02. It leaves `plan.md` and `tasks.md` to the
+integration, which takes them from `01999312` (an edit here would conflict with that tip). Its runs on `5ad70a02`
+(`pytest -q -p no:cacheprovider --import-mode=importlib`, the Makefile's `PYTEST` and `PYTEST_ARGS`):
+`test_release.py`, `test_web_image.py`, `scripts/test_makefile.py` together, 198 passed (188 before plus 10);
+the rest of `deploy/scripts` (those two files deselected), 1186 passed, 144 deselected; `make setup` exit 0 (git
+hooks not installed: the sandbox can't write `.git/hooks`, the Author runs `make git-hooks`); `make lint` exit 0
+(ESLint, tsc on the three workspaces, Prettier, ruff check, ruff format "942 files already formatted",
+shellcheck). Not run: `make check` (the integration's), the image build and stage (Q46, Q48), and any release,
+plan, AWS call, or container. No refusals. Left in `/tmp`: `impl-030dsb-r5-red.msg`, `impl-030dsb-r5-green.msg`,
+`impl-030dsb-r5-note.msg`, `impl-030dsb-r5-deploy-scripts.log`, `impl-030dsb-r5-setup.log`, `impl-030dsb-r5-lint.log`.
