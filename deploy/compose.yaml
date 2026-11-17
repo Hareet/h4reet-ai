@@ -915,6 +915,15 @@ services:
         source: "${H4_TREE:?set by make up}/config/budgets.yaml"
         target: /app/config/budgets.yaml
         read_only: true
+      # The status's `ec2` (F7, night 5; contracts/relay-http.md §6): the document the snapshot sink's host write keeps,
+      # with EC2's state from its last ec2:DescribeInstances, read-only. Made if missing, so a fresh tunnel end's relay
+      # starts before the write's first run, and says `unknown` until it.
+      - type: bind
+        source: /var/lib/h4reet/snapshot
+        target: /var/lib/h4reet/snapshot
+        read_only: true
+        bind:
+          create_host_path: true
     read_only: true
     tmpfs: [/tmp]
     healthcheck:

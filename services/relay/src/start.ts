@@ -4,9 +4,10 @@
 import { metrics, trace } from "@opentelemetry/api";
 import type pino from "pino";
 
-import { buildRelay, type RelayDeps } from "./app.js";
+import { buildRelay, type Ec2State, type RelayDeps } from "./app.js";
 import { PublicCap, StatusBucket } from "./cap.js";
 import { readEnv, readPublicCap, type HostTarget, type RelayEnv } from "./config.js";
+import { documentEc2State, SNAPSHOT_DOCUMENT } from "./ec2state.js";
 import { CHECK_INTERVAL_MS, checkHost, HostChoice, type HandoverEvent, type HostName } from "./hosts.js";
 import { KillSwitch, type StateSource } from "./killswitch.js";
 import { RelayTelemetry, type StatusClass } from "./telemetry.js";
@@ -52,6 +53,8 @@ export function assemble(
   logger: pino.Logger,
   now: () => number = Date.now,
   check: (target: HostTarget) => Promise<boolean> = (t) => checkHost(t),
+  // The status's `ec2`: the snapshot sink's document on the tunnel end (F7, night 5; contracts/relay-http.md §6).
+  ec2State: () => Ec2State = documentEc2State(SNAPSHOT_DOCUMENT, now),
 ): Running {
   const targets = new Map<HostName, HostTarget>(ready.env.hosts.map((h) => [h.name, h]));
   const holder: {
@@ -87,6 +90,7 @@ export function assemble(
     telemetry,
     logger,
     now,
+    ec2State,
   };
   let timer: NodeJS.Timeout | undefined;
   let checking = false;
