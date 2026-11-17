@@ -59,12 +59,13 @@ describe("the document's EC2 state", () => {
 
   it("reads it up to 150 s after the write took it, and unknown after", () => {
     expect(ec2StateOf(doc("running", now - 150_000), now)).toBe("running");
-    expect(ec2StateOf(doc("running", now - 150_001), now)).toBe("unknown");
+    expect(ec2StateOf(doc("running", now - 151_000), now)).toBe("unknown");
   });
 
   it("reads unknown from a document more than a minute ahead of the relay's clock", () => {
+    // The document's times are whole seconds, so the first time past the minute is 61 s ahead.
     expect(ec2StateOf(doc("running", now + 60_000), now)).toBe("running");
-    expect(ec2StateOf(doc("running", now + 60_001), now)).toBe("unknown");
+    expect(ec2StateOf(doc("running", now + 61_000), now)).toBe("unknown");
   });
 
   it.each([
