@@ -318,3 +318,72 @@ AssertionError: /disclosure/: the ground: expected null not to be null
    Start at  03:51:32
    Duration  81.98s (tests 96%, transform 2%, import 2%)
 ```
+
+Committed as `6a14fb2c`.
+
+## T-C02, GREEN (`78dab4fb`, no test file in it)
+
+- `src/pages/dark.css` (new): the five room tokens on `:root.dark-page, body.dark-page`, `color-scheme: dark`, the glass ground and white text; links `--accent-neon` underlined; focus rings `--hud-focus` (prefixed `body.dark-page` so they outrank `room.css`'s `.choice button:focus-visible` whatever the order); the disclosure on the glass with a `--split-muted` rule; tables' cells in `--page-rule` (`#8a8f98`).
+- `src/choice/choice.ts`: imports `../pages/dark.css` before `./choice.css`; `dark-page` on the body from the render, removed on a submit that holds both choices, just before `onEnter`.
+- `src/choice/choice.css`: every light colour replaced by a token; the cards' and the outcome's face `var(--btn-frame, #1f252d)`, corners `var(--btn-chamfer, 0.75rem)` with `corner-shape: bevel`, the chosen card's border, ring, and halo `var(--btn-secondary-selected-glow, var(--hud-focus))`; "Enter"'s look until B's sheet; the avatar previews on a `--split-muted` plate. No selector, state, media block, or layout of spec 029's changed.
+- `build/disclosure.ts`: `DARK_CSS` and `pageStyle(layout)` (dark.css read at build, then the layout); `STYLE` without colours; `class="dark-page"` on `<html>`; the plugin watches `dark.css`. `build/credits.ts` the same, through those two.
+- `plan.md` §R-C1: "As built", each departure from the plan's reading, in the same commit.
+
+`npx --no-install vitest run test/ui/dark-pages.test.ts test/ui/choice-cards.test.ts` after the change: `Test Files 2 passed (2)`, `Tests 44 passed (44)`, exit 0. Then the tests covering the build files, exit 0: `Test Files 5 passed (5)`, `Tests 65 passed (65)` (`choice.test.ts`, `credits.test.ts`, `disclosure.test.ts`, `site.test.ts`, `smoke.test.ts`; the last two read the global setup's real release build, which built with the new plugins). Both runs are repeated in full below, at T-C03.
+
+## T-C03, the tests beside C's, unchanged, and lint (at `a9a7931c`, the tree of `78dab4fb`)
+
+The task's list (`choice-cards`, its "nothing before Enter" case included, `choice`, `a11y`, `loading-*`), C's own, and those covering C's build files (`credits`, `disclosure`, `site`, `smoke`). The reporter prints a file only when it fails, so the whole output is the summary:
+
+```
+$ cd apps/web && npx --no-install vitest run test/ui/dark-pages.test.ts test/ui/choice-cards.test.ts test/ui/choice.test.ts test/ui/a11y.test.ts test/ui/loading-a11y.test.ts test/ui/loading-degraded.test.ts test/ui/loading-faults.test.ts test/ui/loading-notes.test.ts test/ui/loading-page.test.ts test/ui/loading-style.test.ts test/ui/credits.test.ts test/disclosure.test.ts test/site.test.ts test/smoke.test.ts
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-17/impl-030c/apps/web
+
+
+ Test Files  14 passed (14)
+      Tests  233 passed (233)
+   Start at  04:01:00
+   Duration  191.23s (tests 75%, import 24%, transform 1%)
+
+exit 0
+```
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+916 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit 0
+```
+
+`make test` and `make evals` weren't run: the brief's rule 4 gives the whole suite to the integration (T-INT04's one `make check`), and C's tasks run their own files and lint. `make setup` ran first (`node_modules` was missing), exit 0.
+
+## Findings for the integration and the reviewer
+
+- **`a11y.test.ts` passes without testing the dark screen.** Its header case reads the last matching rule in the files' walk order (`src/pages/` before `src/room/`), so on the selection screen it reads `room.css`'s `.disclosure { background: #ffffff }`, which `dark.css`'s `.dark-page .disclosure` outranks; its focus case takes the first rule with a literal `#rrggbb` ring, `room.css`'s `#0b4f9c`, which `dark.css`'s `body.dark-page …:focus-visible` outranks (2.30:1 on the glass, were it the winner). The cascade's winners are held by `dark-pages.test.ts`. Not rewritten here (T-C03 says unchanged, and the spec's Assumptions don't list it for C); the page's Q asks for a rewrite in the integration.
+- **B's token names.** The cards read `--btn-frame`, `--btn-chamfer`, `--btn-secondary-selected-glow`, plan §R-C1's names (B had no commit when C was built). `dark-pages.test.ts` runs every colour check again with a stand-in `:root[data-skin="metal"]` of plan §R-B1's estimates; at T-INT, with B's real sheet, those cases should use B's built stylesheet in its place.
+- **"Enter" until B.** `.choice .choice-enter` (0,2,0) gives it a yellow primary face; B's rules, which name `:root[data-skin]` and the class, outrank it. T-INT02's probe should name any of these declarations B leaves dead.
+- **The avatar previews** keep `avatars.ts`'s colours (shared with the 2D room, not C's file) on a light plate; their look is his (SC-008).
+
+## Interruptions
+
+None refused: no hook, bash-gate, or permission refusal. Every tracked file was written with Edit or Write; Prettier's wanted changes to the test file were read from `prettier <file> | diff` and made with Edit. No human-only path was touched and no patch for his hand is needed, so there is no SHA-256 to give. `resume/` isn't in this worktree (as the spec says); the screenshots weren't read.
+
+## Questions
+
+Four, in `/night/io/out/questions.md`, each with its recommended answer: the `a11y.test.ts` rewrite (recommended: in the integration, test-first); `corner-shape: bevel` for the chamfer (recommended: keep); "Enter"'s fallback look until B (recommended: keep, T-INT02 removes it if dead); B's three token names (recommended: B emits the plan's names).
+
+## Done, and not
+
+Done: T-C01 (RED, `6a14fb2c`), T-C02 (GREEN, `78dab4fb`, with plan §R-C1's "As built"), T-C03 (the 14 files, 233 tests, and `make lint`, above). The selection screen, `/credits/`, and `/disclosure/` are dark from `src/pages/dark.css`, at AA by the cascade, with "Enter" carrying `.choice-enter` and the cards reading B's tokens with fallbacks; spec 029's selection-screen tests pass, the two rewritten cases named above, and nothing is fetched before "Enter".
+
+Not done, and not C's: B's real stylesheet over the cards (T-INT01, then this file's cases with B's sheet), the `a11y.test.ts` rewrite (the page's Q), the dead-declaration sweep (T-INT02), the one `make check` and the stack's merge-request note (T-INT04), and his look at the dark pages (SC-008). Not run here: `make test`, `make evals` (rule 4), the image stage (his gate).
