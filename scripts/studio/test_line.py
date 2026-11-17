@@ -19,6 +19,12 @@ here runs it that way, as a subprocess:
 - the arrival check's step (T044): main's copy, read from refs/heads/main of a repository built here, whose
   tools/gates/arrival_check.py is a stand-in, so nothing depends on the real one. A tag named main and the working
   tree's copy never answer.
+- a still set (spec 030 T-DJ01; its plan §R-D1, FR-022), on PNGs written here by zlib, every row under one of the
+  five filters: each PNG within the brief's texture_px, 8-bit, non-interlaced, with an alpha channel and alpha 0 on
+  its outermost ring; for a `ui-` asset, slices.json beside the files, naming every PNG and no other, its insets
+  whole numbers of at least 1 inside each image; every two states of a variant at least ΔE76 15 apart in their
+  centres' alpha-weighted mean colours; the variant's label at 4.5:1 over every centre pixel of alpha 0.5 or more,
+  composited over white and over black.
 
 The tools list (assets/policy/studio-tools.json) is the Author's patch P-7, so the list on the fixture repository's
 main is in the data model's shape. Everything is built at run time; nothing touches the network.
@@ -1657,3 +1663,402 @@ def test_the_dinosaurs_brief_names_shippable_tools_and_no_franchise() -> None:
     assert doc["tools"] and all(ship.get(t) is True for t in doc["tools"]), doc["tools"]
     notes = doc["notes"] if isinstance(doc["notes"], str) else " ".join(doc["notes"])
     assert "no film or franchise creature" in notes
+
+
+# ==================================================================================================
+# Spec 030 T-DJ01: a still set's checks (plan §R-D1; FR-022)
+# ==================================================================================================
+def paeth(a: int, b: int, c: int) -> int:
+    p = a + b - c
+    pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+    if pa <= pb and pa <= pc:
+        return a
+    return b if pb <= pc else c
+
+
+def filtered(line: bytes, prior: bytes, kind: int, bpp: int) -> bytes:
+    """One scanline under one of PNG's five filters (0 None, 1 Sub, 2 Up, 3 Average, 4 Paeth)."""
+    out = bytearray([kind])
+    for i, x in enumerate(line):
+        a = line[i - bpp] if i >= bpp else 0
+        b = prior[i]
+        c = prior[i - bpp] if i >= bpp else 0
+        predictor = (0, a, b, (a + b) // 2, paeth(a, b, c))[kind]
+        out.append((x - predictor) & 0xFF)
+    return bytes(out)
+
+
+def pixel_png(
+    pixels: list[list[tuple[int, ...]]],
+    *,
+    colour: int = 6,
+    depth: int = 8,
+    interlace: int = 0,
+) -> bytes:
+    """A PNG of these pixels (each a tuple of the colour type's samples), row y under filter y % 5, so the judge's
+    decoder meets every filter in every image."""
+    height, width = len(pixels), len(pixels[0])
+    channels = {0: 1, 2: 3, 4: 2, 6: 4}[colour]
+    bpp = channels * depth // 8
+    raw, prior = b"", bytes(width * bpp)
+    for y, row in enumerate(pixels):
+        line = b"".join(v.to_bytes(depth // 8, "big") for px in row for v in px)
+        raw += filtered(line, prior, y % 5, bpp)
+        prior = line
+    ihdr = struct.pack(">IIBBBBB", width, height, depth, colour, 0, 0, interlace)
+    return (
+        PNG_SIG
+        + png_chunk(b"IHDR", ihdr)
+        + png_chunk(b"IDAT", zlib.compress(raw))
+        + png_chunk(b"IEND", b"")
+    )
+
+
+FRAME = (
+    42,
+    48,
+    56,
+    255,
+)  # the dark metal of the inset band: under the primary label, it would fail
+FACES: dict[str, tuple[int, int, int, int]] = {
+    "btn-primary-normal.png": (242, 194, 48, 255),
+    "btn-primary-hover.png": (255, 236, 150, 255),
+    "btn-primary-pressed.png": (180, 140, 20, 255),
+    "btn-secondary-normal.png": (22, 50, 60, 255),
+    "btn-secondary-hover.png": (47, 104, 120, 255),
+}
+PANEL = "panel-frame.png"
+LABELS = {"primary": "#14171c", "secondary": "#e6fbff"}
+BUTTON = (16, 12, 3)  # width, height, and the inset on every side
+PANEL_SIZE = (20, 20, 4)
+FAINT = (
+    20,
+    23,
+    28,
+    64,
+)  # one centre pixel under alpha 0.5: the label check passes it by
+STILL_PREFIXES = (
+    "texture_px ",
+    "png ",
+    "alpha ",
+    "ring ",
+    "slices.json",
+    "states ",
+    "label ",
+    "files",
+)
+
+
+def plate(
+    width: int, height: int, inset: int, face: tuple[int, ...]
+) -> list[list[tuple[int, ...]]]:
+    """A 9-slice plate: alpha 0 on the outermost ring, the frame's colour in the inset band, `face` in the centre."""
+    rows = []
+    for y in range(height):
+        row = []
+        for x in range(width):
+            if x in (0, width - 1) or y in (0, height - 1):
+                row.append((0, 0, 0, 0))
+            elif inset <= x < width - inset and inset <= y < height - inset:
+                row.append(face)
+            else:
+                row.append(FRAME)
+        rows.append(row)
+    return rows
+
+
+def still_set() -> dict[str, list[list[tuple[int, ...]]]]:
+    width, height, inset = BUTTON
+    pixels = {name: plate(width, height, inset, face) for name, face in FACES.items()}
+    pixels["btn-primary-normal.png"][inset][inset] = FAINT
+    pw, ph, pi = PANEL_SIZE
+    pixels[PANEL] = plate(pw, ph, pi, (16, 20, 26, 77))
+    return pixels
+
+
+def slices_doc(names: list[str]) -> dict:
+    def inset(name: str) -> int:
+        return PANEL_SIZE[2] if name == PANEL else BUTTON[2]
+
+    return {
+        "schema": 1,
+        "files": {
+            n: {
+                "top": inset(n),
+                "right": inset(n),
+                "bottom": inset(n),
+                "left": inset(n),
+            }
+            for n in names
+        },
+        "labels": dict(LABELS),
+    }
+
+
+def still_brief(asset: str = "ui-buttons", texture_px: int = 32) -> dict:
+    return brief_doc(
+        asset=asset,
+        kind="still",
+        spec="030-ui-skin",
+        limits={"bytes": 48000, "texture_px": texture_px},
+        tools=["blender"],
+        references=[],
+        notes="The interface's buttons, as 9-slice PNGs.",
+    )
+
+
+DEFAULT = object()
+
+
+def judge_still(
+    tmp_path: Path,
+    repo: Path,
+    *,
+    files: dict[str, bytes] | None = None,
+    slices: object = DEFAULT,
+    listed: list[str] | None = None,
+    asset: str = "ui-buttons",
+    texture_px: int = 32,
+) -> subprocess.CompletedProcess:
+    """The still set (or `files`) handed back for round 1 and judged against a still brief."""
+    if files is None:
+        files = {name: pixel_png(px) for name, px in still_set().items()}
+    path = write_brief(tmp_path, still_brief(asset, texture_px))
+    folder = handoff_root(path) / asset / "1"
+    folder.mkdir(parents=True)
+    for name, data in files.items():
+        (folder / name).write_bytes(data)
+    names = sorted(files)
+    if slices is DEFAULT:
+        slices = slices_doc(names)
+    if slices is not None:
+        (folder / "slices.json").write_text(json.dumps(slices, indent=2) + "\n")
+    record = {
+        "schema": 1,
+        "directory": "assets/ui/buttons",
+        "license": "all-rights-reserved-2026",
+        "entries": [
+            {
+                "file": n,
+                "kind": "still",
+                "steps": [
+                    {
+                        "name": "render",
+                        "by": "model",
+                        "tools": [{"name": "Blender", "version": "5.2.3"}],
+                    }
+                ],
+            }
+            for n in names
+        ],
+    }
+    (folder / "records.json").write_text(json.dumps(record))
+    doc = cand_doc(
+        asset=asset,
+        files=listed if listed is not None else names,
+        tools=[{"id": "blender", "version": "5.2.3"}],
+    )
+    (folder / "candidate.json").write_text(json.dumps(doc))
+    return candidate(folder, path, repo)
+
+
+def still_lines(done: subprocess.CompletedProcess) -> list[str]:
+    return [line for line in lines(done) if line.startswith(STILL_PREFIXES)]
+
+
+def the_set(**changed: bytes) -> dict[str, bytes]:
+    files = {name: pixel_png(px) for name, px in still_set().items()}
+    files.update(changed)
+    return files
+
+
+def failed_with(done: subprocess.CompletedProcess, *prefixes: str) -> None:
+    """Exit 1, and the still checks' lines exactly one per prefix, in order."""
+    assert done.returncode == 1, done.stdout + done.stderr
+    found = still_lines(done)
+    assert len(found) == len(prefixes), done.stdout
+    for line, prefix in zip(found, prefixes, strict=True):
+        assert line.startswith(prefix) and "(limit: " in line, done.stdout
+
+
+def test_a_still_set_passes(tmp_path: Path, repo: Path) -> None:
+    done = judge_still(tmp_path, repo)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert still_lines(done) == [], done.stdout
+    assert "line: pass; round 1" in lines(done), done.stdout
+
+
+def test_a_still_set_outside_ui_needs_no_slices_json(
+    tmp_path: Path, repo: Path
+) -> None:
+    done = judge_still(tmp_path, repo, slices=None, asset="poster")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert still_lines(done) == [], done.stdout
+
+
+def test_an_rgb_png_without_alpha_fails(tmp_path: Path, repo: Path) -> None:
+    width, height, inset = BUTTON
+    rgb = [
+        [px[:3] for px in row]
+        for row in plate(width, height, inset, FACES["btn-primary-normal.png"])
+    ]
+    name = "btn-primary-normal.png"
+    done = judge_still(
+        tmp_path, repo, files=the_set(**{name: pixel_png(rgb, colour=2)})
+    )
+    failed_with(done, f"alpha {name}: ", f"ring {name}: ")
+
+
+def test_an_opaque_pixel_on_the_outermost_ring_fails(
+    tmp_path: Path, repo: Path
+) -> None:
+    pixels = still_set()[PANEL]
+    pixels[0][5] = (16, 20, 26, 255)
+    done = judge_still(tmp_path, repo, files=the_set(**{PANEL: pixel_png(pixels)}))
+    failed_with(done, f"ring {PANEL}: ")
+    assert "5,0" in still_lines(done)[0], done.stdout
+
+
+def test_a_side_over_texture_px_fails(tmp_path: Path, repo: Path) -> None:
+    big = pixel_png(plate(40, 40, PANEL_SIZE[2], (16, 20, 26, 77)))
+    done = judge_still(tmp_path, repo, files=the_set(**{PANEL: big}))
+    failed_with(done, f"texture_px {PANEL}: 40 by 40 (limit: the brief's, 32)")
+
+
+def test_a_16_bit_png_fails(tmp_path: Path, repo: Path) -> None:
+    width, height, inset = BUTTON
+    name = "btn-secondary-hover.png"
+    wide = [
+        [tuple(v * 257 for v in px) for px in row]
+        for row in plate(width, height, inset, FACES[name])
+    ]
+    done = judge_still(
+        tmp_path, repo, files=the_set(**{name: pixel_png(wide, depth=16)})
+    )
+    failed_with(done, f"png {name}: bit depth 16 ")
+
+
+def test_an_interlaced_png_fails(tmp_path: Path, repo: Path) -> None:
+    pixels = still_set()[PANEL]
+    done = judge_still(
+        tmp_path, repo, files=the_set(**{PANEL: pixel_png(pixels, interlace=1)})
+    )
+    failed_with(done, f"png {PANEL}: interlaced ")
+
+
+def test_a_ui_folder_without_slices_json_fails(tmp_path: Path, repo: Path) -> None:
+    done = judge_still(tmp_path, repo, slices=None)
+    failed_with(done, "slices.json: absent ")
+
+
+def test_slices_json_listed_in_files_fails(tmp_path: Path, repo: Path) -> None:
+    files = the_set()
+    done = judge_still(
+        tmp_path, repo, files=files, listed=[*sorted(files), "slices.json"]
+    )
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert any(line.startswith("files: slices.json ") for line in still_lines(done)), (
+        done.stdout
+    )
+
+
+@pytest.mark.parametrize(
+    "doc",
+    [
+        "not an object",
+        {"schema": 1, "files": {}},
+        {"schema": 2, "files": {}, "labels": LABELS},
+    ],
+    ids=["a-string", "no-labels", "schema-2"],
+)
+def test_slices_json_outside_its_shape_fails(
+    tmp_path: Path, repo: Path, doc: object
+) -> None:
+    done = judge_still(tmp_path, repo, slices=doc)
+    failed_with(done, "slices.json: ")
+
+
+@pytest.mark.parametrize("change", ["extra", "missing"])
+def test_slices_json_naming_a_file_not_in_files_or_missing_one_fails(
+    tmp_path: Path, repo: Path, change: str
+) -> None:
+    doc = slices_doc(sorted(the_set()))
+    if change == "extra":
+        doc["files"]["btn-extra.png"] = {"top": 3, "right": 3, "bottom": 3, "left": 3}
+        expected = "slices.json files: btn-extra.png "
+    else:
+        del doc["files"][PANEL]
+        expected = f"slices.json files: {PANEL} absent "
+    done = judge_still(tmp_path, repo, slices=doc)
+    failed_with(done, expected)
+
+
+@pytest.mark.parametrize(
+    "inset",
+    [
+        {"top": 0, "right": 3, "bottom": 3, "left": 3},
+        {"top": 3, "right": 8, "bottom": 3, "left": 8},
+        {"top": 3, "right": 3, "bottom": 9, "left": 3},
+        {"top": 3, "right": 3, "bottom": 3, "left": 2.5},
+        {"top": 3, "right": 3, "bottom": 3},
+    ],
+    ids=[
+        "zero",
+        "across-the-width",
+        "across-the-height",
+        "not-whole",
+        "a-side-missing",
+    ],
+)
+def test_an_inset_of_zero_or_one_crossing_the_image_fails(
+    tmp_path: Path, repo: Path, inset: dict
+) -> None:
+    doc = slices_doc(sorted(the_set()))
+    doc["files"]["btn-primary-normal.png"] = inset
+    done = judge_still(tmp_path, repo, slices=doc)
+    failed_with(done, "slices.json btn-primary-normal.png: ")
+
+
+def test_two_states_of_a_variant_too_close_fail(tmp_path: Path, repo: Path) -> None:
+    width, height, inset = BUTTON
+    near = pixel_png(plate(width, height, inset, (246, 200, 56, 255)))
+    done = judge_still(tmp_path, repo, files=the_set(**{"btn-primary-hover.png": near}))
+    failed_with(done, "states btn-primary-hover.png btn-primary-normal.png: ")
+    assert "delta E76 " in still_lines(done)[0], done.stdout
+
+
+def luminance(rgb: tuple[int, ...]) -> float:
+    def lin(v: int) -> float:
+        c = v / 255
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+    r, g, b = (lin(v) for v in rgb[:3])
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def ratio(x: tuple[int, ...], y: tuple[int, ...]) -> float:
+    a, b = sorted((luminance(x), luminance(y)), reverse=True)
+    return (a + 0.05) / (b + 0.05)
+
+
+def test_a_label_at_4_4_to_1_over_one_centre_pixel_fails(
+    tmp_path: Path, repo: Path
+) -> None:
+    label = (0xE6, 0xFB, 0xFF)
+    grey = next(v for v in range(256) if round(ratio(label, (v, v, v)), 1) == 4.4)
+    assert 4.35 <= ratio(label, (grey, grey, grey)) < 4.45, grey
+    name = "btn-secondary-normal.png"
+    pixels = still_set()[name]
+    pixels[5][7] = (grey, grey, grey, 255)
+    done = judge_still(tmp_path, repo, files=the_set(**{name: pixel_png(pixels)}))
+    failed_with(done, f"label {name}: #e6fbff ")
+    assert "7,5" in still_lines(done)[0], done.stdout
+
+
+def test_avatar_briefs_take_no_still_checks(
+    tmp_path: Path, repo: Path, brief_path: Path
+) -> None:
+    folder = write_candidate(tmp_path)
+    done = candidate(folder, brief_path, repo)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert still_lines(done) == [], done.stdout
