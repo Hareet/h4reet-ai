@@ -228,3 +228,12 @@ Not done, and not this task's:
 - T-INT's merge, its `make check`, and the stack's note.
 - Decode paths the suite doesn't drive: colour types 0, 3, and 4 and RGB with tRNS. They were checked by hand above but have no case in `test_line.py`. Adding one would be a test-file change after GREEN, so I left it for review to ask for. An interlaced PNG isn't read (the departure).
 - Not checked by the judge, by plan and spec: the total of 96,000 bytes (T-DS's build holds it), the look (his), and that no image holds a glyph (his look review).
+
+## Backlog and review notes
+
+- **R-1** (the brief, `/srv/studio/briefs/ui-buttons/1.json`, its block in `specs/030-ui-skin/studio-round-1.md`; Q68): the brief's secondary "selected" target (L* 24, C* 35) is outside sRGB (at most C* ≈ 18 there), so a set made as close to it as sRGB allows fails the judge's ΔE 15 rule twice (normal/selected ≈ 5–7, hover/selected ≈ 14.6–14.9). The studio departed from that target (L 30, C 22.7) and measured 17.07 at its lowest.
+- **R-2** (`scripts/studio/line.py`, the judge's still checks; Q69): the judge doesn't know the brief's eleven file names (they're only in the brief's prose), so a set missing a state passes its checks.
+- **R-3** (nit, `scripts/studio/line.py:1167`): prints a finding's file name without `clean()`, so a name with a newline in `candidate.json` could print a forged line (the round still fails; the brief's names can't trigger it).
+- **R-4** (nit, `scripts/studio/test_line.py`): no test case for colour types 0, 3, 4 or RGB with `tRNS`.
+
+From `rv-030dj`'s review (not blocking), folded in by `verify-030dj`.

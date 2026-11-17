@@ -293,3 +293,12 @@ Not done, and not this task's:
 - **The rework's merge** (`2dd4213f`) with this branch: studio-round-1.md's three rework hunks are already equal.
 - **T-INT's `make check`** and the stack's merge-request note.
 - **Round 2**: not needed. Its brief isn't drafted, since round 1 passed.
+
+## Backlog and review notes
+
+- **R-1** (`specs/030-ui-skin/studio-round-1.md`, R-3's record against the four `*(R-3)*` placeholders; Q86): one hunk conflicts with the spec's reworks (`rework-spec-030`/`rework2-spec-030`). For the integration and the stack's merge-request note.
+- **R-2** (`docs/merge-requests/human-patches/030.md`, row 2): cites C1's "hand-made or composite" sentence for "no approval", where the reason is rule P's scope (plan §R-D3's wording, or the code line, `arrival_check.py:2967-2972`).
+- **R-3** (`specs/030-ui-skin/judge-r1.md:250`): the `make lint` paste is from `0a107d4f`, not the tip (917 files formatted for the tip's 918; the reviewer reran ruff on the tip: both pass).
+- **R-4** (`specs/030-ui-skin/judge-r1.md:234`; Q78): the intake ships `credits.py`'s rewrite of `records.json`, a departure from plan §R-D3 that this note doesn't name: a line in the plan's §R-D3 at the rework's line or the item's note, not on this branch.
+
+From `rv-judge-ui-r1`'s review (not blocking), folded in by `verify-030dj`.
