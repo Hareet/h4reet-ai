@@ -1279,7 +1279,14 @@ def still_findings(
                 "never in files: it sits beside them, as records.json does",
             )
         )
-    found, insets, labels = slices_findings(folder, pngs, sizes)
+    # slices.json answers to every PNG candidate.json names, so a named file the folder lacks has one finding, the
+    # files check's, and not a second here; only the files there are measured.
+    listed = [
+        n
+        for n in (named if isinstance(named, list) else [])
+        if isinstance(n, str) and n.lower().endswith(".png")
+    ]
+    found, insets, labels = slices_findings(folder, list(dict.fromkeys(listed)), sizes)
     out += found
     states: dict[str, list[tuple[str, tuple[float, float, float]]]] = {}
     for name in sorted(insets):
