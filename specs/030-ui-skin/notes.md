@@ -341,7 +341,23 @@ No hook, bash-gate or permission refusal. **One write to a tracked file not made
 
 ## Checks run
 
-LINT-PLACEHOLDER
+This branch changes documents only, so its checks are lint, the analysis, and the merge checks. The runs on A's export are evidence for R-1, not this branch's tests. `make setup` came first (`node_modules` was missing), exit 0. `make lint` at `ccc5adf5`, exit 0 (`specs/` is in `.prettierignore`, so the notes' later edits can't change its result):
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+915 files already formatted
+{ git ls-files -z '*.sh' … } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- … (the repository's shell scripts)
+exit 0
+```
+
+**The group each change reaches:** A (R-1, Q81 to Q85: T-A06 to T-A08), B (R-2), DS and DSB (R-2 in T-DS01 (b); R-5), INT (T-A08 as its dependency; T-INT02's starting point), and his look (R-3). C and DJ get nothing (the table above). `git diff 8e83e7fc -- specs/030-ui-skin/studio-round-1.md` is empty. The analysis is re-run and appended to analysis.md ("Re-run after rework 3"): 5 new findings, 3 fixed in the text, 2 recorded, 0 CRITICAL. `make test` and `make evals` weren't run: this branch changes no code, test, or eval.
 
 ## What's left
 
