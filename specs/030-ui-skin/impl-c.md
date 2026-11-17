@@ -571,3 +571,119 @@ AssertionError: /disclosure/'s header: expected null to be 'sticky' // Object.is
 ```
 
 (Trimmed to the reporter's FAIL and summary lines: each failure's diff and source frame are as in the RED paste above, at the same line.)
+
+## T-C02 again, GREEN: two commits, no test file in either
+
+1. **`96c1e8c9`**, the root's class and dark.css re-keyed (`rv-030c`'s R-1, R-5, R-7):
+   - `index.html`: `<html lang="en" class="dark-page">`.
+   - `src/choice/choice.ts`: no `doc.body.classList.add`; at a submit that holds both choices, `doc.documentElement.classList.remove("dark-page")`, just before `onEnter`. Its comments say the root.
+   - `src/pages/dark.css`: the token rule is `:root.dark-page` alone, which also gives the root `color-scheme: dark`, so `:root:has(> body.dark-page)` is gone. The focus list is now two rules, each with a comment that says which rule it outranks (R-7): `:root.dark-page a:focus-visible` (every dark page's links, (0,3,1), above style.css's `a:focus-visible` and room.css's `.choice a:focus-visible`), and `:root.dark-page button:focus-visible, :root.dark-page input:focus-visible` (the selection screen's "Enter" and radios, (0,3,1), above room.css's `.choice button:focus-visible` and `.choice input:focus-visible`, (0,2,1), whose `#0b4f9c` is 2.30:1 on the glass). B's ring on "Enter" (`:root[data-skin] :is(.choice .choice-enter, .ui-button):focus-visible` at `impl-030b`'s tip, (0,4,0)) still outranks it. New token `--page-face-hover: #353c47` (white on it is 11:1), with a comment (R-5).
+   - `src/choice/choice.css`: the hover face reads `var(--page-face-hover)`. Its header comment says the root.
+   - `plan.md` §R-C1 "As built": the old `body.dark-page` bullet is struck through and replaced by a rework-030c bullet.
+   - Run: `dark-pages.test.ts` and `choice-cards.test.ts`, `Tests 2 failed | 46 passed (48)`, the two failures the Q77 cases (`expected null to be 'sticky'`), as intended before the second commit.
+2. **`90dd7833`**, Q77: each built page's layout `STYLE` (`build/credits.ts`, `build/disclosure.ts`) is now `html { scroll-padding-top: 8rem; }`, the `body` rule as it was, `header { position: sticky; top: 0; z-index: 1; border-bottom: 1px solid; margin-bottom: 1rem; }`, and `header p { margin: 0.5rem 0; }`, with a comment. It holds no colour (the "layout rules alone" case still passes); dark.css's `.dark-page body > header` makes the header opaque on the glass. `plan.md` §R-C1 "As built" gets a Q77 bullet.
+
+```
+$ cd apps/web && npx --no-install vitest run test/ui/dark-pages.test.ts test/ui/choice-cards.test.ts
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-17/rework-030c/apps/web
+
+
+ Test Files  2 passed (2)
+      Tests  48 passed (48)
+   Start at  04:36:37
+   Duration  83.01s (tests 95%, transform 2%, import 2%)
+
+exit 0
+```
+
+## T-C03 again: the 14 files, unchanged but C's, and lint (at `73b73704`, the tree of `90dd7833`)
+
+The same 14 files as `impl-030c`'s T-C03 above. `a11y.test.ts` was run and not edited: its rewrite is T-INT's (Q62). The reporter prints a file only when it fails, so this is the whole output:
+
+```
+$ cd apps/web && npx --no-install vitest run test/ui/dark-pages.test.ts test/ui/choice-cards.test.ts test/ui/choice.test.ts test/ui/a11y.test.ts test/ui/loading-a11y.test.ts test/ui/loading-degraded.test.ts test/ui/loading-faults.test.ts test/ui/loading-notes.test.ts test/ui/loading-page.test.ts test/ui/loading-style.test.ts test/ui/credits.test.ts test/disclosure.test.ts test/site.test.ts test/smoke.test.ts
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-17/rework-030c/apps/web
+
+
+ Test Files  14 passed (14)
+      Tests  237 passed (237)
+   Start at  04:38:10
+   Duration  177.72s (tests 76%, import 24%, transform 1%)
+
+exit 0
+```
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+916 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit 0
+```
+
+`make setup` ran first (`node_modules` was missing), exit 0. `make test` and `make evals` weren't run: rule 4 gives the whole suite to the integration's one `make check`, and C's tasks run their own files and lint.
+
+## `rework2-spec-030` against C's rows
+
+`git diff 2dd4213f refs/heads/night/rework2-spec-030/rework2-spec-030 -- specs/030-ui-skin`, at its tip `8e83e7fc`: 5 files, 215 insertions and 45 deletions (`analysis.md`, `notes.md`, `plan.md`, `spec.md`, `tasks.md`). **No change reaches C's rows.** These are byte-identical at both tips (compared by hash): `plan.md` §R-C1 to §R-C3, §9's C row, `tasks.md` T-C01 to T-C03, `spec.md` FR-015 to FR-018 with the no-script edge case, and C's part of the spec's "Departure named". Rework2's own `notes.md` says "C … **Nothing from this rework.**" Two of its changes touch C's screen through B, not C's files:
+- R-5: T-B01 (a) checks B's `--btn-secondary-selected-glow` at 3:1 on the glass and `--hud-text` on `--btn-frame` for every skin. Those are the two tokens C's cards read. It is B's test.
+- Q71/Q72: a skinned control's focus ring goes inside the face, in the variant's ring colour. "Enter" is B's primary, and B's ring rule, (0,4,0), outranks dark.css's `:root.dark-page button:focus-visible`, (0,3,1), so that change lands on "Enter" through B's sheet. C needs nothing for it.
+
+There is nothing I didn't build from it.
+
+## Left as the brief says, named
+
+- **R-4**: `dark-pages.test.ts`'s cascade reads `parseCss(...).rules` and drops at-rule bodies (`@media (forced-colors: active)`, `prefers-*`), so a dark rule inside a media block is outside its checks. Spec 029's own tests hold forced colours and motion. Left as it is.
+- **R-6**: dark.css's header comment ships verbatim at the top of each built page's `style.css` (`pageStyle` concatenates the file). The "starts with dark.css" case depends on that. Left as it is.
+- **`a11y.test.ts`**: run, not edited (Q62, T-INT's rewrite). It passes.
+
+## Findings for the integration and the reviewer
+
+- **B's build plugin and the root's class.** `index.html`'s `<html>` now carries `class="dark-page"`. §R-C3 says B's plugin "sets its other attributes at build without editing the file". At `impl-030b`'s tip I found no `transformIndexHtml`, so I couldn't check it. Whatever sets `data-skin` on the root must add the attribute and keep `class`. T-INT01 should run `dark-pages.test.ts`'s "carries dark-page on index.html's own `<html>`" case and the built `index.html` with B merged.
+- **The ring cases depend on the class being on the root.** If a focus rule were left on `body.dark-page`, the ring cases would read room.css's `#0b4f9c` and fail, so the re-key is held by the cascade's winner, not by the selector text alone (the token case also refuses any `body.dark-page` selector).
+- **The no-script case** reads the fallback under every sheet the bundle links, on the assumption that Vite links the entry's CSS in the built `<head>`. The built file isn't parsed here; `site.test.ts` and `smoke.test.ts` read the real release build and pass.
+- **The built pages' sticky header** isn't measured in a browser (jsdom lays out nothing). The scroll padding is checked by arithmetic against the header's lines and margins. How tall it looks on a phone is his call (SC-008; my question below).
+
+## Interruptions
+
+- **One refusal**: a `Monitor` call that waited on the RED run's log (`until grep -q "^exit " …; do sleep 2; done; grep -E …`) asked for approval as a command with several operations and didn't run. I didn't rephrase it. I took another route: each long run went to the background, and I waited for the task's own completion notice (Q53). It is on the page as a question.
+- **One mistake, no effect**: while renaming the two `onGround` calls I ran a `sed -i` against `/dev/null` (it failed: "couldn't edit /dev/null: not a regular file") instead of using Edit. It changed nothing. The rename was then made with Edit, and every tracked file in this rework was written with Edit or Write.
+- No hook or bash-gate refusal. No human-only path was touched, so no patch for his hand and no SHA-256. `resume/` isn't in this worktree; the screenshots weren't read.
+
+## Questions
+
+Two, in `/night/io/out/questions.md`, each with a recommended answer:
+- The built pages' sticky header height on a phone. Recommended: keep it as built.
+- The refused `Monitor` watch. Recommended: wait on the background task's own notice only.
+
+## Done, and not (this rework)
+
+**Done**:
+- T-C01 again, RED (`496d6bc0`, with the Q77 bound tightened in `cc82d1be` while still failing): T-C01's (a) to (d) as `2dd4213f` has them, plus Q77's case.
+- T-C02 again, GREEN (`96c1e8c9`, `90dd7833`, no test file in either, each with its `plan.md` "As built"):
+  - the root's class in `index.html`, taken off at "Enter" and never put on the body;
+  - dark.css re-keyed with no `body.dark-page` left, so every ring on the three pages wins dark by the cascade;
+  - R-5's `--page-face-hover`;
+  - R-7's two focus rules;
+  - each built page's header sticky, opaque, with scroll padding above its height (Q77).
+- T-C03 again: the 14 files (237 tests) and `make lint`, both exit 0, pasted above.
+- Rework2's diff read: no change to C's rows.
+
+**Not done, and not C's**:
+- B's real stylesheet over the cards and B's root attributes beside `class` (T-INT01).
+- The `a11y.test.ts` rewrite (Q62, T-INT).
+- The dead-declaration sweep (T-INT02).
+- The one `make check` and the stack's merge-request note (T-INT04).
+- His look at the dark pages and the sticky header (SC-008).
+
+**Left by the brief**: R-4 and R-6 (above). **Not run here**: `make test`, `make evals` (rule 4), the image stage (his gate).
