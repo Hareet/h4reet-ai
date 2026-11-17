@@ -1,0 +1,48 @@
+/* The dark pages (spec 030, FR-015, FR-016; Q9; plan.md §R-C1): the selection screen (choice.ts puts dark-page on the
+   body until "Enter"), /credits/ and /disclosure/ (build/credits.ts and build/disclosure.ts emit this file first in
+   their style.css, with dark-page on <html>). The room's own panel palette, opaque: the values below are held equal to
+   room.css's and hud/split.css's :root by test/ui/dark-pages.test.ts. Selectors name body.dark-page or .dark-page with
+   an element, so they outrank style.css's and room.css's light rules whatever the order the sheets load in. */
+:root.dark-page,
+body.dark-page {
+  color-scheme: dark;
+  --glass: 16 20 26;
+  --hud-text: #ffffff;
+  --split-muted: #e8e4dc;
+  --accent-neon: #ffc8a8;
+  --hud-focus: #ffd23f;
+  /* The pages' rules and table borders: a grey of the glass at 5.7:1 against it (a page's line, not a panel's). */
+  --page-rule: #8a8f98;
+  color: var(--hud-text);
+  background: rgb(var(--glass));
+}
+
+/* The root's scheme too while the selection screen shows (style.css's :root says light), for the scroll bar. */
+:root:has(> body.dark-page) {
+  color-scheme: dark;
+}
+
+.dark-page a {
+  color: var(--accent-neon);
+  text-decoration: underline;
+}
+
+body.dark-page a:focus-visible,
+body.dark-page button:focus-visible,
+body.dark-page input:focus-visible,
+.dark-page a:focus-visible {
+  outline: 2px solid var(--hud-focus);
+  outline-offset: 2px;
+}
+
+/* The AI disclosure: index.html's header on the selection screen (sticky, room.css), each built page's own header. */
+.dark-page .disclosure,
+.dark-page body > header {
+  background: rgb(var(--glass));
+  border-bottom-color: var(--split-muted);
+}
+
+.dark-page th,
+.dark-page td {
+  border-color: var(--page-rule);
+}
