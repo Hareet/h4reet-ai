@@ -1239,6 +1239,7 @@ Verdict: **PASS**, conditional on the 1.1.0 patch, with the deviations below.
 - [`fixes/f8.md`](fixes/f8.md): F8, the fix
 - [`fixes/merge-f-1.md`](fixes/merge-f-1.md): the merge of F2, F3, F4 and F5
 - [`fixes/merge-f-2.md`](fixes/merge-f-2.md): the merge of F1 and F6
+- [`fixes/merge-f-3.md`](fixes/merge-f-3.md): the merge of F7
 - [`fixes/merge-f-4.md`](fixes/merge-f-4.md): the merge of F8
 - [`fixes/verify-f1.md`](fixes/verify-f1.md): F1's verify
 - [`fixes/verify-f2.md`](fixes/verify-f2.md): F2's verify
