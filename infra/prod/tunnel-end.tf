@@ -99,14 +99,15 @@ data "aws_ec2_managed_prefix_list" "cloudfront" {
 }
 
 # CloudFront's VPC origins' own group, which CloudFront makes in prod's VPC once a VPC origin exists and attaches to
-# the interfaces it connects from (fix F1): the source the relay's 8080 needs. Read by its name in the VPC. The read
-# waits on the VPC origin, so on a rebuild from nothing, or while the origin changes, it is made at the apply, once
-# the group exists, rather than failing the plan on a group not yet made.
+# the interfaces it connects from (fix F1): the source the relay's 8080 needs. Read by its name in the VPC, at plan
+# time: the group exists there since W1's origin. The read waits on nothing else, and must not wait on the VPC origin:
+# the origin targets the tunnel end, whose primary interface holds the private group, whose 8080 names this read, so
+# a depends_on there closes a cycle Terraform refuses (F1's rework, R-1). A rebuild from nothing meets a group not yet
+# made, since CloudFront makes it with the origin: two applies, the first without this read and its rule
+# (specs/001-cloud-elevation/plan.md §16, "B-6", item 5; fixes/f1.md's backlog).
 data "aws_security_group" "cloudfront_vpc_origins" {
   name   = "CloudFront-VPCOrigins-Service-SG"
   vpc_id = aws_vpc.prod.id
-
-  depends_on = [aws_cloudfront_vpc_origin.relay]
 }
 
 # The public interface: the tunnel's 2222 from anywhere, since the laptop's address changes, and the health port 8087
