@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import re
 import secrets
 import shutil
 import sys
@@ -499,6 +500,91 @@ def test_an_image_other_than_the_webs_has_no_named_contexts(tmp_path: Path) -> N
     src = scratch_tree(tmp_path)
     (src / "assets/ui").mkdir(parents=True)
     assert rl.web_contexts("api", src) == []
+
+
+# Spec 030 (plan.md §R-D4, rework 3, the review's R-5; tasks.md T-DS01 (c)): an export cut before ASSET_CONTEXTS has a
+# web_image.py without it, which web_contexts refuses by name, before any build, never with an AttributeError.
+THE_LIST = re.compile(r"^ASSET_CONTEXTS = \(\n(?:    .*\n)*?\)\n", re.MULTILINE)
+
+
+def tree_with_list(tmp_path: Path, replacement: str) -> Path:
+    """A scratch export whose web_image.py is the tree's own copy with its ASSET_CONTEXTS assignment replaced."""
+    src = scratch_tree(tmp_path)
+    script = src / "deploy/scripts/web_image.py"
+    text, count = THE_LIST.subn(replacement, script.read_text(encoding="utf-8"))
+    assert count == 1
+    script.write_text(text, encoding="utf-8")
+    return src
+
+
+def refused_by_name(src: Path) -> str:
+    with pytest.raises(rl.Refused) as refused:
+        contexts("web", src)
+    message = str(refused.value)
+    assert "deploy/scripts/web_image.py" in message and "ASSET_CONTEXTS" in message
+    return message
+
+
+def test_an_export_whose_web_image_has_no_list_is_refused_by_name(
+    tmp_path: Path,
+) -> None:
+    src = tree_with_list(tmp_path, "")
+    assert "ASSET_CONTEXTS =" not in (src / "deploy/scripts/web_image.py").read_text(
+        encoding="utf-8"
+    )
+    (src / "assets/ui").mkdir(parents=True)
+    assert str(src / "deploy/scripts/web_image.py") in refused_by_name(src)
+
+
+@pytest.mark.parametrize(
+    "malformed",
+    [
+        "ASSET_CONTEXTS = None\n",
+        'ASSET_CONTEXTS = "assets/ui"\n',
+        'ASSET_CONTEXTS = [("assets/ui", "ui-assets")]\n',
+        'ASSET_CONTEXTS = (["assets/ui", "ui-assets"],)\n',
+        'ASSET_CONTEXTS = (("assets/ui",),)\n',
+        'ASSET_CONTEXTS = (("assets/ui", "ui-assets", "more"),)\n',
+        'ASSET_CONTEXTS = (("assets/ui", 3),)\n',
+        'ASSET_CONTEXTS = ((Path("assets/ui"), "ui-assets"),)\n',
+    ],
+)
+def test_an_export_whose_list_isnt_folder_and_context_pairs_is_refused_by_name(
+    tmp_path: Path, malformed: str
+) -> None:
+    src = tree_with_list(tmp_path, malformed)
+    (src / "assets/ui").mkdir(parents=True)
+    refused_by_name(src)
+
+
+def test_a_release_of_an_export_without_the_list_is_refused_before_any_build(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    src = tree_with_list(tmp_path, "")
+    path, sha = plugin(tmp_path)
+    r = Runner()
+    code = rl.run(
+        rl.Options(
+            registry=REGISTRY,
+            bucket=BUCKET,
+            compose_plugin=path,
+            compose_sha256=sha,
+            public=False,
+            local=tmp_path / "releases",
+            redteam=history(tmp_path, {}),
+        ),
+        r,
+        root=REPO,
+        now=lambda: "20261113T010203Z",
+        contexts=rl.web_contexts,
+        exported=lambda commit, work: src,
+        routing_of=lambda src: ROUTING,
+    )
+    assert code == 1
+    err = capsys.readouterr().err
+    assert f"{rl.PROG}: refused, nothing pushed past the step that refused: " in err
+    assert "ASSET_CONTEXTS" in err and "AttributeError" not in err
+    assert r.builds() == [] and r.uploads == []
 
 
 @pytest.mark.parametrize("error", [OSError("no docker"), "timeout"])
