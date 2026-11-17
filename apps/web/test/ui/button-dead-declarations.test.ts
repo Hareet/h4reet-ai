@@ -2,12 +2,14 @@
 // of room.css or split.css that sets a property the component owns is left that loses on every element it matches.
 // The probe reads the whole page as B's tests read it (test/helpers/button-room.ts's stylesheets in the bundle's order,
 // the root's data-skin the build's, the cascade of test/helpers/button-cascade.ts), through the real room at each
-// layout the HUD has (split, column, dock, stacked), at rest, walking, with the conversation open, and with the resume
-// panel open, under each media the stylesheets ask about (forced colours, less transparency, more contrast, reduced
-// motion, no hover), with every element in each state the selectors name (normal, hover, pressed, focus-visible). A
-// declaration of an owned property (or a shorthand of owned longhands alone) that matches a skinned control (Q5) and
-// wins no longhand it sets on any element, in any of those, is dead: B's rules took it over (T-INT02's GREEN removed
-// each). A declaration that matches nothing in these windows isn't judged here.
+// layout the HUD has (split, column, dock, stacked), at rest, walking, with the conversation open, with the resume
+// panel open, with the toggles pressed, and in 2D, under each media the stylesheets ask about (forced colours, less
+// transparency, more contrast, reduced motion, no hover), with every element in each state the selectors name
+// (normal, hover, pressed, focus-visible). A declaration of an owned property (or a shorthand of owned longhands alone;
+// never `font`, which also sets the size) that matches skinned controls (Q5) and nothing else, by a selector that names
+// one of them (or the bar, whose controls are all tiles), and wins no longhand it sets on any element in any of those,
+// is dead: B's rules took it over (T-INT02's GREEN removed each). A declaration that matches nothing in these windows,
+// or an unskinned element too, isn't judged here; the run prints those that lose on the skinned controls.
 import { describe, expect, it } from "vitest";
 
 import { readSkins, resolveSkin } from "../../build/ui-skins";
@@ -107,6 +109,8 @@ interface Window {
   readonly opened?: Open;
   /** The 2D drawing's room (no WebGL). */
   readonly flat?: boolean;
+  /** Every toggle pressed, as layout.ts marks "Pause the room" while the room is paused (aria-pressed). */
+  readonly pressed?: boolean;
 }
 
 const WINDOWS: readonly Window[] = [
@@ -122,6 +126,9 @@ const WINDOWS: readonly Window[] = [
   { name: "dock, walking", screen: { w: 390, h: 844 }, hud: "dock", walk: true },
   { name: "dock, the conversation open", screen: { w: 390, h: 844 }, hud: "dock", opened: "conversation" },
   { name: "stacked", screen: { w: 300, h: 400 }, hud: "stacked" },
+  { name: "split, paused", screen: { w: 1366, h: 768 }, hud: "column", pressed: true },
+  { name: "column, paused", screen: { w: 1280, h: 720 }, hud: "column", pressed: true },
+  { name: "dock, paused", screen: { w: 390, h: 844 }, hud: "dock", pressed: true },
   { name: "split, 2D", screen: { w: 1366, h: 768 }, hud: "column", flat: true },
   { name: "dock, 2D", screen: { w: 390, h: 844 }, hud: "dock", flat: true },
 ];
@@ -152,6 +159,7 @@ async function visit(w: Window): Promise<Visit> {
     v.doc.querySelector<HTMLButtonElement>(`.room-list button[data-object-id="${id}"]`)?.click();
     await flush();
   }
+  if (w.pressed) for (const el of v.doc.querySelectorAll("button[aria-pressed]")) el.setAttribute("aria-pressed", "true");
   // The root's data-skin as the build writes it: the resolved skin's (metal while the image skin's files are absent).
   v.doc.documentElement.setAttribute("data-skin", resolveSkin(readSkins(skinText())).id);
   return v;
@@ -162,6 +170,7 @@ describe("no declaration of room.css or split.css lost to B's component (spec 03
     const sheets = bundleSheets(resolveSkin(readSkins(skinText())).id);
     const matched = new Map<string, Declaration>();
     const onSkinned = new Set<string>();
+    const onOther = new Set<string>();
     const won = new Set<string>();
     for (const w of WINDOWS) {
       const t0 = Date.now();
@@ -173,6 +182,7 @@ describe("no declaration of room.css or split.css lost to B's component (spec 03
             PROBED.has(d.sheet) &&
             (d.pseudo === null ? longhands(d.property) !== null : d.pseudo === "before" && BEFORE_OWNED.has(d.property)),
         );
+        const isCandidate = new Set(candidates);
         const elements = new Set<Element>();
         for (const d of candidates) {
           let found: Element[];
@@ -194,9 +204,11 @@ describe("no declaration of room.css or split.css lost to B's component (spec 03
                   for (const l of pseudo ? [d.property] : (longhands(d.property) ?? [])) names.add(l);
               for (const name of names) {
                 for (const d of cascade.matching(el, name, state)) {
-                  if (!PROBED.has(d.sheet)) continue;
+                  // Only a candidate: a shorthand that also sets a longhand the component doesn't own (`font`: the
+                  // size and the line's height) is never dead here, though B wins its family and weight.
+                  if (!isCandidate.has(d)) continue;
                   matched.set(key(d), d);
-                  if (skinned) onSkinned.add(key(d));
+                  (skinned ? onSkinned : onOther).add(key(d));
                 }
                 const winner = cascade.winner(el, name, state);
                 if (winner && PROBED.has(winner.sheet)) won.add(key(winner));
@@ -206,9 +218,17 @@ describe("no declaration of room.css or split.css lost to B's component (spec 03
       }
       console.log(`${w.name}: ${Date.now() - t0} ms`);
     }
-    const dead = [...onSkinned].filter((k) => !won.has(k)).sort();
-    console.log(`the probe: ${matched.size} declarations matched, ${onSkinned.size} on a skinned control, ${dead.length} dead`);
+    // Dead: matched skinned controls alone, by a selector that names one (or the bar, whose controls are all tiles),
+    // and won nowhere. A rule for every button of the room (`.room button[aria-disabled="true"]`), or every glass
+    // panel's links and buttons, isn't B's to take, whatever these windows hold.
+    const names = (k: string): boolean => /\.(hud-tile|hud-bar|room-walk|room-eat|split-back|split-hint|resume-close|talk-larger|talk-log-toggle)\b/.test((matched.get(k) as Declaration).selector);
+    const dead = [...onSkinned].filter((k) => !won.has(k) && !onOther.has(k) && names(k)).sort();
+    const losing = [...onSkinned].filter((k) => !won.has(k) && !dead.includes(k)).sort();
+    console.log(
+      `the probe: ${matched.size} declarations matched, ${onSkinned.size} on a skinned control, ${dead.length} dead, ${losing.length} losing there but not B's alone`,
+    );
     for (const k of dead) console.log(`dead: ${k}`);
+    for (const k of losing) console.log(`not B's alone: ${k}${onOther.has(k) ? " (matches an unskinned element)" : ""}`);
     expect(dead).toEqual([]);
   }, 1_800_000);
 });
