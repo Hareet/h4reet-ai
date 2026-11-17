@@ -3988,3 +3988,418 @@ exit=0
 
 Run again after 7.7 and this section went in: the same 16 lines, exit 0; and 7.7's three logs, `pytest-docs.txt` (3
 lines), `docs-links.txt` (6) and `lint.txt` (12), each "in step 7 contiguous: True", exit 0.
+
+## Step 8: Q109's patch out of the hand-over, by rule 14 (`drop-q109-030`)
+
+Night 5, 2026-11-17, from 18:47Z by the container's clock. Implementer `drop-q109-030`, docs only: the Author's rule 14,
+after `rv-rework2-handover-030` blocked `rework2-handover-030`'s tip `b8cec8f476cabda8b4476b5ae8738d56a2b49899` only on
+Q109's patch (R2-1). Branch `night/drop-q109-030/drop-q109-030`, on `b8cec8f4`. I wrote none of F, spec 030, its
+merges, its ADR, the note or Q109's patch. Read first: the page `docs/night-shift/2026-11-17.md` on
+`night/supervisor/2026-11-17` at `bf467bb8f14600abd2886d0cd1fc4964d2967137` (the seventy-ninth to eighty-third wakes,
+with the copies of `rv-handover-030`'s check 2 table, `rv-rework-handover-030`'s tables A and B, controls and check 1,
+and `rv-rework2-handover-030`'s review; Q109, Q114 to Q133), the note, and step 7 above. The reviews' own files aren't
+in this container (Q124). Tracked files were written with the Write and Edit tools only. Scratch: `/tmp/dq109/`
+(`page.md`, the page as `git show` gives it; `proof/`; `log/`).
+
+### 8.1 Change nothing first (the brief's step 1)
+
+```text
+$ git status; echo "exit $?"; git log -1; echo "exit $?"; P=docs/merge-requests/human-patches/2026-11-17-q109-rm-expansion-gate.patch; sha256sum $P; stat -c %s $P
+On branch night/drop-q109-030/drop-q109-030
+nothing to commit, working tree clean
+exit 0
+commit b8cec8f476cabda8b4476b5ae8738d56a2b49899
+Author: night-implementer <night-implementer@night-shift.h4reet-ai>
+Date:   Tue Nov 17 18:18:03 2026 +0000
+
+    docs(030): T-INT04 second rework after rv-rework-handover-030's R-1: Q109's patch rebuilt, N-1, Q123 and Q125 to Q127
+    
+    rework2-handover-030, from rework-handover-030's tip c6327959.
+    
+    R-1, in docs/merge-requests/human-patches/2026-11-17-q109-rm-expansion-gate.patch, by Q125's recommended answer
+    (rebuilt from plain copies of main's f6baef8c; SHA-256 c5266c99c587d98a58c3cf8f0a2c2b6902f4e97f445ed57aedc0d44f86822aea,
+    21,062 bytes; 256f6566 and the first build's 2e10e78d are void):
+    - The cut reads past a redirection's & (2>&1, >&2, 2>&-, <&0, &>) and >|.
+    - Fail closed: when the cut leaves a quote open or ends on a backslash, the rule reads on to the line's end and joins
+      each next line a quote holds open. A backslash ending a line is left to the joined reading (question 7).
+    - rm_skip, the rule's own skips: a quoted option argument, a quoted assignment value, +=. engine_skip and the engine
+      rule are left as they are (Q127).
+    - An escaped < or > is an operand, not a redirection (rm -rf \> /tmp/x).
+    - rm_unproven's two tests run first in bash on the whole segment (a wider match), and a line's rest is looked up only
+      for an open cut: 4,000 lines of rm -rf build fall from 87 s (the previous build) to 1.4 s. 2,000 lines of
+      rm -rf build 2> /tmp/log still take 48 s (question 8).
+    - The matrix hunk: 124 rows. 63 block (table A's 23 and the fail-closed bash -c 'rm -rf build; echo $x' added), 19
+      allow (9 added), 42 gap (table B's 10 added, each named under the comment's "Known gaps").
+    
+    Checked on fresh exports of f6baef8c: patch -p1 --dry-run and patch -p1 exit 0, no .orig or .rej, diff -rq names the
+    two files, shellcheck and bash -n 0, the static agent-config checks 0 failed. On the patched gate: the 124 rows as
+    declared; table A 23 block; table B 10 allowed under gap rows; the controls as the page lists them; the eightieth
+    wake's 112 as listed; step 6's 78 spellings each as recorded; 25 of this rework's own. Main's gate blocks none of the
+    124 rows. The whole matrix 1074 passed, 36 failed (the base's same stage-S rows), 110 known gaps, no gap closed. In
+    his order on the stack's tip (F7's two, F8's two, Q109's), each exit 0, Q109's gate hunk at offset 1 leaving the
+    .orig the note names; every set gives the same bytes there.
+    
+    The documents: tasks.md:86 (N-1, both reworks); the note's header paragraph, Result line, §4 rewritten, §7, §8, §9
+    (questions 6 to 8), The stack, row 5, the open questions' intro, Q123 and Q125 to Q127 identical to the page, Q116's
+    annotation, a backlog line. His words and F's morning list unchanged (checked against c6327959's note).
+    handover.md step 7 holds every command and output.
+    
+    No refusal from the bash gate or the permission layer. Three questions in questions.md. The docs tests 61 passed;
+    docs links 0 failed; the lint target exit 0. Nothing under /tmp deleted.
+    
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+exit 0
+c5266c99c587d98a58c3cf8f0a2c2b6902f4e97f445ed57aedc0d44f86822aea  docs/merge-requests/human-patches/2026-11-17-q109-rm-expansion-gate.patch
+21062
+```
+
+The SHA-256 and the size are the brief's (`c5266c99…2aea`, 21,062 bytes). Save point `a2b7db10` (`wip(drop-q109-030): step 1, change nothing first`, empty, 18:47:44Z).
+
+```text
+$ git show night/supervisor/2026-11-17:docs/night-shift/2026-11-17.md > /tmp/dq109/page.md; git rev-parse night/supervisor/2026-11-17
+bf467bb8f14600abd2886d0cd1fc4964d2967137
+$ df -h /tmp
+tmpfs           2.0G  460K  2.0G   1% /tmp
+```
+
+### 8.2 The patch file stays byte for byte (the brief's step 2)
+
+Not opened for writing, moved or rebuilt. Its SHA-256 at the tip and `git diff --exit-code` against `b8cec8f4` are in
+8.5.
+
+### 8.3 The new file beside it (the brief's step 3)
+
+`docs/merge-requests/human-patches/2026-11-17-q109-rm-expansion-gate.md`, 1,257 lines. Save point `372d1a5d` (empty,
+18:50:25Z) before it. Its order: the heading "a follow-up for Q121, not for tonight's gate"; rule 14 quoted word for word
+from the brief; the patch's path, SHA-256 and size; the findings still open; the open questions; the review tables, each
+under its source; and a pointer to the builders' own tables in this file's steps 2 (lines 139 to 434), 6 (1374 to
+2396) and 7 (2397 to 3990).
+
+The route: the Write tool wrote the file whole, with the six copies as placeholders (`@@P0@@` to `@@P6@@`), and then
+the Edit tool put each copy in place of its placeholder, from the page's lines as the Read tool showed them. Each copy
+was `diff`ed against the page as it went in (8.5 runs them all again on the tip):
+
+```text
+$ for n in 109 114 115 116 121 122 123 125 126 127 128 129 130 131 132; do grep "^### Q$n: " page.md | sed -E 's/^### (Q[0-9]+): /- **\1**: /'; done > qwant.md; grep -E '^- \*\*Q(109|11[456]|12[1-9]|13[012])\*\*: ' $F > qgot.md; diff qwant.md qgot.md; echo "questions diff exit=$?"; wc -l qwant.md qgot.md
+questions diff exit=0
+   15 qwant.md
+   15 qgot.md
+   30 total
+$ diff <(sed -n "1682,1827p" page.md) <(sed -n "${s},$((s+145))p" $F); echo "P0 diff exit=$?"
+P0 diff exit=0
+P1 diff exit=0
+P3 diff exit=0
+P2 diff exit=0
+P4 diff exit=0
+P5a diff exit=0
+P5b diff exit=0
+P5 diff exit=0
+check1 whole diff exit=0
+```
+
+(The later checks ran the same `diff` with each copy's own page lines and first line; `$F` is the new file.) Save
+points: `de361c33` (18:53:52Z, the file with P0 to P4 in), `ab9b5658` (18:55:58Z, check 1 to RO17), `27f7ad4e`
+(18:57:27Z, the file whole). One slip, no effect: my first try at `de361c33` ran `git add -N` on the new file, then
+`git commit -q -m … --` with nothing staged, which git refused ("no changes added to commit"); nothing was committed,
+and the next command staged the file with `git add` and committed it.
+
+The copies, each word for word between the page's lines (at `bf467bb8`):
+
+| What | Source (task) | The page's copy | Lines on the page |
+| --- | --- | --- | --- |
+| The verdict, R2-1, I-2, N-1, N-2, the feed back, criteria and refusals | `rv-rework2-handover-030` (`review.md` 9 to 152) | eighty-third wake | 1682 to 1827 |
+| Nit 5 | `rv-handover-030` | the note's backlog bullet (not the page) | |
+| The fifteen open questions' titles | the page's own `### Q…` headings | | |
+| Check 2 table | `rv-handover-030` | eightieth wake | 1553 to 1614 |
+| Check 1 (on B-1) | `rv-rework-handover-030` (`review.md` 109 to 232) | eighty-third wake | 2624 to 2748 |
+| Tables A and B, the controls | `rv-rework-handover-030` | eighty-first wake | 1628 to 1657 |
+| Check 1 (every table) | `rv-rework2-handover-030` (`review.md` 156 to 945) | eighty-third wake | 1829 to 2620 |
+
+### 8.4 The note (the brief's step 4)
+
+Save point `8573af8a` (empty, 18:57:27Z), then with the Edit tool, these changes and no others:
+
+- **The patch table**: row 5 removed; row 6 keeps its number and text. Under the table, the words
+  `5 in §4 above (alone on main, and on the stack's tip after 1 to 4); ` removed, nothing else.
+- **His order and his morning steps**: the "My reading beside it" bullet "Q109's patch, if he takes Q114's recommended
+  answer, joins step 1's stack commit after F8's two (and Q119's puts F7's two first in that commit)." removed. No other
+  sentence there named the patch. The `>` lines are unchanged (8.5).
+- **§4**: one line under its heading: the patch is a follow-up for Q121, not for tonight's gate (his rule 14), with the
+  new file's link. §4's record otherwise stays.
+- **The backlog**: one bullet after `rework2-handover-030`'s: the patch's path, SHA-256 and size as the follow-up for
+  Q121, the new file, R2-1, I-2, N-1 and N-2 still open, Q131 and Q132.
+- **The header**: a paragraph after the reworks' (after line 25): this task, by rule 14, after R2-1. **"The stack"**:
+  `, and drop-q109-030's step 8 (…)` added to the sentence listing what comes after `68634ecb`.
+
+Committed as `125bc4a8` (18:58:03Z).
+
+**The search** for `Q109`, `patch 5`, `row 5` and the patch's file name: 32 lines at `b8cec8f4`, 37 at the tip (two
+removed, seven added). Each line at `b8cec8f4`, by its line there:
+
+| Line at `b8cec8f4` | Where, what | Changed? Why |
+| --- | --- | --- |
+| 16 | header, `rework-handover-030`: "It rebuilt Q109's patch (§4; patch 5's new SHA-256)" | No: a record of that task's work, not tonight's order, gate or morning |
+| 18 | the same: "… or Q109's first patch." | No: the same |
+| 23 | header, `rework2-handover-030`: "rebuilt Q109's patch … (§4; patch 5's new SHA-256)" | No: the same |
+| 25 | the same: "… or Q109's earlier builds." | No: the same |
+| 33 | the Result line: "Q109's patch is built, reworked … and checked for his hand (§4)" | No: what was built and checked; it names no order, gate or morning |
+| 103 | §1's commit table: `820b9287`, "Q109's patch for his hand (§4)" | No: a commit's record |
+| 161 | §4's heading | No: the heading stays; the new line is under it |
+| 163 | §4: the patch's path, size and SHA-256 | No: §4's record (the brief: "§4's record otherwise stays") |
+| 255 | §4's case table, "(`f6baef8c` + patch 5)" | No: §4's record (my question 1) |
+| 293, 295, 296 | §4: "In his order, on a fresh export of the stack's tip …"; the bold "Delete it before his commit, or apply patch 5 with `patch -p1 --no-backup-if-mismatch`." | No: §4's record of the stacked check, which the brief keeps. The nearest call of the search: the bold line is how to apply the patch whenever he does, and the new line above §4's record says it isn't for tonight's gate (my question 1) |
+| 446 | §7: "patch 5 is outside the stack's tree" | No: `rework2-handover-030`'s record of its runs |
+| 467, 469, 470, 472 | §9, questions 1 to 3 (Q114 to Q116 as `handover-030` wrote them; 467's recommended answer puts the patch on the stack before his gate) | No: questions, as written, and still open; the brief: change no word of the open questions |
+| 491 | §9, question 8 (Q130) | No: the same |
+| 505, 506 | "The stack": `rework-handover-030`'s and `rework2-handover-030`'s steps | 506's sentence gains my step 8, as the brief asks; its words before are unchanged |
+| 532 | the patch table's row 5 | **Removed** (the brief) |
+| 626 | "My reading beside it": "Q109's patch, if he takes Q114's recommended answer, joins step 1's stack commit …" | **Removed**: it put the patch in his morning step 1 |
+| 689 | the backlog: `rv-handover-030`'s nit 5 | No: kept, and copied into the new file |
+| 694 | the backlog: `rework2-handover-030`'s line on the rule | No: the rule's behaviour, not tonight's order |
+| 842, 847, 848, 849, 854, 855, 856, 858 | the open questions Q109, Q114, Q115, Q116, Q121, Q123, Q125, Q127 | No: quoted from the page, change no word. Q114's recommended answer puts the patch on the stack before the gate: it stays open, as the page has it |
+
+New at the tip: lines 27, 31 and 33 (the header line), 171 (§4's line), 516 (my step 8 in "The stack"; the same line as
+`b8cec8f4`'s 506 continued), 705, 706 and 709 (the backlog bullet). Not a hit, read for it: "The stack"'s "four patches
+and one intake for his hand" (tip line 518) already counts rows 1 to 4 and 6; "His gate" names no Q109.
+
+### 8.5 The proofs (the brief's step 5)
+
+Save point `de2f3d1c` (empty, 18:58:03Z). `B=b8cec8f476cabda8b4476b5ae8738d56a2b49899`, `N` the note, `D=/tmp/dq109/proof`:
+
+```text
+$ git diff --stat b8cec8f4 HEAD
+ docs/merge-requests/2026-11-17-030-ui-skin.md      |   25 +-
+ .../2026-11-17-q109-rm-expansion-gate.md           | 1257 ++++++++++++++++++++
+ 2 files changed, 1277 insertions(+), 5 deletions(-)
+exit=0
+$ sha256sum + wc -c on the patch file
+c5266c99c587d98a58c3cf8f0a2c2b6902f4e97f445ed57aedc0d44f86822aea  docs/merge-requests/human-patches/2026-11-17-q109-rm-expansion-gate.patch
+exit=0
+21062
+$ git diff --exit-code b8cec8f4 HEAD -- <the patch file>
+exit=0
+$ wc -l, cmp of the morning list's > lines, base and tip
+   63 /tmp/dq109/proof/morning-base.txt
+   63 /tmp/dq109/proof/morning-tip.txt
+  126 total
+cmp exit=0
+$ wc -l, cmp of section 0, base and tip
+  14 /tmp/dq109/proof/s0-base.txt
+  14 /tmp/dq109/proof/s0-tip.txt
+  28 total
+cmp exit=0
+f66f5b12383894a9ba56481d5fc15bd1a56c9f48249ac93a62a88d910341c9af  /tmp/dq109/proof/morning-tip.txt
+f80d446115669351a50da963a06ed9f6f4e05c6ba2f5a037758055ff4473f132  /tmp/dq109/proof/s0-tip.txt
+```
+
+(The diff stat is before this step 8; 8.8 runs it again with `handover.md`.) The extractions, as run:
+
+```bash
+morning() { awk '/^### F.s morning steps$/{f=1;next} /^### /{f=0} f && /^>/'; }
+section0() { awk '/^## 0\. His orders, for this stack$/{f=1} /^## 1\. /{f=0} f'; }
+git show $B:$N | morning > $D/morning-base.txt; git show HEAD:$N | morning > $D/morning-tip.txt
+git show $B:$N | section0 > $D/s0-base.txt; git show HEAD:$N | section0 > $D/s0-tip.txt
+```
+
+The note's whole diff, `git diff b8cec8f4 HEAD -- docs/merge-requests/2026-11-17-030-ui-skin.md`:
+
+```diff
+diff --git a/docs/merge-requests/2026-11-17-030-ui-skin.md b/docs/merge-requests/2026-11-17-030-ui-skin.md
+index b7ec0258..062cd0e6 100644
+--- a/docs/merge-requests/2026-11-17-030-ui-skin.md
++++ b/docs/merge-requests/2026-11-17-030-ui-skin.md
+@@ -24,6 +24,14 @@ rebuilt Q109's patch by Q125's recommended answer (§4; patch 5's new SHA-256),
+ `specs/030-ui-skin/tasks.md`, and added Q123 and Q125 to Q127 to the open questions. Its record is `handover.md`'s step
+ 7. It wrote none of F, spec 030, its merges, its ADR, this note before that, or Q109's earlier builds.
+ 
++`drop-q109-030` (implementer, docs only, the same night) took Q109's patch out of the hand-over on branch
++`night/drop-q109-030/drop-q109-030`, from `rework2-handover-030`'s tip `b8cec8f476cabda8b4476b5ae8738d56a2b49899`,
++after `rv-rework2-handover-030`'s R2-1 (the page's eighty-third wake), by his rule 14. The patch file is unchanged and
++is a follow-up for Q121, not for tonight's gate:
++[`human-patches/2026-11-17-q109-rm-expansion-gate.md`](human-patches/2026-11-17-q109-rm-expansion-gate.md) holds its
++findings, questions and review tables. Its record is `handover.md`'s step 8. It wrote none of F, spec 030, its merges,
++its ADR, this note before that, or Q109's patch.
++
+ **Result:** the one full `make check` exits 2: 10 PASS, 1 WARN, 1 PLANNED, 5 FAIL (§6). No failure is in spec 030's
+ code. Every JavaScript suite passes, `apps/web`'s included (286 files, 5011 passed, 6 skipped, as `int2-030`'s run).
+ `test` fails six pytest cases, all waiting on his patches. Two are F8's known cases (patches 3 and 4). Four are
+@@ -160,6 +168,8 @@ failed, 2661 relative links in 557 files`, so `plan.md:267`'s `impl-dsb.md` link
+ 
+ ## 4. This task: Q109's patch for his hand
+ 
++**Q109's patch is a follow-up for Q121, not for tonight's gate** (his rule 14, after `rv-rework2-handover-030`'s R2-1; `drop-q109-030`): [`human-patches/2026-11-17-q109-rm-expansion-gate.md`](human-patches/2026-11-17-q109-rm-expansion-gate.md). The record below stands as it was.
++
+ `docs/merge-requests/human-patches/2026-11-17-q109-rm-expansion-gate.patch` (21,062 bytes, SHA-256
+ `c5266c99c587d98a58c3cf8f0a2c2b6902f4e97f445ed57aedc0d44f86822aea`), rebuilt by `rework2-handover-030` after
+ `rv-rework-handover-030`'s R-1, by Q125's recommended answer, from plain copies of main's `f6baef8c`
+@@ -503,7 +513,8 @@ page, `night/supervisor/2026-11-17`, records the SHA). The last commit before th
+ `68634ecb5e96486ed5f7acbf1e83e7fe98e1bbd0`. After it come only this note, spec 030's `tasks.md` and `plan.md` lines for
+ T-INT03 and T-INT04, `specs/030-ui-skin/handover.md`, `handover2-030`'s step 5 (§6, §7, save points), and
+ `rework-handover-030`'s step 6 (Q109's patch rebuilt, ADR 0056's two nits, this note), and `rework2-handover-030`'s
+-step 7 (Q109's patch rebuilt again, `tasks.md`'s T-INT04 line, this note). It carries
++step 7 (Q109's patch rebuilt again, `tasks.md`'s T-INT04 line, this note), and `drop-q109-030`'s step 8 (Q109's
++patch out of the hand-over, the file beside it, this note). It carries
+ F (spec 001's F1 to F8 on main's `f6baef8c`), U (spec 030's groups A, B, C, DJ, DS, DSB, the round's record, the
+ integration's T-INT02 and T-INT02a), ADR 0056, and four patches and one intake for his hand (not applied).
+ 
+@@ -529,12 +540,11 @@ its own note's:
+ | 2 | `docs/merge-requests/human-patches/2026-11-17-f7-ec2-stop-profile.patch` | `54ca471c6cad59b0b64fb7d577cf93a016b83dbe5b75b3f2be3abd1a0185788b` | On **main**, after 1 |
+ | 3 | `docs/merge-requests/human-patches/2026-11-17-f8-secrets-fill-gate.patch` | `7128f2ee43faa5ecabb89d899bb11ef11c39fb328083ede61291efa4f190ceb0` | On the **stack's tip** (F's line is its base), in one commit of his with 4, gate first (Q80; `f8.md:69`, `:226-237`) |
+ | 4 | `docs/merge-requests/human-patches/2026-11-17-f8-secrets-fill-target.patch` | `6896426c429d733a0016ad61181af4f64e5a08ea70b68004262ab8af65c79ef8` | With 3, after it |
+-| 5 | `docs/merge-requests/human-patches/2026-11-17-q109-rm-expansion-gate.patch` | `c5266c99c587d98a58c3cf8f0a2c2b6902f4e97f445ed57aedc0d44f86822aea` (21,062 bytes; rebuilt by `rework2-handover-030` after `rv-rework-handover-030`'s R-1; `rework-handover-030`'s `256f6566…9f69` and the first build's `2e10e78d…7426` are void) | On the **stack's tip** after 3 and 4, before the gate (Q114; or on main after 2). Delete the `.claude/hooks/bash-gate.sh.orig` its offset hunk leaves, or apply it with `patch -p1 --no-backup-if-mismatch` (§4) |
+ | 6 | `docs/merge-requests/2026-11-17-030-ui-buttons-intake.patch`, with the eleven PNGs from `/srv/studio/handoff/ui-buttons/1/` | `3751674787f85d3a1c56c3053a5815151f674da210486a376466a1ad8ad6a1ae` | On **main**, after his look approval and the stack's merge, on a short branch with its own gate: `human-patches/030.md`'s steps |
+ 
+ Each with `patch -p1 --dry-run`, then `patch -p1`, never `git apply`. Checked: 1 to 4 on exports by `merge-f-4`
+ (`merge-f-4.md` §5) and `rv-f-line` (the page's thirty-eighth wake: "no offset or fuzz, all four on one export and
+-split as the items say"); 5 in §4 above (alone on main, and on the stack's tip after 1 to 4); 6 by `judge-ui-r1` and `verify-030dj` (`human-patches/030.md:66-96`, Q94).
++split as the items say"); 6 by `judge-ui-r1` and `verify-030dj` (`human-patches/030.md:66-96`, Q94).
+ 
+ **About 6, before approving it** (Q102; `human-patches/030.md`, "Row 1: what approving it ships"): approving row 1
+ ships labels over pixels under 4.5:1 in every split tile. Every file's band holds pixels under 4.5:1 against its label
+@@ -623,8 +633,6 @@ sixty-ninth wake, lines 1252 to 1316, quoting `rv-f-line`'s `review.md` lines 16
+   the dark pages). So his look (below) comes before step 5. U's release changes are `deploy/scripts/release.py`'s
+   `web_contexts()` reading `web_image.py`'s `ASSET_CONTEXTS` (Q90) and `apps/web/Dockerfile`'s `ui-assets` stage. The
+   `ui-assets` context is named only when `assets/ui` is a directory (`impl-dsb.md`), so none before his intake.
+-- Q109's patch, if he takes Q114's recommended answer, joins step 1's stack commit after F8's two (and Q119's puts
+-  F7's two first in that commit).
+ - Step 3 and the gate: Q118's recommended answer, "yes: after step 1's patches (none touches `infra/`, so
+   `git rev-parse HEAD:infra` stays `45605aa7…`), run prod's plan from the fresh clone, append its block to
+   `docs/merge-requests/2026-11-17-030-ui-skin.md`, commit it on the stack, then run the gate; the note's "His gate" now
+@@ -694,6 +702,13 @@ Nothing here was changed tonight. Spec 030's review nits not done, by review, in
+ - **`rework2-handover-030`**: Q109's rule fails closed on a `$` later on the line after a quoted separator
+   (`bash -c 'rm -rf build; echo $x'`, a `block` row; §9's question 6), and is still slow on a large command of
+   recursive `rm` segments with a redirection to an absolute path (48 s for 2,000 lines; §9's question 8).
++- **Q109's patch, the follow-up for Q121** (his rule 14; `drop-q109-030`):
++  `docs/merge-requests/human-patches/2026-11-17-q109-rm-expansion-gate.patch` (SHA-256
++  `c5266c99c587d98a58c3cf8f0a2c2b6902f4e97f445ed57aedc0d44f86822aea`, 21,062 bytes) is out of tonight's gate, his
++  order and his morning steps. Its findings and review tables are in
++  [`human-patches/2026-11-17-q109-rm-expansion-gate.md`](human-patches/2026-11-17-q109-rm-expansion-gate.md). Still
++  open there: `rv-rework2-handover-030`'s R2-1 (blocking), I-2, N-1 and N-2, with Q131 (how to close R2-1) and Q132
++  (CLAUDE.md's gate-rule line).
+ - **`rv-int-030`** (the seventy-third wake): its nits 1 to 3 were all taken by `int2-030` (`int.md:432-434`;
+   `tasks.md`'s R-2 and T-INT02 rows). None is left.
+ - **`rv-adr-030`** (the seventy-first wake): "N-4: the index row could carry its answer list, plus Q106's back-pointer
+exit=0
+```
+
+Every SHA-256 left in the patch table, recomputed, and each copy in the new file `diff`ed against the page
+(`F` the new file, `P=/tmp/dq109/page.md`):
+
+```text
+$ every row of the patch table: its SHA-256 in the note, recomputed
+row 1  docs/merge-requests/human-patches/2026-11-17-f7-relay-snapshot-bind.patch note=a1edb4fd880acdb052311f9ec2c5d73d6d332cd2db73486e0c6c780b5eb5db5b got=a1edb4fd880acdb052311f9ec2c5d73d6d332cd2db73486e0c6c780b5eb5db5b equal=yes
+row 2  docs/merge-requests/human-patches/2026-11-17-f7-ec2-stop-profile.patch note=54ca471c6cad59b0b64fb7d577cf93a016b83dbe5b75b3f2be3abd1a0185788b got=54ca471c6cad59b0b64fb7d577cf93a016b83dbe5b75b3f2be3abd1a0185788b equal=yes
+row 3  docs/merge-requests/human-patches/2026-11-17-f8-secrets-fill-gate.patch note=7128f2ee43faa5ecabb89d899bb11ef11c39fb328083ede61291efa4f190ceb0 got=7128f2ee43faa5ecabb89d899bb11ef11c39fb328083ede61291efa4f190ceb0 equal=yes
+row 4  docs/merge-requests/human-patches/2026-11-17-f8-secrets-fill-target.patch note=6896426c429d733a0016ad61181af4f64e5a08ea70b68004262ab8af65c79ef8 got=6896426c429d733a0016ad61181af4f64e5a08ea70b68004262ab8af65c79ef8 equal=yes
+row 6  docs/merge-requests/2026-11-17-030-ui-buttons-intake.patch note=3751674787f85d3a1c56c3053a5815151f674da210486a376466a1ad8ad6a1ae got=3751674787f85d3a1c56c3053a5815151f674da210486a376466a1ad8ad6a1ae equal=yes
+exit=0
+$ git show night/supervisor/2026-11-17:docs/night-shift/2026-11-17.md > page.md; sha256sum page.md
+09001dc362efbe0323a2d664c74a5a4a4d2480e72c3a2964536c5665942198ab  /tmp/dq109/page.md
+page:1682-1827 file:34-179 diff exit=0  (rv-rework2-handover-030: verdict, R2-1, I-2, N-1, N-2, feed back)
+page:1553-1614 file:229-290 diff exit=0  (rv-handover-030's check 2 table (eightieth wake))
+page:2624-2748 file:297-421 diff exit=0  (rv-rework-handover-030's check 1 (eighty-third wake))
+page:1628-1657 file:429-458 diff exit=0  (rv-rework-handover-030's tables A and B and controls (eighty-first wake))
+page:1829-2620 file:466-1257 diff exit=0  (rv-rework2-handover-030's check 1 (eighty-third wake))
+$ the nit 5 copy against the note's backlog bullet
+diff exit=0
+$ the open questions' titles against the page's headings
+diff exit=0
+$ the rule 14 quote line count, its lines
+1
+```
+
+The commands, as run:
+
+```bash
+awk '/^### The patches for his hand, in order$/{f=1;next} /^### /{f=0} f && /^\| [0-9]+ \|/' $N | while IFS='|' read -r _ o p s _; do path=$(echo "$p" | grep -oE '`[^`]+\.patch`' | head -1 | tr -d '`'); want=$(echo "$s" | grep -oE '[0-9a-f]{64}' | head -1); got=$(sha256sum "$path" | cut -d' ' -f1); echo "row$o $path note=$want got=$got equal=$([ "$want" = "$got" ] && echo yes || echo NO)"; done; echo "exit=$?"
+cp_check() { s=$(grep -n -F -x -- "$3" $F | head -1 | cut -d: -f1); s=$((s+$4)); n=$(($2-$1)); diff <(sed -n "$1,$2p" $P) <(sed -n "${s},$((s+n))p" $F) > /dev/null; echo "page:$1-$2 file:$s-$((s+n)) diff exit=$?  ($5)"; }
+cp_check 1682 1827 '## Verdict: BLOCK, on one finding (R2-1)' -1 "…"    # and the same for each copy, its first line and page lines
+diff <(awk '/^- \*\*`rv-handover-030`\*\* \(the seventy-ninth wake\), nit 5/{f=1} f&&/^- \*\*`rework2-handover-030`\*\*/{f=0} f' $N) <(awk '/^```markdown$/{f=1;next} /^```$/{f=0} f' $F); echo "diff exit=$?"
+```
+
+Each `cp_check` takes the copy's whole span, the page's own fence lines included where the page has them (its
+four-backtick `markdown` fences and its three-backtick `text` fence), so a line lost or added at either end would show.
+
+### 8.6 The small tests, last (the brief's step 6)
+
+Save point `c827e09d` (empty, 18:58:39Z). `node_modules` was missing, so `make setup` first:
+
+```text
+$ date -u +%FT%TZ; make setup > $D/setup.log 2>&1; echo "exit=$?" >> $D/setup.log; cat $D/setup.log; git status --short
+2026-11-17T18:58:45Z
+npm ci --ignore-scripts
+
+added 431 packages, and audited 435 packages in 45s
+
+84 packages are looking for funding
+  run `npm fund` for details
+
+21 vulnerabilities (1 low, 11 moderate, 9 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+npm notice
+npm notice New major version of npm available! 11.19.0 -> 12.2.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.2
+npm notice To update run: npm install -g npm@12.2.2
+npm notice
+git hooks: /home/h4reet/h4reet-ai/h4reet-ai/.git/hooks isn't writable here (the agent sandbox); the Author runs make git-hooks
+exit=0
+```
+
+Then, from the worktree's root (`D=/tmp/dq109/log`):
+
+```text
+$ date -u +%FT%TZ; python3 -I -B -m pytest evals/test_docs_links.py evals/test_repository_docs.py -q -p no:cacheprovider > $D/pytest-docs.txt 2>&1; echo "exit=$?" >> $D/pytest-docs.txt; cat $D/pytest-docs.txt; python3 -I -B evals/docs_links.py > $D/docs-links.txt 2>&1; echo "exit=$?" >> $D/docs-links.txt; cat $D/docs-links.txt; date -u +%FT%TZ; make lint > $D/lint.txt 2>&1; echo "exit=$?" >> $D/lint.txt; cat $D/lint.txt; git status --short
+2026-11-17T18:59:35Z
+.............................................................            [100%]
+61 passed in 1.62s
+exit=0
+PASS  every relative link resolves: 2671 links in 560 files
+PASS  README.md links the ADR index (docs/adr/)
+PASS  the ADR index links every ADR file: 53 of 53
+PASS  User Story 6's five decisions have their ADRs: 0001 (local-first routing), 0002 (one compose topology), 0003 (local-compose-first delivery), 0004 (Langfuse and Grafana), 0005 (Telegram alerting)
+docs links: 0 failed, 2671 relative links in 560 files
+exit=0
+2026-11-17T18:59:40Z
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+956 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit=0
+```
+
+The docs links count five more links and one more file than step 7's run (2666 in 559): the new file and its links,
+and the note's three. `ruff format` counts 956 files where step 7 counted 955. No Python file changed
+(`git diff --stat b8cec8f4 HEAD -- '*.py'` is empty), and `git status --ignored --short` outside `node_modules` lists
+only `.claude/audit/` and `.ruff_cache/`; noted, not looked into further. No `make check`: `handover2-030`'s run stands,
+and nothing here is code.
+
+### 8.7 Questions, refusals, scratch
+
+**Questions**, in `/night/io/out/questions.md` (Write tool; the folder held no file before), with a recommended answer
+and the others:
+
+1. The note still calls Q109's patch "patch 5" in its record (the header's rework paragraphs, §4's case table and its
+   bold line on the `.orig`, §7), a number the patch table no longer has: should those words stay as the record?
+   Recommended: yes, leave them; the line under §4's heading, the header line and the backlog bullet name it by path as
+   the follow-up for Q121. Others: rewrite each "patch 5" as "Q109's patch" in a later docs task; strike §4's bold
+   `.orig` line.
+
+**Refusals**: none, from the bash gate or the permission layer. Not a refusal: the slip in 8.3 (git's "no changes
+added to commit").
+
+**Scratch, none deleted**: `/tmp/dq109/` (`page.md`, `qwant.md`, `qgot.md`, `proof/`, `log/`). No push, merge, PR,
+`feat/` branch, request to the runner, or human-only path; the patch file is untouched.
