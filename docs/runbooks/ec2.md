@@ -27,7 +27,9 @@ EC2 runs prod's whole stack but the model server, from the release its deployer 
 
 ## Act
 
-From your terminal, with your SSO session (`pf` your administrator profile, `sp` your h4reet-ec2-stop profile, which signs in to the h4-ec2-stop permission set: `make aws-login` takes `h4reet-…` profile names alone). To start EC2 in W1: the EC2 console, the instance tagged `h4-prod-ec2`, Instance state, Start, inside the hours (07:00 to 19:00 Mountain time). Then `make cloud-session HOST=ec2 PROFILE=…` opens a shell on it; the commands below are that shell's.
+From your terminal, with your SSO session (`pf` your administrator profile, `sp` your h4reet-ec2-stop profile, which signs in to the h4-ec2-stop permission set: `make aws-login` takes `h4reet-…` profile names alone). To start EC2 in W1: the EC2 console, the instance tagged `h4-prod-ec2`, Instance state, Start, inside the hours (07:00 to 19:00 Mountain time).
+
+**The shell on EC2** is the console's Session Manager: the EC2 console, the instance tagged `h4-prod-ec2`, Connect, the Session Manager tab, Connect. The commands below are that shell's (it starts as `ssm-user`; `sudo` for root). `make cloud-session HOST=ec2 PROFILE=…` is not a shell: it is a Systems Manager port-forward (`AWS-StartPortForwardingSession`) from your laptop's `127.0.0.1:18503` to EC2's gateway admin listener, for the operator CLI, and the AWS CLI runs it through AWS's Session Manager plugin, which you install once beside the CLI (AWS's "Install the Session Manager plugin for the AWS CLI"); without the plugin it stops at once and says the plugin is missing.
 
 1. **Read the step that failed:** the journal line above.
 2. **By step:**
