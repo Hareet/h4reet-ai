@@ -58,3 +58,48 @@ Branch `night/rework-spec-030/rework-spec-030` from `35a75b2c` (`brief-ui-r1`'s 
 | S-4 | `plan.md:95-97` | As cited. |
 | S-5 | `plan.md:172-182`, `:106` | As cited. `grep -ln "tile-face\|#555555\|#1a1a1a" test/` from `apps/web/` returns `test/room/hud-contrast.test.ts`, `test/room/highlight.test.ts` (the room's highlight edge `#1a1a1a`, no button), `test/ui/hud-look.test.ts`, `test/ui/hud-over-contrast.test.ts`; `choice-cards.test.ts` isn't among them at this base (it pins `#0b4f9c` through `onWhite`), but it is C's either way. |
 | S-6 | `plan.md:162`; `compose/hud.ts:164` | As cited: `tiles: { rows: 2, perRow: 3, gapRem: 0.25, padRem: 0.25, tileRem: 3.75 }`, 60 CSS px at scale 1. The brief's insets: 24 image px on the buttons (12 CSS px), 48 on the panel frame (24 CSS px). |
+
+## The blocking findings, each fixed
+
+| ID | Fix taken | Where |
+|---|---|---|
+| S-1 | "Close" is the panels' own: `.split-hint` ("Close, Escape", the pair of "Back") and `.resume-close`, beside "Back" (`.split-back`). Q51's recommended answer taken under his rule 1; the header toggles stay as the spec's own reading. Q5's premise ("the split layout has no other close") corrected as a named departure. `.resume-close` stands on the resume panel's white ground, so its boundary is computed against `#ffffff` too. | spec.md Readings, Q5, Q51, Terms, FR-008; plan §R-B3, §R-B4; tasks T-B01 (a) (b) (c), T-B03 |
+| S-2 | `choice-cards.test.ts:425-436` goes into T-C01's RED rewrite, its old assertion (every hex 3:1 on white) and its new one (each colour, `var()`s resolved through `dark.css` or their fallbacks, 3:1 against `rgb(16 20 26)`) named. Also `:459-463`, the card's focus ring, which fails the same way and the review didn't name. The file is C's alone. The Assumptions, US3's scenario 3, R-C2, R-C3 and T-C03 agree. | spec.md Assumptions, US3; plan §R-C2, §R-C3, §9; tasks T-C01 to T-C03 |
+| S-3 | A `ui-assets` named context: `web_image.py` hands over `<tree>/assets/ui` on `visitor-assets`' terms; `apps/web/Dockerfile` gets an empty stage after `twin-assets` and a copy to `/src/assets/ui/` before the build. Its tests are RED first and T-DS's: `deploy/scripts/test_web_image.py` on the `visitor-assets` pattern, plus `scripts/test_makefile.py`'s `WEB_BUILD` pin, which names dev-cpu's contexts one by one and would break once `assets/ui` exists. SC-007 now holds in the image. | spec.md FR-027 (new), SC-007, Amendments; plan §1, §R-D4, §9; tasks T-DS01 (c), T-DS02 |
+| S-4 | The chamfer goes on a `::before` layer behind the label for every control (`isolation: isolate`, `z-index: -1`, `clip-path` on the pseudo-element only). Nothing clips the box, the outline or the glow; the glow is `filter: drop-shadow` (or `box-shadow`) on the control. `button-states.test.ts` asserts no `clip-path` on any skinned control, in every layout, view and state. | spec.md FR-011, FR-013; plan §R-B3, §R-B4, §10; tasks T-B01 (c), T-B03 |
+| S-5 | §9 gives every file to one group, by name; B's grep is gone and B owns no earlier test file. A owns `hud-contrast`, `hud-over-contrast`, `hud-look`, `hud-over-layers` (the import) and `hud-split-contrast`. C owns `choice-cards`. A case B's look needs in another group's file, or in one no group owns, is named in `impl-b.md` and rewritten in T-INT02b (new), RED between A's merge and B's. A file no row names is run, never edited, by every group. | spec.md Assumptions; plan §R-A4, §R-B5, §9; tasks T-A01 (d), T-B01 (d), T-INT01, T-INT02b |
+| S-6 | `border-width` and `padding` stay the CSS skin's. `border-image-width` (insets ÷ 2) with `border-image-outset: 0` draws the insets over the border and padding, so no content box moves. The buttons use `fill`; the panel frame doesn't, so the half's own glass stays the only glass (no 0.51 stack). T-DS01 checks that the tiles', `.room-walk`'s, `.room-eat`'s and the halves' border and padding are equal under both skins, that the tiles' row still holds an icon and two lines, and that no control leaves its half. The brief's insets are unchanged. | spec.md FR-024; plan §R-D4, §10; tasks T-DS01 (b), T-DS02 |
+
+## The non-blocking findings, each with the fix taken or not
+
+The review's own text (`review.md` in its io folder) isn't reachable from this container; each is read from the page's one-line summary, and where that reading is a guess it says so.
+
+| ID | Finding (the page's words) | Fix |
+|---|---|---|
+| I-1 | "FR-008's `ui-button` class and `data-variant` against the plan's 'no DOM change', unnamed" | **Taken.** The spec's Terms and FR-008 now say what the plan does: one rule set over the controls' existing selectors (named in FR-008), each variant fixed by its selector; `ui-button` and `data-variant` are only for a control added later. No markup changes. |
+| I-2 | "FR-012 for the image skin (its label tokens aren't tied to `slices.json`'s, and disabled's dashed border is lost under `border-image`)" | **Taken.** (a) The `metal-image` entry carries `slices.json`'s `labels`, set on every state of their variant, so the label drawn is the one the judge measured. The schema refuses an image skin without them, and a test holds `metal`'s normal labels equal to the brief's (spec FR-024; plan §R-D4; T-DS01 (a)). (b) The dashes move to the control's `::after`, B's, in every skin. This rework's analysis (R-2) found the CSS skin lost them too once the `::before` draws the frame. D sets only the inset (plan §R-B3, §R-D4; T-B01 (c), T-DS01 (b)). |
+| I-3 | "FR-013 against the edge case on labels longer than two lines, and the real labels' fit under `metal` unmeasured" | **Taken in part.** The edge case now names the split tiles' exception, matching FR-013. The fit of the real English labels under `metal`'s uppercase and 0.06em tracking is **not measured**: jsdom has no layout, and the plan adds no browser (no download). It stays for his look (SC-008); `rv-rework-spec-030` may judge whether a font-metric estimate belongs in T-B04. |
+| N-1 | "the `@supports not (backdrop-filter …)` block still makes the glass opaque" | **Taken.** R-A1 removes the whole block (`room.css:189-200`); `hud-no-blur.test.ts` refuses any `@supports` condition on `backdrop-filter`; T-A01 (d), T-A02. |
+| N-2 | "two assertions that check the code against itself" | **Taken, by this reading** (the review didn't name them on the page): T-A01 (b)'s "boxes equal to `halves()`'s" now checks against numbers the test derives, and `halves()` has its own unit cases; T-B01 (a)'s "the two builds' inputs differ only by the YAML" is dropped, and SC-004 is shown by T-B04's `git status`. If the review meant others, `rv-rework-spec-030` will say. |
+| N-3 | "who sets `:root[data-skin-kind="image"]`, and which `data-skin` a fallback carries" | **Taken.** The Vite plugin alone sets both, from the resolved skin; on a fallback, `data-skin="metal" data-skin-kind="css"` (plan §R-B2; T-DS01 (a)). |
+| N-4 | "the selection screen's first paint is light" | **Taken.** `index.html`'s `<html>` carries `class="dark-page"` (now C's file), and `choice.ts` removes it at "Enter". The no-script fallback goes dark too, at 4.5:1, which amends the edge case. That is a question on the page (below). |
+| N-5 | "your intake's route, as `docs/merge-requests/human-patches/021.md` built it" | **Taken.** The intake is `docs/merge-requests/human-patches/030.md` with 021's table (binaries copied by his hand, no patch file; approvals none; tools none). The plan, tasks and `studio-round-1.md`'s R-4 row are updated. |
+
+## This rework's own findings (analysis.md, R-1 to R-9)
+
+- **R-1, HIGH, fixed**: S-4's `::before` at `z-index: -1` in the control's stacking context paints over the control's `border-image`, which would hide the studio's images. Under the image skin the `::before` is off, and the control's flat face sits beneath the image.
+- **R-2, MEDIUM, fixed**: the disabled dashes, above (I-2 (b)).
+- **The second `choice-cards` pin** (`:459-463`), above (S-2).
+- R-3 to R-9 are the non-blocking findings as fixed above.
+
+## The brief
+
+`studio-round-1.md`'s JSON block is byte for byte as placed. The file changed only in its R-4 row's intake path (N-5): `git diff 35a75b2c -- specs/030-ui-skin/studio-round-1.md` shows that one line.
+
+## Questions (in `/night/io/out/questions.md`)
+
+Two, each taken provisionally with its recommended answer: the no-script fallback dark (N-4), and how the image's insets are drawn on the 60 px tiles (S-6). Q51 is the reviewer's, already on the page; its recommended answer is taken here.
+
+## Interruptions
+
+None refused. Every file change was made with Edit or Write. The review's own `review.md` isn't reachable, so the non-blocking findings are read from the page's summary (above).
