@@ -1020,6 +1020,238 @@ ok   RO14     want=block patched=block(2)  main=allow(0)    0.2s  "timeout -k '1
 ok   RO15     want=block patched=block(2)  main=allow(0)    0.2s  "sudo -u 'root' rm -R /tmp/z"
 ok   RO16     want=block patched=block(2)  main=allow(0)    0.2s  "sudo -u $'root' rm -rf $S"
 ok   RO17     want=block patched=block(2)  main=allow(0)    0.2s  "sudo -u \"$U\" rm -rf $S"
-@@P5@@
+ok   RC1      want=block patched=block(2)  main=allow(0)    0.2s  "bash -c -- 'rm -rf $S'"
+ok   RC2      want=block patched=block(2)  main=allow(0)    0.2s  "bash -o errexit -c 'rm -rf $S'"
+ok   RC3      want=block patched=block(2)  main=allow(0)    0.2s  "bash -ec 'rm -rf $S'"
+ok   RC4      want=block patched=block(2)  main=allow(0)    0.2s  "bash --norc -c 'rm -rf $S'"
+ok   RC5      want=block patched=block(2)  main=allow(0)    0.2s  "bash -c 'cd x && rm -rf $S'"
+ok   RC6      want=block patched=block(2)  main=allow(0)    0.2s  "bash -c 'echo; rm -rf $S'"
+ok   RC7      want=block patched=block(2)  main=allow(0)    1.5s  "bash -c rm\\ -rf\\ \\$S"
+ok   RC8      want=block patched=block(2)  main=allow(0)    0.2s  "eval rm\\ -rf\\ \\$S"
+ok   RC9      want=block patched=block(2)  main=allow(0)    0.2s  "bash -c 'sudo rm -rf $S'"
+ok   RC10     want=block patched=block(2)  main=allow(0)    0.2s  "bash -c '(rm -rf $S)'"
+ok   RC11     want=block patched=block(2)  main=allow(0)    0.2s  "bash -c 'rm -rf a'\\'';'\\'' $S'"
+ok   RC12     want=block patched=block(2)  main=allow(0)    0.2s  "bash -c \"rm -rf a\\\";\\\" $S\""
+ok   RC13     want=block patched=block(2)  main=allow(0)    0.2s  "bash -c 'rm -rf \\\"a;b\\\" $S'"
+ok   RC14     want=block patched=block(2)  main=allow(0)    0.2s  "bash -c '\nrm -rf $S'"
+ok   RC15     want=block patched=block(2)  main=allow(0)    0.2s  "sh -c 'rm -rf \"$1\"' _ \"$S\\\""
+ok   RC16     want=block patched=block(2)  main=allow(0)    0.2s  "find . -exec sh -c 'rm -rf \"$1\"' _ {} \\;"
+ok   RC17     want=block patched=block(2)  main=allow(0)    0.2s  "dash -c 'rm -rf $S'"
+ok   RC18     want=block patched=block(2)  main=allow(0)    0.2s  "ksh -c 'rm -rf $S'"
+ok   RC19     want=block patched=block(2)  main=allow(0)    0.2s  "busybox sh -c 'rm -rf $S'"
+ok   RC20     want=block patched=block(2)  main=allow(0)    0.2s  "busybox rm -rf $S"
+ok   RC21     want=block patched=block(2)  main=allow(0)    0.2s  "source <(echo); rm -rf $S"
+ok   RCi1     want=info  patched=allow(0)  main=allow(0)    0.2s  "bash -c ' rm -rf $S'"
+ok   RCi2     want=info  patched=allow(0)  main=allow(0)    0.2s  "sh -c \"  rm -rf $S\""
+ok   RCi3     want=info  patched=allow(0)  main=allow(0)    0.2s  "bash -c '\trm -rf $S'"
+ok   RCi4     want=info  patched=allow(0)  main=allow(0)    0.3s  "eval ' rm -rf $S'"
+ok   RCi5     want=info  patched=block(2)  main=block(2)    0.2s  "bash -c ' rm -rf /tmp/z'"
+ok   RCi6     want=info  patched=block(2)  main=allow(0)    0.3s  "bash -c ' sudo rm -rf $S'"
+ok   RCi7     want=info  patched=block(2)  main=allow(0)    0.2s  "bash -c ' (rm -rf $S)'"
+ok   RCi8     want=info  patched=allow(0)  main=allow(0)    0.2s  "bash -c \"$(printf 'rm -rf %s' \"$S\")\\\""
+ok   RCi9     want=info  patched=allow(0)  main=allow(0)    0.2s  "bash <(echo 'rm -rf $S')"
+ok   RCi10    want=info  patched=allow(0)  main=allow(0)    0.2s  "trap 'rm -rf $S' EXIT"
+ok   RCi11    want=info  patched=allow(0)  main=allow(0)    0.2s  "trap \"rm -rf $S\" EXIT"
+ok   RK1      want=block patched=block(2)  main=allow(0)    0.2s  "( rm -rf $S )"
+ok   RK2      want=block patched=block(2)  main=allow(0)    0.2s  "$(rm -rf $S)"
+ok   RK3      want=block patched=block(2)  main=allow(0)    0.3s  "$( rm -rf $S )"
+ok   RK4      want=block patched=block(2)  main=allow(0)    0.2s  "echo `rm -rf $S`"
+ok   RK5      want=block patched=block(2)  main=allow(0)    0.3s  "cat <(rm -rf $S)"
+ok   RK6      want=block patched=block(2)  main=allow(0)    0.2s  "tee >(rm -rf $S)"
+ok   RK7      want=block patched=block(2)  main=allow(0)    0.2s  "{ rm -rf $S; }"
+ok   RK8      want=block patched=block(2)  main=allow(0)    0.2s  "function f { rm -rf $S; }"
+ok   RK9      want=block patched=block(2)  main=allow(0)    0.3s  "f() { X=1 rm -rf $S; }"
+ok   RK10     want=block patched=block(2)  main=allow(0)    0.2s  "select x in a; do rm -rf $S; done"
+ok   RK11     want=block patched=block(2)  main=allow(0)    0.2s  "for ((i=0;i<1;i++)); do rm -rf $S; done"
+ok   RK12     want=block patched=block(2)  main=allow(0)    0.2s  "case $x in *) X=1 rm -rf $S;; esac"
+ok   RK13     want=block patched=block(2)  main=allow(0)    0.2s  "case x in x|y) rm -rf $S;; esac"
+ok   RK14     want=block patched=block(2)  main=allow(0)    0.2s  "if ! rm -rf $S; then :; fi"
+ok   RK15     want=block patched=block(2)  main=allow(0)    0.2s  "[[ -d x ]] || rm -rf $S"
+ok   RK16     want=block patched=block(2)  main=allow(0)    0.2s  "(( 1 )) && rm -rf $S"
+ok   RK17     want=block patched=block(2)  main=allow(0)    0.2s  "! time rm -rf $S"
+ok   RK18     want=block patched=block(2)  main=allow(0)    0.3s  "while read -r d; do rm -rf \"$d\"; done < list"
+ok   RK19     want=block patched=block(2)  main=allow(0)    0.2s  "until false; do rm -rf $S; break; done"
+ok   RK20     want=block patched=block(2)  main=allow(0)    0.3s  "if true; then :; else rm -rf $S; fi"
+ok   RK21     want=block patched=block(2)  main=allow(0)    0.2s  "coproc { rm -rf $S; }"
+ok   RK22     want=block patched=block(2)  main=allow(0)    0.2s  "coproc NAME { rm -rf $S; }"
+ok   RK23     want=block patched=block(2)  main=allow(0)    0.2s  "if true; then\n  rm -rf $S\nfi"
+ok   RK24     want=block patched=block(2)  main=allow(0)    0.2s  "{\nrm -rf $S\n}"
+ok   RK25     want=block patched=block(2)  main=allow(0)    0.2s  "time { rm -rf $S; }"
+ok   RK26     want=block patched=block(2)  main=allow(0)    0.2s  "x=$( (rm -rf $S) )"
+ok   RK27     want=block patched=block(2)  main=allow(0)    0.2s  "case x in (x) X=\"a b\" rm -rf $S;; esac"
+ok   RNL1     want=block patched=block(2)  main=allow(0)    0.2s  "rm -rf \\\n$S"
+ok   RNL2     want=block patched=block(2)  main=allow(0)    0.2s  "rm \\\n-rf $S"
+ok   RNL3     want=block patched=block(2)  main=allow(0)    0.2s  "r\\\nm -rf $S"
+ok   RNL4     want=block patched=block(2)  main=allow(0)    0.2s  "rm -rf build \\\n\\\n$S"
+ok   RNL5     want=block patched=block(2)  main=allow(0)    0.2s  "rm -rf \"a\nb;c\" $S"
+ok   RNL6     want=block patched=block(2)  main=allow(0)    0.2s  "rm -rf 'a\n\nb' $S"
+ok   RNL7     want=block patched=block(2)  main=allow(0)    0.3s  "rm -rf build # c\nrm -rf $S"
+ok   RNL8     want=block patched=block(2)  main=allow(0)    0.3s  "true;\nrm -rf $S"
+ok   RNL9     want=block patched=block(2)  main=allow(0)    0.3s  "true &&\nrm -rf $S"
+ok   RNL10    want=block patched=block(2)  main=allow(0)    0.3s  "true |\n rm -rf $S"
+ok   RNA1     want=allow patched=allow(0)  main=allow(0)    0.3s  "rm -rf build\necho $S"
+ok   RNA2     want=allow patched=allow(0)  main=allow(0)    0.3s  "rm -rf build \\\n  node_modules"
+ok   RNA3     want=allow patched=allow(0)  main=allow(0)    0.3s  "rm -rf \"a\nb\""
+MISS RF1      want=block patched=allow(0)  main=allow(0)    0.3s  "rm -f$'r' $S"
+MISS RF2      want=block patched=allow(0)  main=allow(0)    0.3s  "rm $'-rf' $S"
+MISS RF3      want=block patched=allow(0)  main=allow(0)    0.3s  "rm $\"-rf\" $S"
+MISS RF4      want=block patched=allow(0)  main=allow(0)    0.3s  "rm -$\"r\" $S"
+ok   RF5      want=block patched=block(2)  main=allow(0)    0.3s  "rm --$'r'ecursive $S"
+ok   RF6      want=block patched=block(2)  main=allow(0)    0.3s  "rm \"-r\" $S"
+ok   RF7      want=block patched=block(2)  main=allow(0)    0.3s  "rm '-'r $S"
+ok   RF8      want=block patched=block(2)  main=allow(0)    0.3s  "rm -\\r $S"
+ok   RF9      want=block patched=block(2)  main=allow(0)    1.6s  "rm -\"rf\" $S"
+ok   RF10     want=block patched=block(2)  main=allow(0)    0.3s  "rm --\"recursive\" $S"
+ok   RF11     want=block patched=block(2)  main=allow(0)    0.3s  "rm -fR $S"
+ok   RF12     want=block patched=block(2)  main=allow(0)    0.3s  "rm -v -r $S"
+MISS RN21     want=block patched=allow(0)  main=allow(0)    0.3s  "$'rm' -rf $S"
+MISS RN22     want=block patched=allow(0)  main=allow(0)    0.3s  "$\"rm\" -rf $S"
+MISS RN23     want=block patched=allow(0)  main=allow(0)    0.3s  "rm$'' -rf $S"
+ok   RN24     want=block patched=block(2)  main=allow(0)    0.3s  "r$'m' -rf $S"
+MISS RN25     want=block patched=allow(0)  main=allow(0)    0.3s  "/bin/\"rm\" -rf $S"
+MISS RN26     want=block patched=allow(0)  main=allow(0)    0.3s  "/bin/'rm' -rf $S"
+MISS RN27     want=block patched=allow(0)  main=allow(0)    0.3s  "/bin/\\rm -rf $S"
+MISS RN28     want=block patched=allow(0)  main=allow(0)    0.3s  "'/bin'/rm -rf $S"
+ok   RN29     want=block patched=block(2)  main=allow(0)    0.3s  "\"/bin/rm\" -rf $S"
+ok   RN210    want=block patched=block(2)  main=allow(0)    0.3s  "./rm -rf $S"
+ok   RN211    want=block patched=block(2)  main=allow(0)    0.3s  "\"r\"m -rf $S"
+ok   RN212    want=block patched=block(2)  main=allow(0)    0.3s  "rm\"\" -rf $S"
+ok   RN213    want=block patched=block(2)  main=allow(0)    0.3s  "\\r\\m -rf $S"
+ok   RT21     want=info  patched=allow(0)  main=allow(0)    0.3s  "rm -rf ./.."
+ok   RT22     want=info  patched=allow(0)  main=allow(0)    0.3s  "rm -rf build/../.."
+ok   RT23     want=info  patched=allow(0)  main=allow(0)    0.3s  "rm -rf ./../x"
+ok   RT24     want=info  patched=allow(0)  main=allow(0)    0.3s  "rm -rf */../../x"
+ok   RT25     want=info  patched=allow(0)  main=allow(0)    0.3s  "rm -rf \"./..\""
+ok   RT26     want=info  patched=allow(0)  main=allow(0)    0.3s  "rm -rf -- -/../.."
+ok   RT31     want=block patched=block(2)  main=allow(0)    0.3s  "rm -rf \"/tmp/x\""
+ok   RT32     want=block patched=block(2)  main=allow(0)    0.3s  "rm -rf '~'/x"
+ok   RT33     want=block patched=block(2)  main=allow(0)    0.3s  "rm -rf \\~/x"
+ok   RT34     want=block patched=block(2)  main=block(2)    0.3s  "rm -rf ~user/x"
+ok   RT35     want=block patched=block(2)  main=block(2)    0.3s  "rm -rf ~-/x"
+ok   RT36     want=block patched=block(2)  main=block(2)    0.3s  "rm -rf .."
+ok   RT37     want=block patched=block(2)  main=allow(0)    0.3s  "rm -rf x \">\" /tmp/z"
+ok   RT38     want=block patched=block(2)  main=allow(0)    0.3s  "rm -rf x '2>' /tmp/z"
+ok   RT39     want=block patched=block(2)  main=allow(0)    0.3s  "rm -rf \"x>\" /tmp/z"
+ok   RT310    want=block patched=block(2)  main=allow(0)    0.3s  "rm -rf x >'a b' /tmp/z"
+ok   RT311    want=block patched=block(2)  main=allow(0)    0.3s  "rm -rf x <<<a /tmp/z"
+ok   RT312    want=block patched=block(2)  main=allow(0)    0.3s  "rm -rf x {fd}>/dev/null /tmp/z"
+ok   RT313    want=block patched=block(2)  main=allow(0)    0.3s  "rm -rf x \\2>/dev/null /tmp/z"
+ok   RX1      want=info  patched=allow(0)  main=allow(0)    0.3s  "rm -rf @(x|y) $S"
+ok   RX2      want=info  patched=allow(0)  main=allow(0)    0.3s  "rm -rf !(x|y) $S"
+ok   RX3      want=info  patched=allow(0)  main=allow(0)    0.3s  "R=rm; \"$R\" -rf $S"
+ok   RX4      want=info  patched=allow(0)  main=allow(0)    0.3s  "rm $F $S"
+ok   RX5      want=info  patched=allow(0)  main=allow(0)    0.3s  "sudo >/dev/null rm -rf $S"
+cases=490 mismatches=14
+```
 
-@@P6@@
+### My corrected rows and more spellings of R2-1
+
+```text
+ok   A10f     want=block patched=block(2)  main=allow(0)    0.3s  "rm -rf '|' \"$S\""
+ok   RV9f     want=block patched=block(2)  main=allow(0)    0.3s  "X='a' Y=\"b c\" rm -rf $S"
+ok   RVi5f    want=info  patched=allow(0)  main=allow(0)    0.3s  "sh -c \"X='a b' rm -rf $S\""
+ok   RCi8f    want=info  patched=allow(0)  main=allow(0)    0.3s  "bash -c \"$(printf 'rm -rf %s' \"$S\")\""
+ok   RC15f    want=block patched=block(2)  main=allow(0)    0.3s  "sh -c 'rm -rf \"$1\"' _ \"$S\""
+MISS RV20b    want=block patched=allow(0)  main=allow(0)    0.3s  "sudo -u 'a\nb' rm -rf $S"
+MISS RV20c    want=block patched=allow(0)  main=allow(0)    0.3s  "X=\"a\nb\" rm -rf $S"
+MISS RN2x1    want=block patched=allow(0)  main=allow(0)    0.3s  "sudo $'rm' -rf $S"
+MISS RN2x2    want=block patched=allow(0)  main=allow(0)    0.3s  "bash -c \"$'rm' -rf \\$S\""
+MISS RN2x3    want=block patched=allow(0)  main=allow(0)    0.3s  "rm$'' -R $S"
+MISS RN2x4    want=block patched=allow(0)  main=allow(0)    0.3s  "/usr/bin/'rm' --recursive \"$S\""
+MISS RN2x5    want=block patched=allow(0)  main=allow(0)    0.3s  "rm>x -rf $S"
+ok   RN2x6    want=block patched=block(2)  main=allow(0)    0.3s  "rm 2>x -rf $S"
+MISS RCx1     want=block patched=allow(0)  main=allow(0)    0.3s  "bash -c '  rm -rf \"$S\"'"
+MISS RCx2     want=block patched=allow(0)  main=allow(0)    0.3s  "eval \" rm -rf $S\""
+ok   RCx3     want=block patched=block(2)  main=allow(0)    0.3s  "bash -c ' rm -rf build; rm -rf $S'"
+MISS RFx1     want=block patched=allow(0)  main=allow(0)    0.3s  "rm -$'R' $S"
+MISS RFx2     want=block patched=allow(0)  main=allow(0)    0.3s  "rm $'--recursive' $S"
+ok   RFx3     want=block patched=block(2)  main=allow(0)    0.3s  "rm -r$'' $S"
+cases=19 mismatches=11
+```
+
+### Bash reading of each miss: a fake rm on PATH prints its argv; S=/nonexistent/rv2probe, F=-rf
+
+```text
+RF1     "rm -f$'r' $S"                           -> RM-ARGV: [-fr] [/nonexistent/rv2probe]
+RF2     "rm $'-rf' $S"                           -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RF3     "rm $\"-rf\" $S"                         -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RF4     "rm -$\"r\" $S"                          -> RM-ARGV: [-r] [/nonexistent/rv2probe]
+RFx1    "rm -$'R' $S"                            -> RM-ARGV: [-R] [/nonexistent/rv2probe]
+RFx2    "rm $'--recursive' $S"                   -> RM-ARGV: [--recursive] [/nonexistent/rv2probe]
+RN21    "$'rm' -rf $S"                           -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RN22    "$\"rm\" -rf $S"                         -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RN23    "rm$'' -rf $S"                           -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RN2x3   "rm$'' -R $S"                            -> RM-ARGV: [-R] [/nonexistent/rv2probe]
+RN3     "rm<<<x -rf $S"                          -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RV20    "X='a\nb' rm -rf $S"                     -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RV20c   "X=\"a\nb\" rm -rf $S"                   -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RCi1    "bash -c ' rm -rf $S'"                   -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RCi2    "sh -c \"  rm -rf $S\""                  -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RCi3    "bash -c '\trm -rf $S'"                  -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RCi4    "eval ' rm -rf $S'"                      -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RCx1    "bash -c '  rm -rf \"$S\"'"              -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RCx2    "eval \" rm -rf $S\""                    -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RVi2    "env 'X=a b' rm -rf $S"                  -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RVi3    "env \"X=1\" rm -rf $S"                  -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RVi4    "bash -c 'X=1 rm -rf $S'"                -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RVi5f   "sh -c \"X='a b' rm -rf $S\""            -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RVi6    "eval 'X=1 rm -rf $S'"                   -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RVi7    "X[0]=a rm -rf $S"                       -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RCi9    "bash <(echo 'rm -rf $S')"               -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RCi10   "trap 'rm -rf $S' EXIT"                  -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RX4     "rm $F $S"                               -> RM-ARGV: [-rf] [/nonexistent/rv2probe]
+RT21    "rm -rf ./.."                            -> RM-ARGV: [-rf] [./..]
+```
+
+The redirection rows of R2-1 (e), rm>x and rm>/dev/null, sent the fake argv to the redirection target; probe dir x held: RM-ARGV: [-rf] [/nonexistent/rv2probe].
+
+### The older engine rule: its 39 rows at f6baef8c, and three Q127 spellings, on the patched gate and main gate
+
+```text
+ok   G1       want=block patched=block(2)  main=block(2)    0.1s  "deploy/agents-engine/docker-relay make aws-login ENV=prod"
+ok   G2       want=block patched=block(2)  main=block(2)    0.1s  "deploy/agents-engine/engine.sh up"
+ok   G3       want=block patched=block(2)  main=block(2)    0.1s  "./deploy/agents-engine/engine.sh setup"
+ok   G4       want=block patched=block(2)  main=block(2)    0.1s  "bash deploy/agents-engine/engine.sh destroy"
+ok   G5       want=block patched=block(2)  main=block(2)    0.1s  "sudo deploy/agents-engine/engine.sh reset"
+ok   G6       want=block patched=block(2)  main=block(2)    0.1s  "sh -c \"deploy/agents-engine/engine.sh seed\""
+ok   G7       want=block patched=block(2)  main=block(2)    0.1s  "cd deploy/agents-engine && ./engine.sh prove"
+ok   G8       want=block patched=block(2)  main=block(2)    0.1s  "env H4_X=1 deploy/agents-engine/engine.sh down"
+ok   G9       want=block patched=block(2)  main=block(2)    0.1s  "deploy/agents-engine/eng\"\"ine.sh up"
+ok   G10      want=block patched=block(2)  main=block(2)    0.1s  "echo up | xargs deploy/agents-engine/engine.sh"
+ok   G11      want=block patched=block(2)  main=block(2)    0.1s  "(deploy/agents-engine/engine.sh destroy)"
+ok   G12      want=block patched=block(2)  main=block(2)    0.1s  "x=$(deploy/agents-engine/engine.sh reset)"
+ok   G13      want=block patched=block(2)  main=block(2)    0.1s  "find . -exec deploy/agents-engine/engine.sh up \\;"
+ok   G14      want=block patched=block(2)  main=block(2)    0.1s  "deploy/agents-engine/engine.sh status; deploy/agents-engine/engine.sh up"
+ok   G15      want=block patched=block(2)  main=block(2)    0.1s  "H4_X=1 deploy/agents-engine/engine.sh down"
+ok   G16      want=block patched=block(2)  main=block(2)    0.1s  "SANDBOX_RUNTIME= deploy/agents-engine/engine.sh up"
+ok   G17      want=block patched=block(2)  main=block(2)    0.1s  "nice -n 5 deploy/agents-engine/engine.sh up"
+ok   G18      want=block patched=block(2)  main=block(2)    0.1s  "watch -n 1 deploy/agents-engine/engine.sh up"
+ok   G19      want=block patched=block(2)  main=block(2)    0.1s  "timeout 5 deploy/agents-engine/engine.sh up"
+ok   G20      want=block patched=block(2)  main=block(2)    0.1s  "timeout -s KILL 5 deploy/agents-engine/engine.sh up"
+ok   G21      want=block patched=block(2)  main=block(2)    0.1s  ". deploy/agents-engine/engine.sh up"
+ok   G22      want=block patched=block(2)  main=block(2)    0.1s  "cd x; . deploy/agents-engine/engine.sh up"
+ok   G23      want=allow patched=allow(0)  main=allow(0)    0.3s  "deploy/agents-engine/engine.sh status"
+ok   G24      want=allow patched=allow(0)  main=allow(0)    0.3s  "./deploy/agents-engine/engine.sh smoke"
+ok   G25      want=allow patched=allow(0)  main=allow(0)    0.3s  "make engine-status"
+ok   G26      want=allow patched=allow(0)  main=allow(0)    0.3s  "make engine-smoke"
+ok   G27      want=allow patched=allow(0)  main=allow(0)    0.3s  "H4_X=1 make engine-status"
+ok   G28      want=allow patched=allow(0)  main=allow(0)    0.3s  "cat deploy/agents-engine/engine.sh"
+ok   G29      want=allow patched=allow(0)  main=allow(0)    0.3s  "FOO=bar cat deploy/agents-engine/engine.sh"
+ok   G30      want=allow patched=allow(0)  main=allow(0)    0.3s  "shellcheck deploy/agents-engine/engine.sh"
+ok   G31      want=allow patched=allow(0)  main=allow(0)    0.3s  "git diff -- deploy/agents-engine/engine.sh"
+ok   G32      want=allow patched=allow(0)  main=allow(0)    0.3s  "ls -la deploy/agents-engine/engine.sh"
+ok   G33      want=block patched=block(2)  main=block(2)    0.1s  "bash -c \"cat deploy/agents-engine/engine.sh\""
+ok   G34      want=block patched=block(2)  main=block(2)    0.1s  "bash -c \"shellcheck deploy/agents-engine/engine.sh\""
+ok   G35      want=allow patched=allow(0)  main=allow(0)    0.3s  "diff -u /tmp/a/engine.sh deploy/agents-engine/engine.sh"
+ok   G36      want=allow patched=allow(0)  main=allow(0)    0.3s  "grep -c sudo deploy/agents-engine/engine.sh"
+ok   G37      want=allow patched=allow(0)  main=allow(0)    0.3s  "sed -n '1,20p' deploy/agents-engine/engine.sh"
+ok   G38      want=block patched=block(2)  main=block(2)    0.1s  "bash -c \"deploy/agents-engine/engine.sh up\""
+ok   G39      want=gap   patched=allow(0)  main=allow(0)    0.3s  "e=engine; deploy/agents-engine/$e.sh up"
+ok   G127a    want=info  patched=allow(0)  main=allow(0)    0.3s  "X='a b' deploy/agents-engine/engine.sh up"
+ok   G127b    want=info  patched=allow(0)  main=allow(0)    0.3s  "a+=b deploy/agents-engine/engine.sh up"
+ok   G127c    want=info  patched=allow(0)  main=allow(0)    0.3s  "nice -n \"5\" deploy/agents-engine/engine.sh up"
+cases=42 mismatches=0
+```
+
+Every engine row gives the same result on both gates (0 differ). Q127 three spellings pass on both, as the page expects.
+````
