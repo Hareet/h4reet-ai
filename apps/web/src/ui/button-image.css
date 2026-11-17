@@ -1,0 +1,212 @@
+/* The image skin (spec 030, FR-024; plan.md §R-D4): the studio's images, drawn through `border-image`, for the button
+   component of src/ui/button.css. build/ui-skins.ts serves these rules inside the skin's generated stylesheet only when
+   an image skin's files are all there and of their recorded hashes, and marks the root data-skin-kind="image"; every
+   rule here names that mark too. The images and their insets are the custom properties the build writes on the root:
+   --btn-<variant>-<state>-image (a data: URI), -slice (the insets, in the image's pixels), and -bw (each inset halved,
+   in CSS px: the images are drawn at twice the CSS size); --half-frame-* for the panel frame.
+   - The image is the ::before's, the layer B's face is drawn on (rework 2, R-3): in the control's own stacking context
+     (isolation: isolate, z-index: -1), behind the label, inside B's octagon clip-path, which stays. Its border-image
+     has `fill`, the image's centre being the face (the round's brief: opaque inside the insets); -width the --btn-…-bw,
+     -outset 0 (nothing drawn past the control's box), -repeat stretch; its border-style solid and border-width 0, so
+     an engine that wants a style draws it and nothing moves (the widths are lengths, not multiples of the border).
+   - Beneath the image, the fallback's face colour for the state, clipped to the image's centre (background-clip:
+     content-box, padding the --btn-…-bw), so the image's transparent ring, chamfered corners, and the selected glow's
+     fade show the glass beneath, never a flat face. The ::before is absolutely placed, so its padding moves nothing.
+     B's gradients (the chamfer's lines, the highlight) and inset shadows (the bevel, the frame, the glow) are not
+     drawn over the image, which draws its own.
+   - On the control nothing changes from the CSS skin: B's rules keep it transparent, with no border-image and no
+     box-shadow (rework 3, R-2), its border widths, style, and padding the fallback's (rework, S-6: no content box
+     moves; the image is drawn over the border and padding from the box's edge inward). No rule here sets
+     border-width, border-style, or padding on a control, nor clip-path or filter (FR-013).
+   - Disabled: B's dashed ::after, inset by --btn-dash-inset, which this sets to the state's band, so the dashes lie on
+     the image's face, inside its frame, and above it (a positioned z-index: auto child paints after the z-index: -1
+     one).
+   - The halves (A's elements, by their data-half attribute, plan §R-A3): the panel frame drawn on each half's own
+     element, over its border and padding inward, without `fill`, so the half's own glass stays its only glass (FR-005).
+   - Forced colours: B's rules take the image off the control and hide both pseudo-elements; the halves' frame is taken
+     off here. The labels stay real text: no label is in an image. */
+
+/* Each state's image, its insets, and its band, as B's states set the face (button.css): secondary normal, then
+   primary; hover, pressed, selected, disabled, in B's order, each secondary then primary. */
+:root[data-skin][data-skin-kind="image"][data-hud][data-split]
+  :is(
+    .hud-bar .hud-tile,
+    .room-walk,
+    .room-eat,
+    .room-list .split-back,
+    .talk .split-hint,
+    .talk .talk-larger,
+    .talk .talk-log-toggle,
+    .talk-form .talk-row > button:not(.talk-voice),
+    .resume .resume-close
+  ),
+:root[data-skin][data-skin-kind="image"] :is(.choice .choice-enter, .ui-button) {
+  --_img: var(--btn-secondary-normal-image);
+  --_slice: var(--btn-secondary-normal-slice);
+  --_bw: var(--btn-secondary-normal-bw);
+  --btn-dash-inset: var(--_bw);
+}
+
+:root[data-skin][data-skin-kind="image"][data-hud][data-split] .talk-form .talk-row > button:not(.talk-voice),
+:root[data-skin][data-skin-kind="image"] :is(.choice .choice-enter, .ui-button[data-variant="primary"]) {
+  --_img: var(--btn-primary-normal-image);
+  --_slice: var(--btn-primary-normal-slice);
+  --_bw: var(--btn-primary-normal-bw);
+}
+
+@media (hover: hover) {
+  :root[data-skin][data-skin-kind="image"][data-hud][data-split]
+    :is(
+      .hud-bar .hud-tile,
+      .room-walk,
+      .room-eat,
+      .room-list .split-back,
+      .talk .split-hint,
+      .talk .talk-larger,
+      .talk .talk-log-toggle,
+      .talk-form .talk-row > button:not(.talk-voice),
+      .resume .resume-close
+    ):hover,
+  :root[data-skin][data-skin-kind="image"] :is(.choice .choice-enter, .ui-button):hover {
+    --_img: var(--btn-secondary-hover-image);
+    --_slice: var(--btn-secondary-hover-slice);
+    --_bw: var(--btn-secondary-hover-bw);
+  }
+
+  :root[data-skin][data-skin-kind="image"][data-hud][data-split] .talk-form .talk-row > button:not(.talk-voice):hover,
+  :root[data-skin][data-skin-kind="image"] :is(.choice .choice-enter, .ui-button[data-variant="primary"]):hover {
+    --_img: var(--btn-primary-hover-image);
+    --_slice: var(--btn-primary-hover-slice);
+    --_bw: var(--btn-primary-hover-bw);
+  }
+}
+
+:root[data-skin][data-skin-kind="image"][data-hud][data-split]
+  :is(
+    .hud-bar .hud-tile,
+    .room-walk,
+    .room-eat,
+    .room-list .split-back,
+    .talk .split-hint,
+    .talk .talk-larger,
+    .talk .talk-log-toggle,
+    .talk-form .talk-row > button:not(.talk-voice),
+    .resume .resume-close
+  ):active,
+:root[data-skin][data-skin-kind="image"] :is(.choice .choice-enter, .ui-button):active {
+  --_img: var(--btn-secondary-pressed-image);
+  --_slice: var(--btn-secondary-pressed-slice);
+  --_bw: var(--btn-secondary-pressed-bw);
+}
+
+:root[data-skin][data-skin-kind="image"][data-hud][data-split] .talk-form .talk-row > button:not(.talk-voice):active,
+:root[data-skin][data-skin-kind="image"] :is(.choice .choice-enter, .ui-button[data-variant="primary"]):active {
+  --_img: var(--btn-primary-pressed-image);
+  --_slice: var(--btn-primary-pressed-slice);
+  --_bw: var(--btn-primary-pressed-bw);
+}
+
+:root[data-skin][data-skin-kind="image"][data-hud][data-split]
+  :is(
+    .hud-bar .hud-tile,
+    .room-walk,
+    .room-eat,
+    .room-list .split-back,
+    .talk .split-hint,
+    .talk .talk-larger,
+    .talk .talk-log-toggle,
+    .talk-form .talk-row > button:not(.talk-voice),
+    .resume .resume-close
+  )[aria-pressed="true"],
+:root[data-skin][data-skin-kind="image"][data-hud][data-split]
+  .room-stage-view[role="application"]
+  + .room-clear
+  .room-walk,
+:root[data-skin][data-skin-kind="image"] :is(.choice .choice-enter, .ui-button)[aria-pressed="true"] {
+  --_img: var(--btn-secondary-selected-image);
+  --_slice: var(--btn-secondary-selected-slice);
+  --_bw: var(--btn-secondary-selected-bw);
+}
+
+:root[data-skin][data-skin-kind="image"][data-hud][data-split]
+  .talk-form
+  .talk-row
+  > button:not(.talk-voice)[aria-pressed="true"],
+:root[data-skin][data-skin-kind="image"]
+  :is(.choice .choice-enter, .ui-button[data-variant="primary"])[aria-pressed="true"] {
+  --_img: var(--btn-primary-selected-image);
+  --_slice: var(--btn-primary-selected-slice);
+  --_bw: var(--btn-primary-selected-bw);
+}
+
+:root[data-skin][data-skin-kind="image"][data-hud][data-split]
+  :is(
+    .hud-bar .hud-tile,
+    .room-walk,
+    .room-eat,
+    .room-list .split-back,
+    .talk .split-hint,
+    .talk .talk-larger,
+    .talk .talk-log-toggle,
+    .talk-form .talk-row > button:not(.talk-voice),
+    .resume .resume-close
+  ):is(:disabled, [aria-disabled="true"]),
+:root[data-skin][data-skin-kind="image"] :is(.choice .choice-enter, .ui-button):is(:disabled, [aria-disabled="true"]) {
+  --_img: var(--btn-secondary-disabled-image);
+  --_slice: var(--btn-secondary-disabled-slice);
+  --_bw: var(--btn-secondary-disabled-bw);
+}
+
+:root[data-skin][data-skin-kind="image"][data-hud][data-split]
+  .talk-form
+  .talk-row
+  > button:not(.talk-voice):is(:disabled, [aria-disabled="true"]),
+:root[data-skin][data-skin-kind="image"]
+  :is(.choice .choice-enter, .ui-button[data-variant="primary"]):is(:disabled, [aria-disabled="true"]) {
+  --_img: var(--btn-primary-disabled-image);
+  --_slice: var(--btn-primary-disabled-slice);
+  --_bw: var(--btn-primary-disabled-bw);
+}
+
+/* The image on the ::before, the face colour beneath it clipped to its centre. */
+:root[data-skin][data-skin-kind="image"][data-hud][data-split]
+  :is(
+    .hud-bar .hud-tile,
+    .room-walk,
+    .room-eat,
+    .room-list .split-back,
+    .talk .split-hint,
+    .talk .talk-larger,
+    .talk .talk-log-toggle,
+    .talk-form .talk-row > button:not(.talk-voice),
+    .resume .resume-close
+  )::before,
+:root[data-skin][data-skin-kind="image"] :is(.choice .choice-enter, .ui-button)::before {
+  border-style: solid;
+  border-width: 0;
+  border-image-source: var(--_img);
+  border-image-slice: var(--_slice) fill;
+  border-image-width: var(--_bw);
+  border-image-outset: 0;
+  border-image-repeat: stretch;
+  padding: var(--_bw);
+  background-color: var(--_face);
+  background-image: none;
+  background-clip: content-box;
+  box-shadow: none;
+}
+
+/* The panel frame on each half's own element, its centre dropped. */
+:root[data-skin][data-skin-kind="image"] [data-half] {
+  border-image-source: var(--half-frame-image);
+  border-image-slice: var(--half-frame-slice);
+  border-image-width: var(--half-frame-bw);
+  border-image-outset: 0;
+  border-image-repeat: stretch;
+}
+
+@media (forced-colors: active) {
+  :root[data-skin][data-skin-kind="image"] [data-half] {
+    border-image: none;
+  }
+}
