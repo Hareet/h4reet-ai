@@ -2,12 +2,20 @@
 // held to its schema, read into one generated stylesheet of custom properties (--btn-*) on
 // :root[data-skin="<id>"], which src/ui/button.css alone reads, and data-skin written on the page's root. A swap of
 // skins is an edit of `active` (or of a skin's tokens) in the data, never of code (the Author's "features as data";
-// SC-004). An image skin (`kind: image`) is accepted and, until T-DS builds image skins, resolved to its CSS fallback
-// whole, with one line that says so (FR-025); the build prints the skin it took either way.
+// SC-004). An image skin (`kind: image`; T-DS, plan.md §R-D4) names its eleven files with their SHA-256s and insets,
+// and the label colours the round measured: with every file there and of its hash, the stylesheet carries its CSS
+// fallback's tokens, the labels on every state of their variant, each file as a `data:` URI with its insets and
+// widths (build/ui-skins-image.ts), and src/ui/button-image.css's rules, and the root is marked
+// data-skin-kind="image"; otherwise the build takes the fallback, whole, with one line naming the first reason
+// (FR-025). The build prints the skin it took either way.
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import type { Plugin } from "vite";
 import { parseDocument, visit } from "yaml";
+
+import { PENDING, REPO_ROOT, readFromRoot, resolveImageSkin } from "./ui-skins-image";
+import type { ImageFile, ReadFile } from "./ui-skins-image";
 
 /** The page imports the skin's stylesheet by this ID (src/main.ts). */
 export const SKIN_MODULE = "virtual:ui-skin.css";
@@ -50,11 +58,21 @@ export interface CssSkin {
   readonly kind: "css";
   readonly tokens: Tokens;
 }
-/** An image skin: its CSS fallback, and its files, which T-DS's build reads (plan §R-D4). */
+/** One file of an image skin: its path from the repository's root, its SHA-256 (or `pending`), and its insets. */
+export interface ImageFileEntry {
+  readonly file: string;
+  readonly sha256: string;
+  readonly slice: readonly [number, number, number, number];
+}
+/** An image skin (plan §R-D4): its CSS fallback, the label colour of each variant (slices.json's `labels`, which the
+ *  judge measured over each image's centre), and its files: one per state of each variant, and the panel frame. */
 export interface ImageSkin {
   readonly kind: "image";
   readonly fallback: string;
-  readonly files: unknown;
+  readonly labels: Readonly<Record<Variant, string>>;
+  readonly files: Readonly<Record<Variant, Readonly<Record<ButtonState, ImageFileEntry>>>> & {
+    readonly panel: ImageFileEntry;
+  };
 }
 export type Skin = CssSkin | ImageSkin;
 export interface Skins {
@@ -62,12 +80,18 @@ export interface Skins {
   readonly skins: Readonly<Record<string, Skin>>;
 }
 
-/** The active skin, resolved to a CSS skin, and the build's line about it. */
+/** The active skin as the build takes it, and the build's line about it. */
 export interface ResolvedSkin {
+  /** The skin the page draws: an image skin's own ID when its files pass, else its fallback's (rework, N-3). */
   readonly id: string;
-  /** The kind the page draws (plan §R-B2, rework N-3): `css` until T-DS builds image skins, so a fallback is `css`. */
+  /** The kind the page draws (plan §R-B2, rework N-3): a fallback is `css`. */
   readonly kind: "css" | "image";
+  /** The CSS tokens beneath: a CSS skin's own; an image skin's fallback's, its labels the image skin's. */
   readonly skin: CssSkin;
+  /** An image skin's custom properties, each file's -image, -slice, and -bw (build/ui-skins-image.ts); else none. */
+  readonly images: readonly (readonly [string, string])[];
+  /** An image skin's component rules (src/ui/button-image.css); else empty. */
+  readonly component: string;
   readonly line: string;
 }
 
@@ -194,6 +218,8 @@ export function readSkins(text: string, label: string = SKINS_LABEL): Skins {
   if (typeof root.active !== "string") refuse(label, "active", "isn't a skin's ID");
   const entries = keys(label, "skins", root.skins, [], Object.keys((root.skins as Obj | null) ?? {}));
   const skins: Record<string, Skin> = {};
+  // An image skin's fallback is checked before its labels and files, so a skin with no CSS fallback is named for that.
+  const images: [string, Obj, string][] = [];
   for (const [id, value] of Object.entries(entries)) {
     if (!/^[a-z][a-z0-9-]{0,31}$/.test(id))
       refuse(label, `skins.${id}`, "isn't an ID (lower-case letters, digits, hyphens)");
@@ -202,33 +228,121 @@ export function readSkins(text: string, label: string = SKINS_LABEL): Skins {
       const o = keys(label, `skins.${id}`, value, ["kind", "tokens"]);
       skins[id] = { kind: "css", tokens: tokens(label, `skins.${id}.tokens`, o.tokens) };
     } else if (kind === "image") {
-      const o = keys(label, `skins.${id}`, value, ["kind", "fallback", "files"], ["slices"]);
+      const o = keys(label, `skins.${id}`, value, ["kind", "fallback", "files"], ["labels"]);
       if (typeof o.fallback !== "string") refuse(label, `skins.${id}.fallback`, "isn't a skin's ID");
-      skins[id] = { kind: "image", fallback: o.fallback, files: o.files };
+      images.push([id, o, o.fallback]);
     } else refuse(label, `skins.${id}.kind`, `${JSON.stringify(kind)} isn't css or image`);
   }
-  for (const [id, skin] of Object.entries(skins))
-    if (skin.kind === "image" && skins[skin.fallback]?.kind !== "css")
-      refuse(label, `skins.${id}.fallback`, `"${skin.fallback}" isn't a CSS skin of this file`);
+  for (const [id, , fallback] of images)
+    if (skins[fallback]?.kind !== "css")
+      refuse(label, `skins.${id}.fallback`, `"${fallback}" isn't a CSS skin of this file`);
+  for (const [id, o, fallback] of images) skins[id] = imageSkin(label, `skins.${id}`, o, fallback);
   if (!(root.active in skins)) refuse(label, "active", `"${root.active}" isn't a skin of this file`);
   return { active: root.active, skins };
 }
 
-/** The active skin as the build takes it: a CSS skin itself; an image skin its fallback, whole (until T-DS). */
-export function resolveSkin(skins: Skins): ResolvedSkin {
-  const skin = skins.skins[skins.active];
-  if (skin?.kind === "css") return { id: skins.active, kind: "css", skin, line: `ui-skins: ${skins.active} (css)` };
+/** A PNG under assets/ui/: lower-case letters, digits, and hyphens, in folders of the same, so no `..` and no other
+ *  tree (FR-026: assets/ui/ is the round's, his intake's). */
+const IMAGE_PATH = /^assets\/ui(\/[a-z0-9][a-z0-9-]*)+\.png$/;
+const SHA256 = /^[0-9a-f]{64}$/;
+
+function imageFile(label: string, path: string, value: unknown): ImageFileEntry {
+  const o = keys(label, path, value, ["file", "sha256", "slice"]);
+  if (typeof o.file !== "string" || !IMAGE_PATH.test(o.file))
+    refuse(label, `${path}.file`, `${JSON.stringify(o.file)} isn't a PNG's path under assets/ui/`);
+  if (typeof o.sha256 !== "string" || (o.sha256 !== PENDING && !SHA256.test(o.sha256)))
+    refuse(
+      label,
+      `${path}.sha256`,
+      `isn't a SHA-256 (64 lower-case hex digits, quoted where all are digits) or ${PENDING}`,
+    );
+  const slice = o.slice;
+  if (!Array.isArray(slice) || slice.length !== 4 || !slice.every((n) => Number.isInteger(n) && n > 0 && n <= 4096))
+    refuse(label, `${path}.slice`, "isn't four insets in whole pixels above 0 (top, right, bottom, left)");
+  return { file: o.file, sha256: o.sha256, slice: slice as [number, number, number, number] };
+}
+
+function imageSkin(label: string, path: string, o: Obj, fallback: string): ImageSkin {
+  if (!("labels" in o)) refuse(label, `${path}.labels`, "is missing (the label colours of the round's slices.json)");
+  const labels = keys(label, `${path}.labels`, o.labels, [...VARIANTS]);
+  const files = keys(label, `${path}.files`, o.files, [...VARIANTS, "panel"]);
+  const variant = (v: Variant): Record<ButtonState, ImageFileEntry> => {
+    const states = keys(label, `${path}.files.${v}`, files[v], [...STATES]);
+    const entries = STATES.map((s) => [s, imageFile(label, `${path}.files.${v}.${s}`, states[s])] as const);
+    return Object.fromEntries(entries) as Record<ButtonState, ImageFileEntry>;
+  };
+  return {
+    kind: "image",
+    fallback,
+    labels: {
+      primary: colour(label, `${path}.labels.primary`, labels.primary),
+      secondary: colour(label, `${path}.labels.secondary`, labels.secondary),
+    },
+    files: {
+      primary: variant("primary"),
+      secondary: variant("secondary"),
+      panel: imageFile(label, `${path}.files.panel`, files.panel),
+    },
+  };
+}
+
+/** The image component's rules (plan §R-D4), served with an image skin's stylesheet alone. */
+export const IMAGE_COMPONENT = fileURLToPath(new URL("../src/ui/button-image.css", import.meta.url));
+
+/** How the build reads an image skin's files: from `root` (the repository's root by default), or by `read`. */
+export interface ResolveOptions {
+  readonly root?: string;
+  readonly read?: ReadFile;
+}
+
+/** An image skin's files in the order the build checks them, each with its custom properties' prefix. */
+function imageFiles(skin: ImageSkin): ImageFile[] {
+  return [
+    ...VARIANTS.flatMap((v) => STATES.map((s) => ({ prefix: `--btn-${v}-${s}`, ...skin.files[v][s] }))),
+    { prefix: "--half-frame", ...skin.files.panel },
+  ];
+}
+
+/** The fallback's tokens with the image skin's label colour on every state of each variant (rework, I-2). */
+function labelled(fallback: CssSkin, labels: Readonly<Record<Variant, string>>): CssSkin {
+  const variant = (v: Variant): VariantTokens => {
+    const t = fallback.tokens[v];
+    const states = Object.fromEntries(STATES.map((s) => [s, { ...t[s], label: labels[v] }]));
+    return { ...t, ...states } as unknown as VariantTokens;
+  };
+  return { kind: "css", tokens: { ...fallback.tokens, primary: variant("primary"), secondary: variant("secondary") } };
+}
+
+/** The active skin as the build takes it: a CSS skin itself; an image skin with its files when every one is there
+ *  and of its hash, else its fallback, whole, the line naming the first reason (FR-025). */
+export function resolveSkin(skins: Skins, options: ResolveOptions = {}): ResolvedSkin {
+  const id = skins.active;
+  const skin = skins.skins[id];
+  if (skin?.kind === "css") return { id, kind: "css", skin, images: [], component: "", line: `ui-skins: ${id} (css)` };
   if (skin?.kind === "image") {
     const fallback = skins.skins[skin.fallback];
-    if (fallback?.kind === "css")
+    if (fallback?.kind === "css") {
+      const result = resolveImageSkin(imageFiles(skin), options.read ?? readFromRoot(options.root ?? REPO_ROOT));
+      if (result.ok)
+        return {
+          id,
+          kind: "image",
+          skin: labelled(fallback, skin.labels),
+          images: result.properties,
+          component: readFileSync(IMAGE_COMPONENT, "utf8"),
+          line: `ui-skins: ${id} (image)`,
+        };
       return {
         id: skin.fallback,
         kind: "css",
         skin: fallback,
-        line: `${skins.active}: falling back to ${skin.fallback} (image skins not built)`,
+        images: [],
+        component: "",
+        line: `${id}: falling back to ${skin.fallback} (${result.reason})`,
       };
+    }
   }
-  throw new SkinError(`${SKINS_LABEL}: active: "${skins.active}" resolves to no CSS skin`);
+  throw new SkinError(`${SKINS_LABEL}: active: "${id}" resolves to no CSS skin`);
 }
 
 /** The custom properties of a CSS skin, by name, in a fixed order. */
@@ -259,14 +373,16 @@ export function skinProperties(skin: CssSkin): [string, string][] {
   return out;
 }
 
-/** The generated stylesheet: one rule on the skin's root, its custom properties, nothing else. */
+/** The generated stylesheet: one rule on the skin's root, its custom properties; for an image skin, its files'
+ *  properties in the same rule, then the image component's rules. */
 export function skinCss(resolved: ResolvedSkin): string {
-  const body = skinProperties(resolved.skin)
+  const body = [...skinProperties(resolved.skin), ...resolved.images]
     .map(([name, value]) => `  ${name}: ${value};`)
     .join("\n");
   return (
     `/* Generated at build by build/ui-skins.ts from content/ui-skins.yaml (spec 030, FR-010): ${resolved.line}. */\n` +
-    `:root[data-skin="${resolved.id}"] {\n${body}\n}\n`
+    `:root[data-skin="${resolved.id}"] {\n${body}\n}\n` +
+    (resolved.component === "" ? "" : `\n${resolved.component.trim()}\n`)
   );
 }
 
@@ -281,11 +397,12 @@ export function skinHtml(html: string, id: string, kind: "css" | "image"): strin
 }
 
 /** The Vite plugin: the skin file read when the build starts (and its line printed), the generated stylesheet served
- *  as `virtual:ui-skin.css`, and data-skin written on each page Vite builds. */
-export function uiSkins(options: { readonly source: string }): Plugin {
+ *  as `virtual:ui-skin.css`, and data-skin written on each page Vite builds. An image skin's files are read from
+ *  `root`, the repository's root by default (/src in the web image). */
+export function uiSkins(options: { readonly source: string; readonly root?: string }): Plugin {
   let resolved: ResolvedSkin | null = null;
   const take = (): ResolvedSkin => {
-    resolved ??= resolveSkin(readSkins(readFileSync(options.source, "utf8")));
+    resolved ??= resolveSkin(readSkins(readFileSync(options.source, "utf8")), { root: options.root ?? REPO_ROOT });
     return resolved;
   };
   return {
@@ -293,6 +410,7 @@ export function uiSkins(options: { readonly source: string }): Plugin {
     buildStart() {
       resolved = null;
       this.addWatchFile(options.source);
+      this.addWatchFile(IMAGE_COMPONENT);
       console.log(take().line);
     },
     resolveId(id) {

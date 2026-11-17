@@ -71,7 +71,10 @@
   border-width: 1px;
   border-style: solid;
   border-color: transparent;
-  border-image: none;
+  /* The longhand, not B's `border-image: none` (rework-030ds, rv-030ds's F-1; a departure from B's file): Vite's
+     minifier, lightningcss, ships that shorthand as an empty `border-image:`, which a browser drops. With no source,
+     no image is drawn, whatever the other border-image longhands are. test/ui/button-shipped-css.test.ts. */
+  border-image-source: none;
   border-radius: var(--btn-radius);
   box-shadow: none;
   clip-path: none;
@@ -422,7 +425,8 @@
     border-width: 1px;
     border-style: solid;
     border-color: ButtonText;
-    border-image: none;
+    /* The longhand, as the base rule's (rework-030ds, F-1; a departure from B's file). */
+    border-image-source: none;
     clip-path: none;
     filter: none;
     box-shadow: none;

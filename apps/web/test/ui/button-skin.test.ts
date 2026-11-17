@@ -29,7 +29,7 @@ import type { Font } from "fontkit";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
-import { readSkins } from "../../build/ui-skins";
+import { readSkins, resolveSkin } from "../../build/ui-skins";
 import type { CssSkin } from "../../build/ui-skins";
 import { HUD_PLACEMENTS } from "../../src/room/compose/hud";
 import { Cascade, topLevel } from "../helpers/button-cascade";
@@ -196,8 +196,17 @@ const plain = readSkins(skinText()).skins.plain as CssSkin;
 const CSS_SKINS = Object.entries(readSkins(skinText()).skins).filter(([, s]) => s.kind === "css");
 
 describe("one button component for every control of Q5 (FR-008, FR-013; SC-003)", () => {
-  it("ships `metal` as the active skin (Q15 makes it the image skin's fallback; T-DS)", () => {
-    expect(readSkins(skinText()).active).toBe("metal");
+  it("ships `metal-image` as the active skin, `metal` its fallback, which a build without its files draws (Q15; T-DS)", () => {
+    // impl-030ds (T-DS03): B's assertion was `active` `metal`; Q15 makes the image skin active and `metal` its
+    // fallback, which this file's cases draw while the round's files aren't in assets/ui/buttons/.
+    const skins = readSkins(skinText());
+    expect(skins.active).toBe("metal-image");
+    const image = skins.skins["metal-image"];
+    expect(image?.kind === "image" ? image.fallback : null).toBe("metal");
+    const absent = (): never => {
+      throw Object.assign(new Error("absent"), { code: "ENOENT" });
+    };
+    expect(resolveSkin(skins, { read: absent }).id).toBe("metal");
   });
 
   for (const layout of LAYOUTS)

@@ -3,8 +3,8 @@
 //   variant, a colour that isn't #rrggbb or rgb(r g b / a), a font family that could break out of its declaration,
 //   an `active` that names no skin, and an image skin without a CSS fallback.
 // - skinCss emits one rule, `:root[data-skin="<id>"]`, holding every --btn-* custom property of the active skin and
-//   nothing else; an image skin, until T-DS, resolves to its fallback whole with the line
-//   "<id>: falling back to <fallback> (image skins not built)".
+//   nothing else; an image skin that can't be drawn resolves to its fallback whole with the line
+//   "<id>: falling back to <fallback> (<the first reason>)" (impl-030ds; test/ui-skin-image.test.ts builds it both ways).
 // - FR-012's ratios for every CSS skin of content/ui-skins.yaml, every variant, every state, computed as spec 029's
 //   hud-over-contrast.test.ts computes them (sRGB, composited over pure white and pure black): the label 4.5:1 against
 //   the face, and against the face under the skin's inner highlight; the border 3:1 against the face (the states'
@@ -85,6 +85,23 @@ const TOKENS = (indent: string): string =>
     VARIANT(`${indent}  `),
   ].join("\n");
 const VALID = ["active: one", "skins:", "  one:", "    kind: css", "    tokens:", TOKENS("      "), ""].join("\n");
+/** An image skin falling back to `one`, as T-DS's schema has it (impl-030ds): its labels and its eleven files, every
+ *  hash `pending`, so it always falls back (plan §R-D4). */
+const PIC = [
+  "  pic:",
+  "    kind: image",
+  "    fallback: one",
+  '    labels: { primary: "#14171c", secondary: "#e6fbff" }',
+  "    files:",
+  ...["primary", "secondary"].flatMap((v) => [
+    `      ${v}:`,
+    ...STATES.map(
+      (s) => `        ${s}: { file: assets/ui/buttons/btn-${v}-${s}.png, sha256: pending, slice: [24, 24, 24, 24] }`,
+    ),
+  ]),
+  "      panel: { file: assets/ui/buttons/panel-frame.png, sha256: pending, slice: [48, 48, 48, 48] }",
+  "",
+].join("\n");
 
 describe("the skin file's schema (FR-009)", () => {
   it("reads a valid file, and the repository's", () => {
@@ -165,10 +182,12 @@ describe("the generated stylesheet (FR-010)", () => {
   });
 
   it("resolves an image skin to its CSS fallback, whole, with the line that says so", () => {
-    const text = `${VALID.replace("active: one", "active: pic")}  pic:\n    kind: image\n    fallback: one\n    files: {}\n`;
+    // impl-030ds (T-DS02 replaces B's image case, plan §R-B2): the line names the first reason, here `hash pending`,
+    // where B's said "(image skins not built)"; the skin is T-DS's schema's, with its labels and files.
+    const text = `${VALID.replace("active: one", "active: pic")}${PIC}`;
     const resolved = resolveSkin(readSkins(text));
     expect(resolved.id).toBe("one");
-    expect(resolved.line).toBe("pic: falling back to one (image skins not built)");
+    expect(resolved.line).toBe("pic: falling back to one (hash pending)");
     expect(skinCss(resolved)).toContain(':root[data-skin="one"]');
   });
 
@@ -195,7 +214,8 @@ describe("the generated stylesheet (FR-010)", () => {
   });
 
   it("writes the fallback's ID and kind for an image skin falling back (rework, N-3)", () => {
-    const text = `${VALID.replace("active: one", "active: pic")}  pic:\n    kind: image\n    fallback: one\n    files: {}\n`;
+    // impl-030ds: the image skin is T-DS's schema's (labels and the eleven files), where B's was `files: {}`.
+    const text = `${VALID.replace("active: one", "active: pic")}${PIC}`;
     const resolved = resolveSkin(readSkins(text));
     expect(skinHtml("<html><body></body></html>", resolved.id, resolved.kind)).toBe(
       '<html data-skin="one" data-skin-kind="css"><body></body></html>',
@@ -337,7 +357,9 @@ describe("swapping the skin is an edit of the data alone (SC-004)", () => {
     for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
   });
 
-  /** The plugin's stylesheet and page for one copy of the skin file, through its hooks, as Vite calls them. */
+  /** The plugin's stylesheet and page for one copy of the skin file, through its hooks, as Vite calls them. Its root
+   *  is the temporary folder (impl-030ds), which holds no assets/ui/: the build draws what the data alone gives, before
+   *  his intake of the round's files and after it. */
   function build(text: string): { css: string; html: string; printed: string[] } {
     const dir = mkdtempSync(join(tmpdir(), "h4-ui-skins-"));
     dirs.push(dir);
@@ -347,7 +369,7 @@ describe("swapping the skin is an edit of the data alone (SC-004)", () => {
     vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
       printed.push(args.map(String).join(" "));
     });
-    const plugin = uiSkins({ source });
+    const plugin = uiSkins({ source, root: dir });
     const { context, watched } = hookContext();
     callHook(plugin, "buildStart", context, {});
     expect(watched).toContain(source);
@@ -365,16 +387,22 @@ describe("swapping the skin is an edit of the data alone (SC-004)", () => {
   }
 
   it("builds metal from the repository's file and plain from a copy whose one difference is `active: plain`", () => {
-    expect(readSkins(TEXT).active).toBe("metal");
-    const swapped = TEXT.replace(/^active: metal$/m, "active: plain");
+    // impl-030ds (T-DS03): the repository's `active` is `metal-image` (Q15), which without its files builds its
+    // fallback, metal, and says so; B's assertions were `active: metal` and the line "ui-skins: metal (css)".
+    expect(readSkins(TEXT).active).toBe("metal-image");
+    const swapped = TEXT.replace(/^active: metal-image$/m, "active: plain");
     const changed = TEXT.split("\n").filter((line, i) => line !== swapped.split("\n")[i]);
-    expect(changed).toEqual(["active: metal"]);
+    expect(changed).toEqual(["active: metal-image"]);
 
     const a = build(TEXT);
     const b = build(swapped);
     expect(a.html).toBe('<html lang="en" data-skin="metal" data-skin-kind="css"><body></body></html>');
     expect(b.html).toBe('<html lang="en" data-skin="plain" data-skin-kind="css"><body></body></html>');
-    expect(a.printed).toEqual(["ui-skins: metal (css)"]);
+    // rework-030ds (rv-030ds's N-2): the record's hashes are in (865f12a7), so the build's first reason is the first
+    // file's absence from this root; was `\((hash pending|files absent: .+)\)`.
+    expect(a.printed).toEqual([
+      "metal-image: falling back to metal (files absent: assets/ui/buttons/btn-primary-normal.png)",
+    ]);
     expect(b.printed).toEqual(["ui-skins: plain (css)"]);
     // Every --btn-* of the swapped build is plain's token, and the two builds differ in their values (rework 2, R-5's
     // swap: data-skin and the values plain's).
