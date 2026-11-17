@@ -155,9 +155,10 @@ body.in-room .disclosure p {
   --half-border: #8a8f98;
 }
 
-/* The glass is opaque where the visitor asks for less transparency or more contrast, and where the browser has no
-   backdrop filter, so the tint alone carries the contrast (FR-006). Since spec 030 (FR-001; Q1) the HUD draws no
-   backdrop blur at any quality level; each fallback keeps its `.hud-glass` reset to none, redundant now and harmless. */
+/* The glass is opaque where the visitor asks for less transparency or more contrast, so the tint alone carries the
+   contrast (FR-006). Since spec 030 (FR-001; Q1) the HUD draws no backdrop blur at any quality level; each fallback
+   keeps its `.hud-glass` reset to none, redundant now and harmless. With no blur anywhere, a browser without a
+   backdrop filter gets the same clear glass as every other, so no rule asks whether it has one (rework, N-1). */
 @media (prefers-reduced-transparency: reduce) {
   :root {
     --glass-alpha: 1;
@@ -176,18 +177,6 @@ body.in-room .disclosure p {
 }
 
 @media (prefers-contrast: more) {
-  :root {
-    --glass-alpha: 1;
-    --glass-alpha-lit: 1;
-  }
-
-  .hud-glass {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-}
-
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root {
     --glass-alpha: 1;
     --glass-alpha-lit: 1;
