@@ -328,3 +328,40 @@ describe("the image skin's schema (FR-024)", () => {
       expect(() => readSkins(text)).toThrow(named);
     });
 });
+
+describe("the repository's image skin, metal-image (T-DS03; Q15)", () => {
+  const skins = readSkins(REPO_TEXT);
+  const image = skins.skins["metal-image"];
+
+  it("is the active skin, an image skin falling back to metal", () => {
+    expect(skins.active).toBe("metal-image");
+    expect(image?.kind).toBe("image");
+    expect(image?.kind === "image" ? image.fallback : null).toBe("metal");
+  });
+
+  it("names the eleven files under assets/ui/buttons/ with the brief's insets, 24 a button and 48 the frame", () => {
+    if (image?.kind !== "image") throw new Error("no image skin");
+    for (const v of VARIANTS)
+      for (const s of STATES) {
+        expect(image.files[v][s].file).toBe(fileOf(v, s));
+        expect(image.files[v][s].slice).toEqual([24, 24, 24, 24]);
+      }
+    expect(image.files.panel.file).toBe(PANEL);
+    expect(image.files.panel.slice).toEqual([48, 48, 48, 48]);
+  });
+
+  it("carries the brief's labels, which metal's normal labels equal (plan §R-D4)", () => {
+    if (image?.kind !== "image") throw new Error("no image skin");
+    expect(image.labels).toEqual({ primary: "#14171c", secondary: "#e6fbff" });
+    for (const v of VARIANTS) expect(image.labels[v]).toBe(METAL.tokens[v].normal.label);
+  });
+
+  it("builds metal without its files, with the line naming why", () => {
+    const fx = fixture({ files: false });
+    const out = build(REPO_TEXT, fx.root);
+    expect(out.html).toBe('<html lang="en" data-skin="metal" data-skin-kind="css"><body></body></html>');
+    expect(out.printed).toEqual([
+      expect.stringMatching(/^metal-image: falling back to metal \((hash pending|files absent: .+)\)$/),
+    ]);
+  });
+});

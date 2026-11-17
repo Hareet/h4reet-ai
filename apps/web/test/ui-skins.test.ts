@@ -357,7 +357,9 @@ describe("swapping the skin is an edit of the data alone (SC-004)", () => {
     for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
   });
 
-  /** The plugin's stylesheet and page for one copy of the skin file, through its hooks, as Vite calls them. */
+  /** The plugin's stylesheet and page for one copy of the skin file, through its hooks, as Vite calls them. Its root
+   *  is the temporary folder (impl-030ds), which holds no assets/ui/: the build draws what the data alone gives, before
+   *  his intake of the round's files and after it. */
   function build(text: string): { css: string; html: string; printed: string[] } {
     const dir = mkdtempSync(join(tmpdir(), "h4-ui-skins-"));
     dirs.push(dir);
@@ -367,7 +369,7 @@ describe("swapping the skin is an edit of the data alone (SC-004)", () => {
     vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
       printed.push(args.map(String).join(" "));
     });
-    const plugin = uiSkins({ source });
+    const plugin = uiSkins({ source, root: dir });
     const { context, watched } = hookContext();
     callHook(plugin, "buildStart", context, {});
     expect(watched).toContain(source);
@@ -385,16 +387,20 @@ describe("swapping the skin is an edit of the data alone (SC-004)", () => {
   }
 
   it("builds metal from the repository's file and plain from a copy whose one difference is `active: plain`", () => {
-    expect(readSkins(TEXT).active).toBe("metal");
-    const swapped = TEXT.replace(/^active: metal$/m, "active: plain");
+    // impl-030ds (T-DS03): the repository's `active` is `metal-image` (Q15), which without its files builds its
+    // fallback, metal, and says so; B's assertions were `active: metal` and the line "ui-skins: metal (css)".
+    expect(readSkins(TEXT).active).toBe("metal-image");
+    const swapped = TEXT.replace(/^active: metal-image$/m, "active: plain");
     const changed = TEXT.split("\n").filter((line, i) => line !== swapped.split("\n")[i]);
-    expect(changed).toEqual(["active: metal"]);
+    expect(changed).toEqual(["active: metal-image"]);
 
     const a = build(TEXT);
     const b = build(swapped);
     expect(a.html).toBe('<html lang="en" data-skin="metal" data-skin-kind="css"><body></body></html>');
     expect(b.html).toBe('<html lang="en" data-skin="plain" data-skin-kind="css"><body></body></html>');
-    expect(a.printed).toEqual(["ui-skins: metal (css)"]);
+    expect(a.printed).toEqual([
+      expect.stringMatching(/^metal-image: falling back to metal \((hash pending|files absent: .+)\)$/),
+    ]);
     expect(b.printed).toEqual(["ui-skins: plain (css)"]);
     // Every --btn-* of the swapped build is plain's token, and the two builds differ in their values (rework 2, R-5's
     // swap: data-skin and the values plain's).
