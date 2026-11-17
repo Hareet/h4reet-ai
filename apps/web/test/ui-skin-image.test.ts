@@ -149,7 +149,9 @@ function rootRule(css: string): { selector: string; decl: Map<string, string> } 
   return { selector: rule.selector, decl: rule.declarations };
 }
 
-const dataUri = (b: Buffer): string => `url("data:image/png;base64,${b.toString("base64")}")`;
+/** The URI as the build writes it: the `;` as the CSS escape `\3b ` (one URL to a browser), so a reader that splits
+ *  declarations at `;` (test/helpers/room.ts's parseCss) keeps it whole. */
+const dataUri = (b: Buffer): string => `url("data:image/png\\3b base64,${b.toString("base64")}")`;
 const widths = (s: readonly number[]): string => s.map((n) => `${n / 2}px`).join(" ");
 
 /** The plugin, through its hooks as Vite calls them, over a skin file and a root: its line, stylesheet, and page. */
@@ -199,7 +201,8 @@ describe("the image skin falls back to its CSS skin, whole, and says why (FR-025
   it("one hash wrong: metal, the line naming that file", () => {
     const fx = fixture();
     const wrong = fileOf("secondary", "hover");
-    const text = skinFile(fx, { hashes: { [wrong]: "0".repeat(64) } });
+    // Hex letters: 64 zeros unquoted would be YAML's integer 0, which the schema refuses as no SHA-256.
+    const text = skinFile(fx, { hashes: { [wrong]: "f".repeat(64) } });
     const resolved = resolveSkin(readSkins(text), { root: fx.root });
     expect(resolved.id).toBe("metal");
     expect(resolved.kind).toBe("css");

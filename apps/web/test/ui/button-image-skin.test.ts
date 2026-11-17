@@ -460,7 +460,18 @@ describe("the halves' frame, the labels, forced colours, and the disabled cue (F
 
 describe("the band and the content boxes (rework, S-6; rework 2, Q74)", () => {
   it("names each control whose content box crosses its state's band (for impl-ds.md)", async () => {
-    const crossings = new Set<string>();
+    // By control and the sides it crosses, the states it crosses them in; printed one line each (run with
+    // --silent=false). The fixture's insets are the round's record's (24 image pixels a side, 12 CSS px; the frame 48).
+    const crossings = new Map<string, Map<string, string[]>>();
+    const note = (where: string, el: Element, c: Cascade, bw: string, s: string): void => {
+      const band = topValues(bw).map(cssLength);
+      const sides = SIDES.filter(
+        (sd, i) => (band[i] ?? 0) > side(c, el, "border-width", sd) + side(c, el, "padding", sd),
+      ).join(", ");
+      if (sides === "") return;
+      const bySides = crossings.get(where) ?? new Map<string, string[]>();
+      crossings.set(where, bySides.set(sides, [...(bySides.get(sides) ?? []), s]));
+    };
     const opened: [Layout, Control[], "conversation" | "resume" | undefined][] = [
       ...LAYOUTS.map((l): [Layout, Control[], undefined] => [l, [...ROOM_CONTROLS], undefined]),
       [SPLIT, CLOSE_BUTTONS.filter((k) => k.open === "conversation"), "conversation"],
@@ -469,30 +480,39 @@ describe("the band and the content boxes (rework, S-6; rework 2, Q74)", () => {
     for (const [layout, controls, open] of opened) {
       const b = both(await room(layout, undefined, [], open));
       for (const control of controls)
-        for (const el of control.find(b.s.v.doc))
+        for (const el of control.find(b.s.v.doc).slice(0, 1))
           for (const [s, , apply] of STATE_OF) {
             const undo = apply?.(el);
-            const c = b.image();
-            const band = topValues(token(`--btn-${control.variant}-${s}-bw`)).map(cssLength);
-            const crossed = SIDES.filter(
-              (sd, i) => (band[i] ?? 0) > side(c, el, "border-width", sd) + side(c, el, "padding", sd),
-            );
-            if (crossed.length > 0) crossings.add(`${layout.name}: ${control.name} (${s}): ${crossed.join(", ")}`);
+            note(`${layout.name}: ${control.name}`, el, b.image(), token(`--btn-${control.variant}-${s}-bw`), s);
             undo?.();
           }
+      // The list, the split layout's top half (A's data-half), against the panel frame's band.
+      const list = b.s.v.doc.querySelector(".room-list");
+      if (layout.split && open === undefined && list)
+        note(
+          `${layout.name}: the list (the top half, the panel frame)`,
+          list,
+          b.image(),
+          token("--half-frame-bw"),
+          "-",
+        );
     }
     const enter = both(await selectionScreen());
-    for (const el of ENTER.find(enter.s.v.doc)) {
-      const c = enter.image();
-      const band = topValues(token("--btn-primary-normal-bw")).map(cssLength);
-      const crossed = SIDES.filter(
-        (sd, i) => (band[i] ?? 0) > side(c, el, "border-width", sd) + side(c, el, "padding", sd),
-      );
-      if (crossed.length > 0) crossings.add(`the selection screen: "Enter" (every state): ${crossed.join(", ")}`);
-    }
-    for (const c of crossings) console.info(`BAND ${c}`);
+    for (const el of ENTER.find(enter.s.v.doc))
+      for (const [s, , apply] of STATE_OF) {
+        const undo = apply?.(el);
+        note(`the selection screen: ${ENTER.name}`, el, enter.image(), token(`--btn-primary-${s}-bw`), s);
+        undo?.();
+      }
+    const lines = [...crossings].flatMap(([where, bySides]) =>
+      [...bySides].map(([sides, states]) => {
+        const which = states.length === STATES.length ? "every state" : states.join(", ");
+        return `${where}: ${sides} (${which === "-" ? "its own" : which})`;
+      }),
+    );
+    for (const l of lines) console.info(`BAND ${l}`);
     // The split layout's tiles cross it (plan §R-D4: 12 CSS px against a 1 px border and 0.125rem of padding).
-    expect([...crossings].some((c) => c.startsWith(`${SPLIT.name}: the bar's tiles`))).toBe(true);
+    expect(lines.some((l) => l.startsWith(`${SPLIT.name}: the bar's tiles`))).toBe(true);
   });
 
   const SCREENS: Layout[] = [
@@ -561,7 +581,7 @@ describe("nothing before Enter with the image skin's stylesheet (FR-029, FR-030)
     await flush();
     v.clock.advance(10_000);
     await flush();
-    expect(imageCss()).toContain("data:image/png;base64,");
+    expect(imageCss()).toContain("data:image/png\\3b base64,");
     expect(imageCss()).not.toMatch(/url\((?!"data:)/);
     expect(v.spies.network).toEqual([]);
     expect(v.spies.assets).toEqual([]);
