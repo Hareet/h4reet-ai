@@ -342,3 +342,17 @@ On GREEN 2's `button.css`, exit 0:
       Tests  2 passed | 13 skipped (15)
 ```
 
+## A third RED: the split tiles' two lines (T-B04's estimate, Q75)
+
+T-B04's estimate (its table below) found two of the six labels over two lines under `metal` in the split layout, where rv-030b's R-3 had found none: "Leave full screen" (LEAVE / FULL / SCREEN; "LEAVE FULL" is 81.30px against the content box's 72.67px) and "How data flows" (HOW / DATA / FLOWS; "HOW DATA" is 75.11px by advance widths, 72.64px with the face's kerning, so it fits only if the browser kerns, by 0.03px). So Q75's recommended answer applies, and its rule needs a test first. New case in `button-skin.test.ts`, under each CSS skin: in the split layout, with the full-screen tile added to the bar as `layout.ts` makes it (jsdom has no Fullscreen API) and each of its two labels in turn, every tile's words, in the case, weight, size, and tracking the cascade gives, broken greedy by word at advance widths in the tile's content box (the bar's `--wall-bar-w` less its padding and two gaps, a third, less the tile's padding and border, all read by the cascade), take at most two lines. From `apps/web/`, `npx --no-install vitest run test/ui/button-skin.test.ts -t "two lines"`, exit 1:
+
+```
+     × metal, the split layout (1366 × 768) 22545ms
+ FAIL  test/ui/button-skin.test.ts > the split layout's tiles hold their words in two lines under every skin (Q75) > metal, the split layout (1366 × 768)
+AssertionError: Resume: RESUME (uppercase, 700, 72.67px); 2D view: 2D VIEW (uppercase, 700, 72.67px); Pause the room: PAUSE / THE ROOM (uppercase, 700, 72.67px); How data flows: HOW / DATA / FLOWS (uppercase, 700, 72.67px); Credits: CREDITS (uppercase, 700, 72.67px); Full screen: FULL / SCREEN (uppercase, 700, 72.67px); Leave full screen: LEAVE / FULL / SCREEN (uppercase, 700, 72.67px): expected [ 'How data flows', …(1) ] to deeply equal []
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 14 skipped (16)
+```
+
+(`plain`'s case passes: its words' own case and weight 400.)
+

@@ -349,6 +349,22 @@ function flexRows(widths: readonly number[], width: number, gap: number): number
   return rows;
 }
 
+/** The lines a label breaks into in a width, greedy by word, each line measured as runWidth measures a run. */
+function lines(text: string, weight: string, size: number, tracking: number, width: number): string[] {
+  const out: string[] = [];
+  let line = "";
+  for (const word of text.split(/\s+/).filter((w) => w !== "")) {
+    const trial = line === "" ? word : `${line} ${word}`;
+    if (line === "" || runWidth(trial, weight, size, tracking) <= width) line = trial;
+    else {
+      out.push(line);
+      line = word;
+    }
+  }
+  if (line !== "") out.push(line);
+  return out;
+}
+
 const UI_WORDS = (parse(readFileSync(join(WEB, "room", "ui-words.yaml"), "utf8")) as { words: Record<string, string> })
   .words;
 
@@ -391,4 +407,66 @@ describe("the bar's six tiles fit its row in the column layout and its rows in t
         }
         expect(flexRows(widths, barW - pad, gap), report).toBeLessThanOrEqual(rows);
       });
+});
+
+// ---- The split layout's tiles in their two lines (rework 2, Q75's recommended answer; T-B04's estimate) ----
+
+describe("the split layout's tiles hold their words in two lines under every skin (Q75)", () => {
+  const SPLIT = LAYOUTS[0] as Layout;
+  for (const [id] of CSS_SKINS)
+    it(`${id}, ${SPLIT.name}`, async () => {
+      const s = await room(SPLIT, id);
+      const c = s.cascade;
+      const doc = s.v.doc;
+      const bar = doc.querySelector(".hud-bar");
+      const tiles = [...doc.querySelectorAll(".hud-bar .hud-tile")];
+      if (!bar || tiles.length !== 5) throw new Error("the bar's five tiles (jsdom has no Fullscreen API)");
+      // The full-screen tile as layout.ts makes it where the browser offers full screen (its attributes, its icon, its
+      // words), after "Pause the room", with each of its two words in turn.
+      const fullscreen = doc.createElement("button");
+      fullscreen.setAttribute("type", "button");
+      fullscreen.setAttribute("aria-keyshortcuts", "Alt+Enter");
+      fullscreen.setAttribute("aria-describedby", "room-fullscreen-help");
+      fullscreen.className = "hud-tile";
+      const icon = tiles[0]?.querySelector(".hud-icon")?.cloneNode(true);
+      if (icon) fullscreen.append(icon);
+      const words = doc.createElement("span");
+      words.className = "hud-tile-words";
+      fullscreen.append(words);
+      tiles[2]?.after(fullscreen);
+      // The bar's grid: three columns (HUD_PLACEMENTS.wall.tiles.perRow) in the bar's width less its padding and gaps;
+      // each tile's content box that column less its padding and border.
+      const perRow = HUD_PLACEMENTS.wall.tiles.perRow;
+      const barW = cssLength(c.value(bar, "width"));
+      const gap = cssLength(c.value(bar, "column-gap"));
+      const column = (barW - side(c, bar, "padding-left", "left") - side(c, bar, "padding-right", "right") - (perRow - 1) * gap) / perRow;
+      const report: string[] = [];
+      const over: string[] = [];
+      const check = (tile: Element, label: string): void => {
+        const weight = c.value(tile, "font-weight") ?? "400";
+        const size = cssLength(c.value(tile, "font-size"));
+        const spacing = c.value(tile, "letter-spacing") ?? "normal";
+        const tracking =
+          spacing === "normal" ? 0 : spacing.endsWith("em") ? Number.parseFloat(spacing) * size : cssLength(spacing);
+        const transform = c.value(tile, "text-transform") ?? "none";
+        const cased = transform === "uppercase" ? label.toUpperCase() : label;
+        const content =
+          column -
+          side(c, tile, "padding-left", "left") -
+          side(c, tile, "padding-right", "right") -
+          side(c, tile, "border-left-width", "left") -
+          side(c, tile, "border-right-width", "right");
+        const broken = lines(cased, weight, size, tracking, content);
+        report.push(`${label}: ${broken.join(" / ")} (${transform}, ${weight}, ${content.toFixed(2)}px)`);
+        // An icon over two lines of words is the row's height (HUD_PLACEMENTS.wall.tiles.tileRem; spec 028's A1-3).
+        if (broken.length > 2) over.push(label);
+      };
+      expect(Number.isFinite(column), "the column's width").toBe(true);
+      for (const tile of tiles) check(tile, tile.querySelector(".hud-tile-words")?.textContent ?? "");
+      for (const key of ["fullscreen.enter", "fullscreen.leave"]) {
+        words.textContent = UI_WORDS[key] ?? "";
+        check(fullscreen, words.textContent);
+      }
+      expect(over, report.join("; ")).toEqual([]);
+    });
 });
