@@ -13,8 +13,10 @@ prepare:  the data volume, /dev/sdf, formatted once while it holds no filesystem
           the store's TLS key and certificate from Parameter Store to /run/h4reet/shared-state on tmpfs, 0400, the
           container's user's (70, the image's postgres), and a superuser password nobody keeps, which only the image's
           first start reads; this file and the backup's units installed, and the timer enabled; and, from group 10, the
-          public view's write, deploy/scripts/snapshot_sink.py, with its unit, enabled and restarted. A missing parameter
-          stops it, naming it, and the deployer's start with it.
+          public view's write, deploy/scripts/snapshot_sink.py, with its unit, enabled and restarted; and, from fix F2,
+          the private interface's replies: ens5's networkd drop-in (table 105, its two rules) and the marks' table
+          with its unit, enabled and loaded, networkd reloaded when the drop-in changed (fixes/f2.md). A missing
+          parameter stops it, naming it, and the deployer's start with it; so does a reply route that isn't set.
 backup:   pg_dump inside the container, over its socket, as its postgres user; the dump put to
           s3://h4reet-ai-shared-state-<account>/dumps/<UTC>.dump through the egress proxy. The last good dump stays on
           the host. A failed dump or put alerts shared_state_backup_failed once a failing streak, and each run pushes
@@ -74,7 +76,15 @@ UNITS = (
     "h4-shared-state-backup.timer",
     # Group 10: the public view's write, a long-lived host service (deploy/scripts/snapshot_sink.py write).
     "h4-snapshot-sink.service",
+    # Fix F2: the private interface's replies, marked at each boot (h4-reply-route.nft).
+    "h4-reply-route.service",
 )
+# Fix F2 (specs/001-cloud-elevation/fixes/f2.md): what comes in by the private interface is answered by it. Its
+# networkd drop-in (table 105 and the two rules) and the marks' table, from the release's tree.
+REPLY_UNIT = "h4-reply-route.service"
+REPLY_TABLE = "h4-reply-route.nft"
+REPLY_DROPIN = "zz-h4-reply-route.conf"
+PRIVATE_INTERFACE = "ens5"
 PROXY = "http://127.0.0.1:3128"
 
 
@@ -87,6 +97,8 @@ class Paths:
         install: Path = Path("/opt/h4reet/shared-state"),
         units: Path = Path("/etc/systemd/system"),
         snapshot: Path = Path("/opt/h4reet/snapshot"),
+        network: Path = Path("/etc/systemd/network/70-ens5.network.d"),
+        config: Path = Path("/etc/h4reet"),
     ) -> None:
         self.data, self.tls, self.state, self.install, self.units = (
             data,
@@ -96,6 +108,8 @@ class Paths:
             units,
         )
         self.snapshot = snapshot
+        # Fix F2: ens5's networkd drop-in, beside the user data's zz-h4-ec2-route.conf, and the marks' table.
+        self.network, self.config = network, config
 
 
 def iso(epoch: float) -> str:
@@ -223,6 +237,20 @@ def prepare(host, paths: Paths, tree: Path) -> int:
         for unit in UNITS:
             shutil.copyfile(str(source / "release" / unit), str(paths.units / unit))
             (paths.units / unit).chmod(0o644)
+        # Fix F2: the marks' table, which its unit loads; and ens5's drop-in, written only when its text differs, so a
+        # rerun reloads nothing.
+        paths.config.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(
+            str(source / "release" / REPLY_TABLE), str(paths.config / REPLY_TABLE)
+        )
+        (paths.config / REPLY_TABLE).chmod(0o600)
+        dropin = (source / "release" / REPLY_DROPIN).read_bytes()
+        placed = paths.network / REPLY_DROPIN
+        changed = not placed.is_file() or placed.read_bytes() != dropin
+        if changed:
+            paths.network.mkdir(parents=True, exist_ok=True)
+            placed.write_bytes(dropin)
+            placed.chmod(0o644)
     except OSError as error:
         print(
             f"shared_state: the release's host files didn't install: {type(error).__name__}",
@@ -230,6 +258,28 @@ def prepare(host, paths: Paths, tree: Path) -> int:
         )
         return 1
     host.run(["systemctl", "daemon-reload"])
+    # Fix F2: the marks loaded again, whole, and networkd's rules made again when the drop-in changed (`networkctl
+    # reload`, then ens5 reconfigured, as the first boot's runcmd does). Without them the relay's replies time out and
+    # the site answers nothing, so a failure fails the step, and the start with it; a drop-in networkd didn't take is
+    # removed, so the next run writes it and reloads again.
+    loaded = (
+        host.run(["systemctl", "enable", REPLY_UNIT])[0] == 0
+        and host.run(["systemctl", "restart", REPLY_UNIT])[0] == 0
+    )
+    if loaded and changed:
+        loaded = (
+            host.run(["networkctl", "reload"])[0] == 0
+            and host.run(["networkctl", "reconfigure", PRIVATE_INTERFACE])[0] == 0
+        )
+        if not loaded:
+            placed.unlink()
+    if not loaded:
+        print(
+            f"shared_state: the private interface's replies weren't set ({REPLY_UNIT}, or networkd's "
+            f"{REPLY_DROPIN}): the release doesn't start",
+            file=sys.stderr,
+        )
+        return 1
     if (
         host.run(["systemctl", "enable", "--now", "h4-shared-state-backup.timer"])[0]
         != 0
