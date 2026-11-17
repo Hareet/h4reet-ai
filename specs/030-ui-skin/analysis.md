@@ -132,3 +132,37 @@ Every requirement keeps its tasks. FR-027 → T-DS01 (c), T-DS02 (now with the r
 ### Still not checked
 
 As above; and the R-3 route's look in a browser (the image on the `::before`, `border-style: solid` at width 0, the inside ring's corners), his at SC-008.
+
+## Re-run after rework 3 (rework3-spec-030, from `8e83e7fc`)
+
+Non-destructive, over `spec.md`, `plan.md` and `tasks.md` at this rework's tip, with `impl-030a`'s real commits (`e053a0cd`, tip `c0cd9826`) and `impl-030dsb`'s (`7ac200da`) beside them.
+
+### The review's findings and the page's questions, each where it landed
+
+| ID | Landed | Where |
+|---|---|---|
+| R-1 | Every test A's change reaches, placed case by case from `impl-a.md` and a grep, the grep's three files run on A's export (14 failing cases); the valve before each GREEN; A's "As built" taken as the design; the over-room sets A's | spec FR-004, Assumptions, Amendments; plan §R-A2 to §R-A4, §9; tasks Group A's rework (T-A06 to T-A08), T-INT02, Dependencies, the checks' table |
+| R-2 | The control's own `box-shadow: none` under every skin; asserted by the cascade | plan §R-B3, §R-B4, §R-D4; tasks T-B01 (c), T-DS01 (b), the checks' table |
+| R-3 | The frame's half-pixel strip, for his look | notes.md |
+| R-4 | "Q76" is Q81; Q82 to Q85 in a rework-3 session and two Amendments rows | spec Clarifications, Amendments, Assumptions, Open Questions; plan §R-A4 |
+| R-5 | `web_contexts()` refuses by name an export without `ASSET_CONTEXTS`; one RED case; asked on the page | plan §R-D4, §9; tasks T-DS01 (c), T-DS02, the checks' table |
+| Q81, Q82, Q84, Q85 | Taken as recommended, as A built them | spec Clarifications, FR-004; plan §R-A2, §R-A3 |
+| Q83 | Taken as recommended (the snapshots by `vitest -u`); A's review reads the hunks | spec Clarifications; plan §R-A4's table |
+
+### New findings of this pass
+
+| ID | Category | Severity | Where | Finding | State |
+|---|---|---|---|---|---|
+| R3-1 | Coverage gap | HIGH | plan §R-A4 against `test/lookdev/phone.test.ts`, `test/room/geometry.test.ts`, `test/room/report.test.ts` | The dock's slice (Q82) moves the reference phone's stage and the smallest stage, and these three files pin those (directly, or through the room's checks' and report's stage names and counts). No list named them, and A's T-A05 (65 covering files) didn't run them. On an export of A's tip: 14 cases fail. Two of the strings ("320 × 322 and 62 others") name no number A moves, so the run found them, not the grep. | *Fixed in the text*: A's files, rows in §R-A4's table, rewritten in T-A06 (c) with the failing runs pasted. |
+| R3-2 | Inconsistency | HIGH | tasks Group A, against `impl-030a`'s branch | A built from `7cdc31d2`'s tasks, which predate the first rework's N-1 (the `@supports` block, still at `room.css:190` on A's tip) and N-2 (`hud-halves` against `halves()`'s output). No task on A's tip held them, and folding them into T-A01 or T-A02 (as the reworks did) left nothing A's rework could tick without a conflict. | *Fixed*: T-A06 (a), (b) and T-A07 in "Group A's rework"; `degraded:923-944` and `loading-a11y:174-185` placed as N-1's. |
+| R3-3 | Merge | MEDIUM | plan §R-A3's tests bullet; tasks T-A01 to T-A05; plan §9's no-row paragraph | Each conflicted with A's or DSB's tip (`git merge-tree` at the base: plan.md and tasks.md against A). | *Fixed on this side*: A's lines and DSB's paragraph kept as they wrote them, each rework's words in a line that says what it replaces. Every merge is clean (notes.md). The cost: plan §R-A3 and §9 each hold one superseded passage, marked as such. |
+| R3-4 | Coverage | LOW | A's §R-A2 "As built", `compose/over.ts`'s dock part | 12 px low by the slice; no file row of A's, no task. No mark changes (the dock is marked always). | Recorded in notes.md's "What's left", for T-INT or a later spec; no task added (no visible effect). |
+| R3-5 | Underspecification | LOW | plan §R-D4, R-5 | Refusing an export without `ASSET_CONTEXTS` means this `release.py` releases no commit from before T-DS02. | Named in plan §R-D4; asked on the page with the fallback as the other answer. |
+
+### Coverage and metrics after rework 3
+
+Every requirement keeps its tasks. FR-001 → T-A01 (a), T-A02, T-A06 (a), T-A07. FR-002 to FR-004 → T-A01 (b), T-A03, T-A06 (b) (FR-004 as A built it, Q82 and Q85). FR-013 → T-B01 (c) (no clip, no filter, and now no shadow on the control). FR-027 → T-DS01 (c), T-DS02 (the release's refusal). 27 functional requirements; 9 success criteria; 27 clarifications (Q1 to Q16, Q51, Q71 to Q75, Q81 to Q85; rework 2's Q76 is Q81); three tasks added (T-A06 to T-A08), none removed. A's T-A01 to T-A05 are ticked as A wrote them. The review's blocking finding is fixed and its four others are taken (R-3 as a note for his look). This pass's 5 findings: 3 fixed in the text, 2 recorded. 0 unmapped requirements; 0 CRITICAL. §9's rows: A's row gains twelve test files, none named by another row. The only shares are still the designed sequential ones and INT's rewrites after A's merge.
+
+### Still not checked
+
+As above; and the suite beyond the three files on A's export (notes.md, "Rework 3"), which A's own T-A08 run repeats on A's reworked tip.
