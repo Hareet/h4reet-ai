@@ -4403,3 +4403,45 @@ added to commit").
 
 **Scratch, none deleted**: `/tmp/dq109/` (`page.md`, `qwant.md`, `qgot.md`, `proof/`, `log/`). No push, merge, PR,
 `feat/` branch, request to the runner, or human-only path; the patch file is untouched.
+
+### 8.8 After the last edits
+
+The pasted logs, checked against this step by a read-only `python3 -I -B -` run, its source on stdin (each log's lines,
+whole, must stand as one contiguous run in step 8):
+
+```text
+b8cec8f4-log.txt: 40 lines, in step 8 contiguous: True
+note-diff.txt: 76 lines, in step 8 contiguous: True
+setup.log: 23 lines, in step 8 contiguous: True
+pytest-docs.txt: 3 lines, in step 8 contiguous: True
+docs-links.txt: 6 lines, in step 8 contiguous: True
+lint.txt: 12 lines, in step 8 contiguous: True
+exit=0
+```
+
+Save point `d953b6e0` (19:04:17Z, this step to 8.7). Then, on it:
+
+```text
+$ git diff --stat b8cec8f4 HEAD
+ docs/merge-requests/2026-11-17-030-ui-skin.md      |   25 +-
+ .../2026-11-17-q109-rm-expansion-gate.md           | 1257 ++++++++++++++++++++
+ specs/030-ui-skin/handover.md                      |  415 +++++++
+ 3 files changed, 1692 insertions(+), 5 deletions(-)
+exit=0
+$ npx --no-install prettier --check specs/030-ui-skin/handover.md docs/merge-requests/2026-11-17-030-ui-skin.md docs/merge-requests/human-patches/2026-11-17-q109-rm-expansion-gate.md
+Checking formatting...
+All matched files use Prettier code style!
+prettier exit=0
+$ the docs tests, the docs links
+61 passed in 1.53s
+exit=0
+docs links: 0 failed, 2671 relative links in 560 files
+exit=0
+$ cmp the morning list and section 0, b8cec8f4 against HEAD; the patch file's SHA-256
+morning cmp exit=0
+section 0 cmp exit=0
+c5266c99c587d98a58c3cf8f0a2c2b6902f4e97f445ed57aedc0d44f86822aea  -
+```
+
+The diff touches the note, the new file and `handover.md` only (`.prettierignore` skips `docs/`, so prettier reads
+`handover.md` alone of the three). This section is the branch's last edit, committed with it.
