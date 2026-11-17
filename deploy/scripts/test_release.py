@@ -4,7 +4,7 @@ contracts/releases-deployer.md §1 and §2; research.md R-17).
   - refs/heads/main's commit alone, from a fresh export of it, whatever the checkout holds, and only when its merge
     carries the gate's line for the branch tip it merged (group 7's review A, I-D and I-H);
   - one build per project image, for linux/amd64, and for linux/arm64 where its `hosts` name a Graviton host (EC2,
-    the tunnel end), pushed by the release's commit;
+    the tunnel end), pushed by the release's id, `<time>-<the commit's first 12>` (F6: specs/001-cloud-elevation/fixes/f6.md);
   - every upstream image a cloud host runs copied to the account's registry by its lock line's index digest, and
     refused when the copy's digest isn't the lock's;
   - when the release makes hello or the twin's turns public, the red-team gate: a passing run of that very commit on each
@@ -238,7 +238,10 @@ def test_a_release_builds_once_each_for_its_hosts_platforms(tmp_path: Path) -> N
     assert services["snapshot-sink"]["hosts"] == ["tunnel-end"]
     assert services["ec2-snapshot-publisher"]["hosts"] == ["ec2"]
     for c in pushed:
-        assert "--push" in c and c[c.index("--tag") + 1].endswith(f":{COMMIT}")
+        # F6: by the release's id, `<time>-<the commit's first 12>`, so a rerun never meets a tag a refused run left.
+        assert "--push" in c and c[c.index("--tag") + 1].endswith(
+            f":20261113T010203Z-{COMMIT[:12]}"
+        )
     assert rl.platforms(["laptop"]) == ["linux/amd64"]
     assert rl.platforms(["laptop", "ec2"]) == ["linux/amd64", "linux/arm64"]
 

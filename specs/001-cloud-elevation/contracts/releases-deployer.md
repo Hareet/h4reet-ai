@@ -16,7 +16,7 @@ The deployer of each host checks only its own services' digests. **Group 7:** an
 On a clean `main`:
 1. **Gates:** checks the commit passed the gate. If the release makes hello or the twin's turns reachable, it checks that the red-team record for that commit passed on all four adapters (spec FR-039).
 2. **Builds** the project's images once: `linux/amd64`, and `linux/arm64` for any service that runs on a Graviton host (research.md R-04, R-33).
-3. **Pushes** them to ECR, tagged with the commit, and copies every upstream image the cloud hosts run into ECR by index digest.
+3. **Pushes** them to ECR, tagged with the release id (`<time>-<the commit's first 12>`, release.json's `release`), so a rerun of a commit whose run pushed then refused never meets a tag that run left in the immutable registry; and copies every upstream image the cloud hosts run into ECR by index digest, taking a copy whose tag already names the lock's digest as it is. A tag at another digest still refuses (fix F6, `fixes/f6.md`; it was tagged with the commit until then).
 4. **Writes** `release.json` to the release bucket and to `~/.local/state/h4reet/releases/`.
 5. **Syncs** the site's build (contracts/edge.md §5).
 
