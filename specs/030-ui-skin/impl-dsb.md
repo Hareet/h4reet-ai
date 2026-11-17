@@ -60,8 +60,9 @@ itself is unchanged); nothing else in `plan.md` or `tasks.md` changed.
   four pairs, in the Dockerfile's stage order), and `WITHOUT`, each folder's "so …" clause, which keeps each folder's
   "has no … directory of its own" line word for word. `main` builds its `--build-context` pairs and lines from
   `ASSET_CONTEXTS` in one loop, in place of the three blocks. The docstring's paragraph on the named contexts gains the
-  sentence on `ui-assets` and one on `ASSET_CONTEXTS`; two of its lines over the width are rewrapped (no words changed
-  but the new ones).
+  sentence on `ui-assets` and one on `ASSET_CONTEXTS`; its over-width line was not rewrapped: the line ending the
+  paragraph, `web_image.py:57`, grew from 148 characters (at `8e83e7fc`, its `:52`) to 157 (no words changed but the
+  new ones; the rewrap is left to the integration; `rv2-030dsb`'s N-2, corrected by `verify-030dsb`).
 - `deploy/scripts/release.py`: `web_contexts()` loops over `wi.ASSET_CONTEXTS` in place of its own tuple (−5 +1 lines);
   nothing else in the file.
 - `apps/web/Dockerfile`: `FROM scratch AS ui-assets` after the `twin-assets` stage, with its comment, and
@@ -288,3 +289,17 @@ Not done, and not this branch's:
   changes and those covering its files, plus `make lint`; T-INT runs the one full `make check`. So there is no
   `docs/merge-requests/` note from this branch; T-INT's `docs/merge-requests/2026-11-17-030-ui-skin.md` is the one.
 - The `WEB_BUILD` segment proved with a real `assets/ui`: waits for his intake (R-D3).
+
+## Backlog and review notes
+
+- **R-5** (not blocking; his rule 11, the real input can't reach it): `deploy/scripts/release.py:815` at `7ac200da`
+  (`:831` after F's line's merge), `web_contexts()` reads `wi.ASSET_CONTEXTS` unguarded, so an export without it
+  raises `AttributeError`, not a refusal. `check_self` pins `release.py` to main's blob and the export is main's
+  commit, which holds the list. `rework3-spec-030` writes its guard into the plan for `impl-030ds` (Q90).
+- **N-1** (nit): `deploy/scripts/web_image.py:116`, `WITHOUT` is a second list that `ASSET_CONTEXTS`
+  (`web_image.py:109`) can drift from: a fifth context is two lines, not plan §R-D4's one. Fix with a third field or a
+  one-line test.
+- **N-2** (nit): this note's lines 63-64 said the over-width docstring lines were rewrapped, but `web_image.py:57` grew
+  from 148 to 157 characters. Those two lines now say so; the rewrap is left to the integration.
+
+From `rv-030dsb`'s and `rv2-030dsb`'s reviews (not blocking), folded in by `verify-030dsb`.
