@@ -20,6 +20,25 @@ Branch `night/spec-030/spec-030` from `b6b4d847` (F's first finished commit, `im
 
 None refused. `resume/` isn't in this worktree and `/srv/studio/` isn't reachable from it; both said in the spec and the round's file. Two text replacements in `spec.md` were made with `sed -i` before its first commit (an untracked file then); every later change to a tracked file was by Edit or Write.
 
+## Checks run
+
+No code or test changed, so the checks are the brief's and lint's. `line.py brief` on the scratch folder: `line: pass`, exit 0 (studio-round-1.md). `make setup` (node_modules was missing), then `make lint` at `0a50a49c`, exit 0:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+915 files already formatted
+… shellcheck over the repository's shell scripts, no finding
+```
+
+`make test` and `make evals` weren't run: this branch changes no code, test, or eval.
+
 ## What's left
 
 The implementation (T-A, T-B, T-C, T-DJ at once; T-DS after T-B04; T-INT), the round (R-1 tonight from this branch, R-2 on his studio, R-3 after T-DJ), and his: the answers to the 16 questions, his look (SC-008), his intake of the set (plan §R-D3), and every merge.
