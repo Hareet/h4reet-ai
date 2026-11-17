@@ -392,3 +392,305 @@ PNG.
 - **His intake** (`docs/merge-requests/human-patches/030.md` on `judge-ui-r1`'s branch): the data already holds the
   record's hashes and insets, so his intake changes no data; with DSB's `ui-assets` context merged, the image sees the
   files.
+
+# Rework: rework-030ds
+
+Night 5 (2026-11-17). Implementer `rework-030ds`, branch `night/rework-030ds/rework-030ds`, from `impl-030ds`'s tip
+`21b2c4e19a72e2a7e738097b4085a500a981249e`. I wrote none of spec 030, B, DS, the round or their reviews. The review is
+`rv-030ds`'s (changes requested, one blocking finding), as the supervisor's brief quotes it; the design is
+`rework3-spec-030`'s `01999312` (`plan.md` §R-D4, `tasks.md` T-DS01 to T-DS05), read and never edited. His rule 1
+takes each recommended answer (Q101: yes). Paths are under `apps/web/` unless they start otherwise.
+
+## Commits
+
+| Commit | What |
+|---|---|
+| `2dad7eee` | save point, start |
+| `57a2ece1` | save point, F-1 RED |
+| `50f8cfd3` | RED, F-1: `test/ui/button-shipped-css.test.ts` (new) |
+| `870a4a0b` | save point, F-1 GREEN |
+| `9f7ebe0d` | GREEN, F-1: `src/ui/button-image.css`, `src/ui/button.css`; no test file |
+| `712c53b8` | save point, F-2 RED |
+| `fc6e4fc0` | RED, F-2: `test/ui/button-room-helper.test.ts` (new) |
+| `d082c3b8` | save point, F-2 GREEN |
+| `d337109b` | GREEN, F-2: `test/helpers/button-room.ts` (a helper; it declares no test); no `*.test.ts` |
+| `21f2a708` | save point, the nits |
+| `e44132bc` | N-2, test only: `test/ui-skins.test.ts`'s swap case |
+| `fcc5c873` | N-3, comment only: `build/ui-skins-image.ts` |
+| `d4f715d3` | save point, the checks |
+| `8cc8da2b` | save point, these notes |
+| this one | these notes |
+
+## F-1, the border image turned off as it ships
+
+Seen first, from the repository's root, with the lockfile's lightningcss 1.33.0 (Vite 8.3.3's `minifyCSS` calls its
+`transform` with `minify: true`; `node_modules/vite/dist/node/chunks/node.js:30711`):
+
+```
+$ node -e '…transform({ code: "a{border-image:none}@media (forced-colors: active){b{border-image:none}}c{border-image-source:none}", minify: true })…'
+a{border-image:}@media (forced-colors:active){b{border-image:}}c{border-image-source:none}
+```
+
+`minify: false` writes `border-image: ;` too, so it is the printer, not the minifier's merging.
+
+**RED** (`50f8cfd3`), `test/ui/button-shipped-css.test.ts`: one case minifying `src/ui/button.css` and
+`src/ui/button-image.css` as Vite does (lightningcss's `transform`, `minify: true`; the build's `targets` aren't
+passed, which the bug doesn't depend on), reading the shipped rules: no empty `border-image:` in either file, and
+exactly `border-image-source:none` as the `border-image` declarations of B's base rule on the control, B's
+forced-colours rule on the control, and DS's forced-colours rule on the halves (`expect.soft`, so each place fails on
+its own). On the tip:
+
+```
+$ npx --no-install vitest run test/ui/button-shipped-css.test.ts
+     × ships no empty `border-image:` and the longhand `border-image-source:none` where a rule turns the image off 10ms
+AssertionError: src/ui/button.css as shipped: expected [ 'border-image:;', 'border-image:}' ] to deeply equal []
+AssertionError: src/ui/button-image.css as shipped: expected [ 'border-image:}' ] to deeply equal []
+AssertionError: button.css's base rule on the control: expected [ 'border-image:' ] to deeply equal [ 'border-image-source:none' ]
+AssertionError: button.css's forced-colours rule on the control: expected [ 'border-image:' ] to deeply equal [ 'border-image-source:none' ]
+AssertionError: button-image.css's forced-colours rule on the halves: expected 'border-image:' to be 'border-image-source:none' // Object.is equality
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+```
+
+**GREEN** (`9f7ebe0d`): `border-image-source: none` in place of `border-image: none` in the three rules, each with a
+comment naming why; in `button.css` the comment names it a departure from B's file. With no source no image is drawn,
+whatever the other longhands are, and no rule on the control sets them. B's cascade reads (`button-cascade.ts` maps
+`border-image-source` to the shorthand and the longhand alike) are unchanged:
+
+```
+$ npx --no-install vitest run test/ui/button-shipped-css.test.ts test/ui-skins.test.ts test/ui-skin-image.test.ts \
+    test/ui/button-skin.test.ts test/ui/button-states.test.ts test/ui/button-image-skin.test.ts
+ Test Files  6 passed (6)
+      Tests  118 passed (118)
+   Duration  87.94s (tests 94%, import 4%, transform 2%)
+```
+
+## F-2, B's helpers after his intake (Q101)
+
+**RED** (`fc6e4fc0`), `test/ui/button-room-helper.test.ts`: the files present without touching the checkout: eleven
+stand-in PNGs (RGBA, 192 × 96, the frame 256 × 256, by zlib) written into a temporary root (removed after),
+`build/ui-skins-image.ts`'s `REPO_ROOT` mocked to it (`vi.mock`, a getter over the real module), and `node:fs`'s
+`readFileSync` serving `content/ui-skins.yaml` with the stand-ins' SHA-256s in place of the record's (every other read
+passes through). Four cases: the build's own default path resolves the repository's skin to the image skin
+(`metal-image`, `image`: the files are present, a precondition); `bundleSheets()`'s skin sheet is `metal`'s stylesheet
+exactly (`skinCss(resolveSkin(readSkins(skinText("metal"))))`) with no `data-skin-kind="image"`; `selectionScreen()`
+and `room(the split layout)` are `metal`, by `id` and by the root's `data-skin`; `bundleSheets("plain")` still builds
+`plain`. On the tip:
+
+```
+$ npx --no-install vitest run test/ui/button-room-helper.test.ts
+     × gives the bundle `metal`'s stylesheet in the skin's place 81ms
+     × marks the selection screen and the room `metal` 17414ms
+AssertionError: expected '/* Generated at build by build/ui-ski…' to be '/* Generated at build by build/ui-ski…' // Object.is equality
+AssertionError: expected 'metal-image' to be 'metal' // Object.is equality
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed (4)
+   Duration  87.75s (tests 95%, transform 3%, import 3%)
+```
+
+(the first diff: `ui-skins: metal-image (image)`, `:root[data-skin="metal-image"]`, the image's labels, and the
+eleven files' `-image`, `-slice`, `-bw` where `metal`'s sheet is expected.)
+
+**GREEN** (`d337109b`), `test/helpers/button-room.ts`, old and new (no assertion of B's changed or loosened):
+
+- Old: `bundleSheets(id)` built `skinCss(resolveSkin(readSkins(skinText(id))))` and `dress` set
+  `resolveSkin(readSkins(skinText(id))).id`: the repository's `active` (`metal-image`) where `id` is absent, its files
+  read from the checkout's root (`REPO_ROOT`), so with the files in `assets/ui/buttons/` the image skin.
+- New: both go through `cssSkin(id)`, `resolveSkin(readSkins(skinText(id ?? "metal")), { read: NO_FILES })`, where
+  `NO_FILES` throws `ENOENT` for any path: `metal` where `id` is absent, a named CSS skin as before, a named image skin
+  its CSS fallback whole; the checkout's files are never read. `skinText()` itself is unchanged (B's cases still read
+  the repository's `active`, `metal-image`, from it). The header's comment says so.
+
+A first GREEN try (not committed) was the no-files reader alone, `skinText(id)`: the room cases passed, and the bundle
+case failed on the generated sheet's first line only (`metal-image: falling back to metal (files absent: …)` where
+`metal`'s own build says `ui-skins: metal (css)`). The RED pins `metal`'s own stylesheet, the brief's "build `metal`
+themselves", so the helper names `metal` (the brief's second route) and keeps the reader for a named image skin.
+
+```
+$ npx --no-install vitest run test/ui/button-room-helper.test.ts test/ui/button-shipped-css.test.ts test/ui-skins.test.ts \
+    test/ui-skin-image.test.ts test/ui/button-skin.test.ts test/ui/button-states.test.ts test/ui/button-image-skin.test.ts
+ Test Files  7 passed (7)
+      Tests  122 passed (122)
+   Duration  106.49s (tests 95%, import 4%, transform 2%)
+```
+
+## The nits
+
+- **N-2** (`e44132bc`, test only): `test/ui-skins.test.ts`'s swap case. Old: the line matching
+  `^metal-image: falling back to metal \((hash pending|files absent: .+)\)$`. New: exactly
+  `metal-image: falling back to metal (files absent: assets/ui/buttons/btn-primary-normal.png)` (its plugin root is the
+  test's temporary folder, which never holds `assets/ui/`, so this holds after his intake too). It passes on the tip, a
+  tightening, not a RED: `Tests 37 passed (37)`.
+- **N-3** (`fcc5c873`, comment only): `REPO_ROOT`'s comment, "three folders above this file's folder,
+  apps/web/build/ (`../../../`)".
+- **N-1** (`uiSkins` doesn't watch the PNGs, so `vite dev` keeps the fallback until restarted): backlog, below.
+
+## Departures (for the integration's "As built"; `plan.md` left alone)
+
+12. **`border-image-source: none`, not `border-image: none`** (plan §R-D4: "`border-image: none`" under forced colours;
+    B's `button.css`, plan §R-B3: the control "no border-image"): the longhand in DS's halves rule and in B's two rules
+    on the control, because Vite's minifier ships the shorthand empty. A departure in B's file, named there. The brief
+    counted "B's three `border-image: none` … (base rule, the image skin's off-route, forced colours)"; `button.css`
+    holds two (`:74`, the base rule, which is also what keeps the control image-free under the image skin, and `:425`,
+    forced colours), and `button-image.css`'s halves rule is the third in the shipped CSS. All three are fixed.
+13. **B's helpers build `metal` by name with a reader that finds no file** (plan §9's B row and §R-B5: B's test files
+    are B's; Q101, recommended yes, taken): `test/helpers/button-room.ts`, old and new above. B's cases test the CSS
+    skin before and after his intake; DS's keep the image side (they already put the fixture skin's sheet in its place).
+14. **Two new test files, neither B's**: `test/ui/button-shipped-css.test.ts` (F-1) and
+    `test/ui/button-room-helper.test.ts` (F-2, its own file because its `vi.mock`s of `node:fs` and
+    `build/ui-skins-image` are file-wide). The first imports `lightningcss` directly: it is in the root lockfile (Vite's
+    minifier, `1.33.0`) but not in `apps/web/package.json`'s devDependencies; `make lint` (eslint, `tsc`) passes. If
+    the integration wants it declared, that is a lockfile change for the integration.
+
+## Checks after GREEN
+
+**A `/tmp` export of my tip with the files** (`d4f715d3`'s tree; `git archive HEAD` into `/tmp/rw030ds-export.FoBp`,
+`node_modules` symlinked from the worktree). Eleven stand-ins made by a stdin script (`python3 -I -B -`, `struct` and
+`zlib`), each an RGBA PNG of one colour, 192 × 96, the frame 256 × 256, written into the export's
+`assets/ui/buttons/`, and the export's `apps/web/content/ui-skins.yaml` given their SHA-256s:
+
+```
+assets/ui/buttons/btn-primary-normal.png 270 bytes 2318c326a2a2
+assets/ui/buttons/btn-primary-hover.png 269 bytes 3893fffdccc2
+assets/ui/buttons/btn-primary-pressed.png 270 bytes ceedc4c7c3e7
+assets/ui/buttons/btn-primary-disabled.png 270 bytes dba2df431c9a
+assets/ui/buttons/btn-primary-selected.png 270 bytes 244c7aa39133
+assets/ui/buttons/btn-secondary-normal.png 269 bytes 3c7637e642dc
+assets/ui/buttons/btn-secondary-hover.png 269 bytes 05156b4c5911
+assets/ui/buttons/btn-secondary-pressed.png 269 bytes bcfb4c5265bd
+assets/ui/buttons/btn-secondary-disabled.png 269 bytes dd2dbaa1798a
+assets/ui/buttons/btn-secondary-selected.png 270 bytes ceb7888f7c4d
+assets/ui/buttons/panel-frame.png 667 bytes 18d6486996b0
+stand-ins: 11
+```
+
+From the export's root:
+
+```
+$ npm run build -w apps/web
+…
+ui-skins: metal-image (image)
+…
+build exit 0
+$ grep -o '<html[^>]*>' apps/web/dist/index.html
+<html lang="en" data-skin="metal-image" data-skin-kind="image">
+$ grep -o 'border-image[-a-z]*:[^;}]\{0,20\}[;}]' apps/web/dist/assets/*.css | sort | uniq -c
+      2 apps/web/dist/assets/index-X-4rp_tO.css:border-image-outset:0;
+      2 apps/web/dist/assets/index-X-4rp_tO.css:border-image-repeat:stretch}
+      1 apps/web/dist/assets/index-X-4rp_tO.css:border-image-slice:var(--_slice) fill;
+      1 apps/web/dist/assets/index-X-4rp_tO.css:border-image-source:none;
+      2 apps/web/dist/assets/index-X-4rp_tO.css:border-image-source:none}
+      1 apps/web/dist/assets/index-X-4rp_tO.css:border-image-source:var(--_img);
+      1 apps/web/dist/assets/index-X-4rp_tO.css:border-image-width:var(--_bw);
+      1 apps/web/dist/assets/index-X-4rp_tO.css:border-image-width:var(--half-frame-bw);
+```
+
+No empty `border-image:`. The `{0,20}` window can't hold the halves' `var(--half-frame-image)` and
+`var(--half-frame-slice)` (23 characters); with `{0,40}` they are there, once each
+(`border-image-source:var(--half-frame-image);`, `border-image-slice:var(--half-frame-slice);`), and
+`grep -c 'border-image:[;}]'` is 0 in both CSS files. The forced-colours blocks' `border-image` declarations, read out
+of the built CSS by a stdin script:
+
+```
+FORCED: :root[data-skin][data-skin-kind=image] [data-half] => ['border-image-source:none']
+FORCED:  .resume-close),:root[data-skin] :is(.choice .choice-enter,.ui-button) => ['border-image-source:none']
+```
+
+The five B and DS files and my two, on the export with the files:
+
+```
+$ cd apps/web && npx --no-install vitest run test/ui-skins.test.ts test/ui-skin-image.test.ts test/ui/button-skin.test.ts \
+    test/ui/button-states.test.ts test/ui/button-image-skin.test.ts test/ui/button-shipped-css.test.ts test/ui/button-room-helper.test.ts
+ Test Files  7 passed (7)
+      Tests  122 passed (122)
+   Duration  108.98s (tests 95%, import 4%, transform 2%)
+```
+
+And F-2 cross-checked there: the export's helper swapped for the base's (`git show 21b2c4e1:…/button-room.ts`), then
+put back (`diff` against `HEAD`'s: none):
+
+```
+$ npx --no-install vitest run test/ui/button-skin.test.ts
+     × gives each control the component, its variant, 44 × 44, and wrapping, in the split layout (1366 × 768) 21411ms
+     × gives each control the component, its variant, 44 × 44, and wrapping, in the split layout, walking 84ms
+     × gives each control the component, its variant, 44 × 44, and wrapping, in the column layout (1280 × 720) 36ms
+     × gives each control the component, its variant, 44 × 44, and wrapping, in the dock (390 × 844) 33ms
+AssertionError: expected 'metal-image' to be 'metal' // Object.is equality
+      Tests  4 failed | 12 passed (16)
+```
+
+the reviewer's four, which pass with the new helper (above).
+
+**My tip as committed, without the files** (no `assets/ui/` in the worktree), from `apps/web/`:
+
+```
+$ npx --no-install vitest run test/ui-skins.test.ts test/ui-skin-image.test.ts test/ui/button-skin.test.ts \
+    test/ui/button-states.test.ts test/ui/button-image-skin.test.ts test/ui/button-shipped-css.test.ts test/ui/button-room-helper.test.ts
+ Test Files  7 passed (7)
+      Tests  122 passed (122)
+   Duration  108.59s (tests 94%, import 4%, transform 2%)
+$ npm run build -w apps/web          # from the repository's root
+metal-image: falling back to metal (files absent: assets/ui/buttons/btn-primary-normal.png)
+build exit 0
+$ grep -o '<html[^>]*>' apps/web/dist/index.html
+<html lang="en" data-skin="metal" data-skin-kind="css">
+$ grep -o 'border-image[-a-z]*:[^;}]\{0,40\}[;}]' apps/web/dist/assets/*.css | sed 's|.*/||' | sort | uniq -c
+      1 index-BboFKGG1.css:border-image-source:none;
+      1 index-BboFKGG1.css:border-image-source:none}
+```
+
+**`make lint`** (the tree at `d4f715d3`, the code as it ends here; these notes change no linted file):
+
+```
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+917 files already formatted
+… | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit … (the repository's shell scripts)
+make lint exit 0
+```
+
+**`git merge-tree --write-tree`** of my tip (`d4f715d3`) with each, a scratch `GIT_OBJECT_DIRECTORY` in `/tmp`:
+
+| Tip | Merge base | Result |
+|---|---|---|
+| A `9026b4ba` | `7cdc31d2` | clean |
+| C `cb1a537b` | `7cdc31d2` | clean |
+| DSB `b1320584` | `7cdc31d2` | CONFLICT (content) in `specs/030-ui-skin/plan.md` |
+| DJ `46b726ba` | `7cdc31d2` | clean |
+| rework 3 `01999312` | `7cdc31d2` | CONFLICT (content) in `specs/030-ui-skin/plan.md` |
+| F `ab6e64e6` | `b6b4d847` | clean |
+
+Both conflicts are B's, inherited: the base `21b2c4e1` gives the same two, and nothing on this branch touches
+`plan.md` (B's `4f75061e`, `5bcd0633`, `d145a484` edit it).
+
+## Interruptions
+
+- The bash gate refused `rm -rf /tmp/rw030ds-export.FoBp /tmp/rw030ds-objs` ("recursive delete outside workspace").
+  Not respelled or rerouted; on the page (`/night/io/out/questions.md`, with a recommended answer): 417 MB of the
+  export and 396 KB of objects stay in `/tmp`.
+
+## Done, and not done
+
+Done: F-1 (RED `50f8cfd3`, GREEN `9f7ebe0d`), F-2 (RED `fc6e4fc0`, GREEN `d337109b`), N-2 (`e44132bc`), N-3
+(`fcc5c873`); the export's checks with stand-ins and the tip's without; `make lint`; the merge-trees. The first
+backlog item above, "B's helpers after his intake", is F-2, done.
+
+Not done, and not mine:
+
+- **F-3 (Q102)**: the integration's.
+- **N-1**, backlog: `uiSkins` doesn't add the image skin's PNGs to Vite's watch list, so `vite dev` keeps the
+  fallback after the files arrive until it is restarted (the build is unaffected).
+- `make test`, `make evals`, `make check` and the whole `apps/web` suite: the integration's one `make check` (rule
+  4). Run here: the seven files above, both ways, `make lint`, and the site's build both ways.
+- No `docs/merge-requests/` note: the supervisor's order ends this branch on these notes, as `impl-030ds`'s did; the
+  integration writes the note.
+- No `plan.md` or `tasks.md` edit (departures 12 to 14 above, for the integration's "As built"); no human-only path
+  written; nothing under `assets/**` in the worktree; no `/srv/studio/` read or write; no container, release, plan
+  against the account, or AWS call. No new endpoint or model call: no cost, span, panel or data-flow entry.
