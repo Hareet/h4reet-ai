@@ -101,9 +101,10 @@ function ringInside(c: Cascade, el: Element, control: Control, skin: CssSkin, wh
   const chamfer = cssLength(skin.tokens.chamfer);
   const corner = -offset - width;
   expect(corner, `${what}: the ring inside the control (offset ${String(offset)})`).toBeGreaterThanOrEqual(0);
-  expect(2 * corner, `${what}: the ring's corners inside the octagon (offset ${String(offset)})`).toBeGreaterThanOrEqual(
-    chamfer + 2 * (border + inset),
-  );
+  expect(
+    2 * corner,
+    `${what}: the ring's corners inside the octagon (offset ${String(offset)})`,
+  ).toBeGreaterThanOrEqual(chamfer + 2 * (border + inset));
 }
 
 function wraps(c: Cascade, el: Element, what: string): void {
@@ -184,7 +185,12 @@ describe("the component's states (FR-012)", () => {
   });
 
   it("applies hover only where the window can hover (@media (hover: hover))", async () => {
-    const s = await room(SPLIT, undefined, ["hover: none", "any-hover: none", "pointer: coarse", "any-pointer: coarse"]);
+    const s = await room(SPLIT, undefined, [
+      "hover: none",
+      "any-hover: none",
+      "pointer: coarse",
+      "any-pointer: coarse",
+    ]);
     for (const control of ROOM_CONTROLS)
       for (const el of control.find(s.v.doc)) {
         const what = control.name;
@@ -206,24 +212,33 @@ describe("the component's states (FR-012)", () => {
         for (const el of control.find(s.v.doc)) {
           const what = control.name;
           const ways: [string, () => void, () => void][] = [
-            ["aria-disabled", () => el.setAttribute("aria-disabled", "true"), () => el.removeAttribute("aria-disabled")],
+            [
+              "aria-disabled",
+              () => el.setAttribute("aria-disabled", "true"),
+              () => el.removeAttribute("aria-disabled"),
+            ],
           ];
           if (el.tagName === "BUTTON")
             ways.push(["disabled", () => el.setAttribute("disabled", ""), () => el.removeAttribute("disabled")]);
           for (const [how, enable, restore] of ways) {
             const was = el.getAttribute("aria-disabled");
             const before = marks(s.cascade, el, {});
-            expect(s.cascade.value(el, "content", AFTER) ?? "none", `${what}: no dashes at rest`).toMatch(/^(none|normal)$/);
+            expect(s.cascade.value(el, "content", AFTER) ?? "none", `${what}: no dashes at rest`).toMatch(
+              /^(none|normal)$/,
+            );
             enable();
             const t = metal.tokens[control.variant].disabled;
             expect(face(s.cascade, el), `${what} ${how}: face`).toBe(t.face);
             expect(s.cascade.value(el, "content", AFTER), `${what} ${how}: the ::after`).toBe('""');
             expect(s.cascade.value(el, "border-top-style", AFTER), `${what} ${how}: dashed`).toBe("dashed");
             expect(s.cascade.value(el, "border-top-color", AFTER), `${what} ${how}: the dashes' colour`).toBe(t.border);
-            expect(s.cascade.value(el, "pointer-events", AFTER), `${what} ${how}: the dashes take no press`).toBe("none");
-            expect(s.cascade.value(el, "clip-path", AFTER) ?? "", `${what} ${how}: the dashes inside the chamfer`).toMatch(
-              /^polygon\(/,
+            expect(s.cascade.value(el, "pointer-events", AFTER), `${what} ${how}: the dashes take no press`).toBe(
+              "none",
             );
+            expect(
+              s.cascade.value(el, "clip-path", AFTER) ?? "",
+              `${what} ${how}: the dashes inside the chamfer`,
+            ).toMatch(/^polygon\(/);
             const after = marks(s.cascade, el, {});
             const changed = Object.keys(after).filter((k) => after[k] !== before[k]);
             expect(changed.length, `${what} ${how}: beyond colour`).toBeGreaterThan(0);
@@ -248,7 +263,9 @@ describe("the component's states (FR-012)", () => {
     expect(shadow).toContain(t.glow);
     expect(face(s.cascade, pause)).toBe(t.face);
     // The control's own box doesn't change: its border stays as at rest, so nothing moves (FR-014).
-    expect(s.cascade.value(pause, "border-top-width")).toBe(s.cascade.value(button(s.v.doc, "Resume"), "border-top-width"));
+    expect(s.cascade.value(pause, "border-top-width")).toBe(
+      s.cascade.value(button(s.v.doc, "Resume"), "border-top-width"),
+    );
     ringInside(s.cascade, pause, ROOM_CONTROLS[0] as Control, metal, '"Pause the room" selected');
   });
 
@@ -322,7 +339,9 @@ describe("nothing clips a control, nor shadows or filters it (FR-013; rework, S-
             .matching(el, "box-shadow", state)
             .filter((d) => d.sheet === "room/hud/split.css" && /0 0 0 0\.25rem/.test(d.value)).length;
           const won = s.cascade.winner(el, "box-shadow", state);
-          expect(won?.sheet, `${what}: won by ${won?.sheet ?? "nothing"} (${won?.selector ?? ""})`).toBe("ui/button.css");
+          expect(won?.sheet, `${what}: won by ${won?.sheet ?? "nothing"} (${won?.selector ?? ""})`).toBe(
+            "ui/button.css",
+          );
           expect(s.cascade.value(el, "box-shadow", state), what).toBe("none");
           undo?.();
         }
@@ -402,7 +421,8 @@ describe("motion (FR-014)", () => {
             expect(won?.sheet, what).toBe("ui/button.css");
             const value = won?.value ?? "";
             expect(value, what).not.toMatch(/\b(all|transform|top|left|right|bottom|inset|margin|width|height)\b/);
-            for (const ms of value.match(/\d+ms/g) ?? []) expect(Number.parseInt(ms, 10), what).toBeLessThanOrEqual(120);
+            for (const ms of value.match(/\d+ms/g) ?? [])
+              expect(Number.parseInt(ms, 10), what).toBeLessThanOrEqual(120);
             expect(s.cascade.value(el, "transform", layer) ?? "none", what).toBe("none");
           }
   });

@@ -286,7 +286,18 @@ export class Cascade {
           for (const [property, raw] of rule.declarations) {
             const important = /!\s*important\s*$/i.test(raw);
             const value = raw.replace(/!\s*important\s*$/i, "").trim();
-            out.push({ property, value, important, selector, pseudo, element, specificity: s, order: order++, sheet, at });
+            out.push({
+              property,
+              value,
+              important,
+              selector,
+              pseudo,
+              element,
+              specificity: s,
+              order: order++,
+              sheet,
+              at,
+            });
           }
         }
       for (const a of parsed.atRules) if (applies(a.prelude, env)) read(a.body, sheet, [...at, a.prelude]);

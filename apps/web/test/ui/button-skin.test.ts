@@ -294,7 +294,8 @@ function plexFace(weight: string): Font {
  *  tracking after every character, as a browser adds letter-spacing. */
 function runWidth(text: string, weight: string, size: number, tracking: number): number {
   const font = plexFace(weight);
-  const advance = font.glyphsForString(text).reduce((sum, g) => sum + g.advanceWidth, 0);
+  // Each character laid out alone: its glyph's advance, with no pair to kern (build/room/fontkit.d.ts types layout()).
+  const advance = [...text].reduce((sum, ch) => sum + font.layout(ch).advanceWidth, 0);
   return (advance / font.unitsPerEm) * size + tracking * [...text].length;
 }
 
@@ -320,7 +321,8 @@ function tileWidth(c: Cascade, tile: Element, words: string): number {
   const weight = c.value(tile, "font-weight") ?? "400";
   const size = cssLength(c.value(tile, "font-size"));
   const spacing = c.value(tile, "letter-spacing") ?? "normal";
-  const tracking = spacing === "normal" ? 0 : spacing.endsWith("em") ? Number.parseFloat(spacing) * size : cssLength(spacing);
+  const tracking =
+    spacing === "normal" ? 0 : spacing.endsWith("em") ? Number.parseFloat(spacing) * size : cssLength(spacing);
   const cased = { uppercase: words.toUpperCase(), lowercase: words.toLowerCase(), none: words }[
     c.value(tile, "text-transform") ?? "none"
   ];
@@ -407,7 +409,10 @@ describe("the bar's six tiles fit its row in the column layout and its rows in t
         const rows = HUD_PLACEMENTS.bar.rows.find((b) => layout.screen.w < b.belowRem * rem)?.n ?? 1;
         const sum = widths.reduce((a, b) => a + b, 0) + gap * (widths.length - 1) + pad;
         const report = `${labels.map((l, i) => `${l} ${((widths[i] ?? 0) / rem).toFixed(2)}rem`).join(", ")}; one row ${(sum / rem).toFixed(2)}rem; the bar ${(barW / rem).toFixed(2)}rem, ${String(rows)} row(s)`;
-        expect(widths.every((w) => Number.isFinite(w)), report).toBe(true);
+        expect(
+          widths.every((w) => Number.isFinite(w)),
+          report,
+        ).toBe(true);
         if (layout === COLUMN) {
           expect(barW, report).toBeLessThanOrEqual(HUD_PLACEMENTS.bar.maxRem * rem);
           expect(rows, report).toBe(1);
@@ -447,7 +452,9 @@ describe("the split layout's tiles hold their words in two lines under every ski
       const perRow = HUD_PLACEMENTS.wall.tiles.perRow;
       const barW = cssLength(c.value(bar, "width"));
       const gap = cssLength(c.value(bar, "column-gap"));
-      const column = (barW - side(c, bar, "padding-left", "left") - side(c, bar, "padding-right", "right") - (perRow - 1) * gap) / perRow;
+      const column =
+        (barW - side(c, bar, "padding-left", "left") - side(c, bar, "padding-right", "right") - (perRow - 1) * gap) /
+        perRow;
       const report: string[] = [];
       const over: string[] = [];
       const check = (tile: Element, label: string): void => {

@@ -187,7 +187,7 @@ describe("the generated stylesheet (FR-010)", () => {
     );
   });
 
-  it("keeps every attribute the root already has: group C's class=\"dark-page\" stays beside data-skin", () => {
+  it('keeps every attribute the root already has: group C\'s class="dark-page" stays beside data-skin', () => {
     const html = '<!doctype html>\n<html lang="en" class="dark-page">\n<head></head><body></body></html>\n';
     expect(skinHtml(html, "metal", "css")).toBe(
       '<!doctype html>\n<html lang="en" class="dark-page" data-skin="metal" data-skin-kind="css">\n<head></head><body></body></html>\n',
