@@ -480,6 +480,120 @@ def test_asks_at_a_hidden_prompt_when_neither_source_has_a_value(world: dict) ->
     assert "from the prompt" in out.decode()
 
 
+# Q30 (rv-f8's R-1): every String on the list is Terraform's or a target's. impl-f7's autostart switch and health
+# check's ID are Terraform's, and OTHERS doesn't name them; the third is made up, with no laptop value and no shape.
+STRINGS = {
+    "/h4reet/prod/ec2-autostart": "standin-autostart",
+    "/h4reet/tunnel-end/HEALTH_CHECK_ID": "standin-health-check-id",
+    "/h4reet/prod/standin-switch": None,
+}
+STRINGS_LIST = (
+    "# Three Strings another writer owns, and a SecureString the laptop has.\n"
+    + "".join(f"{name} String\n" for name in STRINGS)
+    + "/h4reet/ec2/SMTP_HOST SecureString\n"
+)
+
+
+def test_leaves_every_string_to_its_writer_never_asking_or_writing_one(
+    world: dict,
+) -> None:
+    (world["repo"] / "infra" / "parameters.txt").write_text(
+        STRINGS_LIST, encoding="utf-8"
+    )
+    laptop = {
+        name.rsplit("/", 1)[1]: value
+        for name, value in STRINGS.items()
+        if value is not None
+    }
+    write_prod_env(world["home"], {**PROD_ENV, **laptop})
+    fake(world, have={})
+    master, slave = os.openpty()
+    cmd, env = argv(world, "--profile", PROFILE)
+    child = subprocess.Popen(
+        cmd,
+        cwd=world["repo"],
+        env=env,
+        stdin=slave,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+    )
+    os.close(slave)
+    err = bytearray()
+    prompts = 0
+    try:
+        # A terminal is attached, so a name that fell through would be asked for: each prompt seen is counted and
+        # answered empty (a skip), so the run goes on to its writes.
+        fd = child.stderr.fileno()
+        end = time.monotonic() + 60
+        while True:
+            left = end - time.monotonic()
+            assert left > 0, f"no end: {bytes(err)!r}"
+            ready, _, _ = select.select([fd], [], [], left)
+            if not ready:
+                continue
+            chunk = os.read(fd, 4096)
+            if not chunk:
+                break
+            err.extend(chunk)
+            while err.count(b"(hidden): ") > prompts:
+                prompts += 1
+                os.write(master, b"\n")
+        out, rest = child.communicate(timeout=120)
+        err.extend(rest)
+    finally:
+        if child.poll() is None:
+            child.kill()
+        os.close(master)
+    written = puts(world)
+    for name in STRINGS:
+        assert name not in written, f"{name} written from outside its writer"
+    assert prompts == 0, bytes(err).decode()
+    assert child.returncode == 0, bytes(err).decode()
+    lines = out.decode().splitlines()
+    for name in STRINGS:
+        (line,) = [line for line in lines if line.startswith(name + " ")]
+        assert "missing;" in line, line
+        assert "Terraform's or a target's" in line, line
+    assert "3 left to their writers" in out.decode()
+    assert written["/h4reet/ec2/SMTP_HOST"]["content"] == PROD_ENV["SMTP_HOST"]
+    said = out + bytes(err)
+    for value in laptop.values():
+        assert value.encode() not in said
+        assert all(value not in " ".join(c["argv"]) for c in calls(world))
+
+
+def test_every_string_on_the_repositorys_list_is_left_to_its_writer(
+    world: dict,
+) -> None:
+    listed = (REPO / "infra" / "parameters.txt").read_text(encoding="utf-8")
+    (world["repo"] / "infra" / "parameters.txt").write_text(listed, encoding="utf-8")
+    kinds = {
+        line.split()[0]: line.split()[1]
+        for line in listed.splitlines()
+        if line.startswith("/")
+    }
+    strings = sorted(name for name, kind in kinds.items() if kind == "String")
+    assert strings
+    # A laptop value under every name's last part, so nothing is generated or asked: a String that fell through
+    # would be copied.
+    laptop = {
+        name.rsplit("/", 1)[1]: f"standin-laptop-{number}"
+        for number, name in enumerate(kinds)
+    }
+    write_prod_env(world["home"], {**PROD_ENV, **laptop})
+    fake(world, have={})
+    done = run(world)
+    assert done.returncode == 0, done.stderr
+    written = puts(world)
+    lines = done.stdout.splitlines()
+    for name in strings:
+        assert name not in written, f"{name} written from outside its writer"
+        (line,) = [line for line in lines if line.startswith(name + " ")]
+        assert "missing;" in line, line
+        assert "wrote" not in line, line
+
+
 def test_its_tables_match_the_other_writers_and_the_laptops_file() -> None:
     module = _load("secrets_fill_tables", HERE / "secrets_fill.py")
     for script in ("tunnel_keys.py", "shared_state.py"):
