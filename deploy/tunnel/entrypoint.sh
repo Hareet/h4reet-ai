@@ -5,11 +5,22 @@
 #   h4-tunnel connected  ssh's LocalCommand, once the client's connection is up
 # Each end reports h4.tunnel.up and h4.tunnel.reconnects every 15 seconds, labelled h4.tunnel.end, over OTLP/HTTP to
 # the collector H4_OTLP_HTTP names. The logs pass through scrub, so no network address reaches them (row S17).
+#
+# Every mode runs as the image's `tunnel` user, 10001. The laptop's `tunnel` service alone starts as root (spec 001
+# fixes/f4.md): its client key and pinned host key are the Author's, in H4_TUNNEL_DIR, which preflight's P22 holds to
+# 0700 and his, so 10001 can't open it ("Host key verification failed", W2's deploy). As root, `client` and `admin`
+# copy the two files into the tunnel user's own tmpfs, where ssh_config reads them, then exec themselves as that user
+# through setpriv, which leaves no capability; every other mode refuses root.
 set -euo pipefail
 
 BACKOFF=(1 2 5 10 30)
 STATE=/run/tunnel
 REPORT_EVERY=15
+# The Author's folder, bound read-only, and ssh's copy of its two files, on a tmpfs of 10001's, 0700.
+SOURCE=/run/tunnel-source
+KEYS=/run/tunnel-client
+KEY_FILES=(id_ed25519 known_hosts)
+DROP=(setpriv --reuid=10001 --regid=10001 --clear-groups --inh-caps=-all --)
 
 scrub() {
 	sed -u -E \
@@ -114,6 +125,36 @@ client() {
 		printf '.' >>"$STATE/reconnects"
 	done
 }
+
+# As root, with DAC_OVERRIDE to open the Author's folder: each file is opened here, by the redirection, and written by
+# the tunnel user into its own tmpfs, 0600. Root writes nothing, and changes nothing in the folder.
+stage() {
+	local name
+	for name in "${KEY_FILES[@]}"; do
+		if [ ! -f "$SOURCE/$name" ]; then
+			echo "tunnel: $name isn't in H4_TUNNEL_DIR; the Author's make tunnel-keys makes it (docs/runbooks/laptop.md)" >&2
+			exit 78
+		fi
+	done
+	for name in "${KEY_FILES[@]}"; do
+		# The single quotes are the inner shell's script; $1 is its argument.
+		# shellcheck disable=SC2016
+		"${DROP[@]}" /bin/sh -c 'umask 077 && cat >"$1"' sh "$KEYS/$name" <"$SOURCE/$name"
+	done
+}
+
+if [ "$(id -u)" = 0 ]; then
+	case "${1:-}" in
+	client | admin)
+		stage
+		exec "${DROP[@]}" "$0" "$1"
+		;;
+	*)
+		echo "h4-tunnel: ${1:-(no mode)} doesn't run as root; only the laptop's client and admin start as root, to copy the key, and run as tunnel" >&2
+		exit 77
+		;;
+	esac
+fi
 
 case "${1:-}" in
 server) server ;;
