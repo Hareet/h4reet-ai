@@ -119,14 +119,37 @@ def test_its_data_is_the_volumes_mount_and_its_configuration_and_tls_are_read_on
         "config_file=/etc/h4reet/shared-state/postgresql.conf",
     ]
     assert SERVICE["cap_add"] == COMPOSE["services"]["gateway-state"]["cap_add"]
-    assert SERVICE["healthcheck"]["test"] == [
-        "CMD",
-        "pg_isready",
-        "--host=/var/run/postgresql",
-        "--username=postgres",
-        "--dbname=h4reet",
-    ]
+    assert SERVICE["healthcheck"]["test"] == HEALTH_CHECK
     assert SERVICE["deploy"]["resources"]["limits"]["memory"] == "256M"
+
+
+# F7, part 3 (spec 001 bug-fixes, night 5): the check ran pg_isready as Docker's exec user, root, and the hba's one
+# local line takes postgres by peer alone, so the server logged a peer-authentication failure every 5 s. It steps down
+# to postgres first, with the image's own step-down tool, whichever of the two its entrypoint uses ($$ is compose's
+# escape for one $).
+HEALTH_CHECK = [
+    "CMD-SHELL",
+    (
+        'exec "$$(command -v gosu || command -v su-exec)" postgres '
+        "pg_isready --host=/var/run/postgresql --username=postgres --dbname=h4reet"
+    ),
+]
+
+
+def test_its_health_check_runs_pg_isready_as_postgres_never_as_root() -> None:
+    test = SERVICE["healthcheck"]["test"]
+    assert test[0] == "CMD-SHELL" and len(test) == 2, test
+    line = test[1]
+    words = line.replace(
+        '"$$(command -v gosu || command -v su-exec)"', "STEPDOWN"
+    ).split()
+    assert words[:4] == ["exec", "STEPDOWN", "postgres", "pg_isready"], words
+    assert "--username=postgres" in words and "--host=/var/run/postgresql" in words
+    # The step-down is a root process's setuid and setgid, which the capabilities the entrypoint needs already allow.
+    assert {"SETUID", "SETGID"} <= set(SERVICE["cap_add"])
+    # Peer: the OS user must be postgres, which only the step-down makes it.
+    hba = (CONF / "pg_hba.conf").read_text(encoding="utf-8")
+    assert re.search(r"^local\s+all\s+postgres\s+peer\s*$", hba, re.MULTILINE)
 
 
 def settings() -> dict[str, str]:
