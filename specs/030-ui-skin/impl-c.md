@@ -387,3 +387,168 @@ Four, in `/night/io/out/questions.md`, each with its recommended answer: the `a1
 Done: T-C01 (RED, `6a14fb2c`), T-C02 (GREEN, `78dab4fb`, with plan §R-C1's "As built"), T-C03 (the 14 files, 233 tests, and `make lint`, above). The selection screen, `/credits/`, and `/disclosure/` are dark from `src/pages/dark.css`, at AA by the cascade, with "Enter" carrying `.choice-enter` and the cards reading B's tokens with fallbacks; spec 029's selection-screen tests pass, the two rewritten cases named above, and nothing is fetched before "Enter".
 
 Not done, and not C's: B's real stylesheet over the cards (T-INT01, then this file's cases with B's sheet), the `a11y.test.ts` rewrite (the page's Q), the dead-declaration sweep (T-INT02), the one `make check` and the stack's merge-request note (T-INT04), and his look at the dark pages (SC-008). Not run here: `make test`, `make evals` (rule 4), the image stage (his gate).
+
+# Rework: rework-030c, night of 2026-11-17
+
+Branch `night/rework-030c/rework-030c` from `impl-030c`'s tip `20da89f3`. Built to `rework-spec-030`'s tip `2dd4213f` (`spec.md` FR-015, FR-016, the Edge Cases; `plan.md` §R-C1, §R-C2, §9's C row; `tasks.md` T-C01 to T-C03), and to `rv-030c`'s findings as the page's thirty-sixth wake records them, each recommended answer taken under his rule 1: R-1 (the first paint of `/` light), Q77 (R-2, the built pages' header scrolls away), R-5 (a hover face outside the tokens), R-7 (a redundant focus selector). The spec branch isn't merged in; this branch's `plan.md` is still `7cdc31d2`'s, so what `2dd4213f` changed in §R-C1 is written under its "As built", in the GREEN commit. I wrote none of C's review.
+
+## T-C01 again, RED
+
+### What changed in the tests
+
+`test/ui/dark-pages.test.ts`:
+
+1. **The case that asserted the opposite** (was `:373-381`), "puts dark-page on the body while it shows, and takes it off at Enter (the room has its own look)":
+   - Old: after `start()`, `body.classList.contains("dark-page")` is `true` and `documentElement.classList.contains("dark-page")` is `false`; after "Enter", the body's is `false`.
+   - New, "keeps dark-page on the root, not the body, while it shows, and takes it off at Enter (the room has its own look)": after `start()` (the helper loads the real `index.html`), the root's is `true` and the body's `false`; after "Enter", both `false`. T-C01's (b).
+2. **New**, "carries dark-page on index.html's own `<html>`, so the first paint is dark before any script (rework N-4)": `index.html` parsed as the file holds it, the root's class `true`, the body's `false`. T-C01's (a).
+3. **New**, "draws the no-script fallback dark: the glass ground, its words and links at 4.5:1, links underlined": `index.html` with no script run (the disclosure, the heading, the status line, the two links) under the selection screen's sheets in the bundle's order (Vite links them in the built page's `<head>`, so they apply without script): `ground`, `texts`, `links`. T-C01's (c).
+4. **The token case**: dark.css's token rule found by `:root.dark-page` (was `body.dark-page`, with `:root.dark-page` asserted beside it), and no selector of dark.css keyed to `body.dark-page`.
+5. **New, Q77**, for each of `/credits/` and `/disclosure/`, "keeps the header holding the AI disclosure in view as the page scrolls: sticky, opaque (Q77)": by the cascade's winner over the emitted `style.css`, the header's `position` is `sticky` and `top` `0`, its background the glass, opaque; and, so a focused control or an anchor scrolled into view stops below it (WCAG 2.4.11), the root's `scroll-padding-top` in rem is at least three lines of the disclosure (line-height 1.5) and its paragraph's two margins.
+
+`test/ui/choice-cards.test.ts` (C's two cases of §R-C2; T-C01's (d), the helper's name):
+
+- `onGround` (and `luminanceOf`, which `impl-030c` made of spec 029's `onWhite`) became `onWhite`, spec 029's own helper restored as it was, and `onDark` beside it, as §R-C2 names them. `onDark` reads each colour's luminance back from `onWhite` (`1.05 / ratio − 0.05`), so `onWhite` stays the one luminance formula and isn't left unused. The two rewritten cases call `onDark`; their assertions are otherwise unchanged from `impl-030c`'s (named above, under T-C01).
+- `darkTokens()` finds the token rule by `:root.dark-page` (was `body.dark-page`), since the body half of that rule goes in GREEN; with the old lookup the cases would throw on `var(--hud-focus)`, which has no fallback.
+
+These two changes don't fail at RED (today's token rule names both selectors), so the file passes here: they are renames that keep its two cases true after the re-key, not new checks.
+
+### Seen failing, at `08fddb63` with the tests changed (no code)
+
+```
+$ cd apps/web && npx --no-install vitest run test/ui/dark-pages.test.ts test/ui/choice-cards.test.ts
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-17/rework-030c/apps/web
+
+ ❯ test/ui/dark-pages.test.ts (22 tests | 6 failed) 21939ms
+   ❯ the dark tokens (FR-015, Q9) (1)
+     × holds dark.css's tokens equal to the room's own: room.css's and hud/split.css's :root 5ms
+   ❯ the selection screen, dark (FR-015 to FR-018) (12)
+     × carries dark-page on index.html's own <html>, so the first paint is dark before any script (rework N-4) 63ms
+     × keeps dark-page on the root, not the body, while it shows, and takes it off at Enter (the room has its own look) 18512ms
+     × draws the no-script fallback dark: the glass ground, its words and links at 4.5:1, links underlined 63ms
+   ❯ the credits and data-flow pages, dark (FR-015, FR-016) (9)
+     × /credits/: keeps the header holding the AI disclosure in view as the page scrolls: sticky, opaque (Q77) 55ms
+     × /disclosure/: keeps the header holding the AI disclosure in view as the page scrolls: sticky, opaque (Q77) 33ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/ui/dark-pages.test.ts > the dark tokens (FR-015, Q9) > holds dark.css's tokens equal to the room's own: room.css's and hud/split.css's :root
+AssertionError: a dark.css selector keyed to the body's class: expected ':root.dark-page,\nbody.dark-page' not to match /body\.dark-page/
+
+- Expected:
+/body\.dark-page/
+
++ Received:
+":root.dark-page,
+body.dark-page"
+
+ ❯ test/ui/dark-pages.test.ts:332:79
+    330|     // rule of dark.css is keyed to the body's.
+    331|     for (const r of parseCss(darkCss()).rules)
+    332|       expect(r.selector, "a dark.css selector keyed to the body's clas…
+       |                                                                               ^
+    333|     const room = rootTokens("src/room/room.css");
+    334|     const split = rootTokens("src/room/hud/split.css");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  test/ui/dark-pages.test.ts > the selection screen, dark (FR-015 to FR-018) > carries dark-page on index.html's own <html>, so the first paint is dark before any script (rework N-4)
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ test/ui/dark-pages.test.ts:378:65
+    376|   it("carries dark-page on index.html's own <html>, so the first paint…
+    377|     const doc = new JSDOM(read("index.html")).window.document;
+    378|     expect(doc.documentElement.classList.contains("dark-page")).toBe(t…
+       |                                                                 ^
+    379|     expect(doc.body.classList.contains("dark-page")).toBe(false);
+    380|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  test/ui/dark-pages.test.ts > the selection screen, dark (FR-015 to FR-018) > keeps dark-page on the root, not the body, while it shows, and takes it off at Enter (the room has its own look)
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ test/ui/dark-pages.test.ts:385:67
+    383|     const v = start();
+    384|     await flush();
+    385|     expect(v.doc.documentElement.classList.contains("dark-page")).toBe…
+       |                                                                   ^
+    386|     expect(v.doc.body.classList.contains("dark-page")).toBe(false);
+    387|     await enter(v);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  test/ui/dark-pages.test.ts > the selection screen, dark (FR-015 to FR-018) > draws the no-script fallback dark: the glass ground, its words and links at 4.5:1, links underlined
+AssertionError: no script: the ground: expected null not to be null
+ ❯ ground test/ui/dark-pages.test.ts:308:43
+    306| function ground(doc: Document, c: Cascade, where: string): void {
+    307|   const own = c.background(doc.body) ?? c.background(doc.documentEleme…
+    308|   expect(own, `${where}: the ground`).not.toBeNull();
+       |                                           ^
+    309|   expect(own?.a, where).toBe(1);
+    310|   expect(own?.rgb, where).toEqual([16, 20, 26]);
+ ❯ test/ui/dark-pages.test.ts:399:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  test/ui/dark-pages.test.ts > the credits and data-flow pages, dark (FR-015, FR-016) > /credits/: keeps the header holding the AI disclosure in view as the page scrolls: sticky, opaque (Q77)
+AssertionError: /credits/'s header: expected null to be 'sticky' // Object.is equality
+
+- Expected:
+"sticky"
+
++ Received:
+null
+
+ ❯ test/ui/dark-pages.test.ts:549:70
+    547|       const header = doc.querySelector("body > header");
+    548|       if (!header) throw new Error(`${page.name}: no header`);
+    549|       expect(c.value(header, ["position"]), `${page.name}'s header`).t…
+       |                                                                      ^
+    550|       expect(c.value(header, ["top"]), `${page.name}'s header`).toBe("…
+    551|       const bg = c.background(header);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  test/ui/dark-pages.test.ts > the credits and data-flow pages, dark (FR-015, FR-016) > /disclosure/: keeps the header holding the AI disclosure in view as the page scrolls: sticky, opaque (Q77)
+AssertionError: /disclosure/'s header: expected null to be 'sticky' // Object.is equality
+
+- Expected:
+"sticky"
+
++ Received:
+null
+
+ ❯ test/ui/dark-pages.test.ts:549:70
+    547|       const header = doc.querySelector("body > header");
+    548|       if (!header) throw new Error(`${page.name}: no header`);
+    549|       expect(c.value(header, ["position"]), `${page.name}'s header`).t…
+       |                                                                      ^
+    550|       expect(c.value(header, ["top"]), `${page.name}'s header`).toBe("…
+    551|       const bg = c.background(header);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  6 failed | 42 passed (48)
+   Start at  04:29:41
+   Duration  82.98s (tests 95%, transform 2%, import 2%)
+
+exit 1
+```
+
+Each failure is the missing change: the body half of dark.css's token rule; the root's class in `index.html` (absent in the file, so absent under `start()`); the no-script fallback with no ground (style.css's light page); the built pages' header with no `position`. The ring cases pass at RED because the body still carries the class: they hold the re-key in GREEN (a focus rule left on `body.dark-page` would fall to room.css's `#0b4f9c`).

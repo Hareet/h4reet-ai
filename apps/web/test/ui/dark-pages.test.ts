@@ -324,9 +324,12 @@ const rootTokens = (path: string): Map<string, string> => {
 
 describe("the dark tokens (FR-015, Q9)", () => {
   it("holds dark.css's tokens equal to the room's own: room.css's and hud/split.css's :root", () => {
-    const rule = parseCss(darkCss()).rules.find((r) => list(r.selector).includes("body.dark-page"));
+    const rule = parseCss(darkCss()).rules.find((r) => list(r.selector).includes(":root.dark-page"));
     expect(rule, "dark.css's token rule").toBeDefined();
-    expect(list(rule?.selector ?? "")).toContain(":root.dark-page");
+    // The class is the root's on every dark page (index.html's own markup, rework N-4; the built pages' <html>), so no
+    // rule of dark.css is keyed to the body's.
+    for (const r of parseCss(darkCss()).rules)
+      expect(r.selector, "a dark.css selector keyed to the body's class").not.toMatch(/body\.dark-page/);
     const room = rootTokens("src/room/room.css");
     const split = rootTokens("src/room/hud/split.css");
     for (const name of ["--glass", "--hud-text", "--accent-neon", "--hud-focus"]) {
@@ -370,15 +373,33 @@ async function screens(): Promise<[string, Document][]> {
 }
 
 describe("the selection screen, dark (FR-015 to FR-018)", () => {
-  it("puts dark-page on the body while it shows, and takes it off at Enter (the room has its own look)", async () => {
+  it("carries dark-page on index.html's own <html>, so the first paint is dark before any script (rework N-4)", () => {
+    const doc = new JSDOM(read("index.html")).window.document;
+    expect(doc.documentElement.classList.contains("dark-page")).toBe(true);
+    expect(doc.body.classList.contains("dark-page")).toBe(false);
+  });
+
+  it("keeps dark-page on the root, not the body, while it shows, and takes it off at Enter (the room has its own look)", async () => {
     const v = start();
     await flush();
-    expect(v.doc.body.classList.contains("dark-page")).toBe(true);
-    expect(v.doc.documentElement.classList.contains("dark-page")).toBe(false);
+    expect(v.doc.documentElement.classList.contains("dark-page")).toBe(true);
+    expect(v.doc.body.classList.contains("dark-page")).toBe(false);
     await enter(v);
     expect(v.room.visit.stage).not.toBe("choosing");
+    expect(v.doc.documentElement.classList.contains("dark-page")).toBe(false);
     expect(v.doc.body.classList.contains("dark-page")).toBe(false);
   }, 60_000);
+
+  it("draws the no-script fallback dark: the glass ground, its words and links at 4.5:1, links underlined", () => {
+    // index.html as served, no script run: its heading, status line, and two links under the AI disclosure, with the
+    // bundle's stylesheets (linked in the built page's <head>, so they apply without script).
+    const doc = new JSDOM(read("index.html")).window.document;
+    expect(doc.querySelector("#status"), "the fallback's status line").not.toBeNull();
+    const c = cascade(choiceSheets());
+    ground(doc, c, "no script");
+    texts(doc, c, "no script");
+    links(doc, c, "no script");
+  });
 
   it("makes Enter group B's primary button by its class, a submit, disabled until both steps hold a choice", async () => {
     const v = start();
@@ -518,6 +539,25 @@ describe("the credits and data-flow pages, dark (FR-015, FR-016)", () => {
       if (!header) throw new Error(`${page.name}: no header`);
       expect(header.textContent).toContain("You're talking with an AI representation of the Author, not the Author.");
       borders(c, [header], `${page.name}'s header`, BORDER_BOTTOM);
+    });
+
+    it(`${page.name}: keeps the header holding the AI disclosure in view as the page scrolls: sticky, opaque (Q77)`, () => {
+      const doc = new JSDOM(page.html()).window.document;
+      const c = cascade([page.css()]);
+      const header = doc.querySelector("body > header");
+      if (!header) throw new Error(`${page.name}: no header`);
+      expect(c.value(header, ["position"]), `${page.name}'s header`).toBe("sticky");
+      expect(c.value(header, ["top"]), `${page.name}'s header`).toBe("0");
+      const bg = c.background(header);
+      expect(bg?.a, `${page.name}'s header, opaque`).toBe(1);
+      expect(bg?.rgb).toEqual([16, 20, 26]);
+      // A control or an anchor scrolled into view stops below the header, not under it (WCAG 2.4.11): the root's scroll
+      // padding at least the header's height at three lines of its words (line-height 1.5) and its paragraph's margins.
+      const pad = /^([\d.]+)rem$/.exec(c.value(doc.documentElement, ["scroll-padding-top"]) ?? "");
+      expect(pad, `${page.name}: the root's scroll-padding-top, in rem`).not.toBeNull();
+      const margin = /^([\d.]+)rem\b/.exec(c.value(header.querySelector("p") ?? header, ["margin"]) ?? "");
+      expect(margin, `${page.name}: the disclosure line's margin, in rem`).not.toBeNull();
+      expect(Number(pad?.[1])).toBeGreaterThanOrEqual(3 * 1.5 + 2 * Number(margin?.[1]));
     });
   }
 
