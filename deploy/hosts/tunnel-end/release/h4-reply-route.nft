@@ -1,0 +1,18 @@
+#!/usr/sbin/nft -f
+# The private interface's replies, marked (spec 001, fix F2; specs/001-cloud-elevation/fixes/f2.md): a connection that
+# comes in by ens5 (CloudFront's to the relay's 8080, EC2's to 5432 and 2301) keeps the mark 0x105 in conntrack, and
+# each of its packets from elsewhere (Docker's bridges: the replies, before their source is 10.42.1.10 again) takes it,
+# so ens5's drop-in, zz-h4-reply-route.conf, routes them by table 105, out ens5. The incoming leg, by ens5, keeps no
+# mark, so it still reaches its container. The Author's two lines, in his order. Its own table, replaced whole at each
+# load, since the user data's nftables.nft deletes and remakes `inet h4reet` at its own; its chain runs first, before
+# that table's prerouting (mangle) and Docker's DNAT (dstnat). From the release's tree; h4-reply-route.service loads it.
+
+table inet h4reet_reply
+delete table inet h4reet_reply
+table inet h4reet_reply {
+  chain prerouting {
+    type filter hook prerouting priority mangle - 1; policy accept;
+    iifname "ens5" ct state new ct mark set 0x105
+    iifname != "ens5" meta mark set ct mark
+  }
+}

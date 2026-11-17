@@ -234,6 +234,10 @@ def world(tmp_path: Path) -> tuple[StubHost, object]:
         units=tmp_path / "etc" / "systemd",
         snapshot=tmp_path / "opt-snapshot",
     )
+    # Fix F2: the private interface's replies, ens5's drop-in and the marks' table (deploy/hosts/test_reply_route.py),
+    # in the test's folder, never the host's /etc.
+    paths.network = tmp_path / "etc" / "systemd" / "network" / "70-ens5.network.d"
+    paths.config = tmp_path / "etc" / "h4reet"
     return host, paths
 
 
