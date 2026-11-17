@@ -9,7 +9,7 @@
 //
 // The words below are the page's drafts as taken under the Author's rule 1 for night 4 (spec Q11, Q13; the page's Q19
 // for the dog's): this test pins what ships, for his look.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -382,6 +382,39 @@ function onWhite(hex: string): number {
   return 1.05 / (l + 0.05);
 }
 
+// Spec 030 (T-C01; FR-015 to FR-017; plan.md §R-C1, §R-C2): the screen is a dark page, so a card's marks stand on the
+// glass colour, dark.css's ground (`rgb(16 20 26)`), not on white; and choice.css reads dark.css's tokens and group
+// B's --btn-* (each with a fallback), so a value is judged with its var()s resolved through dark.css's `:root.dark-page`
+// token rule (the class on index.html's root), a token it doesn't hold by its fallback.
+function darkTokens(): Map<string, string> {
+  const path = join(WEB, "src/pages/dark.css");
+  if (!existsSync(path)) return new Map();
+  const rule = parseCss(readFileSync(path, "utf8")).rules.find((r) =>
+    r.selector.split(",").some((s) => s.trim() === ":root.dark-page"),
+  );
+  return new Map([...(rule?.declarations ?? [])].filter(([k]) => k.startsWith("--")));
+}
+
+function resolved(value: string): string {
+  const tokens = darkTokens();
+  let v = value;
+  const inner = /var\((--[\w-]+)\s*(?:,\s*([^()]*))?\)/;
+  for (let m = inner.exec(v), n = 0; m && n < 20; m = inner.exec(v), n += 1) {
+    const got = tokens.get(m[1] ?? "") ?? m[2];
+    if (got === undefined) throw new Error(`${m[1]} has no value and no fallback`);
+    v = v.slice(0, m.index) + got.trim() + v.slice(m.index + m[0].length);
+  }
+  return v;
+}
+
+/** A #rrggbb's contrast against the dark page's ground, the glass colour rgb(16 20 26), beside onWhite: each colour's
+ *  relative luminance is read back from its contrast against white (1.05 / ratio - 0.05). */
+function onDark(hex: string): number {
+  const luminance = (h: string): number => 1.05 / onWhite(h) - 0.05;
+  const [hi, lo] = [luminance(hex), luminance("#10141a")].sort((a, b) => b - a);
+  return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05);
+}
+
 const hexes = (value: string): string[] => value.match(/#[0-9a-fA-F]{6}\b/g) ?? [];
 
 /** A grid-template-columns value's tracks, with repeat(n, …) expanded. */
@@ -428,11 +461,11 @@ describe("the cards' look (FR-028)", () => {
     const chosen = top.filter((r) => /^\.choice-card:has\(input:checked\)$/.test(r.selector.trim()));
     expect(chosen.length).toBeGreaterThan(0);
     const colours = chosen.flatMap((r) => [
-      ...hexes(r.declarations.get("border-color") ?? ""),
-      ...hexes(r.declarations.get("box-shadow") ?? ""),
+      ...hexes(resolved(r.declarations.get("border-color") ?? "")),
+      ...hexes(resolved(r.declarations.get("box-shadow") ?? "")),
     ]);
     expect(colours.length).toBeGreaterThan(0);
-    for (const c of colours) expect(onWhite(c), c).toBeGreaterThanOrEqual(3);
+    for (const c of colours) expect(onDark(c), c).toBeGreaterThanOrEqual(3);
     // The mark and the word are hidden on an unchosen card, shown on a chosen one.
     for (const part of [".choice-check", ".choice-selected"]) {
       expect(declared(top, new RegExp(`^\\.choice-card ${part.replace(".", "\\.")}$`), "display")).toEqual(["none"]);
@@ -457,10 +490,10 @@ describe("the cards' look (FR-028)", () => {
     expect(input.getAttribute("aria-hidden")).toBeNull();
     expect(input.getAttribute("tabindex")).toBeNull();
     const ring = css().rules.find((r) => r.selector.includes(".choice-card:has(input:focus-visible)"));
-    const m = /^(\d+)px\s+solid\s+(#[0-9a-fA-F]{6})$/.exec(ring?.declarations.get("outline") ?? "");
+    const m = /^(\d+)px\s+solid\s+(#[0-9a-fA-F]{6})$/.exec(resolved(ring?.declarations.get("outline") ?? ""));
     expect(m, "the card's focus ring").not.toBeNull();
     expect(Number(m?.[1])).toBeGreaterThanOrEqual(2);
-    expect(onWhite(m?.[2] ?? "#ffffff")).toBeGreaterThanOrEqual(3);
+    expect(onDark(m?.[2] ?? "#10141a")).toBeGreaterThanOrEqual(3);
   });
 
   it("gives hover and focus looks of their own, distinct from the chosen one", () => {
