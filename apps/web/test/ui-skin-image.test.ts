@@ -356,12 +356,17 @@ describe("the repository's image skin, metal-image (T-DS03; Q15)", () => {
     for (const v of VARIANTS) expect(image.labels[v]).toBe(METAL.tokens[v].normal.label);
   });
 
-  it("builds metal without its files, with the line naming why", () => {
+  it("holds the round's record: each file's own SHA-256, none pending (T-DS05)", () => {
+    if (image?.kind !== "image") throw new Error("no image skin");
+    const all = [...VARIANTS.flatMap((v) => STATES.map((s) => image.files[v][s])), image.files.panel];
+    for (const f of all) expect(f.sha256, f.file).toMatch(/^[0-9a-f]{64}$/);
+    expect(new Set(all.map((f) => f.sha256)).size).toBe(11);
+  });
+
+  it("builds metal without its files, the line naming the first file absent (T-DS05)", () => {
     const fx = fixture({ files: false });
     const out = build(REPO_TEXT, fx.root);
     expect(out.html).toBe('<html lang="en" data-skin="metal" data-skin-kind="css"><body></body></html>');
-    expect(out.printed).toEqual([
-      expect.stringMatching(/^metal-image: falling back to metal \((hash pending|files absent: .+)\)$/),
-    ]);
+    expect(out.printed).toEqual([`metal-image: falling back to metal (files absent: ${fileOf("primary", "normal")})`]);
   });
 });
