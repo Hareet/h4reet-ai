@@ -580,8 +580,11 @@ html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint:foc
    Appended after every rule above. The list is the top half (data-half="top"), marked over the room in every view
    (Q2), so the block above gives it --over-glass-alpha; its edge is room.css's --half-border. The bar's own glass is
    none wherever a half holds it, in every layout: room.css's .hud-half draws the bottom half's glass behind the bar,
-   the walking control, and "Eat". No blur (FR-001). */
+   the walking control, and "Eat". No blur (FR-001). The list's edge lies inside its padding, as room.css's top half
+   in the column layout and the dock has it, so its content box keeps the size test/ui/hud-model.ts's model counts
+   (0.5rem above and below, 0.75rem at the sides; rv-030a's R-2). */
 html[data-split="on"][data-hud="column"] .room-list[data-half="top"] {
+  padding: calc(0.5rem - 1px) calc(0.75rem - 1px);
   border: 1px solid var(--half-border);
 }
 
