@@ -329,7 +329,14 @@ AssertionError: expected [ …(2) ] to include 'selectables[4]: its exclusive co
 
 (Each geometry and report failure is an `AssertionError` comparing the room's listed stages; the run's report prints "list-only at 320 × 238 and 53 others" where the test has 320 × 250.)
 
-SUITE-RESULT-PLACEHOLDER
+**The whole `apps/web` suite on the same export** (`vitest run` from `/tmp/rework3-a/apps/web`; 2,113 s):
+
+```
+ Test Files  4 failed | 272 passed (276)
+      Tests  16 failed | 4842 passed | 6 skipped (4864)
+```
+
+Of the 16 failing cases, 14 are the cases above from the three files. The other 2 are `test/room/chunk.test.ts`'s "keeps zod, fontkit, pako, the TypeScript parser, and the GLB reader out of what the room loads" (the release build and the drafts build, `:169`, "expected false to be true"). **Those two are the export's environment, not A's change.** The same file, run the same way on an export of A's base `7cdc31d2`, fails the same two cases (`Tests 2 failed | 12 passed (14)`). The room's bundle check reads module paths, and the symbolic links put `node_modules` outside the export, as `impl-030b` found with `pako` in its export. Every other file of the suite passes on A's tip, so every "run, untouched" placement in plan §R-A4 is confirmed by a run, not only by reading. Nothing else A's change breaks is left unplaced. A's T-A08 repeats the whole run in A's own worktree, where `chunk.test.ts` should pass.
 
 ## Questions (in `/night/io/out/questions.md`)
 

@@ -165,4 +165,4 @@ Every requirement keeps its tasks. FR-001 → T-A01 (a), T-A02, T-A06 (a), T-A07
 
 ### Still not checked
 
-As above; and the suite beyond the three files on A's export (notes.md, "Rework 3"), which A's own T-A08 run repeats on A's reworked tip.
+As above. The whole `apps/web` suite was run on an export of A's tip: 16 cases fail, the 14 of R3-1 and `chunk.test.ts`'s two, which fail the same way on an export of A's base (environment; notes.md, "Rework 3"). A's T-A08 repeats the run on A's reworked tip, in its own worktree.
