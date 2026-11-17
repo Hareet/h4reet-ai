@@ -106,6 +106,12 @@ const BASE = (s: Skinned): Cascade => new Cascade(baseSheets(), s.env);
 const keepsMetrics = (el: Element): boolean =>
   el.matches(".hud-bar .hud-tile") && el.ownerDocument.documentElement.getAttribute("data-split") !== "on";
 
+/** The split layout's tiles whose words run past two lines in metal's uppercase (T-B04's estimate, impl-b.md), which
+ *  keep their words' own case under every skin (Q75): the full-screen control and the data-flow link, by the
+ *  attributes layout.ts gives them. The two-lines case below is what holds every tile to the row. */
+const ownCase = (el: Element): boolean =>
+  el.matches('.hud-bar .hud-tile:is([aria-describedby="room-fullscreen-help"], [href="./disclosure/"])');
+
 function checkControl(
   s: Skinned,
   control: Control,
@@ -170,7 +176,9 @@ function checkControl(
     expect(cascade.value(el, "font-family"), `${label}: the page's family`).toContain("IBM Plex Sans");
     expect(cascade.winner(el, "font-family")?.value, `${label}: not the skin's family`).not.toContain("--btn-");
   } else {
-    expect(cascade.value(el, "text-transform"), `${label}: case`).toBe(t.font.case === "upper" ? "uppercase" : "none");
+    expect(cascade.value(el, "text-transform"), `${label}: case`).toBe(
+      t.font.case === "upper" && !ownCase(el) ? "uppercase" : "none",
+    );
     expect(cascade.value(el, "letter-spacing"), `${label}: tracking`).toBe(t.font.tracking);
     expect(cascade.value(el, "font-family"), `${label}: font`).toContain(`"${t.font.family}"`);
     expect(cascade.value(el, "font-weight"), `${label}: weight`).toBe(String(t.font.weight));

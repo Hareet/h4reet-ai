@@ -356,3 +356,19 @@ AssertionError: Resume: RESUME (uppercase, 700, 72.67px); 2D view: 2D VIEW (uppe
 
 (`plain`'s case passes: its words' own case and weight 400.)
 
+The rule (GREEN 3, below) was then first drafted ahead of its test and broke my own RED-1 case, which expected the skin's case on every split tile: `npx --no-install vitest run test/ui-skins.test.ts test/ui/button-skin.test.ts test/ui/button-states.test.ts`, exit 1, `AssertionError: the split layout (1366 × 768): the bar's tiles (How data flows): case: expected 'none' to be 'uppercase'` (and the same walking), `Tests  2 failed | 66 passed (68)`. So the draft was taken out with the Edit tool (`git diff --stat` then named the test file alone), and `button-skin.test.ts`'s `checkControl` now expects the words' own case on those two tiles (`ownCase`). Run on the code without the rule, `npx --no-install vitest run test/ui/button-skin.test.ts`, exit 1:
+
+```
+     × gives each control the component, its variant, 44 × 44, and wrapping, in the split layout (1366 × 768) 26542ms
+     × gives each control the component, its variant, 44 × 44, and wrapping, in the split layout, walking 351ms
+     × metal, the split layout (1366 × 768) 129ms
+ FAIL  test/ui/button-skin.test.ts > one button component for every control of Q5 (FR-008, FR-013; SC-003) > gives each control the component, its variant, 44 × 44, and wrapping, in the split layout (1366 × 768)
+AssertionError: the split layout (1366 × 768): the bar's tiles (How data flows): case: expected 'uppercase' to be 'none' // Object.is equality
+ FAIL  test/ui/button-skin.test.ts > one button component for every control of Q5 (FR-008, FR-013; SC-003) > gives each control the component, its variant, 44 × 44, and wrapping, in the split layout, walking
+AssertionError: the split layout, walking: the bar's tiles (How data flows): case: expected 'uppercase' to be 'none' // Object.is equality
+ FAIL  test/ui/button-skin.test.ts > the split layout's tiles hold their words in two lines under every skin (Q75) > metal, the split layout (1366 × 768)
+AssertionError: Resume: RESUME (uppercase, 700, 72.67px); 2D view: 2D VIEW (uppercase, 700, 72.67px); Pause the room: PAUSE / THE ROOM (uppercase, 700, 72.67px); How data flows: HOW / DATA / FLOWS (uppercase, 700, 72.67px); Credits: CREDITS (uppercase, 700, 72.67px); Full screen: FULL / SCREEN (uppercase, 700, 72.67px); Leave full screen: LEAVE / FULL / SCREEN (uppercase, 700, 72.67px): expected [ 'How data flows', …(1) ] to deeply equal []
+ Test Files  1 failed (1)
+      Tests  3 failed | 13 passed (16)
+```
+
