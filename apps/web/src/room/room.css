@@ -150,7 +150,8 @@ body.in-room .disclosure p {
   --over-plate-alpha: 0.5;
   /* Spec 030 (FR-002, FR-004, FR-006; plan.md §R-A3): the slice between the right column's halves in the column layout
      and the dock, which the room sets (compose/hud.ts's sliceRem), and each half's edge: an opaque grey whose
-     luminance lies between 3:1 under white and 3:1 over black, so the edge reaches 3:1 over any room pixel beside it. */
+     luminance lies between 3:1 under white and 3:1 over black, so the edge reaches 3:1 against white or black outside
+     it, whatever the glass inside (plan.md §R-A3, as built). */
   --hud-slice: 0px;
   --half-border: #8a8f98;
 }

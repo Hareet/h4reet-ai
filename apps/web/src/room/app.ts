@@ -957,7 +957,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     refit();
     screen.replaceChildren(layout.element);
     doc.body.classList.add("in-room");
-    // The AI disclosure's header is the HUD's strip in the room: dark glass, blurred where the glass is (spec 005).
+    // The AI disclosure's header is the HUD's strip in the room: dark glass (spec 005), unblurred since spec 030 (FR-001).
     doc.querySelector("header.disclosure")?.classList.add("hud-glass");
     // Spec 012: in 3D, the loader over the page, its heading focused; in 2D from "Enter", the room's heading (FR-003).
     if (webgl && sceneState !== "failed") startLoading(layout);
