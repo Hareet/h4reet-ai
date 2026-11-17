@@ -56,6 +56,8 @@ The laptop's end of the tunnel, the `tunnel` service in prod's `tunnel` profile,
 4. **The profile:** in `~/.config/h4reet-ai/env/prod.env`, set `COMPOSE_PROFILES=gpu,tunnel`.
 5. **Start it:** `make up ENV=prod`. Preflight's P22 checks the address, the key, the pinned host key, and the tokens, naming what's missing and never a value; then the `tunnel` service connects, and the dashboard's "Tunnel up" reads `up` for `laptop`.
 
+**Your folder stays yours** (spec 001 fixes/f4.md). The `tunnel` service binds `H4_TUNNEL_DIR` read-only and starts as root only to copy the key and the pinned host key into its own tmpfs; then it runs as the image's user, 10001, with no capability. So the folder needs no ACL and no other owner: keep it 0700 and the key 0600, as P22 asks. If the tunnel's log says "Host key verification failed" for a running image older than this fix, `make up ENV=prod` rebuilds it; if it says "isn't in H4_TUNNEL_DIR", a file went after preflight ran: `make up ENV=prod` again, and P22 names what's missing.
+
 To take the laptop off the tunnel, set `COMPOSE_PROFILES=gpu` again and `make up ENV=prod`; to close the tunnel from the cloud's side, `make tunnel-revoke PROFILE=h4reet-admin` (the runbook `tunnel-end.md`).
 
 ### The shared state (group 6)

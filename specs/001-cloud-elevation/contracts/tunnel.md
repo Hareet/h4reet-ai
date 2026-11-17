@@ -55,6 +55,7 @@ In the laptop's prod, profile `tunnel`. The same image, unprivileged. It connect
 - **Reconnecting:** backoff 1, 2, 5, 10, 30 s, with `ServerAliveInterval 10`, `ServerAliveCountMax 3` and `ExitOnForwardFailure yes`.
 - **Its health:** `h4.tunnel.up`, from both ends.
 - **The admin-only stack** for `make operator-* ENV=shared` runs the same image with only `-L 5432`, and only while the laptop's prod isn't running; while it runs, the command uses prod's own admin listener (contracts/shared-state.md §7).
+- **Its keys, after the deploy (fixes/f4.md, 2026-11-17):** the client's key and the pinned host key stay in the Author's `H4_TUNNEL_DIR`, 0700 and his (preflight P22), bound read-only at `/run/tunnel-source`. The image's user can't open that folder, so the service starts as root with `DAC_OVERRIDE`, `SETUID`, and `SETGID` alone; its entrypoint has the `tunnel` user copy the two files into its own 0700 tmpfs, `/run/tunnel-client`, where `ssh_config` reads them, then runs as `tunnel` (10001) through `setpriv`, with no capability. Every other mode refuses root.
 
 ## 4. The hosts' blocks on `edge` (spec 000's nginx)
 
