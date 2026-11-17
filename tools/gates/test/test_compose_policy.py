@@ -1762,6 +1762,43 @@ def test_the_relay_runs_the_releases_image_and_joins_no_egress(tmp_path: Path) -
     assert ("relay", "networks") in relay_rules(model, tmp_path)
 
 
+# Spec 001's F7 (night 5; contracts/relay-http.md §6, amended): the relay reads EC2's state from the document the
+# snapshot sink's host write keeps, its folder bound read-only. Writable, wider, or another service's, it is refused.
+SNAPSHOT_FOLDER = {
+    "type": "bind",
+    "source": "/var/lib/h4reet/snapshot",
+    "target": "/var/lib/h4reet/snapshot",
+    "read_only": True,
+    "bind": {"create_host_path": True},
+}
+
+
+def test_the_relay_may_read_the_snapshot_sinks_document_folder(tmp_path: Path) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    model = relay_model()
+    model["services"]["relay"]["volumes"] = [dict(SNAPSHOT_FOLDER)]
+    assert relay_rules(model, tmp_path) == set()
+    model["services"]["relay"]["volumes"] = [
+        {k: v for k, v in SNAPSHOT_FOLDER.items() if k != "read_only"}
+    ]
+    assert ("relay", "binds") in relay_rules(model, tmp_path)
+    model = relay_model()
+    model["services"]["relay"]["volumes"] = [
+        dict(SNAPSHOT_FOLDER, source="/var/lib/h4reet")
+    ]
+    assert ("relay", "binds") in relay_rules(model, tmp_path)
+    model = relay_model()
+    model["services"]["dev-relay"] = service(
+        profiles=["dev-relay"],
+        build={"context": "tunnel"},
+        volumes=[dict(SNAPSHOT_FOLDER)],
+    )
+    found = cp.check_model(model, CLOUD_LOCK, tmp_path, RELAY_DISCLOSED | {"dev-relay"})
+    assert ("dev-relay", "binds") in {
+        (f.where.rsplit(" ", 1)[-1], f.rule) for f in found
+    }
+
+
 def test_a_service_named_otherwise_may_not_publish_the_relays_ports(
     tmp_path: Path,
 ) -> None:

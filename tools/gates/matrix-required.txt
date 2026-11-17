@@ -453,6 +453,17 @@ H/bash-gate.sh/make shared-state-"restore"
 H/bash-gate.sh/(make shared-state-restore)
 H/bash-gate.sh/env PROFILE=x make shared-state-tls
 H/bash-gate.sh/make shared-state-tlsx
+H/bash-gate.sh/make secrets-fill
+H/bash-gate.sh/make secrets-fill PROFILE=h4reet-admin
+H/bash-gate.sh/gmake secrets-fill
+H/bash-gate.sh/make -C . secrets-fill
+H/bash-gate.sh/bash -c "make secrets-fill"
+H/bash-gate.sh/make ./secrets-fill
+H/bash-gate.sh/make "secrets-"fill
+H/bash-gate.sh/make secrets-"fill"
+H/bash-gate.sh/(make secrets-fill)
+H/bash-gate.sh/env PROFILE=x make secrets-fill
+H/bash-gate.sh/make secrets-fillx
 H/bash-gate.sh/make aws-login PROFILE=h4reet-admin
 H/bash-gate.sh/bash deploy/scripts/aws-sso-profile.sh h4reet-admin
 H/bash-gate.sh/./deploy/scripts/aws-sso-profile.sh h4reet-admin

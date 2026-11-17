@@ -16,7 +16,8 @@ and refuses, in what compose rendered:
     profile;
   - binds outside ${H4_TREE}/deploy, ${H4_TREE}/config, ${H4_MODEL_DIR}, ${H4_STATE_DIR}/gateway, and ${H4_AWS_DIR}, or
     writable outside ${H4_STATE_DIR}/gateway, but for the one read-only bind each of spec 001's tunnel's ends takes
-    (SERVICE_BINDS), and the shared state's data, writable, from group 6; a volume that isn't a declared, local named
+    (SERVICE_BINDS), the shared state's data, writable, from group 6, and the relay's read-only view of the snapshot
+    sink's document, from F7; a volume that isn't a declared, local named
     volume;
   - ports on any service but edge, or on anything but the literal 127.0.0.1, but for the tunnel end's two, exactly,
     on its public interface's fixed address (CLOUD_PORTS);
@@ -158,7 +159,9 @@ CLOUD_PORTS = {
 # laptop's client key and pinned host key, which the Author's tunnel-keys target leaves under
 # ~/.config/h4reet-ai/tunnel/ (prod's H4_TUNNEL_DIR); the tunnel end's host key and authorized key, which write_env.py
 # writes to tmpfs at boot; and, from group 6, the shared state's key and certificate on tmpfs, read-only, and its data,
-# the data volume's mount, its one writable bind (deploy/hosts/tunnel-end/shared_state.py).
+# the data volume's mount, its one writable bind (deploy/hosts/tunnel-end/shared_state.py); and, from spec 001's F7
+# (night 5), the relay's read-only view of the folder where the snapshot sink's host write keeps its document, for
+# the status's `ec2` (contracts/relay-http.md §6).
 SERVICE_BINDS: dict[str, dict[str, bool]] = {
     "tunnel": {"${H4_TUNNEL_DIR}": False},
     "tunnel-end": {"/run/h4reet/tunnel-end/keys": False},
@@ -166,6 +169,7 @@ SERVICE_BINDS: dict[str, dict[str, bool]] = {
         "/run/h4reet/shared-state": False,
         "/srv/h4reet/shared-state": True,
     },
+    "relay": {"/var/lib/h4reet/snapshot": False},
 }
 # A cloud class's images, from the account's registry (the release's ECR repositories; spec 001 contracts/releases-
 # deployer.md §1). An image the release builds runs by the release's digest, which the deployer writes to the
