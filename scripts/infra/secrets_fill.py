@@ -12,8 +12,9 @@ for each name the list expects and the store lacks, takes its value:
      names (LAPTOP_FILE: the audit's allowlist, ~/.config/h4reet-ai/infra/iam-allow.txt);
   2. generated in deploy/scripts/init_env.py's shapes otherwise (SHAPE_AS names the key whose shape a name takes);
   3. asked at a hidden prompt when neither, on a terminal only: without one it writes nothing and says which.
-The names another writer owns (OTHERS: make tunnel-keys's pairs, make shared-state-tls's, Terraform's) it leaves to
-it. It writes each with put-parameter, never --overwrite, so a name written meanwhile is refused by the store, not
+The names another writer owns it leaves to it, before any copy, shape or prompt: those OTHERS names (make tunnel-keys's
+pairs, make shared-state-tls's, Terraform's), and every String on the list, which is Terraform's or a target's (Q30).
+It writes each with put-parameter, never --overwrite, so a name written meanwhile is refused by the store, not
 replaced; each value from a 0600 file in a 0700 folder under ~/.config/h4reet-ai/, never on a command line, and the
 folder is gone at the end. It prints names, never a value. Exit codes: 0 nothing it fills is left missing; 1 refused,
 or a name not written; 2 it couldn't run.
@@ -63,6 +64,9 @@ OTHERS = {
     "/h4reet/prod/tunnel-end-address": "prod's apply writes it (Terraform)",
     "/h4reet/prod/ec2-instance-id": "prod's apply writes it (Terraform)",
 }
+# Every String on the list is Terraform's or a target's (the page's Q30): one OTHERS doesn't name is left to its writer
+# too, which infra/parameters.txt's comment names.
+STRING = "a String: Terraform's or a target's, never this target's (infra/parameters.txt's comment names its writer)"
 # The key in the laptop's prod env file where it isn't the name's last part: the shared state's gateway and grafana_ro
 # roles, which both hosts sign in as, so the values must match (deploy/hosts/ec2/ec2.env.example).
 LAPTOP_KEY = {
@@ -169,6 +173,15 @@ def describe(profile: str) -> set[str]:
     return {str(p["Name"]) for p in found.get("Parameters") or []}
 
 
+def writer(name: str, kind: str) -> str | None:
+    """Another writer's words for a name it owns, or None for a name this target fills."""
+    if name in OTHERS:
+        return OTHERS[name]
+    if kind == "String":
+        return STRING
+    return None
+
+
 def source(name: str, laptop: dict[str, str], init_env) -> tuple[str | None, str]:
     """The value for name, and where it came from; None when neither the laptop nor a shape has one."""
     if name in LAPTOP_FILE:
@@ -220,8 +233,8 @@ def fill(profile: str) -> int:
     for name in want:
         if name in have:
             status[name] = "present"
-        elif name in OTHERS:
-            status[name] = f"missing; {OTHERS[name]}"
+        elif (owner := writer(name, want[name])) is not None:
+            status[name] = f"missing; {owner}"
         else:
             value, how = source(name, laptop, init_env)
             if value is None:
@@ -261,7 +274,9 @@ def fill(profile: str) -> int:
             shutil.rmtree(stage, ignore_errors=True)
     for name in want:
         print(f"{name:60} {status[name]}")
-    others = sum(1 for name in want if name not in have and name in OTHERS)
+    others = sum(
+        1 for name in want if name not in have and writer(name, want[name]) is not None
+    )
     if not values and not ask:
         print(f"{PROG}: nothing to write")
     print(
