@@ -48,7 +48,7 @@ The nits (`rv-adr-030`, the page's seventy-first wake), with the Edit tool, chec
 - **N-2**: at A's tip `9026b4ba`, `git show 9026b4ba:apps/web/src/room/room.css`: `:1124-1133` the forced-colours
   `.hud-glass` (`color: CanvasText; background: Canvas`), `:1393-1404` the block holding the bottom half's
   `.hud-half[data-over="room"]` (`background: Canvas; border-color: CanvasText`, `:1394-1398`) and the top half's
-  `.hud-panels[data-half="top"]` (`border-color: CanvasText`, `:1400-1403`); `split.css:513-517` the list's
+  `.hud-panels[data-half="top"]` (`border-color: CanvasText`, `:1400-1403`); `split.css:514-518` (corrected from `:513-517` by `rework-handover-030`, `rv-handover-030`'s nit 1) the list's
   `background: Canvas; border: 1px solid CanvasText`, `:596-600` its `border-color: CanvasText`. The test
   `hud-halves-contrast.test.ts` at `9026b4ba`: the describe at `:120`, the visitor's asks' cases at `:124` and `:130`,
   the forced-colours case "draws the bottom half in Canvas with a CanvasText edge under forced colours" at `:138-143`
