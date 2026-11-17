@@ -194,3 +194,113 @@ Not done here, or not B's:
 - The screenshots in `resume/` weren't reachable from this worktree, so the `metal` skin is drawn from the orders' description of his reference alone.
 - jsdom can't show the paint, so the chamfer's diagonal edges, the inner glow, and the ring inside the face are the cascade's reading; a browser look (DevTools, or his) is the check left.
 - The "Back" control, "Eat", and the larger view's toggle were checked where the layouts hold them: "Back" in the split layout alone. The bar has five tiles in jsdom (no Fullscreen API), six in a browser that offers full screen.
+
+# Rework: rework-030b (implementer, night of 2026-11-17)
+
+Branch `night/rework-030b/rework-030b` from `impl-030b`'s tip `02a5c30a`. Built to `rework2-spec-030`'s documents at `8e83e7fc` (spec FR-008 to FR-014, plan §R-B1 to §R-B5 and §9's B row, tasks T-B01 to T-B04, notes "Rework 2"), for `rv-030b`'s findings as the decision page records them (its `review.md` is in its io folder, not mounted here): R-1 (the page's Q89, its recommended answer), R-2 (rework 2's T-B01 (c) and T-B03, and `rv-rework2-spec-030`'s R-2: the control's own `box-shadow` pinned to `none`), N-2; rework 2's other B rows. I wrote none of B or its review.
+
+## RED
+
+Changed: `test/ui-skins.test.ts`, `test/ui/button-skin.test.ts`, `test/ui/button-states.test.ts` and the helpers `test/helpers/button-cascade.ts` (a `::before`/`::after` read by the cascade, each pseudo-element inheriting from its element in its state; the element's own `style`, where `layout.ts` writes `--bar-w`, `--safe-*` and `--wall-scale-*`; `padding`, `gap`, `font` as shorthands of the longhands read) and `test/helpers/button-room.ts` (`resume/resume.css` in the bundle's order, as `main.ts` imports `./resume` before `./room/app`; `baseSheets()`, the page without B; the two "Close" buttons, each reached as the room makes it; `cssLength`, moved here from `button-states.test.ts`). All B's own files (plan §R-B5 and its "As built"); no earlier test file.
+
+The cases, new or changed:
+
+- **T-B01 (a)**, `ui-skins.test.ts`: the boundary also against the resume panel's `#ffffff` (`BESIDE`, 10 grounds; the panel's `background: #fff` read from `resume.css`); the cards' tokens per CSS skin (`--btn-secondary-selected-glow` 3:1 on `rgb(16 20 26)`, `--hud-text` 4.5:1 on `--btn-frame`, rework 2's R-5); the root's `data-skin` **and `data-skin-kind`**, the resolved skin's (plan §R-B2, rework N-3; an image skin falling back writes its fallback's ID and `css`), every attribute already there kept, C's `class="dark-page"` among them (the supervisor's item 5); the swap: every `--btn-*` of the swapped build is `plain`'s token, every one of the real build `metal`'s, and the two differ.
+- **T-B01 (b)**, `button-skin.test.ts`: the control paints and clips nothing: `background-color: transparent`, `background-image: none`, a transparent border, `border-image-source: none`, `box-shadow: none`, `clip-path: none`, `filter: none`, `isolation: isolate`, each won by `ui/button.css`; `position: relative` by B only where the page without B leaves the control static, its own position kept otherwise; the `::before` (`content: ""`, `position: absolute`, `inset: 0`, `z-index: -1`, `pointer-events: none`) carries the face, the border's line, the frame, and the chamfer's `polygon(…)`; the bar's tiles in the column layout and the dock keep spec 014's metrics under every skin (the words' own case, 400, `letter-spacing: normal`, the page's family; Q89); the conversation's "Close, Escape" (split, the conversation open; its name and key cap kept) and the resume panel's "Close" (split and column, the panel open; `.resume-pdf` untouched by B); `plain` on both "Close" buttons too. **New, R-1's width test**: in the column layout and the dock, under each CSS skin, the six tiles' widths from `fonts/IBMPlexSans-{Regular,Bold}.woff`'s advance widths (fontkit's `glyphsForString`, no kerning, as rv-030b summed them), each tile's case, weight, size, tracking, padding, and border (the larger of normal's and selected's) read by the cascade, "Leave full screen" (the longer of `fullscreen.enter` and `.leave`, `room/ui-words.yaml`) as the sixth: one row ≤ `HUD_PLACEMENTS.bar.maxRem` in the column layout, and the dock's flex rows ≤ its band's (2 at 390 px).
+- **T-B01 (c)**, `button-states.test.ts`: the faces, the bevel, the glow and the 2 px selected frame read from the `::before`; disabled's dashes from the `::after` (`content: ""`, dashed, the variant's disabled border colour, no pointer events, its own `polygon`), none at rest; the ring B's, 2 px solid in the variant's `ring`, its outer corners inside the `::before`'s octagon (`2 × (−offset − width) ≥ chamfer + 2 × (border + inset)`), in every state; hover only under `@media (hover: hover)` (N-2); **no clip, no filter, no shadow on any control**, both skins, every layout and view (split at rest and walking, column, dock, both "Close" buttons, "Enter" before and after the choices), every state (normal, hover, focus-visible, pressed, selected, disabled): every declaration of `clip-path`, `-webkit-clip-path`, and `filter` matching it is `none`, jsdom's computed `clip-path` is `none` or empty, and the control's `box-shadow` is `none`, won by `ui/button.css`; the chamfer's `clip-path` only on rules ending in `::before` or `::after`; reduced motion and the 120 ms fade on the control and its `::before`; forced colours with the `::before` and `::after` not displayed, `filter: none`, `background-color: ButtonFace`. The selected case now also asserts the control's border width doesn't change (no box moves). The wrap case reads a node with no `white-space` as `normal` (my first draft passed `null` to `toMatch`; corrected before the commit; this case passes on the old tip and the new).
+
+From `apps/web/`, `npx --no-install vitest run test/ui-skins.test.ts test/ui/button-skin.test.ts test/ui/button-states.test.ts`, exit 1, on `impl-030b`'s code with these tests. Its output is 583 lines; below are its result lines and every failure's header and error line (the code frames and Expected/Received blocks, which repeat the error lines, left out):
+
+```
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-17/rework-030b/apps/web
+     × writes data-skin and data-skin-kind, the resolved skin's, on the page's root element, and only there 11ms
+     × keeps every attribute the root already has: group C's class="dark-page" stays beside data-skin 2ms
+     × writes the fallback's ID and kind for an image skin falling back (rework, N-3) 2ms
+     × builds metal from the repository's file and plain from a copy whose one difference is `active: plain` 8ms
+     × gives each control the component, its variant, 44 × 44, and wrapping, in the split layout (1366 × 768) 25367ms
+     × gives each control the component, its variant, 44 × 44, and wrapping, in the split layout, walking 126ms
+     × gives each control the component, its variant, 44 × 44, and wrapping, in the column layout (1280 × 720) 44ms
+     × gives each control the component, its variant, 44 × 44, and wrapping, in the dock (390 × 844) 97ms
+     × gives the conversation's "Close, Escape" the secondary button, its name and key cap kept (Q51) 41ms
+     × gives the resume panel's "Close" the secondary button on the panel's white, in the split layout (1366 × 768) (Q51) 45ms
+     × gives the resume panel's "Close" the secondary button on the panel's white, in the column layout (1280 × 720) (Q51) 67ms
+     × gives the selection screen's "Enter" the primary button 58ms
+     × draws plain's tokens on every control once `active: plain` (SC-004) 53ms
+     × metal, the column layout (1280 × 720) 113ms
+     × metal, the dock (390 × 844) 87ms
+     × plain, the column layout (1280 × 720) 143ms
+     × reaches hover, focus-visible, and pressed on every room control and both Close buttons, each beyond colour, the ring inside 25498ms
+     × applies hover only where the window can hover (@media (hover: hover)) 171ms
+     × reaches disabled on the room's buttons and links and both Close buttons, by :disabled and by aria-disabled, with the ::after's dashes 173ms
+     × reaches selected on "Pause the room" pressed, with the glow and a 2 px frame on the ::before 72ms
+     × reaches selected on the walking control while walking 39ms
+     × gives "Enter" its disabled look before both choices and its primary look after, the ring inside 39ms
+     × metal: every control, in every layout, view, and state 308ms
+     × plain: every control, in every layout, view, and state 346ms
+     × puts the chamfer's clip-path only on rules ending in ::before or ::after 38ms
+     × wraps a label twice its length: no nowrap and no ellipsis on any control or inside it 99ms
+     × otherwise fades colours and shadows for at most 120 ms, and never moves 42ms
+     × draws every control in the system's colours, with no image, clip, filter, or shadow, the ::before and ::after hidden, the selected border thicker 41ms
+ FAIL  test/ui-skins.test.ts > the generated stylesheet (FR-010) > writes data-skin and data-skin-kind, the resolved skin's, on the page's root element, and only there
+AssertionError: expected '<!doctype html>\n<html lang="en" data…' to be '<!doctype html>\n<html lang="en" data…' // Object.is equality
+ FAIL  test/ui-skins.test.ts > the generated stylesheet (FR-010) > keeps every attribute the root already has: group C's class="dark-page" stays beside data-skin
+AssertionError: expected '<!doctype html>\n<html lang="en" clas…' to be '<!doctype html>\n<html lang="en" clas…' // Object.is equality
+ FAIL  test/ui-skins.test.ts > the generated stylesheet (FR-010) > writes the fallback's ID and kind for an image skin falling back (rework, N-3)
+AssertionError: expected '<html data-skin="one"><body></body></…' to be '<html data-skin="one" data-skin-kind=…' // Object.is equality
+ FAIL  test/ui-skins.test.ts > swapping the skin is an edit of the data alone (SC-004) > builds metal from the repository's file and plain from a copy whose one difference is `active: plain`
+AssertionError: expected '<html lang="en" data-skin="metal"><bo…' to be '<html lang="en" data-skin="metal" dat…' // Object.is equality
+ FAIL  test/ui/button-skin.test.ts > one button component for every control of Q5 (FR-008, FR-013; SC-003) > gives each control the component, its variant, 44 × 44, and wrapping, in the split layout (1366 × 768)
+AssertionError: the split layout (1366 × 768): the bar's tiles (Resume): border-image-source won by nothing (): expected undefined to be 'ui/button.css' // Object.is equality
+ FAIL  test/ui/button-skin.test.ts > one button component for every control of Q5 (FR-008, FR-013; SC-003) > gives each control the component, its variant, 44 × 44, and wrapping, in the split layout, walking
+AssertionError: the split layout, walking: the bar's tiles (Resume): border-image-source won by nothing (): expected undefined to be 'ui/button.css' // Object.is equality
+ FAIL  test/ui/button-skin.test.ts > one button component for every control of Q5 (FR-008, FR-013; SC-003) > gives each control the component, its variant, 44 × 44, and wrapping, in the column layout (1280 × 720)
+AssertionError: the column layout (1280 × 720): the bar's tiles (Resume): border-image-source won by nothing (): expected undefined to be 'ui/button.css' // Object.is equality
+ FAIL  test/ui/button-skin.test.ts > one button component for every control of Q5 (FR-008, FR-013; SC-003) > gives each control the component, its variant, 44 × 44, and wrapping, in the dock (390 × 844)
+AssertionError: the dock (390 × 844): the bar's tiles (Resume): border-image-source won by nothing (): expected undefined to be 'ui/button.css' // Object.is equality
+ FAIL  test/ui/button-skin.test.ts > one button component for every control of Q5 (FR-008, FR-013; SC-003) > gives the conversation's "Close, Escape" the secondary button, its name and key cap kept (Q51)
+AssertionError: the split layout, the conversation open: "Close, Escape" (the conversation) (EscClose): color won by room/room.css (html[data-hud="column"] .hud-panels button): expected 'room/room.css' to be 'ui/button.css' // Object.is equality
+ FAIL  test/ui/button-skin.test.ts > one button component for every control of Q5 (FR-008, FR-013; SC-003) > gives the resume panel's "Close" the secondary button on the panel's white, in the split layout (1366 × 768) (Q51)
+AssertionError: the split layout (1366 × 768), the resume panel open: "Close" (the resume panel) (Close): color won by room/room.css (.room button): expected 'room/room.css' to be 'ui/button.css' // Object.is equality
+ FAIL  test/ui/button-skin.test.ts > one button component for every control of Q5 (FR-008, FR-013; SC-003) > gives the resume panel's "Close" the secondary button on the panel's white, in the column layout (1280 × 720) (Q51)
+AssertionError: the column layout (1280 × 720), the resume panel open: "Close" (the resume panel) (Close): color won by room/room.css (.room button): expected 'room/room.css' to be 'ui/button.css' // Object.is equality
+ FAIL  test/ui/button-skin.test.ts > one button component for every control of Q5 (FR-008, FR-013; SC-003) > gives the selection screen's "Enter" the primary button
+AssertionError: the selection screen: "Enter" (Enter): border-image-source won by nothing (): expected undefined to be 'ui/button.css' // Object.is equality
+ FAIL  test/ui/button-skin.test.ts > one button component for every control of Q5 (FR-008, FR-013; SC-003) > draws plain's tokens on every control once `active: plain` (SC-004)
+AssertionError: plain, split: the bar's tiles (Resume): border-image-source won by nothing (): expected undefined to be 'ui/button.css' // Object.is equality
+ FAIL  test/ui/button-skin.test.ts > the bar's six tiles fit its row in the column layout and its rows in the dock, under every skin (Q89) > metal, the column layout (1280 × 720)
+AssertionError: Resume 4.81rem, 2D view 5.00rem, Pause the room 8.90rem, Leave full screen 10.02rem, How data flows 9.21rem, Credits 5.06rem; one row 44.76rem; the bar 35.00rem, 1 row(s): expected 716.1 to be less than or equal to 560
+ FAIL  test/ui/button-skin.test.ts > the bar's six tiles fit its row in the column layout and its rows in the dock, under every skin (Q89) > metal, the dock (390 × 844)
+AssertionError: Resume 4.81rem, 2D view 5.00rem, Pause the room 8.90rem, Leave full screen 10.02rem, How data flows 9.21rem, Credits 5.06rem; one row 44.76rem; the bar 24.38rem, 2 row(s): expected 3 to be less than or equal to 2
+ FAIL  test/ui/button-skin.test.ts > the bar's six tiles fit its row in the column layout and its rows in the dock, under every skin (Q89) > plain, the column layout (1280 × 720)
+AssertionError: Resume 4.23rem, 2D view 4.15rem, Pause the room 6.97rem, Leave full screen 7.39rem, How data flows 6.87rem, Credits 3.85rem; one row 35.21rem; the bar 35.00rem, 1 row(s): expected 563.402 to be less than or equal to 560
+ FAIL  test/ui/button-states.test.ts > the component's states (FR-012) > reaches hover, focus-visible, and pressed on every room control and both Close buttons, each beyond colour, the ring inside
+AssertionError: the bar's tiles (Resume), hover: changes {"bevel":"none","dashes":"none ","outline style":"none","outline width":"","decoration":"none"} from {"bevel":"none","dashes":"none ","outline style":"none","outline width":"","decoration":"none"}: expected 0 to be greater than 0
+ FAIL  test/ui/button-states.test.ts > the component's states (FR-012) > applies hover only where the window can hover (@media (hover: hover))
+AssertionError: hover's rule sits in @media (hover: hover): expected '' to match /@media\s*\(hover:\s*hover\)/
+ FAIL  test/ui/button-states.test.ts > the component's states (FR-012) > reaches disabled on the room's buttons and links and both Close buttons, by :disabled and by aria-disabled, with the ::after's dashes
+AssertionError: the bar's tiles aria-disabled: face: expected null to be '#1a2226' // Object.is equality
+ FAIL  test/ui/button-states.test.ts > the component's states (FR-012) > reaches selected on "Pause the room" pressed, with the glow and a 2 px frame on the ::before
+AssertionError: expected 'none' not to be 'none' // Object.is equality
+ FAIL  test/ui/button-states.test.ts > the component's states (FR-012) > reaches selected on the walking control while walking
+AssertionError: expected null to be '#16323c' // Object.is equality
+ FAIL  test/ui/button-states.test.ts > the component's states (FR-012) > gives "Enter" its disabled look before both choices and its primary look after, the ring inside
+AssertionError: expected null to be '#ac9863' // Object.is equality
+ FAIL  test/ui/button-states.test.ts > nothing clips a control, nor shadows or filters it (FR-013; rework, S-4; rv-030b's R-2) > metal: every control, in every layout, view, and state
+AssertionError: metal, the bar's tiles, normal: clip-path by ui/button.css (:root[data-skin][data-hud][data-split]
+ FAIL  test/ui/button-states.test.ts > nothing clips a control, nor shadows or filters it (FR-013; rework, S-4; rv-030b's R-2) > plain: every control, in every layout, view, and state
+AssertionError: plain, the bar's tiles, normal: clip-path by ui/button.css (:root[data-skin][data-hud][data-split]
+ FAIL  test/ui/button-states.test.ts > nothing clips a control, nor shadows or filters it (FR-013; rework, S-4; rv-030b's R-2) > puts the chamfer's clip-path only on rules ending in ::before or ::after
+AssertionError: :root[data-skin][data-hud][data-split]
+ FAIL  test/ui/button-states.test.ts > labels that grow (FR-013) > wraps a label twice its length: no nowrap and no ellipsis on any control or inside it
+TypeError: .toMatch() expects to receive a string, but got object
+ FAIL  test/ui/button-states.test.ts > motion (FR-014) > otherwise fades colours and shadows for at most 120 ms, and never moves
+AssertionError: the bar's tiles {"pseudo":"before"}: expected undefined to be 'ui/button.css' // Object.is equality
+ FAIL  test/ui/button-states.test.ts > forced colours (FR-014) > draws every control in the system's colours, with no image, clip, filter, or shadow, the ::before and ::after hidden, the selected border thicker
+AssertionError: the bar's tiles: expected null to be 'none' // Object.is equality
+ Test Files  3 failed (3)
+      Tests  28 failed | 36 passed (64)
+   Duration  108.04s (tests 90%, transform 5%, import 4%)
+```
+
+The wrap case's `TypeError` was my test's (above), fixed before the commit; rerun alone, `npx --no-install vitest run test/ui/button-states.test.ts -t "wraps a label"`, exit 0: `Tests  1 passed | 12 skipped (13)`. Read against the review: the metal column row is 44.76rem here, not rv-030b's 44.01rem, because `impl-030b`'s selected state widens a tile's border to 2 px and the test counts the wider of normal and selected (0.75rem over the six); `plain` fails the column's row by the same 0.75rem (35.21rem). The cases passing on the old tip (36) are those whose assertions the old code already met: the schema's refusals, the stylesheet's rules, the ratios (now with the resume's white), the cards' tokens, reduced motion, and `plain`'s dock.
+

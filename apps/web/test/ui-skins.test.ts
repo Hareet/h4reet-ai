@@ -11,10 +11,16 @@
 //   marks, dashed and doubled, are drawn in it); the focus ring, drawn inside the face (plan §R-B3), 3:1 against it;
 //   and the button's edge, its border or its face, 3:1 against what lies beside it: the room's glass at each of its
 //   alphas (spec 029's over-room glass, spec 005's glass, spec 018's split glass, and opaque, as under the visitor's
-//   asks) over white and over black, and the dark pages' opaque ground, rgb(16 20 26), where "Enter" stands (analysis
-//   A-7). The glow is decoration and counts as no boundary.
+//   asks) over white and over black, the dark pages' opaque ground, rgb(16 20 26), where "Enter" stands (analysis
+//   A-7), and the resume panel's white, where its "Close" stands (rework, S-1). The glow is decoration and counts as no
+//   boundary.
+// - The cards' tokens (rework 2, the review's R-5): the selected glow 3:1 on the dark ground, --hud-text 4.5:1 on the
+//   frame, the two values group C's cards read.
+// - The page's root: data-skin and data-skin-kind, the resolved skin's (rework, N-3), every attribute already there
+//   kept (group C's class="dark-page").
 // - The swap (SC-004): the plugin, given a copy of the file whose one difference is `active: plain`, serves plain's
-//   stylesheet and writes data-skin="plain" on the page, through the same code; nothing under src/ or build/ differs.
+//   stylesheet, every --btn-* plain's token, and writes data-skin="plain" on the page, through the same code; nothing
+//   under src/ or build/ differs.
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -170,13 +176,30 @@ describe("the generated stylesheet (FR-010)", () => {
     expect(resolveSkin(readSkins(VALID)).line).toBe("ui-skins: one (css)");
   });
 
-  it("writes data-skin on the page's root element, and only there", () => {
+  it("writes data-skin and data-skin-kind, the resolved skin's, on the page's root element, and only there", () => {
     const html = '<!doctype html>\n<html lang="en">\n<head></head><body><p>html</p></body></html>\n';
-    const out = skinHtml(html, "metal");
+    const out = skinHtml(html, "metal", "css");
     expect(out).toBe(
-      '<!doctype html>\n<html lang="en" data-skin="metal">\n<head></head><body><p>html</p></body></html>\n',
+      '<!doctype html>\n<html lang="en" data-skin="metal" data-skin-kind="css">\n<head></head><body><p>html</p></body></html>\n',
     );
-    expect(skinHtml("<html><body></body></html>", "plain")).toBe('<html data-skin="plain"><body></body></html>');
+    expect(skinHtml("<html><body></body></html>", "plain", "css")).toBe(
+      '<html data-skin="plain" data-skin-kind="css"><body></body></html>',
+    );
+  });
+
+  it("keeps every attribute the root already has: group C's class=\"dark-page\" stays beside data-skin", () => {
+    const html = '<!doctype html>\n<html lang="en" class="dark-page">\n<head></head><body></body></html>\n';
+    expect(skinHtml(html, "metal", "css")).toBe(
+      '<!doctype html>\n<html lang="en" class="dark-page" data-skin="metal" data-skin-kind="css">\n<head></head><body></body></html>\n',
+    );
+  });
+
+  it("writes the fallback's ID and kind for an image skin falling back (rework, N-3)", () => {
+    const text = `${VALID.replace("active: one", "active: pic")}  pic:\n    kind: image\n    fallback: one\n    files: {}\n`;
+    const resolved = resolveSkin(readSkins(text));
+    expect(skinHtml("<html><body></body></html>", resolved.id, resolved.kind)).toBe(
+      '<html data-skin="one" data-skin-kind="css"><body></body></html>',
+    );
   });
 });
 
@@ -238,13 +261,33 @@ const BESIDE: readonly { name: string; rgb: Rgb }[] = [
     })),
   ),
   { name: "the dark pages' ground", rgb: GROUND },
+  // The resume panel's white, where its "Close" stands (src/resume/resume.css's .resume; rework, S-1; Q51).
+  { name: "the resume panel's white", rgb: WHITE },
 ];
 
 describe("every CSS skin, variant, and state meets FR-012's ratios", () => {
   it("reads the glass's alphas it measures over from room.css and split.css", () => {
     expect(BESIDE.every((b) => b.rgb.every((c) => Number.isFinite(c)))).toBe(true);
-    expect(BESIDE).toHaveLength(9);
+    expect(BESIDE).toHaveLength(10);
+    const resume = parseCss(readFileSync(join(WEB, "src", "resume", "resume.css"), "utf8")).rules.find(
+      (r) => r.selector === ".resume",
+    );
+    expect(resume?.declarations.get("background")).toBe("#fff");
   });
+
+  // The two tokens group C's cards read (rework 2, the review's R-5; choice.css's chosen card at a9a7931c): its border,
+  // inner ring, and halo in --btn-secondary-selected-glow on the dark ground, and the cards' words, --hud-text, on
+  // their face, --btn-frame. C's own test resolves --btn-* to its fallback, so it never sees a skin's value; this does.
+  for (const [id, skin] of Object.entries(readSkins(TEXT).skins)) {
+    if (skin.kind !== "css") continue;
+    it(`${id}: the cards' tokens at their floors (the glow 3:1 on the dark ground, the words 4.5:1 on the frame)`, () => {
+      const glow = colour(skin.tokens.secondary.selected.glow);
+      const frame = colour(skin.tokens.frame);
+      const text = colour(ROOM.get("--hud-text") ?? "");
+      expect(ratio(over(glow, GROUND), GROUND)).toBeGreaterThanOrEqual(3);
+      expect(ratio(over(text, over(frame, GROUND)), over(frame, GROUND))).toBeGreaterThanOrEqual(4.5);
+    });
+  }
 
   const skins = readSkins(TEXT);
   for (const [id, skin] of Object.entries(skins.skins)) {
@@ -329,16 +372,43 @@ describe("swapping the skin is an edit of the data alone (SC-004)", () => {
 
     const a = build(TEXT);
     const b = build(swapped);
-    expect(a.html).toBe('<html lang="en" data-skin="metal"><body></body></html>');
-    expect(b.html).toBe('<html lang="en" data-skin="plain"><body></body></html>');
+    expect(a.html).toBe('<html lang="en" data-skin="metal" data-skin-kind="css"><body></body></html>');
+    expect(b.html).toBe('<html lang="en" data-skin="plain" data-skin-kind="css"><body></body></html>');
     expect(a.printed).toEqual(["ui-skins: metal (css)"]);
     expect(b.printed).toEqual(["ui-skins: plain (css)"]);
-    const plain = readSkins(swapped).skins.plain as CssSkin;
-    const decl = parseCss(b.css).rules[0]?.declarations;
+    // Every --btn-* of the swapped build is plain's token, and the two builds differ in their values (rework 2, R-5's
+    // swap: data-skin and the values plain's).
+    const tokens = (skin: CssSkin): Map<string, string> => {
+      const t = skin.tokens;
+      const out = new Map<string, string>([
+        ["--btn-tracking", t.font.tracking],
+        ["--btn-chamfer", t.chamfer],
+        ["--btn-radius", t.radius],
+        ["--btn-frame", t.frame],
+        ["--btn-bevel-light", t.bevel.light],
+        ["--btn-bevel-dark", t.bevel.dark],
+        ["--btn-highlight", t.highlight],
+        ["--btn-glow-radius", t.glow.radius],
+        ["--btn-font-weight", String(t.font.weight)],
+        ["--btn-case", t.font.case === "upper" ? "uppercase" : "none"],
+      ]);
+      for (const variant of VARIANTS) {
+        out.set(`--btn-${variant}-ring`, t[variant].ring);
+        out.set(`--btn-${variant}-selected-glow`, t[variant].selected.glow);
+        for (const state of STATES)
+          for (const part of ["face", "label", "border"] as const)
+            out.set(`--btn-${variant}-${state}-${part}`, t[variant][state][part]);
+      }
+      return out;
+    };
+    const plain = tokens(readSkins(swapped).skins.plain as CssSkin);
+    const metal = tokens(readSkins(TEXT).skins.metal as CssSkin);
+    const declA = parseCss(a.css).rules[0]?.declarations;
+    const declB = parseCss(b.css).rules[0]?.declarations;
     expect(parseCss(b.css).rules[0]?.selector).toBe(':root[data-skin="plain"]');
-    for (const variant of VARIANTS)
-      for (const state of STATES)
-        expect(decl?.get(`--btn-${variant}-${state}-face`)).toBe(plain.tokens[variant][state].face);
+    for (const [name, value] of plain) expect(declB?.get(name), name).toBe(value);
+    for (const [name, value] of metal) expect(declA?.get(name), name).toBe(value);
+    expect([...plain].filter(([name, value]) => declA?.get(name) !== value).length).toBeGreaterThan(0);
     expect(a.css).not.toBe(b.css);
   });
 

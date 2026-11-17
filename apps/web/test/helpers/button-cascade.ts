@@ -22,11 +22,14 @@ export interface Env {
   readonly height?: number;
 }
 
-/** The element's interaction state: the pseudo-classes jsdom never enters. */
+/** The element's interaction state: the pseudo-classes jsdom never enters; and, with `pseudo`, its `::before` or
+ *  `::after` in that state (rework-030b: the chamfer, the face, and the dashes are drawn there, plan §R-B3), whose
+ *  declarations jsdom's getComputedStyle doesn't resolve. */
 export interface State {
   readonly hover?: boolean;
   readonly active?: boolean;
   readonly focusVisible?: boolean;
+  readonly pseudo?: "before" | "after";
 }
 
 /** A declaration of a rule, with where it came from. */
@@ -35,6 +38,10 @@ export interface Declaration {
   readonly value: string;
   readonly important: boolean;
   readonly selector: string;
+  /** The pseudo-element the selector ends in (`::before`, `::after`, or the one-colon spellings), or null. */
+  readonly pseudo: "before" | "after" | null;
+  /** The selector without that pseudo-element: what the originating element matches. */
+  readonly element: string;
   readonly specificity: readonly [number, number, number];
   readonly order: number;
   readonly sheet: string;
@@ -64,6 +71,11 @@ const SHORTHANDS: Readonly<Record<string, readonly string[]>> = (() => {
     "border-radius": [],
     "font-family": ["font"],
     "font-weight": ["font"],
+    "font-size": ["font"],
+    // The shorthand's whole value where it wins; its reader takes the side it needs (button-skin.test.ts's bar).
+    "padding-left": ["padding"],
+    "padding-right": ["padding"],
+    "column-gap": ["gap"],
     "outline-color": ["outline"],
     "outline-style": ["outline"],
     "outline-width": ["outline"],
@@ -268,10 +280,13 @@ export class Cascade {
       for (const rule of parsed.rules)
         for (const selector of topLevel(rule.selector)) {
           const s = specificity(selector);
+          const p = /::?(before|after)\s*$/i.exec(selector);
+          const pseudo = p ? (p[1]?.toLowerCase() as "before" | "after") : null;
+          const element = p ? selector.slice(0, p.index).trim() || "*" : selector;
           for (const [property, raw] of rule.declarations) {
             const important = /!\s*important\s*$/i.test(raw);
             const value = raw.replace(/!\s*important\s*$/i, "").trim();
-            out.push({ property, value, important, selector, specificity: s, order: order++, sheet, at });
+            out.push({ property, value, important, selector, pseudo, element, specificity: s, order: order++, sheet, at });
           }
         }
       for (const a of parsed.atRules) if (applies(a.prelude, env)) read(a.body, sheet, [...at, a.prelude]);
@@ -280,13 +295,15 @@ export class Cascade {
     this.declarations = out;
   }
 
-  /** Every declaration of the property (or a shorthand that sets it) whose selector matches the element. */
+  /** Every declaration of the property (or a shorthand that sets it) whose selector matches the element, or, with
+   *  `state.pseudo`, the element's pseudo-element (a selector ending in it, its element part matching the element). */
   matching(el: Element, property: string, state: State = {}): Declaration[] {
     const names = new Set([property, ...(SHORTHANDS[property] ?? [])]);
     return this.declarations.filter((d) => {
       if (!names.has(d.property)) return false;
+      if (d.pseudo !== (state.pseudo ?? null)) return false;
       try {
-        return el.matches(inState(d.selector, state));
+        return el.matches(inState(d.element, state));
       } catch {
         return false;
       }
@@ -309,12 +326,24 @@ export class Cascade {
   /** The property's value on the element, as declared (inherited where the property inherits), or null. */
   declared(el: Element, property: string, state: State = {}): string | null {
     const won = this.winner(el, property, state);
+    // A pseudo-element inherits from its originating element, in that element's state.
+    const { pseudo, ...own } = state;
+    const parent = (): string | null =>
+      pseudo !== undefined
+        ? this.declared(el, property, own)
+        : el.parentElement
+          ? this.declared(el.parentElement, property)
+          : null;
+    // The element's own style (layout.ts writes the HUD's sizes, --safe-*, --bar-w, --wall-scale-*, on the root by
+    // style.setProperty) wins over every stylesheet declaration but an !important one.
+    const inline =
+      pseudo === undefined ? ((el as Partial<HTMLElement>).style?.getPropertyValue(property).trim() ?? "") : "";
+    if (inline !== "" && won?.important !== true) return inline;
     if (won) {
-      if (won.value === "inherit" && el.parentElement) return this.declared(el.parentElement, property);
+      if (won.value === "inherit") return parent();
       return won.value;
     }
-    if ((property.startsWith("--") || INHERITED.has(property)) && el.parentElement)
-      return this.declared(el.parentElement, property);
+    if (property.startsWith("--") || INHERITED.has(property)) return parent();
     return null;
   }
 
