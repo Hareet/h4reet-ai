@@ -220,9 +220,21 @@ def test_restore_is_the_shared_states_alone(home: Path, capsys) -> None:
     assert code == 2
 
 
+def plant_prod_run_file(home: Path) -> None:
+    """Prod's run file, which the admin-only stack reads for prod's own gateway image (fixes/f5.md)."""
+    state = home / ".local" / "state" / "h4reet" / "prod"
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "run.env").write_text(
+        "H4_TREE=/nonexistent\nH4_REF=0123456789abcdef0123456789abcdef01234567\n"
+        "H4_REF_BRANCH=main\nH4_REF_PREVIOUS=\n",
+        encoding="utf-8",
+    )
+
+
 def test_the_admin_only_stack_runs_the_tunnel_with_its_one_forward_and_no_relay_token(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, home: Path
 ) -> None:
+    plant_prod_run_file(home)
     calls: list[tuple[list[str], dict[str, str]]] = []
     monkeypatch.setattr(
         op, "run_docker", lambda argv, env: (calls.append((argv, env)), 0)[1]
@@ -249,8 +261,9 @@ def test_the_admin_only_stack_runs_the_tunnel_with_its_one_forward_and_no_relay_
 
 
 def test_the_admin_only_stack_stops_its_own_services_alone(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, home: Path
 ) -> None:
+    plant_prod_run_file(home)
     # Group 6's review, nit 4: under prod's project, `down --remove-orphans` would stop every prod container, not
     # the three the stack started.
     ran: list[list[str]] = []

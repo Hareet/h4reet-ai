@@ -16,8 +16,11 @@ files (group 7's review A, I-D), in this order, and nothing pushed before every 
      draft main doesn't approve, by main's tools/gates/content_check.py on the dist copied out of that image. Nothing
      of a checkout's node_modules runs here (I-E);
   2. one build of each project image from the export, for linux/amd64, and for linux/arm64 where its hosts name a
-     Graviton host (EC2, the tunnel end), pushed by the commit; and a copy of each upstream image a cloud host runs, to
-     the account's registry, by its lock line's index digest, refused if the copy's digest isn't the lock's;
+     Graviton host (EC2, the tunnel end), pushed by the release's id, `<time>-<the commit's first 12>`, so a rerun of
+     a commit whose run pushed then refused never meets a tag that run left in the registry, whose tags are immutable
+     (F6: specs/001-cloud-elevation/fixes/f6.md); and a copy of each upstream image a cloud host runs, to the
+     account's registry, by its lock line's index digest, taken as it is where its tag already names that digest, and
+     refused if the copy's digest isn't the lock's;
   3. the commit's tree, at trees/<commit>.tar.gz, and the plugin, by their SHA-256s; release.json, to the bucket and to
      ~/.local/state/h4reet/releases/; and the pointer, releases/latest.json, last.
 The site's sync to the edge is group 8's (contracts/edge.md §5; plan.md §16). Exit 0 released, 1 refused, 2 couldn't
@@ -169,6 +172,13 @@ def digest_of(runner: Runner, ref: str) -> str:
     if code != 0 or m is None:
         raise Refused(f"{ref} has no index digest the registry reports")
     return m.group(1)
+
+
+def named_digest(runner: Runner, ref: str) -> str | None:
+    """The index digest a tag names, or None where the registry reports none (no such tag, or no answer)."""
+    code, out = runner(["docker", "buildx", "imagetools", "inspect", ref])
+    m = DIGEST_LINE.search(out or "")
+    return m.group(1) if code == 0 and m is not None else None
 
 
 def required_runs(routing: dict) -> list[tuple[str, str]]:
@@ -656,7 +666,10 @@ def released(
         check_redteam(opts.redteam, head, routing_of(src), exercised(src))
     check_site(runner, src, root, head, contexts, work)
 
-    # 2. The images, from the export.
+    # 2. The images, from the export. The release's id, taken once, after every gate: each build's tag, release.json's
+    # own, and its key. The registry's tags are immutable and a rebuild's digest isn't the build before's, so a tag of
+    # the commit's alone left a rerun refused by the tags a refused run had pushed (F6).
+    rid = f"{now()}-{head[:12]}"
     hosts = cloud_services(src)
     lock = read_lock(src)
     services: dict[str, dict] = {}
@@ -670,7 +683,7 @@ def released(
             ):
                 services[name] = {**built[repository], "hosts": its_hosts}
                 continue
-            ref = f"{opts.registry}/{repository}:{head}"
+            ref = f"{opts.registry}/{repository}:{rid}"
             argv = [
                 "docker",
                 "buildx",
@@ -701,17 +714,21 @@ def released(
         upstream, tag, digest = lock[line]
         repository = f"h4reet/{COPY_REPOSITORIES.get(name, name)}"
         target = f"{opts.registry}/{repository}:{tag}"
-        create = [
-            "docker",
-            "buildx",
-            "imagetools",
-            "create",
-            "--tag",
-            target,
-            f"{upstream}@{digest}",
-        ]
-        if runner(create)[0] != 0 or digest_of(runner, target) != digest:
-            raise Refused(f"{name}'s copy isn't the lock's index digest")
+        # The lock's tag, the same on every release: where it already names the lock's digest, as an earlier release's
+        # or a refused run's copy left it, it is taken without a second put (F6). One that names another digest still
+        # refuses: the put fails, or the digest read after it isn't the lock's.
+        if named_digest(runner, target) != digest:
+            create = [
+                "docker",
+                "buildx",
+                "imagetools",
+                "create",
+                "--tag",
+                target,
+                f"{upstream}@{digest}",
+            ]
+            if runner(create)[0] != 0 or digest_of(runner, target) != digest:
+                raise Refused(f"{name}'s copy isn't the lock's index digest")
         services[name] = {
             "repository": repository,
             "tag": tag,
@@ -728,7 +745,6 @@ def released(
         )
 
     # 3. The tree, the plugin, release.json, and the pointer last.
-    rid = f"{now()}-{head[:12]}"
     tree = work / "tree.tar.gz"
     tree.write_bytes(b"")
     if (
