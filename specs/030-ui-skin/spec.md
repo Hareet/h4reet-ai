@@ -152,7 +152,7 @@ As the Author, I get a set of button images from a studio round tonight, judged 
 - The button's label longer than two lines: it wraps further; the button grows; no ellipsis. The split layout's bar tiles are the exception FR-013 names: their row holds two lines (spec 028's A1-3), so a longer label there is a later spec's layout change, and until then it may overflow its tile, never be cut or ellipsed (rework, I-3 in notes.md).
 - A disabled button over the room: its label still reaches 4.5:1 (WCAG exempts it; this spec doesn't), its state shown by a dashed border and no glow.
 - Forced colours: `border-image: none`, system colours, the selected state by a thicker border.
-- No script: `index.html`'s static fallback, unchanged, light as today (it is outside the three pages' scripts).
+- No script: `index.html`'s static fallback, its words and links unchanged, dark with the page: its `<html>` carries the dark class in its own markup, so the first paint is dark before any script (rework, N-4); its text and links at 4.5:1 on the ground.
 
 ## Requirements *(mandatory)*
 
@@ -180,7 +180,7 @@ Terms: **a half**: one of the right column's two panels (Q3, Q4); **the slice**:
 
 ### Group C: dark pages
 
-- **FR-015**: THE SELECTION SCREEN, THE CREDITS PAGE (`/credits/`, `build/credits.ts`), AND THE DATA-FLOW PAGE (`/disclosure/`, `build/disclosure.ts`) SHALL be dark (Q9), from one shared stylesheet of the room's tokens (`apps/web/src/pages/dark.css`), whose values a test holds equal to `room.css`'s and `hud/split.css`'s `:root`: ground `rgb(var(--glass))`, text `--hud-text`, secondary text `--split-muted`, links `--accent-neon` underlined, the focus ring `--hud-focus`, `color-scheme: dark`; the two built pages emit it into their `style.css` before their own layout rules.
+- **FR-015**: THE SELECTION SCREEN, THE CREDITS PAGE (`/credits/`, `build/credits.ts`), AND THE DATA-FLOW PAGE (`/disclosure/`, `build/disclosure.ts`) SHALL be dark (Q9), from one shared stylesheet of the room's tokens (`apps/web/src/pages/dark.css`), whose values a test holds equal to `room.css`'s and `hud/split.css`'s `:root`: ground `rgb(var(--glass))`, text `--hud-text`, secondary text `--split-muted`, links `--accent-neon` underlined, the focus ring `--hud-focus`, `color-scheme: dark`; the two built pages emit it into their `style.css` before their own layout rules; the selection screen is dark from its first paint (`index.html`'s root class, rework N-4).
 - **FR-016**: ON EACH DARK PAGE every text SHALL reach 4.5:1 (3:1 large) against its ground, links 4.5:1 and 3:1 against the text beside them (or underlined), the focus ring 3:1; the AI disclosure (`index.html`'s `.disclosure` on the selection screen; each built page's own header) SHALL stay in view and dark at 4.5:1; tables (the data-flow page) keep 3:1 borders.
 - **FR-017**: THE SELECTION SCREEN'S "ENTER" SHALL be group B's primary button; ITS CARDS SHALL keep spec 029's structure, names, states, keyboard behaviour, and layout (its FR-024 to FR-035), drawn with the skin's frame colour, chamfer, and the selected glow (Q10); the chosen card still shows the check mark and "Selected"; forced colours, reduced motion, and the 320 px layout as spec 029 left them.
 - **FR-018**: NOTHING SHALL be fetched or sent before "Enter" (spec 029, FR-029; spec 009, FR-010): the dark stylesheet, the skin's stylesheet, and any image skin arrive in the stylesheets the page already loads.

@@ -73,7 +73,7 @@ The extracted file's SHA-256: `98eb47ddbcf7ac6193e3fafa6420b33f6f3bb3d8e8e3ff1e1
 | R-1 `brief-ui-r1` | implementer | this file | writes the brief to `/srv/studio/briefs/ui-buttons/1.json` (`cmp` against the block above returns 0), runs `line.py brief` on it, pastes the SHA-256 and the output here; changes nothing else |
 | R-2 `studio-ui-r1` | studio | R-1; his machine's studio | runs the brief, hands back to `/srv/studio/handoff/ui-buttons/1/` |
 | R-3 `judge-ui-r1` | implementer | R-2's handoff; a branch holding T-DJ | runs `line.py candidate … --brief …` dry, sorts its findings (candidate, brief, or `line.py`), then `--record` once; pastes the whole output, every file's SHA-256 from `records.json` and from the bytes, and `slices.json`; on a pass, writes his intake patch (plan §R-D3) and T-DS's data edit (the hashes and insets into `metal-image`) |
-| R-4 his | the Author | R-3's pass | his look; his intake (`docs/merge-requests/2026-11-17-030-ui-buttons-intake.md`) |
+| R-4 his | the Author | R-3's pass | his look; his intake (`docs/merge-requests/human-patches/030.md`, on 021's route; plan §R-D3) |
 
 ## The record (R-3 fills this)
 
