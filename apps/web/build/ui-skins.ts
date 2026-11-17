@@ -65,6 +65,8 @@ export interface Skins {
 /** The active skin, resolved to a CSS skin, and the build's line about it. */
 export interface ResolvedSkin {
   readonly id: string;
+  /** The kind the page draws (plan §R-B2, rework N-3): `css` until T-DS builds image skins, so a fallback is `css`. */
+  readonly kind: "css" | "image";
   readonly skin: CssSkin;
   readonly line: string;
 }
@@ -215,12 +217,13 @@ export function readSkins(text: string, label: string = SKINS_LABEL): Skins {
 /** The active skin as the build takes it: a CSS skin itself; an image skin its fallback, whole (until T-DS). */
 export function resolveSkin(skins: Skins): ResolvedSkin {
   const skin = skins.skins[skins.active];
-  if (skin?.kind === "css") return { id: skins.active, skin, line: `ui-skins: ${skins.active} (css)` };
+  if (skin?.kind === "css") return { id: skins.active, kind: "css", skin, line: `ui-skins: ${skins.active} (css)` };
   if (skin?.kind === "image") {
     const fallback = skins.skins[skin.fallback];
     if (fallback?.kind === "css")
       return {
         id: skin.fallback,
+        kind: "css",
         skin: fallback,
         line: `${skins.active}: falling back to ${skin.fallback} (image skins not built)`,
       };
@@ -267,11 +270,13 @@ export function skinCss(resolved: ResolvedSkin): string {
   );
 }
 
-/** The page with data-skin on its root element (index.html's <html>), and nothing else changed. */
-export function skinHtml(html: string, id: string): string {
+/** The page with data-skin and data-skin-kind, the resolved skin's (plan §R-B2, rework N-3), on its root element
+ *  (index.html's <html>), after every attribute already there (group C's class="dark-page" among them), and nothing
+ *  else changed. */
+export function skinHtml(html: string, id: string, kind: "css" | "image"): string {
   return html.replace(
     /<html(\s[^>]*)?>/i,
-    (_m, attributes: string | undefined) => `<html${attributes ?? ""} data-skin="${id}">`,
+    (_m, attributes: string | undefined) => `<html${attributes ?? ""} data-skin="${id}" data-skin-kind="${kind}">`,
   );
 }
 
@@ -297,7 +302,7 @@ export function uiSkins(options: { readonly source: string }): Plugin {
       return id === RESOLVED ? skinCss(take()) : null;
     },
     transformIndexHtml(html) {
-      return skinHtml(html, take().id);
+      return skinHtml(html, take().id, take().kind);
     },
   };
 }
