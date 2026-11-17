@@ -812,11 +812,7 @@ def web_contexts(name: str, src: Path) -> list[str]:
     wi = _load("web_image_for_release", src / "deploy" / "scripts" / "web_image.py")
     folder = wi.write_policy(wi.read_policy(ROOT))
     out = ["--build-arg", "ROOM_DRAFTS=", "--build-context", f"policy={folder}"]
-    for folder_name, context in (
-        (wi.ROOM_ASSETS, wi.ROOM_ASSETS_CONTEXT),
-        (wi.VISITOR_ASSETS, wi.VISITOR_ASSETS_CONTEXT),
-        (wi.TWIN_ASSETS, wi.TWIN_ASSETS_CONTEXT),
-    ):
+    for folder_name, context in wi.ASSET_CONTEXTS:
         found = wi.room_assets(src, folder_name)
         if found is not None:
             out += ["--build-context", f"{context}={found}"]

@@ -43,14 +43,18 @@ avatars come the same way (spec 009, FR-023): <tree>/assets/visitors, on the sam
 `visitor-assets`, which the Dockerfile copies to /src/assets/visitors/; without it both figures build as their
 fallbacks. The twin's own avatar comes the same way (spec 016, FR-048; its Amendment M20): <tree>/assets/twin, on the
 same terms, as the named context `twin-assets`, which the Dockerfile copies to /src/assets/twin/; without it the twin's
-figure shows its stand-in. Spec 016 also adds main's assets/policy/approvals.json to the policy context, fourth, the
-likeness approvals the twin's line is read from (its FR-015, Amendment M21), and the label digests the four files.
+figure shows its stand-in. The buttons' images come the same way (spec 030, FR-027): <tree>/assets/ui, on the same
+terms, as the named context `ui-assets`, which the Dockerfile copies to /src/assets/ui/; without it the buttons build on
+their CSS skin. The four (folder, context) pairs are one list, ASSET_CONTEXTS, in the Dockerfile's stage order, which
+deploy/scripts/release.py's web_contexts() reads too, so the released image is handed what a host stack's is. Spec 016
+also adds main's assets/policy/approvals.json to the policy context, fourth, the likeness approvals the twin's line is
+read from (its FR-015, Amendment M21), and the label digests the four files.
 
 Otherwise as the gateway's: a host stack builds the export its run file names, and only in the Author's terminal;
 dev-cpu builds the working tree on the agents' engine only. The build is `docker buildx build --load` with this tree's
 Dockerfile and context, the env file's H4_BUILD_PROXY as the proxy arguments, ROOM_DRAFTS, the policy context, the
-models', the avatars', and the twin's contexts where the tree has them, and the label, and nothing else: no --ssh, --secret, cache import or export,
---add-host, --allow, or --network. Docker and git get only their own settings from the environment.
+models', the avatars', the twin's, and the buttons' images' contexts where the tree has them, and the label, and
+nothing else: no --ssh, --secret, cache import or export, --add-host, --allow, or --network. Docker and git get only their own settings from the environment.
 
 Exit codes: 0 the image is built; 1 the build failed; 2 usage, or refused.
 """
@@ -97,6 +101,24 @@ VISITOR_ASSETS_CONTEXT = "visitor-assets"
 # The tree's twin (spec 016, FR-048; its Amendment M20), and the named context of the twin-assets stage.
 TWIN_ASSETS = "assets/twin"
 TWIN_ASSETS_CONTEXT = "twin-assets"
+# The tree's button images (spec 030, FR-027; its plan.md §R-D4), and the named context of the ui-assets stage.
+UI_ASSETS = "assets/ui"
+UI_ASSETS_CONTEXT = "ui-assets"
+# Every asset folder and its named context, in the Dockerfile's stage order: main hands them over in this order, and
+# deploy/scripts/release.py's web_contexts() loops over the export's copy of this list (spec 030, rework 2, R-1).
+ASSET_CONTEXTS = (
+    (ROOM_ASSETS, ROOM_ASSETS_CONTEXT),
+    (VISITOR_ASSETS, VISITOR_ASSETS_CONTEXT),
+    (TWIN_ASSETS, TWIN_ASSETS_CONTEXT),
+    (UI_ASSETS, UI_ASSETS_CONTEXT),
+)
+# What a build without a folder's context shows, for the line main prints when the tree has no such folder of its own.
+WITHOUT = {
+    ROOM_ASSETS: "every piece builds as its stand-in",
+    VISITOR_ASSETS: "both figures build as their fallbacks",
+    TWIN_ASSETS: "the twin's figure shows its stand-in",
+    UI_ASSETS: "the buttons build on their CSS skin",
+}
 RELAY_HOST = "tcp://127.0.0.1:2376"
 AGENTS_ENGINE = "tcp://198.18.0.1:2376"
 SHA_RE = re.compile(r"[0-9a-f]{40}")
@@ -315,24 +337,16 @@ def main(argv: list[str], run: Runner = docker, root: Path = ROOT) -> int:
             flush=True,
         )
     folder = write_policy(files)
-    models = room_assets(root)
-    if models is None:
-        print(
-            f"web image: {root} has no {ROOM_ASSETS} directory of its own, so every piece builds as its stand-in",
-            flush=True,
-        )
-    avatars = room_assets(root, VISITOR_ASSETS)
-    if avatars is None:
-        print(
-            f"web image: {root} has no {VISITOR_ASSETS} directory of its own, so both figures build as their fallbacks",
-            flush=True,
-        )
-    twin = room_assets(root, TWIN_ASSETS)
-    if twin is None:
-        print(
-            f"web image: {root} has no {TWIN_ASSETS} directory of its own, so the twin's figure shows its stand-in",
-            flush=True,
-        )
+    contexts: list[str] = []
+    for asset_folder, context in ASSET_CONTEXTS:
+        found = room_assets(root, asset_folder)
+        if found is None:
+            print(
+                f"web image: {root} has no {asset_folder} directory of its own, so {WITHOUT[asset_folder]}",
+                flush=True,
+            )
+        else:
+            contexts += ["--build-context", f"{context}={found}"]
     try:
         print(
             f"web image: building {image} from {root}{' with drafts' if drafts else ''}",
@@ -354,21 +368,7 @@ def main(argv: list[str], run: Runner = docker, root: Path = ROOT) -> int:
             f"ROOM_DRAFTS={drafts}",
             "--build-context",
             f"policy={folder}",
-            *(
-                ("--build-context", f"{ROOM_ASSETS_CONTEXT}={models}")
-                if models is not None
-                else ()
-            ),
-            *(
-                ("--build-context", f"{VISITOR_ASSETS_CONTEXT}={avatars}")
-                if avatars is not None
-                else ()
-            ),
-            *(
-                ("--build-context", f"{TWIN_ASSETS_CONTEXT}={twin}")
-                if twin is not None
-                else ()
-            ),
+            *contexts,
             "--label",
             f"{POLICY_LABEL}={policy_digest(files)}",
             str(root),
