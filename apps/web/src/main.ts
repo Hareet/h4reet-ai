@@ -5,8 +5,10 @@
 import "./style.css";
 import "./fonts.css";
 // Spec 030 (FR-010; plan.md §R-B2): the active skin's custom properties, generated at build from
-// content/ui-skins.yaml, before room.css (app.ts's).
+// content/ui-skins.yaml, then the button component that reads them, both before room.css (app.ts's), so the
+// component's winners are by specificity, never by order.
 import "virtual:ui-skin.css";
+import "./ui/button.css";
 
 import { content, room } from "virtual:room-content";
 import { createFrameLog } from "virtual:room-frame-log";

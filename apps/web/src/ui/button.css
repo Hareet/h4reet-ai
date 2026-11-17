@@ -1,0 +1,317 @@
+/* The button component (spec 030, FR-008, FR-011 to FR-014; plan.md §R-B3): one look for the controls of Q5, the
+   bar's six tiles, the walking control, "Eat", the list's "Back", the conversation's two header toggles, "Send", and
+   the selection screen's "Enter", and for any later control given the class ui-button (data-variant="primary" for a
+   primary one). "Send" and "Enter" are primary, the rest secondary (Q6). No DOM change: the rules name the controls'
+   own classes. Every value is the active skin's, the custom properties --btn-* that build/ui-skins.ts writes from
+   content/ui-skins.yaml on :root[data-skin="<id>"] (FR-010), so a swap of skins is an edit of that data alone, and
+   nothing here applies on a page without data-skin, which keeps spec 014's tiles.
+   - Each rule names the root's attributes, :root[data-skin][data-hud][data-split] in the room, and the controls in one
+     :is(), so it outranks room.css's, split.css's, talk.css's, and choice.css's rules for the same controls whatever the
+     order they load in (this sheet loads before them: src/main.ts), as split.css's header does; the properties it
+     owns: color, background, border, border-image, border-radius, box-shadow, clip-path, the font's family and weight,
+     text-transform, letter-spacing, white-space, min-height, min-width, opacity, transform, transition, and the focus
+     ring's outline. test/ui/button-skin.test.ts reads each winner by the cascade.
+   - The states set private custom properties (--_face, --_label, --_border, the bevel's, the glow's, the line's) that
+     one paint rule reads: normal, hover (the bevel lifted), focus-visible (the ring), pressed (:active: the bevel
+     inverted and pressed in), selected (aria-pressed="true", and the walking control while walking: the glow, a 2 px
+     border), disabled (:disabled, aria-disabled="true": a dashed border, no bevel, no glow), each beyond colour
+     (FR-012). Of equal specificity, they are in that order, so disabled wins over the rest and selected over hover.
+   - The chamfer is a clip-path octagon cut from inside the box, whose 44 × 44 minimum stays the hit area (FR-013); its
+     four diagonal edges are drawn in the border's colour by four gradients, 1 line wide inside the cut. A clip-path
+     clips an outline drawn outside, so the ring is drawn inside the face, past the chamfer's corners, in the variant's
+     ring colour (yellow on the secondary's dark face, dark on the primary's yellow), and the glow is inside too.
+   - Labels wrap (FR-013); under reduced motion nothing fades or moves, otherwise colours and shadows fade for 120 ms,
+     never a movement (FR-014); under forced colours the system's colours, no image, clip, or shadow (FR-014). */
+
+:root[data-skin][data-hud][data-split]
+  :is(
+    .hud-bar .hud-tile,
+    .room-walk,
+    .room-eat,
+    .room-list .split-back,
+    .talk .talk-larger,
+    .talk .talk-log-toggle,
+    .talk-form .talk-row > button:not(.talk-voice)
+  ),
+:root[data-skin] :is(.choice .choice-enter, .ui-button) {
+  --_face: var(--btn-secondary-normal-face);
+  --_label: var(--btn-secondary-normal-label);
+  --_border: var(--btn-secondary-normal-border);
+  --_ring: var(--btn-secondary-ring);
+  --_bevel-w: 3px;
+  --_bevel-top: var(--btn-bevel-light);
+  --_bevel-bottom: var(--btn-bevel-dark);
+  --_glow: transparent;
+  --_glow-r: 0px;
+  --_line-w: 1px;
+  --_line-style: solid;
+
+  min-height: 44px;
+  min-width: 44px;
+  color: var(--_label);
+  background-color: var(--_face);
+  background-image:
+    linear-gradient(135deg, var(--_border) calc(var(--btn-chamfer) * 0.7071 + var(--_line-w)), transparent 0),
+    linear-gradient(225deg, var(--_border) calc(var(--btn-chamfer) * 0.7071 + var(--_line-w)), transparent 0),
+    linear-gradient(315deg, var(--_border) calc(var(--btn-chamfer) * 0.7071 + var(--_line-w)), transparent 0),
+    linear-gradient(45deg, var(--_border) calc(var(--btn-chamfer) * 0.7071 + var(--_line-w)), transparent 0),
+    linear-gradient(to bottom, var(--btn-highlight), transparent 50%);
+  border-width: var(--_line-w);
+  border-style: var(--_line-style);
+  border-color: var(--_border);
+  border-radius: var(--btn-radius);
+  clip-path: polygon(
+    var(--btn-chamfer) 0,
+    calc(100% - var(--btn-chamfer)) 0,
+    100% var(--btn-chamfer),
+    100% calc(100% - var(--btn-chamfer)),
+    calc(100% - var(--btn-chamfer)) 100%,
+    var(--btn-chamfer) 100%,
+    0 calc(100% - var(--btn-chamfer)),
+    0 var(--btn-chamfer)
+  );
+  box-shadow:
+    inset 0 0 0 1px var(--btn-frame),
+    inset var(--_bevel-w) var(--_bevel-w) 0 0 var(--_bevel-top),
+    inset calc(-1 * var(--_bevel-w)) calc(-1 * var(--_bevel-w)) 0 0 var(--_bevel-bottom),
+    inset 0 0 var(--_glow-r) 0 var(--_glow);
+  font-family: var(--btn-font-family);
+  font-weight: var(--btn-font-weight);
+  text-transform: var(--btn-case);
+  letter-spacing: var(--btn-tracking);
+  white-space: normal;
+  opacity: 1;
+  transform: none;
+}
+
+/* Primary: "Send" (and "Stop", the same button while the twin answers) and "Enter" (Q6). */
+:root[data-skin][data-hud][data-split] .talk-form .talk-row > button:not(.talk-voice),
+:root[data-skin] :is(.choice .choice-enter, .ui-button[data-variant="primary"]) {
+  --_face: var(--btn-primary-normal-face);
+  --_label: var(--btn-primary-normal-label);
+  --_border: var(--btn-primary-normal-border);
+  --_ring: var(--btn-primary-ring);
+}
+
+/* Hover: the bevel lifted. */
+:root[data-skin][data-hud][data-split]
+  :is(
+    .hud-bar .hud-tile,
+    .room-walk,
+    .room-eat,
+    .room-list .split-back,
+    .talk .talk-larger,
+    .talk .talk-log-toggle,
+    .talk-form .talk-row > button:not(.talk-voice)
+  ):hover,
+:root[data-skin] :is(.choice .choice-enter, .ui-button):hover {
+  --_face: var(--btn-secondary-hover-face);
+  --_label: var(--btn-secondary-hover-label);
+  --_border: var(--btn-secondary-hover-border);
+  --_bevel-w: 4px;
+}
+
+:root[data-skin][data-hud][data-split] .talk-form .talk-row > button:not(.talk-voice):hover,
+:root[data-skin] :is(.choice .choice-enter, .ui-button[data-variant="primary"]):hover {
+  --_face: var(--btn-primary-hover-face);
+  --_label: var(--btn-primary-hover-label);
+  --_border: var(--btn-primary-hover-border);
+}
+
+/* Pressed: the bevel inverted and pressed in; nothing moves. */
+:root[data-skin][data-hud][data-split]
+  :is(
+    .hud-bar .hud-tile,
+    .room-walk,
+    .room-eat,
+    .room-list .split-back,
+    .talk .talk-larger,
+    .talk .talk-log-toggle,
+    .talk-form .talk-row > button:not(.talk-voice)
+  ):active,
+:root[data-skin] :is(.choice .choice-enter, .ui-button):active {
+  --_face: var(--btn-secondary-pressed-face);
+  --_label: var(--btn-secondary-pressed-label);
+  --_border: var(--btn-secondary-pressed-border);
+  --_bevel-w: 2px;
+  --_bevel-top: var(--btn-bevel-dark);
+  --_bevel-bottom: var(--btn-bevel-light);
+}
+
+:root[data-skin][data-hud][data-split] .talk-form .talk-row > button:not(.talk-voice):active,
+:root[data-skin] :is(.choice .choice-enter, .ui-button[data-variant="primary"]):active {
+  --_face: var(--btn-primary-pressed-face);
+  --_label: var(--btn-primary-pressed-label);
+  --_border: var(--btn-primary-pressed-border);
+}
+
+/* Selected: a control's on state ("Pause the room" pressed; the walking control while walking, its view the
+   application): the glow, inside, and a 2 px border. */
+:root[data-skin][data-hud][data-split]
+  :is(
+    .hud-bar .hud-tile,
+    .room-walk,
+    .room-eat,
+    .room-list .split-back,
+    .talk .talk-larger,
+    .talk .talk-log-toggle,
+    .talk-form .talk-row > button:not(.talk-voice)
+  )[aria-pressed="true"],
+:root[data-skin][data-hud][data-split] .room-stage-view[role="application"] + .room-clear .room-walk,
+:root[data-skin] :is(.choice .choice-enter, .ui-button)[aria-pressed="true"] {
+  --_face: var(--btn-secondary-selected-face);
+  --_label: var(--btn-secondary-selected-label);
+  --_border: var(--btn-secondary-selected-border);
+  --_glow: var(--btn-secondary-selected-glow);
+  --_glow-r: var(--btn-glow-radius);
+  --_line-w: 2px;
+}
+
+:root[data-skin][data-hud][data-split] .talk-form .talk-row > button:not(.talk-voice)[aria-pressed="true"],
+:root[data-skin] :is(.choice .choice-enter, .ui-button[data-variant="primary"])[aria-pressed="true"] {
+  --_face: var(--btn-primary-selected-face);
+  --_label: var(--btn-primary-selected-label);
+  --_border: var(--btn-primary-selected-border);
+  --_glow: var(--btn-primary-selected-glow);
+}
+
+/* Disabled: a dashed border, no bevel, no glow; the label still at 4.5:1 (spec 030's edge cases). */
+:root[data-skin][data-hud][data-split]
+  :is(
+    .hud-bar .hud-tile,
+    .room-walk,
+    .room-eat,
+    .room-list .split-back,
+    .talk .talk-larger,
+    .talk .talk-log-toggle,
+    .talk-form .talk-row > button:not(.talk-voice)
+  ):is(:disabled, [aria-disabled="true"]),
+:root[data-skin] :is(.choice .choice-enter, .ui-button):is(:disabled, [aria-disabled="true"]) {
+  --_face: var(--btn-secondary-disabled-face);
+  --_label: var(--btn-secondary-disabled-label);
+  --_border: var(--btn-secondary-disabled-border);
+  --_bevel-w: 0px;
+  --_glow: transparent;
+  --_glow-r: 0px;
+  --_line-w: 1px;
+  --_line-style: dashed;
+}
+
+:root[data-skin][data-hud][data-split]
+  .talk-form
+  .talk-row
+  > button:not(.talk-voice):is(:disabled, [aria-disabled="true"]),
+:root[data-skin] :is(.choice .choice-enter, .ui-button[data-variant="primary"]):is(:disabled, [aria-disabled="true"]) {
+  --_face: var(--btn-primary-disabled-face);
+  --_label: var(--btn-primary-disabled-label);
+  --_border: var(--btn-primary-disabled-border);
+}
+
+/* Focus: the 2 px ring inside the face, clear of the chamfer's corners, in the variant's ring colour. */
+:root[data-skin][data-hud][data-split]
+  :is(
+    .hud-bar .hud-tile,
+    .room-walk,
+    .room-eat,
+    .room-list .split-back,
+    .talk .talk-larger,
+    .talk .talk-log-toggle,
+    .talk-form .talk-row > button:not(.talk-voice)
+  ):focus-visible,
+:root[data-skin] :is(.choice .choice-enter, .ui-button):focus-visible {
+  outline-width: 2px;
+  outline-style: solid;
+  outline-color: var(--_ring);
+  outline-offset: calc(-2px - var(--btn-chamfer) / 2);
+}
+
+/* Motion: a fade of colours and shadows, 120 ms, only where the visitor hasn't asked for less. */
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-skin][data-hud][data-split]
+    :is(
+      .hud-bar .hud-tile,
+      .room-walk,
+      .room-eat,
+      .room-list .split-back,
+      .talk .talk-larger,
+      .talk .talk-log-toggle,
+      .talk-form .talk-row > button:not(.talk-voice)
+    ),
+  :root[data-skin] :is(.choice .choice-enter, .ui-button) {
+    transition:
+      background-color 120ms ease-out,
+      border-color 120ms ease-out,
+      box-shadow 120ms ease-out;
+  }
+}
+
+/* Forced colours: the system's, with no image, clip, or shadow; selected by a 2 px border, disabled in GrayText, the
+   ring in Highlight. */
+@media (forced-colors: active) {
+  :root[data-skin][data-hud][data-split]
+    :is(
+      .hud-bar .hud-tile,
+      .room-walk,
+      .room-eat,
+      .room-list .split-back,
+      .talk .talk-larger,
+      .talk .talk-log-toggle,
+      .talk-form .talk-row > button:not(.talk-voice)
+    ),
+  :root[data-skin] :is(.choice .choice-enter, .ui-button) {
+    color: ButtonText;
+    background-color: ButtonFace;
+    background-image: none;
+    border-width: 1px;
+    border-style: solid;
+    border-color: ButtonText;
+    border-image: none;
+    clip-path: none;
+    box-shadow: none;
+  }
+
+  :root[data-skin][data-hud][data-split]
+    :is(
+      .hud-bar .hud-tile,
+      .room-walk,
+      .room-eat,
+      .room-list .split-back,
+      .talk .talk-larger,
+      .talk .talk-log-toggle,
+      .talk-form .talk-row > button:not(.talk-voice)
+    )[aria-pressed="true"],
+  :root[data-skin][data-hud][data-split] .room-stage-view[role="application"] + .room-clear .room-walk,
+  :root[data-skin] :is(.choice .choice-enter, .ui-button)[aria-pressed="true"] {
+    border-width: 2px;
+  }
+
+  :root[data-skin][data-hud][data-split]
+    :is(
+      .hud-bar .hud-tile,
+      .room-walk,
+      .room-eat,
+      .room-list .split-back,
+      .talk .talk-larger,
+      .talk .talk-log-toggle,
+      .talk-form .talk-row > button:not(.talk-voice)
+    ):is(:disabled, [aria-disabled="true"]),
+  :root[data-skin] :is(.choice .choice-enter, .ui-button):is(:disabled, [aria-disabled="true"]) {
+    color: GrayText;
+    border-style: dashed;
+    border-color: GrayText;
+  }
+
+  :root[data-skin][data-hud][data-split]
+    :is(
+      .hud-bar .hud-tile,
+      .room-walk,
+      .room-eat,
+      .room-list .split-back,
+      .talk .talk-larger,
+      .talk .talk-log-toggle,
+      .talk-form .talk-row > button:not(.talk-voice)
+    ):focus-visible,
+  :root[data-skin] :is(.choice .choice-enter, .ui-button):focus-visible {
+    outline-color: Highlight;
+  }
+}
