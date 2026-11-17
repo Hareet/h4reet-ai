@@ -575,3 +575,23 @@ html[data-split="on"][data-hud="column"] .talk[data-over="room"] .talk-log-toggl
 html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint:focus-visible {
   outline-offset: -4px;
 }
+
+/* ---- Spec 030, group A: the right column's two halves (FR-002 to FR-007; plan.md §R-A3) ----
+   Appended after every rule above. The list is the top half (data-half="top"), marked over the room in every view
+   (Q2), so the block above gives it --over-glass-alpha; its edge is room.css's --half-border. The bar's own glass is
+   none wherever a half holds it, in every layout: room.css's .hud-half draws the bottom half's glass behind the bar,
+   the walking control, and "Eat". No blur (FR-001). */
+html[data-split="on"][data-hud="column"] .room-list[data-half="top"] {
+  border: 1px solid var(--half-border);
+}
+
+html[data-halves="on"][data-hud="column"] .hud-bar,
+html[data-halves="on"][data-hud="dock"] .hud-bar {
+  background: none;
+}
+
+@media (forced-colors: active) {
+  html[data-split="on"][data-hud="column"] .room-list[data-half="top"] {
+    border-color: CanvasText;
+  }
+}

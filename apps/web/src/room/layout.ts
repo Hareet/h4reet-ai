@@ -28,6 +28,8 @@
 // and makes "Around the room" inert while the loader shows. The AI disclosure's strip and the stage's notes' box (empty
 // since spec 028, FR-012) are never tinted or covered: the card sits below the strip and the notes' reserve, or first in
 // the page's flow when stacked.
+import { halves } from "./compose/halves";
+import { HUD_PLACEMENTS } from "./compose/hud";
 import type { Box, HudLayout, HudMetrics, HudState, SplitBoxes } from "./compose/hud";
 import { hudParts, overRoom, roomBox } from "./compose/over";
 import type { PartId } from "./compose/over";
@@ -276,7 +278,17 @@ export function renderRoom(
     resumeHeading,
     resumeBody,
   );
-  const block = h(doc, "div", { class: "room-block" }, heading, toolbar, stage, panels);
+  // Spec 030 (FR-002 to FR-005; plan.md §R-A3): the right column's bottom half, a panel drawn behind the bar's tiles,
+  // the walking control, and "Eat" (or the bar's cluster), at compose/halves.ts's box: decoration only, taking no
+  // pointer and hidden from assistive technology; hidden where there are no halves (the stacked layout). Before the
+  // stage in the block, so the clear box's controls paint over it.
+  const bottomHalf = h(doc, "div", {
+    class: "hud-half",
+    "data-half": "bottom",
+    "aria-hidden": "true",
+    hidden: true,
+  });
+  const block = h(doc, "div", { class: "room-block" }, heading, toolbar, bottomHalf, stage, panels);
   const element = h(doc, "div", { class: "room" }, block, parts.around, resumePanel);
   const loadingLine = view.querySelector(".room-loading");
   const root = doc.documentElement;
@@ -307,7 +319,17 @@ export function renderRoom(
     ["sheet", sheet],
     ["larger", sheet],
   ];
-  /** Marks each part over the room with data-over="room" and takes the mark from every other (compose/over.ts). */
+  /** Spec 030 (FR-005; Q2): the right column's parts, which take the over-room look in every layout and view: in the
+   *  split layout the list (the top half) and the tiles' block's bar, walking control, and "Eat" where its box is (the
+   *  bottom half's); in the column layout the column and the bar's cluster; in the dock the dock and the bar. None in the
+   *  stacked layout. */
+  const rightColumn = (a: HudApplied): PartId[] => {
+    if (a.layout === "stacked") return [];
+    if (a.layout === "column" && a.split) return a.split.eat ? ["list", "bar", "walk", "eat"] : ["list", "bar", "walk"];
+    return a.layout === "column" ? ["column", "bar"] : ["dock", "bar"];
+  };
+  /** Marks each part over the room with data-over="room" and takes the mark from every other (compose/over.ts), the
+   *  right column's parts always marked, and the bottom half's panel wherever it shows (spec 030). */
   const markOver = (): void => {
     const a = lastApplied;
     const over = a
@@ -323,11 +345,35 @@ export function renderRoom(
           roomBox({ walking, stage: a.stage ?? a.frame, wall: a.room ?? null, frame: a.frame }),
         )
       : new Set<PartId>();
+    if (a) for (const id of rightColumn(a)) over.add(id);
     const on = new Set<HTMLElement>();
     for (const [id, el] of partElements) if (el && over.has(id)) on.add(el);
     for (const [, el] of partElements)
       if (el && on.has(el)) el.setAttribute("data-over", "room");
       else el?.removeAttribute("data-over");
+    if (bottomHalf.hidden) bottomHalf.removeAttribute("data-over");
+    else bottomHalf.setAttribute("data-over", "room");
+  };
+  /** Spec 030 (FR-002 to FR-004; plan.md §R-A3): the halves at a layout: data-half on each half's element (the list in
+   *  the split layout, the panels in the column layout and the dock; the bottom half's own element), the bottom half's
+   *  box as --half-bottom-*, the column's and the dock's slice as --hud-slice, and data-halves on the root; all taken
+   *  away in the stacked layout. */
+  const applyHalves = (a: HudApplied): void => {
+    const slice = a.layout === "stacked" ? 0 : HUD_PLACEMENTS.sliceRem * a.metrics.rem;
+    const bar = a.compact.bar;
+    const dock: Box | null = a.layout === "dock" ? { x: bar.x, y: bar.y - slice - a.dock, w: bar.w, h: a.dock } : null;
+    const split = a.layout === "column" ? (a.split ?? null) : null;
+    const hv = halves({ layout: a.layout, split, column: a.compact.column, dock, bar });
+    const top = hv ? (split ? parts.list : panels) : null;
+    for (const el of [parts.list, panels])
+      if (el === top) el.setAttribute("data-half", "top");
+      else el.removeAttribute("data-half");
+    bottomHalf.hidden = hv === null;
+    root.setAttribute("data-halves", hv ? "on" : "off");
+    root.style.setProperty("--hud-slice", `${hv ? slice : 0}px`);
+    for (const k of ["x", "y", "w", "h"] as const)
+      if (hv) root.style.setProperty(`--half-bottom-${k}`, `${hv.bottom[k]}px`);
+      else root.style.removeProperty(`--half-bottom-${k}`);
   };
 
   return {
@@ -473,6 +519,8 @@ export function renderRoom(
       // The stacked layout's header is sticky in the page's flow, its own height: the scroll padding takes its 4rem
       // fallback there, as before spec 005.
       if (applied.layout === "stacked") root.style.removeProperty("--strip-h");
+      // Spec 030: the right column's two halves.
+      applyHalves(applied);
       // Spec 029 (FR-001): the parts over the room at this layout.
       lastApplied = applied;
       markOver();

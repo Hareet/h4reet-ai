@@ -148,6 +148,11 @@ body.in-room .disclosure p {
      beneath. Data for the Author's look (FR-008), within that bound. */
   --over-glass-alpha: 0.3;
   --over-plate-alpha: 0.5;
+  /* Spec 030 (FR-002, FR-004, FR-006; plan.md §R-A3): the slice between the right column's halves in the column layout
+     and the dock, which the room sets (compose/hud.ts's sliceRem), and each half's edge: an opaque grey whose
+     luminance lies between 3:1 under white and 3:1 over black, so the edge reaches 3:1 over any room pixel beside it. */
+  --hud-slice: 0px;
+  --half-border: #8a8f98;
 }
 
 /* The glass is opaque where the visitor asks for less transparency or more contrast, and where the browser has no
@@ -517,7 +522,7 @@ html[data-hud="column"] .hud-panels {
   position: absolute;
   right: 0;
   top: var(--strip-h);
-  bottom: calc(var(--bar-h) + var(--keyboard));
+  bottom: calc(var(--bar-h) + var(--hud-slice) + var(--keyboard));
   width: var(--column-w);
   z-index: 3;
   box-sizing: border-box;
@@ -533,7 +538,7 @@ html[data-hud="dock"] .hud-panels {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(var(--bar-h) + var(--keyboard));
+  bottom: calc(var(--bar-h) + var(--hud-slice) + var(--keyboard));
   height: var(--dock-h);
   z-index: 3;
   box-sizing: border-box;
@@ -934,12 +939,13 @@ html[data-hud="dock"] .room-list li {
 /* The column's larger conversation view (FR-028): the sheet beside the column, over the scene, up to half the window's
    width, its foot clear of the walking control; never a re-fit. Since spec 014 its containing block, the panels, is the
    compact column at its band's foot, so its top reaches back up the band to the notes' foot, where spec 005 put it
-   (T053's second review; FR-019 counts what the visitor opens in no HUD box). */
+   (T053's second review; FR-019 counts what the visitor opens in no HUD box). Since spec 030 the column stands
+   --hud-slice above the bar, so both ends count it back: the sheet's place on the window is unchanged. */
 html[data-hud="column"] .talk[data-larger="on"] .talk-sheet {
   position: absolute;
-  top: calc(var(--notes-h) + var(--column-h) - var(--clear-h));
+  top: calc(var(--notes-h) + var(--column-h) + var(--hud-slice) - var(--clear-h));
   right: 100%;
-  bottom: 3.75rem;
+  bottom: calc(3.75rem - var(--hud-slice));
   width: 50vw;
   max-width: calc(100vw - var(--column-w));
   box-sizing: border-box;
@@ -1349,4 +1355,60 @@ html[data-hud="dock"] .hud-panels[data-over="room"] button:focus-visible {
 html[data-hud="column"] .hud-panels[data-over="room"] .talk-link:focus-visible,
 html[data-hud="dock"] .hud-panels[data-over="room"] .talk-link:focus-visible {
   outline-offset: 2px;
+}
+
+/* ---- Spec 030, group A: the right column's two halves (FR-002 to FR-007; Q2 to Q4; plan.md §R-A3) ----
+   layout.ts marks each half's element with data-half (compose/halves.ts): the top half is the element that already
+   has a box and glass (the column layout's column, the dock; the split layout's list, hud/split.css), the bottom half
+   the .hud-half panel, drawn behind the bar's cluster (and in the split layout the walking control and "Eat"), at
+   --half-bottom-*. Both are marked data-over="room" in every layout and view (Q2), so the block above draws their
+   glass at --over-glass-alpha and their words on plates; the slice between them, --hud-slice, is drawn as nothing.
+   Each half has its own corners and an edge of --half-border; the bar's own glass is none where a half holds it
+   (hud/split.css's last rule). Under the visitor's asks both alphas are 1 (above); in forced colours, Canvas. */
+html[data-halves="on"][data-hud="column"] .hud-half[data-over="room"],
+html[data-halves="on"][data-hud="dock"] .hud-half[data-over="room"] {
+  position: absolute;
+  left: var(--half-bottom-x);
+  top: var(--half-bottom-y);
+  width: var(--half-bottom-w);
+  height: var(--half-bottom-h);
+  z-index: 1;
+  box-sizing: border-box;
+  pointer-events: none;
+  background: rgb(var(--glass) / var(--over-glass-alpha));
+  border: 1px solid var(--half-border);
+  border-radius: 0.75rem;
+}
+
+/* Outside the split layout the bottom half is the bar's box, so it follows the bar's foot onto the keyboard's inset. */
+html[data-halves="on"][data-split="off"] .hud-half[data-over="room"] {
+  top: auto;
+  bottom: var(--keyboard);
+}
+
+/* The top half's edge, inside its padding, so its content box keeps the table's size. */
+html[data-hud="column"] .hud-panels[data-half="top"] {
+  padding: calc(0.25rem - 1px) calc(0.25rem - 1px + var(--safe-right)) calc(0.25rem - 1px) calc(0.25rem - 1px);
+  border: 1px solid var(--half-border);
+  border-radius: 0.75rem;
+}
+
+html[data-hud="dock"] .hud-panels[data-half="top"] {
+  padding: calc(0.25rem - 1px) calc(0.25rem - 1px + var(--safe-right)) calc(0.25rem - 1px)
+    calc(0.25rem - 1px + var(--safe-left));
+  border: 1px solid var(--half-border);
+  border-radius: 0.75rem;
+}
+
+@media (forced-colors: active) {
+  html[data-halves="on"][data-hud="column"] .hud-half[data-over="room"],
+  html[data-halves="on"][data-hud="dock"] .hud-half[data-over="room"] {
+    background: Canvas;
+    border-color: CanvasText;
+  }
+
+  html[data-hud="column"] .hud-panels[data-half="top"],
+  html[data-hud="dock"] .hud-panels[data-half="top"] {
+    border-color: CanvasText;
+  }
 }
