@@ -10,13 +10,15 @@
 FROM public.ecr.aws/docker/library/ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55
 # OpenSSH's server and client, and nothing they only recommend. The package's own host keys go: the image holds none,
 # and the tunnel end's comes from Parameter Store at boot. The one user, `tunnel`, with no password and no login, and
-# not locked, since sshd refuses a locked account's key; its uid is the one write_env.py gives the key files.
+# not locked, since sshd refuses a locked account's key; its uid is the one write_env.py gives the key files. util-linux's
+# setpriv, in the base, is how the laptop's end drops from root to it after copying the Author's key (fixes/f4.md).
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends openssh-server openssh-client \
  && rm -rf /var/lib/apt/lists/* \
  && rm -f /etc/ssh/ssh_host_* \
  && useradd --uid 10001 --user-group --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin tunnel \
  && usermod -p '*' tunnel \
+ && test -x /usr/bin/setpriv \
  && install -d -m 0755 /etc/ssh/h4
 # /etc/ssh/h4 made first, 0755: a COPY --chmod into a missing directory makes it 0644 (T166's dry run).
 COPY --chmod=0644 sshd_config ssh_config ssh_config_admin /etc/ssh/h4/

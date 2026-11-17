@@ -46,7 +46,7 @@ There is no `h4admin` and no Secrets Manager secret. Migration 0007 creates the 
 | The relay | `postgres://relay_ro@shared-state:5432/h4reet?sslmode=verify-full` (and `relay_rw`), over the compose network | the same CA and name (group 8, T106) |
 | Grafana on each host | as its gateway, as `grafana_ro` | the same |
 
-**The certificates.** `make shared-state-tls` (the Author's terminal) makes a CA whose key stays in `~/.config/h4reet-ai/shared-state/`, under spec 000's deny, and a server key and certificate for the one name `shared-state`. It writes the key to the SecureString `/h4reet/tunnel-end/SHARED_STATE_TLS_KEY`, the server's certificate to `/h4reet/tunnel-end/SHARED_STATE_TLS_CERT`, and the CA certificate to `/h4reet/hosts/SHARED_STATE_TLS_CA` for EC2 and the relay. It then puts the CA certificate into the laptop's prod env file as `GATEWAY_DB_TLS_CA`. The env file holds the certificate itself, base64 of its PEM on one line, since a container sees only the files its five bind roots hold. The tunnel end's host script writes the key to `/run/h4reet/shared-state/server.key` on tmpfs at each start, mode 0400, owned by the container's user.
+**The certificates.** `make shared-state-tls` (the Author's terminal) makes a CA whose key stays in `~/.config/h4reet-ai/shared-state/`, under spec 000's deny, and a server key and certificate for the one name `shared-state`. It writes the key to the SecureString `/h4reet/tunnel-end/SHARED_STATE_TLS_KEY`, the server's certificate to `/h4reet/tunnel-end/SHARED_STATE_TLS_CERT`, and the CA certificate to `/h4reet/hosts/SHARED_STATE_TLS_CA` for EC2 and the relay, as base64 of its PEM on one line, the form both hosts' env files carry and `write_env.py`'s grammar takes (amended 2026-11-17, F3; a rotation writes the new CA in the same form). It then puts the CA certificate into the laptop's prod env file as `GATEWAY_DB_TLS_CA`. The env file holds the certificate itself, base64 of its PEM on one line, since a container sees only the files its five bind roots hold. The tunnel end's host script writes the key to `/run/h4reet/shared-state/server.key` on tmpfs at each start, mode 0400, owned by the container's user.
 
 Preflight refuses a prod `GATEWAY_DB_URL` without `sslmode=verify-full`, without `GATEWAY_DB_TLS_SERVERNAME` and `GATEWAY_DB_TLS_CA`, with a password in it, or naming the local `gateway-state`, on `H4_HOST=laptop` or `ec2` (exit 78 from the gateway too). The gateway checks the server's certificate chain against that CA and its name against the server name, whatever host it dials.
 
@@ -77,6 +77,13 @@ Both production gateways run with `H4_STACK=prod`, so both use `stack_state`'s o
 - **Otherwise,** through an admin-only stack on the laptop: `tunnel` with only `-L 5432`, and `gateway` with `H4_HOST=laptop`, its admin listener on the same `127.0.0.1:18003`, and no relay block. It can't take visitors, since the relay never sees it as healthy, and it stops when the command ends.
 
 `operator.py` checks which applies before it starts anything, and refuses to start the admin-only stack while prod's gateway holds the port. Each action writes spec 000's audit row, with `host` set.
+
+**After the deploy of 2026-11-17 (night 5's F5, [fixes/f5.md](../fixes/f5.md)):**
+- The admin-only stack's gateway is prod's own image, `h4reet-gateway:<H4_REF>`, where `H4_REF` comes from prod's run file (`~/.local/state/h4reet/prod/run.env`), as prod's compose names it. The stack refuses to start, before anything runs, when that file is missing or doesn't name one full commit.
+- Before the CLI's first call, the stack waits for two things, each within a bound named in `operator.py`:
+  - the tunnel's `/run/tunnel/connected` mark, up to 60 s;
+  - then the gateway's `/health`, asked inside its container, to read the store as `ok` or `uninitialized`, up to 20 s.
+- If either bound runs out, the stack is stopped and the CLI exits 4, naming which wait failed.
 
 ## 8. Restore
 

@@ -698,9 +698,13 @@ def test_read_only_roots_where_the_image_allows() -> None:
     for name in read_only:
         assert SERVICES[name]["read_only"] is True
         assert SERVICES[name]["tmpfs"] == ["/tmp"]
-    # Spec 001's tunnel, both ends, with their state on tmpfs owned by the image's user.
+    # Spec 001's tunnel, both ends, with their state on tmpfs owned by the image's user. The laptop's end also copies
+    # the Author's key and pinned host key into a tmpfs of the user's own, where ssh reads them (fixes/f4.md).
     tunnel = {
-        "tunnel": ["/run/tunnel:uid=10001,gid=10001,mode=0700"],
+        "tunnel": [
+            "/run/tunnel:uid=10001,gid=10001,mode=0700",
+            "/run/tunnel-client:uid=10001,gid=10001,mode=0700",
+        ],
         "tunnel-end": ["/run:uid=10001,gid=10001,mode=0700"],
         "tunnel-end-collector": ["/tmp"],
         "ec2-relay-block": ["/tmp"],
@@ -730,10 +734,14 @@ def test_only_the_entrypoints_that_take_ownership_add_capabilities_back() -> Non
             "FOWNER",
             "DAC_OVERRIDE",
         ], name
+    # Spec 001's laptop tunnel (fixes/f4.md): its entrypoint reads the Author's 0700 folder as root and drops to the
+    # image's user, so it adds back only the read and the drop: no CHOWN or FOWNER, which could change the folder.
+    assert SERVICES["tunnel"]["cap_add"] == ["DAC_OVERRIDE", "SETUID", "SETGID"]
     assert [n for n, s in SERVICES.items() if "cap_add" in s] == [
         "gateway-state",
         "langfuse-db",
         "valkey",
+        "tunnel",
         "shared-state",
     ]
     # ClickHouse and SeaweedFS run as their images' own users instead, with nothing added back (plan §1 and §2).
@@ -743,8 +751,10 @@ def test_only_the_entrypoints_that_take_ownership_add_capabilities_back() -> Non
     # prod start, 2026-10-09).
     assert SERVICES["clickhouse"]["user"] == "101:101"
     assert SERVICES["seaweedfs"]["user"] == "1000:1000"
-    # Spec 001's tunnel runs as its image's one user, both ends (deploy/tunnel/Dockerfile).
-    assert SERVICES["tunnel"]["user"] == SERVICES["tunnel-end"]["user"] == "10001:10001"
+    # Spec 001's tunnel runs as its image's one user, both ends (deploy/tunnel/Dockerfile). The laptop's end starts as
+    # root for the copy of the Author's key alone, then its entrypoint drops to that user (fixes/f4.md).
+    assert SERVICES["tunnel-end"]["user"] == "10001:10001"
+    assert SERVICES["tunnel"]["user"] == "0:0"
     assert [n for n, s in SERVICES.items() if "user" in s] == [
         "clickhouse",
         "seaweedfs",
