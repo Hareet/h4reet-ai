@@ -1235,8 +1235,11 @@ Verdict: **PASS**, conditional on the 1.1.0 patch, with the deviations below.
 - [`fixes/f5.md`](fixes/f5.md): F5, the fix
 - [`fixes/f6.md`](fixes/f6.md): F6, the fix
 - [`fixes/f7.md`](fixes/f7.md): F7, the fix
+- [`fixes/f8-q30.md`](fixes/f8-q30.md): F8, the fix for Q30
+- [`fixes/f8.md`](fixes/f8.md): F8, the fix
 - [`fixes/merge-f-1.md`](fixes/merge-f-1.md): the merge of F2, F3, F4 and F5
 - [`fixes/merge-f-2.md`](fixes/merge-f-2.md): the merge of F1 and F6
+- [`fixes/merge-f-4.md`](fixes/merge-f-4.md): the merge of F8
 - [`fixes/verify-f1.md`](fixes/verify-f1.md): F1's verify
 - [`fixes/verify-f2.md`](fixes/verify-f2.md): F2's verify
 - [`fixes/verify-f3.md`](fixes/verify-f3.md): F3's verify
@@ -1244,3 +1247,4 @@ Verdict: **PASS**, conditional on the 1.1.0 patch, with the deviations below.
 - [`fixes/verify-f5.md`](fixes/verify-f5.md): F5's verify
 - [`fixes/verify-f6.md`](fixes/verify-f6.md): F6's verify
 - [`fixes/verify-f7.md`](fixes/verify-f7.md): F7's verify
+- [`fixes/verify-f8.md`](fixes/verify-f8.md): F8's verify
