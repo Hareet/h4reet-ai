@@ -148,9 +148,9 @@ As the Author, I get a set of button images from a studio round tonight, judged 
 - "Eat" not offered: the bottom panel holds the tiles and the walking control only, its height unchanged (the row is the walking control's).
 - The walking control not offered (2D): the bottom panel keeps the row's height, so nothing jumps when it is offered.
 - An image skin with a state's file missing: the whole skin falls back (never a mix of images and CSS).
-- An image that fails to decode in the browser: `border-image` draws nothing, and the CSS skin's background and border, declared beneath it, show.
+- An image that fails to decode in the browser: `border-image` draws nothing, and the fallback's face colour and border, declared beneath it on the control, show, flat and without the chamfer (the chamfer's `::before` is off under the image skin, as it would paint over the image; plan §R-D4).
 - The button's label longer than two lines: it wraps further; the button grows; no ellipsis. The split layout's bar tiles are the exception FR-013 names: their row holds two lines (spec 028's A1-3), so a longer label there is a later spec's layout change, and until then it may overflow its tile, never be cut or ellipsed (rework, I-3 in notes.md).
-- A disabled button over the room: its label still reaches 4.5:1 (WCAG exempts it; this spec doesn't), its state shown by a dashed border and no glow.
+- A disabled button over the room: its label still reaches 4.5:1 (WCAG exempts it; this spec doesn't), its state shown by a dashed border (the control's `::after`, in every skin; plan §R-B3) and no glow.
 - Forced colours: `border-image: none`, system colours, the selected state by a thicker border.
 - No script: `index.html`'s static fallback, its words and links unchanged, dark with the page: its `<html>` carries the dark class in its own markup, so the first paint is dark before any script (rework, N-4); its text and links at 4.5:1 on the ground.
 
