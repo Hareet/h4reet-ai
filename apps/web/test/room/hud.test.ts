@@ -78,15 +78,19 @@ describe("the boxes and the clear area (compose/hud.ts's hudBoxes and clearArea)
     expect(b.strip).toEqual({ x: 0, y: 0, w: 384, h: STRIP.two });
     expect(b.bar).toEqual({ x: 0, y: 740 - BAR.two, w: 384, h: BAR.two });
     const dock = 4 + 2 * LIST_ROW + TALK + 4;
-    expect(b.dock).toEqual({ x: 0, y: 740 - BAR.two - dock, w: 384, h: dock });
+    // Spec 030 (FR-004; T-A01 (d)): the dock, the top half, stands the slice (0.75rem) above the bar, the bottom half,
+    // taken from the clear area (was y 740 − bar − dock, and a clear area 422 tall).
+    const slice = 0.75 * 16;
+    expect(b.dock).toEqual({ x: 0, y: 740 - BAR.two - slice - dock, w: 384, h: dock });
     expect(b.column).toBeNull();
-    expect(b.clear).toEqual({ x: 0, y: STRIP.two, w: 384, h: 740 - STRIP.two - dock - BAR.two });
-    expect(b.clear.h).toBe(422);
+    expect(b.clear).toEqual({ x: 0, y: STRIP.two, w: 384, h: 740 - STRIP.two - dock - slice - BAR.two });
+    expect(b.clear.h).toBe(410);
   });
 
-  it("gives 320 × 568 a clear area of 320 × 250, and the list's strip collapsed one of 320 × 298", () => {
-    expect(clearArea({ w: 320, h: 568 })).toEqual({ x: 0, y: STRIP.two, w: 320, h: 250 });
-    expect(clearArea({ w: 320, h: 568 }, COLLAPSED)).toEqual({ x: 0, y: STRIP.two, w: 320, h: 250 + LIST_ROW });
+  // Spec 030 (FR-004; T-A01 (d)): 320 × 250 and 320 × 298 before the dock's slice, 12 px each.
+  it("gives 320 × 568 a clear area of 320 × 238, and the list's strip collapsed one of 320 × 286", () => {
+    expect(clearArea({ w: 320, h: 568 })).toEqual({ x: 0, y: STRIP.two, w: 320, h: 238 });
+    expect(clearArea({ w: 320, h: 568 }, COLLAPSED)).toEqual({ x: 0, y: STRIP.two, w: 320, h: 238 + LIST_ROW });
   });
 
   it("keeps the column layout's clear area when the list or the log collapses; grows the dock's when the list does", () => {
@@ -286,8 +290,8 @@ describe("the compact boxes (spec 014, T005; compose/hud.ts's compactBoxes)", ()
       expect(c.bar.w).toBe(Math.min(t.maxRem * 16, screen.w));
       expect(c.bar.x + c.bar.w).toBe(screen.w);
       expect([c.bar.y, c.bar.h]).toEqual([bands.bar.y, bands.bar.h]);
-      // The column stands on the bar: the two touch and don't overlap.
-      expect((c.column?.y ?? 0) + (c.column?.h ?? 0)).toBeCloseTo(c.bar.y, 9);
+      // The column stands the slice above the bar, the two halves (spec 030, FR-004; T-A01 (d): they touched).
+      expect((c.column?.y ?? 0) + (c.column?.h ?? 0)).toBeCloseTo(c.bar.y - HUD_PLACEMENTS.sliceRem * 16, 9);
     }
     // The safe area's right inset keeps the cluster off the notch.
     const safe: HudMetrics = { rem: 16, safe: { top: 0, right: 30, bottom: 0, left: 0 } };
@@ -311,7 +315,8 @@ describe("the compact boxes (spec 014, T005; compose/hud.ts's compactBoxes)", ()
       const band = bands.column as Box;
       const column = c.column as Box;
       expect([column.x, column.w]).toEqual([band.x, band.w]);
-      expect(column.y + column.h).toBeCloseTo(band.y + band.h, 9);
+      // Spec 030 (FR-004; T-A01 (d)): at its band's foot less the slice above the bar (was the band's foot).
+      expect(column.y + column.h).toBeCloseTo(band.y + band.h - HUD_PLACEMENTS.sliceRem * 16, 9);
       expect(column.h).toBeLessThan(band.h);
       // The log's rest height is inside it: the column shrinks by 3rem when the log rests at 5rem, not 8rem.
       const short = compactBoxes({ w: screen.w, h: 899 }).column as Box;

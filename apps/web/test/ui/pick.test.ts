@@ -192,13 +192,14 @@ function oneStagePerScale(): Stage[] {
 
 describe("the stages under test (R-19; compose/stages.ts)", () => {
   // Spec 005 moves the stages to the clear areas: 304 × 196 and 304 × 208 before it.
-  it("start at the smallest: 320 × 250 for 320 × 568 in portrait, 328 × 240.5 for 568 × 320 in landscape", () => {
+  // Spec 030 (FR-004; T-A01 (d)): the dock's slice from the portrait stage, 320 × 238 (was 320 × 250).
+  it("start at the smallest: 320 × 238 for 320 × 568 in portrait, 328 × 240.5 for 568 × 320 in landscape", () => {
     expect(SMALLEST.map((s) => s.screen)).toEqual([
       { w: 320, h: 568 },
       { w: 568, h: 320 },
     ]);
     expect(SMALLEST.map((s) => s.stage)).toEqual([
-      { w: 320, h: 250 },
+      { w: 320, h: 238 },
       { w: 328, h: 240.5 },
     ]);
     const all = new Set(supportedStages().map(key));

@@ -145,11 +145,12 @@ describe("the report's stages and reserved boxes (FR-055, FR-057; plan.md §10.2
     const md = compose(goodTree(), noPolicy(), { mode: "strict", drafts: true }).report.markdown;
     const screens = sweepScreens();
     const stages = supportedStages();
+    // Spec 030 (FR-004; T-A01 (d)): the reference phone's stage 384 × 410 since the dock's slice (was 384 × 422).
     expect(md).toContain(
       `Stages (spec 005, FR-052 to FR-054): the clear areas of the HUD's column and dock layouts, a dock screen's with ` +
         `its list open and collapsed, over ${screens.length.toLocaleString("en-US")} screens from 320 × 320 to ` +
         `5120 × 3840, ${stages.length.toLocaleString("en-US")} stages; the reference desktop's 1472 × 1120.5 ` +
-        `(1920 × 1200 at a pixel ratio of 1) and the reference phone's 384 × 422 (384 × 740 at 2.8125).`,
+        `(1920 × 1200 at a pixel ratio of 1) and the reference phone's 384 × 410 (384 × 740 at 2.8125).`,
     );
     expect(md).toContain(
       "Reserved boxes (spec 005, FR-055): the walking control's (spec 008, FR-021) where it stands in the clear area " +

@@ -223,19 +223,22 @@ describe("the larger conversation view, only when asked (FR-028)", () => {
   });
 });
 
-describe("the blur's levels (FR-025; PD-17)", () => {
-  it("is on at quality levels 0 and 1, and off from 2", async () => {
+// Spec 030 (FR-001, Q1; T-A01 (d)): this case held spec 005's blur on at quality levels 0 and 1 and off from 2
+// (data-blur "on", "on", "off"); the blur is gone at every level, so the root carries no data-blur at any.
+describe("the blur's levels (FR-025; PD-17), none since spec 030", () => {
+  it("is off at every quality level: no data-blur at 0, 1, or 2", async () => {
     const { v } = await room(WIDE);
-    expect(root(v).getAttribute("data-blur")).toBe("on");
-    const seen = new Map<number, string>();
+    expect(root(v).getAttribute("data-blur")).toBeNull();
+    const seen = new Map<number, string | null>();
     // Slow frames step the quality controller down a level each window.
     for (let k = 0; k < 600 && v.room.visit.mode !== "2d"; k += 1) {
       v.clock.advance(50, 50);
-      seen.set(v.room.visit.quality ?? 0, root(v).getAttribute("data-blur") ?? "");
+      seen.set(v.room.visit.quality ?? 0, root(v).getAttribute("data-blur"));
     }
-    expect(seen.get(0)).toBe("on");
-    expect(seen.get(1)).toBe("on");
-    expect(seen.get(2)).toBe("off");
+    expect(seen.get(0)).toBeNull();
+    expect(seen.get(1)).toBeNull();
+    expect(seen.get(2)).toBeNull();
+    expect([...seen.keys()]).toEqual(expect.arrayContaining([0, 1, 2]));
   });
 });
 

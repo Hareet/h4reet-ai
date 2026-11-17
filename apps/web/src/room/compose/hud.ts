@@ -78,6 +78,10 @@ export interface Band {
 export const HUD_PLACEMENTS = {
   /** The column layout from this width, on a window wider than tall (spec 004's landscape bound). */
   columnMinWidthRem: 32,
+  /** Spec 030 (FR-002, FR-004; plan.md §R-A2): the slice between the right column's two halves in the column layout
+   *  (the column's foot and the bar's cluster) and the dock (the dock and the bar), unscaled, drawn as nothing. The
+   *  split layout's is `wall.sliceRem`, scaled. */
+  sliceRem: 0.75,
   /** The least clear area, in CSS pixels, and the narrowest window, for the HUD; below either, the stacked layout. */
   minimum: { w: 304, h: 196, windowRem: 20 },
   /** A control's and a border's sizes, shared: the 44 × 44 target (FR-048), and a 1-pixel border. */
@@ -162,6 +166,9 @@ export const HUD_PLACEMENTS = {
      *  column "Pause the room" wraps): room.css's .hud-tile, 1.25rem icon + 0.125rem gap + 2 × 1.2 × 0.8125rem words
      *  + 2 × 0.125rem padding + its 2-pixel border, 3.575rem and 2px, under 3.75rem at every scale. */
     tiles: { rows: 2, perRow: 3, gapRem: 0.25, padRem: 0.25, tileRem: 3.75 },
+    /** Spec 030 (FR-002, FR-003; plan.md §R-A2): the slice between the column's two halves, the list above and the
+     *  tiles' block below, scaled by the right side's scale; drawn as nothing, the room seen through it. */
+    sliceRem: 0.75,
   },
   /** The dock, across the foot above the bar: its padding around the list's strip and the text box's row. */
   dock: { padRem: 0.25 },
@@ -292,12 +299,14 @@ export function hudBoxes(
   const list = listN * (t.list.rowRem + t.list.gapRem) * rem;
   const talk = (t.talk.labelRem * t.talk.lineHeight + t.talk.gapRem + t.talk.rowRem) * rem;
   const dockH = 2 * t.dock.padRem * rem + list + talk;
-  const dock: Box = { x: 0, y: bar.y - dockH, w: screen.w, h: dockH };
+  // Spec 030 (FR-004): the dock, the top half, the slice above the bar, the bottom half, taken from the clear area.
+  const slice = t.sliceRem * rem;
+  const dock: Box = { x: 0, y: bar.y - slice - dockH, w: screen.w, h: dockH };
   const clear: Box = {
     x: safe.left,
     y: strip.h,
     w: screen.w - safe.left - safe.right,
-    h: screen.h - strip.h - dockH - bar.h,
+    h: screen.h - strip.h - dockH - slice - bar.h,
   };
   return { layout, strip, bar, column: null, dock, clear };
 }
@@ -509,8 +518,11 @@ export function compactBoxes(
   const { strip, bar } = columnClusters(screen, bands, metrics);
   const band = bands.column;
   const contentW = band.w - metrics.safe.right;
-  const h = Math.min(band.h, columnContentHeight(screen, metrics, contentW));
-  const column: Box = { x: band.x, y: band.y + band.h - h, w: band.w, h };
+  // Spec 030 (FR-004; plan.md §R-A2): the column, the top half, stands the slice above the bar's cluster, the bottom
+  // half, inside its band (spec 005's band and the clear area beside it unchanged, PD-3).
+  const slice = t.sliceRem * rem;
+  const h = Math.min(band.h - slice, columnContentHeight(screen, metrics, contentW));
+  const column: Box = { x: band.x, y: band.y + band.h - slice - h, w: band.w, h };
   // Spec 028 (FR-003, FR-007; plan.md §R-A2): where the window takes the split layout, the HUD is the strip, the panel
   // beside the wall's left edge (always open, Q2), and the column beside its right edge, the bar's tiles, the walking
   // control, and the Eat tile in its tiles' block.
@@ -534,7 +546,7 @@ export function compactBoxes(
   // Spec 024: with the option, the head takes the walking control only where the Eat box fits beside it there, inside
   // the band above the column's content; else both sit in the stage's corner.
   const gap = t.column.walkGapRem * rem;
-  if (h + gap + wh <= band.h) {
+  if (h + slice + gap + wh <= band.h) {
     const head: Box = { x: column.x + column.w - metrics.safe.right - gap - ww, y: column.y - gap - wh, w: ww, h: wh };
     const headEat = option.eat ? besideWalk(head, { x: band.x, y: band.y, w: band.w, h: band.h }, rem) : null;
     if (!option.eat || headEat)
@@ -628,6 +640,8 @@ export interface WallBoxes {
   readonly frame: Box;
   readonly column: Box;
   readonly list: Box;
+  /** Spec 030 (FR-002, FR-003): the slice between the list (the top half) and the tiles' block (the bottom half). */
+  readonly slice: Box;
   readonly tiles: Box;
   /** The toolbar's bar in the tiles' block: its tile rows only, at the block's top, so it never lies over `walk` or
    *  `eat` below it (rv-028a-1's A1-1: the bar's glass takes the pointer). */
@@ -721,9 +735,14 @@ export function wallBoxes(
   const bar: Box = { x: tiles.x, y: tiles.y, w: tiles.w, h: barH };
   const walk: Box = { x: tiles.x + pad, y: bar.y + barH + tgap, w: walkW, h: walkH };
   const eat: Box | null = option.eat ? { x: walk.x + walk.w + tgap, y: walk.y, w: walkW, h: walkH } : null;
-  const list: Box = { x: column.x, y: column.y, w: column.w, h: column.h - tilesH - tgap };
+  // Spec 030 (FR-002, FR-003; plan.md §R-A2): the list, the top half, from the column's top to the slice; the slice,
+  // `wall.sliceRem` at the right side's scale, between it and the tiles' block, the bottom half; never below 0, where
+  // the column is too short for the block and the slice (a window under about 340 px tall).
+  const sliceH = t.sliceRem * scaleRight * rem;
+  const list: Box = { x: column.x, y: column.y, w: column.w, h: Math.max(0, column.h - tilesH - sliceH) };
+  const slice: Box = { x: column.x, y: list.y + list.h, w: column.w, h: sliceH };
   const title: Box = { x: panel.x, y: panel.y, w: panel.w, h: T.split.panel.titleRem * scaleLeft * rem };
-  return { area, wall, panel, title, frame: panel, column, list, tiles, bar, walk, eat, scaleLeft, scaleRight };
+  return { area, wall, panel, title, frame: panel, column, list, slice, tiles, bar, walk, eat, scaleLeft, scaleRight };
 }
 
 /** Spec 018's name for the split layout's boxes, kept for its callers: since spec 028, the boxes beside the walls. */

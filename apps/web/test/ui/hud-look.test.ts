@@ -125,7 +125,11 @@ describe("every HUD control a tile (spec 014, T024; FR-022)", () => {
         if (split && (el.closest(".room-list li") || el.classList.contains("talk-log-toggle"))) continue;
         const name = `${el.tagName.toLowerCase()}.${el.className}: ${el.textContent?.trim().slice(0, 30) ?? ""}`;
         const face = winning(el, "background");
-        expect(TILE_FACES.has(face ?? ""), `${name}: ${face ?? "none"}`).toBe(true);
+        // Spec 030 (FR-005, Q2; T-A01 (d)): the split layout's "Back" stands in the right column's top half, which takes
+        // spec 029's over-room look at rest too: its face is the plate, as 029 drew it over the room (was the tile's).
+        if (split && el.classList.contains("split-back"))
+          expect(face, name).toBe("rgb(var(--glass) / var(--over-plate-alpha))");
+        else expect(TILE_FACES.has(face ?? ""), `${name}: ${face ?? "none"}`).toBe(true);
         expect(winning(el, "color"), name).toBe("var(--hud-text)");
       }
       // The list's buttons and the conversation's take the tile's border and radius too.

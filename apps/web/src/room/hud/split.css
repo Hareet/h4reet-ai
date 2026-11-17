@@ -76,12 +76,6 @@ html[data-split="on"][data-hud="column"] .talk {
   overscroll-behavior: contain;
 }
 
-html[data-split="on"][data-hud="column"][data-blur="on"] .room-list,
-html[data-split="on"][data-hud="column"][data-blur="on"] .hud-bar {
-  -webkit-backdrop-filter: var(--hud-blur);
-  backdrop-filter: var(--hud-blur);
-}
-
 /* ---- The list: right-aligned on one edge (FR-007, FR-008) ---- */
 
 html[data-split="on"][data-hud="column"] .room-list {
@@ -580,4 +574,27 @@ html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint {
 html[data-split="on"][data-hud="column"] .talk[data-over="room"] .talk-log-toggle:focus-visible,
 html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint:focus-visible {
   outline-offset: -4px;
+}
+
+/* ---- Spec 030, group A: the right column's two halves (FR-002 to FR-007; plan.md §R-A3) ----
+   Appended after every rule above. The list is the top half (data-half="top"), marked over the room in every view
+   (Q2), so the block above gives it --over-glass-alpha; its edge is room.css's --half-border. The bar's own glass is
+   none wherever a half holds it, in every layout: room.css's .hud-half draws the bottom half's glass behind the bar,
+   the walking control, and "Eat". No blur (FR-001). The list's edge lies inside its padding, as room.css's top half
+   in the column layout and the dock has it, so its content box keeps the size test/ui/hud-model.ts's model counts
+   (0.5rem above and below, 0.75rem at the sides; rv-030a's R-2). */
+html[data-split="on"][data-hud="column"] .room-list[data-half="top"] {
+  padding: calc(0.5rem - 1px) calc(0.75rem - 1px);
+  border: 1px solid var(--half-border);
+}
+
+html[data-halves="on"][data-hud="column"] .hud-bar,
+html[data-halves="on"][data-hud="dock"] .hud-bar {
+  background: none;
+}
+
+@media (forced-colors: active) {
+  html[data-split="on"][data-hud="column"] .room-list[data-half="top"] {
+    border-color: CanvasText;
+  }
 }

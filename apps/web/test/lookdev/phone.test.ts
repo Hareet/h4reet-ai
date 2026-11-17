@@ -287,9 +287,10 @@ describe("the probe's panel, the copy's first (§7.2)", () => {
     expect(rest).toEqual([]);
     if (!panel || !page) throw new Error("no panel, or no page");
     expect(panel.querySelector("h1, h2")).not.toBeNull();
-    // Since spec 005 the stage is the clear area the dock layout leaves 384 × 740 (368 × 368 before it).
+    // Since spec 005 the stage is the clear area the dock layout leaves 384 × 740 (368 × 368 before it); since spec
+    // 030 (FR-004; Q82) the dock's slice takes 12 px from it (384 × 422 before).
     const stage = stageFor({ w: 384, h: 740 });
-    expect(stage).toEqual({ w: 384, h: 422 });
+    expect(stage).toEqual({ w: 384, h: 410 });
     expect(rows(panel)).toEqual({
       "WebGL 2": "yes",
       "Largest texture": "4,096 px",
@@ -297,7 +298,7 @@ describe("the probe's panel, the copy's first (§7.2)", () => {
       "createImageBitmap from a Blob": "yes",
       "Secure context": "no, recorded only",
       Viewport: "384 × 740 CSS px, at a pixel ratio of 2.8125",
-      "The room's stage here": "384 × 422 CSS px",
+      "The room's stage here": "384 × 410 CSS px",
       "ADR 0010's floor for studio models": FLOOR_ABOVE,
     });
     const verdict = panel.querySelector("[role=status]");
