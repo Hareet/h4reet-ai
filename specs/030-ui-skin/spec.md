@@ -118,7 +118,7 @@ As a visitor, I see buttons in a dark-metal style with chamfered corners, yellow
 **Acceptance Scenarios**:
 
 1. **Given** `active: metal`, **When** the room shows, **Then** each control of Q5 carries the button component, "Send" primary and the rest secondary, with the `metal` tokens in effect.
-2. **Given** each variant and state (normal, hover, focus-visible, pressed, disabled, selected), **When** measured, **Then** the label reaches 4.5:1 against the face, composited over white and black beneath; the boundary and the focus ring 3:1; each state differs from normal by more than colour (a border, the glow, an inset, or the label's decoration).
+2. **Given** each variant and state (normal, hover, focus-visible, pressed, disabled, selected), **When** measured, **Then** the label reaches 4.5:1 against the face, composited over white and black beneath; the boundary 3:1, two-tone as FR-012 reads it, and the focus ring 3:1 against the face (rework 2, Q71, Q72); each state differs from normal by more than colour (a border, the glow, an inset, or the label's decoration).
 3. **Given** `active: plain` and no other edit, **When** the site is built, **Then** every such button draws the `plain` tokens, and no source file differs.
 4. **Given** a label twice its English length (a translation), **When** it shows, **Then** it wraps within the button, which grows, and nothing is cut off; every button's hit area is at least 44 × 44 CSS px.
 5. **Given** reduced motion, **When** a button is hovered, pressed, or selected, **Then** nothing moves or fades; **Given** forced colours, **Then** the button draws in system colours with a visible border.

@@ -93,3 +93,42 @@ FR-027 (new) → T-DS01 (c), T-DS02. Every other row of the coverage table stand
 ### Still not checked
 
 As above; and the S-6 look (the image's 12 px band over a 60 px tile's icon and words) is his, at SC-008.
+
+## Re-run after rework 2 (rework2-spec-030, from `2dd4213f`)
+
+The same pass over spec.md, plan.md, tasks.md, and studio-round-1.md after `rv-rework-spec-030`'s R-1 to R-9 and the page's Q71 to Q75 ([notes.md](notes.md), "Rework 2"). studio-round-1.md is unchanged (`git diff 2dd4213f -- specs/030-ui-skin/studio-round-1.md` is empty), its brief's block byte for byte.
+
+### The review's findings and the page's questions, each where it landed
+
+| ID | Fix | Where |
+|---|---|---|
+| R-1 | `web_image.py` exports `ASSET_CONTEXTS`, one tuple of (folder, context) pairs, read by its `main` and by `release.py`'s `web_contexts()` in place of its hard-coded three; `test_release.py` gains the first cases that call `web_contexts` | spec FR-027, SC-007; plan §1, §R-D4, §9 (DS); tasks T-DS01 (c), T-DS02 |
+| R-2 | `hud-over-room.test.ts` and `hud-over-walking.test.ts` A's, rewritten in T-A01 (d) with old and new assertions; every other `hud-*` file placed by name; and `hud-split-dog.test.ts`, found by this pass (below) | spec Assumptions, Amendments; plan §R-A4, §9 (A), the no-row rule; tasks T-A01 (d), T-A05, T-INT02b |
+| R-3 | The image on the `::before`, the control `transparent` with no `border-image`, the face colour clipped to the image's centre by `background-clip: content-box` and `padding` equal to the band | spec FR-024, edge case, Degraded mode; plan §R-B3, §R-D4, §10; tasks T-DS01 (b), T-DS02 |
+| R-4, Q74 | The controls whose content box crosses the band named (T-DS01 (b)); the labels measured over the band's pixels by the round (R-3, else T-DS05) | plan §R-D4, §10; tasks R-3, T-DS01 (b), T-DS05; the checks' table |
+| R-5 | T-B01 (a): every skin's `--btn-secondary-selected-glow` 3:1 on `rgb(16 20 26)` and `--hud-text` 4.5:1 on `--btn-frame` | plan §R-B4; tasks T-B01 (a) |
+| R-6, Q75 | T-B04's font-metric estimate of the tiles' lines; a tile over two lines keeps its words' case | plan §R-B3; tasks T-B04 |
+| R-7 | Amendments rows for 002's and 018's Close; and one for 029's ring (Q72) | spec Amendments |
+| R-8 | T-B01 (d) runs the whole `apps/web` suite | tasks T-B01 (d) |
+| R-9 | Moot: Q72 puts the glow inside the face as an inset shadow on the `::before`; no `filter` on any control | plan §R-B3, §R-B4; tasks T-B01 (c), T-B03 |
+| Q71 | The boundary two-tone, as `impl-030b` built it | spec FR-012, US2, Amendments; plan §R-B4; tasks T-B01 (a) |
+| Q72 | The ring (per-variant `ring`) and the glow inside the face, as built; B owns the ring's `outline` on skinned controls | spec FR-009, FR-012, FR-013; plan §R-B1, §R-B3, §R-B4, §R-D4; tasks T-B01 (c), T-B03 |
+| Q73 | T-INT02 rewrites `hud-look`'s tile and resume cases and the tile colour pairs of `hud-contrast` and `hud-over-contrast` to read the skin with `data-skin` set, before the removal | plan §9 (INT); tasks T-INT02 |
+
+### New findings of this pass
+
+| ID | Category | Severity | Where | Finding | State |
+|---|---|---|---|---|---|
+| R2-1 | Coverage gap | HIGH | plan §R-A2 against `test/ui/hud-split-dog.test.ts:96` | A's slice takes `12 × scale − 4` CSS px more from the split list than the gap did; spec 026's test holds the five entries at no fewer than 1,601 split stages. Measured (a scratch vitest under `/tmp`, outside the tree, over `framedStages` and `wallBoxes` at `2dd4213f`, the list less that amount): 1,601 → about 1,558 of 3,329, 43 lost from 1488 × 800 up; the four named windows still hold (least margin 132 px). Neither the review nor the first rework named the file. | *Fixed*: the file A's, its count rewritten in T-A01 (d) to A's tree's; a departure named in the Assumptions and the Amendments; Q76 on the page. |
+| R2-2 | Inconsistency | MEDIUM | R-3's route as the review wrote it | A face colour on the `::before`'s whole box, clipped only to the octagon, still paints under the image's transparent ring along each straight edge and under the selected glow's fade (the brief: an alpha-0 outermost ring, the glow "inside the image, fading to alpha 0"). | *Fixed*: the face colour is clipped to the image's centre (`background-clip: content-box`, `padding` the band), which the brief makes opaque; the centre's corner (12, 12) lies inside the 8 px chamfer's cut. |
+| R2-3 | Underspecification | LOW | plan §R-D4 | A border image on a box whose `border-style` is `none` isn't drawn by every engine. | *Fixed in the plan*: the `::before` takes `border-style: solid` with `border-width: 0` (the image's width is `border-image-width`'s lengths); his look confirms it in a browser. |
+| R2-4 | Inconsistency | LOW | plan §R-B3 against Q72 | With the ring inside the face, an outline whose corners lie outside the `::before`'s octagon would show square corners on the chamfer. | *Fixed*: the offset at least half the chamfer plus the ring's width plus the border (7 px at `metal`, 8 when selected); T-B01 (c) asserts the ring's corners inside. |
+| R2-5 | Coverage | INFO | the other `hud-*` files | `hud-model.test.ts`'s 320 × 568 clear area (196 px floor) measured at 250 px today, about 238 after the slice; the rest read and placed "run, untouched" with their reasons. | Recorded in plan §R-A4; a RED failure there makes the file A's, named, in T-A01 (d). |
+
+### Coverage and metrics after rework 2
+
+Every requirement keeps its tasks. FR-027 → T-DS01 (c), T-DS02 (now with the release's build). FR-012 → T-B01 (a) (c), T-B03 (two-tone, the ring), T-INT02 (Q73). FR-024 → T-DS01 (b), T-DS02, R-3 or T-DS05 (Q74). 27 functional requirements; 9 success criteria; 23 clarifications (Q1 to Q16, Q51, Q71 to Q76); 33 tasks, none added (their scope grows: T-A01 (d), T-B01, T-B04, R-3, T-DS01, T-DS02, T-DS05, T-INT02). The review's 3 blocking findings fixed, its 6 others taken (R-9 moot by Q72); this pass's 5 findings, 4 fixed in the text, 1 recorded. 0 unmapped requirements; 0 CRITICAL. §9's rows, by the same script as before over the backticked paths: two rows share only the designed sequential shares, `build/ui-skins.ts` and `content/ui-skins.yaml` (B, then DS on B's tip), and A's `hud-contrast`, `hud-look` and `hud-over-contrast` tests, which INT rewrites after A's merge (Q73), never beside A.
+
+### Still not checked
+
+As above; and the R-3 route's look in a browser (the image on the `::before`, `border-style: solid` at width 0, the inside ring's corners), his at SC-008.
