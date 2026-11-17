@@ -687,3 +687,15 @@ Two, in `/night/io/out/questions.md`, each with a recommended answer:
 - His look at the dark pages and the sticky header (SC-008).
 
 **Left by the brief**: R-4 and R-6 (above). **Not run here**: `make test`, `make evals` (rule 4), the image stage (his gate).
+
+## Backlog and review notes
+
+- **`rv2-rework-030c` R-1** (Important, backlog, Q93): Q77's fixed `8rem` scroll padding hides a focused link under the sticky header when a phone's text is at 150 to 200% (`build/credits.ts:27-30`, `build/disclosure.ts:21-24`, `dark-pages.test.ts:563-567`). The real pages at default text sizes don't hit it. Q93's recommended answer: in a later item, make only the disclosure's line sticky ("Back to the room" scrolls away), with a case at 320 px and 200% text.
+- **`rv2-rework-030c` R-2** (nit): `dark.css:35-36`'s "Enter" ring, B's `:root[data-skin] :is(.choice .choice-enter, …):focus-visible`, is (0,5,0), not (0,4,0) as dark.css's comment, this note (T-C02 again, and `rework2-spec-030` against C's rows) and `plan.md`'s rework bullet (`plan.md:132`) say. The conclusion holds: it still outranks dark.css's (0,3,1).
+- **`rv2-rework-030c` R-3** (for the integration): `dark-pages.test.ts:278`'s `rings()` reads only the `outline` shorthand, so after B merges it reads C's losing ring, not B's longhands on "Enter", which is "Enter"'s real ring. B's `button-states` holds B's ring.
+- **`rv2-rework-030c` R-4** (nit, for his look): the header's first paragraph's margin collapses out of it, so the stuck disclosure sits flush on the window's top; `padding-top: 0.5rem` on the header would keep it off the edge.
+- **`rv-030c` R-3** (Important, T-INT's, Q62): `a11y.test.ts:400` and `:262` pass on light readings (`room.css`'s) that the cascade no longer has; no real failure is missed, since `dark-pages.test.ts` holds the cascade's winners. T-INT rewrites them.
+- **`rv-030c` R-4** (nit): `dark-pages.test.ts`'s cascade drops at-rule bodies (`@media`, `prefers-*`), so a dark rule inside a media block is outside its checks. Left as it is (above).
+- **`rv-030c` R-6** (nit): dark.css's comment ships in both built pages' `style.css`. Left as it is (above).
+
+From `rv-030c`'s and `rv2-rework-030c`'s reviews (not blocking), folded in by `verify-030c`.
