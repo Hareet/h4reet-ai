@@ -21,8 +21,13 @@ import { DARK_CSS, pageStyle, renderBody } from "./disclosure";
 
 const AI_DISCLOSURE = "You're talking with an AI representation of the Author, not the Author.";
 
-const STYLE = `body { font-family: system-ui, sans-serif; line-height: 1.5; margin: 0 auto; max-width: 90rem; padding: 1rem; }
-header { border-bottom: 1px solid; margin-bottom: 1rem; }
+// The header holding the AI disclosure stays in view as the page scrolls (spec 030, FR-016; Q77): sticky, opaque by
+// dark.css; the root's scroll padding above its height at a phone's width (8rem against 7.5rem: the disclosure on three
+// lines, "Back to the room" on one, the margins), so an anchor or a focused link stops below it (WCAG 2.4.11).
+const STYLE = `html { scroll-padding-top: 8rem; }
+body { font-family: system-ui, sans-serif; line-height: 1.5; margin: 0 auto; max-width: 90rem; padding: 1rem; }
+header { position: sticky; top: 0; z-index: 1; border-bottom: 1px solid; margin-bottom: 1rem; }
+header p { margin: 0.5rem 0; }
 nav ul { padding-left: 1.25rem; }
 code { font-family: ui-monospace, monospace; font-size: 0.95em; }
 `;
