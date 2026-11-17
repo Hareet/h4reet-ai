@@ -4,7 +4,10 @@
 # take px, rem, or em. Each state's face, label, and border; the selected state's glow; each variant's focus ring,
 # drawn inside the face. Every value is an estimate for the Author's look (SC-008), held to FR-012's ratios by
 # test/ui-skins.test.ts; a token that failed one was moved in 5% steps of lightness, each move recorded in plan §R-B1.
-active: metal
+# An image skin (kind: image; plan §R-D4) names its CSS fallback, the label colours the round measured, and its files
+# with their SHA-256s and insets (top, right, bottom, left, in the image's pixels); until every file is in the tree and
+# of its hash, the build draws the fallback and says why (FR-025).
+active: metal-image
 skins:
   # Dark brushed metal in the spirit of his reference, drawn from its description alone: chamfered corners, a bevel and
   # an inner highlight, a dark frame, yellow for the primary action, cyan for the rest, the selected one glowing.
@@ -57,3 +60,24 @@ skins:
         pressed: { face: "#05070a", label: "#ffffff", border: "#c8ccd2" }
         disabled: { face: "#10141a", label: "#b8bec6", border: "#939aa3" }
         selected: { face: "#10141a", label: "#ffffff", border: "#ffd23f", glow: "#ffd23f" }
+  # The studio's image skin (spec 030, US4; studio-round-1.md, asset ui-buttons): a 9-slice PNG per state of each
+  # variant and the right column's panel frame, drawn through border-image over metal's tokens (Q13, Q15). The files
+  # come into assets/ui/buttons/ by the Author's intake (plan §R-D3); the hashes are `pending` until the round's record.
+  metal-image:
+    kind: image
+    fallback: metal
+    labels: { primary: "#14171c", secondary: "#e6fbff" }
+    files:
+      primary:
+        normal: { file: assets/ui/buttons/btn-primary-normal.png, sha256: pending, slice: [24, 24, 24, 24] }
+        hover: { file: assets/ui/buttons/btn-primary-hover.png, sha256: pending, slice: [24, 24, 24, 24] }
+        pressed: { file: assets/ui/buttons/btn-primary-pressed.png, sha256: pending, slice: [24, 24, 24, 24] }
+        disabled: { file: assets/ui/buttons/btn-primary-disabled.png, sha256: pending, slice: [24, 24, 24, 24] }
+        selected: { file: assets/ui/buttons/btn-primary-selected.png, sha256: pending, slice: [24, 24, 24, 24] }
+      secondary:
+        normal: { file: assets/ui/buttons/btn-secondary-normal.png, sha256: pending, slice: [24, 24, 24, 24] }
+        hover: { file: assets/ui/buttons/btn-secondary-hover.png, sha256: pending, slice: [24, 24, 24, 24] }
+        pressed: { file: assets/ui/buttons/btn-secondary-pressed.png, sha256: pending, slice: [24, 24, 24, 24] }
+        disabled: { file: assets/ui/buttons/btn-secondary-disabled.png, sha256: pending, slice: [24, 24, 24, 24] }
+        selected: { file: assets/ui/buttons/btn-secondary-selected.png, sha256: pending, slice: [24, 24, 24, 24] }
+      panel: { file: assets/ui/buttons/panel-frame.png, sha256: pending, slice: [48, 48, 48, 48] }
