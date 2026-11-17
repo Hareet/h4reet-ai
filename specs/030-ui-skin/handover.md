@@ -477,3 +477,267 @@ All matched files use Prettier code style!
 ```
 
 Only Q1 is answered on the page ("**Answered** (your orders, D, 2026-11-16 about 19:50 your time)"); 112 are open.
+
+## Step 5: the one full `make check` and `make lint` (`handover2-030`)
+
+Night 5, 2026-11-17, from 15:19Z by the container's clock. `handover-030` ended after its step 5 save point
+`8d6cffc68b2b86150f1f52f7c62c28c627a2dc12` (14:20Z) with the run in the background and nothing of it recorded (the
+page's seventy-sixth wake). Implementer `handover2-030` did this step on branch `night/handover2-030/handover2-030`,
+from that tip. I wrote none of F, spec 030, its merges, its ADR, or the note before this step. `handover-030`'s step 4
+(`tasks.md` and `plan.md`, `377e9bec`) has no section in this file; I didn't do it, so I don't write one. Logs for
+this session: `/tmp/ho2-030-check.log` (attempt 1), `/tmp/ho2-030/` (the rest). Nothing under `/tmp` was deleted.
+
+Read first: the note, this file, `int.md`, and the page `night/supervisor/2026-11-17:docs/night-shift/2026-11-17.md`
+(copied by `git show` to `/tmp/ho2-030/page.md`; night 3's and 4's pages to `page-n3.md` and `page-n4.md`) for Q46,
+Q48, Q53, Q60, and the seventy-sixth wake.
+
+### 5.1 Nothing changed first
+
+```text
+$ git status && git log -1
+On branch night/handover2-030/handover2-030
+nothing to commit, working tree clean
+commit 8d6cffc68b2b86150f1f52f7c62c28c627a2dc12
+Author: night-implementer <night-implementer@night-shift.h4reet-ai>
+Date:   Tue Nov 17 14:20:12 2026 +0000
+
+    wip(handover-030): step 5, the one full make check
+```
+
+Save point, empty, so the tree is the same:
+
+```text
+$ git commit --allow-empty -m "wip(handover2-030): step 2, the one full make check"
+[night/handover2-030/handover2-030 25b879ec] wip(handover2-030): step 2, the one full make check
+$ git rev-parse HEAD^{tree} 8d6cffc68b2b86150f1f52f7c62c28c627a2dc12^{tree}
+fc313d5d57b7906eeae695f24c202a89a520f6b9
+fc313d5d57b7906eeae695f24c202a89a520f6b9
+```
+
+### 5.2 Attempt 1: without `node_modules`, stopped (my slip)
+
+I started `make check > /tmp/ho2-030-check.log 2>&1` in the background at 15:19Z. I hadn't run `make setup` first in
+this new worktree, as `handover-030` had in its own (step 1 above). So `node_modules` was missing. I stopped the run
+with the task tool at 15:22Z, during its `matrix` stage. It can't stand as the one full `make check`, because the
+`apps/web` suite never ran. Its lines 1 to 147, whole:
+
+```text
+== makefiles-check
+python3 -I -B -X pycache_prefix=/dev/null tools/gates/makefiles_check.py
+makefiles: GNUmakefile holds only its include, and there is no makefile
+-> PASS makefiles-check
+== githooks-check
+reference-transaction: installed
+pre-commit: installed
+main: a loose ref, which the git hook guards
+-> PASS githooks-check
+== toolchain-check
+python3 -I -B -X pycache_prefix=/dev/null tools/gates/toolchain_check.py
+tool                               pinned   found    status  where
+node                               24.21.0  24.21.0  OK      /usr/local/bin/node
+uv                                 0.8.22   0.8.22   OK      /usr/local/bin/uv
+ruff                               0.16.10  0.16.10  OK      /usr/local/bin/ruff
+gitleaks                           8.30.1   8.30.1   OK      /usr/local/bin/gitleaks
+python3                            3.12     3.12.3   OK      /opt/tools/bin/python3
+shellcheck                         0.9.0    0.9.0    OK      /usr/bin/shellcheck
+jq                                 1.7      1.7      OK      /usr/bin/jq
+pytest                             9.1.1    9.1.1    OK      /opt/tools/bin/pytest
+pyyaml (pytest's)                  6.0.3    6.0.3    OK      /opt/tools/bin/python3
+claude code                        2.1.296  2.1.322  WARN    /usr/local/bin/claude
+claude code (night images)         2.1.296  2.1.322  WARN    /home/h4reet/h4reet-ai/night/2026-11-17/handover2-030/deploy/night-shift/images/pins.json
+terraform                          1.17.1   -        SKIP    not on PATH
+aws cli                            2.29.1   -        SKIP    not on PATH
+terraform provider: hashicorp/aws  6.72.0   -        SKIP    /night/home/.local/share/h4reet/terraform-providers/registry.terraform.io/hashicorp/aws holds no release (make infra-mirror, the Author's)
+lint: eslint                       10.12.0  10.12.0  OK      /opt/h4reet/lint-node/node_modules/eslint
+lint: typescript-eslint            8.71.1   8.71.1   OK      /opt/h4reet/lint-node/node_modules/typescript-eslint
+lint: typescript                   6.0.3    6.0.3    OK      /opt/h4reet/lint-node/node_modules/typescript
+lint: prettier                     3.9.9    3.9.9    OK      /opt/h4reet/lint-node/node_modules/prettier
+lint: node                         24.21.0  -        SKIP    /opt/h4reet/lint-node/node missing
+WARN: claude code 2.1.322 is newer than its floor, 2.1.296 (ADR 0023): the agent-config evals record the version each run used, and moving the floor runs them again
+WARN: claude code (night images) 2.1.322 is newer than its floor, 2.1.296 (ADR 0023): the agent-config evals record the version each run used, and moving the floor runs them again
+toolchain-check: all 19 match their pins, 2 newer than its floor (claude code, claude code (night images))
+-> PASS toolchain-check
+== policy
+python3 -I -B -X pycache_prefix=/dev/null tools/gates/compose_policy.py
+FAIL deploy/compose.yaml service relay: binds: /var/lib/h4reet/snapshot -> /var/lib/h4reet/snapshot: outside ${H4_TREE}/deploy, ${H4_TREE}/config, ${H4_MODEL_DIR}, ${H4_STATE_DIR}/gateway, ${H4_AWS_DIR}
+compose policy: 1 refusal(s) (deploy/compose.yaml with 5 env files, the Dockerfiles, the env-file placement, .devcontainer, .npmrc)
+make[1]: *** [Makefile:183: policy] Error 1
+-> FAIL policy
+== validate-config
+npm run --silent -w services/gateway validate-config -- --root "/home/h4reet/h4reet-ai/night/2026-11-17/handover2-030"
+node:internal/modules/package_json_reader:331
+  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+        ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'tsx' imported from /home/h4reet/h4reet-ai/night/2026-11-17/handover2-030/services/gateway/
+    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)
+    at packageResolve (node:internal/modules/esm/resolve:784:25)
+    at moduleResolve (node:internal/modules/esm/resolve:873:18)
+    at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+    at #resolve (node:internal/modules/esm/loader:687:17)
+    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+    at node:internal/modules/esm/loader:636:32 {
+  code: 'ERR_MODULE_NOT_FOUND'
+}
+
+Node.js v24.21.0
+make[1]: *** [Makefile:172: validate-config] Error 1
+-> FAIL validate-config
+== lint
+node_modules is missing: run make setup
+make[1]: *** [Makefile:227: lint] Error 1
+-> FAIL lint
+== test
+python3 -I -B -X pycache_prefix=/dev/null corpus/tools/check_corpus.py
+corpus-check: OK — 46 slots, 27 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
+npm test --workspaces --if-present
+
+> @h4reet/gateway@0.1.0 test
+> vitest run
+
+sh: 1: vitest: not found
+npm error Lifecycle script `test` failed with error:
+npm error code 127
+npm error path /home/h4reet/h4reet-ai/night/2026-11-17/handover2-030/services/gateway
+npm error workspace @h4reet/gateway@0.1.0
+npm error location /home/h4reet/h4reet-ai/night/2026-11-17/handover2-030/services/gateway
+npm error command failed
+npm error command sh -c vitest run
+
+
+> @h4reet/relay@0.1.0 test
+> vitest run
+
+sh: 1: vitest: not found
+npm error Lifecycle script `test` failed with error:
+npm error code 127
+npm error path /home/h4reet/h4reet-ai/night/2026-11-17/handover2-030/services/relay
+npm error workspace @h4reet/relay@0.1.0
+npm error location /home/h4reet/h4reet-ai/night/2026-11-17/handover2-030/services/relay
+npm error command failed
+npm error command sh -c vitest run
+
+
+> @h4reet/web@0.1.0 test
+> vitest run
+
+sh: 1: vitest: not found
+npm error Lifecycle script `test` failed with error:
+npm error code 127
+npm error path /home/h4reet/h4reet-ai/night/2026-11-17/handover2-030/apps/web
+npm error workspace @h4reet/web@0.1.0
+npm error location /home/h4reet/h4reet-ai/night/2026-11-17/handover2-030/apps/web
+npm error command failed
+npm error command sh -c vitest run
+make[1]: *** [Makefile:255: test] Error 127
+-> FAIL test
+== content-check
++ ROOM_DRAFTS=
++ npm run build -w apps/web
+
+> @h4reet/web@0.1.0 prebuild
+> node --import tsx build/policy.ts
+
+node:internal/modules/package_json_reader:331
+  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+        ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'tsx' imported from /home/h4reet/h4reet-ai/night/2026-11-17/handover2-030/apps/web/
+    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)
+    at packageResolve (node:internal/modules/esm/resolve:784:25)
+    at moduleResolve (node:internal/modules/esm/resolve:873:18)
+    at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+    at #resolve (node:internal/modules/esm/loader:687:17)
+    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+    at node:internal/modules/esm/loader:636:32 {
+  code: 'ERR_MODULE_NOT_FOUND'
+}
+
+Node.js v24.21.0
+npm error Lifecycle script `build` failed with error:
+npm error code 1
+npm error path /home/h4reet/h4reet-ai/night/2026-11-17/handover2-030/apps/web
+npm error workspace @h4reet/web@0.1.0
+npm error location /home/h4reet/h4reet-ai/night/2026-11-17/handover2-030/apps/web
+npm error command failed
+npm error command sh -c node --import tsx build/policy.ts
+make[1]: *** [Makefile:272: content-check] Error 1
+-> FAIL content-check
+```
+
+Lines 148 to 217 are `secrets` and `arrival`, both `-> PASS`: gitleaks "no leaks found" over the unstaged and the staged
+changes and "433 commits since main (f6baef8ce027..HEAD)" ("222 commits scanned"), then `secrets: PASS (unstaged
+changes, staged changes, 433 commits since main)`. After that come the assets' table (44 files), `first visit (phase
+3): 21,803,040 of 26,000,000 bytes · history: 58,917,811 of 500,000,000 bytes`, `arrival-check: 0 findings in 511 files
+(433 commits)`, and `credits: OK: the renderings and the records' form`. Lines 218 to 228, whole:
+
+```text
+== infra-check
+PLANNED (T011): the provider mirror, /night/home/.local/share/h4reet/terraform-providers, is the Author's make infra-mirror
+-> PLANNED infra-check (PLANNED (T011): the provider mirror, /night/home/.local/share/h4reet/terraform-providers, is the Author's make infra-mirror)
+== infra-plan-note
+FAIL: plan for prod missing or made from an older infra tree; run make plan ROOT=prod in your terminal and paste the block (infra/'s tree is 45605aa7fc6fa8aa03ca17c52952c690117abcd8)
+make[1]: *** [Makefile:534: infra-plan-note] Error 1
+-> FAIL infra-plan-note
+== disclosure-check
+disclosure-check: PASS, every outward thing the tree holds has its row
+-> PASS disclosure-check
+== evals
+```
+
+Lines 229 to 551 are the `evals` stage: 288 `PASS` lines and 34 others, none a failure. Those are the commands, the
+twin's 18 golden lines (each "N of N … passed (100%…)"), `evals product (fake): 225 passed, 0 failed`, three `INFO
+(twin readiness)` lines, `evals narration (fake): 44 passed, 0 failed`, `agent-config static: 0 failed, 0 planned`,
+the behavioral tier's `WARN` ("no run for trigger hash e061ea4d7978"), and `docs links: 0 failed, 2666 relative links
+in 559 files`. Line 551 is `-> WARN evals (…)`. Lines 552 to 632 are `redteam`: its command, 77 `PASS` lines,
+`redteam: 77 passed, 0 failed`, `-> PASS redteam`. Its end:
+
+```text
+== matrix
+make: *** [Makefile:168: check] Terminated
+```
+
+Four of its failures are the missing `node_modules` alone: `validate-config` and `content-check` ("Cannot find
+package 'tsx'"), `lint` ("node_modules is missing: run make setup"), and `test` ("sh: 1: vitest: not found", in each
+of the three workspaces). Two don't depend on it, and attempt 2 meets them again (5.4): `policy` and `infra-plan-note`.
+
+Then `make setup`, exit 0, with the tree still clean:
+
+```text
+$ date -u +%FT%TZ; make setup > /tmp/ho2-030/setup.log 2>&1; echo "exit=$?" >> /tmp/ho2-030/setup.log; cat /tmp/ho2-030/setup.log; git status --short | head
+2026-11-17T15:22:16Z
+npm ci --ignore-scripts
+
+added 431 packages, and audited 435 packages in 36s
+
+84 packages are looking for funding
+  run `npm fund` for details
+
+14 vulnerabilities (1 low, 12 moderate, 1 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+git hooks: /home/h4reet/h4reet-ai/h4reet-ai/.git/hooks isn't writable here (the agent sandbox); the Author runs make git-hooks
+exit=0
+```
+
+(`git status --short` printed nothing.)
+
+### 5.3 Attempt 2: the one full `make check`
+
+Started in the background at 15:22Z with a two-hour limit, on `25b879ec` (tree `fc313d5d`, the same as `8d6cffc6`'s):
+`make check >> /tmp/ho2-030/check2.log 2>&1; echo "make check exit=$?" >> …`. I waited for the task's own notice. No
+Monitor and no `until … sleep` loop (Q15).
+
+(Filled after the run.)
