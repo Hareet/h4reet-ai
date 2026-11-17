@@ -20,6 +20,8 @@ His rule for night 5, from the brief's words: "**Approval, given ahead.** The sp
 
 **Reworked again** 2026-11-17 (night 5) by `rework2-spec-030`, from `2dd4213f`, for `rv-rework-spec-030`'s R-1 to R-9 and the page's Q71 to Q75 (recommended answers taken under his rule 1), each change marked "rework 2": T-A01 (d), T-A05 (R-2); T-B01 (a) (Q71, R-5), (c) (Q72), (d) (R-8); T-B03 (Q72, R-9); T-B04 (Q75); R-3 (Q74); T-DS01 (b) (R-3, Q74), (c) (R-1); T-DS02 (R-1, R-3); T-DS05 (Q74); T-INT02 (Q73); T-INT02b (R-2). [notes.md](notes.md) says which group's rework each reaches.
 
+**Reworked a third time** 2026-11-17 (night 5) by `rework3-spec-030`, from `8e83e7fc`, for `rv-rework2-spec-030`'s R-1 to R-5 and the page's Q81, Q82, Q85 (recommended answers taken under his rule 1), each change marked "rework 3": Group A's T-A01 to T-A05 restored to the words `impl-030a` built and ticked (its tip `c0cd9826`), so its branch merges clean, and the reworks' changes to group A moved into a section of their own, "Group A's rework", T-A06 to T-A08 (R-1: the grep's three files, the valve, and the first rework's N-1 and N-2, which A's branch predates); T-B01 (c) (R-2); T-DS01 (b) (R-2), (c) (R-5); T-DS02 (R-5); Dependencies; the checks' table. [notes.md](notes.md) says which group's rework each reaches.
+
 **Who**: T-A, T-B, T-C, and T-DJ are four implementers' (`impl-030a`, `impl-030b`, `impl-030c`, `impl-030dj`), each on its own branch from this branch's tip, all at once; their files are disjoint (plan §9). T-DS (`impl-030ds`) branches from T-B's tip once T-B04 is done (its one sequential share, plan §R-D4). The round's tasks R-1 to R-3 are the studio line's (plan §R-D2): R-1 may run tonight from this branch; R-3 needs T-DJ. T-INT merges A, B, C, DJ, DS, in that order.
 
 **Tests**: test-first. Each RED step's tests are written, committed, and seen to fail before its GREEN step. A task runs the test files it adds or changes and those covering the files it changes (`npx vitest run <files>` from `apps/web/`; `python3 -I -B scripts/studio/test_line.py` for T-DJ), and `make lint`, and pastes them in its group's notes (`specs/030-ui-skin/impl-{a,b,c,dj,ds}.md`). The full `make check` runs once, in T-INT. A test of an earlier spec is rewritten only in a RED commit of a feature task, seen failing on the tree before its GREEN, and named in the notes with its old and new assertion (spec.md's Assumptions); never in a fix task.
@@ -88,17 +90,20 @@ His rule for night 5, from the brief's words: "**Approval, given ahead.** The sp
 - T-A, T-B, T-C, T-DJ, R-1: from this branch's tip, at once.
 - T-DS01 to T-DS04: after T-B04. T-DS05: after R-3's pass.
 - R-2: after R-1. R-3: after R-2 and T-DJ02.
-- T-INT: after T-A05, T-B04, T-C03, T-DJ02, T-DS04 (not R-3 or T-DS05: the fallback ships). T-INT02b inside T-INT01, between A's merge and B's.
+- T-A06 to T-A08 (A's rework): on A's tip, once this rework's review passes (rework 3).
+- T-INT: after T-A08, T-B04, T-C03, T-DJ02, T-DS04 (not R-3 or T-DS05: the fallback ships; rework 3: T-A08 in place of T-A05). T-INT02b inside T-INT01, between A's merge and B's.
 
 ## Every check named in the brief, and where
 
 | Check | Task |
 |---|---|
-| No `backdrop-filter` blur | T-A01 (a) |
-| The halves at split, column, dock, and walking | T-A01 (b) |
+| No `backdrop-filter` blur | T-A01 (a), T-A06 (a) (the `@supports` block, rework 3) |
+| The halves at split, column, dock, and walking | T-A01 (b), T-A06 (b) (rework 3) |
+| Every earlier test A's change breaks, placed and rewritten test-first (rework 3) | T-A01 (d), T-A06 (c), (d), T-A08 |
 | AA over the room's brightest pixels, as 029 tested it | T-A01 (c) |
 | One button component (room's controls, Back, both Close buttons, the header toggles, Send, the selection screen) | T-B01 (b), (c) |
 | The chamfer clips nothing: no `clip-path` on a skinned control | T-B01 (c) |
+| No square shadow round the chamfer: the control's own `box-shadow` `none` (rework 3) | T-B01 (c), T-DS01 (b) |
 | Skin as data, read at build into CSS custom properties | T-B01 (a) |
 | Swap by data alone | T-B01 (a), T-B04 |
 | Every state; primary and secondary | T-B01 (a), (c) |
@@ -115,5 +120,6 @@ His rule for night 5, from the brief's words: "**Approval, given ahead.** The sp
 | The image skin through `border-image` with the recorded insets, no content box moved | T-DS01 (a), (b) |
 | The fallback to the CSS skin, tested both ways | T-DS01 (a) |
 | The shipped image sees `assets/ui/` (the `ui-assets` context), on a host stack and in the release (rework 2) | T-DS01 (c) |
+| The release refuses, by name, an export without `ASSET_CONTEXTS` (rework 3) | T-DS01 (c) |
 | The image skin paints no flat face outside the image's own centre (rework 2) | T-DS01 (b) |
 | The labels over the image's band (rework 2, Q74) | T-DS01 (b), R-3 or T-DS05 |
