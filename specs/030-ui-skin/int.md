@@ -666,7 +666,7 @@ reads each one's text, and those tests pass unchanged:
 - spec 005's `test/ui/hud.test.ts` (the tiles' `min-height`/`min-width: 2.75rem`, a regex on `room.css`);
 - spec 028's `test/ui/hud-wall-dom.test.ts` (the split tiles' scaled `min-height`);
 - spec 026's `test/ui/hud-split-dog.test.ts` ("Back"'s `min-height: 2.75em`, which `hud-model.ts` counts, though B's 44
-  px wins);
+  px wins; the hint's is the same declaration of their shared rule, whose other declarations are live for both);
 - B's `test/ui/button-states.test.ts` and DS's `test/ui/button-image-skin.test.ts`. Their "no shadow on the control"
   cases need spec 029's plate on "Back" and "Close, Escape" in the cascade to discriminate ("the plate rule matched:
   expected 0 to be greater than 0" without it).
@@ -785,14 +785,34 @@ Neither the rem padding nor B's px floor scales (plan §R-A2 "As built (int2-030
 
 ### The whole `apps/web` suite, once, on the last code commit
 
-SUITE-PLACEHOLDER
+On `b821b2b9eb162802b0b3e996efa2be7900445ecf` (the last code commit; every later commit touches `specs/` alone, and no
+`apps/web` test reads `specs/030-ui-skin/`). From `apps/web/`, started in the background with a one-hour limit and its
+own notice waited for: `npx --no-install vitest run --reporter=default --reporter=json
+--outputFile.json=/tmp/int2030/suite.json`, exit 0. The log is 4,937 lines (`/tmp/int2030/suite.txt` for this
+session); its end:
+
+```
+ Test Files  286 passed (286)
+      Tests  5011 passed | 6 skipped (5017)
+   Start at  12:51:27
+   Duration  1705.33s (tests 74%, import 26%)
+
+JSON report written to /tmp/int2030/suite.json
+exit=0
+```
+
+**No case failed** (the JSON's `numFailedTests` 0), so no failure needs naming. `test/room/twin-2d.test.ts` passed. The
+counts are `int-030`'s (285 files, 5009 passed) plus this task's two: the probe's file and case, and Q100's new case.
+The 6 skipped are `int-030`'s same six (`numPendingTests` 6): `test/content/film-links.test.ts`'s five ("5.", "7.",
+"8.", "9.", and "writes the candidate from the approved file…") and `test/room/legacy-stages.test.ts`'s "give exactly
+the shipped module's stages while it holds the base's formulas".
 
 ### `make lint`
 
-LINT-PLACEHOLDER
-
-The first run, from the repository's root on `b821b2b9` itself (the last code commit, the tree clean), exit 0. Its
-whole output:
+Run twice from the repository's root, exit 0 both times. The last run was on the final tree, this record as written
+but for this paragraph and the one before it; Prettier checked the three documents with the rest. Its output matched
+the first's line for line, `exit=0`. The first run was on `b821b2b9` itself (the last code commit, the tree clean).
+Its whole output:
 
 ```
 node_modules/.bin/eslint --max-warnings 0 .
@@ -845,6 +865,8 @@ Not done, and not this task's:
 - **The RED rewrote more than Q73's colour pairs**: the cases of the same files that read the removed text (rows 2, 4,
   5, 7). The brief's "pass unchanged" holds for the GREEN: no test changed in it.
 - **13 dead declarations kept**, rather than rewriting tests outside Q73's set and B's own files.
+- **No merge-request note**: the supervisor's brief gives the stack's note
+  (`docs/merge-requests/2026-11-17-030-ui-skin.md`) to the handover, T-INT04. The runs are pasted here for it.
 - **The RED is three commits** (`5ffdfb66` and `7c871249` save points, then `3ff26628`), all before the removal.
 - **Q100's floor refuses 179 windows**, the review's 144 and 35 more at 384 px; the floor is unscaled.
 - **Q100's RED commit message went to `git commit -F -` from a here-document**, not from a file written with the Write
