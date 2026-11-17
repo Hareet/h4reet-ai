@@ -136,7 +136,9 @@ function pairs(glassAlpha: number, plateAlpha: number): Pair[] {
         if (state !== "disabled")
           out.push(p(`${at}: its focus ring inside its face`, ratio(colour(c.ring).rgb, skinFace), 3, true));
         if (state === "selected")
-          out.push(p(`${at}: its selected line on its face`, ratio(over(colour(c.border), skinFace), skinFace), 3, true));
+          out.push(
+            p(`${at}: its selected line on its face`, ratio(over(colour(c.border), skinFace), skinFace), 3, true),
+          );
       }
   }
   return out;
@@ -215,16 +217,29 @@ describe("the over-room look draws what the test judges (FR-002, FR-003)", () =>
           expect(r.selector.includes('[data-over="room"]') || r.selector === ":root", r.selector).toBe(true);
   });
 
+  // Spec 030 (T-INT02; Q73; was: room.css's `.hud-tile:focus-visible` and `.hud-tile[data-over="room"]:focus-visible`
+  // over the room at `outline-offset` -4px or less, beside the panels' buttons): the bar's tiles, the walking control,
+  // and "Eat" are the skin's buttons, whose 2 px ring ui/button.css draws inside the face in every skin, at an offset of
+  // `-2px - --_line-w - --btn-chamfer / 2` (Q72); the panels' tile buttons keep room.css's -4px.
   it("draws the focus ring inside its control over the room, or on a plate, never on the bare glass", () => {
     const rings = OVER.filter((r) => r.selector.includes(":focus-visible") && r.declarations.has("outline-offset"));
     const offset = (r: (typeof rings)[number]): number =>
       Number.parseFloat(r.declarations.get("outline-offset") ?? "0");
-    // The tiles (the bar's, the walking control, the "Eat" tile) and the panels' tile buttons: inside, on the face.
-    for (const part of [".hud-tile:focus-visible", '.hud-tile[data-over="room"]:focus-visible', "button:focus-visible"])
-      expect(
-        rings.some((r) => r.selector.endsWith(part) && offset(r) <= -4),
-        part,
-      ).toBe(true);
+    // The panels' tile buttons: inside, on the face.
+    expect(
+      rings.some((r) => r.selector.endsWith("button:focus-visible") && offset(r) <= -4),
+      "button:focus-visible",
+    ).toBe(true);
+    // The skin's buttons: the component's ring, its offset plus its 2 px width at most 0 under every CSS skin.
+    const component = parseCss(read("../../src/ui/button.css"));
+    const ring = component.rules.find(
+      (r) => r.selector.includes(".room-walk") && r.selector.endsWith(":focus-visible"),
+    );
+    expect(ring?.declarations.get("outline-width")).toBe("2px");
+    expect(ring?.declarations.get("outline-offset")).toBe("calc(-2px - var(--_line-w) - var(--btn-chamfer) / 2)");
+    const chamfer = /^([\d.]+)rem$/.exec(SKIN.tokens.get("--btn-chamfer") ?? "");
+    expect(chamfer, "the built skin's chamfer in rem").not.toBeNull();
+    expect(-2 - 1 - (Number(chamfer?.[1]) * 16) / 2 + 2).toBeLessThanOrEqual(0);
     // Any other ring stays outside its control only where a plate backs it: the link-like button in a message.
     for (const r of rings.filter((x) => offset(x) > -4))
       expect(r.selector, r.selector).toMatch(/\.talk-link:focus-visible$/);

@@ -501,7 +501,10 @@ describe("the walking control at the column's head, and the hover's scope (spec 
     expect(bottom - top).toBeGreaterThan(0.6 * screen.h);
   });
 
-  it("gives the control its own glass hover, and every hover rule only where the pointer hovers", () => {
+  // Spec 030 (T-INT02; Q73; was: room.css's `html[data-hud="{column,dock}"] .room-walk:hover`, its background the glass
+  // at --glass-alpha-lit and its border the neon's accent): the walking control is the skin's secondary button, whose
+  // hover is ui/button.css's, under (hover: hover), the skin's hover tokens; room.css names no hover of its own for it.
+  it("gives the control the skin's hover, and every hover rule only where the pointer hovers", () => {
     const hovers = ROOM_RULES.filter((r) => /:hover\b/.test(r.selector));
     expect(hovers.length).toBeGreaterThan(0);
     // The fallbacks for forced colours and reduced transparency undo a hover where it shows, so they sit in their own
@@ -509,11 +512,15 @@ describe("the walking control at the column's head, and the hover's scope (spec 
     for (const r of hovers)
       if (!/forced-colors|prefers-reduced-transparency/.test(r.at ?? ""))
         expect(r.at, r.selector).toBe("@media (hover: hover)");
-    for (const layout of ["column", "dock"]) {
-      const walk = hovers.find((r) => r.selector === `html[data-hud="${layout}"] .room-walk:hover`);
-      expect(walk?.declarations.get("background"), layout).toBe("rgb(var(--glass) / var(--glass-alpha-lit))");
-      expect(walk?.declarations.get("border-color"), layout).toBe("var(--accent-neon)");
-    }
+    expect(hovers.filter((r) => r.selector.includes(".room-walk")).map((r) => r.selector)).toEqual([]);
+    const component = stylesheets().find((s) => s.path.endsWith(join("ui", "button.css")));
+    if (!component) throw new Error("no ui/button.css");
+    const media = parseCss(component.text).atRules.find((a) => a.prelude === "@media (hover: hover)");
+    const hover = parseCss(media?.body ?? "").rules.find((r) =>
+      topLevel(r.selector).some((s) => s.includes(".room-walk") && s.endsWith(":hover")),
+    );
+    expect(hover?.declarations.get("--_face")).toBe("var(--btn-secondary-hover-face)");
+    expect(hover?.declarations.get("--_border")).toBe("var(--btn-secondary-hover-border)");
   });
 
   it("scopes the hover and selection rules to the HUD's own buttons", () => {

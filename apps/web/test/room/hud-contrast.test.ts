@@ -95,9 +95,17 @@ function skinPairs(alpha: number): { name: string; contrast: number; floor: numb
           },
         );
         if (state !== "disabled")
-          out.push({ name: `${at}: its focus ring inside its face`, contrast: ratio(colour(c.ring).rgb, face), floor: 3 });
+          out.push({
+            name: `${at}: its focus ring inside its face`,
+            contrast: ratio(colour(c.ring).rgb, face),
+            floor: 3,
+          });
         if (state === "selected")
-          out.push({ name: `${at}: its selected line on its face`, contrast: ratio(over(colour(c.border), face), face), floor: 3 });
+          out.push({
+            name: `${at}: its selected line on its face`,
+            contrast: ratio(over(colour(c.border), face), face),
+            floor: 3,
+          });
       }
   }
   return out;
@@ -210,28 +218,45 @@ describe("the HUD's palette (room.css; FR-024, FR-025)", () => {
   const HUD = 'html[data-hud="column"]';
   const DOCK = 'html[data-hud="dock"]';
 
-  it("draws the HUD from the palette: the glass, the tiles, their borders, the focus ring, and the pressed mark", () => {
+  // Spec 030 (T-INT02; Q73; was: `${at} .hud-tile`'s background `var(--tile-face)`, colour `var(--hud-text)`, and border
+  // `1px solid var(--tile-border)`; `${at} .hud-tile[aria-pressed="true"]`'s box-shadow `inset 0 0 0 2px
+  // var(--hud-text)`; and `${at} .room-walk`'s background the glass and colour `var(--hud-text)`, all room.css's): the
+  // tiles the skin leaves, the panels' buttons, draw the tile from the palette; the skinned controls draw from the
+  // skin's tokens, ui/button.css's rules (its label, its face on its ::before, the selected line), which skinPairs judge.
+  it("draws the HUD from the palette and the skin: the glass, the tiles, their borders, the focus ring, and the pressed mark", () => {
     const GLASS = "rgb(var(--glass) / var(--glass-alpha))";
     for (const at of [HUD, DOCK]) {
       expect(declared(`${at} .hud-glass`, "background"), at).toBe(GLASS);
       expect(declared(`${at} .hud-glass`, "color"), at).toBe("var(--hud-text)");
-      expect(declared(`${at} .hud-tile`, "background"), at).toBe("var(--tile-face)");
-      expect(declared(`${at} .hud-tile`, "color"), at).toBe("var(--hud-text)");
-      expect(declared(`${at} .hud-tile`, "border"), at).toBe("1px solid var(--tile-border)");
+      expect(declared(`${at} .hud-panels button`, "background"), at).toBe("var(--tile-face)");
+      expect(declared(`${at} .hud-panels button`, "color"), at).toBe("var(--hud-text)");
+      expect(declared(`${at} .hud-panels button`, "border"), at).toBe("1px solid var(--tile-border)");
       expect(declared(`${at} .hud-glass button:focus-visible`, "outline"), at).toBe("2px solid var(--hud-focus)");
       expect(declared(`${at} .hud-glass a:focus-visible`, "outline"), at).toBe("2px solid var(--hud-focus)");
       // The conversation's text box too, on the panels' glass (the review of 60b51de4, finding 4; FR-024, SC-003): the
       // room's blue ring falls below 3:1 on the dark glass.
       expect(declared(`${at} .hud-glass input:focus-visible`, "outline"), at).toBe("2px solid var(--hud-focus)");
       expect(declared(`${at} .hud-glass input:focus-visible`, "outline-offset"), at).toBe("2px");
-      expect(declared(`${at} .hud-tile[aria-pressed="true"]`, "box-shadow"), at).toBe(
-        "inset 0 0 0 2px var(--hud-text)",
-      );
       expect(declared(`${at} .hud-tile[aria-pressed="true"]`, "text-decoration"), at).toBe("underline");
-      // The walking control, over the scene with no panel behind it, is glass of its own.
-      expect(declared(`${at} .room-walk`, "background"), at).toBe(GLASS);
-      expect(declared(`${at} .room-walk`, "color"), at).toBe("var(--hud-text)");
     }
+    // The skinned controls (the bar's tiles and the walking control among them): the label, the face, and the border's
+    // line from the skin's tokens, through the component's private properties, and the selected state's 2 px line.
+    const component = parseCss(
+      readFileSync(fileURLToPath(new URL("../../src/ui/button.css", import.meta.url)), "utf8"),
+    );
+    const names = (r: CssRule, part: string): boolean => r.selector.includes(part);
+    const base = component.rules.find(
+      (r) => names(r, ".hud-bar .hud-tile") && names(r, ".room-walk") && r.declarations.has("color"),
+    );
+    expect(base?.declarations.get("color")).toBe("var(--_label)");
+    expect(base?.declarations.get("--_face")).toBe("var(--btn-secondary-normal-face)");
+    expect(base?.declarations.get("--_border")).toBe("var(--btn-secondary-normal-border)");
+    expect(base?.declarations.get("background-color")).toBe("transparent");
+    const face = component.rules.find((r) => names(r, ".room-walk") && names(r, ")::before"));
+    expect(face?.declarations.get("background-color")).toBe("var(--_face)");
+    const pressed = component.rules.find((r) => names(r, ".room-walk") && names(r, '[aria-pressed="true"]'));
+    expect(pressed?.declarations.get("--_face")).toBe("var(--btn-secondary-selected-face)");
+    expect(pressed?.declarations.get("--_line-w")).toBe("2px");
   });
 
   // The review of 60b51de4's nit: the fallbacks for less transparency, more contrast, no backdrop blur, and forced
@@ -240,21 +265,21 @@ describe("the HUD's palette (room.css; FR-024, FR-025)", () => {
     expect(specificity(":root[data-hud] .hud-glass button:focus-visible")).toEqual([0, 4, 1]);
     // Spec 030 (FR-001; T-A01 (d)): no rule draws a backdrop blur any more, so the fallbacks' backdrop-filter resets
     // undo none, and none is listed here (test/ui/hud-no-blur.test.ts holds that no rule sets one).
+    // Spec 030 (T-INT02; was also `${at} .hud-tile`'s ButtonFace and ButtonText, `${at} .hud-glass.room-walk:focus-visible`'s
+    // Highlight, and `${at} .room-walk:hover`'s ButtonFace, Highlight, and reduced transparency's opaque glass): the
+    // tiles, the walking control, and "Eat" are the skin's, whose own forced-colours rule (ui/button.css) undoes its
+    // look, and room.css draws no hover or ring of theirs to undo; the panels' buttons keep room.css's fallback.
     const FALLBACKS: [RegExp, string, string, string][] = [];
     for (const at of [HUD, DOCK])
       FALLBACKS.push(
         [/forced-colors/, "background", "Canvas", `${at} .hud-glass`],
         [/forced-colors/, "color", "CanvasText", `${at} .hud-glass`],
-        [/forced-colors/, "background", "ButtonFace", `${at} .hud-tile`],
-        [/forced-colors/, "color", "ButtonText", `${at} .hud-tile`],
+        [/forced-colors/, "background", "ButtonFace", `${at} .hud-panels button`],
+        [/forced-colors/, "color", "ButtonText", `${at} .hud-panels button`],
         [/forced-colors/, "outline-color", "Highlight", `${at} .hud-glass button:focus-visible`],
         [/forced-colors/, "outline-color", "Highlight", `${at} .hud-glass input:focus-visible`],
-        [/forced-colors/, "outline-color", "Highlight", `${at} .hud-glass.room-walk:focus-visible`],
-        // T053's second review: the offer's ring and the walking control's hover have their fallbacks too.
+        // T053's second review: the offer's ring has its fallback too.
         [/forced-colors/, "outline-color", "Highlight", `${at} .room-offer button:focus-visible`],
-        [/forced-colors/, "background", "ButtonFace", `${at} .room-walk:hover`],
-        [/forced-colors/, "border-color", "Highlight", `${at} .room-walk:hover`],
-        [/prefers-reduced-transparency/, "background", "rgb(var(--glass))", `${at} .room-walk:hover`],
       );
     const losing: string[] = [];
     for (const [block, property, value, rule] of FALLBACKS) {

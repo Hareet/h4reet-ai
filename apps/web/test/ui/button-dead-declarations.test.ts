@@ -8,7 +8,7 @@
 // (normal, hover, pressed, focus-visible). A declaration of an owned property (or a shorthand of owned longhands alone;
 // never `font`, which also sets the size) that matches skinned controls (Q5) and nothing else, by a selector that names
 // one of them (or the bar, whose controls are all tiles), and wins no longhand it sets on any element in any of those,
-// is dead: B's rules took it over (T-INT02's GREEN removed each). A declaration that matches nothing in these windows,
+// is dead: B's rules took it over (T-INT02's GREEN removed each but KEPT's). A declaration that matches nothing here,
 // or an unskinned element too, isn't judged here; the run prints those that lose on the skinned controls.
 import { describe, expect, it } from "vitest";
 
@@ -22,7 +22,7 @@ import type { Visit } from "../helpers/room";
 
 /** The skinned controls of Q5 (spec.md FR-008), as ui/button.css names them. */
 const SKINNED =
-  '.hud-bar .hud-tile, .room-walk, .room-eat, .split-back, .split-hint, .resume-close, .talk-larger, .talk-log-toggle, .talk-form .talk-row > button:not(.talk-voice)';
+  ".hud-bar .hud-tile, .room-walk, .room-eat, .split-back, .split-hint, .resume-close, .talk-larger, .talk-log-toggle, .talk-form .talk-row > button:not(.talk-voice)";
 
 /** The sheets whose dead declarations T-INT02 removes. */
 const PROBED = new Set(["room/room.css", "room/hud/split.css"]);
@@ -72,7 +72,9 @@ function longhands(property: string): string[] | null {
     "border-style": side("style"),
     "border-image": ["border-image-source"],
     outline: ["outline-color", "outline-style", "outline-width"],
-    ...Object.fromEntries(SIDES.map((s) => [`border-${s}`, [`border-${s}-color`, `border-${s}-width`, `border-${s}-style`]])),
+    ...Object.fromEntries(
+      SIDES.map((s) => [`border-${s}`, [`border-${s}-color`, `border-${s}-width`, `border-${s}-style`]]),
+    ),
   };
   return map[property] ?? null;
 }
@@ -133,12 +135,37 @@ const WINDOWS: readonly Window[] = [
   { name: "dock, 2D", screen: { w: 390, h: 844 }, hud: "dock", flat: true },
 ];
 
+/** The dead declarations T-INT02 keeps, each read by an earlier test that isn't Q73's to rewrite (and must pass
+ *  unchanged), sorted as the probe prints them:
+ *  - spec 028's test/ui/hud-wall-dom.test.ts reads the split tiles' `min-height` scaled by --wall-scale-right;
+ *  - B's test/ui/button-states.test.ts and DS's test/ui/button-image-skin.test.ts need spec 029's plate on "Back" and
+ *    "Close, Escape" in the cascade, so their "no shadow on the control" cases discriminate (rework 3, R-2);
+ *  - spec 026's test/ui/hud-split-dog.test.ts reads "Back"'s `min-height: 2.75em`, which its model counts (hud-model.ts);
+ *  - spec 005's test/ui/hud.test.ts reads the tiles' `min-height` and `min-width` of 2.75rem. */
+const KEPT: readonly string[] = [
+  'room/hud/split.css | | html[data-split="on"][data-hud="column"] .hud-bar .hud-tile | min-height: calc(3.75rem * var(--wall-scale-right))',
+  'room/hud/split.css | | html[data-split="on"][data-hud="column"] .room-list[data-over="room"] .split-back | background: rgb(var(--glass) / var(--over-plate-alpha))',
+  'room/hud/split.css | | html[data-split="on"][data-hud="column"] .room-list[data-over="room"] .split-back | border-radius: 0.25rem',
+  'room/hud/split.css | | html[data-split="on"][data-hud="column"] .room-list[data-over="room"] .split-back | box-shadow: 0 0 0 0.25rem rgb(var(--glass) / var(--over-plate-alpha))',
+  'room/hud/split.css | | html[data-split="on"][data-hud="column"] .split-back | min-height: 2.75em',
+  'room/hud/split.css | | html[data-split="on"][data-hud="column"] .split-hint | min-height: 2.75em',
+  'room/hud/split.css | | html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint | background: rgb(var(--glass) / var(--over-plate-alpha))',
+  'room/hud/split.css | | html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint | border-radius: 0.25rem',
+  'room/hud/split.css | | html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint | box-shadow: 0 0 0 0.25rem rgb(var(--glass) / var(--over-plate-alpha))',
+  'room/room.css | | html[data-hud="column"] .hud-tile | min-height: 2.75rem',
+  'room/room.css | | html[data-hud="column"] .hud-tile | min-width: 2.75rem',
+  'room/room.css | | html[data-hud="dock"] .hud-tile | min-height: 2.75rem',
+  'room/room.css | | html[data-hud="dock"] .hud-tile | min-width: 2.75rem',
+];
+
 const key = (d: Declaration): string =>
   `${d.sheet} | ${d.at.join(" ")} | ${d.selector} | ${d.property}: ${d.value}`.replace(/\s+/g, " ");
 
 /** The selector with the state pseudo-classes taken out: it matches every element the selector matches in a state. */
 const stateless = (selector: string): string =>
-  selector.replace(/:not\(:(hover|active|focus-visible|focus)\)/g, "").replace(/:(hover|active|focus-visible|focus)(?![\w-])/g, "");
+  selector
+    .replace(/:not\(:(hover|active|focus-visible|focus)\)/g, "")
+    .replace(/:(hover|active|focus-visible|focus)(?![\w-])/g, "");
 
 async function visit(w: Window): Promise<Visit> {
   const viewport = stubViewport(w.screen);
@@ -159,7 +186,8 @@ async function visit(w: Window): Promise<Visit> {
     v.doc.querySelector<HTMLButtonElement>(`.room-list button[data-object-id="${id}"]`)?.click();
     await flush();
   }
-  if (w.pressed) for (const el of v.doc.querySelectorAll("button[aria-pressed]")) el.setAttribute("aria-pressed", "true");
+  if (w.pressed)
+    for (const el of v.doc.querySelectorAll("button[aria-pressed]")) el.setAttribute("aria-pressed", "true");
   // The root's data-skin as the build writes it: the resolved skin's (metal while the image skin's files are absent).
   v.doc.documentElement.setAttribute("data-skin", resolveSkin(readSkins(skinText())).id);
   return v;
@@ -180,7 +208,9 @@ describe("no declaration of room.css or split.css lost to B's component (spec 03
         const candidates = cascade.declarations.filter(
           (d) =>
             PROBED.has(d.sheet) &&
-            (d.pseudo === null ? longhands(d.property) !== null : d.pseudo === "before" && BEFORE_OWNED.has(d.property)),
+            (d.pseudo === null
+              ? longhands(d.property) !== null
+              : d.pseudo === "before" && BEFORE_OWNED.has(d.property)),
         );
         const isCandidate = new Set(candidates);
         const elements = new Set<Element>();
@@ -221,14 +251,18 @@ describe("no declaration of room.css or split.css lost to B's component (spec 03
     // Dead: matched skinned controls alone, by a selector that names one (or the bar, whose controls are all tiles),
     // and won nowhere. A rule for every button of the room (`.room button[aria-disabled="true"]`), or every glass
     // panel's links and buttons, isn't B's to take, whatever these windows hold.
-    const names = (k: string): boolean => /\.(hud-tile|hud-bar|room-walk|room-eat|split-back|split-hint|resume-close|talk-larger|talk-log-toggle)\b/.test((matched.get(k) as Declaration).selector);
+    const names = (k: string): boolean =>
+      /\.(hud-tile|hud-bar|room-walk|room-eat|split-back|split-hint|resume-close|talk-larger|talk-log-toggle)\b/.test(
+        (matched.get(k) as Declaration).selector,
+      );
     const dead = [...onSkinned].filter((k) => !won.has(k) && !onOther.has(k) && names(k)).sort();
     const losing = [...onSkinned].filter((k) => !won.has(k) && !dead.includes(k)).sort();
     console.log(
       `the probe: ${matched.size} declarations matched, ${onSkinned.size} on a skinned control, ${dead.length} dead, ${losing.length} losing there but not B's alone`,
     );
     for (const k of dead) console.log(`dead: ${k}`);
-    for (const k of losing) console.log(`not B's alone: ${k}${onOther.has(k) ? " (matches an unskinned element)" : ""}`);
-    expect(dead).toEqual([]);
+    for (const k of losing)
+      console.log(`not B's alone: ${k}${onOther.has(k) ? " (matches an unskinned element)" : ""}`);
+    expect(dead).toEqual(KEPT);
   }, 1_800_000);
 });

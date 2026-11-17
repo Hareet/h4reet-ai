@@ -7,7 +7,9 @@
 //   property's value is the cascade's: !important, then specificity, then order; the style attribute above them
 //   (layout.ts sets the --wall-* sizes there). var() resolves through the custom properties each element inherits, so
 //   a part's --split-glass-alpha is the over-room one where it is marked. A `button` no rule gives a background has the
-//   browser's ButtonFace, a text box its Field (white).
+//   browser's ButtonFace, a text box its Field (white). Since spec 030's T-INT02 (and T-INT02a), the skin's generated
+//   stylesheet and ui/button.css come first, as the bundle loads them, the page read with the root's data-skin the
+//   build writes, and a control's `::before` face is a layer under its words.
 // - The layers under a run of words: its element's background and each ancestor's up to the marked part, the part's
 //   own included (none for `display: contents`), the outermost marked part where one holds another (the column's
 //   sheet, in flow in the marked column, takes the column's glass); then, since spec 030, the layers a caller says lie
@@ -24,10 +26,19 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { builtSkin } from "./built-skin";
 import { parseCss } from "./room";
 
 export const read = (path: string): string => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
 export const SHEETS = ["../../src/room/room.css", "../../src/talk/talk.css", "../../src/room/hud/split.css"];
+
+/** Spec 030 (T-INT02, T-INT02a; plan.md §R-A3, "As built (int2-030)"): B's faces in A's cascade. The page the build
+ *  serves carries the skin's generated stylesheet and the button component (ui/button.css) before room.css, in the
+ *  bundle's order (main.ts), and its root's data-skin; the model reads them as such. A document whose root has no
+ *  data-skin is read as the build serves it, its root taken to carry the built skin's ID; one whose root carries
+ *  another reads its own. A control's `::before` face, drawn behind its words in its own box, is one of its layers. */
+const SKIN = builtSkin();
+const B_TEXTS = [SKIN.css, read("../../src/ui/button.css")];
 
 // ---- The cascade, as far as these sheets need it ----
 
@@ -81,10 +92,28 @@ export interface Rule {
   readonly order: number;
   readonly decls: Map<string, string>;
 }
-export const RULES: Rule[] = SHEETS.flatMap((p) => parseCss(read(p)).rules).flatMap((r) =>
-  list(r.selector).map((selector) => ({ selector, spec: specificity(selector), order: 0, decls: r.declarations })),
-);
+const rulesOf = (texts: readonly string[]): Rule[] =>
+  texts
+    .flatMap((text) => parseCss(text).rules)
+    .flatMap((r) =>
+      list(r.selector).map((selector) => ({ selector, spec: specificity(selector), order: 0, decls: r.declarations })),
+    );
+/** The three sheets' top-level rules, in their order (spec 029's, which its tests read as such). */
+export const RULES: Rule[] = rulesOf(SHEETS.map(read));
 RULES.forEach((r, i) => ((r as { order: number }).order = i));
+/** B's rules, before them in the bundle's order (spec 030), and the cascade the model reads by default. */
+const B_RULES: Rule[] = rulesOf(B_TEXTS);
+B_RULES.forEach((r, i) => ((r as { order: number }).order = i - B_RULES.length));
+const CASCADE: Rule[] = [...B_RULES, ...RULES];
+
+/** The selector as it matches on the built page: where the root has no data-skin, `[data-skin]` and the built skin's
+ *  `[data-skin="<id>"]` hold (another ID's never does). */
+function asBuilt(el: Element, selector: string): string {
+  if (el.ownerDocument.documentElement.hasAttribute("data-skin")) return selector;
+  return selector.replace(/\[data-skin(?:="([^"]*)")?\]/g, (_m, id: string | undefined) =>
+    id === undefined || id === SKIN.id ? "" : ":not(*)",
+  );
+}
 
 const STATE = /:(?:hover|active|focus|focus-visible|focus-within)\b|::/;
 export function matches(el: Element, selector: string, focused: boolean): boolean {
@@ -92,11 +121,17 @@ export function matches(el: Element, selector: string, focused: boolean): boolea
   if (focused && s.endsWith(":focus-visible")) s = s.slice(0, -":focus-visible".length);
   if (STATE.test(s)) return false;
   try {
-    return el.matches(s);
+    return el.matches(asBuilt(el, s));
   } catch {
     return false;
   }
 }
+
+/** The rules that draw an element's `::before`, each read as its element's (spec 030: the skin's face). */
+const BEFORE_RULES: Rule[] = CASCADE.filter((r) => /::before$/.test(r.selector)).map((r) => ({
+  ...r,
+  selector: r.selector.replace(/::before$/, ""),
+}));
 
 const inline = (el: Element): Map<string, string> => {
   const out = new Map<string, string>();
@@ -108,12 +143,12 @@ const inline = (el: Element): Map<string, string> => {
 };
 
 /** The cascade's winner among `props` (a shorthand and its longhand compete as declared) on an element, over `rules`
- *  (the top-level rules unless a caller passes those of a media state, as the pulse's cases do). */
+ *  (B's and the three sheets' top-level rules unless a caller passes those of a media state, as the pulse's cases do). */
 export function declared(
   el: Element,
   props: readonly string[],
   focused = false,
-  rules: readonly Rule[] = RULES,
+  rules: readonly Rule[] = CASCADE,
 ): { prop: string; value: string } | null {
   let best: { prop: string; value: string; key: [number, Spec, number] } | null = null;
   const consider = (prop: string, raw: string, spec: Spec, order: number): void => {
@@ -226,6 +261,12 @@ export function textColour(el: Element): Rgba {
   return c;
 }
 
+/** The face an element's `::before` paints behind its words (spec 030: the skin's, ui/button.css's), or null. */
+export function beforeFace(el: Element): Rgba | null {
+  const d = declared(el, ["background", "background-color"], false, BEFORE_RULES);
+  return d ? colour(substitute(el, d.value)) : null;
+}
+
 export function background(el: Element): Rgba | null {
   if (declared(el, ["display"])?.value === "contents") return null;
   const d = declared(el, ["background", "background-color"]);
@@ -249,7 +290,61 @@ export function length(v: string, el: Element): number {
     for (let k = 0; k + 1 < rest.length; k += 2) sum += (rest[k] === "-" ? -1 : 1) * length(rest[k + 1] ?? "0", el);
     return sum;
   }
+  // Spec 030 (T-INT02a): any calc() of lengths and numbers with + - * /, as the skin's ring offset,
+  // `calc(-2px - 1px - 0.5rem / 2)`.
+  const sum = calcLength(s, el);
+  if (!Number.isNaN(sum)) return sum;
   throw new Error(`not a length this test reads: ${v}`);
+}
+
+/** A calc() of lengths (px, rem, em) and numbers with + - * / and parentheses, in CSS pixels, or NaN. */
+function calcLength(value: string, el: Element): number {
+  const src = value.trim().replace(/^calc\(([\s\S]*)\)$/, "($1)");
+  let i = 0;
+  const skip = (): void => {
+    while (src[i] === " ") i += 1;
+  };
+  const atom = (): number => {
+    skip();
+    if (src.startsWith("calc(", i)) i += 4;
+    if (src[i] === "(") {
+      i += 1;
+      const v = sum();
+      skip();
+      i += 1;
+      return v;
+    }
+    const m = /^-?[\d.]+(px|rem|em)?/.exec(src.slice(i));
+    if (!m) return NaN;
+    i += m[0].length;
+    const n = Number.parseFloat(m[0]);
+    return m[1] === "rem" ? n * 16 : m[1] === "em" ? n * fontSize(el) : n;
+  };
+  const product = (): number => {
+    let v = atom();
+    for (;;) {
+      skip();
+      const op = src[i];
+      if (op !== "*" && op !== "/") return v;
+      i += 1;
+      const r = atom();
+      v = op === "*" ? v * r : v / r;
+    }
+  };
+  function sum(): number {
+    let v = product();
+    for (;;) {
+      skip();
+      const op = src[i];
+      if (op !== "+" && op !== "-") return v;
+      i += 1;
+      const r = product();
+      v = op === "+" ? v + r : v - r;
+    }
+  }
+  const out = sum();
+  skip();
+  return i === src.length ? out : NaN;
 }
 
 export function fontSize(el: Element): number {
@@ -289,6 +384,9 @@ export function layersUnder(el: Element, part: Element, withFrame = true): Rgba[
         if (c) out.push(c);
       }
     }
+    // Spec 030: a skinned control's face, on its ::before, above its own (transparent) background.
+    const face = beforeFace(n);
+    if (face) out.push(face);
     const bg = background(n);
     if (bg) out.push(bg);
     if (n === part) return out;
