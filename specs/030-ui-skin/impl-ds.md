@@ -310,54 +310,9 @@ BAND the selection screen: "Enter": top, bottom (every state)
 
 ## The labels over the band (T-DS05; Q74; R-3's row; for the integration to move under the record)
 
-`judge-ui-r1` didn't measure them. Measured here from `/srv/studio/handoff/ui-buttons/1/`, read only, by
-`python3 -I -B -` on stdin (`struct` and `zlib`: each PNG's IHDR checked 8-bit RGBA non-interlaced, its IDAT inflated
-and unfiltered; nothing written), as R-3's row words it: each variant's `labels` colour against each of its five files'
-band pixels (outside the insets, 24 px; the frame's 48) of alpha ≥ 0.5 (≥ 128/255), each composited over white and
-over black, the least ratio per file (WCAG's luminance, sRGB's 0.04045 threshold, as B's `ui-skins.test.ts`); and
-`#ffffff` (`--hud-text`) against `panel-frame.png`'s band the same way. Beside them, the centre's least the same way
-(inside the insets): `btn-primary-disabled.png`'s 5.69:1 is the judge's lowest label ratio (`judge-r1.md`), which
-cross-checks the decoding.
-
-| File | Size | Label | Band, least (alpha ≥ 0.5 px) | Band at depth ≥ 6 px, least | Centre, least | SHA-256 (12) |
-|---|---|---|---|---|---|---|
-| btn-primary-normal.png | 192x96 | #14171c | 1.00:1 (6658 px) UNDER 4.5 | 1.00:1 (6658 px) | 10.53:1 (6912 px) | 17b6faa32027 |
-| btn-primary-hover.png | 192x96 | #14171c | 1.00:1 (6658 px) UNDER 4.5 | 1.00:1 (6658 px) | 14.64:1 (6912 px) | ce93cdc64bf4 |
-| btn-primary-pressed.png | 192x96 | #14171c | 1.00:1 (6658 px) UNDER 4.5 | 1.00:1 (6658 px) | 6.06:1 (6912 px) | 0e831b953301 |
-| btn-primary-disabled.png | 192x96 | #14171c | 1.01:1 (6658 px) UNDER 4.5 | 1.01:1 (6658 px) | 5.69:1 (6912 px) | fe4da5713f32 |
-| btn-primary-selected.png | 192x96 | #14171c | 1.03:1 (7140 px) UNDER 4.5 | 1.03:1 (7140 px) | 13.19:1 (6912 px) | 5062c8adb92a |
-| btn-secondary-normal.png | 192x96 | #e6fbff | 1.21:1 (6658 px) UNDER 4.5 | 1.21:1 (6658 px) | 12.24:1 (6912 px) | 1d98c57c0782 |
-| btn-secondary-hover.png | 192x96 | #e6fbff | 1.00:1 (6658 px) UNDER 4.5 | 1.00:1 (6658 px) | 6.46:1 (6912 px) | 30c1e35db047 |
-| btn-secondary-pressed.png | 192x96 | #e6fbff | 1.81:1 (6658 px) UNDER 4.5 | 1.81:1 (6658 px) | 18.39:1 (6912 px) | 1b5af9a30d13 |
-| btn-secondary-disabled.png | 192x96 | #e6fbff | 2.25:1 (6658 px) UNDER 4.5 | 2.25:1 (6658 px) | 9.38:1 (6912 px) | 30fd1dcfd3fe |
-| btn-secondary-selected.png | 192x96 | #e6fbff | 1.08:1 (7140 px) UNDER 4.5 | 1.08:1 (7140 px) | 8.72:1 (6912 px) | 08e54a06ef44 |
-| panel-frame.png | 256x256 | #ffffff | 1.93:1 (12150 px) UNDER 4.5 | 1.93:1 (12150 px) | - | dbf6bd7caf6b |
-
-The least is one pixel's; how much of each band falls under 4.5:1, and the least of the band's inner quarter (depth
-≥ 18 px of 24, ≥ 36 of 48: nearest the centre, where a label crossing the band lies first). "Depths" are the
-distances from the image's edge holding pixels of alpha ≥ 0.5 (the outer 7 or 8 px are the transparent ring, so a
-6 px depth limit changes nothing above):
-
-| File | Label | Band px (alpha ≥ 0.5) under 4.5:1 | Inner band, least | Depths with alpha ≥ 0.5 |
-|---|---|---|---|---|
-| btn-primary-normal.png | #14171c | 58% | 1.31:1 | 8-23 |
-| btn-primary-hover.png | #14171c | 58% | 1.30:1 | 8-23 |
-| btn-primary-pressed.png | #14171c | 64% | 1.31:1 | 8-23 |
-| btn-primary-disabled.png | #14171c | 85% | 1.20:1 | 8-23 |
-| btn-primary-selected.png | #14171c | 54% | 1.31:1 | 7-23 |
-| btn-secondary-normal.png | #e6fbff | 23% | 1.25:1 | 8-23 |
-| btn-secondary-hover.png | #e6fbff | 28% | 1.03:1 | 8-23 |
-| btn-secondary-pressed.png | #e6fbff | 16% | 2.43:1 | 8-23 |
-| btn-secondary-disabled.png | #e6fbff | 1% | 5.65:1 | 8-23 |
-| btn-secondary-selected.png | #e6fbff | 33% | 1.11:1 | 7-23 |
-| panel-frame.png | #ffffff | 11% | - (no pixel of alpha ≥ 0.5 at depth ≥ 36) | 8-22 (the centre's highest alpha 76) |
-
-**My reading, beside the numbers, not in their place:** every file's band holds pixels under 4.5:1 against its label,
-most of the primary's band (54% to 85%), a quarter or so of the secondary's but its disabled state, and a tenth of the
-frame's; and every control's content box crosses its band (above). So a label that reaches the band can lie on pixels
-under 4.5:1 there. Under plan §R-D4 that is a ratio under 4.5:1 for his look (SC-008) and round 2's brief, never a
-`line.py` finding and not a reason to `--record` again; it is on the page (questions.md, Q: "Round 1's labels over the
-band"). Nothing ships it before his intake: the build falls back to `metal`.
+**Moved** by `int-030`, word for word (checked by `cmp`), under the round's record:
+[studio-round-1.md](studio-round-1.md), "The labels over the band (T-DS05; Q74, Q102; R-3's row)", with its two tables
+and this note's reading. "The band's crossings", above, stays here; the moved reading's "(above)" points to it.
 
 ## Not run, and not mine
 
