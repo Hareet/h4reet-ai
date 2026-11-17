@@ -205,8 +205,11 @@
   border-image-repeat: stretch;
 }
 
+/* Under forced colours, no frame. The longhand (rework-030ds, rv-030ds's F-1): Vite's minifier, lightningcss, ships
+   the shorthand `border-image: none` as an empty `border-image:`, which a browser drops, and the frame would stay;
+   test/ui/button-shipped-css.test.ts reads what ships. */
 @media (forced-colors: active) {
   :root[data-skin][data-skin-kind="image"] [data-half] {
-    border-image: none;
+    border-image-source: none;
   }
 }
