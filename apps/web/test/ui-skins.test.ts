@@ -93,7 +93,11 @@ describe("the skin file's schema (FR-009)", () => {
     ["an unknown top-level key", `${VALID}extra: 1\n`, /extra/],
     ["an unknown key in a skin", VALID.replace("    kind: css", "    kind: css\n    colour: red"), /colour/],
     ["an unknown token", VALID.replace("      chamfer: 0.5rem", "      chamfer: 0.5rem\n      sparkle: 1"), /sparkle/],
-    ["an unknown key in a state", VALID.replace('label: "#ffffff", border', 'label: "#ffffff", shine: "#ffffff", border'), /shine/],
+    [
+      "an unknown key in a state",
+      VALID.replace('label: "#ffffff", border', 'label: "#ffffff", shine: "#ffffff", border'),
+      /shine/,
+    ],
     ["a missing token", VALID.replace("      chamfer: 0.5rem\n", ""), /chamfer/],
     ["a missing token inside a group", VALID.replace(', dark: "rgb(0 0 0 / 0.55)"', ""), /dark/],
     ["a missing state", VALID.replace(/ {8}pressed: [^\n]*\n/, ""), /pressed/],
@@ -105,7 +109,11 @@ describe("the skin file's schema (FR-009)", () => {
     ["a length without a unit", VALID.replace("chamfer: 0.5rem", "chamfer: 8"), /chamfer/],
     ["a case it doesn't know", VALID.replace("case: upper", "case: shouting"), /case/],
     ["a weight off the scale", VALID.replace("weight: 700", "weight: 750"), /weight/],
-    ["a family that leaves its declaration", VALID.replace('family: "IBM Plex Sans"', 'family: "x; } body { color: red"'), /family/],
+    [
+      "a family that leaves its declaration",
+      VALID.replace('family: "IBM Plex Sans"', 'family: "x; } body { color: red"'),
+      /family/,
+    ],
     ["an active skin that isn't there", VALID.replace("active: one", "active: two"), /two/],
     ["a kind it doesn't know", VALID.replace("kind: css", "kind: video"), /kind/],
     ["an image skin without a fallback", `${VALID}  pic:\n    kind: image\n    files: {}\n`, /fallback/],
@@ -165,7 +173,9 @@ describe("the generated stylesheet (FR-010)", () => {
   it("writes data-skin on the page's root element, and only there", () => {
     const html = '<!doctype html>\n<html lang="en">\n<head></head><body><p>html</p></body></html>\n';
     const out = skinHtml(html, "metal");
-    expect(out).toBe('<!doctype html>\n<html lang="en" data-skin="metal">\n<head></head><body><p>html</p></body></html>\n');
+    expect(out).toBe(
+      '<!doctype html>\n<html lang="en" data-skin="metal">\n<head></head><body><p>html</p></body></html>\n',
+    );
     expect(skinHtml("<html><body></body></html>", "plain")).toBe('<html data-skin="plain"><body></body></html>');
   });
 });
@@ -251,7 +261,8 @@ describe("every CSS skin, variant, and state meets FR-012's ratios", () => {
           const border = colour(s.border);
           const ring = colour(t[variant].ring);
           const check = (what: string, contrast: number, floor: number): void => {
-            if (contrast < floor) failing.push(`${id} ${variant} ${state}: ${what} ${contrast.toFixed(2)} under ${floor}`);
+            if (contrast < floor)
+              failing.push(`${id} ${variant} ${state}: ${what} ${contrast.toFixed(2)} under ${floor}`);
           };
           for (const [beneath, under] of [
             ["white", WHITE],
@@ -326,7 +337,8 @@ describe("swapping the skin is an edit of the data alone (SC-004)", () => {
     const decl = parseCss(b.css).rules[0]?.declarations;
     expect(parseCss(b.css).rules[0]?.selector).toBe(':root[data-skin="plain"]');
     for (const variant of VARIANTS)
-      for (const state of STATES) expect(decl?.get(`--btn-${variant}-${state}-face`)).toBe(plain.tokens[variant][state].face);
+      for (const state of STATES)
+        expect(decl?.get(`--btn-${variant}-${state}-face`)).toBe(plain.tokens[variant][state].face);
     expect(a.css).not.toBe(b.css);
   });
 

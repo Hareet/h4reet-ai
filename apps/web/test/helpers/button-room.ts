@@ -12,7 +12,7 @@ import { expect } from "vitest";
 import { readSkins, resolveSkin, skinCss } from "../../build/ui-skins";
 import { Cascade } from "./button-cascade";
 import type { Env, Sheet } from "./button-cascade";
-import { WEB, button, flush, intoRoom, start, stubViewport } from "./room";
+import { WEB, button, flush, intoRoom, radio, start, stubViewport } from "./room";
 import type { Visit } from "./room";
 
 /** The skin file's text with `active` set to `id` (the repository's own value where `id` is absent). */
@@ -81,6 +81,15 @@ export async function selectionScreen(id?: string, media: readonly string[] = []
   const v = start({ webgl: true, viewport: viewport.factory });
   await flush();
   return dress(v, id, { media, width: 1366, height: 768 });
+}
+
+/** Chooses a path and an avatar on the selection screen, so "Enter" is no longer disabled. */
+export async function chooseBoth(doc: Document): Promise<void> {
+  radio(doc, "path", "engineer").click();
+  radio(doc, "avatar", "dog").click();
+  await flush();
+  const enter = doc.querySelector<HTMLButtonElement>(".choice-enter");
+  expect(enter?.disabled).toBe(false);
 }
 
 /** The room in a layout, past the hand-off ("Keep it for later"), walking where the layout asks, the skin in place. */

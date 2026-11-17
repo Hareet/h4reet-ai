@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
 import { readSkins } from "../../build/ui-skins";
 import type { CssSkin } from "../../build/ui-skins";
 import type { Cascade } from "../helpers/button-cascade";
-import { ENTER, LAYOUTS, ROOM_CONTROLS, room, selectionScreen, skinText } from "../helpers/button-room";
+import { ENTER, LAYOUTS, ROOM_CONTROLS, chooseBoth, room, selectionScreen, skinText } from "../helpers/button-room";
 import type { Control } from "../helpers/button-room";
 
 /** The longhands (and the radius) the component owns (plan §R-B3), each won by ui/button.css. */
@@ -44,15 +44,26 @@ const OWNED = [
   "transform",
 ];
 
-/** Properties jsdom's getComputedStyle carries as declared, for the cross-check. */
-const JSDOM_READS = ["background-color", "color", "clip-path", "white-space", "min-height", "min-width", "text-transform"];
+/** Properties jsdom's getComputedStyle carries as declared, for the cross-check. Not the background: jsdom keys a
+ *  shorthand holding var() (room.css's `background: var(--tile-face)`) apart from its longhands, so a later shorthand
+ *  of lower specificity resets the component's background-color in jsdom alone (its computed-style.js compares
+ *  specificity per declared name); browsers, and the cascade above, cascade the longhand. */
+const JSDOM_READS = ["color", "clip-path", "white-space", "min-height", "min-width", "text-transform"];
 
 const px = (v: string | null): number => {
   const m = /^([\d.]+)px$/.exec((v ?? "").trim());
   return m ? Number(m[1]) : NaN;
 };
 
-function checkControl(cascade: Cascade, win: Window, control: Control, el: Element, skin: CssSkin, where: string): void {
+function checkControl(
+  cascade: Cascade,
+  win: Window,
+  control: Control,
+  el: Element,
+  skin: CssSkin,
+  where: string,
+  state: "normal" | "selected" = "normal",
+): void {
   const label = `${where}: ${control.name} (${el.textContent?.trim().slice(0, 24) ?? ""})`;
   for (const property of OWNED) {
     const won = cascade.winner(el, property);
@@ -61,11 +72,11 @@ function checkControl(cascade: Cascade, win: Window, control: Control, el: Eleme
     );
   }
   const t = skin.tokens;
-  const normal = t[control.variant].normal;
-  expect(cascade.value(el, "background-color"), `${label}: face`).toBe(normal.face);
-  expect(cascade.value(el, "color"), `${label}: label`).toBe(normal.label);
+  const want = t[control.variant][state];
+  expect(cascade.value(el, "background-color"), `${label}: face`).toBe(want.face);
+  expect(cascade.value(el, "color"), `${label}: label`).toBe(want.label);
   for (const side of ["top", "right", "bottom", "left"])
-    expect(cascade.value(el, `border-${side}-color`), `${label}: border`).toBe(normal.border);
+    expect(cascade.value(el, `border-${side}-color`), `${label}: border`).toBe(want.border);
   expect(cascade.value(el, "text-transform"), `${label}: case`).toBe(t.font.case === "upper" ? "uppercase" : "none");
   expect(cascade.value(el, "letter-spacing"), `${label}: tracking`).toBe(t.font.tracking);
   expect(cascade.value(el, "font-family"), `${label}: font`).toContain(`"${t.font.family}"`);
@@ -91,18 +102,24 @@ describe("one button component for every control of Q5 (FR-008, FR-013; SC-003)"
     it(`gives each control the component, its variant, 44 × 44, and wrapping, in ${layout.name}`, async () => {
       const { v, cascade, id } = await room(layout);
       expect(id).toBe("metal");
-      let tiles = 0;
       for (const control of ROOM_CONTROLS) {
         const found = control.find(v.doc);
-        if (control.name === "the bar's tiles") tiles = found.length;
+        // "Back" is the split layout's alone (split.ts).
+        if (control.name === '"Back"' && !layout.split) continue;
+        // The bar's six tiles where the browser offers full screen; jsdom has no Fullscreen API, so five here.
+        if (control.name === "the bar's tiles") expect(found.length, layout.name).toBe(5);
         expect(found.length, `${layout.name}: ${control.name}`).toBeGreaterThan(0);
-        for (const el of found) checkControl(cascade, v.win, control, el, metal, layout.name);
+        for (const el of found) {
+          // The walking control while walking is selected (Q6): its selected tokens; every other control at rest.
+          const state = layout.walk && el.classList.contains("room-walk") ? "selected" : "normal";
+          checkControl(cascade, v.win, control, el, metal, layout.name, state);
+        }
       }
-      expect(tiles, `${layout.name}: the bar's six tiles`).toBe(6);
     });
 
   it('gives the selection screen\'s "Enter" the primary button', async () => {
     const { v, cascade } = await selectionScreen();
+    await chooseBoth(v.doc);
     const found = ENTER.find(v.doc);
     expect(found).toHaveLength(1);
     for (const el of found) checkControl(cascade, v.win, ENTER, el, metal, "the selection screen");
@@ -113,9 +130,13 @@ describe("one button component for every control of Q5 (FR-008, FR-013; SC-003)"
     if (!split) throw new Error("no layout");
     const { v, cascade, id } = await room(split, "plain");
     expect(id).toBe("plain");
-    for (const control of ROOM_CONTROLS)
-      for (const el of control.find(v.doc)) checkControl(cascade, v.win, control, el, plain, "plain, split");
+    for (const control of ROOM_CONTROLS) {
+      const found = control.find(v.doc);
+      expect(found.length, control.name).toBeGreaterThan(0);
+      for (const el of found) checkControl(cascade, v.win, control, el, plain, "plain, split");
+    }
     const screen = await selectionScreen("plain");
+    await chooseBoth(screen.v.doc);
     for (const el of ENTER.find(screen.v.doc))
       checkControl(screen.cascade, screen.v.win, ENTER, el, plain, "plain, the selection screen");
   });

@@ -18,9 +18,9 @@ import { describe, expect, it } from "vitest";
 import { readSkins } from "../../build/ui-skins";
 import type { CssSkin } from "../../build/ui-skins";
 import type { Cascade, State } from "../helpers/button-cascade";
-import { ENTER, LAYOUTS, ROOM_CONTROLS, room, selectionScreen, skinText } from "../helpers/button-room";
+import { ENTER, LAYOUTS, ROOM_CONTROLS, chooseBoth, room, selectionScreen, skinText } from "../helpers/button-room";
 import type { Control, Skinned } from "../helpers/button-room";
-import { button, flush, radio } from "../helpers/room";
+import { button, flush } from "../helpers/room";
 
 const metal = readSkins(skinText()).skins.metal as CssSkin;
 const SPLIT = LAYOUTS.find((l) => l.split && !l.walk);
@@ -79,7 +79,10 @@ function length(value: string | null): number {
 /** A shadow list's geometry, its colours taken out. */
 const geometry = (shadow: string | null): string =>
   (shadow ?? "none")
-    .replace(/rgba?\([^)]*\)|#[0-9a-f]{3,8}\b|\b(?:transparent|currentcolor|Canvas|CanvasText|ButtonText|Highlight)\b/gi, "C")
+    .replace(
+      /rgba?\([^)]*\)|#[0-9a-f]{3,8}\b|\b(?:transparent|currentcolor|Canvas|CanvasText|ButtonText|Highlight)\b/gi,
+      "C",
+    )
     .replace(/\s+/g, " ")
     .trim();
 
@@ -204,10 +207,7 @@ describe("the component's states (FR-012)", () => {
     expect((enter as HTMLButtonElement).disabled).toBe(true);
     expect(face(s.cascade, enter)).toBe(metal.tokens.primary.disabled.face);
     expect(s.cascade.value(enter, "border-top-style")).toBe("dashed");
-    radio(s.v.doc, "path", "engineer").click();
-    radio(s.v.doc, "avatar", "dog").click();
-    await flush();
-    expect((enter as HTMLButtonElement).disabled).toBe(false);
+    await chooseBoth(s.v.doc);
     expect(face(s.cascade, enter)).toBe(metal.tokens.primary.normal.face);
     for (const state of [{ hover: true }, { focusVisible: true }, { active: true }])
       differsBeyondColour(s.cascade, enter, state, `"Enter" ${JSON.stringify(state)}`);
@@ -290,6 +290,13 @@ describe("forced colours (FR-014)", () => {
         }
     };
     check(await room(SPLIT, undefined, forced), ROOM_CONTROLS);
-    check(await selectionScreen(undefined, forced), [ENTER]);
+    const screen = await selectionScreen(undefined, forced);
+    const enter = ENTER.find(screen.v.doc)[0];
+    if (!enter) throw new Error("no Enter");
+    // Disabled before both choices: GrayText and a dashed border, as the system draws a disabled button.
+    expect(screen.cascade.value(enter, "color")).toBe("GrayText");
+    expect(screen.cascade.value(enter, "border-top-style")).toBe("dashed");
+    await chooseBoth(screen.v.doc);
+    check(screen, [ENTER]);
   });
 });
