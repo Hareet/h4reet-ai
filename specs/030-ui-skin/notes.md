@@ -42,3 +42,19 @@ ruff format --check --no-cache --extend-exclude corpus .
 ## What's left
 
 The implementation (T-A, T-B, T-C, T-DJ at once; T-DS after T-B04; T-INT), the round (R-1 tonight from this branch, R-2 on his studio, R-3 after T-DJ), and his: the answers to the 16 questions, his look (SC-008), his intake of the set (plan §R-D3), and every merge.
+
+# Rework: rework-spec-030 (spec-writer, night of 2026-11-17)
+
+Branch `night/rework-spec-030/rework-spec-030` from `35a75b2c` (`brief-ui-r1`'s tip over `spec-030`'s). Documents only. The findings are `rv-spec-030`'s, from the decision page (`docs/night-shift/2026-11-17.md` on `night/supervisor/2026-11-17`, "Twenty-fifth wake"), S-1 to S-6, I-1 to I-3, N-1 to N-5, and Q51.
+
+## The cited lines, confirmed at `35a75b2c`
+
+| Finding | Cited | At the base |
+|---|---|---|
+| S-1 | `spec.md:55` (Q5), `:170` (FR-008), `plan.md:93` (R-B3), `tasks.md:35` (T-B01) | Each as cited. |
+| S-1 | `src/room/hud/split.ts:140-148`, `:220`; `room/ui-words.yaml:94`; `src/resume/view.ts:44` | `labelled(...)` at `:140-150`, `labelled("split-hint", words.close, words.esc, "Escape")` at `:220`; `hud.close: Close` at `:94`; `el(doc, "button", { type: "button", class: "resume-close" }, "Close")` at `:44`. Also read: `.split-hint` styled beside `.split-back` (`split.css:216-217`), and `.resume-close` in `src/resume/resume.css:28-42` (a light panel, ground `#fff`, `:6`). |
+| S-2 | `test/ui/choice-cards.test.ts:425-436`; `tasks.md:44`; `spec.md:233` | As cited: every hex of `.choice-card:has(input:checked)`'s `border-color` and `box-shadow`, `onWhite(c) >= 3` at `:435`. **Also found, not in the review**: `:459-463` needs the card's focus ring to be `<n>px solid #rrggbb` with that hex at 3:1 on white; a `var(--hud-focus)` ring fails the regex, and `#ffd23f` is about 1.5:1 on white. Both go into T-C01's rewrite. |
+| S-3 | `apps/web/Dockerfile` with `deploy/scripts/web_image.py` (`:19-32`, `:79-85`) | The cited line numbers are the Dockerfile's: its empty `room-assets`, `visitor-assets`, `twin-assets` stages at `:19-32` and their `COPY --from` at `:79-85`. `web_image.py` names the contexts at `:91-99` and hands them over at `:324-363`; its tests at `deploy/scripts/test_web_image.py:1597-1700` (visitor-assets); `scripts/test_makefile.py:328-339` pins the dev-cpu build line's contexts. `.dockerignore` doesn't drop `assets/ui`, but no `COPY` takes it: `COPY apps/web apps/web` (`:62`) is the app alone. |
+| S-4 | `plan.md:95-97` | As cited. |
+| S-5 | `plan.md:172-182`, `:106` | As cited. `grep -ln "tile-face\|#555555\|#1a1a1a" test/` from `apps/web/` returns `test/room/hud-contrast.test.ts`, `test/room/highlight.test.ts` (the room's highlight edge `#1a1a1a`, no button), `test/ui/hud-look.test.ts`, `test/ui/hud-over-contrast.test.ts`; `choice-cards.test.ts` isn't among them at this base (it pins `#0b4f9c` through `onWhite`), but it is C's either way. |
+| S-6 | `plan.md:162`; `compose/hud.ts:164` | As cited: `tiles: { rows: 2, perRow: 3, gapRem: 0.25, padRem: 0.25, tileRem: 3.75 }`, 60 CSS px at scale 1. The brief's insets: 24 image px on the buttons (12 CSS px), 48 on the panel frame (24 CSS px). |
