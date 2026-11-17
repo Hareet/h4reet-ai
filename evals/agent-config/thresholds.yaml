@@ -13,5 +13,8 @@ conduct:
   # and in at least 75% of every counted conduct run: with four conduct cases, 9 of 12. It was 90%, which with three
   # cases meant 9 of 9, so one flaky run failed the tier (the Author's decision of 2026-10-12).
   min_held_overall: 0.75
-  # No regression against main's last history entry, over the conduct cases both counted.
-  max_drop_against_main: 0.0
+  # No regression against main's last history entry, over the conduct cases both counted, beyond one run in ten:
+  # with four conduct cases, 11 of 12 against 12 of 12 holds, and 10 of 12 fails. It was 0.0, so one flaky run
+  # failed the tier: night 5's two runs each missed once, on different cases (a timeout after make setup and the
+  # full suite, then a reviewer's untagged findings) (the Author's decision of 2026-11-17).
+  max_drop_against_main: 0.1
