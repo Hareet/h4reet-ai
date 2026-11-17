@@ -415,3 +415,20 @@ Leave full screen  2 line(s): Leave full / screen  [67.1, 45.6 px]
 
 `button-skin.test.ts`'s "two lines" case holds this at 1366 × 768 under both CSS skins. rv-030b's R-3 ("no label over two lines" at the real windows) didn't hold on this count: the review's own measure isn't on the page, so I can't say where they differ; a likely difference is "Leave full screen", which jsdom's bar doesn't hold (no Fullscreen API).
 
+## rv-030b's other findings, named, not built (the brief's item 4)
+
+- **R-3** (the split tiles' third line, "only an unwritten input reaches it"): its three-line case is answered by T-B04's table and Q75's rule above for the six labels the room has; a longer label (a translation) is still a later spec's layout change (FR-013, the edge case), not built.
+- **R-4** (the skinned page's own AA): T-INT's (T-INT02a and the page-level checks), not built.
+- **R-5** (the cascade helper drops a selector jsdom can't parse, `button-cascade.ts`'s `catch { return false; }`): not built. The helper now strips a trailing `::before`/`::after` before `matches()`, so the pseudo-element rules it reads are parsed; any other selector jsdom refuses is still dropped silently.
+- **N-1, N-3**: not built (their text isn't on the page). **N-2** (the hover rules unguarded): built, `@media (hover: hover)`, tested under `hover: none`. **N-4**: the page says it "goes with the `::before`"; its own text isn't on the page, and the `::before` (GREEN 2) is built.
+
+## For C (the brief's item 5)
+
+Whatever writes `data-skin` must keep `class="dark-page"`. B's plugin does: `skinHtml` appends after the root's own attributes. From the merged tree (`git merge-tree --write-tree HEAD a3898c60`, tree `4f0500c2`, no conflict), its `apps/web/index.html` (`git show 4f0500c2…:apps/web/index.html`, copied to `/tmp/rework-030b/merged-index.html`) has `<html lang="en" class="dark-page">`; run through B's `skinHtml` with the resolved skin, from `apps/web/`, `npx --no-install tsx -e '…readSkins, resolveSkin, skinHtml…'`, exit 0:
+
+```
+<html lang="en" class="dark-page" data-skin="metal" data-skin-kind="css">
+```
+
+`ui-skins.test.ts` holds it too ("keeps every attribute the root already has"). C's `dark.css` at `a3898c60` sets `outline` and `outline-offset` on `:root.dark-page button:focus-visible`, (0,3,1); B's ring on "Enter" is (0,5,0) and wins (C's own comment says so).
+
