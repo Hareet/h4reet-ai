@@ -42,7 +42,7 @@ From W1 the store is the tunnel end's own `shared-state` (plan.md §16, "The sha
 
 ## 3. `tunnel` (the client, on the laptop)
 
-In the laptop's prod, profile `tunnel`. The same image, unprivileged. It connects to the tunnel end's Elastic IP on 2222, with the pinned host key, and holds:
+In the laptop's prod, profile `tunnel`. The same image, unprivileged once its keys are copied: it starts as root with `DAC_OVERRIDE`, `SETUID` and `SETGID` alone, for the copy, then runs as `tunnel` (10001) with no capability (its keys, below). It connects to the tunnel end's Elastic IP on 2222, with the pinned host key, and holds:
 
 | Forward | From | To | Carries |
 |---|---|---|---|
