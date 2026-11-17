@@ -224,6 +224,7 @@ Terms: **a half**: one of the right column's two panels (Q3, Q4); **the slice**:
 | 029, FR-028 (the chosen card's look), the cards' colours (light) | The skin's frame, chamfer, and glow on a dark page; structure and states unchanged | Q9, Q10; FR-017 |
 | 016, FR-042 (the credits page) and the data-flow page's look (light) | Dark, the room's tokens | Q9; FR-015 |
 | 017, the studio line's candidate checks (`contracts/studio-line.md`; `line.py`) | Also the still set's checks | Q16; FR-022 |
+| 014, the compact bar's tiles in the column layout and the dock (its FR-017 to FR-021; `compose/hud.ts`'s `HUD_PLACEMENTS.bar`: six in one row of 35rem, the dock's two) | Not amended: they keep spec 014's metrics (the words' own case, weight 400, no tracking) under every skin, and take the skin's colours, chamfer, bevel, ring and glow; this spec's FR-011 (`metal`'s Bold, uppercase, tracking) applies to every other control and to the split layout's tiles | `rv-030b`'s R-1; the page's Q89 (rework-030b) |
 
 ## Assumptions
 
