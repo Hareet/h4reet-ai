@@ -12,6 +12,8 @@ His rule for night 5, from the brief's words: "**Approval, given ahead.** The sp
 
 **Reworked** 2026-11-17 (night 5) by `rework-spec-030`, from `35a75b2c`, for `rv-spec-030`'s S-1 to S-6, each departure from the reviewed plan named where it lands ("rework, S-n"): S-1 §R-B3 and §R-B4; S-2 §R-C2, §R-C3; S-3 §R-D4, §9; S-4 §R-B3, §R-B4, §10; S-5 §R-A4, §R-B5, §9; S-6 §R-D4. The non-blocking findings taken (I-1 to I-3, N-1 to N-5) are named the same way; [notes.md](notes.md) lists each.
 
+**Reworked again** 2026-11-17 (night 5) by `rework2-spec-030`, from `2dd4213f`, for `rv-rework-spec-030`'s R-1 to R-9 and the page's Q71 to Q75 (their recommended answers taken under his rule 1), each departure named where it lands ("rework 2"): R-1 §1, §R-D4, §9; R-2 §R-A4, §9; R-3 §R-D4, §10; Q71 §R-B4; Q72 §R-B1, §R-B3, §R-B4, §R-D4; Q73 §9; Q74 §R-D4, §10; Q75 §R-B3; R-5 §R-B4; R-9 §R-B3 (moot by Q72). Q71 and Q72 are `impl-030b`'s "As built" departures, which this plan now states as its design.
+
 **Branch**: `night/spec-030/spec-030` (documents), from `b6b4d847`. **Spec**: [spec.md](spec.md). **Tasks**: [tasks.md](tasks.md). **The round**: [studio-round-1.md](studio-round-1.md). Paths are under `apps/web/` unless they start otherwise.
 
 ## 1. Summary
@@ -91,7 +93,7 @@ skins:
     tokens: { … square corners, 1 px border, no glow, case: as-written … }
 ```
 
-The values are this plan's estimates, chosen so FR-012's ratios hold (T-B01 computes them; T-B02 adjusts until they do, by 5% steps of lightness, and records each change). The schema (in `build/ui-skins.ts`) refuses an unknown key, a missing token, a state missing from a variant, or a colour that isn't `#rrggbb` or `rgb(r g b / a)`.
+Each variant also carries `ring`, the focus ring's colour (rework 2, Q72, as `impl-030b` built it, its §R-B1 "As built": `metal` `#14171c` primary, `#ffd23f` secondary). The values are this plan's estimates, chosen so FR-012's ratios hold (T-B01 computes them; T-B02 adjusts until they do, by 5% steps of lightness, and records each change). The schema (in `build/ui-skins.ts`) refuses an unknown key, a missing token, a state missing from a variant, or a colour that isn't `#rrggbb` or `rgb(r g b / a)`.
 
 ### R-B2. The build (FR-010; `build/ui-skins.ts`, new; `vite.config.ts`; `src/main.ts`)
 

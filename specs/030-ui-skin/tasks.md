@@ -18,6 +18,8 @@ His rule for night 5, from the brief's words: "**Approval, given ahead.** The sp
 
 **Reworked** 2026-11-17 (night 5) by `rework-spec-030`, from `35a75b2c`, for `rv-spec-030`'s S-1 to S-6 and the page's Q51 (its recommended answer taken under his rule 1): T-A01 (b) (d), T-B01 (a) to (d), T-B03, T-B04, T-C01 to T-C03, T-DS01, T-DS02, R-3, T-INT01, T-INT02b (new), and the checks' table; each change is marked "rework" and named in [notes.md](notes.md). The groups already running from `7cdc31d2` take their share as a rework on their tips once the rework's review passes (the supervisor's queue).
 
+**Reworked again** 2026-11-17 (night 5) by `rework2-spec-030`, from `2dd4213f`, for `rv-rework-spec-030`'s R-1 to R-9 and the page's Q71 to Q75 (recommended answers taken under his rule 1), each change marked "rework 2": T-A01 (d), T-A05 (R-2); T-B01 (a) (Q71, R-5), (c) (Q72), (d) (R-8); T-B03 (Q72, R-9); T-B04 (Q75); R-3 (Q74); T-DS01 (b) (R-3, Q74), (c) (R-1); T-DS02 (R-1, R-3); T-DS05 (Q74); T-INT02 (Q73); T-INT02b (R-2). [notes.md](notes.md) says which group's rework each reaches.
+
 **Who**: T-A, T-B, T-C, and T-DJ are four implementers' (`impl-030a`, `impl-030b`, `impl-030c`, `impl-030dj`), each on its own branch from this branch's tip, all at once; their files are disjoint (plan §9). T-DS (`impl-030ds`) branches from T-B's tip once T-B04 is done (its one sequential share, plan §R-D4). The round's tasks R-1 to R-3 are the studio line's (plan §R-D2): R-1 may run tonight from this branch; R-3 needs T-DJ. T-INT merges A, B, C, DJ, DS, in that order.
 
 **Tests**: test-first. Each RED step's tests are written, committed, and seen to fail before its GREEN step. A task runs the test files it adds or changes and those covering the files it changes (`npx vitest run <files>` from `apps/web/`; `python3 -I -B scripts/studio/test_line.py` for T-DJ), and `make lint`, and pastes them in its group's notes (`specs/030-ui-skin/impl-{a,b,c,dj,ds}.md`). The full `make check` runs once, in T-INT. A test of an earlier spec is rewritten only in a RED commit of a feature task, seen failing on the tree before its GREEN, and named in the notes with its old and new assertion (spec.md's Assumptions); never in a fix task.
@@ -104,4 +106,6 @@ His rule for night 5, from the brief's words: "**Approval, given ahead.** The sp
 | The record's hashes | R-3 |
 | The image skin through `border-image` with the recorded insets, no content box moved | T-DS01 (a), (b) |
 | The fallback to the CSS skin, tested both ways | T-DS01 (a) |
-| The shipped image sees `assets/ui/` (the `ui-assets` context) | T-DS01 (c) |
+| The shipped image sees `assets/ui/` (the `ui-assets` context), on a host stack and in the release (rework 2) | T-DS01 (c) |
+| The image skin paints no flat face outside the image's own centre (rework 2) | T-DS01 (b) |
+| The labels over the image's band (rework 2, Q74) | T-DS01 (b), R-3 or T-DS05 |
