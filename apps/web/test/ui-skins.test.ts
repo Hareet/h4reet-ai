@@ -3,8 +3,8 @@
 //   variant, a colour that isn't #rrggbb or rgb(r g b / a), a font family that could break out of its declaration,
 //   an `active` that names no skin, and an image skin without a CSS fallback.
 // - skinCss emits one rule, `:root[data-skin="<id>"]`, holding every --btn-* custom property of the active skin and
-//   nothing else; an image skin, until T-DS, resolves to its fallback whole with the line
-//   "<id>: falling back to <fallback> (image skins not built)".
+//   nothing else; an image skin that can't be drawn resolves to its fallback whole with the line
+//   "<id>: falling back to <fallback> (<the first reason>)" (impl-030ds; test/ui-skin-image.test.ts builds it both ways).
 // - FR-012's ratios for every CSS skin of content/ui-skins.yaml, every variant, every state, computed as spec 029's
 //   hud-over-contrast.test.ts computes them (sRGB, composited over pure white and pure black): the label 4.5:1 against
 //   the face, and against the face under the skin's inner highlight; the border 3:1 against the face (the states'
@@ -85,6 +85,23 @@ const TOKENS = (indent: string): string =>
     VARIANT(`${indent}  `),
   ].join("\n");
 const VALID = ["active: one", "skins:", "  one:", "    kind: css", "    tokens:", TOKENS("      "), ""].join("\n");
+/** An image skin falling back to `one`, as T-DS's schema has it (impl-030ds): its labels and its eleven files, every
+ *  hash `pending`, so it always falls back (plan §R-D4). */
+const PIC = [
+  "  pic:",
+  "    kind: image",
+  "    fallback: one",
+  '    labels: { primary: "#14171c", secondary: "#e6fbff" }',
+  "    files:",
+  ...["primary", "secondary"].flatMap((v) => [
+    `      ${v}:`,
+    ...STATES.map(
+      (s) => `        ${s}: { file: assets/ui/buttons/btn-${v}-${s}.png, sha256: pending, slice: [24, 24, 24, 24] }`,
+    ),
+  ]),
+  "      panel: { file: assets/ui/buttons/panel-frame.png, sha256: pending, slice: [48, 48, 48, 48] }",
+  "",
+].join("\n");
 
 describe("the skin file's schema (FR-009)", () => {
   it("reads a valid file, and the repository's", () => {
@@ -165,10 +182,12 @@ describe("the generated stylesheet (FR-010)", () => {
   });
 
   it("resolves an image skin to its CSS fallback, whole, with the line that says so", () => {
-    const text = `${VALID.replace("active: one", "active: pic")}  pic:\n    kind: image\n    fallback: one\n    files: {}\n`;
+    // impl-030ds (T-DS02 replaces B's image case, plan §R-B2): the line names the first reason, here `hash pending`,
+    // where B's said "(image skins not built)"; the skin is T-DS's schema's, with its labels and files.
+    const text = `${VALID.replace("active: one", "active: pic")}${PIC}`;
     const resolved = resolveSkin(readSkins(text));
     expect(resolved.id).toBe("one");
-    expect(resolved.line).toBe("pic: falling back to one (image skins not built)");
+    expect(resolved.line).toBe("pic: falling back to one (hash pending)");
     expect(skinCss(resolved)).toContain(':root[data-skin="one"]');
   });
 
@@ -195,7 +214,8 @@ describe("the generated stylesheet (FR-010)", () => {
   });
 
   it("writes the fallback's ID and kind for an image skin falling back (rework, N-3)", () => {
-    const text = `${VALID.replace("active: one", "active: pic")}  pic:\n    kind: image\n    fallback: one\n    files: {}\n`;
+    // impl-030ds: the image skin is T-DS's schema's (labels and the eleven files), where B's was `files: {}`.
+    const text = `${VALID.replace("active: one", "active: pic")}${PIC}`;
     const resolved = resolveSkin(readSkins(text));
     expect(skinHtml("<html><body></body></html>", resolved.id, resolved.kind)).toBe(
       '<html data-skin="one" data-skin-kind="css"><body></body></html>',
