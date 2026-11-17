@@ -201,6 +201,9 @@ exit=0
 halves, which DS's departure 6 leaves to the integration to run beside its stand-in), exit 0:
 
 ```
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-17/int-030/apps/web
+
+
  Test Files  9 passed (9)
       Tests  151 passed (151)
    Start at  09:10:19
@@ -216,6 +219,9 @@ test/ui/loading-page.test.ts test/ui/loading-style.test.ts test/ui/credits.test.
 test/site.test.ts test/smoke.test.ts`), the seven, and `hud-look`, exit 0:
 
 ```
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-17/int-030/apps/web
+
+
  Test Files  22 passed (22)
       Tests  374 passed (374)
    Start at  09:12:24
@@ -250,6 +256,9 @@ exit=0
 And the seven, exit 0:
 
 ```
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-17/int-030/apps/web
+
+
  Test Files  7 passed (7)
       Tests  122 passed (122)
    Start at  09:16:40
@@ -257,3 +266,142 @@ And the seven, exit 0:
 
 exit=0
 ```
+
+## The whole `apps/web` suite, once, on the last code commit
+
+On `304823128a68817a4cafb297b70160857814a592` (every merge, the RED, and the `lightningcss` line; every later commit
+of this branch touches `specs/` alone: `git diff --stat 30482312 HEAD -- . ':!specs' ':!docs'` is empty, and no
+`apps/web` test reads `specs/030-ui-skin/` or spec 001's `plan.md`). From `apps/web/`, started in the background with
+a two-hour limit and its own notice waited for: `npx --no-install vitest run --reporter=default --reporter=json
+--outputFile.json=/tmp/int030/suite.json`, exit 0. The log is 3,482 lines (every file's cases, verbose, as the
+default reporter prints with no TTY; at `/tmp/int030/run-suite.txt` for this session); its end:
+
+```
+ Test Files  285 passed (285)
+      Tests  5009 passed | 6 skipped (5015)
+   Start at  09:19:09
+   Duration  1609.43s (tests 72%, import 28%)
+
+JSON report written to /tmp/int030/suite.json
+exit=0
+```
+
+**No case failed.** So no failure needs an owner here. T-INT02's cases (the dead declarations, the resume case, the
+contrast pairs) and T-INT02a's contrast re-run aren't written yet. They are the next task's, and nothing of theirs
+ran red. `test/room/twin-2d.test.ts` passed in this run. The six skipped, from the JSON report (`numFailedTests` 0,
+`numPendingTests` 6), are the same count as B's own whole-suite run (`impl-b.md`, "4885 passed | 6 skipped"). No
+group's notes predicted them as new:
+
+- `test/content/film-links.test.ts`, "spec 023: the candidate, before and after the Author publishes it", five cases
+  (5, 7, 8, 9, and "writes the candidate from the approved file…").
+- `test/room/legacy-stages.test.ts`, "the frozen stages of e324771e (spec 005, T004) give exactly the shipped module's
+  stages while it holds the base's formulas".
+
+C's notes asked the integration to check the built `index.html` with B merged (B's plugin must keep C's
+`class="dark-page"`). The suite's own release build (`test/global-build.ts`, `/tmp/h4-web-release-85g7vv`, made at
+09:19) gives `<html lang="en" class="dark-page" data-skin="metal" data-skin-kind="css">`: C's class kept, and
+`metal-image` falling back to `metal` (no files before his intake). `dark-pages.test.ts`'s "carries dark-page on
+index.html's own <html>…" case passed after C's merge and in the suite.
+
+## `make lint`, at the end
+
+From the repository's root, on `0a9e26ac` (the code of `30482312`), exit 0. Its whole output:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+952 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit=0
+```
+
+Before the RED commit, `prettier --check`, `eslint --max-warnings 0`, and `tsc --noEmit -p apps/web` were run on the
+rewritten test alone. ESLint flagged one `no-useless-assignment` and Prettier gave two formatting differences
+(Prettier's output written to `/tmp`, applied with the Edit tool). Both were fixed before the commit, and the RED was
+run again on the final file (the paste above). `make test`, `make evals`, and `make check` weren't run: the brief
+gives the one `make check` to the handover (T-INT04).
+
+## The commits after the merges
+
+| Commit | What |
+|---|---|
+| `30482312` | `lightningcss` 1.33.0 declared in `apps/web/package.json`'s devDependencies, and the matching line in `package-lock.json` (DS's departure 14; `rv-rework-030ds`'s nit 2). The brief's condition was checked on a scratch export of the merged tree first. `npm install --package-lock-only --offline --ignore-scripts` after the `package.json` line changed `package-lock.json` by one line alone (`packages["apps/web"].devDependencies`), exit 0, with no network. Both lines were then written here with the Edit tool. The same command on a fresh export of this tree left the lockfile byte-identical (`cmp`). Nothing was installed. |
+| `69b15d23` | This record's first part (the merges, the RED and GREEN, each merge's run): T-INT02b's GREEN, pasted. |
+| `943ac02e` | `plan.md`: §R-D4's "As built" with DS's departures 1 to 14 (DS left `plan.md` alone); §R-B3's "As built (int-030)" on `border-image-source: none` (`rv-rework-030ds`'s nit 3), with a pointer beside each place that says `border-image: none`: `spec.md`'s forced-colours line and FR-014, `plan.md` §R-B3's states bullet and B's "Nothing on the control", §R-B4's `button-states` bullet, and §R-D4's two; §9's "As built (int-030)", the files each merge changed beyond its row. A's, B's, C's, DJ's, and DSB's own departures were already in `plan.md` from their branches and are not restated. |
+| `7ee966de` | `impl-ds.md`'s "The labels over the band" (the band table, Q74, Q102) moved under `studio-round-1.md`'s record, word for word (`cmp` of the 48 lines), a pointer left behind. |
+| `fe494820` | `tasks.md`: the rows built and reviewed ticked, each citing its tip (below). |
+| `c7543c1e` | Spec 001's `plan.md` night-5 index: `- [`fixes/merge-f-3.md`](fixes/merge-f-3.md): the merge of F7` (Q76). |
+| `0a9e26ac` | `impl-ds.md`'s "The band's crossings" (T-DS01 (b)'s list) moved under the record too, word for word (`cmp` of the 38 lines). The first move took the labels alone, but T-DS05's row says "paste both" and DS's backlog names the two sections. `rv-rework-030ds`'s nit 1 added to DS's backlog in `impl-ds.md`, in its words. |
+
+**The ticks** (`fe494820`): T-A06 to T-A08 at `9026b4ba` (ticked here because A's branch's `tasks.md` predates them;
+A's N-2); T-B01 to T-B04 at `44708023`; T-C01 to T-C03 at `cb1a537b` (`rework-030c`'s `a3898c60` inside); T-DJ01 and
+T-DJ02 at `46b726ba` (`impl-030dj`'s `c77eb4ce` inside); R-1 at `35a75b2c`; R-2 on his machine (the candidate judged
+by R-3); R-3 at `3996c6c4`; T-DS01 to T-DS05 at `192652e0`, with DSB's share at `b1320584`. T-A01 to T-A05 were
+already ticked. **Not ticked:** T-INT01 and T-INT02b, which are built here but not yet reviewed (each has a note
+saying so); T-INT02, T-INT02a, T-INT03, and T-INT04, which are later tasks'.
+
+## What's done, and what isn't (for the next task)
+
+Done:
+
+- T-INT01: the eight merges, in the supervisor's order, each `--no-ff`. The merge commits' own messages number them
+  1 to 7 (the RED isn't a merge), and the table above numbers them in the brief's 1 to 8.
+- T-INT02b: RED `5cf48ac5`, seen failing before B; GREEN after B's merge. No case was found failing only after a
+  later merge.
+- Each merge's tests, the whole `apps/web` suite (no failure), the brief's pytest line (305 passed), and `make lint`.
+- `plan.md`'s "As built" and §9, the `border-image-source` note, the band table and crossings under the record, the
+  ticks, Q76's line, and the `lightningcss` line.
+
+Not done, and not this task's:
+
+- **T-INT02** (the next task, `int2-030`): the dead declarations of `room.css` and `split.css`, test-first. Its RED
+  per Q73 still has `hud-look.test.ts`'s resume case (`:138`) and the tile colour pairs of `hud-contrast.test.ts`
+  and `hud-over-contrast.test.ts` to rewrite. The column and dock cases of `hud-look.test.ts` are already in Q73's
+  form (T-INT02b, this task; question 1 below).
+- **T-INT02a**: `hud-halves-contrast.test.ts` with B's faces in A's cascade. It passed in the whole suite here.
+- **C's ask**: `dark-pages.test.ts`'s colour checks still run under a stand-in `:root[data-skin="metal"]` of plan
+  §R-B1's estimates, and C asked that they use B's built stylesheet at T-INT (`impl-c.md`). That needs a test edit,
+  which my brief doesn't name (question 2 below).
+- **T-INT03** (`adr-030`), and **T-INT04** (the handover): the one `make check`, the merge-request note, and F-3's
+  band table in `docs/merge-requests/human-patches/030.md` beside row 1 (Q102; the page's sixty-ninth wake gives it
+  to the handover). `human-patches/030.md` came in with DJ's merge and isn't changed here.
+- **Backlog, not fixed:** `rv-rework-030ds`'s nit 1 (in `impl-ds.md`'s backlog); DS's N-1 (the image skin's PNGs
+  not on Vite's watch list); the reviews' findings in `impl-c.md`'s backlog.
+- **His**: the look (SC-008), the round's intake (`human-patches/030.md`, the `.patch` from DJ's line), and Q102.
+
+## Questions (in `/night/io/out/questions.md`, each with a recommended answer)
+
+1. Should T-INT02's RED take only what Q73 names beyond the two cases T-INT02b rewrote (the resume case and the
+   colour pairs)? Recommended: yes.
+2. Who moves `dark-pages.test.ts`'s colour checks from the stand-in `metal` to B's built stylesheet, as C's notes
+   ask? Recommended: T-INT02's task, test-first.
+
+## Departures and slips, named
+
+- **No rewrap commit for Q95's N-2**: it was already in DSB's merged line (above).
+- **A's files ran after DSB's merge and the RED, not right after A's merge.** DSB touches no `apps/web` file but
+  `Dockerfile`, so A's files read the same tree.
+- **B's `plan.md` hunk in §R-B4/§R-B5**: resolved by the brief's §R-B2/§R-B3 rule, since it is the same file and the
+  same shape. It is inside the documents, so not a stop.
+- **The band's two sections in two commits** (`7ee966de`, `0a9e26ac`): I read "the band table" as the labels' section
+  alone and saw DS's backlog only afterwards.
+- **Scratch, outside the repository**: `git merge-tree --write-tree` exports in `/tmp/int030-greencheck.K1m9` (HEAD
+  with B) and `/tmp/int030-dscheck.8ieI` (HEAD with DS; its `apps/web/package.json` edited there for the lockfile
+  check), `/tmp/int030-lock.uAvi` (the lockfile check on this tree), and `/tmp/int030/` (the runs' logs, the commit
+  messages, the JSON report). The two exports' `node_modules` were symlinks to this worktree's, removed with
+  `unlink` before the `npm` command (the other's at the end). The three export folders are removed (`rm -rf` after
+the links were gone; the worktree's `node_modules` intact). `/tmp/int030/` and the page copies `/tmp/int030-*.md` stay
+for this session. Nothing under
+  `/srv/studio/` was read or written.
+- **No refusal** from a hook or the gate this session. No human-only path was written (`.claude/**`, CLAUDE.md,
+  REVIEW.md, the constitution, `corpus/**`, `tools/gates/**`, `evals/agent-config/**`,
+  `redteam/forbidden-actions.sh`, `assets/**`). No request to the runner. No push, merge to `main`, PR, container,
+  release, plan against the account, or AWS call. No new endpoint or model call, so no cost, span, panel, or
+  data-flow entry.
