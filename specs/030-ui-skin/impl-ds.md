@@ -269,50 +269,14 @@ $ cd apps/web && npx --no-install vitest run test/ui-skins.test.ts test/ui/butto
 
 ## The band's crossings (T-DS01 (b), rework 2, Q74)
 
-Printed by "names each control whose content box crosses its state's band" (run with `--silent=false`): each control
-whose border and padding on a side, by the cascade, are less than its state's `--btn-…-bw` there. The fixture's insets
-are the record's (24 image px a button, 12 CSS px; the frame 48, 24 CSS px), so these are the record's crossings. Every
-control crosses, in every state:
-
-```
-BAND the split layout (1366 × 768): the bar's tiles: top, right, bottom, left (every state)
-BAND the split layout (1366 × 768): the walking control: top, right, bottom, left (every state)
-BAND the split layout (1366 × 768): "Eat": top, right, bottom, left (every state)
-BAND the split layout (1366 × 768): "Back": top, right, bottom, left (every state)
-BAND the split layout (1366 × 768): the larger view's toggle: top, bottom (every state)
-BAND the split layout (1366 × 768): the log's toggle: top, bottom (every state)
-BAND the split layout (1366 × 768): "Send": top, bottom (every state)
-BAND the split layout (1366 × 768): the list (the top half, the panel frame): top, right, bottom, left (its own)
-BAND the split layout, walking: the bar's tiles: top, right, bottom, left (every state)
-BAND the split layout, walking: the walking control: top, right, bottom, left (every state)
-BAND the split layout, walking: "Eat": top, right, bottom, left (every state)
-BAND the split layout, walking: "Back": top, right, bottom, left (every state)
-BAND the split layout, walking: the larger view's toggle: top, bottom (every state)
-BAND the split layout, walking: the log's toggle: top, bottom (every state)
-BAND the split layout, walking: "Send": top, bottom (every state)
-BAND the split layout, walking: the list (the top half, the panel frame): top, right, bottom, left (its own)
-BAND the column layout (1280 × 720): the bar's tiles: top, right, bottom, left (every state)
-BAND the column layout (1280 × 720): the walking control: top, right, bottom, left (every state)
-BAND the column layout (1280 × 720): "Eat": top, right, bottom, left (every state)
-BAND the column layout (1280 × 720): the larger view's toggle: top, bottom (every state)
-BAND the column layout (1280 × 720): the log's toggle: top, bottom (every state)
-BAND the column layout (1280 × 720): "Send": top, bottom (every state)
-BAND the dock (390 × 844): the bar's tiles: top, right, bottom, left (every state)
-BAND the dock (390 × 844): the walking control: top, right, bottom, left (every state)
-BAND the dock (390 × 844): "Eat": top, right, bottom, left (every state)
-BAND the dock (390 × 844): the larger view's toggle: top, bottom (every state)
-BAND the dock (390 × 844): the log's toggle: top, bottom (every state)
-BAND the dock (390 × 844): "Send": top, bottom (every state)
-BAND the split layout (1366 × 768): "Close, Escape" (the conversation): top, bottom (every state)
-BAND the split layout (1366 × 768): "Close" (the resume panel): top, bottom (every state)
-BAND the selection screen: "Enter": top, bottom (every state)
-```
+**Moved** by `int-030`, word for word (checked by `cmp`), under the round's record: [studio-round-1.md](studio-round-1.md),
+"The band's crossings (T-DS01 (b), rework 2, Q74)", as T-DS05's row and the backlog below ask.
 
 ## The labels over the band (T-DS05; Q74; R-3's row; for the integration to move under the record)
 
 **Moved** by `int-030`, word for word (checked by `cmp`), under the round's record:
 [studio-round-1.md](studio-round-1.md), "The labels over the band (T-DS05; Q74, Q102; R-3's row)", with its two tables
-and this note's reading. "The band's crossings", above, stays here; the moved reading's "(above)" points to it.
+and this note's reading, right after the crossings' list, which its "(above)" now names.
 
 ## Not run, and not mine
 
@@ -347,6 +311,8 @@ PNG.
 - **His intake** (`docs/merge-requests/human-patches/030.md` on `judge-ui-r1`'s branch): the data already holds the
   record's hashes and insets, so his intake changes no data; with DSB's `ui-assets` context merged, the image sees the
   files.
+- **`rv-rework-030ds`'s nit 1** (added by `int-030`, as the page's sixty-ninth wake has it): "`button-shipped-css.test.ts`
+  minifies two files only, so a `border-image: none` added elsewhere would ship empty and pass". Not fixed.
 
 # Rework: rework-030ds
 

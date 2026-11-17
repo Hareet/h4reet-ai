@@ -241,12 +241,57 @@ The extracted file's SHA-256: `98eb47ddbcf7ac6193e3fafa6420b33f6f3bb3d8e8e3ff1e1
   }
   ```
 
+### The band's crossings (T-DS01 (b), rework 2, Q74)
+
+Listed by `impl-030ds` (T-DS01 (b), in [impl-ds.md](impl-ds.md)) and moved here, word for word, by `int-030`, with the
+labels' measurement below, as T-DS05's row ("paste both in studio-round-1.md under the record") and DS's departure 8
+ask (the record wasn't on DS's base; Q86).
+
+Printed by "names each control whose content box crosses its state's band" (run with `--silent=false`): each control
+whose border and padding on a side, by the cascade, are less than its state's `--btn-…-bw` there. The fixture's insets
+are the record's (24 image px a button, 12 CSS px; the frame 48, 24 CSS px), so these are the record's crossings. Every
+control crosses, in every state:
+
+```
+BAND the split layout (1366 × 768): the bar's tiles: top, right, bottom, left (every state)
+BAND the split layout (1366 × 768): the walking control: top, right, bottom, left (every state)
+BAND the split layout (1366 × 768): "Eat": top, right, bottom, left (every state)
+BAND the split layout (1366 × 768): "Back": top, right, bottom, left (every state)
+BAND the split layout (1366 × 768): the larger view's toggle: top, bottom (every state)
+BAND the split layout (1366 × 768): the log's toggle: top, bottom (every state)
+BAND the split layout (1366 × 768): "Send": top, bottom (every state)
+BAND the split layout (1366 × 768): the list (the top half, the panel frame): top, right, bottom, left (its own)
+BAND the split layout, walking: the bar's tiles: top, right, bottom, left (every state)
+BAND the split layout, walking: the walking control: top, right, bottom, left (every state)
+BAND the split layout, walking: "Eat": top, right, bottom, left (every state)
+BAND the split layout, walking: "Back": top, right, bottom, left (every state)
+BAND the split layout, walking: the larger view's toggle: top, bottom (every state)
+BAND the split layout, walking: the log's toggle: top, bottom (every state)
+BAND the split layout, walking: "Send": top, bottom (every state)
+BAND the split layout, walking: the list (the top half, the panel frame): top, right, bottom, left (its own)
+BAND the column layout (1280 × 720): the bar's tiles: top, right, bottom, left (every state)
+BAND the column layout (1280 × 720): the walking control: top, right, bottom, left (every state)
+BAND the column layout (1280 × 720): "Eat": top, right, bottom, left (every state)
+BAND the column layout (1280 × 720): the larger view's toggle: top, bottom (every state)
+BAND the column layout (1280 × 720): the log's toggle: top, bottom (every state)
+BAND the column layout (1280 × 720): "Send": top, bottom (every state)
+BAND the dock (390 × 844): the bar's tiles: top, right, bottom, left (every state)
+BAND the dock (390 × 844): the walking control: top, right, bottom, left (every state)
+BAND the dock (390 × 844): "Eat": top, right, bottom, left (every state)
+BAND the dock (390 × 844): the larger view's toggle: top, bottom (every state)
+BAND the dock (390 × 844): the log's toggle: top, bottom (every state)
+BAND the dock (390 × 844): "Send": top, bottom (every state)
+BAND the split layout (1366 × 768): "Close, Escape" (the conversation): top, bottom (every state)
+BAND the split layout (1366 × 768): "Close" (the resume panel): top, bottom (every state)
+BAND the selection screen: "Enter": top, bottom (every state)
+```
+
 ### The labels over the band (T-DS05; Q74, Q102; R-3's row)
 
 Measured by `impl-030ds` (T-DS05, on its branch, in [impl-ds.md](impl-ds.md)) and moved here, word for word, by
 `int-030`, under the record, as DS's departure 8 asks (the record wasn't on DS's base; Q86). "Here" and "My reading"
-are `impl-030ds`'s; "(above)" in its reading is `impl-ds.md`'s "The band's crossings (T-DS01 (b), rework 2, Q74)",
-which stays there. The page's Q102 asks him what he wants done.
+are `impl-030ds`'s; "(above)" in its reading is the crossings' list just above. The page's Q102 asks him what he wants
+done.
 
 `judge-ui-r1` didn't measure them. Measured here from `/srv/studio/handoff/ui-buttons/1/`, read only, by
 `python3 -I -B -` on stdin (`struct` and `zlib`: each PNG's IHDR checked 8-bit RGBA non-interlaced, its IDAT inflated
