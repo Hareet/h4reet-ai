@@ -130,7 +130,7 @@ def digest(files: dict[str, bytes | None]) -> str:
 
 class FakeDocker:
     """docker buildx build, as the engine would answer it, keeping a copy of the policy context it was handed, and
-    the room-assets, visitor-assets, and twin-assets contexts' paths, or None where the build names one not."""
+    the room-assets, visitor-assets, twin-assets, and ui-assets contexts' paths, or None where the build names one not."""
 
     def __init__(self, build_rc: int = 0) -> None:
         self.build_rc = build_rc
@@ -140,6 +140,7 @@ class FakeDocker:
         self.room_assets: list[str | None] = []
         self.visitor_assets: list[str | None] = []
         self.twin_assets: list[str | None] = []
+        self.ui_assets: list[str | None] = []
 
     def __call__(self, *args: str, capture: bool = True) -> subprocess.CompletedProcess:
         self.calls.append(args)
@@ -151,9 +152,12 @@ class FakeDocker:
             if a == "--build-context"
         ]
         names = [name for name, _, _ in named]
-        # The policy first, then each asset context the tree has, in the script's order (spec 016 adds the twin's).
+        # The policy first, then each asset context the tree has, in the script's order (spec 016 adds the twin's,
+        # spec 030 the buttons' images, FR-027).
         assets = [
-            n for n in ("room-assets", "visitor-assets", "twin-assets") if n in names
+            n
+            for n in ("room-assets", "visitor-assets", "twin-assets", "ui-assets")
+            if n in names
         ]
         assert names == ["policy", *assets], names
         where = {name: path for name, _, path in named}
@@ -163,6 +167,7 @@ class FakeDocker:
         self.room_assets.append(where.get("room-assets"))
         self.visitor_assets.append(where.get("visitor-assets"))
         self.twin_assets.append(where.get("twin-assets"))
+        self.ui_assets.append(where.get("ui-assets"))
         return subprocess.CompletedProcess(args, self.build_rc, "", "")
 
     def builds(self) -> list[tuple[str, ...]]:
@@ -179,11 +184,13 @@ def build_argv(
     room: Path | None = None,
     visitors: Path | None = None,
     twin: Path | None = None,
+    ui: Path | None = None,
 ) -> tuple[str, ...]:
     """The one build the script may run: its own tree's Dockerfile and context, the proxy, the drafts flag, the
     policy context, the tree's models as the room-assets context where it has them (`room`), its visitor avatars'
     folder as the visitor-assets context where it has one (`visitors`, spec 009), the twin's folder as the
-    twin-assets context where it has one (`twin`, spec 016), and the policy's digest as a label."""
+    twin-assets context where it has one (`twin`, spec 016), the buttons' images' folder as the ui-assets context
+    where it has one (`ui`, spec 030, FR-027), and the policy's digest as a label."""
     models = ("--build-context", f"room-assets={room}") if room is not None else ()
     avatars = (
         ("--build-context", f"visitor-assets={visitors}")
@@ -191,6 +198,7 @@ def build_argv(
         else ()
     )
     twins = ("--build-context", f"twin-assets={twin}") if twin is not None else ()
+    images = ("--build-context", f"ui-assets={ui}") if ui is not None else ()
     return (
         "buildx",
         "build",
@@ -210,6 +218,7 @@ def build_argv(
         *models,
         *avatars,
         *twins,
+        *images,
         "--label",
         f"org.h4reet.web.policy={policy}",
         str(tree),
@@ -1203,7 +1212,8 @@ def test_the_builds_have_the_trees_caps_and_no_other_policy_file() -> None:
     # Of the files the build context gives (a COPY or ADD with no --from), the caps and spec 016's likeness approvals
     # (its plan.md R-03) are the only ones under assets/. The models come from the named room-assets stage instead
     # (T219), never from the context's assets/room, the visitor avatars from the visitor-assets stage (spec 009,
-    # FR-023), and the twin from the twin-assets stage (spec 016, FR-048).
+    # FR-023), the twin from the twin-assets stage (spec 016, FR-048), and the buttons' images from the ui-assets stage
+    # (spec 030, FR-027).
     likeness = "COPY assets/policy/approvals.json assets/policy/approvals.json"
     assert all(copy < i for i in builds) and instructions.index(likeness) < min(builds)
     # And spec 016's credits page's source (its FR-042; changed with T063, plan.md R-18), which isn't policy.
@@ -1223,6 +1233,7 @@ def test_the_builds_have_the_trees_caps_and_no_other_policy_file() -> None:
         ROOM_ASSETS_COPY,
         VISITOR_ASSETS_COPY,
         "COPY --from=twin-assets / /src/assets/twin/",
+        UI_ASSETS_COPY,
     ]
 
 
@@ -1708,3 +1719,174 @@ def test_the_build_stage_copies_the_avatars_before_it_builds_and_nothing_else_re
         )
     ]
     assert readers == ["build"]
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 030's button images (FR-027; plan.md §R-D4; tasks.md T-DS01 (c)): the tree's own assets/ui, as the named context
+# ui-assets, after twin-assets, exactly when it is a directory of the tree, neither it nor assets/ a link; and the
+# script's asset contexts are one list, ASSET_CONTEXTS, in the Dockerfile's stage order, which release.py reads too
+# --------------------------------------------------------------------------------------------------
+UI_ASSETS_COPY = "COPY --from=ui-assets / /src/assets/ui/"
+UI_NONE_LINE = (
+    "has no assets/ui directory of its own, so the buttons build on their CSS skin"
+)
+
+
+def with_ui(tree: Path) -> Path:
+    """The tree's assets/ui/, holding a button's image and the slices' file, as the Author's intake would lay it out
+    (the files are the test's own bytes, not a PNG: the script hands the folder over and never reads it)."""
+    ui = tree / "assets/ui"
+    (ui / "buttons").mkdir(parents=True)
+    (ui / "buttons/primary-normal.png").write_bytes(b"made by the test")
+    (ui / "buttons/slices.json").write_text('{"schema": 1}\n', encoding="utf-8")
+    return ui
+
+
+def test_the_button_images_come_from_the_export_it_builds_after_the_twin(
+    tmp_path: Path, export: Path, repo: Path
+) -> None:
+    ui = with_ui(export)
+    env, run = host_files(tmp_path, export)
+    fake = FakeDocker()
+    assert host("prod", env, run, fake, export, repo) == 0
+    argv = built(fake)
+    assert argv == build_argv(
+        export, SHA, "", "", context_of(argv), digest(BOTH), ui=ui
+    )
+    assert fake.ui_assets == [str(ui)]
+    assert fake.twin_assets == [None]
+    # With the twin's folder too: both named contexts, twin-assets first.
+    twin = with_twin(export)
+    fake = FakeDocker()
+    assert host("prod", env, run, fake, export, repo) == 0
+    argv = built(fake)
+    assert argv == build_argv(
+        export, SHA, "", "", context_of(argv), digest(BOTH), twin=twin, ui=ui
+    )
+    assert argv.index(f"ui-assets={ui}") > argv.index(f"twin-assets={twin}")
+
+
+def ui_a_link(tree: Path, outside: Path) -> None:
+    ui = with_ui(outside)
+    (tree / "assets").mkdir()
+    (tree / "assets/ui").symlink_to(ui, target_is_directory=True)
+
+
+def ui_under_a_linked_assets(tree: Path, outside: Path) -> None:
+    with_ui(outside)
+    (tree / "assets").symlink_to(outside / "assets", target_is_directory=True)
+
+
+def ui_a_file(tree: Path, outside: Path) -> None:
+    (tree / "assets").mkdir()
+    (tree / "assets/ui").write_bytes(b"not a directory")
+
+
+def ui_absent(tree: Path, outside: Path) -> None:
+    (tree / "assets").mkdir()
+
+
+@pytest.mark.parametrize(
+    "make", [ui_a_link, ui_under_a_linked_assets, ui_a_file, ui_absent]
+)
+def test_assets_ui_that_isnt_the_trees_own_directory_names_no_context(
+    tmp_path: Path,
+    export: Path,
+    repo: Path,
+    capsys: pytest.CaptureFixture[str],
+    make: Callable[[Path, Path], None],
+) -> None:
+    # As for room-assets: a link would hand the build a directory the commit doesn't hold. The Dockerfile's empty
+    # ui-assets stage then stands in, and the buttons build on their CSS skin ("files absent", FR-025).
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    make(export, outside)
+    env, run = host_files(tmp_path, export)
+    fake = FakeDocker()
+    assert host("prod", env, run, fake, export, repo) == 0
+    assert fake.ui_assets == [None]
+    assert not [a for a in built(fake) if "ui-assets" in a]
+    assert UI_NONE_LINE in capsys.readouterr().out
+
+
+def test_the_ui_assets_stage_is_empty_and_after_the_twin_assets_stage() -> None:
+    # A build that names no ui-assets context, such as the gate's image step, gets the empty stage, and the buttons
+    # build on their CSS skin.
+    stages = dockerfile_stages()
+    names = [name for _, name, _ in stages]
+    at = names.index("ui-assets")
+    assert names[at - 1] == "twin-assets"
+    assert stages[at] == ("scratch", "ui-assets", [])
+
+
+def test_the_build_stage_copies_the_button_images_before_it_builds_and_nothing_else_reads_them() -> (
+    None
+):
+    by_name = {name: body for _, name, body in dockerfile_stages() if name}
+    build = by_name["build"]
+    (run,) = [
+        i
+        for i, ln in enumerate(build)
+        if ln.startswith("RUN ") and " build -w apps/web" in ln
+    ]
+    assert UI_ASSETS_COPY in build
+    assert build.index(UI_ASSETS_COPY) < run
+    readers = [
+        name or image
+        for image, name, body in dockerfile_stages()
+        if image.lower() == "ui-assets"
+        or any(
+            copied_from(ln) == "ui-assets" or "ui-assets" in mounted_from(ln)
+            for ln in body
+        )
+    ]
+    assert readers == ["build"]
+
+
+def test_the_asset_contexts_are_one_list_in_the_dockerfiles_stage_order() -> None:
+    # release.py's web_contexts() loops over this list (rework 2, R-1), so a context added here reaches the release.
+    assert wi.ASSET_CONTEXTS == (
+        ("assets/room", "room-assets"),
+        ("assets/visitors", "visitor-assets"),
+        ("assets/twin", "twin-assets"),
+        ("assets/ui", "ui-assets"),
+    )
+    assert (wi.UI_ASSETS, wi.UI_ASSETS_CONTEXT) == ("assets/ui", "ui-assets")
+    names = [name for _, name, _ in dockerfile_stages()]
+    at = [names.index(context) for _, context in wi.ASSET_CONTEXTS]
+    assert at == sorted(at)
+
+
+def test_mains_contexts_are_the_asset_contexts_in_order(
+    tmp_path: Path, export: Path, repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # main builds its --build-context pairs from ASSET_CONTEXTS: with every folder the list names in the tree, the pairs
+    # after the policy's are the list's, in its order, each the tree's own folder. A stand-in list proves main reads it.
+    for folder, _ in wi.ASSET_CONTEXTS:
+        (export / folder).mkdir(parents=True)
+    env, run = host_files(tmp_path, export)
+    fake = FakeDocker()
+    assert host("prod", env, run, fake, export, repo) == 0
+    argv = built(fake)
+    pairs = [argv[i + 1] for i, a in enumerate(argv) if a == "--build-context"]
+    assert pairs[1:] == [
+        f"{context}={export / folder}" for folder, context in wi.ASSET_CONTEXTS
+    ]
+    monkeypatch.setattr(
+        wi,
+        "ASSET_CONTEXTS",
+        (("assets/twin", "twin-assets"), ("assets/room", "room-assets")),
+    )
+    calls: list[tuple[str, ...]] = []
+
+    def record(*args: str, capture: bool = True) -> subprocess.CompletedProcess:
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    assert host("prod", env, run, record, export, repo) == 0  # type: ignore[arg-type]
+    (argv,) = calls
+    pairs = [argv[i + 1] for i, a in enumerate(argv) if a == "--build-context"]
+    assert pairs[1:] == [
+        f"twin-assets={export / 'assets/twin'}",
+        f"room-assets={export / 'assets/room'}",
+    ]
