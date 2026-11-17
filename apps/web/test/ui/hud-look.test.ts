@@ -6,6 +6,10 @@
 // figures the mono; no font, url(), or package is added; every transition sits under prefers-reduced-motion:
 // no-preference, at most 150 ms; the stacked layout keeps the page's buttons; the fallbacks make the glass opaque; the
 // column's log rests at --log-rest and scrolls; and the room sets the compact boxes' properties from compactBoxes.
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_METRICS, OPENING, compactBoxes, hudBoxes, logRestRem } from "../../src/room/compose/hud";
@@ -109,34 +113,169 @@ const controls = (v: Visit): Element[] => [
   ...v.doc.querySelectorAll(".hud-bar button, .hud-bar a, .room-list button, .talk button, .room-walk"),
 ];
 
+// Spec 030 (T-INT02b, found by impl-b.md's T-B01 (d); Q73's form): the page the build serves names its skin on the
+// root (data-skin, build/ui-skins.ts), so the two layouts' cases below set it as the build does, from
+// content/ui-skins.yaml's `active`, and read the skin's controls by the cascade of the whole selector list.
+const SKINS_YAML = join(dirname(fileURLToPath(import.meta.url)), "../../content/ui-skins.yaml");
+const ACTIVE_SKIN = existsSync(SKINS_YAML)
+  ? (/^active:\s*([\w-]+)/m.exec(readFileSync(SKINS_YAML, "utf8"))?.[1] ?? "")
+  : "";
+
+/** Spec 030's skinned controls among the HUD's (Q5; spec.md FR-008), and its one primary (Q6). */
+const SKINNED =
+  '.hud-bar .hud-tile, .room-walk, .room-eat, .split-back, .split-hint, .resume-close, .talk-larger, .talk-log-toggle, .talk-form button[type="submit"]';
+const PRIMARY = '.talk-form button[type="submit"]';
+
+/** Splits a selector list at its top-level commas (none inside :is(), :not(), or an attribute's brackets). */
+function topLevel(list: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let from = 0;
+  for (let i = 0; i < list.length; i += 1) {
+    const ch = list[i];
+    if (ch === "(" || ch === "[") depth += 1;
+    else if (ch === ")" || ch === "]") depth -= 1;
+    else if (ch === "," && depth === 0) {
+      out.push(list.slice(from, i).trim());
+      from = i + 1;
+    }
+  }
+  out.push(list.slice(from).trim());
+  return out;
+}
+
+/** One complex selector's specificity, :is(), :not(), and :has() taking their most specific argument's, :where()
+ *  none (Selectors 4, §17); the rest counted as specificity() counts it. */
+function fullSpecificity(selector: string): [number, number, number] {
+  const sum: [number, number, number] = [0, 0, 0];
+  let rest = "";
+  for (let i = 0; i < selector.length;) {
+    const m = /^:(is|not|has|where)\(/.exec(selector.slice(i));
+    if (!m) {
+      rest += selector[i];
+      i += 1;
+      continue;
+    }
+    const open = i + m[0].length;
+    let depth = 1;
+    let j = open;
+    while (j < selector.length && depth > 0) {
+      if (selector[j] === "(") depth += 1;
+      else if (selector[j] === ")") depth -= 1;
+      j += 1;
+    }
+    if (m[1] !== "where") {
+      let best: [number, number, number] = [0, 0, 0];
+      for (const arg of topLevel(selector.slice(open, j - 1))) {
+        const s = fullSpecificity(arg);
+        if (s[0] > best[0] || (s[0] === best[0] && (s[1] > best[1] || (s[1] === best[1] && s[2] > best[2])))) best = s;
+      }
+      for (let k = 0; k < 3; k += 1) sum[k] = (sum[k] ?? 0) + (best[k] ?? 0);
+    }
+    rest += " ";
+    i = j;
+  }
+  const own = specificity(rest);
+  return [sum[0] + own[0], sum[1] + own[1], sum[2] + own[2]];
+}
+
+interface ListRule {
+  readonly selector: string;
+  readonly specificity: [number, number, number];
+  readonly declarations: Map<string, string>;
+  readonly order: number;
+}
+
+/** Every rule of the room's stylesheets outside any at-rule, one per selector of its list split at the top level. */
+const LIST_RULES: readonly ListRule[] = (() => {
+  const out: ListRule[] = [];
+  let order = 0;
+  for (const s of stylesheets())
+    for (const r of parseCss(s.text).rules)
+      for (const selector of topLevel(r.selector))
+        out.push({ selector, specificity: fullSpecificity(selector), declarations: r.declarations, order: order++ });
+  return out;
+})();
+
+/** The winning declaration among `properties` (a longhand and the shorthands that set it) for an element, or for its
+ *  ::before with `before`, by specificity and order; the pseudo-class states (:hover, :focus, :active) left out. */
+function cascaded(el: Element, properties: readonly string[], before = false): string | undefined {
+  const outranks = (a: ListRule, b: ListRule): boolean => {
+    for (let k = 0; k < 3; k += 1)
+      if (a.specificity[k] !== b.specificity[k]) return (a.specificity[k] ?? 0) > (b.specificity[k] ?? 0);
+    return a.order > b.order;
+  };
+  let best: { rule: ListRule; value: string } | null = null;
+  for (const rule of LIST_RULES) {
+    if (/:(hover|focus|active)/.test(rule.selector)) continue;
+    const ending = /(::[\w-]+|:before|:after)$/.exec(rule.selector)?.[1];
+    if (before ? ending !== "::before" && ending !== ":before" : ending !== undefined) continue;
+    const property = properties.find((p) => rule.declarations.has(p));
+    if (property === undefined) continue;
+    let matches: boolean;
+    try {
+      matches = el.matches(ending === undefined ? rule.selector : rule.selector.slice(0, -ending.length));
+    } catch {
+      matches = false;
+    }
+    if (matches && (best === null || outranks(rule, best.rule)))
+      best = { rule, value: rule.declarations.get(property) ?? "" };
+  }
+  return best?.value;
+}
+
+/** A value with its private custom property (`var(--_x)`) taken from the control's own winner for it. */
+function throughPrivate(el: Element, value: string | undefined): string | undefined {
+  const m = /^var\((--_[\w-]+)\)$/.exec(value ?? "");
+  return m?.[1] === undefined ? value : cascaded(el, [m[1]]);
+}
+
 describe("every HUD control a tile (spec 014, T024; FR-022)", () => {
+  // Spec 030 (T-INT02b; was: every control the tile's face, `var(--hud-text)`, and the tile's border, on a page with
+  // no data-skin): with the root's data-skin the build's, every skinned control (Q5) paints nothing itself and takes
+  // the skin's tokens by the cascade, its label, its face (on its ::before), and its border's line, the variant's
+  // (Q6), in the state it rests in; every other control keeps spec 014's tile.
   for (const [layout, screen] of [
     ["column", { w: 1920, h: 1200 }],
     ["dock", { w: 390, h: 844 }],
   ] as const)
-    it(`gives every control the tile's face in the ${layout} layout, never the page's white button`, async () => {
+    it(`gives every skinned control the built skin's tokens in the ${layout} layout, the rest the tile's face`, async () => {
       const v = await room(screen);
+      v.doc.documentElement.setAttribute("data-skin", ACTIVE_SKIN || "none-built");
       expect(v.doc.documentElement.getAttribute("data-hud")).toBe(layout);
       const all = controls(v);
       expect(all.length).toBeGreaterThan(8);
       // Spec 018 (FR-007, FR-008; plan.md D-I3): in the split layout the list's entries and the conversation's title are text on the glass, not tiles.
       const split = v.doc.documentElement.getAttribute("data-split") === "on";
+      let skinned = 0;
       for (const el of all) {
         if (split && (el.closest(".room-list li") || el.classList.contains("talk-log-toggle"))) continue;
         const name = `${el.tagName.toLowerCase()}.${el.className}: ${el.textContent?.trim().slice(0, 30) ?? ""}`;
-        const face = winning(el, "background");
-        // Spec 030 (FR-005, Q2; T-A01 (d)): the split layout's "Back" stands in the right column's top half, which takes
-        // spec 029's over-room look at rest too: its face is the plate, as 029 drew it over the room (was the tile's).
-        if (split && el.classList.contains("split-back"))
-          expect(face, name).toBe("rgb(var(--glass) / var(--over-plate-alpha))");
-        else expect(TILE_FACES.has(face ?? ""), `${name}: ${face ?? "none"}`).toBe(true);
-        expect(winning(el, "color"), name).toBe("var(--hud-text)");
+        if (el.matches(SKINNED)) {
+          skinned += 1;
+          const variant = el.matches(PRIMARY) ? "primary" : "secondary";
+          const token = (what: string): RegExp =>
+            new RegExp(`^var\\(--btn-${variant}-(normal|selected|disabled)-${what}\\)$`);
+          expect(throughPrivate(el, cascaded(el, ["color"])), `${name}: label`).toMatch(token("label"));
+          expect(throughPrivate(el, cascaded(el, ["background-color"], true)), `${name}: face`).toMatch(token("face"));
+          expect(cascaded(el, ["--_border"]), `${name}: border's line`).toMatch(token("border"));
+          expect(cascaded(el, ["background-color", "background"]), `${name}: its own background`).toBe("transparent");
+          expect(cascaded(el, ["border-color", "border"]), `${name}: its own border`).toBe("transparent");
+          expect(cascaded(el, ["border-radius"]), `${name}: radius`).toBe("var(--btn-radius)");
+          continue;
+        }
+        const face = cascaded(el, ["background"]);
+        expect(TILE_FACES.has(face ?? ""), `${name}: ${face ?? "none"}`).toBe(true);
+        expect(cascaded(el, ["color"]), name).toBe("var(--hud-text)");
       }
-      // The list's buttons and the conversation's take the tile's border and radius too.
+      expect(skinned, "the skinned controls found").toBeGreaterThan(6);
+      // The list's buttons and the conversation's that the skin leaves take the tile's border and radius too.
       for (const el of v.doc.querySelectorAll(split ? ".talk-row button" : ".room-list li button, .talk-row button")) {
-        expect(winning(el, "border"), el.className).toBe("1px solid var(--tile-border)");
-        expect(winning(el, "border-radius"), el.className).toBe("0.5rem");
+        if (el.matches(SKINNED)) continue;
+        expect(cascaded(el, ["border"]), el.className).toBe("1px solid var(--tile-border)");
+        expect(cascaded(el, ["border-radius"]), el.className).toBe("0.5rem");
       }
+      expect(ACTIVE_SKIN, "content/ui-skins.yaml's active skin").not.toBe("");
     });
 
   it("keeps the resume's panel spec 005's white document, its buttons the page's", async () => {
