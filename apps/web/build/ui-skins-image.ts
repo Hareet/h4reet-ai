@@ -33,7 +33,8 @@ export interface ImageFile {
 /** Reads a file by its path from the repository's root; throws as node:fs does (ENOENT for a file absent). */
 export type ReadFile = (path: string) => Uint8Array;
 
-/** The repository's root as the build reads it by default: this file's, two folders above apps/web/build/. */
+/** The repository's root as the build reads it by default: three folders above this file's folder, apps/web/build/
+ *  (`../../../`). */
 export const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 export function readFromRoot(root: string): ReadFile {
