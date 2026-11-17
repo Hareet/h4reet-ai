@@ -432,3 +432,205 @@ Whatever writes `data-skin` must keep `class="dark-page"`. B's plugin does: `ski
 
 `ui-skins.test.ts` holds it too ("keeps every attribute the root already has"). C's `dark.css` at `a3898c60` sets `outline` and `outline-offset` on `:root.dark-page button:focus-visible`, (0,3,1); B's ring on "Enter" is (0,5,0) and wins (C's own comment says so).
 
+## T-B01 (d): the whole `apps/web` suite on B's GREEN tip
+
+From `apps/web/`, `npx --no-install vitest run`, started in the background at the GREEN tip `6e8a9298` (its save point `wip(rework-030b): T-B01 (d)…`, the same tree), its own notice waited for; exit 1. Its whole output (73 lines, ANSI colours taken out):
+
+```
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-17/rework-030b/apps/web
+
+
+pet.select and pet.frame, a whole petting of 251 frames (turn 19, petting 211, return 20; 59 eased): 3.94 bytes a petting
+
+pet.select and pet.frame, a short petting of 9 frames: 0.72 bytes a petting
+
+pet.frame through a cut petting of 40 frames (fade 11): 0.24 bytes a cut petting
+
+applyReachLayer at weight 1: 0.46 bytes a frame; legs off 0.45; 0.0047 ms a frame; legs off 0.0045 ms
+
+applyReachLayer at weight 0.37: 0.45 bytes a frame; legs off 0.45; 0.0063 ms a frame; legs off 0.0037 ms
+ ❯ test/ui/hud-look.test.ts (15 tests | 2 failed) 22409ms
+   ❯ every HUD control a tile (spec 014, T024; FR-022) (4)
+     × gives every control the tile's face in the column layout, never the page's white button 21960ms
+     × gives every control the tile's face in the dock layout, never the page's white button 106ms
+
+the wired twin's frame (pet.frame, the run's shell, figures.update): linked 692.56 bytes and 0.0149 ms a frame; unlinked 688.77 bytes and 0.0060 ms; the reach adds 3.79 bytes and 0.0089 ms
+visitor floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; start (-0.7, 0.58)
+  obstacle work-desk: x [-0.87, 0.87], z [-0.73, 0.312]
+  obstacle desk-screen: x [-0.766, 0.458], z [-0.695, -0.169]
+  obstacle neon-sign: x [-0.942, 0.845], z [-0.637, -0.309]
+  obstacle laptop-stand: x [0.3, 0.8], z [-0.55, -0.07]
+  obstacle laptop: x [0.274, 0.826], z [-0.561, -0.08]
+  obstacle busy-sign: x [-0.839, -0.261], z [-0.431, -0.048]
+  obstacle dog-sign: x [0.871, 1.187], z [-0.34, 0.14]
+  obstacle chalkboard: x [-1.187, -0.887], z [-0.19, 0.765]
+  obstacle snowboard: x [-1.187, -0.749], z [-0.676, -0.124]
+  obstacle bicycle: x [0.769, 1.185], z [-0.407, 0.601]
+  obstacle wall-window: x [-1.12, 1.12], z [-0.73, -0.429]
+  obstacle window-view: x [-1.08, 1.08], z [-0.718, -0.47]
+  obstacle split-keyboard: x [-0.491, 0.209], z [-0.278, 0.25]
+  obstacle vertical-mouse: x [-0.007, 0.328], z [-0.162, 0.203]
+  obstacle notebook: x [-0.836, -0.239], z [-0.247, 0.282]
+  obstacle helmet: x [0.559, 1.149], z [-0.347, 0.191]
+  obstacle bag: x [-0.092, 0.71], z [-0.578, 0.075]
+  obstacle wall-outlet: x [0.902, 1.187], z [-0.556, -0.244]
+  obstacle twin-figure: x [0.17, 1.14], z [0.025, 0.789]
+chase floor: bounds x [-0.947, 0.947], z [-0.49, 0.585]; 18 obstacles (the visitor's less twin-figure)
+room floor: 201 starts × 600 frames, least distance kept 0.141 m, 0 violations
+chase bench: 600 frames, mean ms a frame per run 0.0128, 0.0138, 0.0102; best 0.0102
+T-B03 composed points: {"twin_home":[0.66,0.469],"taken_origin":[0.977,1.49,0.222],"taken_box_floor":{"x":[0.889,1.065],"z":[-0.287,0.481]},"shell_floor":{"x0":-1.0668,"x1":1.0668,"z0":-0.6096,"z1":0.6096},"chase_bounds":{"x0":-0.9468,"x1":0.9468,"z0":-0.48960000000000004,"z1":0.5846},"chase_obstacles":[{"x0":-0.87,"x1":0.87,"z0":-0.7296,"z1":0.3124},{"x0":-0.766,"x1":0.458,"z0":-0.6946,"z1":-0.16927999999999999},{"x0":-0.942303,"x1":0.8445,"z0":-0.6365999999999999,"z1":-0.3089},{"x0":0.3,"x1":0.8,"z0":-0.5496,"z1":-0.0696},{"x0":0.2742,"x1":0.8259,"z0":-0.5613049999999999,"z1":-0.0796},{"x0":-0.839191,"x1":-0.260612,"z0":-0.43058599999999997,"z1":-0.047686000000000006},{"x0":0.8713,"x1":1.1873,"z0":-0.33999999999999997,"z1":0.13999999999999999},{"x0":-1.1867999999999999,"x1":-0.8872000000000001,"z0":-0.19,"z1":0.7652},{"x0":-1.186792,"x1":-0.748936,"z0":-0.676198,"z1":-0.123802},{"x0":0.76902,"x1":1.18458,"z0":-0.407138,"z1":0.601205},{"x0":-1.12,"x1":1.12,"z0":-0.7296,"z1":-0.42879999999999996},{"x0":-1.08,"x1":1.08,"z0":-0.7184,"z1":-0.4697},{"x0":-0.490847,"x1":0.209343,"z0":-0.278034,"z1":0.25013399999999997},{"x0":-0.007175000000000001,"x1":0.327606,"z0":-0.162291,"z1":0.203151},{"x0":-0.836073,"x1":-0.2388,"z0":-0.247423,"z1":0.28185},{"x0":0.558607,"x1":1.149177,"z0":-0.346763,"z1":0.191209},{"x0":-0.092282,"x1":0.710491,"z0":-0.5776129999999999,"z1":0.074719},{"x0":0.901655,"x1":1.1867999999999999,"z0":-0.556,"z1":-0.244}],"start":{"x":-0.7,"z":0.58},"dog_home":[0.3,0.45]}
+
+pet.select and pet.frame over the real adapters, with chase.frame: 6.60 bytes a petting of 252 frames; 0.0001 ms a frame
+dino scene: mean ms a frame per run 0.0002, 0.0001, 0.0001
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/ui/hud-look.test.ts > every HUD control a tile (spec 014, T024; FR-022) > gives every control the tile's face in the column layout, never the page's white button
+ FAIL  test/ui/hud-look.test.ts > every HUD control a tile (spec 014, T024; FR-022) > gives every control the tile's face in the dock layout, never the page's white button
+AssertionError: button.: Send: expected 'var(--_label)' to be 'var(--hud-text)' // Object.is equality
+
+Expected: "var(--hud-text)"
+Received: "var(--_label)"
+
+ ❯ test/ui/hud-look.test.ts:129:44
+    127|         const face = winning(el, "background");
+    128|         expect(TILE_FACES.has(face ?? ""), `${name}: ${face ?? "none"}…
+    129|         expect(winning(el, "color"), name).toBe("var(--hud-text)");
+       |                                            ^
+    130|       }
+    131|       // The list's buttons and the conversation's take the tile's bor…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed | 275 passed (276)
+      Tests  2 failed | 4885 passed | 6 skipped (4893)
+   Start at  05:27:38
+   Duration  1913.03s (tests 72%, import 28%)
+
+exit=1
+```
+
+**The broken cases, for T-INT02b** (B's look breaks them; the file is A's, plan §R-A4; not edited here):
+
+- `test/ui/hud-look.test.ts`, "every HUD control a tile (spec 014, T024; FR-022)", **"gives every control the tile's face in the column layout, never the page's white button"** and **"… in the dock layout, …"** (`:117-136`). Its assertion at `:129`: `expect(winning(el, "color"), name).toBe("var(--hud-text)")`, for every HUD control; the failure: `AssertionError: button.: Send: expected 'var(--_label)' to be 'var(--hud-text)'`. Why, by reading the test's reader: its `RULES` (`:33-45`) split each rule's selector at every comma (`r.selector.split(",")`), inside `:is()` too, so `button.css`'s list yields the bare fragment `.talk-form .talk-row > button:not(.talk-voice)` (now followed by `.resume .resume-close`, where it was `impl-030b`'s last argument and its fragment ended in `)`, which matches nothing). That fragment, without `:root[data-skin]`, matches "Send" on the test's unskinned page and wins `color` with `var(--_label)`. A browser never applies that rule there (it needs `data-skin`). This is the very case T-INT02 rewrites under Q73 (`8e83e7fc`'s T-INT02; `rework3-spec-030` keeps it, with A's rewrite of its split "Back" case): old, as quoted; new, with `data-skin` set, every skinned control's face and border the skin's tokens by the cascade. Until then it stays red on B's branch; T-INT02b (or T-INT02's RED) takes it.
+- No other case failed. `test/room/twin-2d.test.ts` passed in this run.
+
+The tip moved after this run only by test files (`9e6045e9`: the font reader through the typed `layout()`, one character at a time, which gives the same advances, checked by `node -e` over the labels: largest difference 0 font units in both faces; and Prettier's formatting). B's three files pass on that tip (below).
+
+## T-B04: the two builds, and the checks
+
+From the repository's root, `npm run build -w apps/web`, `active: metal`, exit 0. The skin's line (line 459 of the output), the root, and the generated rule's start in `dist/assets/index-6gJCOYp4.css`:
+
+```
+ui-skins: metal (css)
+<html lang="en" data-skin="metal" data-skin-kind="css">
+:root[data-skin=metal]{--btn-font-family:"IBM Plex Sans", system-ui, sans-serif;--btn-font-weight:700;--btn-case:uppercase;--btn-tracking:.06em;--btn-chamfer:.5rem;--btn-radius:0rem;--btn-frame:#2a3038;--btn-bevel-light:#ffffff47;--btn-bevel-dark:#0000008c;--btn-highlight:#ffffff2e;--btn-glow-radius:.5rem;--btn-primary-ri
+```
+
+Then `active: plain`, a scratch edit of that one line with the Edit tool, never committed; `git status --short` during it: ` M apps/web/content/ui-skins.yaml` (and `git diff --stat`: `apps/web/content/ui-skins.yaml | 2 +-`, `1 file changed, 1 insertion(+), 1 deletion(-)`); the same command, exit 0:
+
+```
+ui-skins: plain (css)
+<html lang="en" data-skin="plain" data-skin-kind="css">
+:root[data-skin=plain]{--btn-font-family:"IBM Plex Sans", system-ui, sans-serif;--btn-font-weight:400;--btn-case:none;--btn-tracking:0em;--btn-chamfer:0rem;--btn-radius:0rem;--btn-frame:#10141a;--btn-bevel-light:#fff3;--btn-bevel-dark:#0006;--btn-highlight:#fff0;--btn-glow-radius:0rem;--btn-primary-ring:#10141a;--btn-prim
+```
+
+Reverted with the Edit tool (`git status --short` empty), rebuilt with `metal`, exit 0, `ui-skins: metal (css)`, `<html lang="en" data-skin="metal" data-skin-kind="css">`. In that build's stylesheet the `clip-path` values are `inset(50%)` ×4 (the visually-hidden rules, not B's), `none` ×4 (B's pins), and the octagon ×2 (the `::before` and the `::after`); the `::before` rule ends `…;position:absolute;inset:0}` (Lightning CSS moved those two to the end). Each build prints Vite's notice on `vite.config.ts`'s extensionless imports, as before.
+
+B's files on the final tip, from `apps/web/`, `npx --no-install vitest run test/ui-skins.test.ts test/ui/button-skin.test.ts test/ui/button-states.test.ts`, exit 0:
+
+```
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-17/rework-030b/apps/web
+ Test Files  3 passed (3)
+      Tests  68 passed (68)
+   Duration  93.63s (tests 94%, transform 3%, import 3%)
+```
+
+`make lint`, from the root: first run exit 2, `tsc` refusing `font.glyphsForString` (`button-skin.test.ts(297,24): error TS2339: Property 'glyphsForString' does not exist on type 'Font'`, and two implicit `any`s; `build/room/fontkit.d.ts` types only `layout()`); the reader moved to `layout()` a character at a time. Second run exit 2, Prettier's warnings on the four test files; Prettier's own output written to `/tmp/rework-030b/fmt/` (`--stdin-filepath`, read from the file, written by redirect to `/tmp` only), its differences applied with the Edit tool, `diff -q` then naming each file the same. Third run, exit 0, its whole output:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+916 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+```
+
+Not run, by the brief's rule 4: `make test`, `make evals`, `make check` (the integration's). The whole `apps/web` suite is above.
+
+## Merges (`git merge-tree`, at `9e6045e9`)
+
+```
+$ git merge-tree --write-tree --name-only HEAD night/impl-030a/impl-030a
+b57a9fa073f63b45286831cd259ca74414cc508b
+exit=0
+$ git merge-tree --write-tree --name-only HEAD a3898c6069ee44772ba027c7dc3164deb24fd294
+0aeb340c1b3932f472738691a2201404fd9cd021
+exit=0
+$ git merge-tree --write-tree --name-only HEAD 7ac200dad8c078f7d7c3997cbc80f81130cdc04f
+c28f561d671f44808387cc59c6767aa36efc168f
+specs/030-ui-skin/plan.md
+
+Auto-merging specs/030-ui-skin/plan.md
+CONFLICT (content): Merge conflict in specs/030-ui-skin/plan.md
+Auto-merging specs/030-ui-skin/spec.md
+exit=1
+$ git merge-tree --write-tree --name-only HEAD night/rework3-spec-030/rework3-spec-030
+7295f96eb8e8b278181e159e28972b119c0b9e86
+specs/030-ui-skin/plan.md
+
+Auto-merging specs/030-ui-skin/plan.md
+CONFLICT (content): Merge conflict in specs/030-ui-skin/plan.md
+Auto-merging specs/030-ui-skin/spec.md
+exit=1
+```
+
+`impl-030a` (its tip `c0cd9826`) and `rework-030c` (`a3898c60`): clean. `impl-030dsb` (`7ac200da`, built on `8e83e7fc`'s documents): one file, `plan.md`, three hunks, all in group B's text: §R-B3's bullets (my branch's `7cdc31d2` bullets with `impl-030b`'s and my "As built" against `8e83e7fc`'s reworked bullets), §R-B4's, and §R-B5 / §9's B row. The same file conflicts at `impl-030b`'s own tip (`git merge-tree --write-tree --name-only 02a5c30a 7ac200da`: `plan.md`, exit 1), so the conflict isn't new; the integration takes `8e83e7fc`'s (or rework 3's) bullets and appends the two "As built" lists. `spec.md` merges clean: my Q89 row first sat at the Amendments table's foot and conflicted with rework 2's rows; it now sits after 005's row (`c154e1cd`). Code files: no conflict with any of the three.
+
+## `rework3-spec-030`'s rows for B (`git diff 8e83e7fc 01999312 -- specs/030-ui-skin`, its tip at my last read)
+
+Its B changes are R-2 alone: plan §R-B3 (the control's `box-shadow` `none`), T-B01 (c) (the cascade's winner, with `.split-back` and `.split-hint` in a panel marked `data-over="room"`; every `box-shadow` B declares on a `::before` rule), §R-D4 and T-DS01 (b) (the same under the image skin, DS's), and the checks' table's row. Built: the first two, in GREEN 2 and the second RED. **Built differently, named (my question 2):** "every `box-shadow` B declares sits on a `::before` rule" is tested as every shadow other than `none`, since the pin itself is a `box-shadow: none` declared on the control (and under forced colours). **Not built (not B's):** §R-D4's and T-DS01 (b)'s image-skin rows (`impl-030ds`); T-INT02's rewrite of `hud-look.test.ts` (the integration's, the case failing above).
+
+## Human-only paths
+
+None written, and no patch for his hand: nothing under `.claude/**`, `CLAUDE.md`, `REVIEW.md`, the constitution, `corpus/**`, `tools/gates/**`, or `assets/**`.
+
+## Interruptions and slips (rework-030b)
+
+- **Slip, Q40:** the opening lines of this section ("# Rework: rework-030b", its first paragraph, and the start of "## RED", down to "The cases, new or changed:") were appended to `impl-b.md` by a shell `>>` redirect, not the Edit tool. Seen at once; every later write of a tracked file was the Edit or Write tool. The lines went into the RED commit `26f25890`.
+- **Not a refusal:** to show the second RED's cases failing, `impl-030b`'s `button.css` was put back in the worktree by `git checkout 02a5c30a -- apps/web/src/ui/button.css` and restored by `git checkout HEAD -- …` (git's own copy, no redirect); `git status --short` then named only the test file.
+- **Not a refusal:** the Q75 rule, drafted before its test, was taken out again with the Edit tool before the test commit (above).
+- Scratch files, outside the tree, left for the runner's cleanup (no recursive delete tried, Q20): `/tmp/rework-030b/fit/` (the geometry vitest, its log and JSON), `/tmp/rework-030b/fmt/` (Prettier's copies), `/tmp/rework-030b/merged-index.html`, and `/tmp/rework030b-*.log`.
+- No refusal by the bash gate or the permission layer this session. `make setup` ran first (`node_modules` was missing), exit 0; it noted the shared `.git/hooks` isn't writable here (the Author's `make git-hooks`).
+
+## Questions (in `/night/io/out/questions.md`, each with its recommended answer)
+
+1. The two split tiles over two lines under `metal` (where rv-030b's R-3 found none), kept in their words' own case by attribute selectors, as built. Recommended: yes, as built.
+2. Rework 3's "every `box-shadow` B declares on a `::before`", read as every shadow other than `none`. Recommended: yes, as built.
+
+## What's done, and what isn't
+
+Done, on this branch, to `8e83e7fc`'s documents:
+
+- **R-1** (Q89): the bar's tiles in the column layout and the dock keep spec 014's metrics under every skin; the width test from the vendored faces against `HUD_PLACEMENTS.bar.maxRem` and the dock's two rows; plan §R-B3 "As built" and spec.md's Amendments row.
+- **R-2**: no `clip-path`, `filter`, or `box-shadow` on any skinned control; the chamfer, face, bevel, highlight, frame and glow on the `::before`; the dashes on the disabled `::after`; the ring's corners inside the octagon; the `::before` and `::after` hidden under forced colours; `position: relative` only on the controls static at the base (listed above); the comment at `button.css:19` corrected. Rework 3's R-2 cases, with the plate in the cascade.
+- **Rework 2's other B rows**: `.split-hint` and `.resume-close` skinned and tested as the room makes them; the resume's white among the boundary's grounds; the cards' tokens; the swap over every `--btn-*`; `data-skin-kind` (§R-B2, N-3); T-B04's fit table at the three split windows, and Q75's rule for the two labels it found over two lines.
+- **N-2**: hover in `@media (hover: hover)`.
+- **For C**: the root keeps `class="dark-page"` beside `data-skin` and `data-skin-kind`, shown on the merged tree.
+- T-B01 (d), the whole suite, run; T-B04's two builds; `make lint` exit 0. `impl-030ds` may start from this branch's tip once its review passes.
+
+Not done here, or not B's:
+
+- `test/ui/hud-look.test.ts`'s two "every HUD control a tile" cases fail on this branch (above): A's file, rewritten in T-INT02 (Q73) / T-INT02b; B's branch leaves it.
+- rv-030b's R-3 (a longer label, a later spec's layout), R-4 (the page-level AA, T-INT's), R-5 (the cascade helper's silent drop of an unparseable selector), N-1, N-3: named above, not built.
+- `plan.md`'s B section conflicts with `8e83e7fc`'s (and rework 3's) text, as it did at `impl-030b`'s tip: the integration's to resolve; never merged here.
+- `make test`, `make evals`, `make check`: the integration's (rule 4).
+- His look (SC-008): jsdom draws nothing, so the chamfered `::before`, the inside ring and glow, the dashes, and the tiles' fit (an advance-width estimate) are the cascade's and the font's reading; a browser is the check left. The `metal` skin is still drawn from the orders' description of his reference alone.
+
