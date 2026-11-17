@@ -240,6 +240,15 @@ export function length(v: string, el: Element): number {
   if (m) return Number(m[1]) * (m[2] === "rem" ? 16 : m[2] === "em" ? fontSize(el) : 1);
   m = /^calc\(\s*(-?[\d.]+)(px|rem|em)\s*\*\s*([\d.]+)\s*\)$/.exec(s);
   if (m) return length(`${m[1]}${m[2]}`, el) * Number(m[3]);
+  // Spec 030 (rv-030a's R-2): a sum or difference of lengths, as the split list's padding under its half's edge,
+  // `calc(0.5rem - 1px)`.
+  m = /^calc\(\s*((?:-?[\d.]+(?:px|rem|em))(?:\s+[+-]\s+(?:[\d.]+(?:px|rem|em)))+)\s*\)$/.exec(s);
+  if (m) {
+    const [first = "0", ...rest] = (m[1] ?? "").split(/\s+/);
+    let sum = length(first, el);
+    for (let k = 0; k + 1 < rest.length; k += 2) sum += (rest[k] === "-" ? -1 : 1) * length(rest[k + 1] ?? "0", el);
+    return sum;
+  }
   throw new Error(`not a length this test reads: ${v}`);
 }
 

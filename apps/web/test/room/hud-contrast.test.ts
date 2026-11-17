@@ -146,12 +146,10 @@ describe("the HUD's palette (room.css; FR-024, FR-025)", () => {
     expect(alpha).toBe(0.6);
   });
 
+  // Spec 030 (T-A07's valve; the first rework's N-1): the third fallback, `@supports not ((backdrop-filter: blur(1px))
+  // or …)`, is gone with the blur; test/ui/hud-no-blur.test.ts holds that no @supports names a backdrop filter.
   it("makes the glass opaque where the fallbacks hold, and every pair passes there too", () => {
-    for (const prelude of [
-      /^@media \(prefers-reduced-transparency: reduce\)$/,
-      /^@media \(prefers-contrast: more\)$/,
-      /^@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\)$/,
-    ])
+    for (const prelude of [/^@media \(prefers-reduced-transparency: reduce\)$/, /^@media \(prefers-contrast: more\)$/])
       expect(
         rulesFor(":root", prelude).some((r) => r.declarations.get("--glass-alpha") === "1"),
         String(prelude),
