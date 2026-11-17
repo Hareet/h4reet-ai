@@ -147,3 +147,169 @@ test/room/stages.test.ts > the 2D drawing's smallest scale (compose/stages.ts) >
 ```
 
 The full log of this run, 63 `FAIL` lines with their diffs, was `/tmp/impl-030a-red.log` in the container; the lines above are its failure headers and their assertion lines, grouped where a case repeats over windows (the count in brackets).
+
+## T-A02: GREEN, no blur (`d3a2a576`)
+
+`room.css` (`--hud-blur`; `html[data-blur="on"] .hud-glass`; the `:root[data-blur] .hud-glass` selectors in the three fallbacks and in forced colours; the header and two comments), `split.css` (its `[data-blur="on"]` rule), `layout.ts` (`setBlur`, its type and body), `app.ts` (`blurAt` and its two calls, the three lines the plan names), `lookdev/stage.ts` (its comment: the lookdev page's `data-blur` is its own, and no sheet reads it). `app.ts:960`'s comment ("dark glass, blurred where the glass is") is outside the three lines A owns there; left for T-INT.
+
+From `apps/web/`:
+
+```
+npx --no-install vitest run test/ui/hud-no-blur.test.ts test/ui/hud.test.ts test/room/hud-contrast.test.ts test/ui/degraded.test.ts test/ui/hud-faults.test.ts test/ui/loading-a11y.test.ts test/room/input.test.ts test/ui/highlight.test.ts test/ui/around.test.ts test/lookdev/page.test.ts
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-17/impl-030a/apps/web
+
+
+ Test Files  10 passed (10)
+      Tests  228 passed (228)
+   Start at  04:24:01
+   Duration  140.91s (tests 69%, import 30%, transform 1%)
+```
+
+## T-A03: GREEN, the halves' boxes (`add91ae6`)
+
+`compose/hud.ts` (`sliceRem`, `wall.sliceRem`, `WallBoxes.slice`, the list's height, the dock, the compact column) and `compose/halves.ts` (new). `plan.md` §R-A2 gains "As built" with this task's departures.
+
+`npm run room:check -w apps/web`, from the repository's root:
+
+```
+> @h4reet/web@0.1.0 room:check
+> node --import tsx build/room/cli.ts check
+
+room: 0 findings in 0 files
+```
+
+`room:check` composes the room's data in strict mode, the stage checks with it, and prints its findings; it doesn't list the boxes. The stages it judges moved as T-A01 (d) says: the report's line, from `npm run -s room:report -w apps/web | grep -E "^Stages|^Reserved"`:
+
+```
+Stages (spec 005, FR-052 to FR-054): the clear areas of the HUD's column and dock layouts, a dock screen's with its list open and collapsed, over 7,241 screens from 320 × 320 to 5120 × 3840, 7,300 stages; the reference desktop's 1472 × 1120.5 (1920 × 1200 at a pixel ratio of 1) and the reference phone's 384 × 410 (384 × 740 at 2.8125).
+Reserved boxes (spec 005, FR-055): the walking control's (spec 008, FR-021) where it stands in the clear area (since spec 014's W19, on short column windows and in the dock), 8rem × 2.75rem, 0.5rem in from the clear area's bottom-right corner, holds no side-wall selectable at any supported stage.
+```
+
+The boxes that move: the split layout's list (the slice), the column layout's compact column and the walking control at its head (12 px up), the dock (12 px up) and its clear area (12 px shorter). No other box moves (the snapshots' diff, T-A01 (d)).
+
+From `apps/web/`, the geometry tests; the two CSS cases of `stages.test.ts` wait for T-A04's CSS:
+
+```
+npx --no-install vitest run test/room/hud.test.ts test/room/stages.test.ts test/room/stages-checks.test.ts test/ui/pick.test.ts test/room/hud-split-geometry.test.ts test/room/hud-wall-geometry.test.ts test/ui/hud-split-dog.test.ts test/room/eat-box.test.ts test/room/protect.test.ts test/ui/hud-model.test.ts test/room/stages-floor.test.ts test/room/wall-box.test.ts test/room/frame.test.ts
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-17/impl-030a/apps/web
+ ❯ test/room/stages.test.ts (22 tests | 2 failed) 2910ms
+   ❯ room.css's HUD rules follow the table (plan.md §2.3) (5)
+     × size each docked box from the table's properties, and set no length of their own for one 5ms
+     × sizes the column layout's compact clusters from --strip-w, --bar-w, and --column-h (spec 014, T023) 1ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/room/stages.test.ts > room.css's HUD rules follow the table (plan.md §2.3) > size each docked box from the table's properties, and set no length of their own for one
+AssertionError: expected 'calc(var(--bar-h) + var(--keyboard))' to be 'calc(var(--bar-h) + var(--hud-slice) …' // Object.is equality
+Expected: "calc(var(--bar-h) + var(--hud-slice) + var(--keyboard))"
+Received: "calc(var(--bar-h) + var(--keyboard))"
+ ❯ test/room/stages.test.ts:287:53
+ FAIL  test/room/stages.test.ts > room.css's HUD rules follow the table (plan.md §2.3) > sizes the column layout's compact clusters from --strip-w, --bar-w, and --column-h (spec 014, T023)
+AssertionError: expected 'calc(var(--notes-h) + var(--column-h)…' to be 'calc(var(--notes-h) + var(--column-h)…' // Object.is equality
+Expected: "calc(var(--notes-h) + var(--column-h) + var(--hud-slice) - var(--clear-h))"
+Received: "calc(var(--notes-h) + var(--column-h) - var(--clear-h))"
+ ❯ test/room/stages.test.ts:334:74
+ Test Files  1 failed | 12 passed (13)
+      Tests  2 failed | 165 passed (167)
+   Start at  04:28:07
+   Duration  154.82s (import 55%, tests 45%, transform 1%)
+```
+
+## T-A04: GREEN, the halves' look (`5a5d687f`)
+
+`layout.ts` (the bottom half's element; `applyHalves`: `data-half`, `--half-bottom-*`, `--hud-slice`, `data-halves`; the right column's parts in `markOver` always), `room.css` (`--hud-slice`, `--half-border`; the panels' `bottom` and the larger view's `top` and `bottom` with the slice; the halves' block, forced colours), `split.css` (the list's edge, the bar's glass none under a half, forced colours). `plan.md` §R-A3 gains "As built" with this task's departures.
+
+**FR-005's rule wasn't needed.** `hud-halves-contrast.test.ts` finds every pair of both halves at its floor at 029's alphas (0.3 and 0.5), at every window and view of FR-006, so no alpha changed and plan §R-A3 records that. B's faces aren't in this cascade yet; T-INT02a runs it again with them.
+
+From `apps/web/`:
+
+```
+npx --no-install vitest run test/ui/hud-halves.test.ts test/ui/hud-halves-contrast.test.ts test/ui/hud-over-layers.test.ts test/ui/hud-over-room.test.ts test/ui/hud-over-walking.test.ts test/ui/hud-over-contrast.test.ts test/room/stages.test.ts test/ui/hud-a11y.test.ts test/ui/hud-notes.test.ts test/ui/hud-look.test.ts
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-17/impl-030a/apps/web
+
+
+ Test Files  10 passed (10)
+      Tests  158 passed (158)
+   Start at  04:32:02
+   Duration  140.68s (tests 67%, import 33%, transform 1%)
+```
+
+## T-A05: the tests covering A's files, and `make lint`
+
+Every test file that imports `compose/hud`, `compose/over`, `compose/halves`, or `test/helpers/layers`, or reads `room.css` or `hud/split.css`, and the blur, `resize`, and `stages-floor` files T-A05 and the plan name (65 files; the brief's `apps/web/test/room/twin-2d.test.ts` isn't among them, so no flake to rerun). The whole `apps/web` suite and `make check` are T-INT's. From `apps/web/`:
+
+```
+npx --no-install vitest run test/lookdev/page.test.ts test/room/data-only.test.ts test/room/dog-pick.test.ts test/room/eat-box.test.ts test/room/eat-checks.test.ts test/room/eat-model.test.ts test/room/eat-scene.test.ts test/room/events.test.ts test/room/fit.test.ts test/room/flat-frame.test.ts test/room/flat.test.ts test/room/frame.test.ts test/room/hud-contrast.test.ts test/room/hud-split-geometry.test.ts test/room/hud-wall-geometry.test.ts test/room/hud.test.ts test/room/loading-contrast.test.ts test/room/objects.test.ts test/room/protect.test.ts test/room/report-split.test.ts test/room/scene-fit.test.ts test/room/stages-checks.test.ts test/room/stages-floor.test.ts test/room/stages.test.ts test/room/walk-hold.test.ts test/room/wall-box.test.ts test/ui/a11y.test.ts test/ui/around.test.ts test/ui/choice-cards.test.ts test/ui/degraded.test.ts test/room/input.test.ts test/ui/highlight.test.ts test/ui/hud-no-blur.test.ts test/ui/hud-halves.test.ts test/ui/hud-halves-contrast.test.ts test/ui/loading-a11y.test.ts test/ui/hud-faults.test.ts test/ui/resize.test.ts test/room/stages-floor.test.ts test/room/hud-contrast.test.ts test/ui/eat-button.test.ts test/ui/eat-place.test.ts test/ui/flat-frame.test.ts test/ui/hud-a11y.test.ts test/ui/hud-faults.test.ts test/ui/hud-halves-contrast.test.ts test/ui/hud-halves.test.ts test/ui/hud-look.test.ts test/ui/hud-model.test.ts test/ui/hud-no-blur.test.ts test/ui/hud-notes.test.ts test/ui/hud-over-contrast.test.ts test/ui/hud-over-layers.test.ts test/ui/hud-over-room.test.ts test/ui/hud-over-walking.test.ts test/ui/hud-pointer.test.ts test/ui/hud-split-a11y.test.ts test/ui/hud-split-contrast.test.ts test/ui/hud-split-dog.test.ts test/ui/hud-split-list.test.ts test/ui/hud-split-model.test.ts test/ui/hud-split-rest-row.test.ts test/ui/hud-split.test.ts test/ui/hud-wall-dom.test.ts test/ui/hud.test.ts test/ui/loading-a11y.test.ts test/ui/loading-notes.test.ts test/ui/loading-page.test.ts test/ui/loading-style.test.ts test/ui/pick.test.ts test/ui/resize.test.ts test/ui/talk-answer-shows.test.ts test/ui/text-copy.test.ts
+
+ RUN  v5.0.3 /home/h4reet/h4reet-ai/night/2026-11-17/impl-030a/apps/web
+
+
+ Test Files  65 passed (65)
+      Tests  985 passed (985)
+   Start at  04:34:44
+   Duration  597.41s (tests 70%, import 29%)
+```
+
+(Some files appear twice in the list; vitest runs each once: 65 files.)
+
+`hud-split-contrast.test.ts` (spec 018), which T-A05 asked T-A01 (d) to decide: **unchanged**. It reads `--split-glass-alpha` (0.78) for the conversation panel and its title row, which keep it at rest (FR-005: the left panel keeps 029's rule), and nothing of the list's or the bar's glass, so Q2 doesn't touch what it asserts. It passes above.
+
+`make lint`, from the repository's root:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+916 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+```
+
+Exit 0.
+
+Not run, by the supervisor's instructions for this task: `make test` (the whole suite, about 22 minutes) and `make check` (T-INT04's, once); `make evals` (it judges `.claude/**` and `CLAUDE.md`, which this branch doesn't touch); the image stage (rule 4: his gate's). No merge-request note in `docs/merge-requests/`: T-INT04 writes the stack's.
+
+## Departures from the plan
+
+Recorded in `plan.md`'s "As built" bullets under §R-A2 (T-A03's commit) and §R-A3 (T-A04's), each with its reason: the column layout's slice in `compactBoxes`, not `hudBoxes` (spec 014's PD-3 kept); the column layout's bottom half the bar's cluster alone (the walking control at the column's head is in neither half); the split list's height never below 0; the reference stages the dock's slice moves; the list's fit (1,558 of the split stages, where r4 had 1,601); `compose/over.ts`'s dock part left 12 px low (not A's file; no mark changes); the halves' edge an opaque grey (`--half-border: #8a8f98`), not `--tile-border`; the root's `data-halves` and `--hud-slice`; the top half's edge inside its padding; "Eat" marked only where its box is; the layers helper's `under` and `halfUnder`; FR-005's rule unused. And in these notes: `hud-over-layers.test.ts` changed beyond the import, and the two snapshot files written by `vitest -u`.
+
+## Human-only paths
+
+None touched, so no patch for his hand and no SHA-256 to give. `git diff --stat 7cdc31d2..HEAD` names only `apps/web/src/**`, `apps/web/test/**`, and `specs/030-ui-skin/{impl-a,plan,tasks}.md`.
+
+## Refusals and interruptions
+
+None: no hook, bash-gate, or permission refusal this night. One `npm run room:check -w apps/web` from `apps/web/` failed with "No workspaces found: --workspace=apps/web" (the wrong directory); run again from the root, above.
+
+**Two writes to tracked files not by the Edit or Write tool**, against the brief's rule (night 4's Q40), each named:
+
+- the two snapshot files, by `vitest run -u` (T-A01 (d), above, and on the page);
+- this file, once, by ``sed -i 's/`app.ts:961`/`app.ts:960`/g'`` (a slip: correcting the line number of `app.ts`'s stale comment in two places, before this file's last commit). Every other change to it, and to every other tracked file, was by Edit or Write.
+
+## Questions on the page
+
+Five, in `/night/io/out/questions.md`, each with its recommended answer: the dock's slice (and the phone's stage it costs); the split slice's size (and the list's fit it costs); the two snapshot files written by `vitest -u`; the halves' grey edge; the column layout's walking control outside both halves.
+
+## What's done and what isn't
+
+Done:
+
+- T-A01 RED (`e053a0cd`): the three new test files, the layers helper, and 18 earlier test files and 2 snapshots rewritten, each named above, seen failing on the base (62 tests, 2 snapshots).
+- T-A02 (`d3a2a576`): no backdrop blur anywhere in the HUD; no `data-blur` on the room's root; no `setBlur`.
+- T-A03 (`add91ae6`): the slice in the split layout (scaled), the column layout, and the dock; `halves()`; `room:check` clean.
+- T-A04 (`5a5d687f`): the two halves as two panels at every layout the column has and in the walking view, both over-room always, each with corners and an edge, opaque under the visitor's asks, Canvas in forced colours; every text and mark of both at AA over white and black.
+- T-A05: the 65 covering test files pass (985 tests); `make lint` exits 0. `tasks.md`'s T-A01 to T-A05 ticked.
+
+Not done, or not mine:
+
+- His look at the halves without blur (SC-008), and his answers to the five questions; the screenshots were never read (`resume/` unreachable).
+- `make test`, `make evals`, `make check`, and the image stage: T-INT's and his gate's.
+- T-INT02a: `hud-halves-contrast.test.ts` again with B's button faces in the cascade; FR-005's rule there if a ratio fails.
+- `compose/over.ts`'s dock part (12 px low, no visible effect) and `app.ts:960`'s stale "blurred" comment: for T-INT or a later spec.
+- The split layout's shortest windows (about 340 px tall and under, e.g. 1360 × 320): the list has no height left above the tiles' block. It had under 3 px before; a later spec's layout question, not this one's.
