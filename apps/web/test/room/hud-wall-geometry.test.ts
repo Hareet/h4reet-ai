@@ -59,6 +59,8 @@ function oracle(
   protect: Protect = PROTECT,
   eat = false,
   notes = false,
+  /** Spec 030 (T-INT02a; Q100): the list's floor in (b); off only to find the windows it refuses. */
+  listFloor = true,
 ): Expected | null {
   const T = HUD_PLACEMENTS;
   const t = T.wall;
@@ -120,6 +122,11 @@ function oracle(
   // column is too short for the block and the slice (under 3 px of list before, at 1360 × 320).
   const sliceH = t.sliceRem * scaleRight * rem;
   const list: Box = { x: column.x, y: column.y, w: column.w, h: Math.max(0, column.h - tilesH - sliceH) };
+  // Spec 030 (T-INT02a; Q100's recommended answer): (b) also holds the list to its top padding (split.css's 0.5rem,
+  // in rem, so no side's scale grows it) and "Back"'s 44 × 44 hit area (FR-013; ui/button.css's 44 px floor): 52 CSS
+  // px at a 16-pixel root. Under it, "Back" was cut by the list's `overflow-y: hidden`; the window takes the column
+  // layout.
+  if (listFloor && list.h < 0.5 * rem + 44 - 1e-9) return null;
   const title: Box = { x: panel.x, y: panel.y, w: panel.w, h: T.split.panel.titleRem * scaleLeft * rem };
   return { area, wall, panel, title, column, list, tiles, bar, walk, eat: eatBox, scaleLeft, scaleRight };
 }
@@ -192,7 +199,42 @@ describe("the wall placement table (Key Entities)", () => {
       tiles: { rows: 2, perRow: 3, gapRem: 0.25, padRem: 0.25, tileRem: 3.75 },
       // Spec 030 (FR-002, FR-003; T-A01 (d)): the slice between the column's halves, new.
       sliceRem: 0.75,
+      // Spec 030 (T-INT02a; Q100): the list's least height, its top padding and "Back"'s hit area, new (was: no
+      // such entry; the table as above).
+      listFloor: { padRem: 0.5, backPx: 44 },
     });
+  });
+});
+
+describe("the split layout's list holds \"Back\" (spec 030, T-INT02a; Q100; FR-013)", () => {
+  it("refuses the split layout where the list can't hold its top padding and Back's 44 px, so the column layout takes it", () => {
+    const floor = 0.5 * DEFAULT_METRICS.rem + 44;
+    expect(floor).toBe(52);
+    const refused: string[] = [];
+    for (const s of LANDSCAPE) {
+      const w = wallBoxes(s, OPENING, DEFAULT_METRICS, { wall: PROTECT });
+      if (w) {
+        expect(w.list.h, `${s.w}x${s.h}`).toBeGreaterThanOrEqual(floor - 1e-9);
+        continue;
+      }
+      // A window the rule refuses for the list alone: without the floor it would take the split, its list under it.
+      const without = oracle(s, DEFAULT_METRICS, PROTECT, false, false, false);
+      if (without !== null) {
+        expect(without.list.h, `${s.w}x${s.h}`).toBeLessThan(floor);
+        refused.push(`${s.w}x${s.h}`);
+      }
+    }
+    // rv3-rework-030b-r2's I-1: at 1360 × 320 the list was 2.9 px; every such window is 320 to 368 px tall, and keeps
+    // the column layout, holding its HUD.
+    expect(wallBoxes({ w: 1360, h: 320 }, OPENING, DEFAULT_METRICS, { wall: PROTECT })).toBeNull();
+    for (const where of refused) {
+      const [w = 0, h = 0] = where.split("x").map(Number);
+      expect(h, where).toBeGreaterThanOrEqual(320);
+      expect(h, where).toBeLessThanOrEqual(368);
+      expect(layoutFor({ w, h }), where).toBe("column");
+      expect(fitsHud({ w, h }), where).toBe(true);
+    }
+    expect(refused).toHaveLength(144);
   });
 });
 
