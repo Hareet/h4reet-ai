@@ -78,6 +78,13 @@ Both production gateways run with `H4_STACK=prod`, so both use `stack_state`'s o
 
 `operator.py` checks which applies before it starts anything, and refuses to start the admin-only stack while prod's gateway holds the port. Each action writes spec 000's audit row, with `host` set.
 
+**After the deploy of 2026-11-17 (night 5's F5, [fixes/f5.md](../fixes/f5.md)):**
+- The admin-only stack's gateway is prod's own image, `h4reet-gateway:<H4_REF>`, where `H4_REF` comes from prod's run file (`~/.local/state/h4reet/prod/run.env`), as prod's compose names it. The stack refuses to start, before anything runs, when that file is missing or doesn't name one full commit.
+- Before the CLI's first call, the stack waits for two things, each within a bound named in `operator.py`:
+  - the tunnel's `/run/tunnel/connected` mark, up to 60 s;
+  - then the gateway's `/health`, asked inside its container, to read the store as `ok` or `uninitialized`, up to 20 s.
+- If either bound runs out, the stack is stopped and the CLI exits 4, naming which wait failed.
+
 ## 8. Restore
 
 (amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end"; plan.md §16, "Restore")
