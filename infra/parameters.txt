@@ -56,3 +56,14 @@
 /h4reet/ec2/TELEGRAM_CHAT_ID SecureString
 /h4reet/ec2/VALKEY_PASSWORD SecureString
 /h4reet/hosts/SHARED_STATE_TLS_CA String
+
+# Names other hands make, which make secrets-check listed as unexpected after W2's deploy (spec 001's F7, night 5).
+# Never fill one by hand: Terraform makes the first three, the account's root the autostart switch
+# (infra/account/handover.tf), prod's root EC2's instance ID (infra/prod/handover.tf) and the laptop's health check's ID
+# (infra/prod/ssm.tf); the Author's shared-state-tls target writes the shared state's server key and certificate
+# (scripts/infra/shared_state.py), beside the CA above.
+/h4reet/prod/ec2-autostart String
+/h4reet/prod/ec2-instance-id String
+/h4reet/tunnel-end/HEALTH_CHECK_ID String
+/h4reet/tunnel-end/SHARED_STATE_TLS_KEY SecureString
+/h4reet/tunnel-end/SHARED_STATE_TLS_CERT String

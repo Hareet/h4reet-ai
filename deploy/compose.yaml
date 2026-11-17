@@ -869,8 +869,15 @@ services:
       - type: bind
         source: /srv/h4reet/shared-state
         target: /var/lib/postgresql/data
+    # As postgres (F7, night 5): pg_hba.conf takes postgres on the socket by peer alone, and Docker runs the check as
+    # root, so the server logged a peer-authentication failure every 5 s. The check steps down first with the image's
+    # own tool, the one its entrypoint uses (gosu, or su-exec in older Alpine images), under the caps above.
     healthcheck:
-      test: ["CMD", "pg_isready", "--host=/var/run/postgresql", "--username=postgres", "--dbname=h4reet"]
+      test:
+        - CMD-SHELL
+        - >-
+          exec "$$(command -v gosu || command -v su-exec)" postgres
+          pg_isready --host=/var/run/postgresql --username=postgres --dbname=h4reet
       interval: 5s
       timeout: 3s
       retries: 5
@@ -924,6 +931,15 @@ services:
         source: "${H4_TREE:?set by make up}/config/budgets.yaml"
         target: /app/config/budgets.yaml
         read_only: true
+      # The status's `ec2` (F7, night 5; contracts/relay-http.md §6): the document the snapshot sink's host write keeps,
+      # with EC2's state from its last ec2:DescribeInstances, read-only. Made if missing, so a fresh tunnel end's relay
+      # starts before the write's first run, and says `unknown` until it.
+      - type: bind
+        source: /var/lib/h4reet/snapshot
+        target: /var/lib/h4reet/snapshot
+        read_only: true
+        bind:
+          create_host_path: true
     read_only: true
     tmpfs: [/tmp]
     healthcheck:

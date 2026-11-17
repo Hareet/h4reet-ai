@@ -8,8 +8,9 @@
 
 waiting   every 5 s, the public status (https://hareet.ai/api/status, or H4_HANDOVER_STATUS_URL), marked as a probe
           (X-H4-Probe: 1). A status it can't read is waited out, never read as `laptop`. Once it says `laptop`, EC2 is
-          stopped through the Author's h4-ec2-stop profile (H4_EC2_STOP_PROFILE, by default h4-ec2-stop), and the loop
-          serves. Until EC2 reads `stopped`, it is checked every 5 s, and stopped again if it runs.
+          stopped through the Author's stop profile, which signs in to the h4-ec2-stop permission set
+          (H4_EC2_STOP_PROFILE, by default h4reet-ec2-stop: make aws-login takes h4reet-… names alone; F7, night 5),
+          and the loop serves. Until EC2 reads `stopped`, it is checked every 5 s, and stopped again if it runs.
 window    from the relay's first `laptop` to EC2's `stopped`: one line in DIR/handover.jsonl, and the gauge
           h4.handover.window_seconds, posted to the stack's own collector on 127.0.0.1:<x004>, the port start reads
           from the env file's H4_OTLP_PORT and passes as --otlp-port (make up's env file reaches compose alone).
@@ -51,6 +52,9 @@ SERVE_S = 60
 SETTLE_LIMIT_S = 600
 RUNNING = ("pending", "running")
 STOPPED = ("stopped", "terminated", "shutting-down")
+# The Author's SSO profile for the h4-ec2-stop permission set: an h4reet-… name, the one form make aws-login takes.
+STOP_PROFILE = "h4reet-ec2-stop"
+STOP_SET = "h4-ec2-stop"
 
 
 class Ec2Error(RuntimeError):
@@ -455,12 +459,12 @@ def start(
 ) -> int:
     """Starts the loop, unless one runs; returns 0 whatever happens, so `make up` never fails for it."""
     try:
-        profile = os.environ.get("H4_EC2_STOP_PROFILE", "h4-ec2-stop")
+        profile = os.environ.get("H4_EC2_STOP_PROFILE", STOP_PROFILE)
         usable = session if session is not None else lambda: session_usable(profile)
         if not usable():
             print(
-                f"h4-handover: the {profile} profile's session can't be used, so a failed stop can't stop EC2 or "
-                f"alert: make aws-login PROFILE={profile} (docs/runbooks/handover.md)",
+                f"h4-handover: the {profile} profile's session (the {STOP_SET} permission set) can't be used, so a "
+                f"failed stop can't stop EC2 or alert: make aws-login PROFILE={profile} (docs/runbooks/handover.md)",
                 file=sys.stderr,
             )
         pid = read_pid(state_dir)
@@ -520,7 +524,7 @@ def main(argv: list[str]) -> int:
     if args.command == "stop":
         return stop(args.state_dir)
     url = os.environ.get("H4_HANDOVER_STATUS_URL", STATUS_URL)
-    profile = os.environ.get("H4_EC2_STOP_PROFILE", "h4-ec2-stop")
+    profile = os.environ.get("H4_EC2_STOP_PROFILE", STOP_PROFILE)
     loop = Handover(
         status=lambda: read_status(url),
         ec2=CliEc2(profile),

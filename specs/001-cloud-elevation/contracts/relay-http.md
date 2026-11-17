@@ -86,7 +86,7 @@ Bodies use spec 000's degraded shape, with `X-H4-Degraded-Cause`.
 | Field | Values | Source |
 |---|---|---|
 | `serving` | `laptop`, `ec2`, `none` | §4 |
-| `ec2` | `running`, `pending`, `stopping`, `stopped`, `interrupted`, `unknown` | the sink's last read (contracts/public-view.md §2), at most 2 minutes old |
+| `ec2` | `running`, `pending`, `stopping`, `stopped`, `interrupted`, `unknown` | the sink's last read (contracts/public-view.md §2): `serving.ec2_state` of the document its host write keeps, `/var/lib/h4reet/snapshot/latest.json`, bound read-only into the relay and read at most once in 5 s; `unknown` when missing, unreadable, more than 150 s old (the write's 2 minutes and its run's 30 s), or more than a minute ahead (F7, night 5: until then nothing supplied it, and the relay always said `unknown`) |
 | `kill_switch` | `normal`, `degraded`, `unknown` | §3 step 4 |
 | `hello_would_get` | `answer` or the cause | §3 |
 | `local_tier` | `up` while the laptop serves, else `down` | spec 004's Amendment A1 |

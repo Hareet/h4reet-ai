@@ -65,8 +65,8 @@ export interface RelayDeps {
   readonly logger: pino.Logger;
   readonly now?: () => number;
   readonly forward?: (target: HostTarget, req: ForwardRequest) => Promise<ForwardResult>;
-  /** EC2's state as the snapshot sink last read it, at most 2 minutes old (contracts/public-view.md §2); group 10's
-   *  sink brings it, and until then the relay says `unknown`. */
+  /** EC2's state as the snapshot sink last read it (contracts/public-view.md §2), from the document its host write
+   *  keeps (ec2state.ts; F7, night 5): assemble supplies it. Without it, the relay says `unknown`. */
   readonly ec2State?: () => Ec2State;
 }
 

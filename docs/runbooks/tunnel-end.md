@@ -44,8 +44,9 @@ A reboot does the same, and more slowly: `aws ec2 reboot-instances --instance-id
 ### Stopping the stack on purpose
 
 Hold the deployer first, and stop its timer: otherwise its next run, within a minute, starts the release again, and its
-unit's `Requires=docker.service` starts Docker again even after `systemctl stop docker`. In a session
-(`make cloud-session HOST=tunnel-end`), as root:
+unit's `Requires=docker.service` starts Docker again even after `systemctl stop docker`. In a shell on the tunnel end
+(the EC2 console's Session Manager on `h4-prod-tunnel-end`, as [ec2.md](ec2.md)'s Act says; `make cloud-session` is a
+port-forward, not a shell), as root (`sudo -i`):
 
 ```bash
 touch /var/lib/h4reet/deploy/hold
@@ -148,7 +149,7 @@ A spot instance stops and starts in its zone, so a zone without capacity keeps i
 
 - The dashboard's "Tunnel up" reads `up` for both ends, and "Tunnel reconnects" stops climbing.
 - "Telemetry delayed at the tunnel end" drains to zero once the host it waited for is back.
-- `make cloud-session HOST=tunnel-end PROFILE=h4reet-admin` opens a session, and `/var/lib/h4reet/deploy/deployments.jsonl` ends with `deployed` for the release you expect.
+- `make cloud-session HOST=tunnel-end PROFILE=h4reet-admin` forwards the relay's internal listener to your `127.0.0.1:18505` (it needs AWS's Session Manager plugin), where `curl -s http://127.0.0.1:18505/api/status` answers; and in a shell on the tunnel end (the console's Session Manager), `/var/lib/h4reet/deploy/deployments.jsonl` ends with `deployed` for the release you expect.
 
 ## Undo
 
