@@ -963,6 +963,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - the account makes the functions, their permissions, `h4-laptop-away-rule`, the schedules, and the probe's schedule and alarm, and nothing that reads prod.
 
   Check: as T027, for each root (W2's `-p`)
+  Superseded by fix F1 (night 5): the VPC origins' group's 8080 rule is unswitched and one-phase; see `plan.md` §16 item 5 and `fixes/f1.md`.
 - [ ] T177 Author: commit P-W2 on W2's `-p` branch byte for byte; gate; merge. Check: the gate passes, its `infra-plan-note` step on both roots (W2's `-p`, then main)
 - [ ] T178 Author: on `main`, inside the hours, read `make operator-status ENV=shared` and record it. Verify, apply, and record **prod first, then the account** (plan.md §16, "W2's order"; the review's I3), so the probe starts against a site that answers. If EventBridge refuses prod's function targets before the account's apply makes the functions, apply the account first instead, and record the probe's alarm during prod's apply as expected. Then:
   1. the certificate is issued; then a release with `SITE_BUCKET=` and `DISTRIBUTION=`, between prod's apply and the account's (group 8's review B, nit 5), and hareet.ai loads from the edge;
