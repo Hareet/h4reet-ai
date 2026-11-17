@@ -31,6 +31,12 @@ FROM scratch AS visitor-assets
 # that names none gets this empty stage, and the twin's figure shows its stand-in.
 FROM scratch AS twin-assets
 
+# ---- ui-assets: the tree's assets/ui, as web_image.py hands it over (spec 030, FR-027) ----
+# web_image.py (and release.py, from its ASSET_CONTEXTS) replaces this stage with the named build context `ui-assets`
+# when the tree has the folder. A build that names none, such as the gate's image step, gets this empty stage, and the
+# buttons build on their CSS skin.
+FROM scratch AS ui-assets
+
 # ---- install: the workspace's dependencies from the lockfile, and what the builds read ----
 FROM public.ecr.aws/docker/library/node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS install
 # On the agents' engine npm reaches the registry only through the egress proxy: web_image.py passes H4_BUILD_PROXY as
@@ -83,6 +89,9 @@ COPY --from=visitor-assets / /src/assets/visitors/
 # The twin's own avatar, where the compositor reads it, assets/twin/: the commit's own, or none (spec 016, FR-048). The
 # build writes its GLBs' gzip-9 copies and its still into dist/a/; no plain model, record, or notice reaches nginx.
 COPY --from=twin-assets / /src/assets/twin/
+# The buttons' images, where the skin's build reads them, assets/ui/: the commit's own, or none (spec 030, FR-027). The
+# build inlines them into the stylesheet as data: URIs; no plain image or record reaches nginx's root.
+COPY --from=ui-assets / /src/assets/ui/
 # ROOM_DRAFTS is 1 for the -drafts images of dev and dev-cpu, and empty for prod's (contracts/web-serving.md §1).
 # ROOM_POLICY_DIR is where the build reads main's policy from, and nowhere else. --ignore-scripts keeps a checkout's
 # prebuild (build/policy.ts, which reads main with git) from running here: the context already holds main's policy.

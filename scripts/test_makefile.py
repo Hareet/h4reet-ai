@@ -326,7 +326,10 @@ COMPOSE_BUILD = (
 # The working tree's models, under assets/room/ since the room's intake, come in as the named context `room-assets`
 # (spec 004, T220; its contracts/serving.md §3), its visitor avatars' folder, assets/visitors/, as
 # `visitor-assets` (spec 009, FR-023; its Amendment M19), and the twin's folder, assets/twin/, as `twin-assets`
-# (spec 016, its plan's R-03; changed with T013, its R-18).
+# (spec 016, its plan's R-03; changed with T013, its R-18). The buttons' images' folder, assets/ui/, comes in as
+# `ui-assets` (spec 030, FR-027; its tasks.md T-DS01 (c)) once the Author's intake lands it: the segment is optional in
+# the pattern, and web_build() holds it present exactly when the tree has the folder, so the pin holds before and after.
+UI_ASSETS = ROOT / "assets/ui"
 WEB_BUILD = re.compile(
     re.escape(
         f"buildx build --load --file {ROOT}/apps/web/Dockerfile --tag h4reet-web:working-tree-drafts "
@@ -337,9 +340,26 @@ WEB_BUILD = re.compile(
     + re.escape(f"--build-context room-assets={ROOT}/assets/room ")
     + re.escape(f"--build-context visitor-assets={ROOT}/assets/visitors ")
     + re.escape(f"--build-context twin-assets={ROOT}/assets/twin ")
+    + r"(?:"
+    + re.escape(f"--build-context ui-assets={UI_ASSETS} ")
+    + r")?"
     + r"--label org\.h4reet\.web\.policy=[0-9a-f]{64} "
     + re.escape(str(ROOT))
 )
+
+
+def web_build(line: str) -> bool:
+    """WEB_BUILD's match, with ui-assets' segment present exactly when <ROOT>/assets/ui is the tree's own directory,
+    neither it nor assets/ a link (spec 030, FR-027)."""
+    own = (
+        UI_ASSETS.is_dir()
+        and not UI_ASSETS.is_symlink()
+        and not UI_ASSETS.parent.is_symlink()
+    )
+    named = f"--build-context ui-assets={UI_ASSETS} " in line
+    return WEB_BUILD.fullmatch(line) is not None and named == own
+
+
 # deploy/scripts/gateway_image.py hands docker only Docker's own variables, so this stand-in records beside itself
 # rather than at $DOCKER_CALLS.
 FAKE_DOCKER_HERE = '#!/bin/sh\nprintf \'%s\\n\' "$*" >>"$(dirname "$0")/../calls.log"\n'
@@ -418,7 +438,7 @@ def test_the_image_gate_builds_the_gateway_then_compose_images(tmp_path: Path) -
     done, calls = _make_here("image", tmp_path, DOCKER_HOST="tcp://198.18.0.1:2376")
     assert done.returncode == 0, done.stderr
     assert len(calls) == 3 and calls[0] == GATEWAY_BUILD and calls[2] == COMPOSE_BUILD
-    assert WEB_BUILD.fullmatch(calls[1]), calls[1]
+    assert web_build(calls[1]), calls[1]
 
 
 def _dry_run_up(tmp_path: Path, stack: str) -> list[str]:
@@ -552,7 +572,7 @@ def test_the_image_gate_asks_the_engine_through_the_relay_before_it_builds(
     assert done.returncode == 0, done.stderr
     assert relayed == ["docker version", RELAYED_BUILD]
     assert calls[:2] == ["version", GATEWAY_BUILD] and calls[3:] == [COMPOSE_BUILD]
-    assert len(calls) == 4 and WEB_BUILD.fullmatch(calls[2]), calls
+    assert len(calls) == 4 and web_build(calls[2]), calls
 
 
 @pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
@@ -647,7 +667,7 @@ def test_the_agents_engine_builds_the_web_image_with_drafts(
 ) -> None:
     done, calls = _make_here("web-image", tmp_path, **env)
     assert done.returncode == 0, done.stderr
-    assert len(calls) == 1 and WEB_BUILD.fullmatch(calls[0]), calls
+    assert len(calls) == 1 and web_build(calls[0]), calls
 
 
 @pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")

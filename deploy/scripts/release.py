@@ -825,14 +825,23 @@ def web_contexts(name: str, src: Path) -> list[str]:
     policy files, which web_image.py reads from the repository's refs/heads/main itself, and the export's assets."""
     if name != "web":
         return []
-    wi = _load("web_image_for_release", src / "deploy" / "scripts" / "web_image.py")
+    script = src / "deploy" / "scripts" / "web_image.py"
+    wi = _load("web_image_for_release", script)
+    # Spec 030 (plan.md §R-D4, rework 3, R-5): an export from before the list is refused by name, before any build.
+    pairs = getattr(wi, "ASSET_CONTEXTS", None)
+    if not isinstance(pairs, tuple) or not all(
+        isinstance(pair, tuple)
+        and len(pair) == 2
+        and all(isinstance(part, str) for part in pair)
+        for pair in pairs
+    ):
+        raise Refused(
+            f"{script} has no ASSET_CONTEXTS: an export from before spec 030's ui-assets context can't be released"
+            " by this release.py"
+        )
     folder = wi.write_policy(wi.read_policy(ROOT))
     out = ["--build-arg", "ROOM_DRAFTS=", "--build-context", f"policy={folder}"]
-    for folder_name, context in (
-        (wi.ROOM_ASSETS, wi.ROOM_ASSETS_CONTEXT),
-        (wi.VISITOR_ASSETS, wi.VISITOR_ASSETS_CONTEXT),
-        (wi.TWIN_ASSETS, wi.TWIN_ASSETS_CONTEXT),
-    ):
+    for folder_name, context in pairs:
         found = wi.room_assets(src, folder_name)
         if found is not None:
             out += ["--build-context", f"{context}={found}"]
