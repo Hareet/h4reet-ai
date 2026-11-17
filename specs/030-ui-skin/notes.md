@@ -219,3 +219,134 @@ exit 0
 - The groups' reworks on their tips once that review passes: A for R-2 and Q76, B for Q72's ring offset and `::before` glow, R-5, R-8 and Q75 (beside the first rework's S-1, S-4 and S-5), DS for R-1, R-3 and Q74, from B's reworked tip. C has nothing new from this rework.
 - Not decided here: whether `judge-ui-r1` measures the labels over the band (Q74), which is the supervisor's brief; otherwise T-DS05 does.
 - His part: Q71 to Q76, his look (SC-008: the halves, the skins, the inside ring and glow, the image on the `::before` in a browser, the tiles' labels' fit), his intake (`docs/merge-requests/human-patches/030.md`, after R-3's pass), and every merge.
+
+# Rework 3: rework3-spec-030 (spec-writer, night of 2026-11-17)
+
+Branch `night/rework3-spec-030/rework3-spec-030` from `8e83e7fc` (`rework2-spec-030`'s tip). Documents only. The findings are `rv-rework2-spec-030`'s, R-1 (blocking) to R-5, read from the decision page (`docs/night-shift/2026-11-17.md` on `night/supervisor/2026-11-17`, "Fortieth wake"), which gives each with its file:line and fix. Q76, the name rework 2 gave its own question, is the page's Q81 (R-4), and every mention below uses Q81.
+
+**The tips read.** `impl-030a`: `7aad7cd9` when this rework started (a save point of T-A05), then `c0cd9826` (T-A05's notes, `tasks.md`'s T-A01 to T-A05 ticked), which this rework's placements and merge checks use; its RED commit `e053a0cd`, `impl-a.md`'s table, and its `plan.md` "As built" (§R-A2, T-A03's; §R-A3, T-A04's). `impl-030dsb`: `58cd74fc` at the start, then `7ac200da` (its notes, done).
+
+## The cited lines, confirmed at `8e83e7fc` (and A's and DSB's tips)
+
+| Finding | Cited | Found |
+|---|---|---|
+| R-1 | `plan.md:69` ("run, untouched": `hud-a11y`, `hud-notes`, `hud-model.test.ts`) | As cited. All three are rewritten in `e053a0cd` (`hud-a11y:197-198`, `hud-notes:94`, `hud-model.test:157`). |
+| R-1 | `test/room/hud.test.ts` `:60`, `:81`, `:83-84`, `:87-89` | As cited. `:81`, `:83-84` and `:87-89` are rewritten in `e053a0cd`, and so are `:290` and `:314`. `:60` (the column band at 1920 × 1200) isn't: it would break under rework 2's `hudBoxes` reading of §R-A2, and doesn't break under A's built design, which this rework takes. |
+| R-1 | `test/room/hud-split-geometry.test.ts` `:62`, `:66` | `:62` as cited. A rewrote `:62`, `:63` and `:65` (`c.all`); `:66` is the loop after them, which A left alone. |
+| R-1 | `stages-checks.test.ts`, `test/ui/pick.test.ts`, the two snapshots (Q83); `hud-frame`, `hud-stats` unplaced | As cited. `stages-checks:152` and `pick:195`, `:201` are rewritten. `hud-frame` and `hud-stats` are under `test/room/`; neither reads a box from `compose/`. |
+| R-1 | `tasks.md:31`'s valve | As cited. RED runs on the unchanged tree, where the old tests pass, so a valve placed in the RED run can't fire. |
+| R-1 | `plan.md:65`, `tasks.md:31` (the over-room sets), `plan.md:47-48` | As cited, against `hud-over-room.test.ts:99-106` and `hud-over-walking.test.ts:81-93` at `e053a0cd` (split: `.room-list`, `.hud-bar`, `.room-walk`; column and dock: `.hud-panels`, `.hud-bar`; `ELEMENTS` unchanged) and A's §R-A2 "As built" (`compactBoxes`, the bar's cluster alone). |
+| R-2 | `split.css:549-556`; `02a5c30a`'s `button.css:73` | The rule is `:548-556` (its selectors start at `:548`; `box-shadow: 0 0 0 0.25rem …` at `:554`). `button.css:73` is `box-shadow:` on the control, with the bevel and glow insets, as cited. |
+| R-4 | the page's Q81 | As cited: the page's Q81 is rework 2's question, named "Q76" in spec.md. Q82 and Q85 are `impl-030a`'s. |
+| R-5 | `web_contexts()` would raise `AttributeError` | As cited, at `impl-030dsb`'s `release.py:815` (`for folder_name, context in wi.ASSET_CONTEXTS:`). `run()` catches only `Refused`, `OSError` and `subprocess.TimeoutExpired` (`release.py:622-630`), so the result would be a traceback. |
+
+## The blocking finding, fixed
+
+| ID | Fix taken | Where |
+|---|---|---|
+| R-1 | **Every test file A's change reaches is placed, case by case, from what A actually committed rather than from reading the plan.** Plan §R-A4's closed list is replaced by a table with each case's file (and spec), line, old assertion, new assertion and placement. The "A's, rewritten" rows come from `impl-a.md`'s table at `e053a0cd`. `hud-a11y`, `hud-notes` and `hud-model.test.ts` move to A's. New A rows: `test/room/hud.test.ts`, `hud-split-geometry`, `stages-checks`, `test/ui/pick.test.ts`, and the two snapshots (Q83). `hud-frame` and `hud-stats` are "run, untouched". **Then a grep of `apps/web/test/` for every number and formula A's change moves.** The patterns are listed in plan §R-A4, and every hit is placed. It found three files that no list had named and that A hadn't rewritten: `test/lookdev/phone.test.ts`, `test/room/geometry.test.ts` and `test/room/report.test.ts`. **Run on an export of A's tip, all three fail: 14 cases** (pasted below; `geometry:376`'s and `report:393`'s "320 × 322 and 62 others" were found by the run, not the grep). It also found two files that will fail once A takes the first rework's N-1, which A's branch predates: `degraded:923-944` and `loading-a11y:174-185`, the `@supports` block, which is still at `room.css:190` on A's tip. **The valve is reworded:** A runs the whole suite on the GREEN step's tree before each GREEN commit, and a case that fails goes into a RED test commit made before that GREEN commit, named. For the GREEN commits A has already made, the cases go into one RED commit on A's tip, each with its old assertion's failing run pasted (T-INT02b's "found at integration" form). **A's "As built" is taken into the design**: plan §R-A2's bullets now state the column's slice in `compactBoxes` (`hudBoxes`' band unchanged, so `hud.test.ts:60` stands), `halves(HalvesInput)`, the column's bottom half as the bar's cluster alone (Q85), the dock's slice from the clear area (Q82), and the list clamped at 0. §R-A3 now has the `--half-border` edge (Q84) and "marked always" as built. The over-room sets in plan §R-A4, spec.md's Assumptions and tasks are A's. A's two "As built" lists stand in plan.md word for word. | spec Clarifications (Q81, the rework 3 session: Q82 to Q85), FR-004, Amendments (two rows), Assumptions; plan header, §R-A2, §R-A3, §R-A4 (the table, the untouched list, the grep, the run, the valve), §9 (A's row, DSB's "As built" paragraph, the no-row rule); tasks header, Group A (as A built it), Group A's rework (T-A06 to T-A08, new), T-INT02, Dependencies, the checks' table |
+
+## The others, each with the fix taken
+
+| ID | Fix |
+|---|---|
+| R-2 | **Taken.** Plan §R-B3: the control's own `box-shadow` is `none` in every skin, variant and state. Every shadow B draws (bevel, highlight, glow) belongs to the `::before`, inside the octagon. Two things the cascade could otherwise paint on the control are named: spec 029's plate (`split.css:548-556`), which A's halves now apply to "Back" at rest, and `impl-030b`'s bevel on the control (`02a5c30a`'s `button.css:73`). T-B01 (c) asserts each skinned control's winning `box-shadow` is `none`, with `.split-back` and `.split-hint` inside a panel marked over the room, and that every `box-shadow` B declares sits on a `::before` rule. Plan §R-D4 and T-DS01 (b) assert the same under both skins. |
+| R-3 | **For his look (SC-008), no design change.** The brief has every PNG's outermost pixel ring at alpha 0, and the judge checks that (FR-022). `panel-frame.png` is drawn at twice the CSS size from each half's box edge inward (`border-image-outset: 0`), so along each edge of a half a strip about half a CSS pixel wide shows no frame. In that strip you see the half's own glass and its 1 px `--half-border` edge (Q84), not the frame's metal. He judges it at SC-008. If it shows, round 2 has two possible routes: exempt `panel-frame.png` from the transparent-ring rule in its brief and in the judge's check, or draw the frame with `border-image-outset: 0.5px` (out over the slice by half a pixel). Neither is taken tonight. |
+| R-4 | **Taken.** spec.md's "Q76" is renamed Q81 (the page's number), with "rework 2's 'Q76'" beside it wherever it was named. Q82 to Q85 are a new "rework 3" Clarifications session, each with its recommended answer taken as the page records it. The Amendments gain rows for Q82 (spec 005's reference phone stage and spec 004's smallest 2D stage) and Q85 (spec 014's W19 compact column). The 026's r4 row now cites Q81. |
+| R-5 | **Taken, and asked on the page.** Plan §R-D4, T-DS01 (c) and T-DS02: `web_contexts()` reads `getattr(wi, "ASSET_CONTEXTS", None)`. If the export's `web_image.py` has no such list, it raises `Refused`, naming the file and `ASSET_CONTEXTS`, before any build. `run()` prints that as its "refused" line. The consequence: this `release.py` releases no commit from before T-DS02. The question on the page is whether to refuse or fall back to the three old pairs; the recommended answer is to refuse. **What this adds for `impl-030dsb`** (done at `7ac200da`, from this rework's base): one RED case in `deploy/scripts/test_release.py`. The scratch tree's `web_image.py` is the tree's own copy without its `ASSET_CONTEXTS` assignment, and `rl.web_contexts("web", src)` must raise `rl.Refused` naming the file and the list. That case fails on DSB's tip with `AttributeError: module 'web_image_for_release' has no attribute 'ASSET_CONTEXTS'`. Then a GREEN of `release.py`: the guard in `web_contexts()`, a few lines. The rest of DSB's work is unchanged. This is a line for DS's rework, or for a follow-up on DSB's tip. |
+
+## Which group's rework each change reaches
+
+| Group (state now) | What reaches it |
+|---|---|
+| A, `impl-030a` (done; tip `c0cd9826`) | R-1: Group A's rework, T-A06 to T-A08. The 14 failing cases in `lookdev/phone`, `room/geometry` and `room/report`. The first rework's N-1 (the `@supports` block, and `degraded` and `loading-a11y`'s cases) and N-2 (`hud-halves` against numbers it derives itself, `halves.test.ts`), which A's branch predates. The whole suite before each GREEN commit, and again at T-A08. Q81, Q82, Q84 and Q85 change nothing A built: this rework takes A's design. |
+| B, `impl-030b` (rework pending, from `02a5c30a`) | R-2: the control's own `box-shadow: none`, with the bevel moved to the `::before`, beside the first rework's S-4. T-B01 (c)'s new assertion. |
+| C, `impl-030c` / `rework-030c` | Nothing. |
+| DJ | Nothing. |
+| DSB, `impl-030dsb` (done; `7ac200da`) | R-5: the one RED case and the guard in `web_contexts()` (above), for DS's rework or a DSB follow-up. |
+| DS, `impl-030ds` (not started) | R-2 in T-DS01 (b) (the control's `box-shadow` under the image skin). R-5's line if DSB doesn't take it. |
+| INT, `int-030` | T-INT's dependency is now T-A08. T-INT02's `hud-look` case starts from A's rewrite. |
+| His look | R-3 (the frame's half-pixel strip), beside SC-008's list. |
+
+## Merge checks (`git merge-tree --write-tree`, which ran here; the object store is writable, the refs untouched)
+
+Base against each tip:
+
+```
+$ git merge-tree --write-tree 8e83e7fc c0cd9826
+92db1f293ad05123bac3f9471967fe6417e3a40f
+100644 0513ea22521fc04b195b094dbaee58871a64f238 1	specs/030-ui-skin/plan.md
+100644 3424c4ea0836da6effd1426e130d349d88823f4c 2	specs/030-ui-skin/plan.md
+100644 a9ac4470929cd867c9b16bc77af0574276e8df59 3	specs/030-ui-skin/plan.md
+100644 d0d8e75b2a7cd990ca9e079336de260cfb12208a 1	specs/030-ui-skin/tasks.md
+100644 883714a93aa33a4818b494f2adf9605be0c436cb 2	specs/030-ui-skin/tasks.md
+100644 aa79c217d22e86eba76ac84d7553834314d99017 3	specs/030-ui-skin/tasks.md
+
+Auto-merging specs/030-ui-skin/plan.md
+CONFLICT (content): Merge conflict in specs/030-ui-skin/plan.md
+Auto-merging specs/030-ui-skin/tasks.md
+CONFLICT (content): Merge conflict in specs/030-ui-skin/tasks.md
+exit 1
+$ git merge-tree --write-tree 8e83e7fc 7ac200da
+e483e2694f74f654a31e052bbdb56525dc5c0253
+exit 0
+```
+
+At the base, `plan.md`'s conflict was one hunk: §R-A3's tests bullet (the first rework's N-2) against A's T-A04 "As built" list inserted before it. `tasks.md`'s was A's ticks on T-A01 to T-A05 against the reworks' text in T-A01, T-A02 and T-A05. **Made clean on this side.** Both "As built" lists are in plan.md as A wrote them. §R-A3's old tests bullet is kept word for word, with the reworked bullet after it, which says it replaces the old one. tasks.md's T-A01 to T-A05 are A's ticked lines byte for byte (checked line by line against `c0cd9826`). The reworks' changes to A are T-A06 to T-A08, in a section after Group B: anything placed beside A's ticks conflicts. DSB's "As built, the DS row" paragraph is in §9 as DSB wrote it. The rework's amendment to the no-row rule stands after "Cross-group reads", because the paragraph next to DSB's must stay as it was. **This branch's tip against each** (re-run at the last commit before this note, `wip(rework3-spec-030): R-1, the three grep-found files…`, and again at the final tip; notes.md is no other branch's file):
+
+```
+$ git merge-tree --write-tree HEAD c0cd9826   →  exit 0 (no conflict)
+$ git merge-tree --write-tree HEAD 7ac200da   →  exit 0 (no conflict)
+$ (both at once) git merge-tree --write-tree <HEAD merged with c0cd9826> 7ac200da  →  exit 0 (no conflict)
+```
+
+Nothing is left in conflict between these three. The other branches (`impl-030b`, `rework-030c`, `judge-ui-r1`, F's) weren't asked of this task. Q86's hunk in `studio-round-1.md` isn't touched here, since this rework leaves that file alone.
+
+## The runs on A's export
+
+The three files the grep found, run with this worktree's `node_modules` (from `make setup`, exit 0) on `git archive c0cd9826` extracted to `/tmp/rework3-a` (two symbolic links to the node_modules folders, nothing written to any tree). From `/tmp/rework3-a/apps/web`, `vitest run test/lookdev/phone.test.ts test/room/geometry.test.ts test/room/report.test.ts`:
+
+```
+ FAIL  test/lookdev/phone.test.ts > the probe's panel, the copy's first (§7.2) > shows each field, the room's stage at the viewport, and the floor, then starts the page with the probe
+AssertionError: expected { w: 384, h: 410 } to deeply equal { w: 384, h: 422 }
+ FAIL  test/room/geometry.test.ts > RG6: FR-064's carve-out for side-wall selectables > lists a side-wall selectable short of its core at larger stages there too, in 3D, and refuses nothing
+ FAIL  test/room/geometry.test.ts > RG6: … > lists one short of its core in 2D at the scale of larger stages, and refuses nothing
+ FAIL  test/room/geometry.test.ts > RG6: … > refuses a selectable with one member on a side wall and one on the desk, which isn't side-wall
+ FAIL  test/room/geometry.test.ts > RG6: … > refuses a member on another placement's anchor that is also named left-wall
+ FAIL  test/room/geometry.test.ts > RG6: … > refuses a shell anchor named left-wall without a side wall's quarter turn about Y
+ FAIL  test/room/geometry.test.ts > RG6: … > refuses a shell anchor named left-wall turned about X as well as Y
+ FAIL  test/room/geometry.test.ts > RG6: … > refuses a shell anchor named left-wall that stands more than 1 mm off the shell's bounds
+ FAIL  test/room/geometry.test.ts > RG6: … > refuses a member whose own mount turns it about Y or X, and takes a turn about Z
+ FAIL  test/room/geometry.test.ts > RG6: … > refuses a member that stands out from the wall by more than its piece's depth
+ FAIL  test/room/geometry.test.ts > RG6: … > refuses another selectable's core over a list-only side-wall selectable's member, naming that selectable
+AssertionError: expected [ …(2) ] to include 'selectables[4]: its exclusive core ov…'
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > names each list-only side-wall selectable, its wall, and its 3D and 2D stages, after the legibility table
+ FAIL  test/room/report.test.ts > … > lists a side-wall selectable at every stage where its core can't fit, larger stages among them (T303)
+ FAIL  test/room/report.test.ts > … > names a side-wall selectable RT2 refused by its path
+ Test Files  3 failed (3)
+      Tests  14 failed | 99 passed (113)
+```
+
+(Each geometry and report failure is an `AssertionError` comparing the room's listed stages; the run's report prints "list-only at 320 × 238 and 53 others" where the test has 320 × 250.)
+
+SUITE-RESULT-PLACEHOLDER
+
+## Questions (in `/night/io/out/questions.md`)
+
+One, from R-5: should `web_contexts()` refuse an export without `ASSET_CONTEXTS` by name, or fall back to the three old pairs? Recommended: refuse. Others: fall back; refuse only where the tree holds `assets/ui/`. It's taken provisionally in the plan under his rule 1. Q81 to Q85 are already on the page, and their recommended answers are taken here.
+
+## Interruptions and slips
+
+No hook, bash-gate or permission refusal. **One write to a tracked file not made by the Edit or Write tool, against the brief's rule.** A shell command I meant to skip still ran `sed -i` on `specs/030-ui-skin/tasks.md`. It changed `- [ ] T-A01 [US1] RED` to `- [x] T-A01 [US1] RED`, the one token that line still needed to equal A's ticked line. Nothing else changed: the five T-A lines were checked line by line against `c0cd9826`, all equal, and committed in `wip(rework3-spec-030): R-1, tasks.md's group A…`. I didn't redo it by Edit, because the file's bytes would be the same. Also not a refusal: `make setup` noted that the shared `.git/hooks` isn't writable here, which is the Author's `make git-hooks`. The `/tmp/rework3-a` export is left for the runner's cleanup (Q20).
+
+## Checks run
+
+LINT-PLACEHOLDER
+
+## What's left
+
+- `rv-rework3-spec-030`, a reviewer who wrote none of spec 030: R-1 judged on the real input, the placements in plan §R-A4 checked against `git diff --name-only 7cdc31d2 c0cd9826 -- apps/web/test/` and this rework's runs.
+- A's rework, T-A06 to T-A08, on `c0cd9826`: the 14 cases, N-1 and N-2, and the whole suite.
+- B's rework: R-2 beside S-4. DS's rework, or a DSB follow-up: R-5's case and guard.
+- Recorded, not given a task: `compose/over.ts`'s dock part is 12 px low (A's "As built"; not A's file; no mark changes). It's for T-INT or a later spec.
+- His part: Q81 to Q85 and this rework's question (R-5), his look (SC-008, R-3's strip among the rest), his intake, and every merge.
