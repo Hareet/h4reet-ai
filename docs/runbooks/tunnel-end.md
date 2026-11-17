@@ -70,7 +70,7 @@ sudo tail -n 5 /var/lib/h4reet/deploy/deployments.jsonl
 sudo docker logs --tail 50 h4reet-prod-tunnel-end-1
 ```
 
-- **`write_env: refused, nothing written: missing in Parameter Store: …`:** a parameter is missing. `make secrets-check PROFILE=h4reet-admin` names it; your tunnel-keys target writes the tunnel's. Then the restart above.
+- **`write_env: refused, nothing written: missing in Parameter Store: …`:** a parameter is missing. `make secrets-check PROFILE=h4reet-admin` names it; your tunnel-keys target writes the tunnel's, and `make secrets-fill PROFILE=h4reet-admin` the relay's two role passwords and the rest, each once, never overwriting (spec 001 fixes/f8.md). Then the restart above.
 - **A failed deploy:** the deployer returned to the release before and alerted `deploy_rolled_back`, or refused the release and alerted `deploy_refused` with its reason (the runbook `deploy.md`, from group 7). The tunnel end runs what `current.json` names meanwhile.
 - **sshd stopped** (`tunnel-end: sshd stopped`): compose restarts it; if it stops again, its last lines say why: a host key it can't read, most likely, which the restart above writes again.
 - **A revoked key** shows on the laptop as `Permission denied (publickey)`. If you didn't mean it, put the key back: `make tunnel-revoke RESTORE=1 PROFILE=h4reet-admin`.
