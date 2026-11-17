@@ -832,12 +832,13 @@ def test_w1_makes_the_vpc_origin_and_nothing_else_of_the_relays_path() -> None:
     )
     # Fix F1 (specs/001-cloud-elevation/fixes/f1.md): the deploy showed the prefix list alone doesn't let the VPC origin
     # in, so the private group's 8080 admits the group too, read by name unswitched, since W2's switch is on for good.
-    # That read waits on the VPC origin, which CloudFront makes the group with; nothing else names the group unswitched.
+    # That read waits on nothing (its rework, R-1): a wait on the VPC origin closes a cycle through the private group,
+    # since the origin targets the tunnel end, whose primary interface holds it. Nothing else names the group unswitched.
     for b in blocks(r):
         if b.type in ("resource", "data") and "VPCOrigins" in _raws(b):
             if address(b) == "aws_security_group.cloudfront_vpc_origins":
                 assert b.type == "data"
-                assert raw(b, "depends_on") == "[aws_cloudfront_vpc_origin.relay]"
+                assert b.attr("depends_on") is None, raw(b, "depends_on")
                 continue
             assert raw(b, "count") == WIRED or raw(b, "for_each").startswith(
                 "local.wired ?"

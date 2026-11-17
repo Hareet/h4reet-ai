@@ -8,9 +8,14 @@ What the root must hold:
     one at 10.42.1.10, IMDSv2 with hop limit 1 (T13), spot, persistent, stopping on interruption (T11);
   - its security groups: 2222 from anywhere and 8087 from Route 53's health checkers on the public interface, 8080 from
     CloudFront's origin-facing list and from its VPC origins' own group on the private one, and nothing else in. The
-    VPC origin connects from that group, CloudFront-VPCOrigins-Service-SG, read by name in prod's VPC once the origin
-    exists; the deploy needed it, added by hand (fix F1, specs/001-cloud-elevation/fixes/f1.md). The private group's
-    name and description stay as applied, since a change to either replaces it;
+    VPC origin connects from that group, CloudFront-VPCOrigins-Service-SG, read by name in prod's VPC at plan time;
+    the deploy needed it, added by hand (fix F1, specs/001-cloud-elevation/fixes/f1.md). The read waits on nothing
+    (no depends_on): a wait on the VPC origin closes a cycle, since the origin targets the tunnel end, whose primary
+    interface holds the private group (fix F1's rework, R-1). The private group's name and description stay as
+    applied, since a change to either replaces it;
+  - no dependency cycle: the references and depends_on of every block, walked offline, never lead from a block back
+    to itself, above all from the private group (Terraform's validate and plan refuse a cycle, and there is no
+    Terraform in an agent's container);
   - its role, h4-prod-tunnel-end (R-15): ECR pulls from the project's repositories, its Parameter Store path, the
     release bucket's reads, sns:Publish on h4-alerts, by name-built ARNs only, and Session Manager's and Run Command's
     own actions inline, with no managed policy (group 5's review, I1: AmazonSSMManagedInstanceCore reads every
@@ -539,20 +544,25 @@ def check_groups(root: dict[str, list]) -> list[str]:
             "groups: the private interface doesn't admit exactly 8080 from CloudFront's origin-facing list and from "
             "its VPC origins' group, and 5432 and 2301 from EC2's group"
         )
-    # The VPC origins' group, by its name in prod's VPC, in tunnel-end.tf. CloudFront makes it only once an origin
-    # exists, so on a rebuild from nothing a read at plan time would find nothing and fail the plan: the read waits on
-    # the VPC origin, and is made at the apply whenever the origin has a change pending.
+    # The VPC origins' group, by its name in prod's VPC, in tunnel-end.tf, read at plan time: the group exists in
+    # prod's VPC, since the VPC origin does. A depends_on would make the read wait on what it names; on the VPC origin
+    # it closes a cycle through the private group (fix F1's rework, R-1: the origin targets the tunnel end, whose
+    # primary interface holds the private group), so the read waits on nothing. A rebuild from nothing meets a group
+    # not yet made: that order is fixes/f1.md's backlog, not this read's.
     origins = one(root, "aws_security_group", "cloudfront_vpc_origins", "data")
     if (
         origins is None
         or where(root, origins) != "tunnel-end.tf"
         or lit(origins, "name") != VPC_ORIGINS_GROUP
         or raw(origins, "vpc_id") != "aws_vpc.prod.id"
-        or raw(origins, "depends_on") != "[aws_cloudfront_vpc_origin.relay]"
     ):
         found.append(
-            f"groups: {VPC_ORIGINS_GROUP} isn't read by its name in prod's VPC, in tunnel-end.tf, once the VPC "
-            "origin exists"
+            f"groups: {VPC_ORIGINS_GROUP} isn't read by its name in prod's VPC, in tunnel-end.tf"
+        )
+    if origins is not None and origins.attr("depends_on") is not None:
+        found.append(
+            f"groups: the read of {VPC_ORIGINS_GROUP} waits on {raw(origins, 'depends_on')}, so it isn't made at "
+            "plan time"
         )
     # A plan from a fresh clone shows the rule in place, never the group replaced: its name, description, and VPC as
     # applied (a change to any of them forces a new group, which its interface holds).
@@ -945,6 +955,122 @@ def check_tags(root: dict[str, list]) -> list[str]:
     return found
 
 
+# The dependency graph, offline (fix F1's rework, R-1). Terraform orders a root's blocks by the references in their
+# expressions and by depends_on, and refuses a cycle at validate and at plan ("Error: Cycle"); agents' containers have no
+# Terraform, so this walk stands in for that part of validate. A node is a resource (type.name), a data source
+# (data.type.name), a local (local.name), or a variable (var.name). A block's edges are every address it names in any
+# attribute of its own or of a nested block (lifecycle's replace_triggered_by and conditions, dynamic blocks,
+# depends_on), read from the tokens: a quoted string adds only what its ${ … } names, and a comment nothing.
+PRIVATE_GROUP = "aws_security_group.tunnel_end_private"
+
+
+def _interpolations(text: str) -> list[str]:
+    """The expressions inside a template's ${ … } and %{ … }, never inside an escaped $${ or %%{."""
+    out, j = [], 0
+    while j < len(text) - 1:
+        if text[j : j + 3] in ("$${", "%%{"):
+            j += 3
+        elif text[j] in "$%" and text[j + 1] == "{":
+            end, _ = ip._template(text, j + 2, 0)
+            out.append(text[j + 2 : end - 1])
+            j = end
+        else:
+            j += 1
+    return out
+
+
+def _names(text: str, nodes: set[str]) -> set[str]:
+    """The addresses an expression's text names, of those in nodes."""
+    out: set[str] = set()
+    toks = ip.tokenize(text)
+    for i, t in enumerate(toks):
+        if t.kind in ("STRING", "HEREDOC"):
+            if t.value is ip.UNKNOWN:
+                for inner in _interpolations(t.text):
+                    out |= _names(inner, nodes)
+            continue
+        if t.kind != "IDENT" or (
+            i and toks[i - 1].kind == "PUNCT" and toks[i - 1].text == "."
+        ):
+            continue
+        parts = [t.text]
+        k = i + 1
+        while (
+            len(parts) < 3
+            and k + 1 < len(toks)
+            and toks[k].kind == "PUNCT"
+            and toks[k].text == "."
+            and toks[k + 1].kind == "IDENT"
+        ):
+            parts.append(toks[k + 1].text)
+            k += 2
+        for n in (3, 2):
+            name = ".".join(parts[:n])
+            if len(parts) >= n and name in nodes:
+                out.add(name)
+                break
+    return out
+
+
+def _texts(body) -> list[str]:
+    out = []
+    for item in body:
+        if isinstance(item, ip.Attribute):
+            out.append(item.raw)
+        elif isinstance(item, ip.Block):
+            out.extend(_texts(item.body))
+    return out
+
+
+def graph(root: dict[str, list]) -> dict[str, set[str]]:
+    """Each node's edges: the nodes it names, which Terraform makes or reads before it."""
+    texts: dict[str, list[str]] = {}
+    for b in blocks(root):
+        if b.type == "resource" and len(b.labels) == 2:
+            texts[".".join(b.labels)] = _texts(b.body)
+        elif b.type == "data" and len(b.labels) == 2:
+            texts["data." + ".".join(b.labels)] = _texts(b.body)
+        elif b.type == "variable" and len(b.labels) == 1:
+            texts["var." + b.labels[0]] = _texts(b.body)
+        elif b.type == "locals":
+            for a in b.body:
+                if isinstance(a, ip.Attribute):
+                    texts["local." + a.name] = [a.raw]
+    nodes = set(texts)
+    return {
+        node: set().union(*(_names(t, nodes) for t in ts)) if ts else set()
+        for node, ts in texts.items()
+    }
+
+
+def path_back(edges: dict[str, set[str]], start: str) -> list[str] | None:
+    """The shortest path of edges from start back to start, or None."""
+    seen, queue = {start}, [[start]]
+    while queue:
+        path = queue.pop(0)
+        for nxt in sorted(edges.get(path[-1], ())):
+            if nxt == start:
+                return path + [start]
+            if nxt not in seen:
+                seen.add(nxt)
+                queue.append(path + [nxt])
+    return None
+
+
+def check_cycles(root: dict[str, list]) -> list[str]:
+    """Every cycle in the graph, once each, named from the private group when it is on it."""
+    edges = graph(root)
+    found, covered = [], set()
+    for start in [PRIVATE_GROUP] + sorted(edges):
+        if start in covered or start not in edges:
+            continue
+        path = path_back(edges, start)
+        if path is not None:
+            covered |= set(path)
+            found.append(f"cycles: {start} leads back to itself: {' -> '.join(path)}")
+    return found
+
+
 CHECKS = (
     check_versions,
     check_network,
@@ -959,6 +1085,7 @@ CHECKS = (
     check_reads,
     check_files,
     check_tags,
+    check_cycles,
 )
 
 
@@ -1264,6 +1391,72 @@ def test_the_protected_kinds_live_only_in_the_protected_files_and_everything_is_
 
 def test_the_root_has_no_problem() -> None:
     assert problems(parsed(root_texts())) == []
+
+
+# Fix F1's rework (R-1): the VPC origins' group's read waited on the VPC origin, which targets the tunnel end, whose
+# primary interface holds the private group, whose 8080 names the read: Terraform refuses the root ("Error: Cycle").
+def test_no_reference_path_leads_from_the_private_group_back_to_itself() -> None:
+    root = parsed(root_texts())
+    path = path_back(graph(root), PRIVATE_GROUP)
+    assert path is None, " -> ".join(path)
+    assert check_cycles(root) == []
+
+
+def test_the_read_of_the_vpc_origins_group_waits_on_nothing_but_prods_vpc() -> None:
+    edges = graph(parsed(root_texts()))
+    read = "data.aws_security_group.cloudfront_vpc_origins"
+    assert edges[read] == {"aws_vpc.prod"}
+    assert "aws_cloudfront_vpc_origin.relay" not in edges[read]
+
+
+def test_the_walk_reads_every_file_of_prods_root() -> None:
+    assert {p.name for p in PROD.glob("*.tf")} <= set(FILES)
+
+
+def test_the_walk_reads_each_other_edge_of_the_chain_the_review_named() -> None:
+    # The four edges that stay, so the walk isn't blind to them: the private group's 8080 names the read; the private
+    # interface holds the private group; the instance's primary interface is the private one; the VPC origin targets
+    # the instance.
+    edges = graph(parsed(root_texts()))
+    read = "data.aws_security_group.cloudfront_vpc_origins"
+    assert read in edges[PRIVATE_GROUP]
+    assert PRIVATE_GROUP in edges["aws_network_interface.tunnel_end_private"]
+    assert (
+        "aws_network_interface.tunnel_end_private" in edges["aws_instance.tunnel_end"]
+    )
+    assert "aws_instance.tunnel_end" in edges["aws_cloudfront_vpc_origin.relay"]
+
+
+def test_the_walk_reads_references_and_depends_on_never_a_strings_words_or_a_comment() -> (
+    None
+):
+    root = {
+        "a.tf": list(
+            ip.parse_hcl(
+                'resource "aws_vpc" "a" {\n'
+                "  # aws_vpc.b, in a comment\n"
+                '  cidr_block = "aws_vpc.b is a string"\n'
+                '  tags = { name = "$${aws_vpc.c.id}", other = "x-${local.d}" }\n'
+                "  lifecycle {\n"
+                "    replace_triggered_by = [terraform_data.e]\n"
+                "  }\n"
+                "  depends_on = [data.aws_ami.f]\n"
+                "}\n"
+                'resource "aws_vpc" "b" {\n  cidr_block = aws_vpc.a.cidr_block\n}\n'
+                'resource "aws_vpc" "c" {\n  cidr_block = "10.0.0.0/16"\n}\n'
+                'resource "terraform_data" "e" {\n  input = aws_vpc.a.id\n}\n'
+                'data "aws_ami" "f" {\n  owners = [var.g]\n}\n'
+                'variable "g" {\n  type = string\n}\n'
+                "locals {\n  d = aws_vpc.c.id\n}\n"
+            )
+        )
+    }
+    edges = graph(root)
+    assert edges["aws_vpc.a"] == {"local.d", "terraform_data.e", "data.aws_ami.f"}
+    assert edges["data.aws_ami.f"] == {"var.g"}
+    assert check_cycles(root) == [
+        "cycles: aws_vpc.a leads back to itself: aws_vpc.a -> terraform_data.e -> aws_vpc.a"
+    ]
 
 
 def test_the_policy_reads_the_root_as_these_tests_do() -> None:
