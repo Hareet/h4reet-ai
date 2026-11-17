@@ -44,8 +44,9 @@ A reboot does the same, and more slowly: `aws ec2 reboot-instances --instance-id
 ### Stopping the stack on purpose
 
 Hold the deployer first, and stop its timer: otherwise its next run, within a minute, starts the release again, and its
-unit's `Requires=docker.service` starts Docker again even after `systemctl stop docker`. In a session
-(`make cloud-session HOST=tunnel-end`), as root:
+unit's `Requires=docker.service` starts Docker again even after `systemctl stop docker`. In a shell on the tunnel end
+(the EC2 console's Session Manager on `h4-prod-tunnel-end`, as [ec2.md](ec2.md)'s Act says; `make cloud-session` is a
+port-forward, not a shell), as root (`sudo -i`):
 
 ```bash
 touch /var/lib/h4reet/deploy/hold
@@ -69,7 +70,7 @@ sudo tail -n 5 /var/lib/h4reet/deploy/deployments.jsonl
 sudo docker logs --tail 50 h4reet-prod-tunnel-end-1
 ```
 
-- **`write_env: refused, nothing written: missing in Parameter Store: …`:** a parameter is missing. `make secrets-check PROFILE=h4reet-admin` names it; your tunnel-keys target writes the tunnel's. Then the restart above.
+- **`write_env: refused, nothing written: missing in Parameter Store: …`:** a parameter is missing. `make secrets-check PROFILE=h4reet-admin` names it; your tunnel-keys target writes the tunnel's, and `make secrets-fill PROFILE=h4reet-admin` the relay's two role passwords and the rest, each once, never overwriting (spec 001 fixes/f8.md). Then the restart above.
 - **A failed deploy:** the deployer returned to the release before and alerted `deploy_rolled_back`, or refused the release and alerted `deploy_refused` with its reason (the runbook `deploy.md`, from group 7). The tunnel end runs what `current.json` names meanwhile.
 - **sshd stopped** (`tunnel-end: sshd stopped`): compose restarts it; if it stops again, its last lines say why: a host key it can't read, most likely, which the restart above writes again.
 - **A revoked key** shows on the laptop as `Permission denied (publickey)`. If you didn't mean it, put the key back: `make tunnel-revoke RESTORE=1 PROFILE=h4reet-admin`.
@@ -118,6 +119,7 @@ cloud-init status --long
 - `ens5` holds `10.42.1.10` and `ens6` holds `10.42.0.10`. If the names differ, nftables' `iifname` lines (`deploy/hosts/tunnel-end/nftables.nft`) and the drop-ins' directories (`70-ens6.network.d`, `70-ens5.network.d`) are wrong: record the names; the fix is a reviewed host-file change, which replaces the tunnel end.
 - Two default routes: `ens6`'s at metric 100, from `zz-h4-public-first.conf`, and `ens5`'s at amazon-ec2-net-utils' own, 512 for device 0: this confirms the 512, or records the figure it is. Another figure for `ens5` changes nothing while `ens6`'s is lower.
 - A host route, `10.42.0.20 via 10.42.1.1 dev ens5`, from `zz-h4-ec2-route.conf`: EC2's replies leave by the interface they came in on (the review of 59dfdc4a, I1).
+- The private interface's replies (fix F2, [specs/001-cloud-elevation/fixes/f2.md](../../specs/001-cloud-elevation/fixes/f2.md)), from the release's tree, once the deployer has run its host step: `ip -4 rule show` has `104: from all fwmark 0x105 lookup 105` and `105: from 10.42.1.10 lookup 105`; `ip -4 route show table 105` reads `default via 10.42.1.1 dev ens5`; `nft list table inet h4reet_reply` holds `iifname "ens5" ct state new ct mark set 0x00000105` then `iifname != "ens5" meta mark set ct mark`; and `systemctl is-enabled h4-reply-route.service` reads `enabled`. Without them, CloudFront's requests reach the relay but its replies leave by `ens6`, which drops them: every dynamic request times out after 30 s while the site's own pages load from the edge. The fix: `sudo systemctl restart h4-reply-route.service`, then `sudo networkctl reload` and `sudo networkctl reconfigure ens5`; if `/etc/systemd/network/70-ens5.network.d/zz-h4-reply-route.conf` or `/etc/h4reet/h4-reply-route.nft` is missing, the release's host step didn't run: `sudo journalctl -u h4-deployer -u h4-stack --since -1h` says why.
 - `route get` names `dev ens6`: the host's way out is the public interface.
 - `cloud-init status --long` reads `status: done`, with no error.
 - From EC2, inside its hours, in a shell on it (the same `start-session`, with `id` found by `Name=tag:Name,Values=h4-prod-ec2`): the shared state answers `accepting connections`, and the sink's port connects. Where the host has no `pg_isready`, the second line's `python3` stands in for 5432 too, with `5432` in place of `2301`. A timeout on either is the reply leaving by the wrong interface: check the host route above.
@@ -128,6 +130,7 @@ cloud-init status --long
   s.create_connection(
     ('10.42.1.10', 2301), 5)"
   ```
+- The relay's 8080 on `10.42.1.10`: the private group, `h4-tunnel-end-private`, admits it from CloudFront's VPC origins' own group, `CloudFront-VPCOrigins-Service-SG`, which CloudFront makes in the VPC with the origin. `infra/prod/tunnel-end.tf` reads that group by name (fix F1, [specs/001-cloud-elevation/fixes/f1.md](../../specs/001-cloud-elevation/fixes/f1.md)). The rule beside it, from CloudFront's origin-facing prefix list, lets nothing in there: the VPC origin doesn't connect from those addresses. Without the group's rule, every `/api/*` request answers 503 with the cause `no_host_serving`, the edge's own degraded answer, and the site still loads (contracts/edge.md §4). The group's rules are inline, so the next apply removes any rule added by hand. A rule added in the console to restore service is recorded, and lands in `tunnel-end.tf` before the next apply. The read finds the group at plan time because it exists. On a rebuild from nothing it doesn't: CloudFront makes the group only with the VPC origin, which needs the tunnel end and so the private group, so the apply stops at the read. Rebuild in two applies: first from a copy without the read and its 8080 rule, then from the tree as committed (spec 001's plan.md §16, "B-6", item 5).
 - If the first boot timed out (`/var/log/cloud-init-output.log` shows `dnf` failing), the public interface wasn't attached or had no route: check the attachment in the console, then replace the tunnel end.
 
 ### A spot interruption
@@ -136,7 +139,7 @@ cloud-init status --long
 
 ### An OS update, or a changed host file
 
-Nothing on the tunnel end updates itself: after its first boot nftables keeps `dnf` from Amazon Linux's repository, and the instance ignores its image's and its user data's drift. Both reach it as a replace your prod plan shows. A changed host file the user data carries (`local.host_files` in `infra/prod/tunnel-end.tf`: the boot's files under `deploy/hosts/tunnel-end/`, and `write_env.py`, `egress_proxy.py`, and `deploy_first_step.py`) changes `terraform_data.tunnel_end_host`'s SHA-256, so the plan replaces the tunnel end with it. The release tree's parts aren't among them: the deployer itself runs from the release's tree, by the first step, and `shared_state.py` and `deploy/hosts/tunnel-end/release/` come by the deployer's host step, so each changes with a release, with no replace. For an OS update, a reviewed change adds one to `local.tunnel_end_generation` in `infra/prod/tunnel-end.tf`; the plan replaces the tunnel end on the newest Amazon Linux 2023 image. Either way, read the block for the instance replaced and nothing else of the tunnel end's: its interfaces, its Elastic IP, and the shared state's data volume stay and attach to the new instance. While it boots the site rests, as at a spot interruption, and its deployer then takes the newest release. **Watch the VPC origin** (the review of 59dfdc4a, nit 5): a replace changes `aws_cloudfront_vpc_origin.relay`'s target ARN, and once W2's distribution uses the origin, that may plan as the origin's replace, about 15 minutes, or be refused while in use. If the plan shows it, record it and ask before the apply.
+Nothing on the tunnel end updates itself: after its first boot nftables keeps `dnf` from Amazon Linux's repository, and the instance ignores its image's and its user data's drift. Both reach it as a replace your prod plan shows. A changed host file the user data carries (`local.host_files` in `infra/prod/tunnel-end.tf`: the boot's files under `deploy/hosts/tunnel-end/`, and `write_env.py`, `egress_proxy.py`, and `deploy_first_step.py`) changes `terraform_data.tunnel_end_host`'s SHA-256, so the plan replaces the tunnel end with it. The release tree's parts aren't among them: the deployer itself runs from the release's tree, by the first step, and `shared_state.py` and `deploy/hosts/tunnel-end/release/` come by the deployer's host step (the private interface's replies among them: `ens5`'s drop-in `zz-h4-reply-route.conf` and the table `inet h4reet_reply`, fix F2), so each changes with a release, with no replace. For an OS update, a reviewed change adds one to `local.tunnel_end_generation` in `infra/prod/tunnel-end.tf`; the plan replaces the tunnel end on the newest Amazon Linux 2023 image. Either way, read the block for the instance replaced and nothing else of the tunnel end's: its interfaces, its Elastic IP, and the shared state's data volume stay and attach to the new instance. While it boots the site rests, as at a spot interruption, and its deployer then takes the newest release. **Watch the VPC origin** (the review of 59dfdc4a, nit 5): a replace changes `aws_cloudfront_vpc_origin.relay`'s target ARN, and once W2's distribution uses the origin, that may plan as the origin's replace, about 15 minutes, or be refused while in use. If the plan shows it, record it and ask before the apply.
 
 ### A move to another zone
 
@@ -146,7 +149,7 @@ A spot instance stops and starts in its zone, so a zone without capacity keeps i
 
 - The dashboard's "Tunnel up" reads `up` for both ends, and "Tunnel reconnects" stops climbing.
 - "Telemetry delayed at the tunnel end" drains to zero once the host it waited for is back.
-- `make cloud-session HOST=tunnel-end PROFILE=h4reet-admin` opens a session, and `/var/lib/h4reet/deploy/deployments.jsonl` ends with `deployed` for the release you expect.
+- `make cloud-session HOST=tunnel-end PROFILE=h4reet-admin` forwards the relay's internal listener to your `127.0.0.1:18505` (it needs AWS's Session Manager plugin), where `curl -s http://127.0.0.1:18505/api/status` answers; and in a shell on the tunnel end (the console's Session Manager), `/var/lib/h4reet/deploy/deployments.jsonl` ends with `deployed` for the release you expect.
 
 ## Undo
 

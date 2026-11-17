@@ -89,9 +89,25 @@ data "aws_ip_ranges" "route53_health_checks" {
   services = ["route53_healthchecks"]
 }
 
-# CloudFront's origin-facing addresses, which its VPC origin uses (group 8), the one source 8080 admits.
+# CloudFront's origin-facing addresses, the source group 8 gave 8080 for its VPC origin. The deploy showed it isn't the
+# VPC origin's (fix F1, specs/001-cloud-elevation/fixes/f1.md): that connects from its own group, below. No origin as
+# edge.tf writes them reaches the tunnel end from these addresses, and the private subnet has no route out, so the
+# rule serves nothing; it stays until the Author decides its removal (the fix's Q-F1-1), so the plan shows only the
+# rule he added by hand.
 data "aws_ec2_managed_prefix_list" "cloudfront" {
   name = "com.amazonaws.global.cloudfront.origin-facing"
+}
+
+# CloudFront's VPC origins' own group, which CloudFront makes in prod's VPC once a VPC origin exists and attaches to
+# the interfaces it connects from (fix F1): the source the relay's 8080 needs. Read by its name in the VPC, at plan
+# time: the group exists there since W1's origin. The read waits on nothing else, and must not wait on the VPC origin:
+# the origin targets the tunnel end, whose primary interface holds the private group, whose 8080 names this read, so
+# a depends_on there closes a cycle Terraform refuses (F1's rework, R-1). A rebuild from nothing meets a group not yet
+# made, since CloudFront makes it with the origin: two applies, the first without this read and its rule
+# (specs/001-cloud-elevation/plan.md §16, "B-6", item 5; fixes/f1.md's backlog).
+data "aws_security_group" "cloudfront_vpc_origins" {
+  name   = "CloudFront-VPCOrigins-Service-SG"
+  vpc_id = aws_vpc.prod.id
 }
 
 # The public interface: the tunnel's 2222 from anywhere, since the laptop's address changes, and the health port 8087
@@ -139,10 +155,13 @@ resource "aws_security_group" "tunnel_end_public" {
   }
 }
 
-# The private interface: the relay's edge listener, 8080, from CloudFront's VPC origin alone (group 8 makes the origin);
-# and, from group 6, the shared state's 5432, and from group 10 the public view's sink's 2301, each from EC2's group
-# alone (contracts/shared-state.md §1; contracts/public-view.md §1). Nothing is applied yet, so the description's
-# change replaces nothing.
+# The private interface: the relay's edge listener, 8080, from CloudFront's VPC origin alone (group 8 makes the origin),
+# by its own group (fix F1), with the origin-facing list's rule beside it until the Author decides it; and, from group
+# 6, the shared state's 5432, and from group 10 the public view's sink's 2301, each from EC2's group alone
+# (contracts/shared-state.md §1; contracts/public-view.md §1). The rules are inline, the group's whole set, so a rule
+# added by hand is removed by the next apply unless it is here. The name and the description stay as applied: a change
+# to either forces a new group, which the private interface holds, so the description still names the origin-facing
+# addresses alone.
 resource "aws_security_group" "tunnel_end_private" {
   name        = "h4-tunnel-end-private"
   description = "The tunnel end private interface: 8080 from the CloudFront origin-facing addresses, 5432 and 2301 from EC2"
@@ -154,6 +173,14 @@ resource "aws_security_group" "tunnel_end_private" {
     from_port       = 8080
     to_port         = 8080
     prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront.id]
+  }
+
+  ingress {
+    description     = "The relay edge listener, from the CloudFront VPC origins group"
+    protocol        = "tcp"
+    from_port       = 8080
+    to_port         = 8080
+    security_groups = [data.aws_security_group.cloudfront_vpc_origins.id]
   }
 
   ingress {

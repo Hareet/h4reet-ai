@@ -20,7 +20,7 @@ Each cloud host's deployer, EC2's and the tunnel end's, takes releases from the 
 
 ## Act
 
-From your terminal, with your SSO session: `make cloud-session HOST=<ec2|tunnel-end> PROFILE=…` opens a shell on the host; the commands below are that shell's.
+The commands below are a shell's on the host: the EC2 console's Session Manager (the instance tagged `h4-prod-ec2` or `h4-prod-tunnel-end`, Connect, the Session Manager tab, Connect; it starts as `ssm-user`, `sudo` for root). `make cloud-session HOST=<ec2|tunnel-end> PROFILE=…` is a port-forward to one listener, not a shell, and needs AWS's Session Manager plugin ([ec2.md](ec2.md), Act).
 
 1. **Read the cause.** `journalctl -u h4-deployer.service --since -1h` and the last lines of `/var/lib/h4reet/deploy/deployments.jsonl`. The alert's reason names the step.
 2. **By reason:**

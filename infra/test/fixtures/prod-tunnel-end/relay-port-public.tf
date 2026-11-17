@@ -1,8 +1,8 @@
 # The relay's 8080 from anywhere: only CloudFront's VPC origin may reach it.
-# expect: groups: the private interface doesn't admit exactly 8080 from CloudFront's origin-facing list and 5432
+# expect: groups: the private interface doesn't admit exactly 8080 from CloudFront's origin-facing list and from its VPC origins' group
 resource "aws_security_group" "tunnel_end_private" {
   name        = "h4-tunnel-end-private"
-  description = "The tunnel end's private interface: 8080 from CloudFront's origin-facing addresses"
+  description = "The tunnel end private interface: 8080 from the CloudFront origin-facing addresses, 5432 and 2301 from EC2"
   vpc_id      = aws_vpc.prod.id
 
   ingress {
