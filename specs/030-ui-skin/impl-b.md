@@ -372,3 +372,46 @@ AssertionError: Resume: RESUME (uppercase, 700, 72.67px); 2D view: 2D VIEW (uppe
       Tests  3 failed | 13 passed (16)
 ```
 
+**GREEN 3** (`6e8a9298`, `button.css`'s Q75 rule, with plan §R-B3 "As built"): from `apps/web/`, `npx --no-install vitest run test/ui-skins.test.ts test/ui/button-skin.test.ts test/ui/button-states.test.ts`, exit 0:
+
+```
+ Test Files  3 passed (3)
+      Tests  68 passed (68)
+   Duration  136.42s (tests 89%, transform 6%, import 5%)
+```
+
+## T-B04: the tiles' fit at the split windows (Q75)
+
+**The geometry**, read from the real room with `metal` in place by a scratch vitest outside the tree (`/tmp/rework-030b/fit/fit.test.ts`, written with the Write tool; it imports `test/helpers/button-room.ts` and writes `/tmp/rework-030b/fit/fit.json`), run from `apps/web/` with `npx --no-install vitest run --root /tmp/rework-030b/fit --dir /tmp/rework-030b/fit --testTimeout 600000`, exit 0 (the first run, without `--testTimeout`, timed out at 5 s; the second printed nothing, the room's helper holding `console.log`, so the third wrote the file). Its result, the same at all three windows:
+
+| Window | `data-split` | `--wall-scale-right` | `--wall-bar-w` | bar padding, gap | columns | tile font | tile padding, border | tracking, case, weight |
+|---|---|---|---|---|---|---|---|---|
+| 1366 × 768 | on | 1 | 288px | 0.25rem, 0.25rem | `repeat(3, minmax(0, 1fr))` | `calc(0.8125rem * 1)` = 13px | `0.125rem 0.5rem`, 1px | 0.06em, uppercase, 700 |
+| 1440 × 900 | on | 1 | 288px | 0.25rem, 0.25rem | the same | 13px | the same | the same |
+| 1920 × 1080 | on | 1 | 288px | 0.25rem, 0.25rem | the same | 13px | the same | the same |
+
+So each tile's content box is (288 − 2 × 4 − 2 × 4) ÷ 3 − 2 × 8 − 2 × 1 = 72.67px, and the tracking 0.78px a character, at every split window on this tree (B's branch, before A; the column is at its 18rem least at all three).
+
+**The lines**, from `apps/web/fonts/IBMPlexSans-Bold.woff`'s `cmap` (format 4) and `hmtx`, read by inline `python3 -I -B -c` with `zlib` and `struct` (nothing written), each run's width the sum of its glyphs' advances plus the tracking after each character, greedy by word. From the repository's root, exit 0, its whole output:
+
+```
+bar 288.00px, column 90.67px, content 72.67px, font 13.00px, tracking 0.78px
+Resume             1 line(s): RESUME  [57.0 px]
+2D view            1 line(s): 2D VIEW  [60.0 px]
+Pause the room     2 line(s): PAUSE / THE ROOM  [46.4, 72.2 px]
+Full screen        2 line(s): FULL / SCREEN  [33.5, 55.2 px]
+Leave full screen  3 line(s): LEAVE / FULL / SCREEN  [43.9, 33.5, 55.2 px]
+How data flows     3 line(s): HOW / DATA / FLOWS  [33.7, 37.6, 48.4 px]
+Credits            1 line(s): CREDITS  [61.0 px]
+```
+
+Two labels over two lines: "Leave full screen" and "How data flows". "THE ROOM" fits by 0.5px. With the face's kerning (fontkit's `layout`, `node -e`, inline): "HOW DATA" 72.64px (75.11px without), "LEAVE FULL" 80.60px, "PAUSE THE" 76.18px, "THE ROOM" 72.05px, so "How data flows" fits two lines only if the browser kerns, by 0.03px; the estimate takes the advances alone, as R-1's test does. Both tiles take the words' own case (GREEN 3). The estimate again, the same `python3` reader, those three labels in their own case, exit 0:
+
+```
+How data flows     2 line(s): How data / flows  [64.7, 37.3 px]
+Full screen        2 line(s): Full / screen  [26.4, 45.6 px]
+Leave full screen  2 line(s): Leave full / screen  [67.1, 45.6 px]
+```
+
+`button-skin.test.ts`'s "two lines" case holds this at 1366 × 768 under both CSS skins. rv-030b's R-3 ("no label over two lines" at the real windows) didn't hold on this count: the review's own measure isn't on the page, so I can't say where they differ; a likely difference is "Leave full screen", which jsdom's bar doesn't hold (no Fullscreen API).
+
