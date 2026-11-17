@@ -313,3 +313,118 @@ Not done, or not mine:
 - T-INT02a: `hud-halves-contrast.test.ts` again with B's button faces in the cascade; FR-005's rule there if a ratio fails.
 - `compose/over.ts`'s dock part (12 px low, no visible effect) and `app.ts:960`'s stale "blurred" comment: for T-INT or a later spec.
 - The split layout's shortest windows (about 340 px tall and under, e.g. 1360 × 320): the list has no height left above the tiles' block. It had under 3 px before; a later spec's layout question, not this one's.
+
+# Rework: rework-030a
+
+Implementer `rework-030a`, branch `night/rework-030a/rework-030a`, from `impl-030a`'s tip `c0cd9826`. I wrote none of A or its review. Tasks T-A06 to T-A08 of `rework3-spec-030`'s "Group A's rework" (its branch read at `11af54f1`, then at `75472b30`: `git show <tip>:specs/030-ui-skin/tasks.md`, `plan.md` §R-A1 to §R-A4 and §9's A row), and `rv-030a`'s findings as the supervisor's brief gives them (R-1 blocking; R-2, R-3, N-1 to N-5), each recommended answer taken under his rule 1. No spec branch merged in.
+
+## T-A06 (d) first: the whole `apps/web` suite on A's tip
+
+`make setup` first (`node_modules` was missing), exit 0. Then, from `apps/web/`, on A's tree (`c0cd9826` plus an empty save point), nothing changed:
+
+```
+npx --no-install vitest run --reporter=default --reporter=json --outputFile.json=/tmp/rework-030a-suite-tipA.json
+
+ Test Files  3 failed | 273 passed (276)
+      Tests  14 failed | 4844 passed | 6 skipped (4864)
+   Start at  05:09:44
+   Duration  2119.11s (tests 71%, import 29%)
+exit 1
+
+ FAIL  test/lookdev/phone.test.ts > the probe's panel, the copy's first (§7.2) > shows each field, the room's stage at the viewport, and the floor, then starts the page with the probe
+ FAIL  test/room/geometry.test.ts > RG6: FR-064's carve-out for side-wall selectables > lists a side-wall selectable short of its core at larger stages there too, in 3D, and refuses nothing
+ FAIL  test/room/geometry.test.ts > RG6: … > lists one short of its core in 2D at the scale of larger stages, and refuses nothing
+ FAIL  test/room/geometry.test.ts > RG6: … > refuses a member on another placement's anchor that is also named left-wall
+ FAIL  test/room/geometry.test.ts > RG6: … > refuses a member that stands out from the wall by more than its piece's depth
+ FAIL  test/room/geometry.test.ts > RG6: … > refuses a member whose own mount turns it about Y or X, and takes a turn about Z
+ FAIL  test/room/geometry.test.ts > RG6: … > refuses a selectable with one member on a side wall and one on the desk, which isn't side-wall
+ FAIL  test/room/geometry.test.ts > RG6: … > refuses a shell anchor named left-wall that stands more than 1 mm off the shell's bounds
+ FAIL  test/room/geometry.test.ts > RG6: … > refuses a shell anchor named left-wall turned about X as well as Y
+ FAIL  test/room/geometry.test.ts > RG6: … > refuses a shell anchor named left-wall without a side wall's quarter turn about Y
+ FAIL  test/room/geometry.test.ts > RG6: … > refuses another selectable's core over a list-only side-wall selectable's member, naming that selectable
+ FAIL  test/room/report.test.ts > the report's exempt faces and side-wall selectables > lists a side-wall selectable at every stage where its core can't fit, larger stages among them (T303)
+ FAIL  test/room/report.test.ts > … > names a side-wall selectable RT2 refused by its path
+ FAIL  test/room/report.test.ts > … > names each list-only side-wall selectable, its wall, and its 3D and 2D stages, after the legibility table
+```
+
+**The valve found nothing beyond the three files** plan §R-A4's table (at `rework3-spec-030`'s tip) already names "found by this grep": the same 14 cases, no other file. `twin-2d.test.ts` passed in this run. So no case is added to §R-A4's table or §9's A row; this branch's `plan.md` (A's, cut before rework 3) gets no new row, and rework 3's table merges in with the spec branch.
+
+Each failure's assertion, from the run (`- Expected` the test's old string, `+ Received` A's tree):
+
+```
+phone.test.ts:292      AssertionError: expected { w: 384, h: 410 } to deeply equal { w: 384, h: 422 }
+geometry.test.ts:376   - "fx-lower: 3D 320 × 322 and 62 others, 2D –"
+                       + "fx-lower: 3D 320 × 326 and 60 others, 2D –"
+geometry.test.ts:389   - "fx-lower: 3D 320 × 250 and 53 others, 2D 320 × 250 and 114 others"
+                       + "fx-lower: 3D 320 × 238 and 53 others, 2D 320 × 238 and 115 others"
+geometry.test.ts:420, :430, :487, :504, :522 (NOT_SIDE_WALL, :395, :397)
+                       - "selectables[2]: its exclusive core overlaps the core of selectables[3] in 3D at 320 × 250 and 53 others"
+                       + "selectables[2]: its exclusive core overlaps the core of selectables[3] in 3D at 320 × 238 and 53 others"
+                       (and the same for selectables[3])
+geometry.test.ts:442 (refusedBoth, from :457 and :466)
+                       Expected: StringMatching /^selectables\[2\]: its exclusive core overlaps the core of selectables\[3\] in 3D at 320 × 250/
+                       Received: "selectables[2]: its exclusive core overlaps the core of selectables[3] in 3D at 320 × 238 and 53 others", … (at :466, "… at 320 × 238 and 137 others")
+geometry.test.ts:547   AssertionError: expected [ …(2) ] to include 'selectables[4]: its exclusive core ov…'
+report.test.ts:363     - "| `fx-lower` (left-wall) | list-only at 320 × 250 and 53 others | list-only at 320 × 250 and 53 others |"
+                       + "| `fx-lower` (left-wall) | list-only at 320 × 238 and 53 others | list-only at 320 × 238 and 53 others |"
+report.test.ts:392     AssertionError: expected [ …(20) ] to include '| `fx-lower` (left-wall) | list-only …'
+report.test.ts:418     - | selectables[3] (left-wall) | list-only at 320 × 250 and 53 others | list-only at 320 × 250 and 53 others |
+                       + … | selectables[3] (left-wall) | list-only at 320 × 238 and 53 others | list-only at 320 × 238 and 53 others | …
+```
+
+Two `toContain` failures don't print what the tree gives. I read those two values from untracked scratch copies of the two files (`test/room/zz-scratch-*.test.ts`, the assertion replaced by a `console.log`, run with `-t` on the case, then deleted; never committed): `geometry:548`'s reasons are `["selectables[4]: its exclusive core overlaps a member of selectables[3] in 3D at 320 × 238 and 7186 others", "selectables[4]: … in 2D, at the drawing's smallest scale"]`, and `report:393`'s side-wall row is `` "| `fx-lower` (left-wall) | list-only at 320 × 326 and 60 others | – |" ``.
+
+## T-A06: RED (`294d8143`, test files only)
+
+### The cases rewritten or added, each with its old and new assertion
+
+| File, case | Old | New | Why |
+|---|---|---|---|
+| `test/ui/hud-no-blur.test.ts`, new case "sets nothing on whether the browser has a backdrop filter: no @supports names one" | — | no `@supports` prelude, at any depth, in `room.css`, `hud/split.css`, `talk/talk.css`, `bubble.css`, names `backdrop-filter` | T-A06 (a), the first rework's N-1 |
+| `test/ui/degraded.test.ts:923-944`, "makes the glass opaque, with no blur, under reduced transparency, more contrast, and no backdrop blur" | three preludes, the third `@supports not ((backdrop-filter: blur(1px)) or …)`, each found, `--glass-alpha: 1`, both filters `none` | renamed "… under reduced transparency and more contrast"; the two `@media` preludes, the rest unchanged | T-A06 (a); the block's absence is `hud-no-blur`'s |
+| `test/ui/loading-a11y.test.ts:174-185`, the card's glass | the queries `/prefers-reduced-transparency/`, `/prefers-contrast:\s*more/`, `/@supports not/` | the first two; renamed likewise | T-A06 (a) |
+| `test/ui/hud-halves.test.ts`, every case at the windows | the boxes equal to `halves()` of `compactBoxes` (the code checked against itself); the walking control and "Eat" by their top-left corner (`w: 0, h: 0`) | the boxes measured from the root's `--wall-list-*`, `--wall-tiles-*`, `--wall-column-*`, `--half-bottom-*` (split), or `--column-w`/`--column-h`/`--dock-h`, `--bar-h`, `--bar-w`, `--hud-slice`, `--keyboard` through the rules that place them (each rule's declaration read: `right: 0`, `width: var(--column-w)`, `height: var(--column-h)` or `var(--dock-h)`, `bottom: calc(var(--bar-h) + var(--hud-slice) + var(--keyboard))`; the bottom half on `--keyboard` outside the split layout); the gap from the top's foot to the bottom's top equal to `0.75 × 16 × --wall-scale-right` (split) or `0.75 × 16` (column, dock), constants written in the test, never read from `HUD_PLACEMENTS`; both halves inside the column's box (split) or the window, sharing a width, not overlapping; the bottom half equal to the tiles' block (split) or to the bar's cluster derived from `--bar-w`/`--bar-h` (column, dock); the walking control and "Eat" as 8rem × 2.75rem boxes at the scale (split.css's widths and heights read) inside the bottom, overlapping neither the top nor each other; the column layout's walking control at the column's head overlapping neither half (Q85) | T-A06 (b), the first rework's N-2; `rv-030a`'s R-3 |
+| same, "places the bottom half at --half-bottom-*" | the four placements, no pointer, under the bar | also: outside the split layout `top: auto`, `bottom: var(--keyboard)` | the rule the derived bottom box uses |
+| same, "marks no half at 300 × 400" | also `halves(… "stacked")` is null | that line moved to `test/room/halves.test.ts` | N-2: no `halves()` output in this file |
+| `test/room/halves.test.ts` (new) | — | five cases on hand-written boxes: the split layout's list, slice, and tiles' block returned as given; the column (832, 337, 448 × 319) over the bar's cluster (1000, 668, 280 × 52): slice (1000, 656, 280 × 12); the dock (0, 457, 384 × 171) over the bar (0, 640, 384 × 100): slice (0, 628, 384 × 12); the slice's width the shared width, 0 with none, its height 0 where the top's foot is below the bottom's top; null in the stacked layout or with no top box | T-A06 (b) |
+| `test/lookdev/phone.test.ts:292`, `:300` | `stageFor({ w: 384, h: 740 })` is 384 × 422; the row "384 × 422 CSS px" | 384 × 410; "384 × 410 CSS px" | T-A06 (c); Q82, the dock's slice |
+| `test/room/geometry.test.ts:376` | "fx-lower: 3D 320 × 322 and 62 others, 2D –" | "fx-lower: 3D 320 × 326 and 60 others, 2D –" | T-A06 (c) (from the run) |
+| same, `:389` | "fx-lower: 3D 320 × 250 and 53 others, 2D 320 × 250 and 114 others" | "… 320 × 238 and 53 others, 2D 320 × 238 and 115 others" | T-A06 (c) |
+| same, `:395`, `:397` (`NOT_SIDE_WALL`, read by the cases at `:415`, `:425`, `:482`, `:496`, `:512`) | "… in 3D at 320 × 250 and 53 others" | "… in 3D at 320 × 238 and 53 others" | T-A06 (c): five cases |
+| same, `:445` (`refusedBoth`, read by the cases at `:452`, `:462`) | `… in 3D at 320 × 250` | `… in 3D at 320 × 238` | T-A06 (c): two cases |
+| same, `:548` | "selectables[4]: … in 3D at 320 × 250 and 7181 others" | "… at 320 × 238 and 7186 others" | T-A06 (c) (the scratch run above) |
+| `test/room/report.test.ts:369` | "list-only at 320 × 250 and 53 others" (both columns) | "list-only at 320 × 238 and 53 others" | T-A06 (c) |
+| same, `:393` | "list-only at 320 × 322 and 62 others" | "list-only at 320 × 326 and 60 others" | T-A06 (c) (the scratch run above) |
+| same, `:413` | "selectables[3] … 320 × 250 and 53 others" (both columns) | "… 320 × 238 and 53 others" | T-A06 (c) |
+| `test/ui/hud-split-dog.test.ts`, new case "keeps the list's content box under the halves' edge" | — | the list's padding under `.room-list[data-half="top"]` (the half's own where it sets one, else the list's `0.5rem 0.75rem`) plus the 1 px edge equals the model's 0.5rem above and below and 0.75rem at the sides | `rv-030a`'s R-2 |
+
+Ten geometry cases and three report cases, as the run named them; with phone's one, the 14. Each case's comment names spec 030 and the old string.
+
+### The run on A's tip (the source at `c0cd9826`'s)
+
+From `apps/web/`:
+
+```
+npx --no-install vitest run test/ui/hud-no-blur.test.ts test/ui/degraded.test.ts test/ui/loading-a11y.test.ts test/ui/hud-halves.test.ts test/room/halves.test.ts test/lookdev/phone.test.ts test/room/geometry.test.ts test/room/report.test.ts test/ui/hud-split-dog.test.ts
+
+ ❯ test/ui/hud-no-blur.test.ts (7 tests | 1 failed) 20651ms
+ ❯ test/ui/hud-split-dog.test.ts (6 tests | 1 failed) 1717ms
+ FAIL  test/ui/hud-no-blur.test.ts > no backdrop blur in the HUD's sheets (FR-001) > sets nothing on whether the browser has a backdrop filter: no @supports names one
+AssertionError: expected [ Array(1) ] to deeply equal []
++ [
++   "../../src/room/room.css: @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))",
++ ]
+ ❯ test/ui/hud-no-blur.test.ts:89:19
+ FAIL  test/ui/hud-split-dog.test.ts > the split list holds "Dog" (spec 026's human patch, r4; spec 028's FR-007) > keeps the list's content box under the halves' edge: edge and padding together the model's padding
+AssertionError: top: 0.5rem 0.75rem: expected 9 to be close to 8, received difference is 1, but expected 5e-10
+ ❯ test/ui/hud-split-dog.test.ts:106:67
+ Test Files  2 failed | 7 passed (9)
+      Tests  2 failed | 222 passed (224)
+   Duration  176.34s (tests 84%, import 16%, transform 1%)
+```
+
+The two new cases fail on A's tip, as RED should. The 14 rewritten cases pass there with their new assertions and failed with their old ones (the suite run above): A's GREEN that moved them is already committed (`add91ae6`), as T-A06 (c) says. `hud-halves.test.ts` and `halves.test.ts` pass on A's tip: they check A's built code another way, not a change to it. The `degraded` and `loading-a11y` rewrites pass on A's tip too; their old assertions fail once T-A07 removes the block (below).
+
+`make lint` on the RED tree: first `prettier --check` flagged `degraded.test.ts` (the new preludes' array on one line); I rewrapped it by Edit to the form `prettier` printed to stdout (read only, no `--write`), and `make lint` then exited 0.
+
+RUNS-TO-COME
