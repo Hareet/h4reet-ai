@@ -3873,7 +3873,39 @@ file's tree; noted, not looked into.) Save point `03be41f5ca12d4cac4a9d3629fa6be
 
 ### 7.7 The small tests, last (the brief's step 5)
 
-*(Filled in below after the run.)*
+On `97ddfce02aeff247be5e12a02521ee432e2bc080` (step 7's text in, but this section), from the worktree's root. No
+`make check`: `handover2-030`'s run stands, and the patch is outside the stack's tree.
+
+```text
+$ date -u +%FT%TZ; python3 -I -B -m pytest evals/test_docs_links.py evals/test_repository_docs.py -q -p no:cacheprovider > /tmp/rw2/log/pytest-docs.txt 2>&1; echo "exit=$?" >> /tmp/rw2/log/pytest-docs.txt; cat /tmp/rw2/log/pytest-docs.txt; python3 -I -B evals/docs_links.py > /tmp/rw2/log/docs-links.txt 2>&1; echo "exit=$?" >> /tmp/rw2/log/docs-links.txt; cat /tmp/rw2/log/docs-links.txt; date -u +%FT%TZ; make lint > /tmp/rw2/log/lint.txt 2>&1; echo "exit=$?" >> /tmp/rw2/log/lint.txt; cat /tmp/rw2/log/lint.txt
+2026-11-17T18:15:41Z
+.............................................................            [100%]
+61 passed in 2.24s
+exit=0
+PASS  every relative link resolves: 2666 links in 559 files
+PASS  README.md links the ADR index (docs/adr/)
+PASS  the ADR index links every ADR file: 53 of 53
+PASS  User Story 6's five decisions have their ADRs: 0001 (local-first routing), 0002 (one compose topology), 0003 (local-compose-first delivery), 0004 (Langfuse and Grafana), 0005 (Telegram alerting)
+docs links: 0 failed, 2666 relative links in 559 files
+exit=0
+2026-11-17T18:15:44Z
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+955 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit=0
+```
+
+`make lint`'s shellcheck reads the worktree's own `.claude/hooks/bash-gate.sh` and `redteam/forbidden-actions.sh`,
+main's, unpatched; the patched pair was shellchecked on the exports (7.5). After this section and §7's line in the
+note went in, the docs tests, the docs links, and prettier on the three files ran again (7.9).
 
 ### 7.8 Questions, refusals, scratch
 
@@ -3905,3 +3937,54 @@ writes (their SHA-256s above are after it).
 each) and `/tmp/rw2-stack.qGGT` (388 MB), and 1,988 `/tmp/rw2-proj.*` scratch projects (9.2 MB). `/tmp` stood at 1.3 GB
 used, 721 MB free, after them. No push, merge, PR, `feat/` branch, request to the runner, or human-only path touched;
 the patch is a document under `docs/`.
+
+### 7.9 After the last edits
+
+After 7.7's paste and §7's line in the note (the first line checks 7.7's claim that the worktree's gate and matrix are
+main's):
+
+```text
+$ git diff --stat f6baef8ce027dbffb4056a73c61b28d4625ffb18 HEAD -- .claude/hooks/bash-gate.sh redteam/forbidden-actions.sh; echo "diff exit=$?"
+diff exit=0
+$ npx --no-install prettier --check docs/merge-requests/2026-11-17-030-ui-skin.md specs/030-ui-skin/handover.md specs/030-ui-skin/tasks.md; echo "prettier exit=$?"
+Checking formatting...
+All matched files use Prettier code style!
+prettier exit=0
+$ python3 -I -B -m pytest evals/test_docs_links.py evals/test_repository_docs.py -q -p no:cacheprovider 2>&1 | tail -1; echo "exit=${PIPESTATUS[0]}"
+61 passed in 1.42s
+exit=0
+$ python3 -I -B evals/docs_links.py 2>&1 | tail -1; echo "exit=${PIPESTATUS[0]}"
+docs links: 0 failed, 2666 relative links in 559 files
+exit=0
+$ python3 -I -B /tmp/rw2/scripts/sections.py /tmp/rw2/note-c6327959.md docs/merge-requests/2026-11-17-030-ui-skin.md; echo "exit=$?"
+§0, his orders: 14 lines before, 14 now, identical: True
+F's morning steps: 89 lines before, 89 now, identical: True
+exit=0
+```
+
+Every log pasted in this step was checked against this file by a read-only script (`/tmp/rw2/scripts/pasted.py`,
+Write tool: each log's lines, whole, must stand as one contiguous run in step 7), `c6327959`'s message body from
+`git log -1 --format=%B` among them:
+
+```text
+final/hunk-E1.txt: 126 lines, in step 7 contiguous: True
+final/A-E1.txt: 25 lines, in step 7 contiguous: True
+final/B-E1.txt: 12 lines, in step 7 contiguous: True
+final/controls-E1.txt: 25 lines, in step 7 contiguous: True
+final/controls-E2.txt: 25 lines, in step 7 contiguous: True
+final/wake80-E1.txt: 114 lines, in step 7 contiguous: True
+final/record78-E1.txt: 80 lines, in step 7 contiguous: True
+final/extra-E1.txt: 27 lines, in step 7 contiguous: True
+d-matrix.txt: 47 lines, in step 7 contiguous: True
+s3-stack.txt: 69 lines, in step 7 contiguous: True
+s3-patch.txt: 23 lines, in step 7 contiguous: True
+s3-static.txt: 16 lines, in step 7 contiguous: True
+s3-exports.txt: 13 lines, in step 7 contiguous: True
+timing-final.txt: 8 lines, in step 7 contiguous: True
+setup.log: 23 lines, in step 7 contiguous: True
+c6327959-body.txt: 28 lines, in step 7 contiguous: True
+exit=0
+```
+
+Run again after 7.7 and this section went in: the same 16 lines, exit 0; and 7.7's three logs, `pytest-docs.txt` (3
+lines), `docs-links.txt` (6) and `lint.txt` (12), each "in step 7 contiguous: True", exit 0.
