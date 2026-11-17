@@ -398,8 +398,10 @@ describe("swapping the skin is an edit of the data alone (SC-004)", () => {
     const b = build(swapped);
     expect(a.html).toBe('<html lang="en" data-skin="metal" data-skin-kind="css"><body></body></html>');
     expect(b.html).toBe('<html lang="en" data-skin="plain" data-skin-kind="css"><body></body></html>');
+    // rework-030ds (rv-030ds's N-2): the record's hashes are in (865f12a7), so the build's first reason is the first
+    // file's absence from this root; was `\((hash pending|files absent: .+)\)`.
     expect(a.printed).toEqual([
-      expect.stringMatching(/^metal-image: falling back to metal \((hash pending|files absent: .+)\)$/),
+      "metal-image: falling back to metal (files absent: assets/ui/buttons/btn-primary-normal.png)",
     ]);
     expect(b.printed).toEqual(["ui-skins: plain (css)"]);
     // Every --btn-* of the swapped build is plain's token, and the two builds differ in their values (rework 2, R-5's
