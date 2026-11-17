@@ -302,6 +302,42 @@ describe("nothing clips a control, nor shadows or filters it (FR-013; rework, S-
           }
       });
 
+  it("keeps the control's box-shadow none with its panel over the room, where spec 029's plate would draw (rework 3, R-2)", async () => {
+    // A's halves mark the right column's panels data-over="room" at rest (rework 2, R-2); on B's branch nothing marks
+    // them at the room's framing, so the case marks them as A's tree does, to put split.css's plate rule in the cascade.
+    for (const opened of ["conversation", "resume"] as const) {
+      const s = await room(SPLIT, undefined, [], opened);
+      for (const part of [".talk", ".room-list", ".hud-bar"])
+        for (const el of s.v.doc.querySelectorAll(part)) el.setAttribute("data-over", "room");
+      const marked = [".split-back", ".split-hint", ".talk-log-toggle", ".hud-bar .hud-tile"].flatMap((q) => [
+        ...s.v.doc.querySelectorAll(q),
+      ]);
+      expect(marked.length).toBeGreaterThan(0);
+      let plates = 0;
+      for (const el of marked)
+        for (const [name, state, apply] of STATES) {
+          const undo = apply?.(el);
+          const what = `${opened}, ${el.className}, ${name}`;
+          plates += s.cascade
+            .matching(el, "box-shadow", state)
+            .filter((d) => d.sheet === "room/hud/split.css" && /0 0 0 0\.25rem/.test(d.value)).length;
+          const won = s.cascade.winner(el, "box-shadow", state);
+          expect(won?.sheet, `${what}: won by ${won?.sheet ?? "nothing"} (${won?.selector ?? ""})`).toBe("ui/button.css");
+          expect(s.cascade.value(el, "box-shadow", state), what).toBe("none");
+          undo?.();
+        }
+      // The case discriminates: spec 029's plate rule (split.css's `0 0 0 0.25rem`) is in the cascade and loses.
+      expect(plates, `${opened}: the plate rule matched`).toBeGreaterThan(0);
+    }
+  });
+
+  it("declares every shadow other than none on a ::before rule (rework 3, R-2)", async () => {
+    const s = await room(SPLIT);
+    const shadows = s.cascade.declarations.filter((d) => d.sheet === "ui/button.css" && d.property === "box-shadow");
+    expect(shadows.some((d) => d.pseudo === "before" && d.value !== "none")).toBe(true);
+    for (const d of shadows.filter((x) => x.value !== "none")) expect(d.pseudo, d.selector).toBe("before");
+  });
+
   it("puts the chamfer's clip-path only on rules ending in ::before or ::after", async () => {
     const s = await room(SPLIT);
     const clips = s.cascade.declarations.filter(

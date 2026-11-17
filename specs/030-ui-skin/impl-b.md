@@ -304,3 +304,41 @@ AssertionError: the bar's tiles: expected null to be 'none' // Object.is equalit
 
 The wrap case's `TypeError` was my test's (above), fixed before the commit; rerun alone, `npx --no-install vitest run test/ui/button-states.test.ts -t "wraps a label"`, exit 0: `Tests  1 passed | 12 skipped (13)`. Read against the review: the metal column row is 44.76rem here, not rv-030b's 44.01rem, because `impl-030b`'s selected state widens a tile's border to 2 px and the test counts the wider of normal and selected (0.75rem over the six); `plain` fails the column's row by the same 0.75rem (35.21rem). The cases passing on the old tip (36) are those whose assertions the old code already met: the schema's refusals, the stylesheet's rules, the ratios (now with the resume's white), the cards' tokens, reduced motion, and `plain`'s dock.
 
+## GREEN
+
+- **GREEN 1** (`94da04ca`, `build/ui-skins.ts`): `ResolvedSkin.kind`; `skinHtml(html, id, kind)` writes `data-skin` and `data-skin-kind` after the root's own attributes. From `apps/web/`, `npx --no-install vitest run test/ui-skins.test.ts`, exit 0: `Test Files  1 passed (1)`, `Tests  37 passed (37)`, `Duration  62.74s (transform 49%, import 45%, tests 5%)`.
+- **GREEN 2** (`51cd3484`, `src/ui/button.css`, with plan §R-B2, §R-B3, §R-B4 "As built (rework-030b)" and spec.md's Amendments row for Q89): the component rewritten as plan §R-B3 (as built) says. From `apps/web/`, `npx --no-install vitest run test/ui-skins.test.ts test/ui/button-skin.test.ts test/ui/button-states.test.ts`, exit 0, its whole result:
+
+```
+ Test Files  3 passed (3)
+      Tests  64 passed (64)
+```
+
+**`position: relative`, the controls static at the base** (T-B03's list, checked per control against `baseSheets()` in `button-skin.test.ts`): the bar's tiles (split, column, dock), "Back", "Close, Escape", the larger view's toggle, the log's toggle, "Send", the resume's "Close", "Enter". Kept: the walking control and "Eat", `position: absolute` (`room.css:331`, `:355`).
+
+**The comment at `button.css:19`** ("The chamfer is a clip-path octagon cut from inside the box, whose 44 × 44 minimum stays the hit area") was wrong: a clipped-out corner takes no press. The header now says the control clips nothing and the `::before` carries the octagon.
+
+## A second RED, after GREEN: `rework3-spec-030`'s R-2 cases
+
+`rework3-spec-030` (its tip `75472b30`, read at this point) writes `rv-rework2-spec-030`'s R-2 into T-B01 (c): the control's `box-shadow` asserted with `.split-back` and `.split-hint` inside a panel marked `data-over="room"` (spec 029's plate rule, `split.css:548-556`, in the cascade), and every `box-shadow` B declares on a `::before` rule. Two cases added to `button-states.test.ts`: the panels (`.talk`, `.room-list`, `.hud-bar`) marked `data-over="room"`, the conversation and the resume panel open, every state, the winner `none` from `ui/button.css`, and the plate's declaration seen matching (so the case discriminates); and every `box-shadow` of `ui/button.css` other than `none` on a `::before` rule (B pins the control's own to `none`, so "every" reads as every shadow drawn). They pass on GREEN 2's code (it already pins the control's shadow), so they were run against `impl-030b`'s `button.css`, put in the worktree by `git checkout 02a5c30a -- apps/web/src/ui/button.css` and restored by `git checkout HEAD -- apps/web/src/ui/button.css` (`git status --short` then showed only the test file). From `apps/web/`, `npx --no-install vitest run test/ui/button-states.test.ts -t "rework 3"`:
+
+On `impl-030b`'s `button.css`, exit 1:
+
+```
+     × keeps the control's box-shadow none with its panel over the room, where spec 029's plate would draw (rework 3, R-2) 22738ms
+     × declares every shadow other than none on a ::before rule (rework 3, R-2) 94ms
+ FAIL  test/ui/button-states.test.ts > nothing clips a control, nor shadows or filters it (FR-013; rework, S-4; rv-030b's R-2) > keeps the control's box-shadow none with its panel over the room, where spec 029's plate would draw (rework 3, R-2)
+AssertionError: conversation, split-back, normal: expected 'inset 0 0 0 1px #2a3038,\n    inset 3…' to be 'none' // Object.is equality
+ FAIL  test/ui/button-states.test.ts > nothing clips a control, nor shadows or filters it (FR-013; rework, S-4; rv-030b's R-2) > declares every shadow other than none on a ::before rule (rework 3, R-2)
+AssertionError: expected false to be true // Object.is equality
+ Test Files  1 failed (1)
+      Tests  2 failed | 13 skipped (15)
+```
+
+On GREEN 2's `button.css`, exit 0:
+
+```
+ Test Files  1 passed (1)
+      Tests  2 passed | 13 skipped (15)
+```
+
