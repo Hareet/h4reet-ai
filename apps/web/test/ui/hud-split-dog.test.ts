@@ -44,6 +44,17 @@ function listContent(n: number, s: number, rem = REM): number {
   return 2 * 0.5 * rem + 2.75 * s * rem + 2.75 * s * rem + 0.8125 * 1.5 * s * rem + n * 3.25 * s * rem + 3 * 0.25 * rem;
 }
 
+/** A length of split.css's in CSS pixels at a root size: `0.5rem`, `1px`, or a `calc()` of such sums and differences. */
+function lengthPx(value: string, rem: number): number {
+  const body = /^calc\((.*)\)$/.exec(value.trim())?.[1] ?? value.trim();
+  const terms = [...body.matchAll(/([+-])?\s*(\d*\.?\d+)(rem|px)/g)];
+  if (terms.length === 0) throw new Error(`not a length: "${value}"`);
+  return terms.reduce((sum, [, sign, n, unit]) => {
+    const px = Number(n) * (unit === "rem" ? rem : 1);
+    return sign === "-" ? sum - px : sum + px;
+  }, 0);
+}
+
 /** The split screens room:report lists, with their list boxes and the column's scale. */
 function splitScreens(): { name: string; h: number; scale: number }[] {
   const out: { name: string; h: number; scale: number }[] = [];
@@ -71,6 +82,28 @@ describe("the split list holds \"Dog\" (spec 026's human patch, r4; spec 028's F
     expect(splitRule(".room-list li", "height")).toBe("3.25em");
     expect(splitRule(".split-back", "min-height")).toBe("2.75em");
     expect(splitRule(".room-list .split-label", "font")).toMatch(/^0\.8125em\/1\.5 /);
+  });
+
+  // rv-030a's R-2 (spec 030, group A's rework): the top half's 1 px edge (hud/split.css's `.room-list[data-half="top"]`)
+  // lies inside the list's box, so it would take 2 px from the content box the model counts. The edge and the padding
+  // the list takes under it together stay split.css's 0.5rem above and below and 0.75rem at the sides, so
+  // `listContent`'s 2 × 0.5rem holds with the edge on.
+  it("keeps the list's content box under the halves' edge: edge and padding together the model's padding", () => {
+    const half = '.room-list[data-half="top"]';
+    const border = splitRule(half, "border") ?? "";
+    expect(border).toMatch(/^1px solid /);
+    const edge = 1;
+    // The padding the cascade gives the list with the edge on: the half's own where it sets one, else the list's.
+    const padding = splitRule(half, "padding") ?? splitRule(".room-list", "padding") ?? "";
+    const parts = padding.match(/calc\([^)]*\)|\S+/g) ?? [];
+    const [top, right = top, bottom = top, left = right] = parts.map((p) => lengthPx(p, REM));
+    for (const [side, value, want] of [
+      ["top", top, 0.5 * REM],
+      ["bottom", bottom, 0.5 * REM],
+      ["right", right, 0.75 * REM],
+      ["left", left, 0.75 * REM],
+    ] as const)
+      expect((value ?? Number.NaN) + edge, `${side}: ${padding}`).toBeCloseTo(want, 9);
   });
 
   it("fits the five at spec 028's split windows that hold the whole list", () => {

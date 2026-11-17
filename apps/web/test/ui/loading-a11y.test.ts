@@ -171,8 +171,10 @@ describe("loading.css, read (FR-040 to FR-042; PD-23)", () => {
     expect(stacked?.declarations.get("position")).toBe("static");
   });
 
-  it("makes the card's glass opaque with no blur under reduced transparency, more contrast, and no backdrop blur, in every layout", async () => {
-    for (const query of [/prefers-reduced-transparency/, /prefers-contrast:\s*more/, /@supports not/]) {
+  // Spec 030 (T-A06 (a); the first rework's N-1): the `@supports not` query is gone with the blur
+  // (test/ui/hud-no-blur.test.ts); the two media queries keep the card's glass opaque.
+  it("makes the card's glass opaque with no blur under reduced transparency and more contrast, in every layout", async () => {
+    for (const query of [/prefers-reduced-transparency/, /prefers-contrast:\s*more/]) {
       const rules = ROOM.atRules.filter((a) => query.test(a.prelude)).flatMap((a) => parseCss(a.body).rules);
       expect(rules.find((r) => r.selector === ":root")?.declarations.get("--glass-alpha"), String(query)).toBe("1");
       const blur = rules.find((r) =>

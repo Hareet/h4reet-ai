@@ -920,11 +920,13 @@ describe("the layout's degraded paths (spec 005, T010)", () => {
     );
   }
 
-  it("makes the glass opaque, with no blur, under reduced transparency, more contrast, and no backdrop blur", () => {
+  // Spec 030 (T-A06 (a); the first rework's N-1; plan.md §R-A1): the third prelude, `@supports not ((backdrop-filter:
+  // blur(1px)) or …)`, is gone with the blur: a browser without a backdrop filter gets the same clear glass as every
+  // other, and test/ui/hud-no-blur.test.ts holds that no @supports names one.
+  it("makes the glass opaque, with no blur, under reduced transparency and more contrast", () => {
     for (const prelude of [
       /^@media \(prefers-reduced-transparency: reduce\)$/,
       /^@media \(prefers-contrast: more\)$/,
-      /^@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\)$/,
     ]) {
       const found = inside(prelude);
       expect(found.length, String(prelude)).toBeGreaterThan(0);

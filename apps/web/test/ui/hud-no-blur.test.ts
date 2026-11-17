@@ -46,6 +46,19 @@ function declarations(sheet: string): Declared[] {
 
 const ALL = SHEETS.flatMap(declarations);
 
+/** Every at-rule's prelude of a sheet, at any depth. */
+function preludes(sheet: string): string[] {
+  const out: string[] = [];
+  const walk = (text: string): void => {
+    for (const a of parseCss(text).atRules) {
+      out.push(a.prelude);
+      walk(a.body);
+    }
+  };
+  walk(read(sheet));
+  return out;
+}
+
 describe("no backdrop blur in the HUD's sheets (FR-001)", () => {
   it("reads every sheet's declarations", () => {
     for (const sheet of SHEETS) expect(ALL.filter((d) => d.sheet === sheet).length, sheet).toBeGreaterThan(0);
@@ -62,6 +75,18 @@ describe("no backdrop blur in the HUD's sheets (FR-001)", () => {
 
   it("names data-blur in no selector", () => {
     expect(ALL.filter((d) => d.selector.includes("data-blur")).map((d) => `${d.sheet}: ${d.selector}`)).toEqual([]);
+  });
+
+  // T-A06 (a) (group A's rework; the first rework's N-1; plan.md §R-A1): with no blur anywhere, nothing hangs on a
+  // browser's backdrop filter either: no @supports condition names backdrop-filter or -webkit-backdrop-filter, so a
+  // browser without one gets the same clear glass as every other.
+  it("sets nothing on whether the browser has a backdrop filter: no @supports names one", () => {
+    const found = SHEETS.flatMap((sheet) =>
+      preludes(sheet)
+        .filter((p) => /^@supports\b/.test(p) && /backdrop-filter/.test(p))
+        .map((p) => `${sheet}: ${p}`),
+    );
+    expect(found).toEqual([]);
   });
 });
 
