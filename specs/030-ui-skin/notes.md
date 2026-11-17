@@ -150,3 +150,72 @@ Branch `night/rework2-spec-030/rework2-spec-030` from `2dd4213f` (`rework-spec-0
 | R-8 | `tasks.md:37` | As cited. |
 | R-9 | `plan.md:99` | As cited. |
 | Q71, Q72 | `impl-030b`'s plan at `0366e983` | §R-B1 "As built" (`ring` per variant: `metal` `#14171c` primary, `#ffd23f` secondary) and §R-B4 "As built" (the boundary two-tone; the ring "drawn inside the face (§R-B3, as built)"). Its §R-B3 "As built" isn't written yet at that tip (`wip(impl-030b): T-B03, the component`); the page's Q72 says it will be. |
+
+## The blocking findings, each fixed
+
+| ID | Fix taken | Where |
+|---|---|---|
+| R-1 | `web_image.py` exports one tuple of (folder, context) pairs, `ASSET_CONTEXTS` (room, visitors, twin, ui, in the Dockerfile's stage order). Its own `main` builds its `--build-context` pairs from that tuple, and `release.py`'s `web_contexts()` loops over `wi.ASSET_CONTEXTS` instead of its own three (`:815-819`), so the released image gets `ui-assets` too. RED first, in `deploy/scripts/test_release.py`, the file that loads `release.py` (confirmed: no case anywhere calls `web_contexts` today). The new cases: `ui-assets=<src>/assets/ui` exactly when that folder is the tree's own directory; none when it is absent, a link, or a file, or when `assets/` is a link; every pair of `ASSET_CONTEXTS` the tree holds; `[]` for an image other than `web`. Also checked: F's `release.py` hunks (on `merge-f-4`'s branch) are all before `:750`, so none is in `web_contexts()`. | spec FR-027, SC-007; plan §1, §R-D4 (a new bullet, and the tests' bullet), §9's DS row; tasks T-DS01 (c), T-DS02 |
+| R-2 | `hud-over-room.test.ts` and `hud-over-walking.test.ts` are A's. Both are rewritten in T-A01 (d)'s RED, with old and new assertions named. Their `expected()` now marks the right column's parts at rest and walking: split `.room-list`, `.hud-bar`, `.room-walk`, `.room-eat` where offered, and `.hud-half`; column and dock `.hud-panels`, `.hud-bar`, `.room-walk`, `.hud-half`. `.talk` and `.talk-sheet` still follow 029's geometry. The rewritten lines are `:151`, `:182`, `:188` and `:163`; `:177`'s discriminating check moves to `.talk-sheet`. **Also found by this rework**: `hud-split-dog.test.ts:96` (at least 1,601 split stages hold the five entries). I measured it with a scratch vitest under `/tmp`, outside the tree: with A's slice the count drops to about 1,558. So that file is A's too, its count is rewritten, the change is named as a departure, and it is Q76. Every other `hud-*` file is placed by name in §R-A4: A's already, or "run, untouched" with its reason. A "run, untouched" file that A's RED finds failing becomes A's in that commit, named. T-INT02b is now B's look's alone. | spec Assumptions, Amendments, Q76; plan §R-A4, §9's A row and its no-row rule (`:198`); tasks T-A01 (d), T-A05, T-INT02b |
+| R-3 | **The reviewer's `::before` route, plus one change that I argue for.** Under the image skin the image is drawn on the `::before`, with `border-style: solid`, `border-width: 0`, `fill`, the insets ÷ 2, and `-outset: 0`. The `::before` keeps its own octagon `clip-path`, and its inset shadows are `none`. The control is `background: transparent` with `border-image: none`, so FR-013 still holds for it. **The change**: the face colour on the `::before` is clipped to the image's centre, by `padding` equal to the band and `background-clip: content-box`. The reviewer's version clips the face colour only to the octagon. But the brief's images have a transparent outermost ring along every edge, and a selected glow that fades to alpha 0 inside the image. An octagon-clipped face would still show under both as a flat strip along each straight edge. The centre is opaque by the brief, so the clipped colour never shows when the image decodes. When the image fails to decode, the label sits on a flat face the size of the centre, with the band clear over the glass. At the brief's numbers the centre's corner, (12, 12) CSS px, lies inside the 8 px chamfer's cut. T-DS01 (b) reads the `border-image-*`, `background-clip` and `padding` from the `::before` by the cascade, and checks that the control's own `background-color` is `transparent` and its `border-image-source` is `none` under both skins. | spec FR-024, the edge case, Degraded mode; plan §R-B3, §R-D4 (the "image on the `::before`" bullet replaces the first rework's), §10; tasks T-DS01 (b), T-DS02 |
+
+## The others, each with the fix taken or not
+
+| ID | Fix |
+|---|---|
+| R-4 (and Q74) | **Taken**, Q74's recommended answer. T-DS01 (b) lists, in `impl-ds.md`, each control whose content box crosses its image's band. The round measures each variant's label colour over the band's pixels of alpha ≥ 0.5, over white and over black, for each of its five files, and `#ffffff` over `panel-frame.png`'s band. R-3 does it if its session can; otherwise T-DS05 does, from the handoff, read-only. The numbers go in studio-round-1.md beside the centre's. It is never a `line.py` finding, and FR-022 is unchanged. A ratio under 4.5:1 goes to his look and to round 2's brief. `judge-ui-r1` was already queued with its own brief, so whether R-3 measures is the supervisor's call; T-DS05 covers the case where it doesn't. |
+| R-5 | **Taken, the second of the review's two fixes**: T-B01 (a) checks, for every skin, `--btn-secondary-selected-glow` at 3:1 on `rgb(16 20 26)` and `--hud-text` at 4.5:1 on `--btn-frame`. These are the two tokens C's cards read (`choice.css:89`, `:108-111`). Today's values: the glow is `#46d7f0` in `metal` and `#ffd23f` in `plain`; the frame is `#2a3038` and `#10141a`. **Not taken**: T-INT02a rerunning `choice-cards.test.ts` with the built skins, because B's own test already covers every skin. C's file doesn't change. |
+| R-6 (and Q75) | **Taken**, Q75's recommended answer. T-B04 estimates each tile label's lines from `IBMPlexSans-Bold.woff`'s advance widths, using inline `python3 -I -B -c` that writes nothing to the tree, at each split window's scale. A tile whose label runs past two lines keeps its words' own case under every skin, through a `button.css` rule naming the tile's own class. |
+| R-7 | **Taken**: Amendments rows for 002's `.resume-close` (its shared rule with `.resume-pdf` named; `.resume-pdf` keeps 002's look) and 018's `.split-hint`. Also a row for 029's ring (Q71, Q72), and one for 026's count (Q76). |
+| R-8 | **Taken**: T-B01 (d) runs the whole `apps/web` suite on B's GREEN tip, in place of its list. |
+| R-9 | **Moot**, so not written into `impl-b.md`: with Q72 taken, the selected glow is an inset `box-shadow` on the `::before`, inside the face. No skinned control has a `filter`. T-B01 (c) asserts that. The forced-colours `filter: none` stays as a guard. |
+| Q71 | **Taken**, as `impl-030b` built it: the boundary is two-tone. The border is 3:1 against the face, and the edge (border or face) is 3:1 against the glass at 0.3, 0.6, 0.78 and 1 over white and over black, the dark ground, and the resume panel's white. spec FR-012 and US2's scenario 2, plan §R-B4 and T-B01 (a) agree. |
+| Q72 | **Taken**, as `impl-030b` built it: the ring is drawn inside the face, in the variant's `ring` colour, and the glow is drawn inside the face. The plan's first-rework line "B sets no `outline`" is replaced, as a named departure. I added one constraint for S-4's `::before` chamfer: the ring's `outline-offset` must put its outer corners inside the octagon (7 px at `metal`, 8 when selected). The chamfer stays on the `::before` (S-4), not on a `clip-path` on the control, so B's rework still moves it there. spec FR-009, FR-012, FR-013; plan §R-B1, §R-B3, §R-B4, §R-D4; T-B01 (c), T-B03. |
+| Q73 | **Taken**: T-INT02 rewrites `hud-look.test.ts`'s "every HUD control a tile" (`:112-136`) and its resume case (`:138`, now `.resume-close` the skin's), and the tile colour pairs of `hud-contrast.test.ts` and `hud-over-contrast.test.ts`, to read the skin with `data-skin` set. The old assertions are seen failing and the new ones passing before the dead declarations are removed. Plan §9's INT row names those files. |
+
+## Which group's rework each change reaches
+
+| Group (state at this rework's base) | What reaches it |
+|---|---|
+| A, `impl-030a` (running; at `7727aef1`, "setup and reading") | R-2: rewrite `hud-over-room`, `hud-over-walking` and `hud-split-dog` in T-A01 (d); T-A05's run list, by name; §R-A4's placing of every `hud-*` file. Q76. If A's RED commit is already made by the time this lands, A adds these three as a second RED commit, each seen failing, before T-A04. |
+| B, `impl-030b` (running; at `0366e983`, T-B03 begun) | Q71 and Q72 now agree with what B built; B changes nothing for them, except that the ring's offset must keep its corners inside the `::before`'s octagon, and the glow is an inset shadow on the `::before`, once S-4's rework moves the chamfer there. R-5: two more checks in T-B01 (a). R-8: the whole suite in T-B01 (d). R-9: no `filter`. Q75: T-B04's estimate, and maybe a `text-transform: none` rule for a tile. |
+| C, `impl-030c` (done; tip `20da89f3`) | **Nothing from this rework.** R-5's fix is B's test, not C's file. C's rework for the first rework's S-2 and N-4, and anything `rv-030c` finds, are unchanged. |
+| DJ, `impl-030dj` (done; reviewed, approved) | Nothing. |
+| DS, `impl-030ds` (not started) | R-1: `ASSET_CONTEXTS`, `release.py`'s `web_contexts()`, `test_release.py`. R-3: the image on the `::before`, the face colour clipped to the centre, and T-DS01 (b)'s new reads. Q74: the band's crossings in T-DS01 (b), and the band measurement in T-DS05 if R-3 hasn't done it. |
+| The round, `judge-ui-r1` (queued) | Q74: the band measurement, optional for it ("if this session can"). Its brief is the supervisor's. |
+| INT, `int-030` (not started) | Q73 in T-INT02; R-2's narrowing of T-INT02b to B's look alone. |
+
+## Questions (in `/night/io/out/questions.md`)
+
+One, Q76 in the spec's text: A's slice costs the split list about 43 of the 1,601 stages that hold "Dog". Recommended: accept (the list scrolls), and rewrite `hud-split-dog.test.ts`'s count in A's RED. Others: a slice of `0.5rem × scale`, or taking the slice from the tiles' block. Taken provisionally under his rule 1. Q71 to Q75 are already on the page; their recommended answers are taken here.
+
+## Interruptions
+
+None refused. Every tracked file was changed with Edit or Write. Two scratch vitest files were written with the Write tool to `/tmp/rework2-spec-030/dog/` (outside the tree) and run with the root's `vitest --root` there, read-only on the tree. One run needed a longer `--testTimeout`. They are left there for the runner's cleanup, since a recursive delete outside the workspace is the bash gate's to refuse (the page's Q20). `make setup` ran first (`node_modules` was missing), exit 0; it noted the shared `.git/hooks` isn't writable here, which is the Author's `make git-hooks`. The review's own `review.md` isn't reachable from here; each finding is read from the page, which gives its file:line and fix.
+
+## Checks run
+
+Documents only, so the checks are lint and the analysis. `make lint` at `ef271eee`, exit 0:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+915 files already formatted
+{ git ls-files -z '*.sh' … } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- … (the repository's shell scripts)
+exit 0
+```
+
+`git diff 2dd4213f -- specs/030-ui-skin/studio-round-1.md` is empty: the brief's JSON block is byte for byte as before, and R-3's "The record" is left to `judge-ui-r1`. The analysis is re-run and appended to analysis.md ("Re-run after rework 2"): 5 new findings, 4 fixed in the text, 1 recorded; 0 CRITICAL; §9's rows disjoint except for the designed sequential shares. `make test` and `make evals` weren't run: this branch changes no code, test, or eval.
+
+## What's left
+
+- `rv-rework2-spec-030`, a reviewer who wrote none of spec 030, on `git diff 2dd4213f` this branch's tip.
+- The groups' reworks on their tips once that review passes: A for R-2 and Q76, B for Q72's ring offset and `::before` glow, R-5, R-8 and Q75 (beside the first rework's S-1, S-4 and S-5), DS for R-1, R-3 and Q74, from B's reworked tip. C has nothing new from this rework.
+- Not decided here: whether `judge-ui-r1` measures the labels over the band (Q74), which is the supervisor's brief; otherwise T-DS05 does.
+- His part: Q71 to Q76, his look (SC-008: the halves, the skins, the inside ring and glow, the image on the `::before` in a browser, the tiles' labels' fit), his intake (`docs/merge-requests/human-patches/030.md`, after R-3's pass), and every merge.
