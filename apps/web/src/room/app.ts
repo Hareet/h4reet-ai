@@ -206,8 +206,6 @@ export function startRoom(deps: RoomDeps): RoomHandle {
 
   /** The HUD's docked panels' states (spec 005): every panel starts open (FR-020). */
   let hudState: HudState = OPENING;
-  /** The glass's blur, at quality levels 0 and 1 alone (spec 005, FR-025; PD-17). */
-  const blurAt = (level: number): boolean => level <= 1;
   /** A docked or collapsible panel's change, in a drafts build's frame log (FR-063). */
   const panel = (part: string, state: string): void => log?.record("panel", { part, state });
   /** The window, measured, from Enter (spec 005; hud/viewport.ts). */
@@ -292,7 +290,6 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     });
     if (splitAt) split?.setSize(splitAt.frame.w, splitAt.frame.h, splitAt.title.h);
     split?.setActive(splitAt !== null);
-    layout.setBlur(blurAt(visit.quality));
     // The conversation's log is a sheet above the dock in the dock layout (spec 005; the review's finding 1).
     talk?.setDocked(fits && boxes.layout === "dock");
     if (what === "keyboard") return;
@@ -1146,7 +1143,6 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         visit.quality = level;
         visit.mode = "reduced";
         scene3d.setQuality(level);
-        room?.setBlur(blurAt(level));
       },
       onFlat: toFlat,
     });

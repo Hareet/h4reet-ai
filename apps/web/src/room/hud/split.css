@@ -76,12 +76,6 @@ html[data-split="on"][data-hud="column"] .talk {
   overscroll-behavior: contain;
 }
 
-html[data-split="on"][data-hud="column"][data-blur="on"] .room-list,
-html[data-split="on"][data-hud="column"][data-blur="on"] .hud-bar {
-  -webkit-backdrop-filter: var(--hud-blur);
-  backdrop-filter: var(--hud-blur);
-}
-
 /* ---- The list: right-aligned on one edge (FR-007, FR-008) ---- */
 
 html[data-split="on"][data-hud="column"] .room-list {

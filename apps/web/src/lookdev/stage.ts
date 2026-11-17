@@ -431,7 +431,9 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   }
 
   /** The HUD's boxes over a window view's canvas, positioned through the CSS object model, and the room's layout and
-   *  blur on the page's root, so room.css draws them as the room does; hidden in a stage view. */
+   *  blur on the page's root, so room.css draws them as the room does; hidden in a stage view. Since spec 030 (FR-001)
+   *  room.css reads no data-blur and the room sets none: the attribute here is the lookdev page's own, and no sheet
+   *  draws a blur from it. */
   function placeHud(): void {
     const root = doc.documentElement;
     if (!windowed) {

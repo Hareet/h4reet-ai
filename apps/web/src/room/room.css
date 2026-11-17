@@ -2,7 +2,7 @@
    (its FR-006 to FR-009, FR-019 to FR-028; plan.md §2.3, §4.1, §6): the room block fills the window, and the
    interface is laid over it. From the site's own origin, classes only: the CSP's style-src 'self' refuses inline
    styles, and the room sets its sizes as CSS properties through the CSS object model (layout.ts's applyHud).
-   - The page's root carries data-hud (column, dock, or stacked), data-list, data-blur, data-walk, and the table's
+   - The page's root carries data-hud (column, dock, or stacked), data-list, data-walk, and the table's
      sizes (compose/hud.ts): --strip-h, --bar-h, --column-w, --dock-h, --clear-x, --clear-y, --clear-w, --clear-h,
      --safe-top, --safe-right, --safe-bottom, --safe-left, and --keyboard. Every docked box takes its size from them
      alone (test/room/stages.test.ts), so moving a panel is one edit to the table.
@@ -106,7 +106,6 @@ body.in-room .disclosure p {
   --tile-face: rgb(6 8 11 / 0.4);
   --tile-border: rgb(255 255 255 / 0.72);
   --hud-focus: #ffd23f;
-  --hud-blur: blur(12px);
   --bar-h: 0px;
   --column-w: 0px;
   --dock-h: 0px;
@@ -151,10 +150,9 @@ body.in-room .disclosure p {
   --over-plate-alpha: 0.5;
 }
 
-/* The glass is opaque, with no blur, where the visitor asks for less transparency or more contrast, and where the
-   browser draws no backdrop blur, so the tint alone carries the contrast (FR-006). Each fallback names the root's
-   attribute, so it outranks the HUD's rule it undoes, `html[data-blur="on"] .hud-glass` (the review of 60b51de4's
-   nit; test/room/hud-contrast.test.ts computes the specificity). */
+/* The glass is opaque where the visitor asks for less transparency or more contrast, and where the browser has no
+   backdrop filter, so the tint alone carries the contrast (FR-006). Since spec 030 (FR-001; Q1) the HUD draws no
+   backdrop blur at any quality level; each fallback keeps its `.hud-glass` reset to none, redundant now and harmless. */
 @media (prefers-reduced-transparency: reduce) {
   :root {
     --glass-alpha: 1;
@@ -166,8 +164,7 @@ body.in-room .disclosure p {
     background: rgb(var(--glass));
   }
 
-  .hud-glass,
-  :root[data-blur] .hud-glass {
+  .hud-glass {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
@@ -179,8 +176,7 @@ body.in-room .disclosure p {
     --glass-alpha-lit: 1;
   }
 
-  .hud-glass,
-  :root[data-blur] .hud-glass {
+  .hud-glass {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
@@ -192,8 +188,7 @@ body.in-room .disclosure p {
     --glass-alpha-lit: 1;
   }
 
-  .hud-glass,
-  :root[data-blur] .hud-glass {
+  .hud-glass {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
@@ -667,17 +662,13 @@ html[data-hud="dock"] .talk[data-log="empty"] .talk-sheet {
 /* The HUD's look (spec 005, FR-024 to FR-026; plan.md §6.2, §6.6, §6.7; the Author's "Use the dark glass recommendation
    and just go ahead with putting everything in instead of approval at lookdev first"): dark glass panels, game-style
    tiles of an icon over their words, the highlight's yellow for focus, and a pressed mark beyond colour. Every colour
-   is the palette's, which test/room/hud-contrast.test.ts holds to WCAG's floors over white and black beneath. The blur
-   draws only at quality levels 0 and 1 (data-blur), and the tint alone carries the contrast. */
+   is the palette's, which test/room/hud-contrast.test.ts holds to WCAG's floors over white and black beneath. No
+   backdrop blur at any quality level (spec 030, FR-001; Q1): the room is seen through the glass, and the tint alone
+   carries the contrast, as it always did. */
 html[data-hud="column"] .hud-glass,
 html[data-hud="dock"] .hud-glass {
   color: var(--hud-text);
   background: rgb(var(--glass) / var(--glass-alpha));
-}
-
-html[data-blur="on"] .hud-glass {
-  -webkit-backdrop-filter: var(--hud-blur);
-  backdrop-filter: var(--hud-blur);
 }
 
 html[data-hud="column"] .hud-tile,
@@ -1132,14 +1123,13 @@ html[data-hud="dock"] .resume-panel {
   paint-order: stroke;
 }
 
-/* Forced colours: the system's colours throughout the HUD, no blur, and focus in Highlight (FR-006). The selectors
-   that name the root's attributes outrank the HUD's own rules (the review of 60b51de4's nit). */
+/* Forced colours: the system's colours throughout the HUD, no backdrop filter, and focus in Highlight (FR-006). The
+   selectors that name the root's attributes outrank the HUD's own rules (the review of 60b51de4's nit). */
 @media (forced-colors: active) {
   html[data-hud="column"] .disclosure,
   html[data-hud="dock"] .disclosure,
   .hud-glass,
-  :root[data-hud] .hud-glass,
-  :root[data-blur] .hud-glass {
+  :root[data-hud] .hud-glass {
     color: CanvasText;
     background: Canvas;
     -webkit-backdrop-filter: none;
@@ -1285,8 +1275,8 @@ html[data-hud="stacked"] .resume-panel {
    layout.ts marks each HUD part whose box meets the room's box with data-over="room" (compose/over.ts): in the walking
    view every part, else those over the wall box at the room's framing, in the column, dock, and larger layouts. The
    split layout's variants are hud/split.css's last block, which outranks these. A part not marked is untouched: every
-   rule here names [data-over="room"] (FR-005). Over the room the part's glass drops to --over-glass-alpha, its blur as
-   today; each run of words sits on a plate of the glass at --over-plate-alpha, whose shadow carries it 0.25rem beyond
+   rule here names [data-over="room"] (FR-005). Over the room the part's glass drops to --over-glass-alpha, with no
+   blur (spec 030, FR-001); each run of words sits on a plate of the glass at --over-plate-alpha, whose shadow carries it 0.25rem beyond
    its box, so the focus ring drawn 2px outside a control on a plate lies on it, and nothing moves; the tiles keep their
    faces, which carry their words, and draw their ring inside; the text box stays white with dark text (FR-006). */
 

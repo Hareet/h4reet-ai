@@ -117,8 +117,6 @@ export interface RoomLayout {
   applyHud(applied: HudApplied): void;
   /** What the stage's view holds: loading, the 3D canvas, or the 2D drawing (or flat-failed's line). */
   setStage(what: "loading" | "3d" | "2d"): void;
-  /** The glass's blur, on at quality levels 0 and 1 and off from 2 (spec 005, FR-025; PD-17). */
-  setBlur(on: boolean): void;
   /** Spec 005's full-screen control (FR-036; Q4, provisional), after "Pause the room", where the browser offers full
    *  screen; null where it doesn't. */
   readonly fullscreenButton: HTMLButtonElement | null;
@@ -481,9 +479,6 @@ export function renderRoom(
     },
     setStage(what) {
       view.setAttribute("data-stage", what);
-    },
-    setBlur(on) {
-      root.setAttribute("data-blur", on ? "on" : "off");
     },
     fullscreenButton,
     setFullscreen(on) {
