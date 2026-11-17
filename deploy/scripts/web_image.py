@@ -54,7 +54,8 @@ Otherwise as the gateway's: a host stack builds the export its run file names, a
 dev-cpu builds the working tree on the agents' engine only. The build is `docker buildx build --load` with this tree's
 Dockerfile and context, the env file's H4_BUILD_PROXY as the proxy arguments, ROOM_DRAFTS, the policy context, the
 models', the avatars', the twin's, and the buttons' images' contexts where the tree has them, and the label, and
-nothing else: no --ssh, --secret, cache import or export, --add-host, --allow, or --network. Docker and git get only their own settings from the environment.
+nothing else: no --ssh, --secret, cache import or export, --add-host, --allow, or --network. Docker and git get only
+their own settings from the environment.
 
 Exit codes: 0 the image is built; 1 the build failed; 2 usage, or refused.
 """
