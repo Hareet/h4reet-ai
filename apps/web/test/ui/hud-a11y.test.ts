@@ -194,8 +194,14 @@ describe("reduced motion, zoom, the keyboard, and the safe areas (FR-047, FR-049
         .at(-1)
         ?.decls.get(property);
     expect(of('html[data-hud="dock"] .hud-bar', "bottom")).toBe("var(--keyboard)");
-    expect(of('html[data-hud="dock"] .hud-panels', "bottom")).toBe("calc(var(--bar-h) + var(--keyboard))");
-    expect(of('html[data-hud="column"] .hud-panels', "bottom")).toBe("calc(var(--bar-h) + var(--keyboard))");
+    // Spec 030 (FR-004; T-A01 (d)): the column and the dock, the top halves, stand the slice above the bar, the bottom
+    // half; both still lift by the keyboard's inset (was "calc(var(--bar-h) + var(--keyboard))").
+    expect(of('html[data-hud="dock"] .hud-panels', "bottom")).toBe(
+      "calc(var(--bar-h) + var(--hud-slice) + var(--keyboard))",
+    );
+    expect(of('html[data-hud="column"] .hud-panels', "bottom")).toBe(
+      "calc(var(--bar-h) + var(--hud-slice) + var(--keyboard))",
+    );
     expect(of('html[data-hud="dock"] .room-clear', "top")).toBe("var(--clear-y)");
   });
 

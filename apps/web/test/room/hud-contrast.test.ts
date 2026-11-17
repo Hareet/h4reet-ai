@@ -190,12 +190,10 @@ describe("the HUD's palette (room.css; FR-024, FR-025)", () => {
   // The review of 60b51de4's nit: the fallbacks for less transparency, more contrast, no backdrop blur, and forced
   // colours lost to the HUD's own rules, which name the root's attributes. Each now outranks the rule it undoes.
   it("lets each fallback outrank the HUD's rule it undoes", () => {
-    expect(specificity('html[data-blur="on"] .hud-glass')).toEqual([0, 2, 1]);
     expect(specificity(":root[data-hud] .hud-glass button:focus-visible")).toEqual([0, 4, 1]);
+    // Spec 030 (FR-001; T-A01 (d)): no rule draws a backdrop blur any more, so the fallbacks' backdrop-filter resets
+    // undo none, and none is listed here (test/ui/hud-no-blur.test.ts holds that no rule sets one).
     const FALLBACKS: [RegExp, string, string, string][] = [];
-    for (const block of [/prefers-reduced-transparency/, /prefers-contrast: more/, /^@supports not/, /forced-colors/])
-      for (const p of ["backdrop-filter", "-webkit-backdrop-filter"])
-        FALLBACKS.push([block, p, "none", 'html[data-blur="on"] .hud-glass']);
     for (const at of [HUD, DOCK])
       FALLBACKS.push(
         [/forced-colors/, "background", "Canvas", `${at} .hud-glass`],
@@ -240,12 +238,14 @@ describe("the HUD's palette (room.css; FR-024, FR-025)", () => {
     expect(ratio(colour(p.get("--glass") ?? "").rgb, WHITE)).toBeGreaterThanOrEqual(3);
   });
 
-  it("blurs behind the glass only under data-blur on, in both its forms, and never relies on it (PD-17)", () => {
+  // Spec 030 (FR-001, Q1; T-A01 (d)): the blur this case held (`html[data-blur="on"] .hud-glass` at var(--hud-blur),
+  // blur(12px)) is gone at every quality level; the glass never relied on it, and the pairs above pass without it.
+  it("blurs nothing behind the glass, in either form, and never relied on a blur (PD-17; spec 030, FR-001)", () => {
     const on = 'html[data-blur="on"] .hud-glass';
-    expect(declared(on, "backdrop-filter")).toBe("var(--hud-blur)");
-    expect(declared(on, "-webkit-backdrop-filter")).toBe("var(--hud-blur)");
+    expect(declared(on, "backdrop-filter")).toBeUndefined();
+    expect(declared(on, "-webkit-backdrop-filter")).toBeUndefined();
     expect(declared(`${HUD} .hud-glass`, "backdrop-filter")).toBeUndefined();
-    expect(palette().get("--hud-blur")).toBe("blur(12px)");
+    expect(palette().get("--hud-blur")).toBeUndefined();
   });
 });
 

@@ -93,7 +93,10 @@ describe("the split list holds \"Dog\" (spec 026's human patch, r4; spec 028's F
     const five = screens.filter((x) => x.h >= listContent(n, x.scale) - 1e-9);
     const four = new Set(screens.filter((x) => x.h >= listContent(n - 1, x.scale) - 1e-9).map((x) => x.name));
     // Measured on the tree after the 028 stack's merge, 022, and r4 (patch7-026): 1,601 of 3,329 split screens.
-    expect(five.length).toBeGreaterThanOrEqual(1601);
+    // Spec 030 (FR-002, FR-003; T-A01 (d)): the slice between the halves, 0.75rem at the right side's scale where the
+    // gap was 0.25rem, takes 0.5rem × scale from the list's box: 1,558 of them (was at least 1,601). The page's
+    // question on the slice's size names the cost; elsewhere the list's entries scroll, as spec 028 has it.
+    expect(five.length).toBeGreaterThanOrEqual(1558);
     for (const x of five) expect(four.has(x.name), x.name).toBe(true);
     for (const x of screens)
       expect(listContent(n, x.scale) - listContent(n - 1, x.scale)).toBeCloseTo(3.25 * x.scale * REM, 9);

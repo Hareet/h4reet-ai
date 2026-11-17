@@ -6,6 +6,8 @@
 // gives none). The expectation is computed from compose/hud.ts's compactBoxes and wallBoxes and the protector, not
 // written by hand. At the split layout's windows at the room's framing no part is marked, so no [data-over] rule
 // applies to any part (FR-005); the text box is the same over the room as beside it (FR-006).
+// Spec 030 (T-A01 (d); FR-005, Q2): the right column's halves take the over-room look in every layout and view, so
+// their parts are marked always; at the split layout's rest only they are, and the conversation panel keeps FR-005.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -94,8 +96,14 @@ function expected(screen: { w: number; h: number }, mode: "3d" | "2d", walking: 
   // which gives no protector, the clear area (app.ts's refit).
   const frame = c.split ? c.split.area : mode === "2d" ? frameArea(screen, OPENING, DEFAULT_METRICS, flat).area : clear;
   const room = walking ? B(0, 0, screen.w, screen.h) : c.split ? c.split.wall : (flat.wall?.(frame) ?? frame);
-  return new Set(parts.filter(([, b]) => overlaps(b, room)).map(([el]) => el));
+  // Spec 030 (FR-005; Q2): the right column's halves take the over-room look in every layout and view: its parts are
+  // marked whether or not they meet the room.
+  const column: El[] = c.split ? [".room-list", ".hud-bar", ".room-walk"] : [".hud-panels", ".hud-bar"];
+  return new Set([...parts.filter(([, b]) => overlaps(b, room)).map(([el]) => el), ...column]);
 }
+
+/** Spec 030: the right column's parts, marked at rest in the split layout, where nothing else is. */
+const RIGHT_COLUMN: ReadonlySet<El> = new Set([".room-list", ".hud-bar", ".room-walk"]);
 
 const marked = (v: Visit): Set<El> =>
   new Set(ELEMENTS.filter((s) => v.doc.querySelector(s)?.getAttribute("data-over") === "room"));
@@ -147,9 +155,10 @@ describe("the parts over the room, through the real room (FR-001, FR-005, FR-007
       expect(marked(v)).toEqual(want);
       const split = v.doc.documentElement.getAttribute("data-split") === "on";
       if (split) {
-        // At the room's framing the split layout's parts stand in the grey bands: none is marked, no rule applies.
-        expect(want.size).toBe(0);
-        for (const el of v.doc.querySelectorAll(".room *, .room"))
+        // At the room's framing the split layout's parts stand in the grey bands: only the right column's halves are
+        // marked (spec 030, Q2), and no rule applies to the conversation panel, which keeps spec 029's rule.
+        expect(want).toEqual(RIGHT_COLUMN);
+        for (const el of v.doc.querySelectorAll(".talk *, .talk"))
           for (const s of OVER_RULES) expect(matchesRule(el, s), `${s} on ${el.className}`).toBe(false);
       }
       walkControl(v).click();
@@ -179,13 +188,13 @@ describe("the parts over the room, through the real room (FR-001, FR-005, FR-007
     const viewport = stubViewport(WINDOWS[2]);
     const v = start({ webgl: true, viewport: viewport.factory });
     await intoRoom(v);
-    expect(marked(v).size).toBe(0);
+    expect(marked(v)).toEqual(RIGHT_COLUMN);
     viewport.set(WINDOWS[3]);
     await flush();
     expect(marked(v)).toEqual(expected(WINDOWS[3], "3d", false));
     viewport.set(WINDOWS[2]);
     await flush();
-    expect(marked(v).size).toBe(0);
+    expect(marked(v)).toEqual(RIGHT_COLUMN);
   });
 });
 

@@ -57,12 +57,14 @@ describe("the split layout's rule (FR-001, as spec 028's FR-009 replaces it)", (
   it("leaves compactBoxes the column or dock layout's where it isn't chosen", () => {
     // Today's boxes at 1280 × 720 without a wall (impl-018's tip, probed before the rework): the column's compact box at
     // its band's foot and the walking control at its head (W19).
+    // Spec 030 (FR-004; T-A01 (d)): the column, the top half, 12 px (the slice) above the bar's cluster, the walking
+    // control at its head with it (were the column at y 349 and the control at y 301).
     const c = compactBoxes({ w: 1280, h: 720 });
     expect(c.split).toBeNull();
-    expect(c.column).toEqual(box(832, 349, 448, 319));
-    expect(c.walk).toEqual(box(1148, 301, 128, 44));
+    expect(c.column).toEqual(box(832, 337, 448, 319));
+    expect(c.walk).toEqual(box(1148, 289, 128, 44));
     expect(c.walkPlace).toBe("column");
-    expect(c.all).toEqual([box(424, 0, 432, 27.5), box(720, 668, 560, 52), box(832, 349, 448, 319), c.walk]);
+    expect(c.all).toEqual([box(424, 0, 432, 27.5), box(720, 668, 560, 52), box(832, 337, 448, 319), c.walk]);
     for (const s of LANDSCAPE.filter((_, k) => k % 5 === 0)) {
       if (split(s) !== null) continue;
       const k = compactBoxes(s, OPENING, DEFAULT_METRICS, { wall: WALL });

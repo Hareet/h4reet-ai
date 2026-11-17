@@ -153,8 +153,9 @@ describe("the compact HUD against the model (spec 014, T006)", () => {
       const m = compactModel(screen, WORDS, NOTES, logRestRem(screen));
       const column = compactBoxes(screen).column;
       const band = hudModel(screen, WORDS).layout === "column" ? hudBoxesOf(screen) : null;
-      // Where the band can't hold the content, the column is the band, and its log scrolls inside (FR-018).
-      const room = band ? Math.min(m.columnH, band.h) : m.columnH;
+      // Where the band can't hold the content, the column is the band, and its log scrolls inside (FR-018); spec 030
+      // (FR-004; T-A01 (d)): the band less the slice above the bar's cluster (was the band).
+      const room = band ? Math.min(m.columnH, band.h - HUD_PLACEMENTS.sliceRem * 16) : m.columnH;
       if (!column) failures.push(`${screen.w} × ${screen.h}: no column`);
       else if (room > column.h + 1e-9)
         failures.push(`${screen.w} × ${screen.h}: the content's ${m.columnH} over the column's ${column.h}`);
