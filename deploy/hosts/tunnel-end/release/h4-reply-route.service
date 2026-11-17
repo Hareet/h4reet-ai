@@ -1,0 +1,18 @@
+# The private interface's replies, marked at each boot (spec 001, fix F2; deploy/hosts/tunnel-end/release/
+# h4-reply-route.nft): after the user data's filter, and before Docker, so no published port takes a connection
+# unmarked. From the release's tree: the deployer's host step installs it, enables it, and restarts it, so each
+# release's file is the one loaded.
+[Unit]
+Description=h4reet: the private interface's replies, marked
+DefaultDependencies=no
+After=h4-nftables.service
+Before=network-pre.target docker.service
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/h4reet/h4-reply-route.nft
+
+[Install]
+WantedBy=multi-user.target

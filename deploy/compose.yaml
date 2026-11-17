@@ -739,13 +739,20 @@ services:
   # one connection this stack opens to the internet besides the gateway's, so it joins egress; it opens no port. The
   # stack reaches the shared state as tunnel:5432 and the sink as tunnel:2301 (contracts/tunnel.md §3). Its client key
   # and pinned host key are the Author's, read-only, from H4_TUNNEL_DIR, which only prod's env file names.
+  #
+  # H4_TUNNEL_DIR is 0700 and his (preflight's P22), so the image's user can't open it: as 10001, ssh found no host key
+  # ("Host key verification failed", W2's deploy). So this end starts as root, with the read (DAC_OVERRIDE) and the
+  # drop (SETUID, SETGID) alone, no CHOWN or FOWNER, so nothing in it can change the folder's owner or mode; its
+  # entrypoint copies the two files into 10001's own tmpfs, /run/tunnel-client, where ssh_config reads them, then runs
+  # as 10001 with no capability (spec 001 fixes/f4.md). The admin-only stack runs this service too.
   tunnel:
     <<: *service
     profiles: [tunnel]
     build:
       context: tunnel
     command: ["client"]
-    user: "10001:10001"
+    user: "0:0"
+    cap_add: [DAC_OVERRIDE, SETUID, SETGID]
     environment:
       TUNNEL_END_ADDRESS: "${TUNNEL_END_ADDRESS:-}"
       H4_OTLP_HTTP: http://otel-collector:4318
@@ -753,10 +760,12 @@ services:
     volumes:
       - type: bind
         source: "${H4_TUNNEL_DIR}"
-        target: /run/tunnel-client
+        target: /run/tunnel-source
         read_only: true
     read_only: true
-    tmpfs: ["/run/tunnel:uid=10001,gid=10001,mode=0700"]
+    tmpfs:
+      - "/run/tunnel:uid=10001,gid=10001,mode=0700"
+      - "/run/tunnel-client:uid=10001,gid=10001,mode=0700"
     deploy:
       resources:
         limits:
@@ -860,8 +869,15 @@ services:
       - type: bind
         source: /srv/h4reet/shared-state
         target: /var/lib/postgresql/data
+    # As postgres (F7, night 5): pg_hba.conf takes postgres on the socket by peer alone, and Docker runs the check as
+    # root, so the server logged a peer-authentication failure every 5 s. The check steps down first with the image's
+    # own tool, the one its entrypoint uses (gosu, or su-exec in older Alpine images), under the caps above.
     healthcheck:
-      test: ["CMD", "pg_isready", "--host=/var/run/postgresql", "--username=postgres", "--dbname=h4reet"]
+      test:
+        - CMD-SHELL
+        - >-
+          exec "$$(command -v gosu || command -v su-exec)" postgres
+          pg_isready --host=/var/run/postgresql --username=postgres --dbname=h4reet
       interval: 5s
       timeout: 3s
       retries: 5
@@ -915,6 +931,15 @@ services:
         source: "${H4_TREE:?set by make up}/config/budgets.yaml"
         target: /app/config/budgets.yaml
         read_only: true
+      # The status's `ec2` (F7, night 5; contracts/relay-http.md §6): the document the snapshot sink's host write keeps,
+      # with EC2's state from its last ec2:DescribeInstances, read-only. Made if missing, so a fresh tunnel end's relay
+      # starts before the write's first run, and says `unknown` until it.
+      - type: bind
+        source: /var/lib/h4reet/snapshot
+        target: /var/lib/h4reet/snapshot
+        read_only: true
+        bind:
+          create_host_path: true
     read_only: true
     tmpfs: [/tmp]
     healthcheck:

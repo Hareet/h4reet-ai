@@ -1,0 +1,77 @@
+--- a/tools/gates/compose_policy.py	2026-11-17 03:04:44.144256004 +0000
++++ b/tools/gates/compose_policy.py	2026-11-17 03:04:53.564252321 +0000
+@@ -16,7 +16,8 @@
+     profile;
+   - binds outside ${H4_TREE}/deploy, ${H4_TREE}/config, ${H4_MODEL_DIR}, ${H4_STATE_DIR}/gateway, and ${H4_AWS_DIR}, or
+     writable outside ${H4_STATE_DIR}/gateway, but for the one read-only bind each of spec 001's tunnel's ends takes
+-    (SERVICE_BINDS), and the shared state's data, writable, from group 6; a volume that isn't a declared, local named
++    (SERVICE_BINDS), the shared state's data, writable, from group 6, and the relay's read-only view of the snapshot
++    sink's document, from F7; a volume that isn't a declared, local named
+     volume;
+   - ports on any service but edge, or on anything but the literal 127.0.0.1, but for the tunnel end's two, exactly,
+     on its public interface's fixed address (CLOUD_PORTS);
+@@ -158,7 +159,9 @@
+ # laptop's client key and pinned host key, which the Author's tunnel-keys target leaves under
+ # ~/.config/h4reet-ai/tunnel/ (prod's H4_TUNNEL_DIR); the tunnel end's host key and authorized key, which write_env.py
+ # writes to tmpfs at boot; and, from group 6, the shared state's key and certificate on tmpfs, read-only, and its data,
+-# the data volume's mount, its one writable bind (deploy/hosts/tunnel-end/shared_state.py).
++# the data volume's mount, its one writable bind (deploy/hosts/tunnel-end/shared_state.py); and, from spec 001's F7
++# (night 5), the relay's read-only view of the folder where the snapshot sink's host write keeps its document, for
++# the status's `ec2` (contracts/relay-http.md §6).
+ SERVICE_BINDS: dict[str, dict[str, bool]] = {
+     "tunnel": {"${H4_TUNNEL_DIR}": False},
+     "tunnel-end": {"/run/h4reet/tunnel-end/keys": False},
+@@ -166,6 +169,7 @@
+         "/run/h4reet/shared-state": False,
+         "/srv/h4reet/shared-state": True,
+     },
++    "relay": {"/var/lib/h4reet/snapshot": False},
+ }
+ # A cloud class's images, from the account's registry (the release's ECR repositories; spec 001 contracts/releases-
+ # deployer.md §1). An image the release builds runs by the release's digest, which the deployer writes to the
+--- a/tools/gates/test/test_compose_policy.py	2026-11-17 03:04:44.152256001 +0000
++++ b/tools/gates/test/test_compose_policy.py	2026-11-17 03:05:09.208244514 +0000
+@@ -1762,6 +1762,43 @@
+     assert ("relay", "networks") in relay_rules(model, tmp_path)
+
+
++# Spec 001's F7 (night 5; contracts/relay-http.md §6, amended): the relay reads EC2's state from the document the
++# snapshot sink's host write keeps, its folder bound read-only. Writable, wider, or another service's, it is refused.
++SNAPSHOT_FOLDER = {
++    "type": "bind",
++    "source": "/var/lib/h4reet/snapshot",
++    "target": "/var/lib/h4reet/snapshot",
++    "read_only": True,
++    "bind": {"create_host_path": True},
++}
++
++
++def test_the_relay_may_read_the_snapshot_sinks_document_folder(tmp_path: Path) -> None:
++    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
++    model = relay_model()
++    model["services"]["relay"]["volumes"] = [dict(SNAPSHOT_FOLDER)]
++    assert relay_rules(model, tmp_path) == set()
++    model["services"]["relay"]["volumes"] = [
++        {k: v for k, v in SNAPSHOT_FOLDER.items() if k != "read_only"}
++    ]
++    assert ("relay", "binds") in relay_rules(model, tmp_path)
++    model = relay_model()
++    model["services"]["relay"]["volumes"] = [
++        dict(SNAPSHOT_FOLDER, source="/var/lib/h4reet")
++    ]
++    assert ("relay", "binds") in relay_rules(model, tmp_path)
++    model = relay_model()
++    model["services"]["dev-relay"] = service(
++        profiles=["dev-relay"],
++        build={"context": "tunnel"},
++        volumes=[dict(SNAPSHOT_FOLDER)],
++    )
++    found = cp.check_model(model, CLOUD_LOCK, tmp_path, RELAY_DISCLOSED | {"dev-relay"})
++    assert ("dev-relay", "binds") in {
++        (f.where.rsplit(" ", 1)[-1], f.rule) for f in found
++    }
++
++
+ def test_a_service_named_otherwise_may_not_publish_the_relays_ports(
+     tmp_path: Path,
+ ) -> None:

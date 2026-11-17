@@ -6,6 +6,7 @@ ssm:DescribeParameters alone: it never reads a value. It runs with a fake aws (s
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 from pathlib import Path
 
@@ -138,3 +139,78 @@ def test_it_cant_run(world: dict, case: str) -> None:
     kit.answer(world["bin"], aws={} if case == "aws fails" else {DESCRIBE: held()})
     done = check(world, profile=profile, **env)
     assert done.returncode == 2, (done.returncode, done.stdout, done.stderr)
+
+
+# F7, part 2 (spec 001 bug-fixes, night 5): after W2's deploy, make secrets-check listed five names as unexpected,
+# each made by another hand than his: Terraform's autostart switch, EC2's instance ID, and the laptop's health check's
+# ID, and the shared-state-tls target's key and certificate. The repository's own list names them, with their types.
+REPO = HERE.parents[1]
+DEPLOYED = (
+    ("/h4reet/prod/ec2-autostart", "String"),
+    ("/h4reet/prod/ec2-instance-id", "String"),
+    ("/h4reet/tunnel-end/HEALTH_CHECK_ID", "String"),
+    ("/h4reet/tunnel-end/SHARED_STATE_TLS_CERT", "String"),
+    ("/h4reet/tunnel-end/SHARED_STATE_TLS_KEY", "SecureString"),
+)
+
+
+def listed() -> dict[str, str]:
+    """infra/parameters.txt's names and types, read as the check reads them."""
+    out = {}
+    for raw in (
+        (REPO / "infra" / "parameters.txt").read_text(encoding="utf-8").splitlines()
+    ):
+        line = raw.split("#", 1)[0].strip()
+        if line:
+            name, kind = line.split()
+            out[name] = kind
+    return out
+
+
+def test_the_repositorys_list_leaves_nothing_the_deploy_made_unexpected(
+    world: dict,
+) -> None:
+    (world["repo"] / "infra" / "parameters.txt").write_bytes(
+        (REPO / "infra" / "parameters.txt").read_bytes()
+    )
+    everything = {**listed(), **dict(DEPLOYED)}
+    kit.answer(world["bin"], aws={DESCRIBE: held(*everything.items())})
+    done = check(world)
+    assert done.returncode == 0, done.stdout
+    assert "unexpected" not in done.stdout, done.stdout
+    assert f"{len(everything)} of {len(everything)} present" in done.stdout
+
+
+def terraform_parameters() -> dict[str, str]:
+    """Every aws_ssm_parameter the Terraform roots make, by name and type: never a secret (rule T9)."""
+    found = {}
+    for root in ("account", "prod", "bootstrap"):
+        for path in sorted((REPO / "infra" / root).glob("*.tf")):
+            text = path.read_text(encoding="utf-8")
+            for block in re.finditer(
+                r'resource\s+"aws_ssm_parameter"\s+"[^"]+"\s*\{(.*?)\n\}',
+                text,
+                re.DOTALL,
+            ):
+                name = re.search(r'\n\s*name\s*=\s*"([^"]+)"', block.group(1))
+                kind = re.search(r'\n\s*type\s*=\s*"([^"]+)"', block.group(1))
+                assert name and kind, path
+                found[name.group(1)] = kind.group(1)
+    return found
+
+
+def test_every_name_terraform_or_the_tls_target_makes_is_listed_with_its_type() -> None:
+    made = terraform_parameters()
+    assert {"/h4reet/prod/ec2-autostart", "/h4reet/prod/ec2-instance-id"} <= set(made)
+    tls = (REPO / "scripts" / "infra" / "shared_state.py").read_text(encoding="utf-8")
+    for constant, kind in (
+        ("KEY_PARAMETER", "SecureString"),
+        ("CERT_PARAMETER", "String"),
+        ("CA_PARAMETER", "String"),
+    ):
+        name = re.search(rf'^{constant} = "([^"]+)"$', tls, re.MULTILINE)
+        assert name, constant
+        made[name.group(1)] = kind
+    have = listed()
+    wrong = {n: k for n, k in made.items() if have.get(n) != k}
+    assert not wrong, f"infra/parameters.txt lacks, or types otherwise: {wrong}"
