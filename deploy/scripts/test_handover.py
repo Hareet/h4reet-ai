@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -613,3 +614,52 @@ def test_the_window_posts_to_the_port_it_is_given(
 def test_make_up_gives_the_loop_its_env_file() -> None:
     up = recipe("up")
     assert "start --env-file $(ENVFILE)" in up
+
+
+# F7, part 4 (spec 001 bug-fixes, night 5): the SSO login script takes profiles named h4reet-<letters, digits,
+# dashes> alone, but the loop's default stop profile was h4-ec2-stop, and its own warning told him to log in with a name
+# the script refuses. The profile is h4reet-ec2-stop; h4-ec2-stop stays the permission set's name in IAM Identity
+# Center, which Terraform, the audit, and the tests hold.
+LOGIN = (HERE / "aws-sso-profile.sh").read_text(encoding="utf-8")
+
+
+def login_takes(profile: str) -> bool:
+    """The login script's own rule, read from it: its name pattern, and its refusal of the runtime identity's."""
+    rule = re.search(r'\[\[ "\$profile" =~ (\S+) \]\]', LOGIN)
+    refused = re.search(r'\[ "\$profile" != (\S+) \]', LOGIN)
+    assert rule and refused, "the login script's rule moved"
+    return bool(re.fullmatch(rule.group(1), profile)) and profile != refused.group(1)
+
+
+def test_the_loops_default_stop_profile_is_one_the_login_script_takes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("H4_EC2_STOP_PROFILE", raising=False)
+    assert login_takes("h4reet-admin") and not login_takes("h4-ec2-stop")
+    assert (
+        handover.start(
+            tmp_path,
+            spawn=lambda argv, log: 4242,
+            alive=lambda pid: False,
+            session=lambda: False,
+        )
+        == 0
+    )
+    err = capsys.readouterr().err
+    named = re.search(r"make aws-login PROFILE=(\S+)", err)
+    assert named, err
+    assert named.group(1) == "h4reet-ec2-stop"
+    assert login_takes(named.group(1))
+    # The permission set's own name, which the warning still gives, so he knows which set the profile signs in to.
+    assert "h4-ec2-stop permission set" in err
+
+
+def test_the_runbooks_name_the_stop_profile_the_login_script_takes() -> None:
+    # The Makefile's ec2-stop help line says the same, by the Author's patch (the Makefile is his to change).
+    docs = HERE.parents[1] / "docs" / "runbooks"
+    for page in ("ec2.md", "handover.md"):
+        text = (docs / page).read_text(encoding="utf-8")
+        assert "your h4-ec2-stop profile" not in text, page
+        assert "your h4reet-ec2-stop profile" in text, page

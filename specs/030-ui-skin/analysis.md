@@ -1,0 +1,168 @@
+# Analysis: spec 030 (the interface's skin)
+
+`/speckit-analyze`'s pass over [spec.md](spec.md), [plan.md](plan.md), [tasks.md](tasks.md), and [studio-round-1.md](studio-round-1.md), by `spec-030` (spec-writer), night of 2026-11-17, at `ad8e31c7`. Non-destructive by its definition; the findings marked *fixed* were fixed in `ad8e31c7`, before this file, and each fix is named here. The intent is [`intent/030-ui-skin.md`](../../intent/030-ui-skin.md).
+
+## Findings
+
+| ID | Category | Severity | Where | Finding | State |
+|---|---|---|---|---|---|
+| A-1 | Inconsistency | HIGH | studio-round-1.md, the brief's notes | The first draft's state targets put primary normal (L 80 C 75) and hover (L 90 C 70) ΔE ≈ 11 apart, under the ΔE 15 the same brief and FR-022's judge require: a studio that hit the targets exactly would fail its own round. | *Fixed*: primary hover L 92 C 62, secondary hover L 38, pressed L 3; every two states of a variant now ≥ ΔE 17 apart by their targets (computed). The brief re-checked: `line.py brief` passes, SHA-256 `98eb47dd…1c4267`, pasted in studio-round-1.md and T-R1. |
+| A-2 | Coverage gap | MEDIUM | tasks T-INT | FR-005's rule (raise an alpha if a ratio fails with B's buttons in place) had no task: A's contrast test runs on A's branch, before B's faces exist in its cascade. | *Fixed*: T-INT02a re-runs `hud-halves-contrast.test.ts` after the merges and applies the rule there, recorded. |
+| A-3 | Underspecification | MEDIUM | spec FR-005; plan §R-A3 | In the column layout and the dock, the top half (`.hud-panels`) holds the conversation; making the half over-room always changes the conversation's look at rest there, which Q2's "the left panel unchanged" didn't say. | *Fixed*: FR-005 and §R-A3 say so; the split layout's left panel keeps 029's rule. Q2 on the page covers it (its option B keeps 029's geometry everywhere). |
+| A-4 | Inconsistency | MEDIUM | plan §R-D4 against §R-A3 | D's frame image was to style "the halves' class", but only the bottom half had a class of its own (`.hud-half`); the top half is `.room-list` or `.hud-panels`. | *Fixed*: A sets `data-half="top|bottom"` on each half's element (§R-A3, T-A04); D styles `[data-half]`. |
+| A-5 | Inconsistency | MEDIUM | plan §R-B4 | B's cascade test was to import 029's evaluator from `hud-over-layers.test.ts`, which would register that file's cases inside B's; A's extraction to `test/helpers/layers.ts` isn't on B's branch. | *Fixed*: B reads winners by jsdom's `getComputedStyle`, as spec 029's `talk-answer-shows.test.ts` does. |
+| A-6 | Conflict | MEDIUM | spec FR-013 against spec 028 (A1-3) | "The button grow to hold them" can't hold for the split layout's tiles, whose grid rows are fixed at two lines of words (`compose/hud.ts`'s `tileRem`, from which the tiles' block's height and so the list's are computed). | *Fixed*: FR-013 bounds the growth there to the row's two lines; longer is a later spec's layout change. T-B01 (c)'s doubled label still asserts wrapping and no ellipsis. |
+| A-7 | Coverage gap | LOW | tasks T-B01 (a) | FR-012's boundary ratio was computed against the over-room glass only; "Enter" stands on the dark pages' opaque ground. | *Fixed*: T-B01 (a) also computes against `rgb(16 20 26)`. |
+| A-8 | Risk | LOW | plan §R-D4 | The panel frame's `border-image` width (24 CSS px) eats into each half's content box; a control could leave its half. | *Fixed in the plan*: T-DS checks with A's `hud-halves.test.ts` and falls back to `border-image-outset`, recorded. |
+| A-9 | Risk | LOW | plan §R-B3 | A `clip-path` chamfer clips an outside focus ring. | Answered in the plan: the HUD's rings are inside (029's `outline-offset: -4px`); elsewhere a `::before` chamfer; T-B01 (c) asserts the ring visible per control. |
+| A-10 | Test churn | LOW | T-A05 | `hud-split-contrast.test.ts` pins spec 018's 0.78 glass on the list and the bar, which Q2 changes, yet T-A05 ran it "unchanged". | *Fixed*: T-A05 defers to T-A01 (d), which decides and names it. |
+| A-11 | Dependency | INFO | R-3 | The round's judge needs T-DJ's commits on the branch it runs from; without them `line.py` judges only bytes, tools, the record, and the arrival check. | Stated in studio-round-1.md's status line and R-3's row: no `--record` from a branch without T-DJ. |
+| A-12 | Ambiguity | INFO | spec Q6 | "Selected" in the reference is the highlighted menu entry, which this spec's answer gives the glow while keeping a separate primary variant; his reading may be "selected = yellow". | On the page as Q6 with that reading as option B. |
+
+## Requirement coverage
+
+| Requirement | Tasks |
+|---|---|
+| FR-001 | T-A01 (a), T-A02 |
+| FR-002, FR-003, FR-004 | T-A01 (b), T-A03 |
+| FR-005, FR-006, FR-007 | T-A01 (b) (c), T-A04, T-INT02a |
+| FR-008 | T-B01 (b), T-B03 |
+| FR-009, FR-010, FR-011 | T-B01 (a), T-B02, T-B04 |
+| FR-012, FR-013, FR-014 | T-B01 (a) (b) (c), T-B02, T-B03 |
+| FR-015, FR-016, FR-017 | T-C01, T-C02, T-C03 |
+| FR-018 | T-C03, T-DS01 |
+| FR-019 | R-1 (studio-round-1.md's scratch check done tonight) |
+| FR-020, FR-021 | R-2, R-3 (the judge's checks), the brief |
+| FR-022 | T-DJ01, T-DJ02, R-3 |
+| FR-023 | R-3, his intake (plan §R-D3) |
+| FR-024, FR-025 | T-DS01 to T-DS03, T-DS05 |
+| FR-026 | every task's rules |
+| SC-001 to SC-009 | as their FRs; SC-008 his look; SC-009 T-INT04 |
+
+Every requirement has a task; every task names a requirement or a check. No task without a requirement but T-INT02 (dead declarations, a cleanup the cascade fight leaves) and T-INT03 (the ADR the Assumptions name).
+
+## Constitution alignment
+
+No CRITICAL finding. Principle I: no new request (Q13's inlining), degraded mode first (the fallback skin). Principle II: tests first; the telemetry deviation is named in spec.md's Assumptions with its clauses. Principle III: the intent is a draft; the plan and tasks carry the provisional approval line with his words. Principle IV: no human-only path is written; the intake into `assets/` is his patch; no `assets/policy/` patch is needed (Q12). Principle VII: the studio's own tools only, nothing from the reference image, the record names every step. Principle VIII: the disclosure stays in view on every dark page; each PNG carries the AI-made mark. ADR 0043 (status "proposed" in its own header) is changed by the blur's removal; T-INT03 writes ADR 0056.
+
+## Departures from specs 018 to 029, each named
+
+All in spec.md's Amendments table and Assumptions, each with its clause: 018 FR-014 (the split glass); 028 FR-007, FR-008 (the column's gap); 029 FR-002 (the blur kept), FR-005 (beside the room unchanged), FR-028 (the chosen card's look); and the earlier specs 005 (FR-006, FR-025, FR-058), 016 (FR-042's page look), 017 (the line's checks). Spec 024's and 026's clauses are unchanged (the "Eat" tile keeps its box and behaviour; only its look is the component's).
+
+## Metrics
+
+16 clarifications (all recommended, taken provisionally, on the page); 26 functional requirements; 9 success criteria; 32 tasks (A 5, B 4, C 3, DJ 2, the round 3, DS 5, INT 5) and his intake; 12 findings, 9 fixed, 3 answered in place; 0 unmapped requirements; 0 CRITICAL.
+
+## Not checked here
+
+The screenshots (`resume/` unreachable; spec.md's Assumptions). The brief on the real `/srv/studio/` folder (unreachable; R-1). Any code: this branch writes none.
+
+## Re-run after the rework (rework-spec-030, from `35a75b2c`)
+
+The same pass over spec.md, plan.md, tasks.md, and studio-round-1.md after `rv-spec-030`'s six blocking findings were fixed (S-1 to S-6; [notes.md](notes.md), "Rework"). What changed:
+
+### The review's findings, each where it landed
+
+| ID | Fix | Where |
+|---|---|---|
+| S-1 | "Close" is `.split-hint` (the pair of "Back") and `.resume-close`; Q5's premise ("the split layout has no other close") corrected as a named departure; Q51's recommended answer taken; both in the component's selectors and tests; `.resume-close`'s boundary computed against the resume panel's `#ffffff` | spec Readings, Q5, Q51, FR-008, Terms; plan §R-B3, §R-B4; tasks T-B01 (a) (b) (c), T-B03 |
+| S-2 | `choice-cards.test.ts:425-436` rewritten in T-C01's RED, old and new assertion named (3:1 against `rgb(16 20 26)`); also `:459-463` (the card's focus ring), which the review didn't name and fails the same way; the file C's alone; T-C03 runs the rest unchanged | spec Assumptions, US3 scenario 3; plan §R-C2, §R-C3, §9; tasks T-C01, T-C02, T-C03 |
+| S-3 | A `ui-assets` named context in `web_image.py` and an empty stage and copy in `apps/web/Dockerfile`, on `visitor-assets`' terms; its tests in `deploy/scripts/test_web_image.py` and `scripts/test_makefile.py`'s `WEB_BUILD`, RED first, T-DS's; SC-007 in the image | spec FR-027 (new), SC-007, Amendments; plan §1, §R-D4, §9; tasks T-DS01 (c), T-DS02 |
+| S-4 | The chamfer on a `::before` for every control; nothing clips the box, outline, or glow; `button-states.test.ts` asserts no `clip-path` on any skinned control | spec FR-011, FR-013; plan §R-B3, §R-B4, §10; tasks T-B01 (c), T-B03 |
+| S-5 | §9 names every file for one group, no search; B owns no earlier test file; `hud-contrast`, `hud-over-contrast`, `hud-look`, `hud-over-layers` (and `hud-split-contrast`) A's; `choice-cards` C's; B's cases in others' files go to T-INT02b (new), RED between A's merge and B's | spec Assumptions; plan §R-A4, §R-B5, §9; tasks T-A01 (d), T-B01 (d), T-INT01, T-INT02b |
+| S-6 | `border-width` and `padding` stay the CSS skin's; `border-image-width` (insets ÷ 2) with `-outset: 0` draws the insets over the border and padding; buttons with `fill`, the panel frame without; T-DS01 checks the tiles', `.room-walk`'s, `.room-eat`'s, and the halves' content boxes equal under both skins | spec FR-024; plan §R-D4, §10; tasks T-DS01 (b), T-DS02 |
+
+### New findings of this pass
+
+| ID | Category | Severity | Where | Finding | State |
+|---|---|---|---|---|---|
+| R-1 | Inconsistency | HIGH | plan §R-B3 against §R-D4 | S-4's `::before` (`z-index: -1` in the control's own stacking context) paints after the context root's borders, so it would cover the image skin's `border-image` whole: the studio's images would never show. | *Fixed*: under `data-skin-kind="image"` the `::before` is off and `filter` `none`; the control's `background-color` is the fallback's face beneath the image, so a failed decode shows a flat face (spec's edge case amended); T-DS01 (b) asserts it. |
+| R-2 | Inconsistency | MEDIUM | plan §R-B3; spec FR-012 | With the frame drawn by the `::before`, the control's own border must be transparent (a coloured one shows square corners round the chamfer), so "disabled by a dashed border" on the control would be unseen in the CSS skin too, not only under `border-image` (the review's I-2). | *Fixed*: the dashes are B's `::after`, in every skin, clipped to the octagon; D sets only its inset (`--btn-dash-inset`); T-B01 (c), T-DS01 (b). |
+| R-3 | Coverage gap | MEDIUM | spec FR-024; tasks T-DS01 | The image skin's label colours weren't tied to `slices.json`'s, so the label drawn could differ from the one the judge measured (the review's I-2). | *Fixed*: the entry carries `labels`; the build sets them on every state; the schema refuses an image skin without them. |
+| R-4 | Underspecification | LOW | plan §R-B2 | Which attributes the root carries on a fallback (the review's N-3). | *Fixed*: the resolved skin's `data-skin` and `data-skin-kind`, set only by the plugin. |
+| R-5 | Inconsistency | LOW | plan §R-A1 | The `@supports not (backdrop-filter …)` block kept the glass opaque where the blur was missing, against FR-005's clear glass everywhere (the review's N-1). | *Fixed*: the block goes; `hud-no-blur.test.ts` refuses such a condition. |
+| R-6 | Test design | LOW | plan §R-A3, §R-B4 | Two assertions checked the code against itself: the halves' boxes against `halves()`'s own output, and the swap's "inputs differ only by the YAML" (the review's N-2, as this pass reads it; its text wasn't reachable, only the page's summary). | *Fixed*: the boxes against numbers the test derives (and `halves()`'s own unit cases); the swap by its effect, T-B04's `git status` for "no source file". |
+| R-7 | Risk | LOW | plan §R-C1 | The selection screen's first paint was light: the class came from script (the review's N-4). | *Fixed*: `index.html`'s root carries the class (C's file now); the no-script fallback is dark too, its text at 4.5:1 (spec's edge case amended; a question on the page). |
+| R-8 | Inconsistency | LOW | plan §R-D3; studio-round-1.md R-4 row | The intake's route wasn't 021's (the review's N-5). | *Fixed*: `docs/merge-requests/human-patches/030.md`, 021's table; the R-4 row's path in studio-round-1.md updated, its brief's JSON block untouched (checked by `git diff`). |
+| R-9 | Ambiguity | LOW | spec edge case against FR-013 | A label longer than two lines "grows" the button, but the split layout's tiles hold two lines (the review's I-3). | *Fixed in the text*: the edge case names the tiles' exception; the real labels' fit under `metal`'s uppercase is unmeasured (jsdom has no layout, and the plan adds no browser), so it is his look's (SC-008), named in notes.md. |
+
+### Coverage and metrics after the rework
+
+FR-027 (new) → T-DS01 (c), T-DS02. Every other row of the coverage table stands, with T-INT02b added to FR-008 and FR-012's (the cases B's look needs in A's files). 27 functional requirements; 9 success criteria; 17 clarifications (Q1 to Q16, Q51); 33 tasks (A 5, B 4, C 3, DJ 2, the round 3, DS 5, INT 6); the review's 6 blocking findings fixed, its 8 others in notes.md (7 fixed, 1 in part); this pass's 9 findings, all fixed in the text, R-1 and R-2 new. 0 unmapped requirements; 0 CRITICAL. §9's rows are disjoint but for the one sequential share by design: a script over §9's backticked paths finds only `build/ui-skins.ts` and `content/ui-skins.yaml` in two rows, B's and DS's, which DS edits after B on B's tip (its image case and the `metal-image` entry), never beside it.
+
+### Still not checked
+
+As above; and the S-6 look (the image's 12 px band over a 60 px tile's icon and words) is his, at SC-008.
+
+## Re-run after rework 2 (rework2-spec-030, from `2dd4213f`)
+
+The same pass over spec.md, plan.md, tasks.md, and studio-round-1.md after `rv-rework-spec-030`'s R-1 to R-9 and the page's Q71 to Q75 ([notes.md](notes.md), "Rework 2"). studio-round-1.md is unchanged (`git diff 2dd4213f -- specs/030-ui-skin/studio-round-1.md` is empty), its brief's block byte for byte.
+
+### The review's findings and the page's questions, each where it landed
+
+| ID | Fix | Where |
+|---|---|---|
+| R-1 | `web_image.py` exports `ASSET_CONTEXTS`, one tuple of (folder, context) pairs, read by its `main` and by `release.py`'s `web_contexts()` in place of its hard-coded three; `test_release.py` gains the first cases that call `web_contexts` | spec FR-027, SC-007; plan §1, §R-D4, §9 (DS); tasks T-DS01 (c), T-DS02 |
+| R-2 | `hud-over-room.test.ts` and `hud-over-walking.test.ts` A's, rewritten in T-A01 (d) with old and new assertions; every other `hud-*` file placed by name; and `hud-split-dog.test.ts`, found by this pass (below) | spec Assumptions, Amendments; plan §R-A4, §9 (A), the no-row rule; tasks T-A01 (d), T-A05, T-INT02b |
+| R-3 | The image on the `::before`, the control `transparent` with no `border-image`, the face colour clipped to the image's centre by `background-clip: content-box` and `padding` equal to the band | spec FR-024, edge case, Degraded mode; plan §R-B3, §R-D4, §10; tasks T-DS01 (b), T-DS02 |
+| R-4, Q74 | The controls whose content box crosses the band named (T-DS01 (b)); the labels measured over the band's pixels by the round (R-3, else T-DS05) | plan §R-D4, §10; tasks R-3, T-DS01 (b), T-DS05; the checks' table |
+| R-5 | T-B01 (a): every skin's `--btn-secondary-selected-glow` 3:1 on `rgb(16 20 26)` and `--hud-text` 4.5:1 on `--btn-frame` | plan §R-B4; tasks T-B01 (a) |
+| R-6, Q75 | T-B04's font-metric estimate of the tiles' lines; a tile over two lines keeps its words' case | plan §R-B3; tasks T-B04 |
+| R-7 | Amendments rows for 002's and 018's Close; and one for 029's ring (Q72) | spec Amendments |
+| R-8 | T-B01 (d) runs the whole `apps/web` suite | tasks T-B01 (d) |
+| R-9 | Moot: Q72 puts the glow inside the face as an inset shadow on the `::before`; no `filter` on any control | plan §R-B3, §R-B4; tasks T-B01 (c), T-B03 |
+| Q71 | The boundary two-tone, as `impl-030b` built it | spec FR-012, US2, Amendments; plan §R-B4; tasks T-B01 (a) |
+| Q72 | The ring (per-variant `ring`) and the glow inside the face, as built; B owns the ring's `outline` on skinned controls | spec FR-009, FR-012, FR-013; plan §R-B1, §R-B3, §R-B4, §R-D4; tasks T-B01 (c), T-B03 |
+| Q73 | T-INT02 rewrites `hud-look`'s tile and resume cases and the tile colour pairs of `hud-contrast` and `hud-over-contrast` to read the skin with `data-skin` set, before the removal | plan §9 (INT); tasks T-INT02 |
+
+### New findings of this pass
+
+| ID | Category | Severity | Where | Finding | State |
+|---|---|---|---|---|---|
+| R2-1 | Coverage gap | HIGH | plan §R-A2 against `test/ui/hud-split-dog.test.ts:96` | A's slice takes `12 × scale − 4` CSS px more from the split list than the gap did; spec 026's test holds the five entries at no fewer than 1,601 split stages. Measured (a scratch vitest under `/tmp`, outside the tree, over `framedStages` and `wallBoxes` at `2dd4213f`, the list less that amount): 1,601 → about 1,558 of 3,329, 43 lost from 1488 × 800 up; the four named windows still hold (least margin 132 px). Neither the review nor the first rework named the file. | *Fixed*: the file A's, its count rewritten in T-A01 (d) to A's tree's; a departure named in the Assumptions and the Amendments; Q76 on the page. |
+| R2-2 | Inconsistency | MEDIUM | R-3's route as the review wrote it | A face colour on the `::before`'s whole box, clipped only to the octagon, still paints under the image's transparent ring along each straight edge and under the selected glow's fade (the brief: an alpha-0 outermost ring, the glow "inside the image, fading to alpha 0"). | *Fixed*: the face colour is clipped to the image's centre (`background-clip: content-box`, `padding` the band), which the brief makes opaque; the centre's corner (12, 12) lies inside the 8 px chamfer's cut. |
+| R2-3 | Underspecification | LOW | plan §R-D4 | A border image on a box whose `border-style` is `none` isn't drawn by every engine. | *Fixed in the plan*: the `::before` takes `border-style: solid` with `border-width: 0` (the image's width is `border-image-width`'s lengths); his look confirms it in a browser. |
+| R2-4 | Inconsistency | LOW | plan §R-B3 against Q72 | With the ring inside the face, an outline whose corners lie outside the `::before`'s octagon would show square corners on the chamfer. | *Fixed*: the offset at least half the chamfer plus the ring's width plus the border (7 px at `metal`, 8 when selected); T-B01 (c) asserts the ring's corners inside. |
+| R2-5 | Coverage | INFO | the other `hud-*` files | `hud-model.test.ts`'s 320 × 568 clear area (196 px floor) measured at 250 px today, about 238 after the slice; the rest read and placed "run, untouched" with their reasons. | Recorded in plan §R-A4; a RED failure there makes the file A's, named, in T-A01 (d). |
+
+### Coverage and metrics after rework 2
+
+Every requirement keeps its tasks. FR-027 → T-DS01 (c), T-DS02 (now with the release's build). FR-012 → T-B01 (a) (c), T-B03 (two-tone, the ring), T-INT02 (Q73). FR-024 → T-DS01 (b), T-DS02, R-3 or T-DS05 (Q74). 27 functional requirements; 9 success criteria; 23 clarifications (Q1 to Q16, Q51, Q71 to Q76); 33 tasks, none added (their scope grows: T-A01 (d), T-B01, T-B04, R-3, T-DS01, T-DS02, T-DS05, T-INT02). The review's 3 blocking findings fixed, its 6 others taken (R-9 moot by Q72); this pass's 5 findings, 4 fixed in the text, 1 recorded. 0 unmapped requirements; 0 CRITICAL. §9's rows, by the same script as before over the backticked paths: two rows share only the designed sequential shares, `build/ui-skins.ts` and `content/ui-skins.yaml` (B, then DS on B's tip), and A's `hud-contrast`, `hud-look` and `hud-over-contrast` tests, which INT rewrites after A's merge (Q73), never beside A.
+
+### Still not checked
+
+As above; and the R-3 route's look in a browser (the image on the `::before`, `border-style: solid` at width 0, the inside ring's corners), his at SC-008.
+
+## Re-run after rework 3 (rework3-spec-030, from `8e83e7fc`)
+
+Non-destructive, over `spec.md`, `plan.md` and `tasks.md` at this rework's tip, with `impl-030a`'s real commits (`e053a0cd`, tip `c0cd9826`) and `impl-030dsb`'s (`7ac200da`) beside them.
+
+### The review's findings and the page's questions, each where it landed
+
+| ID | Landed | Where |
+|---|---|---|
+| R-1 | Every test A's change reaches, placed case by case from `impl-a.md` and a grep, the grep's three files run on A's export (14 failing cases); the valve before each GREEN; A's "As built" taken as the design; the over-room sets A's | spec FR-004, Assumptions, Amendments; plan §R-A2 to §R-A4, §9; tasks Group A's rework (T-A06 to T-A08), T-INT02, Dependencies, the checks' table |
+| R-2 | The control's own `box-shadow: none` under every skin; asserted by the cascade | plan §R-B3, §R-B4, §R-D4; tasks T-B01 (c), T-DS01 (b), the checks' table |
+| R-3 | The frame's half-pixel strip, for his look | notes.md |
+| R-4 | "Q76" is Q81; Q82 to Q85 in a rework-3 session and two Amendments rows | spec Clarifications, Amendments, Assumptions, Open Questions; plan §R-A4 |
+| R-5 | `web_contexts()` refuses by name an export without `ASSET_CONTEXTS`; one RED case; asked on the page | plan §R-D4, §9; tasks T-DS01 (c), T-DS02, the checks' table |
+| Q81, Q82, Q84, Q85 | Taken as recommended, as A built them | spec Clarifications, FR-004; plan §R-A2, §R-A3 |
+| Q83 | Taken as recommended (the snapshots by `vitest -u`); A's review reads the hunks | spec Clarifications; plan §R-A4's table |
+
+### New findings of this pass
+
+| ID | Category | Severity | Where | Finding | State |
+|---|---|---|---|---|---|
+| R3-1 | Coverage gap | HIGH | plan §R-A4 against `test/lookdev/phone.test.ts`, `test/room/geometry.test.ts`, `test/room/report.test.ts` | The dock's slice (Q82) moves the reference phone's stage and the smallest stage, and these three files pin those (directly, or through the room's checks' and report's stage names and counts). No list named them, and A's T-A05 (65 covering files) didn't run them. On an export of A's tip: 14 cases fail. Two of the strings ("320 × 322 and 62 others") name no number A moves, so the run found them, not the grep. | *Fixed in the text*: A's files, rows in §R-A4's table, rewritten in T-A06 (c) with the failing runs pasted. |
+| R3-2 | Inconsistency | HIGH | tasks Group A, against `impl-030a`'s branch | A built from `7cdc31d2`'s tasks, which predate the first rework's N-1 (the `@supports` block, still at `room.css:190` on A's tip) and N-2 (`hud-halves` against `halves()`'s output). No task on A's tip held them, and folding them into T-A01 or T-A02 (as the reworks did) left nothing A's rework could tick without a conflict. | *Fixed*: T-A06 (a), (b) and T-A07 in "Group A's rework"; `degraded:923-944` and `loading-a11y:174-185` placed as N-1's. |
+| R3-3 | Merge | MEDIUM | plan §R-A3's tests bullet; tasks T-A01 to T-A05; plan §9's no-row paragraph | Each conflicted with A's or DSB's tip (`git merge-tree` at the base: plan.md and tasks.md against A). | *Fixed on this side*: A's lines and DSB's paragraph kept as they wrote them, each rework's words in a line that says what it replaces. Every merge is clean (notes.md). The cost: plan §R-A3 and §9 each hold one superseded passage, marked as such. |
+| R3-4 | Coverage | LOW | A's §R-A2 "As built", `compose/over.ts`'s dock part | 12 px low by the slice; no file row of A's, no task. No mark changes (the dock is marked always). | Recorded in notes.md's "What's left", for T-INT or a later spec; no task added (no visible effect). |
+| R3-5 | Underspecification | LOW | plan §R-D4, R-5 | Refusing an export without `ASSET_CONTEXTS` means this `release.py` releases no commit from before T-DS02. | Named in plan §R-D4; asked on the page with the fallback as the other answer. |
+
+### Coverage and metrics after rework 3
+
+Every requirement keeps its tasks. FR-001 → T-A01 (a), T-A02, T-A06 (a), T-A07. FR-002 to FR-004 → T-A01 (b), T-A03, T-A06 (b) (FR-004 as A built it, Q82 and Q85). FR-013 → T-B01 (c) (no clip, no filter, and now no shadow on the control). FR-027 → T-DS01 (c), T-DS02 (the release's refusal). 27 functional requirements; 9 success criteria; 27 clarifications (Q1 to Q16, Q51, Q71 to Q75, Q81 to Q85; rework 2's Q76 is Q81); three tasks added (T-A06 to T-A08), none removed. A's T-A01 to T-A05 are ticked as A wrote them. The review's blocking finding is fixed and its four others are taken (R-3 as a note for his look). This pass's 5 findings: 3 fixed in the text, 2 recorded. 0 unmapped requirements; 0 CRITICAL. §9's rows: A's row gains twelve test files, none named by another row. The only shares are still the designed sequential ones and INT's rewrites after A's merge.
+
+### Still not checked
+
+As above. The whole `apps/web` suite was run on an export of A's tip: 16 cases fail, the 14 of R3-1 and `chunk.test.ts`'s two, which fail the same way on an export of A's base (environment; notes.md, "Rework 3"). A's T-A08 repeats the run on A's reworked tip, in its own worktree.

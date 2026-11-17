@@ -1,0 +1,56 @@
+/* The dark pages (spec 030, FR-015, FR-016; Q9; plan.md §R-C1): the selection screen (index.html's own <html> carries
+   dark-page, so the first paint is dark before any script; choice.ts takes it off at "Enter"), /credits/ and
+   /disclosure/ (build/credits.ts and build/disclosure.ts emit this file first in their style.css, with dark-page on
+   <html>). The class is the root's on every page, never the body's. The room's own panel palette, opaque: the values
+   below are held equal to room.css's and hud/split.css's :root by test/ui/dark-pages.test.ts. The selectors start at
+   :root.dark-page or .dark-page with an element, so they outrank style.css's and room.css's light rules whatever the
+   order the sheets load in. */
+:root.dark-page {
+  color-scheme: dark;
+  --glass: 16 20 26;
+  --hud-text: #ffffff;
+  --split-muted: #e8e4dc;
+  --accent-neon: #ffc8a8;
+  --hud-focus: #ffd23f;
+  /* The pages' rules and table borders: a grey of the glass at 5.7:1 against it (a page's line, not a panel's). */
+  --page-rule: #8a8f98;
+  /* A card's lit face under the pointer (choice.css), white text on it at 11:1: a page token, so the swap stays data. */
+  --page-face-hover: #353c47;
+  color: var(--hud-text);
+  background: rgb(var(--glass));
+}
+
+.dark-page a {
+  color: var(--accent-neon);
+  text-decoration: underline;
+}
+
+/* Focus, the room's yellow ring at 3:1 or more on the glass, in two rules.
+   Links, on every dark page: style.css's `a:focus-visible` (0,1,1) and room.css's `.choice a:focus-visible` (0,2,1)
+   ring in #0b4f9c, 2.30:1 on the glass; this rule is (0,3,1). */
+:root.dark-page a:focus-visible {
+  outline: 2px solid var(--hud-focus);
+  outline-offset: 2px;
+}
+
+/* The selection screen's controls, "Enter" and the radios under the cards (a card's own ring is choice.css's): room.css's
+   `.choice button:focus-visible` and `.choice input:focus-visible` are (0,2,1), these (0,3,1). Group B's ring on
+   "Enter" (`:root[data-skin] :is(.choice .choice-enter, …):focus-visible`, (0,4,0)) outranks both, as it should. */
+:root.dark-page button:focus-visible,
+:root.dark-page input:focus-visible {
+  outline: 2px solid var(--hud-focus);
+  outline-offset: 2px;
+}
+
+/* The AI disclosure: index.html's header on the selection screen (sticky, room.css), each built page's own header
+   (sticky, its layout rules). */
+.dark-page .disclosure,
+.dark-page body > header {
+  background: rgb(var(--glass));
+  border-bottom-color: var(--split-muted);
+}
+
+.dark-page th,
+.dark-page td {
+  border-color: var(--page-rule);
+}

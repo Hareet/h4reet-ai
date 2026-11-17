@@ -76,12 +76,6 @@ html[data-split="on"][data-hud="column"] .talk {
   overscroll-behavior: contain;
 }
 
-html[data-split="on"][data-hud="column"][data-blur="on"] .room-list,
-html[data-split="on"][data-hud="column"][data-blur="on"] .hud-bar {
-  -webkit-backdrop-filter: var(--hud-blur);
-  backdrop-filter: var(--hud-blur);
-}
-
 /* ---- The list: right-aligned on one edge (FR-007, FR-008) ---- */
 
 html[data-split="on"][data-hud="column"] .room-list {
@@ -246,10 +240,9 @@ html[data-split="on"][data-hud="column"] .talk-head {
   padding: 0 0.25rem;
 }
 
+/* Its face and border are the skin's (spec 030, T-INT02). */
 html[data-split="on"][data-hud="column"] .talk-log-toggle {
   font: 1.25em/1.2 var(--heading-font);
-  background: none;
-  border: 0;
 }
 
 html[data-split="on"][data-hud="column"] .talk-log-toggle svg {
@@ -446,11 +439,11 @@ html[data-split="on"][data-hud="column"] .hud-bar {
   border-radius: 0.75rem;
 }
 
+/* Each tile fills its grid row (`grid-auto-rows` above); its least width and its wrapping are the skin's,
+   ui/button.css's (spec 030, T-INT02). */
 html[data-split="on"][data-hud="column"] .hud-bar .hud-tile {
-  min-width: 0;
   min-height: calc(3.75rem * var(--wall-scale-right));
   font-size: calc(0.8125rem * var(--wall-scale-right));
-  white-space: normal;
   text-align: center;
 }
 
@@ -545,7 +538,7 @@ html[data-split="on"][data-hud="column"] .hud-bar[data-over="room"] {
   --split-glass-alpha: var(--over-glass-alpha);
 }
 
-html[data-split="on"][data-hud="column"] .talk[data-over="room"] .talk-log-toggle,
+/* The title's toggle is the skin's button, on its own face, with no plate (spec 030, T-INT02). */
 html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint,
 html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-top,
 html[data-split="on"][data-hud="column"] .room-list[data-over="room"] .split-label,
@@ -566,18 +559,29 @@ html[data-split="on"][data-hud="column"] .talk[data-over="room"] .talk-head {
   box-shadow: none;
 }
 
-/* The title row's two controls draw their ring inside, on their own plate over the row's glass, as room.css's last
-   block does for the tiles and the other layouts' panel buttons (rework3-029a, rv-029a-2's RR-1). The hint is as tall
-   as the row (its 2.75em is the row's --wall-title-h track) and the title's toggle (44 px) meets the row's edge
-   wherever the row is under 52 px, so a ring 2 px outside either lay above the panel's top, on only its own shadow
-   over the bare room (2.41:1 over white). With the ring inside, neither plate needs a shadow, and nothing of theirs
-   overhangs the row. */
-html[data-split="on"][data-hud="column"] .talk[data-over="room"] .talk-log-toggle,
-html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint {
-  box-shadow: none;
+/* The title row's two controls (rework3-029a, rv-029a-2's RR-1: their ring inside, on their own face, no shadow) are
+   the skin's buttons since spec 030: ui/button.css draws the ring inside the face and no shadow on the control
+   (T-INT02). */
+
+/* ---- Spec 030, group A: the right column's two halves (FR-002 to FR-007; plan.md §R-A3) ----
+   Appended after every rule above. The list is the top half (data-half="top"), marked over the room in every view
+   (Q2), so the block above gives it --over-glass-alpha; its edge is room.css's --half-border. The bar's own glass is
+   none wherever a half holds it, in every layout: room.css's .hud-half draws the bottom half's glass behind the bar,
+   the walking control, and "Eat". No blur (FR-001). The list's edge lies inside its padding, as room.css's top half
+   in the column layout and the dock has it, so its content box keeps the size test/ui/hud-model.ts's model counts
+   (0.5rem above and below, 0.75rem at the sides; rv-030a's R-2). */
+html[data-split="on"][data-hud="column"] .room-list[data-half="top"] {
+  padding: calc(0.5rem - 1px) calc(0.75rem - 1px);
+  border: 1px solid var(--half-border);
 }
 
-html[data-split="on"][data-hud="column"] .talk[data-over="room"] .talk-log-toggle:focus-visible,
-html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint:focus-visible {
-  outline-offset: -4px;
+html[data-halves="on"][data-hud="column"] .hud-bar,
+html[data-halves="on"][data-hud="dock"] .hud-bar {
+  background: none;
+}
+
+@media (forced-colors: active) {
+  html[data-split="on"][data-hud="column"] .room-list[data-half="top"] {
+    border-color: CanvasText;
+  }
 }

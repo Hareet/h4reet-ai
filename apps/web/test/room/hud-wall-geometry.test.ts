@@ -59,6 +59,8 @@ function oracle(
   protect: Protect = PROTECT,
   eat = false,
   notes = false,
+  /** Spec 030 (T-INT02a; Q100): the list's floor in (b); off only to find the windows it refuses. */
+  listFloor = true,
 ): Expected | null {
   const T = HUD_PLACEMENTS;
   const t = T.wall;
@@ -115,7 +117,16 @@ function oracle(
   const bar: Box = { x: tiles.x, y: tiles.y, w: tiles.w, h: barH };
   const walk: Box = { x: tiles.x + pad, y: bar.y + barH + tgap, w: walkW, h: walkH };
   const eatBox: Box | null = eat ? { x: walk.x + walk.w + tgap, y: walk.y, w: walkW, h: walkH } : null;
-  const list: Box = { x: column.x, y: column.y, w: column.w, h: column.h - tilesH - tgap };
+  // Spec 030 (FR-003; T-A01 (d)): the list, the top half, from the column's top to the slice, `sliceRem` at the right
+  // side's scale above the tiles' block (was `column.h - tilesH - tgap`, the 0.25rem gap); never below 0, where the
+  // column is too short for the block and the slice (under 3 px of list before, at 1360 × 320).
+  const sliceH = t.sliceRem * scaleRight * rem;
+  const list: Box = { x: column.x, y: column.y, w: column.w, h: Math.max(0, column.h - tilesH - sliceH) };
+  // Spec 030 (T-INT02a; Q100's recommended answer): (b) also holds the list to its top padding (split.css's 0.5rem,
+  // in rem, so no side's scale grows it) and "Back"'s 44 × 44 hit area (FR-013; ui/button.css's 44 px floor): 52 CSS
+  // px at a 16-pixel root. Under it, "Back" was cut by the list's `overflow-y: hidden`; the window takes the column
+  // layout.
+  if (listFloor && list.h < 0.5 * rem + 44 - 1e-9) return null;
   const title: Box = { x: panel.x, y: panel.y, w: panel.w, h: T.split.panel.titleRem * scaleLeft * rem };
   return { area, wall, panel, title, column, list, tiles, bar, walk, eat: eatBox, scaleLeft, scaleRight };
 }
@@ -186,7 +197,46 @@ describe("the wall placement table (Key Entities)", () => {
       minAreaWidthPx: 686.4,
       scaleMax: 1.375,
       tiles: { rows: 2, perRow: 3, gapRem: 0.25, padRem: 0.25, tileRem: 3.75 },
+      // Spec 030 (FR-002, FR-003; T-A01 (d)): the slice between the column's halves, new.
+      sliceRem: 0.75,
+      // Spec 030 (T-INT02a; Q100): the list's least height, its top padding and "Back"'s hit area, new (was: no
+      // such entry; the table as above).
+      listFloor: { padRem: 0.5, backPx: 44 },
     });
+  });
+});
+
+describe('the split layout\'s list holds "Back" (spec 030, T-INT02a; Q100; FR-013)', () => {
+  it("refuses the split layout where the list can't hold its top padding and Back's 44 px, so the column layout takes it", () => {
+    const floor = 0.5 * DEFAULT_METRICS.rem + 44;
+    expect(floor).toBe(52);
+    const refused: string[] = [];
+    for (const s of LANDSCAPE) {
+      const w = wallBoxes(s, OPENING, DEFAULT_METRICS, { wall: PROTECT });
+      if (w) {
+        expect(w.list.h, `${s.w}x${s.h}`).toBeGreaterThanOrEqual(floor - 1e-9);
+        continue;
+      }
+      // A window the rule refuses for the list alone: without the floor it would take the split, its list under it.
+      const without = oracle(s, DEFAULT_METRICS, PROTECT, false, false, false);
+      if (without !== null) {
+        expect(without.list.h, `${s.w}x${s.h}`).toBeLessThan(floor);
+        refused.push(`${s.w}x${s.h}`);
+      }
+    }
+    // rv3-rework-030b-r2's I-1: at 1360 × 320 the list was 2.9 px, and "Back" was cut at 144 split windows 320 to 368 px
+    // tall; with the list's top padding counted, the floor takes 35 more, 384 px tall, where the list held 44 px but
+    // not the padding above "Back": 179, each keeping the column layout and holding its HUD.
+    expect(wallBoxes({ w: 1360, h: 320 }, OPENING, DEFAULT_METRICS, { wall: PROTECT })).toBeNull();
+    for (const where of refused) {
+      const [w = 0, h = 0] = where.split("x").map(Number);
+      expect(h, where).toBeGreaterThanOrEqual(320);
+      expect(h, where).toBeLessThanOrEqual(384);
+      expect(layoutFor({ w, h }), where).toBe("column");
+      expect(fitsHud({ w, h }), where).toBe(true);
+    }
+    expect(refused.filter((r) => Number(r.split("x")[1]) <= 368)).toHaveLength(144);
+    expect(refused).toHaveLength(179);
   });
 });
 
@@ -445,11 +495,13 @@ describe("the frame area and the compact boxes in the split layout (FR-006, FR-0
 
   it("keeps today's column layout's boxes at 1280 x 720 without a wall (impl-018's probe)", () => {
     const box = (x: number, y: number, w: number, h: number): Box => ({ x, y, w, h });
+    // Spec 030 (FR-004; T-A01 (d)): the column 12 px (the slice) above the bar's cluster, the walking control with it
+    // (were y 349 and y 301).
     const c = compactBoxes({ w: 1280, h: 720 });
     expect(c.split).toBeNull();
-    expect(c.column).toEqual(box(832, 349, 448, 319));
-    expect(c.walk).toEqual(box(1148, 301, 128, 44));
+    expect(c.column).toEqual(box(832, 337, 448, 319));
+    expect(c.walk).toEqual(box(1148, 289, 128, 44));
     expect(c.walkPlace).toBe("column");
-    expect(c.all).toEqual([box(424, 0, 432, 27.5), box(720, 668, 560, 52), box(832, 349, 448, 319), c.walk]);
+    expect(c.all).toEqual([box(424, 0, 432, 27.5), box(720, 668, 560, 52), box(832, 337, 448, 319), c.walk]);
   });
 });

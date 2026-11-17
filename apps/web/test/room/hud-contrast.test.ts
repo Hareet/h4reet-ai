@@ -3,12 +3,15 @@
 // the brightest and darkest a scene pixel can be, and the tile face over that; every text pair reaches 4.5:1, and every
 // border, focus ring, and pressed mark 3:1, so the floor holds over any part of any look, in 3D and 2D, with or without
 // the blur. The glass's alpha is the lowest 5% step at which all pass: the step below fails at least one pair. The rules
-// that draw the HUD take their colours from the palette, so this test judges what the visitor sees.
+// that draw the HUD take their colours from the palette, so this test judges what the visitor sees. Spec 030 (T-INT02;
+// Q73): the controls the skin draws (ui/button.css, on the root's data-skin) take their colours from the skin the build
+// ships, so their pairs read its tokens (test/helpers/built-skin.ts); the tiles' pairs name the tiles the skin leaves.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { SKIN_STATES, SKIN_VARIANTS, builtSkin, stateColours } from "../helpers/built-skin";
 import { parseCss } from "../helpers/room";
 import type { CssRule } from "../helpers/room";
 
@@ -61,7 +64,59 @@ const ratio = (a: Rgb, b: Rgb): number => {
 const WHITE: Rgb = [255, 255, 255];
 const BLACK: Rgb = [0, 0, 0];
 
-/** Every pair the HUD draws, at a glass alpha: its contrast, and the floor it must reach. */
+/** The skin the build ships, its tokens on :root[data-skin="<id>"], the root's data-skin on the built page. */
+const SKIN = builtSkin();
+
+/** Spec 030 (T-INT02; Q73): the pairs of the skinned controls (Q5: the bar's tiles, the walking control, "Eat", "Back",
+ *  both "Close" buttons, the conversation's header toggles, "Send"), read from the built skin's tokens, at a glass
+ *  alpha, over white and black: each variant's and state's label on its face (4.5:1; the faces are opaque); its edge on
+ *  the glass, the border's line or the face, whichever stands out more (3:1; B's two-tone rule, FR-012); the focus ring
+ *  inside the face in every state a control can be focused in (3:1; Q72); and the selected state's line on its face
+ *  (3:1), the mark a pressed control carries, which was the tile's inset ring. */
+function skinPairs(alpha: number): { name: string; contrast: number; floor: number }[] {
+  const glassRgb = colour(palette().get("--glass") ?? "").rgb;
+  const out: { name: string; contrast: number; floor: number }[] = [];
+  for (const [beneath, under] of [
+    ["white", WHITE],
+    ["black", BLACK],
+  ] as const) {
+    const glass = over({ rgb: glassRgb, a: alpha }, under);
+    for (const variant of SKIN_VARIANTS)
+      for (const state of SKIN_STATES) {
+        const c = stateColours(SKIN, variant, state);
+        const face = over(colour(c.face), glass);
+        const at = `${SKIN.id}'s ${variant} ${state} control over ${beneath}`;
+        out.push(
+          { name: `${at}: its label on its face`, contrast: ratio(over(colour(c.label), face), face), floor: 4.5 },
+          {
+            name: `${at}: its edge on the glass`,
+            contrast: Math.max(ratio(over(colour(c.border), glass), glass), ratio(face, glass)),
+            floor: 3,
+          },
+        );
+        if (state !== "disabled")
+          out.push({
+            name: `${at}: its focus ring inside its face`,
+            contrast: ratio(colour(c.ring).rgb, face),
+            floor: 3,
+          });
+        if (state === "selected")
+          out.push({
+            name: `${at}: its selected line on its face`,
+            contrast: ratio(over(colour(c.border), face), face),
+            floor: 3,
+          });
+      }
+  }
+  return out;
+}
+
+/** Every pair the HUD draws, at a glass alpha: its contrast, and the floor it must reach. Spec 030 (T-INT02; Q73;
+ *  was: "text on a tile", "a tile's border on the glass", "the focus ring on a tile", and "the pressed mark on a tile",
+ *  from room.css's --tile-face and --tile-border, for every control): the controls the skin draws take their pairs from
+ *  the built skin's tokens (skinPairs); the tile pairs name the tiles the skin leaves, the list's entries and the
+ *  conversation's other buttons in the column layout and the dock (test/ui/hud-look.test.ts's "the rest the tile's
+ *  face"); and the pressed mark is the skin's selected line, since every control that can be pressed is skinned. */
 function pairs(alpha: number): { name: string; contrast: number; floor: number }[] {
   const p = palette();
   const glassRgb = colour(p.get("--glass") ?? "").rgb;
@@ -78,15 +133,17 @@ function pairs(alpha: number): { name: string; contrast: number; floor: number }
     const tile = over(face, glass);
     out.push(
       { name: `text on the glass over ${beneath}`, contrast: ratio(text, glass), floor: 4.5 },
-      { name: `text on a tile over ${beneath}`, contrast: ratio(text, tile), floor: 4.5 },
-      { name: `a tile's border on the glass over ${beneath}`, contrast: ratio(over(border, glass), glass), floor: 3 },
+      { name: `text on a tile the skin leaves over ${beneath}`, contrast: ratio(text, tile), floor: 4.5 },
+      {
+        name: `a tile's border the skin leaves on the glass over ${beneath}`,
+        contrast: ratio(over(border, glass), glass),
+        floor: 3,
+      },
       { name: `the focus ring on the glass over ${beneath}`, contrast: ratio(focus, glass), floor: 3 },
-      { name: `the focus ring on a tile over ${beneath}`, contrast: ratio(focus, tile), floor: 3 },
-      // The pressed mark: an inset ring in the text's colour inside the tile, and its words underlined.
-      { name: `the pressed mark on a tile over ${beneath}`, contrast: ratio(text, tile), floor: 3 },
+      { name: `the focus ring on a tile the skin leaves over ${beneath}`, contrast: ratio(focus, tile), floor: 3 },
     );
   }
-  return out;
+  return [...out, ...skinPairs(alpha)];
 }
 
 const failing = (alpha: number): string[] =>
@@ -146,12 +203,10 @@ describe("the HUD's palette (room.css; FR-024, FR-025)", () => {
     expect(alpha).toBe(0.6);
   });
 
+  // Spec 030 (T-A07's valve; the first rework's N-1): the third fallback, `@supports not ((backdrop-filter: blur(1px))
+  // or …)`, is gone with the blur; test/ui/hud-no-blur.test.ts holds that no @supports names a backdrop filter.
   it("makes the glass opaque where the fallbacks hold, and every pair passes there too", () => {
-    for (const prelude of [
-      /^@media \(prefers-reduced-transparency: reduce\)$/,
-      /^@media \(prefers-contrast: more\)$/,
-      /^@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\)$/,
-    ])
+    for (const prelude of [/^@media \(prefers-reduced-transparency: reduce\)$/, /^@media \(prefers-contrast: more\)$/])
       expect(
         rulesFor(":root", prelude).some((r) => r.declarations.get("--glass-alpha") === "1"),
         String(prelude),
@@ -163,53 +218,68 @@ describe("the HUD's palette (room.css; FR-024, FR-025)", () => {
   const HUD = 'html[data-hud="column"]';
   const DOCK = 'html[data-hud="dock"]';
 
-  it("draws the HUD from the palette: the glass, the tiles, their borders, the focus ring, and the pressed mark", () => {
+  // Spec 030 (T-INT02; Q73; was: `${at} .hud-tile`'s background `var(--tile-face)`, colour `var(--hud-text)`, and border
+  // `1px solid var(--tile-border)`; `${at} .hud-tile[aria-pressed="true"]`'s box-shadow `inset 0 0 0 2px
+  // var(--hud-text)`; and `${at} .room-walk`'s background the glass and colour `var(--hud-text)`, all room.css's): the
+  // tiles the skin leaves, the panels' buttons, draw the tile from the palette; the skinned controls draw from the
+  // skin's tokens, ui/button.css's rules (its label, its face on its ::before, the selected line), which skinPairs judge.
+  it("draws the HUD from the palette and the skin: the glass, the tiles, their borders, the focus ring, and the pressed mark", () => {
     const GLASS = "rgb(var(--glass) / var(--glass-alpha))";
     for (const at of [HUD, DOCK]) {
       expect(declared(`${at} .hud-glass`, "background"), at).toBe(GLASS);
       expect(declared(`${at} .hud-glass`, "color"), at).toBe("var(--hud-text)");
-      expect(declared(`${at} .hud-tile`, "background"), at).toBe("var(--tile-face)");
-      expect(declared(`${at} .hud-tile`, "color"), at).toBe("var(--hud-text)");
-      expect(declared(`${at} .hud-tile`, "border"), at).toBe("1px solid var(--tile-border)");
+      expect(declared(`${at} .hud-panels button`, "background"), at).toBe("var(--tile-face)");
+      expect(declared(`${at} .hud-panels button`, "color"), at).toBe("var(--hud-text)");
+      expect(declared(`${at} .hud-panels button`, "border"), at).toBe("1px solid var(--tile-border)");
       expect(declared(`${at} .hud-glass button:focus-visible`, "outline"), at).toBe("2px solid var(--hud-focus)");
       expect(declared(`${at} .hud-glass a:focus-visible`, "outline"), at).toBe("2px solid var(--hud-focus)");
       // The conversation's text box too, on the panels' glass (the review of 60b51de4, finding 4; FR-024, SC-003): the
       // room's blue ring falls below 3:1 on the dark glass.
       expect(declared(`${at} .hud-glass input:focus-visible`, "outline"), at).toBe("2px solid var(--hud-focus)");
       expect(declared(`${at} .hud-glass input:focus-visible`, "outline-offset"), at).toBe("2px");
-      expect(declared(`${at} .hud-tile[aria-pressed="true"]`, "box-shadow"), at).toBe(
-        "inset 0 0 0 2px var(--hud-text)",
-      );
       expect(declared(`${at} .hud-tile[aria-pressed="true"]`, "text-decoration"), at).toBe("underline");
-      // The walking control, over the scene with no panel behind it, is glass of its own.
-      expect(declared(`${at} .room-walk`, "background"), at).toBe(GLASS);
-      expect(declared(`${at} .room-walk`, "color"), at).toBe("var(--hud-text)");
     }
+    // The skinned controls (the bar's tiles and the walking control among them): the label, the face, and the border's
+    // line from the skin's tokens, through the component's private properties, and the selected state's 2 px line.
+    const component = parseCss(
+      readFileSync(fileURLToPath(new URL("../../src/ui/button.css", import.meta.url)), "utf8"),
+    );
+    const names = (r: CssRule, part: string): boolean => r.selector.includes(part);
+    const base = component.rules.find(
+      (r) => names(r, ".hud-bar .hud-tile") && names(r, ".room-walk") && r.declarations.has("color"),
+    );
+    expect(base?.declarations.get("color")).toBe("var(--_label)");
+    expect(base?.declarations.get("--_face")).toBe("var(--btn-secondary-normal-face)");
+    expect(base?.declarations.get("--_border")).toBe("var(--btn-secondary-normal-border)");
+    expect(base?.declarations.get("background-color")).toBe("transparent");
+    const face = component.rules.find((r) => names(r, ".room-walk") && names(r, ")::before"));
+    expect(face?.declarations.get("background-color")).toBe("var(--_face)");
+    const pressed = component.rules.find((r) => names(r, ".room-walk") && names(r, '[aria-pressed="true"]'));
+    expect(pressed?.declarations.get("--_face")).toBe("var(--btn-secondary-selected-face)");
+    expect(pressed?.declarations.get("--_line-w")).toBe("2px");
   });
 
   // The review of 60b51de4's nit: the fallbacks for less transparency, more contrast, no backdrop blur, and forced
   // colours lost to the HUD's own rules, which name the root's attributes. Each now outranks the rule it undoes.
   it("lets each fallback outrank the HUD's rule it undoes", () => {
-    expect(specificity('html[data-blur="on"] .hud-glass')).toEqual([0, 2, 1]);
     expect(specificity(":root[data-hud] .hud-glass button:focus-visible")).toEqual([0, 4, 1]);
+    // Spec 030 (FR-001; T-A01 (d)): no rule draws a backdrop blur any more, so the fallbacks' backdrop-filter resets
+    // undo none, and none is listed here (test/ui/hud-no-blur.test.ts holds that no rule sets one).
+    // Spec 030 (T-INT02; was also `${at} .hud-tile`'s ButtonFace and ButtonText, `${at} .hud-glass.room-walk:focus-visible`'s
+    // Highlight, and `${at} .room-walk:hover`'s ButtonFace, Highlight, and reduced transparency's opaque glass): the
+    // tiles, the walking control, and "Eat" are the skin's, whose own forced-colours rule (ui/button.css) undoes its
+    // look, and room.css draws no hover or ring of theirs to undo; the panels' buttons keep room.css's fallback.
     const FALLBACKS: [RegExp, string, string, string][] = [];
-    for (const block of [/prefers-reduced-transparency/, /prefers-contrast: more/, /^@supports not/, /forced-colors/])
-      for (const p of ["backdrop-filter", "-webkit-backdrop-filter"])
-        FALLBACKS.push([block, p, "none", 'html[data-blur="on"] .hud-glass']);
     for (const at of [HUD, DOCK])
       FALLBACKS.push(
         [/forced-colors/, "background", "Canvas", `${at} .hud-glass`],
         [/forced-colors/, "color", "CanvasText", `${at} .hud-glass`],
-        [/forced-colors/, "background", "ButtonFace", `${at} .hud-tile`],
-        [/forced-colors/, "color", "ButtonText", `${at} .hud-tile`],
+        [/forced-colors/, "background", "ButtonFace", `${at} .hud-panels button`],
+        [/forced-colors/, "color", "ButtonText", `${at} .hud-panels button`],
         [/forced-colors/, "outline-color", "Highlight", `${at} .hud-glass button:focus-visible`],
         [/forced-colors/, "outline-color", "Highlight", `${at} .hud-glass input:focus-visible`],
-        [/forced-colors/, "outline-color", "Highlight", `${at} .hud-glass.room-walk:focus-visible`],
-        // T053's second review: the offer's ring and the walking control's hover have their fallbacks too.
+        // T053's second review: the offer's ring has its fallback too.
         [/forced-colors/, "outline-color", "Highlight", `${at} .room-offer button:focus-visible`],
-        [/forced-colors/, "background", "ButtonFace", `${at} .room-walk:hover`],
-        [/forced-colors/, "border-color", "Highlight", `${at} .room-walk:hover`],
-        [/prefers-reduced-transparency/, "background", "rgb(var(--glass))", `${at} .room-walk:hover`],
       );
     const losing: string[] = [];
     for (const [block, property, value, rule] of FALLBACKS) {
@@ -240,12 +310,14 @@ describe("the HUD's palette (room.css; FR-024, FR-025)", () => {
     expect(ratio(colour(p.get("--glass") ?? "").rgb, WHITE)).toBeGreaterThanOrEqual(3);
   });
 
-  it("blurs behind the glass only under data-blur on, in both its forms, and never relies on it (PD-17)", () => {
+  // Spec 030 (FR-001, Q1; T-A01 (d)): the blur this case held (`html[data-blur="on"] .hud-glass` at var(--hud-blur),
+  // blur(12px)) is gone at every quality level; the glass never relied on it, and the pairs above pass without it.
+  it("blurs nothing behind the glass, in either form, and never relied on a blur (PD-17; spec 030, FR-001)", () => {
     const on = 'html[data-blur="on"] .hud-glass';
-    expect(declared(on, "backdrop-filter")).toBe("var(--hud-blur)");
-    expect(declared(on, "-webkit-backdrop-filter")).toBe("var(--hud-blur)");
+    expect(declared(on, "backdrop-filter")).toBeUndefined();
+    expect(declared(on, "-webkit-backdrop-filter")).toBeUndefined();
     expect(declared(`${HUD} .hud-glass`, "backdrop-filter")).toBeUndefined();
-    expect(palette().get("--hud-blur")).toBe("blur(12px)");
+    expect(palette().get("--hud-blur")).toBeUndefined();
   });
 });
 

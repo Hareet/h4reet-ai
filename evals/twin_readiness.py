@@ -143,6 +143,25 @@ def needed(paid: list[str]) -> list[tuple[str, str, str]]:
     return runs
 
 
+def hello_cases(root: Path) -> set[str]:
+    """The committed live red-team cases whose route is hello (spec 001's F7, night 5): hello reads no pack, so their
+    results carry no pack hash, and the pack check passes them by; read from the cases, never from a run's record."""
+    found: set[str] = set()
+    for path in sorted((root / REDTEAM_CASES).glob("*.yaml")):
+        try:
+            case = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError):
+            continue
+        live = case.get("live") if isinstance(case, dict) else None
+        if (
+            isinstance(live, dict)
+            and live.get("route") == "hello"
+            and isinstance(case.get("id"), str)
+        ):
+            found.add(case["id"])
+    return found
+
+
 def committed_cases(root: Path) -> tuple[list[dict[str, str]], list[str]]:
     """The committed cases a complete run holds, read as data: each twin product case's ID, kind, feature, and path;
     and each red-team case's ID that has `live`, which the live run sends."""
@@ -226,6 +245,7 @@ def _check(
         return f"{name}: evidence missing: {', '.join(missing)}"
 
     product_cases, live_cases = cases
+    hello = hello_cases(root)
     mine = [
         c
         for c in product_cases
@@ -272,6 +292,9 @@ def _check(
         if record.get("prompt_sha256") != [prompt_sha]:
             return f"{name}: evidence names other hashes ({rel})"
         for r in results:
+            # Hello's cases bind no pack (F7, night 5): required above, held clean below, and past the pack check.
+            if rel.startswith("redteam/") and str(r.get("id")) in hello:
+                continue
             if not isinstance(r.get("pack_sha256"), str) or "feature" not in r:
                 return f"{name}: evidence missing: {rel} records no pack hash or feature for {r.get('id')}"
             if r["pack_sha256"] != expected(r["feature"]):

@@ -10,6 +10,8 @@
 // - outside the split layout the wall box lives only in app.ts's refit (`protect ?? flatProtect`), so applyHud must be
 //   given it: with a stage protector whose wall box differs from the frame area, the marks are the wall box's, in the
 //   column and dock layouts, his "smaller browser window"; the stacked layout lays nothing over the stage.
+// Spec 030 (T-A01 (d); FR-005, Q2): the right column's halves take the over-room look in every layout and view, so
+// their parts are marked at rest and walking alike; the cases above hold for every other part.
 import { describe, expect, it } from "vitest";
 
 import type { Protect } from "../../src/room/compose/frame";
@@ -74,10 +76,20 @@ function restRoom(screen: Screen, wall: Protect, stage: Protect | null): Box {
 const pick = (parts: [El, Box][], room: Box): Set<El> =>
   new Set(parts.filter(([, b]) => overlaps(b, room)).map(([el]) => el));
 
-/** The elements that should be marked: at rest, the parts meeting the room's box; walking, those meeting the stage. */
+/** Spec 030 (FR-005; Q2): the right column's parts, marked in every layout and view: the list, the bar, and the walking
+ *  control in the split layout; the column or the dock, and the bar, outside it; none in the stacked layout. */
+function rightColumn(screen: Screen, wall: Protect): El[] {
+  if (!fitsHud(screen, OPENING, DEFAULT_METRICS)) return [];
+  const c = compactBoxes(screen, OPENING, DEFAULT_METRICS, { eat: wall.eat, wall });
+  return c.split ? [".room-list", ".hud-bar", ".room-walk"] : [".hud-panels", ".hud-bar"];
+}
+
+/** The elements that should be marked: at rest, the parts meeting the room's box; walking, those meeting the stage;
+ *  and the right column's always (spec 030). */
 function expected(screen: Screen, o: { walking: boolean; wall: Protect; stage: Protect | null }): Set<El> {
   const parts = partBoxes(screen, o.wall);
-  return pick(parts, o.walking ? B(0, 0, screen.w, screen.h) : restRoom(screen, o.wall, o.stage));
+  const meeting = pick(parts, o.walking ? B(0, 0, screen.w, screen.h) : restRoom(screen, o.wall, o.stage));
+  return new Set([...meeting, ...rightColumn(screen, o.wall)]);
 }
 
 const marked = (v: Visit): Set<El> =>
@@ -155,12 +167,13 @@ describe("the walking view itself, not its offer, moves the flag (S-10; FR-001)"
       expect(marked(v)).toEqual(rest);
     });
 
-  it("offers the walk at the split windows with nothing marked: the offer isn't the walk", async () => {
+  it("offers the walk at the split windows with only the right column marked: the offer isn't the walk", async () => {
     for (const screen of WINDOWS.slice(0, 3)) {
       const v = await inRoom(screen, { mode: "3d" });
       expect(layoutOf(v)).toBe("split");
       expect(v.doc.documentElement.getAttribute("data-walk")).toBe("on");
-      expect(marked(v).size).toBe(0);
+      // Spec 030 (Q2): the right column's halves always; the conversation panel, which only walking marks, not.
+      expect(marked(v)).toEqual(new Set([".room-list", ".hud-bar", ".room-walk"]));
     }
   });
 });
@@ -173,8 +186,9 @@ describe("outside the split layout the room's box is the re-fit's wall box (S-10
       const parts = partBoxes(screen, strip);
       const frame = frameArea(screen, OPENING, DEFAULT_METRICS, strip).area;
       const rest = expected(screen, { walking: false, wall: strip, stage: strip });
-      // The case discriminates: the frame area would mark other parts than the wall box does.
-      expect(pick(parts, frame)).not.toEqual(rest);
+      // The case discriminates: the frame area would mark other parts than the wall box does (with the right column's,
+      // marked either way, spec 030).
+      expect(new Set([...pick(parts, frame), ...rightColumn(screen, strip)])).not.toEqual(rest);
       expect(marked(v)).toEqual(rest);
       walkControl(v).click();
       await flush();

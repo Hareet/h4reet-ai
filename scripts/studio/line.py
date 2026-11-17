@@ -29,6 +29,12 @@ read the tools list, so this is FR-029's one machine check of the list (review G
   `<prefix>:<name>`, as Mixamo's `mixamorig:` does), its animations' names, and each embedded image's pixel size from
   its PNG, JPEG, or WebP header; the texture bytes are the arrival check's own measure, width times height times 4,
   times 4/3 for mipmaps. Every file's bytes count against `bytes`. `skeleton` is checked for shape only.
+  For a `still` brief (spec 030 FR-022), each PNG's pixels are read by zlib and the five filters: it is within
+  `texture_px`, 8-bit, not interlaced, with an alpha channel and alpha 0 on its outermost ring; and for a `ui-` asset,
+  slices.json beside the files (never in `files`) names every PNG's insets, inside the image, and each variant's
+  label, every two states of a variant (`btn-<variant>-<state>.png`) lie at least ΔE76 15 apart in their centres'
+  alpha-weighted mean colours, and the label reaches 4.5:1 over every centre pixel of alpha 0.5 or more, composited
+  over white and over black.
   Then main's tools/gates/arrival_check.py, from the same commit, runs from a temporary file as `python3 -I -B` on a
   scratch repository: its own refs/heads/main holds that commit's assets/policy/ and docs/data-flow-disclosure.md,
   made with plumbing only and no system or global git config, so no hook runs; its work tree holds the candidate
@@ -54,7 +60,9 @@ git failing, or the arrival check unable to check).
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
+import math
 import os
 import re
 import shutil
@@ -62,6 +70,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import zlib
 from pathlib import Path
 
 MAIN = "refs/heads/main"
@@ -839,6 +848,483 @@ def has_bone(required: str, bones: set[str]) -> bool:
 
 
 # --------------------------------------------------------------------------------------------------
+# Still sets (spec 030 FR-022; its plan §R-D1): each PNG's pixels, read by zlib and PNG's five filters
+# --------------------------------------------------------------------------------------------------
+SLICES = "slices.json"
+SLICE_KEYS = ("schema", "files", "labels")
+SIDES = ("top", "right", "bottom", "left")
+BUTTON_FILE = re.compile(r"btn-([a-z0-9]+)-([a-z0-9]+)\.png")
+HEX_COLOUR = re.compile(r"#[0-9a-fA-F]{6}")
+CHANNELS = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}
+READ_PX = (
+    2048 * 2048
+)  # the most pixels read from one file (16 MiB of RGBA), whatever the brief's texture_px
+STATES_APART = 15  # ΔE76, spec 030 FR-022
+LABEL_RATIO = 4.5  # WCAG AA for text, spec 030 FR-022
+LABEL_ALPHA = 128  # alpha 0.5 or more, of 255
+SLICES_SHAPE = '{"schema": 1, "files": {name: {top, right, bottom, left}}, "labels": {variant: "#rrggbb"}}'
+INSET_LIMIT = "top, right, bottom, and left, whole numbers of at least 1"
+INSIDE_LIMIT = "left + right under the width, top + bottom under the height"
+LABEL_LIMIT = f"{LABEL_RATIO}:1 over every centre pixel of alpha 0.5 or more, over white and over black"
+
+
+class PngError(Exception):
+    """A PNG whose header or pixels can't be read: a finding for the round, never a crash."""
+
+
+Rows = list[bytes]  # one bytes object of RGBA samples per row
+
+
+def png_header(data: bytes) -> dict:
+    """IHDR's fields, and the PLTE, tRNS, and IDAT chunks' bodies. PngError names what's wrong."""
+    if data[:8] != PNG_SIG:
+        raise PngError("no PNG signature")
+    pos, chunks = 8, {"PLTE": None, "tRNS": None, "IDAT": []}
+    ihdr = None
+    while pos + 12 <= len(data):
+        (length,) = struct.unpack(">I", data[pos : pos + 4])
+        kind, end = data[pos + 4 : pos + 8], pos + 8 + length
+        if end + 4 > len(data):
+            raise PngError(f"a chunk at byte {pos} runs past the file")
+        body = data[pos + 8 : end]
+        if kind == b"IHDR" and ihdr is None:
+            ihdr = body
+        elif kind == b"IDAT":
+            chunks["IDAT"].append(body)
+        elif kind in (b"PLTE", b"tRNS"):
+            chunks[kind.decode()] = body
+        elif kind == b"IEND":
+            break
+        pos = end + 4
+    if ihdr is None or len(ihdr) != 13:
+        raise PngError("no IHDR chunk of 13 bytes")
+    width, height, depth, colour, _, _, interlace = struct.unpack(">IIBBBBB", ihdr)
+    if not (width and height) or colour not in CHANNELS:
+        raise PngError(f"IHDR gives {width} by {height}, colour type {colour}")
+    return {
+        "width": width,
+        "height": height,
+        "depth": depth,
+        "colour": colour,
+        "interlace": interlace,
+        **chunks,
+    }
+
+
+def unfilter(raw: bytes, width: int, height: int, bpp: int) -> Rows:
+    """The scanlines, each under its filter (0 None, 1 Sub, 2 Up, 3 Average, 4 Paeth), undone."""
+    stride, rows = width * bpp, []
+    prior = bytearray(stride)
+    for y in range(height):
+        start = y * (stride + 1)
+        kind, line = raw[start], bytearray(raw[start + 1 : start + 1 + stride])
+        if kind == 1:
+            for i in range(bpp, stride):
+                line[i] = (line[i] + line[i - bpp]) & 0xFF
+        elif kind == 2:
+            for i in range(stride):
+                line[i] = (line[i] + prior[i]) & 0xFF
+        elif kind == 3:
+            for i in range(stride):
+                left = line[i - bpp] if i >= bpp else 0
+                line[i] = (line[i] + (left + prior[i]) // 2) & 0xFF
+        elif kind == 4:
+            for i in range(stride):
+                a = line[i - bpp] if i >= bpp else 0
+                b, c = prior[i], prior[i - bpp] if i >= bpp else 0
+                p = a + b - c
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                pred = a if pa <= pb and pa <= pc else b if pb <= pc else c
+                line[i] = (line[i] + pred) & 0xFF
+        elif kind != 0:
+            raise PngError(f"row {y} has filter {kind}, not 0 to 4")
+        rows.append(bytes(line))
+        prior = line
+    return rows
+
+
+def png_pixels(head: dict) -> Rows:
+    """An 8-bit, non-interlaced PNG's pixels as RGBA rows, its palette and tRNS applied. PngError names what stops
+    the reading."""
+    width, height, colour = head["width"], head["height"], head["colour"]
+    bpp = CHANNELS[colour]
+    size = height * (width * bpp + 1)
+    try:
+        raw = zlib.decompressobj().decompress(b"".join(head["IDAT"]), size)
+    except zlib.error:
+        raise PngError("its pixel data doesn't inflate") from None
+    if len(raw) < size:
+        raise PngError(f"its pixel data ends at {len(raw)} bytes, not {size}")
+    rows, trns, out = unfilter(raw, width, height, bpp), head["tRNS"], []
+    if colour == 6:
+        return rows
+    palette = head["PLTE"] or b""
+    for row in rows:
+        rgba = bytearray()
+        for x in range(width):
+            if colour == 4:
+                g, a = row[2 * x], row[2 * x + 1]
+                rgba += bytes((g, g, g, a))
+            elif colour == 3:
+                i = row[x]
+                if 3 * i + 3 > len(palette):
+                    raise PngError(f"palette index {i} past its PLTE")
+                a = trns[i] if trns is not None and i < len(trns) else 255
+                rgba += palette[3 * i : 3 * i + 3] + bytes((a,))
+            else:
+                px = row[3 * x : 3 * x + 3] if colour == 2 else row[x : x + 1] * 3
+                key = px if colour == 2 else px[:1]
+                clear = trns is not None and trns[1::2] == key
+                rgba += px + bytes((0 if clear else 255,))
+        out.append(bytes(rgba))
+    return out
+
+
+def ring_finding(name: str, width: int, height: int, rows: Rows) -> str | None:
+    """Alpha 0 on the outermost one-pixel ring, or the count of pixels above it and the first, in reading order."""
+    ring = [
+        (x, y)
+        for y in range(height)
+        for x in (range(width) if y in (0, height - 1) else sorted({0, width - 1}))
+    ]
+    above = [(x, y) for x, y in ring if rows[y][4 * x + 3] > 0]
+    if not above:
+        return None
+    x, y = above[0]
+    count = f"{len(above)} pixel{'s' if len(above) != 1 else ''}"
+    return finding(
+        f"ring {name}",
+        f"{count} above alpha 0, the first at {x},{y}",
+        "alpha 0 on the outermost one-pixel ring",
+    )
+
+
+def linear(value: float) -> float:
+    c = value / 255
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def luminance(rgb: tuple[float, float, float]) -> float:
+    """WCAG's relative luminance of an sRGB colour, 0 to 255 a channel."""
+    r, g, b = (linear(v) for v in rgb)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def lab(rgb: tuple[float, float, float]) -> tuple[float, float, float]:
+    """CIELAB (D65) of an sRGB colour, 0 to 255 a channel."""
+    r, g, b = (linear(v) for v in rgb)
+    xyz = (
+        (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047,
+        0.2126729 * r + 0.7151522 * g + 0.0721750 * b,
+        (0.0193339 * r + 0.1191920 * g + 0.9503041 * b) / 1.08883,
+    )
+    fx, fy, fz = (
+        t ** (1 / 3) if t > (6 / 29) ** 3 else t / (3 * (6 / 29) ** 2) + 4 / 29
+        for t in xyz
+    )
+    return 116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)
+
+
+def floored(value: float, places: int) -> str:
+    """A measure printed without rounding up past its limit: 4.499 is 4.49, never 4.50."""
+    scale = 10**places
+    return f"{math.floor(value * scale) / scale:.{places}f}"
+
+
+def centre(rows: Rows, width: int, height: int, inset: dict):
+    """(x, y, r, g, b, a) of each pixel inside the insets."""
+    for y in range(inset["top"], height - inset["bottom"]):
+        row = rows[y]
+        for x in range(inset["left"], width - inset["right"]):
+            yield x, y, *row[4 * x : 4 * x + 4]
+
+
+def centre_mean(
+    rows: Rows, width: int, height: int, inset: dict
+) -> tuple[float, float, float] | None:
+    """The centre's alpha-weighted mean sRGB colour, or None for a centre with no alpha."""
+    total, sums = 0, [0, 0, 0]
+    for _, _, r, g, b, a in centre(rows, width, height, inset):
+        total += a
+        sums[0] += r * a
+        sums[1] += g * a
+        sums[2] += b * a
+    return (sums[0] / total, sums[1] / total, sums[2] / total) if total else None
+
+
+def label_finding(
+    name: str, label: str, rows: Rows, width: int, height: int, inset: dict
+) -> str | None:
+    """The label against every centre pixel of alpha 0.5 or more, composited over white and over black: the lowest
+    ratio, if under 4.5:1, at its pixel."""
+    ink = luminance(tuple(int(label[i : i + 2], 16) for i in (1, 3, 5)))
+    worst: tuple[float, str, int, int] | None = None
+    seen: dict[tuple[int, int, int, int], tuple[float, str]] = {}
+    for x, y, r, g, b, a in centre(rows, width, height, inset):
+        if a < LABEL_ALPHA:
+            continue
+        key = (r, g, b, a)
+        if key not in seen:
+            low = None
+            for ground, bg in (("white", 255), ("black", 0)):
+                mixed = tuple((v * a + bg * (255 - a)) / 255 for v in (r, g, b))
+                hi, lo = sorted((ink, luminance(mixed)), reverse=True)
+                ratio = (hi + 0.05) / (lo + 0.05)
+                if low is None or ratio < low[0]:
+                    low = (ratio, ground)
+            seen[key] = low
+        ratio, ground = seen[key]
+        if worst is None or ratio < worst[0]:
+            worst = (ratio, ground, x, y)
+    if worst is None or worst[0] >= LABEL_RATIO:
+        return None
+    ratio, ground, x, y = worst
+    return finding(
+        f"label {name}",
+        f"{label} at {floored(ratio, 2)}:1 over {ground} at {x},{y}",
+        LABEL_LIMIT,
+    )
+
+
+def slices_findings(
+    folder: Path, pngs: list[str], sizes: dict[str, tuple[int, int]]
+) -> tuple[list[str], dict[str, dict], dict[str, str]]:
+    """slices.json beside the files: its shape, every PNG named and no other, each inset inside its image. Returns
+    the findings, the insets that hold, and the labels."""
+    path = folder / SLICES
+    if not path.is_file() or path.is_symlink():
+        return (
+            [finding(SLICES, "absent", "a file beside the files, for a ui- asset")],
+            {},
+            {},
+        )
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, ValueError, RecursionError):
+        return [finding(SLICES, "doesn't parse as JSON", SLICES_SHAPE)], {}, {}
+    if not isinstance(doc, dict):
+        return [finding(SLICES, "not a JSON object", SLICES_SHAPE)], {}, {}
+    out = [
+        finding(SLICES, f"{k} absent", SLICES_SHAPE) for k in SLICE_KEYS if k not in doc
+    ]
+    out += [
+        finding(SLICES, f"{k} an unknown field", SLICES_SHAPE)
+        for k in doc
+        if k not in SLICE_KEYS
+    ]
+    if "schema" in doc and doc["schema"] != 1:
+        out.append(finding(SLICES, f"schema {clean(doc['schema'])}", "1"))
+    for key in ("files", "labels"):
+        if key in doc and not isinstance(doc[key], dict):
+            out.append(finding(SLICES, f"{key} {clean(doc[key])}", SLICES_SHAPE))
+    if out:
+        return out, {}, {}
+    named, labels = doc["files"], doc["labels"]
+    variants = {m.group(1) for n in pngs if (m := BUTTON_FILE.fullmatch(n))}
+    for variant, colour in labels.items():
+        if variant not in variants:
+            out.append(
+                finding(
+                    f"{SLICES} labels",
+                    variant,
+                    "only the variants of the btn-<variant>-<state>.png files",
+                )
+            )
+        elif not (isinstance(colour, str) and HEX_COLOUR.fullmatch(colour)):
+            out.append(finding(f"{SLICES} labels.{variant}", colour, "#rrggbb"))
+    for variant in sorted(variants - set(labels)):
+        out.append(
+            finding(
+                f"{SLICES} labels",
+                f"{variant} absent",
+                "a label colour for every variant's buttons",
+            )
+        )
+    for name in pngs:
+        if name not in named:
+            out.append(
+                finding(
+                    f"{SLICES} files",
+                    f"{name} absent",
+                    "every PNG candidate.json names",
+                )
+            )
+    for name in named:
+        if name not in pngs:
+            out.append(
+                finding(f"{SLICES} files", name, "only the PNGs candidate.json names")
+            )
+    insets: dict[str, dict] = {}
+    for name in pngs:
+        inset = named.get(name)
+        if inset is None:
+            continue
+        if not (
+            isinstance(inset, dict)
+            and set(inset) == set(SIDES)
+            and all(is_int(inset[s]) and inset[s] >= 1 for s in SIDES)
+        ):
+            out.append(finding(f"{SLICES} {name}", inset, INSET_LIMIT))
+            continue
+        bad = False
+        if name in sizes:
+            width, height = sizes[name]
+            left, right, top, bottom = (
+                inset[s] for s in ("left", "right", "top", "bottom")
+            )
+            if left + right >= width:
+                out.append(
+                    finding(
+                        f"{SLICES} {name}",
+                        f"left {left} + right {right} = {left + right}, width {width}",
+                        INSIDE_LIMIT,
+                    )
+                )
+                bad = True
+            if top + bottom >= height:
+                out.append(
+                    finding(
+                        f"{SLICES} {name}",
+                        f"top {top} + bottom {bottom} = {top + bottom}, height {height}",
+                        INSIDE_LIMIT,
+                    )
+                )
+                bad = True
+        if not bad:
+            insets[name] = inset
+    good = {
+        v: c
+        for v, c in labels.items()
+        if v in variants and isinstance(c, str) and HEX_COLOUR.fullmatch(c)
+    }
+    return out, insets, good
+
+
+def still_findings(
+    folder: Path, brief: dict, files: list[str], named: object
+) -> list[str]:
+    """A still set's checks (spec 030 FR-022): each PNG's size, depth, alpha, and ring; for a ui- asset, slices.json,
+    the states apart, and the labels' contrast. Only the handoff folder and the brief are read."""
+    out: list[str] = []
+    side = brief["limits"].get("texture_px")
+    pngs = [n for n in files if n.lower().endswith(".png")]
+    sizes: dict[str, tuple[int, int]] = {}
+    pixels: dict[str, Rows] = {}
+    for name in pngs:
+        try:
+            head = png_header((folder / name).read_bytes())
+        except PngError as exc:
+            out.append(finding(f"png {name}", f"doesn't read ({exc})", "an 8-bit PNG"))
+            continue
+        width, height = head["width"], head["height"]
+        sizes[name] = (width, height)
+        readable = True
+        if is_int(side) and max(width, height) > side:
+            out.append(
+                finding(
+                    f"texture_px {name}",
+                    f"{width} by {height}",
+                    f"the brief's, {side}",
+                )
+            )
+            readable = False
+        if head["colour"] not in (4, 6) and head["tRNS"] is None:
+            out.append(
+                finding(
+                    f"alpha {name}",
+                    f"colour type {head['colour']} and no tRNS chunk",
+                    "an alpha channel: colour type 6 or 4, or a tRNS chunk",
+                )
+            )
+        if head["depth"] != 8:
+            out.append(
+                finding(f"png {name}", f"bit depth {head['depth']}", "8 bits a sample")
+            )
+            readable = False
+        if head["interlace"] != 0:
+            out.append(
+                finding(
+                    f"png {name}",
+                    "interlaced",
+                    "a non-interlaced PNG, whose rows the judge reads",
+                )
+            )
+            readable = False
+        if readable and width * height > READ_PX:
+            out.append(
+                finding(
+                    f"png {name}",
+                    f"{width} by {height}",
+                    f"at most {READ_PX} pixels to read",
+                )
+            )
+            readable = False
+        if not readable:
+            continue
+        try:
+            rows = png_pixels(head)
+        except PngError as exc:
+            out.append(finding(f"png {name}", f"doesn't read ({exc})", "an 8-bit PNG"))
+            continue
+        pixels[name] = rows
+        if line := ring_finding(name, width, height, rows):
+            out.append(line)
+    if not brief["asset"].startswith("ui-"):
+        return out
+    if isinstance(named, list) and SLICES in named:
+        out.append(
+            finding(
+                "files",
+                SLICES,
+                "never in files: it sits beside them, as records.json does",
+            )
+        )
+    # slices.json answers to every PNG candidate.json names, so a named file the folder lacks has one finding, the
+    # files check's, and not a second here; only the files there are measured.
+    listed = [
+        n
+        for n in (named if isinstance(named, list) else [])
+        if isinstance(n, str) and n.lower().endswith(".png")
+    ]
+    found, insets, labels = slices_findings(folder, list(dict.fromkeys(listed)), sizes)
+    out += found
+    states: dict[str, list[tuple[str, tuple[float, float, float]]]] = {}
+    for name in sorted(insets):
+        match = BUTTON_FILE.fullmatch(name)
+        if not match or name not in pixels:
+            continue
+        width, height = sizes[name]
+        rows, inset, variant = pixels[name], insets[name], match.group(1)
+        mean = centre_mean(rows, width, height, inset)
+        if mean is None:
+            out.append(
+                finding(
+                    f"states {name}",
+                    "its centre is transparent",
+                    "a centre with colour to compare",
+                )
+            )
+        else:
+            states.setdefault(variant, []).append((name, lab(mean)))
+        if variant in labels and (
+            line := label_finding(name, labels[variant], rows, width, height, inset)
+        ):
+            out.append(line)
+    for variant in sorted(states):
+        for (a, lab_a), (b, lab_b) in itertools.combinations(states[variant], 2):
+            delta = math.dist(lab_a, lab_b)
+            if delta < STATES_APART:
+                out.append(
+                    finding(
+                        f"states {a} {b}",
+                        f"delta E76 {floored(delta, 1)}",
+                        f"at least {STATES_APART} apart",
+                    )
+                )
+    return out
+
+
+# --------------------------------------------------------------------------------------------------
 # Candidates
 # --------------------------------------------------------------------------------------------------
 def step_strings(value: object, where: str) -> list[tuple[str, str]]:
@@ -1111,6 +1597,8 @@ def candidate_findings(
                     f"the brief's, {limits['texture_bytes']}",
                 )
             )
+    if brief["kind"] == "still":
+        out += still_findings(folder, brief, files, named)
     for bone in limits.get("bones_required", []):
         if not has_bone(bone, bones):
             out.append(

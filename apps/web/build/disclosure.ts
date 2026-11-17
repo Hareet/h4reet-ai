@@ -5,20 +5,35 @@
 // The renderer reads the subset of Markdown the disclosure uses: ATX headings, paragraphs, "- " lists, pipe tables,
 // code spans, and bold. A link keeps its text only, since the repository's relative paths don't exist on the site.
 // Every character of the source is escaped, so the page holds no markup but what this file writes.
+//
+// Spec 030 (FR-015, FR-016; plan.md §R-C1): a dark page. Its style.css is src/pages/dark.css, the room's own panel
+// tokens, read at build, then STYLE, which holds layout alone; <html> carries dark-page. build/credits.ts does the same.
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import type { Plugin } from "vite";
 
 const AI_DISCLOSURE = "You're talking with an AI representation of the Author, not the Author.";
 
-const STYLE = `body { font-family: system-ui, sans-serif; line-height: 1.5; margin: 0 auto; max-width: 90rem; padding: 1rem; }
-header { border-bottom: 1px solid #555; margin-bottom: 1rem; }
+// The header holding the AI disclosure stays in view as the page scrolls (spec 030, FR-016; Q77): sticky, opaque by
+// dark.css; the root's scroll padding above its height at a phone's width (8rem against 7.5rem: the disclosure on three
+// lines, "Back to the room" on one, the margins), so an anchor or a focused link stops below it (WCAG 2.4.11).
+const STYLE = `html { scroll-padding-top: 8rem; }
+body { font-family: system-ui, sans-serif; line-height: 1.5; margin: 0 auto; max-width: 90rem; padding: 1rem; }
+header { position: sticky; top: 0; z-index: 1; border-bottom: 1px solid; margin-bottom: 1rem; }
+header p { margin: 0.5rem 0; }
 table { border-collapse: collapse; display: block; overflow-x: auto; }
-th, td { border: 1px solid #555; padding: 0.4rem; text-align: left; vertical-align: top; }
+th, td { border: 1px solid; padding: 0.4rem; text-align: left; vertical-align: top; }
 code { font-family: ui-monospace, monospace; font-size: 0.95em; }
-a { color: #0b4f9c; }
-a:focus-visible { outline: 2px solid #0b4f9c; outline-offset: 2px; }
 `;
+
+/** The dark pages' shared stylesheet (spec 030, FR-015). */
+export const DARK_CSS = fileURLToPath(new URL("../src/pages/dark.css", import.meta.url));
+
+/** A built page's style.css: dark.css as the file holds it, then the page's own layout rules. */
+export function pageStyle(layout: string): string {
+  return `${readFileSync(DARK_CSS, "utf8")}${layout}`;
+}
 
 function escape(text: string): string {
   return text
@@ -109,7 +124,7 @@ export function renderBody(markdown: string): string {
 /** The whole page: the site's AI disclosure and a way back, then the rendered Markdown. */
 export function renderDisclosure(markdown: string): string {
   return `<!doctype html>
-<html lang="en">
+<html lang="en" class="dark-page">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -129,16 +144,18 @@ ${renderBody(markdown)}
 `;
 }
 
-/** The Vite plugin: emits disclosure/index.html and its stylesheet from the Markdown, read when the bundle is written. */
+/** The Vite plugin: emits disclosure/index.html and its stylesheet from the Markdown and dark.css, read when the bundle
+ *  is written. */
 export function disclosurePage(options: { source: string }): Plugin {
   return {
     name: "h4-disclosure-page",
     apply: "build",
     generateBundle() {
       this.addWatchFile(options.source);
+      this.addWatchFile(DARK_CSS);
       const markdown = readFileSync(options.source, "utf8");
       this.emitFile({ type: "asset", fileName: "disclosure/index.html", source: renderDisclosure(markdown) });
-      this.emitFile({ type: "asset", fileName: "disclosure/style.css", source: STYLE });
+      this.emitFile({ type: "asset", fileName: "disclosure/style.css", source: pageStyle(STYLE) });
     },
   };
 }

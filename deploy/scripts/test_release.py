@@ -4,7 +4,7 @@ contracts/releases-deployer.md §1 and §2; research.md R-17).
   - refs/heads/main's commit alone, from a fresh export of it, whatever the checkout holds, and only when its merge
     carries the gate's line for the branch tip it merged (group 7's review A, I-D and I-H);
   - one build per project image, for linux/amd64, and for linux/arm64 where its `hosts` name a Graviton host (EC2,
-    the tunnel end), pushed by the release's commit;
+    the tunnel end), pushed by the release's id, `<time>-<the commit's first 12>` (F6: specs/001-cloud-elevation/fixes/f6.md);
   - every upstream image a cloud host runs copied to the account's registry by its lock line's index digest, and
     refused when the copy's digest isn't the lock's;
   - when the release makes hello or the twin's turns public, the red-team gate: a passing run of that very commit on each
@@ -22,8 +22,11 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import re
 import secrets
+import shutil
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -238,7 +241,10 @@ def test_a_release_builds_once_each_for_its_hosts_platforms(tmp_path: Path) -> N
     assert services["snapshot-sink"]["hosts"] == ["tunnel-end"]
     assert services["ec2-snapshot-publisher"]["hosts"] == ["ec2"]
     for c in pushed:
-        assert "--push" in c and c[c.index("--tag") + 1].endswith(f":{COMMIT}")
+        # F6: by the release's id, `<time>-<the commit's first 12>`, so a rerun never meets a tag a refused run left.
+        assert "--push" in c and c[c.index("--tag") + 1].endswith(
+            f":20261113T010203Z-{COMMIT[:12]}"
+        )
     assert rl.platforms(["laptop"]) == ["linux/amd64"]
     assert rl.platforms(["laptop", "ec2"]) == ["linux/amd64", "linux/arm64"]
 
@@ -401,6 +407,184 @@ def test_the_site_is_checked_in_the_web_image_built_from_the_export(
     assert content[content.index("--dist") + 1] == dist
     assert content[content.index("--tree") + 1] == str(REPO)
     assert create < copy < check < first_push
+
+
+# Spec 030 (FR-027; plan.md §R-D4; tasks.md T-DS01 (c), rework 2, R-1): the release builds the web image with the
+# export's own web_image.py's asset contexts, from its one list, ASSET_CONTEXTS, so the released image sees
+# assets/ui/ (the buttons' images) as a host stack's build does, and the release's list can't fall behind the script's.
+def scratch_tree(tmp_path: Path) -> Path:
+    """An export holding a copy of the tree's own deploy/scripts/web_image.py, which web_contexts loads."""
+    src = tmp_path / "src"
+    (src / "deploy/scripts").mkdir(parents=True)
+    shutil.copyfile(
+        REPO / "deploy/scripts/web_image.py", src / "deploy/scripts/web_image.py"
+    )
+    return src
+
+
+def contexts(name: str, src: Path) -> list[str]:
+    """rl.web_contexts(name, src), its policy folder removed once read: the named contexts after the policy's."""
+    out = rl.web_contexts(name, src)
+    for value in out:
+        if value.startswith("policy="):
+            shutil.rmtree(value.partition("=")[2], ignore_errors=True)
+    return out
+
+
+def pairs_of(out: list[str]) -> list[str]:
+    return [out[i + 1] for i, a in enumerate(out) if a == "--build-context"]
+
+
+def test_the_releases_web_build_names_assets_ui_after_the_twin(tmp_path: Path) -> None:
+    src = scratch_tree(tmp_path)
+    (src / "assets/ui/buttons").mkdir(parents=True)
+    out = contexts("web", src)
+    assert f"ui-assets={src / 'assets/ui'}" in pairs_of(out)
+    assert out[out.index(f"ui-assets={src / 'assets/ui'}") - 1] == "--build-context"
+    (src / "assets/twin").mkdir()
+    pairs = pairs_of(contexts("web", src))
+    assert pairs.index(f"ui-assets={src / 'assets/ui'}") == (
+        pairs.index(f"twin-assets={src / 'assets/twin'}") + 1
+    )
+
+
+def ui_link(src: Path, outside: Path) -> None:
+    (outside / "ui").mkdir()
+    (src / "assets").mkdir()
+    (src / "assets/ui").symlink_to(outside / "ui", target_is_directory=True)
+
+
+def ui_file(src: Path, outside: Path) -> None:
+    (src / "assets").mkdir()
+    (src / "assets/ui").write_bytes(b"not a directory")
+
+
+def ui_absent(src: Path, outside: Path) -> None:
+    (src / "assets/twin").mkdir(parents=True)
+
+
+def assets_link(src: Path, outside: Path) -> None:
+    (outside / "assets/ui").mkdir(parents=True)
+    (src / "assets").symlink_to(outside / "assets", target_is_directory=True)
+
+
+@pytest.mark.parametrize("make", [ui_absent, ui_link, ui_file, assets_link])
+def test_the_releases_web_build_names_no_ui_assets_unless_the_export_holds_the_folder(
+    tmp_path: Path, make: Callable[[Path, Path], None]
+) -> None:
+    # A link would hand the build a directory the commit doesn't hold; the Dockerfile's empty stage stands in.
+    src = scratch_tree(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    make(src, outside)
+    assert not [p for p in pairs_of(contexts("web", src)) if p.startswith("ui-assets")]
+
+
+def test_the_releases_contexts_are_every_pair_of_the_scripts_list(
+    tmp_path: Path,
+) -> None:
+    src = scratch_tree(tmp_path)
+    wi = rl._load("web_image_for_test", src / "deploy/scripts/web_image.py")
+    for folder, _ in wi.ASSET_CONTEXTS:
+        (src / folder).mkdir(parents=True)
+    out = contexts("web", src)
+    assert out[:2] == ["--build-arg", "ROOM_DRAFTS="]
+    pairs = pairs_of(out)
+    assert pairs[0].startswith("policy=")
+    assert pairs[1:] == [
+        f"{context}={src / folder}" for folder, context in wi.ASSET_CONTEXTS
+    ]
+
+
+def test_an_image_other_than_the_webs_has_no_named_contexts(tmp_path: Path) -> None:
+    src = scratch_tree(tmp_path)
+    (src / "assets/ui").mkdir(parents=True)
+    assert rl.web_contexts("api", src) == []
+
+
+# Spec 030 (plan.md §R-D4, rework 3, the review's R-5; tasks.md T-DS01 (c)): an export cut before ASSET_CONTEXTS has a
+# web_image.py without it, which web_contexts refuses by name, before any build, never with an AttributeError.
+THE_LIST = re.compile(r"^ASSET_CONTEXTS = \(\n(?:    .*\n)*?\)\n", re.MULTILINE)
+
+
+def tree_with_list(tmp_path: Path, replacement: str) -> Path:
+    """A scratch export whose web_image.py is the tree's own copy with its ASSET_CONTEXTS assignment replaced."""
+    src = scratch_tree(tmp_path)
+    script = src / "deploy/scripts/web_image.py"
+    text, count = THE_LIST.subn(replacement, script.read_text(encoding="utf-8"))
+    assert count == 1
+    script.write_text(text, encoding="utf-8")
+    return src
+
+
+def refused_by_name(src: Path) -> str:
+    with pytest.raises(rl.Refused) as refused:
+        contexts("web", src)
+    message = str(refused.value)
+    assert "deploy/scripts/web_image.py" in message and "ASSET_CONTEXTS" in message
+    return message
+
+
+def test_an_export_whose_web_image_has_no_list_is_refused_by_name(
+    tmp_path: Path,
+) -> None:
+    src = tree_with_list(tmp_path, "")
+    assert "ASSET_CONTEXTS =" not in (src / "deploy/scripts/web_image.py").read_text(
+        encoding="utf-8"
+    )
+    (src / "assets/ui").mkdir(parents=True)
+    assert str(src / "deploy/scripts/web_image.py") in refused_by_name(src)
+
+
+@pytest.mark.parametrize(
+    "malformed",
+    [
+        "ASSET_CONTEXTS = None\n",
+        'ASSET_CONTEXTS = "assets/ui"\n',
+        'ASSET_CONTEXTS = [("assets/ui", "ui-assets")]\n',
+        'ASSET_CONTEXTS = (["assets/ui", "ui-assets"],)\n',
+        'ASSET_CONTEXTS = (("assets/ui",),)\n',
+        'ASSET_CONTEXTS = (("assets/ui", "ui-assets", "more"),)\n',
+        'ASSET_CONTEXTS = (("assets/ui", 3),)\n',
+        'ASSET_CONTEXTS = ((Path("assets/ui"), "ui-assets"),)\n',
+    ],
+)
+def test_an_export_whose_list_isnt_folder_and_context_pairs_is_refused_by_name(
+    tmp_path: Path, malformed: str
+) -> None:
+    src = tree_with_list(tmp_path, malformed)
+    (src / "assets/ui").mkdir(parents=True)
+    refused_by_name(src)
+
+
+def test_a_release_of_an_export_without_the_list_is_refused_before_any_build(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    src = tree_with_list(tmp_path, "")
+    path, sha = plugin(tmp_path)
+    r = Runner()
+    code = rl.run(
+        rl.Options(
+            registry=REGISTRY,
+            bucket=BUCKET,
+            compose_plugin=path,
+            compose_sha256=sha,
+            public=False,
+            local=tmp_path / "releases",
+            redteam=history(tmp_path, {}),
+        ),
+        r,
+        root=REPO,
+        now=lambda: "20261113T010203Z",
+        contexts=rl.web_contexts,
+        exported=lambda commit, work: src,
+        routing_of=lambda src: ROUTING,
+    )
+    assert code == 1
+    err = capsys.readouterr().err
+    assert f"{rl.PROG}: refused, nothing pushed past the step that refused: " in err
+    assert "ASSET_CONTEXTS" in err and "AttributeError" not in err
+    assert r.builds() == [] and r.uploads == []
 
 
 @pytest.mark.parametrize("error", [OSError("no docker"), "timeout"])

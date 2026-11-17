@@ -7,13 +7,20 @@
 // its plate), never on the bare translucent glass. The tiles keep their own faces, which carry their words, icons, and
 // rings over the translucent glass (FR-006): --over-glass-alpha is the lowest 5% step at which they do, and
 // --over-plate-alpha the lowest 5% step at which every pair on a plate holds over that glass (FR-003). Under the
-// visitor's asks (less transparency, more contrast, forced colours) both are 1 (FR-004).
+// visitor's asks (less transparency, more contrast, forced colours) both are 1 (FR-004). Spec 030 (T-INT02; Q73): the
+// controls the skin draws take their faces, labels, lines, and rings from the skin the build ships, so their pairs
+// read its tokens; the tiles' pairs name the tiles the skin leaves (was: every tile, and the walking control's face
+// the glass at --glass-alpha).
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { SKIN_STATES, SKIN_VARIANTS, builtSkin, stateColours } from "../helpers/built-skin";
 import { parseCss } from "../helpers/room";
+
+/** The skin the build ships (spec 030, T-INT02; Q73): its tokens on :root[data-skin="<id>"]. */
+const SKIN = builtSkin();
 
 const read = (path: string): string => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
 const ROOM = parseCss(read("../../src/room/room.css"));
@@ -82,7 +89,6 @@ function pairs(glassAlpha: number, plateAlpha: number): Pair[] {
   const focus = colour(ROOM_P.get("--hud-focus") ?? "").rgb;
   const face = colour(ROOM_P.get("--tile-face") ?? "");
   const border = colour(ROOM_P.get("--tile-border") ?? "");
-  const controlAlpha = num("--glass-alpha");
   const out: Pair[] = [];
   for (const [beneath, under] of [
     ["white", WHITE],
@@ -91,8 +97,6 @@ function pairs(glassAlpha: number, plateAlpha: number): Pair[] {
     const glass = over({ rgb: glassRgb, a: glassAlpha }, under);
     const plate = over({ rgb: glassRgb, a: plateAlpha }, glass);
     const tile = over(face, glass);
-    // The walking control and the "Eat" tile are tiles over the scene of their own: their face is today's glass.
-    const control = over({ rgb: glassRgb, a: controlAlpha }, under);
     const p = (name: string, contrast: number, floor: number, onTile = false): Pair => ({
       name: `${name} over ${beneath}`,
       contrast,
@@ -105,14 +109,37 @@ function pairs(glassAlpha: number, plateAlpha: number): Pair[] {
       p("the accent entry (large) on a plate", ratio(accent, plate), 3),
       p("the accent's marks (strokes, emblem) on a plate", ratio(accent, plate), 3),
       p("the focus ring on a plate", ratio(focus, plate), 3),
-      p("text on a tile on the glass", ratio(text, tile), 4.5, true),
-      p("a tile's icon on the glass", ratio(text, tile), 3, true),
-      p("a tile's border over its face", ratio(over(border, tile), tile), 3, true),
-      p("the focus ring inside a tile", ratio(focus, tile), 3, true),
-      p("the pressed mark on a tile", ratio(text, tile), 3, true),
-      p("text on the walking control", ratio(text, control), 4.5, true),
-      p("the focus ring inside the walking control", ratio(focus, control), 3, true),
+      p("text on a tile the skin leaves on the glass", ratio(text, tile), 4.5, true),
+      p("a tile's border the skin leaves over its face", ratio(over(border, tile), tile), 3, true),
+      p("the focus ring inside a tile the skin leaves", ratio(focus, tile), 3, true),
     );
+    // Spec 030 (T-INT02; Q73): the skinned controls over the room (Q5: the bar's tiles and, in the split layout, the
+    // walking control, "Eat", "Back", "Close, Escape", the header toggles, "Send"), from the built skin's tokens, each
+    // variant and state: the label and the icon (in the label's colour) on the face, the edge (the border's line or the
+    // face) on the glass, the focus ring inside the face, the selected line on the face. On a tile's face (FR-006).
+    for (const variant of SKIN_VARIANTS)
+      for (const state of SKIN_STATES) {
+        const c = stateColours(SKIN, variant, state);
+        const skinFace = over(colour(c.face), glass);
+        const label = over(colour(c.label), skinFace);
+        const at = `${SKIN.id}'s ${variant} ${state} control`;
+        out.push(
+          p(`${at}: its label on its face`, ratio(label, skinFace), 4.5, true),
+          p(`${at}: its icon on its face`, ratio(label, skinFace), 3, true),
+          p(
+            `${at}: its edge on the glass`,
+            Math.max(ratio(over(colour(c.border), glass), glass), ratio(skinFace, glass)),
+            3,
+            true,
+          ),
+        );
+        if (state !== "disabled")
+          out.push(p(`${at}: its focus ring inside its face`, ratio(colour(c.ring).rgb, skinFace), 3, true));
+        if (state === "selected")
+          out.push(
+            p(`${at}: its selected line on its face`, ratio(over(colour(c.border), skinFace), skinFace), 3, true),
+          );
+      }
   }
   return out;
 }
@@ -190,16 +217,29 @@ describe("the over-room look draws what the test judges (FR-002, FR-003)", () =>
           expect(r.selector.includes('[data-over="room"]') || r.selector === ":root", r.selector).toBe(true);
   });
 
+  // Spec 030 (T-INT02; Q73; was: room.css's `.hud-tile:focus-visible` and `.hud-tile[data-over="room"]:focus-visible`
+  // over the room at `outline-offset` -4px or less, beside the panels' buttons): the bar's tiles, the walking control,
+  // and "Eat" are the skin's buttons, whose 2 px ring ui/button.css draws inside the face in every skin, at an offset of
+  // `-2px - --_line-w - --btn-chamfer / 2` (Q72); the panels' tile buttons keep room.css's -4px.
   it("draws the focus ring inside its control over the room, or on a plate, never on the bare glass", () => {
     const rings = OVER.filter((r) => r.selector.includes(":focus-visible") && r.declarations.has("outline-offset"));
     const offset = (r: (typeof rings)[number]): number =>
       Number.parseFloat(r.declarations.get("outline-offset") ?? "0");
-    // The tiles (the bar's, the walking control, the "Eat" tile) and the panels' tile buttons: inside, on the face.
-    for (const part of [".hud-tile:focus-visible", '.hud-tile[data-over="room"]:focus-visible', "button:focus-visible"])
-      expect(
-        rings.some((r) => r.selector.endsWith(part) && offset(r) <= -4),
-        part,
-      ).toBe(true);
+    // The panels' tile buttons: inside, on the face.
+    expect(
+      rings.some((r) => r.selector.endsWith("button:focus-visible") && offset(r) <= -4),
+      "button:focus-visible",
+    ).toBe(true);
+    // The skin's buttons: the component's ring, its offset plus its 2 px width at most 0 under every CSS skin.
+    const component = parseCss(read("../../src/ui/button.css"));
+    const ring = component.rules.find(
+      (r) => r.selector.includes(".room-walk") && r.selector.endsWith(":focus-visible"),
+    );
+    expect(ring?.declarations.get("outline-width")).toBe("2px");
+    expect(ring?.declarations.get("outline-offset")).toBe("calc(-2px - var(--_line-w) - var(--btn-chamfer) / 2)");
+    const chamfer = /^([\d.]+)rem$/.exec(SKIN.tokens.get("--btn-chamfer") ?? "");
+    expect(chamfer, "the built skin's chamfer in rem").not.toBeNull();
+    expect(-2 - 1 - (Number(chamfer?.[1]) * 16) / 2 + 2).toBeLessThanOrEqual(0);
     // Any other ring stays outside its control only where a plate backs it: the link-like button in a message.
     for (const r of rings.filter((x) => offset(x) > -4))
       expect(r.selector, r.selector).toMatch(/\.talk-link:focus-visible$/);

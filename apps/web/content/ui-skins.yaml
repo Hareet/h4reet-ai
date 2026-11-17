@@ -1,0 +1,117 @@
+# The interface's button skins (spec 030, FR-009; plan.md §R-B1). Features as data: a swap is an edit of `active`, or
+# of a skin's tokens, never of code. build/ui-skins.ts reads this file at build into custom properties on
+# :root[data-skin="<id>"] (FR-010), which src/ui/button.css alone reads. Colours are #rrggbb or rgb(r g b / a); lengths
+# take px, rem, or em. Each state's face, label, and border; the selected state's glow; each variant's focus ring,
+# drawn inside the face. Every value is an estimate for the Author's look (SC-008), held to FR-012's ratios by
+# test/ui-skins.test.ts; a token that failed one was moved in 5% steps of lightness, each move recorded in plan §R-B1.
+# An image skin (kind: image; plan §R-D4) names its CSS fallback, the label colours the round measured, and its files
+# with their SHA-256s and insets (top, right, bottom, left, in the image's pixels); until every file is in the tree and
+# of its hash, the build draws the fallback and says why (FR-025).
+active: metal-image
+skins:
+  # Dark brushed metal in the spirit of his reference, drawn from its description alone: chamfered corners, a bevel and
+  # an inner highlight, a dark frame, yellow for the primary action, cyan for the rest, the selected one glowing.
+  metal:
+    kind: css
+    tokens:
+      font: { family: "IBM Plex Sans", weight: 700, case: upper, tracking: 0.06em }
+      chamfer: 0.5rem
+      radius: 0rem
+      frame: "#2a3038"
+      bevel: { light: "rgb(255 255 255 / 0.28)", dark: "rgb(0 0 0 / 0.55)" }
+      highlight: "rgb(255 255 255 / 0.18)"
+      glow: { radius: 0.5rem }
+      primary:
+        ring: "#14171c"
+        normal: { face: "#f2c230", label: "#14171c", border: "#312500" }
+        hover: { face: "#ffd54d", label: "#14171c", border: "#7d5f00" }
+        pressed: { face: "#c99a14", label: "#14171c", border: "#312500" }
+        disabled: { face: "#ac9863", label: "#14171c", border: "#312500" }
+        selected: { face: "#f2c230", label: "#14171c", border: "#312500", glow: "#ffd23f" }
+      secondary:
+        ring: "#ffd23f"
+        normal: { face: "#16323c", label: "#e6fbff", border: "#76e1f4" }
+        hover: { face: "#1d4250", label: "#ffffff", border: "#76e1f4" }
+        pressed: { face: "#0e2129", label: "#e6fbff", border: "#46d7f0" }
+        disabled: { face: "#1a2226", label: "#c4cdd1", border: "#8b979d" }
+        selected: { face: "#16323c", label: "#ffffff", border: "#76e1f4", glow: "#46d7f0" }
+  # Plain, to prove the swap: a flat face, a 1 px border, square corners, no glow, the words' own case.
+  plain:
+    kind: css
+    tokens:
+      font: { family: "IBM Plex Sans", weight: 400, case: as-written, tracking: 0em }
+      chamfer: 0rem
+      radius: 0rem
+      frame: "#10141a"
+      bevel: { light: "rgb(255 255 255 / 0.2)", dark: "rgb(0 0 0 / 0.4)" }
+      highlight: "rgb(255 255 255 / 0)"
+      glow: { radius: 0rem }
+      primary:
+        ring: "#10141a"
+        normal: { face: "#e8e4dc", label: "#10141a", border: "#10141a" }
+        hover: { face: "#ffffff", label: "#10141a", border: "#10141a" }
+        pressed: { face: "#cfcac0", label: "#10141a", border: "#10141a" }
+        disabled: { face: "#b9b5ad", label: "#10141a", border: "#10141a" }
+        selected: { face: "#e8e4dc", label: "#10141a", border: "#10141a", glow: "#10141a" }
+      secondary:
+        ring: "#ffd23f"
+        normal: { face: "#10141a", label: "#ffffff", border: "#c8ccd2" }
+        hover: { face: "#262c35", label: "#ffffff", border: "#e8e4dc" }
+        pressed: { face: "#05070a", label: "#ffffff", border: "#c8ccd2" }
+        disabled: { face: "#10141a", label: "#b8bec6", border: "#939aa3" }
+        selected: { face: "#10141a", label: "#ffffff", border: "#ffd23f", glow: "#ffd23f" }
+  # The studio's image skin (spec 030, US4; studio-round-1.md, asset ui-buttons): a 9-slice PNG per state of each
+  # variant and the right column's panel frame, drawn through border-image over metal's tokens (Q13, Q15). The files
+  # come into assets/ui/buttons/ by the Author's intake (plan §R-D3). The hashes, the insets, and the labels are round
+  # 1's record (studio-round-1.md, "The record", judge-ui-r1: records.json and the bytes agree; slices.json).
+  metal-image:
+    kind: image
+    fallback: metal
+    labels: { primary: "#14171c", secondary: "#e6fbff" }
+    files:
+      primary:
+        normal:
+          file: assets/ui/buttons/btn-primary-normal.png
+          sha256: 17b6faa32027e312d59d546c8764e1de519a74a708138238eee3373c683147c3
+          slice: [24, 24, 24, 24]
+        hover:
+          file: assets/ui/buttons/btn-primary-hover.png
+          sha256: ce93cdc64bf4dcdb6dd63b325afe25b5bd32e72601aa817610eea7395ff6c43f
+          slice: [24, 24, 24, 24]
+        pressed:
+          file: assets/ui/buttons/btn-primary-pressed.png
+          sha256: 0e831b953301bad2c5244ee27f2c0221db3281d42ecbf2606780abae5f5c9da5
+          slice: [24, 24, 24, 24]
+        disabled:
+          file: assets/ui/buttons/btn-primary-disabled.png
+          sha256: fe4da5713f32ea8b0f08719161d94b74eea224c8e661e1ba2c0dbcc51fc2d626
+          slice: [24, 24, 24, 24]
+        selected:
+          file: assets/ui/buttons/btn-primary-selected.png
+          sha256: 5062c8adb92a204943c291baabdd5637a102bdb4bb294fc599ce695bbaf89cc9
+          slice: [24, 24, 24, 24]
+      secondary:
+        normal:
+          file: assets/ui/buttons/btn-secondary-normal.png
+          sha256: 1d98c57c0782e0af6c4949b4e0a6e08688dc2279b94600acb623610292f48fdd
+          slice: [24, 24, 24, 24]
+        hover:
+          file: assets/ui/buttons/btn-secondary-hover.png
+          sha256: 30c1e35db047f465fdbcdeae35650023c7c6d18c7f6afb7471e4dc043ca041bf
+          slice: [24, 24, 24, 24]
+        pressed:
+          file: assets/ui/buttons/btn-secondary-pressed.png
+          sha256: 1b5af9a30d13ec8c7eee02690198b4da63dc4bc36b7bf76628e9b54f32efd5c1
+          slice: [24, 24, 24, 24]
+        disabled:
+          file: assets/ui/buttons/btn-secondary-disabled.png
+          sha256: 30fd1dcfd3fe9bab75280a8058c31395bb798dce944163bfe592aa36d8929d90
+          slice: [24, 24, 24, 24]
+        selected:
+          file: assets/ui/buttons/btn-secondary-selected.png
+          sha256: 08e54a06ef44eaf56b254a9dfeded13ae8752fbc5b672628a58cc34f47199dff
+          slice: [24, 24, 24, 24]
+      panel:
+        file: assets/ui/buttons/panel-frame.png
+        sha256: dbf6bd7caf6b6f43a6de90238c165646a52d69255961f8fd00ff73b52cfef34d
+        slice: [48, 48, 48, 48]

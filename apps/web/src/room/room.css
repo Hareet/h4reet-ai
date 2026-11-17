@@ -2,7 +2,7 @@
    (its FR-006 to FR-009, FR-019 to FR-028; plan.md §2.3, §4.1, §6): the room block fills the window, and the
    interface is laid over it. From the site's own origin, classes only: the CSP's style-src 'self' refuses inline
    styles, and the room sets its sizes as CSS properties through the CSS object model (layout.ts's applyHud).
-   - The page's root carries data-hud (column, dock, or stacked), data-list, data-blur, data-walk, and the table's
+   - The page's root carries data-hud (column, dock, or stacked), data-list, data-walk, and the table's
      sizes (compose/hud.ts): --strip-h, --bar-h, --column-w, --dock-h, --clear-x, --clear-y, --clear-w, --clear-h,
      --safe-top, --safe-right, --safe-bottom, --safe-left, and --keyboard. Every docked box takes its size from them
      alone (test/room/stages.test.ts), so moving a panel is one edit to the table.
@@ -106,7 +106,6 @@ body.in-room .disclosure p {
   --tile-face: rgb(6 8 11 / 0.4);
   --tile-border: rgb(255 255 255 / 0.72);
   --hud-focus: #ffd23f;
-  --hud-blur: blur(12px);
   --bar-h: 0px;
   --column-w: 0px;
   --dock-h: 0px;
@@ -149,25 +148,25 @@ body.in-room .disclosure p {
      beneath. Data for the Author's look (FR-008), within that bound. */
   --over-glass-alpha: 0.3;
   --over-plate-alpha: 0.5;
+  /* Spec 030 (FR-002, FR-004, FR-006; plan.md §R-A3): the slice between the right column's halves in the column layout
+     and the dock, which the room sets (compose/hud.ts's sliceRem), and each half's edge: an opaque grey whose
+     luminance lies between 3:1 under white and 3:1 over black, so the edge reaches 3:1 against white or black outside
+     it, whatever the glass inside (plan.md §R-A3, as built). */
+  --hud-slice: 0px;
+  --half-border: #8a8f98;
 }
 
-/* The glass is opaque, with no blur, where the visitor asks for less transparency or more contrast, and where the
-   browser draws no backdrop blur, so the tint alone carries the contrast (FR-006). Each fallback names the root's
-   attribute, so it outranks the HUD's rule it undoes, `html[data-blur="on"] .hud-glass` (the review of 60b51de4's
-   nit; test/room/hud-contrast.test.ts computes the specificity). */
+/* The glass is opaque where the visitor asks for less transparency or more contrast, so the tint alone carries the
+   contrast (FR-006). Since spec 030 (FR-001; Q1) the HUD draws no backdrop blur at any quality level; each fallback
+   keeps its `.hud-glass` reset to none, redundant now and harmless. With no blur anywhere, a browser without a
+   backdrop filter gets the same clear glass as every other, so no rule asks whether it has one (rework, N-1). */
 @media (prefers-reduced-transparency: reduce) {
   :root {
     --glass-alpha: 1;
     --glass-alpha-lit: 1;
   }
 
-  /* T053's second review: the walking control's hover opaque whatever its own rule says. */
-  :root[data-hud] .room-walk:hover {
-    background: rgb(var(--glass));
-  }
-
-  .hud-glass,
-  :root[data-blur] .hud-glass {
+  .hud-glass {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
@@ -179,21 +178,7 @@ body.in-room .disclosure p {
     --glass-alpha-lit: 1;
   }
 
-  .hud-glass,
-  :root[data-blur] .hud-glass {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-}
-
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :root {
-    --glass-alpha: 1;
-    --glass-alpha-lit: 1;
-  }
-
-  .hud-glass,
-  :root[data-blur] .hud-glass {
+  .hud-glass {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
@@ -327,7 +312,8 @@ html[data-hud="dock"] .room-clear {
 
 /* Spec 008's walking control (FR-020, FR-021; plan.md R-09 and §10): a fixed box in the clear area's bottom-right
    corner, 8rem by 2.75rem, 0.5rem in, which compose/hud.ts's WALK_CONTROL pins (test/room/stages.test.ts), so RG6 keeps
-   every selectable's exclusive core clear of it at every supported stage. Its words wrap inside it. */
+   every selectable's exclusive core clear of it at every supported stage. Its words wrap inside it. Spec 030
+   (T-INT02): its colours, face, border, and corners are the skin's, ui/button.css's, in every layout. */
 .room-walk {
   position: absolute;
   right: 0.5rem;
@@ -339,10 +325,6 @@ html[data-hud="dock"] .room-clear {
   font: inherit;
   line-height: 1.1;
   overflow-wrap: anywhere;
-  color: #1a1a1a;
-  background: #ffffff;
-  border: 2px solid #1a1a1a;
-  border-radius: 4px;
 }
 
 /* Spec 024's "Eat" tile (FR-012; plan.md §5.5): the walking control's size and look, beside it. In the HUD's layouts it
@@ -351,7 +333,8 @@ html[data-hud="dock"] .room-clear {
    a 0.25rem gap apart. Its DOM place is after the walking control's, so it comes after it in the Tab order.
    rework-024 (B-2): a rule that reads a property the room sets for one layout is scoped to that layout and to the
    attribute that says the property is set, so no other layout reads it unset (layout.ts offers the tile only where a
-   rule places it: the stacked layout, or a HUD layout with data-eat-place="on"; test/ui/eat-place.test.ts). */
+   rule places it: the stacked layout, or a HUD layout with data-eat-place="on"; test/ui/eat-place.test.ts). Spec 030
+   (T-INT02): its colours, face, border, and corners are the skin's, ui/button.css's. */
 .room-eat {
   position: absolute;
   right: 8.75rem;
@@ -363,10 +346,6 @@ html[data-hud="dock"] .room-clear {
   font: inherit;
   line-height: 1.1;
   overflow-wrap: anywhere;
-  color: #1a1a1a;
-  background: #ffffff;
-  border: 2px solid #1a1a1a;
-  border-radius: 4px;
 }
 
 html[data-hud="column"][data-eat-place="on"] .room-eat,
@@ -522,7 +501,7 @@ html[data-hud="column"] .hud-panels {
   position: absolute;
   right: 0;
   top: var(--strip-h);
-  bottom: calc(var(--bar-h) + var(--keyboard));
+  bottom: calc(var(--bar-h) + var(--hud-slice) + var(--keyboard));
   width: var(--column-w);
   z-index: 3;
   box-sizing: border-box;
@@ -538,7 +517,7 @@ html[data-hud="dock"] .hud-panels {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(var(--bar-h) + var(--keyboard));
+  bottom: calc(var(--bar-h) + var(--hud-slice) + var(--keyboard));
   height: var(--dock-h);
   z-index: 3;
   box-sizing: border-box;
@@ -667,17 +646,13 @@ html[data-hud="dock"] .talk[data-log="empty"] .talk-sheet {
 /* The HUD's look (spec 005, FR-024 to FR-026; plan.md §6.2, §6.6, §6.7; the Author's "Use the dark glass recommendation
    and just go ahead with putting everything in instead of approval at lookdev first"): dark glass panels, game-style
    tiles of an icon over their words, the highlight's yellow for focus, and a pressed mark beyond colour. Every colour
-   is the palette's, which test/room/hud-contrast.test.ts holds to WCAG's floors over white and black beneath. The blur
-   draws only at quality levels 0 and 1 (data-blur), and the tint alone carries the contrast. */
+   is the palette's, which test/room/hud-contrast.test.ts holds to WCAG's floors over white and black beneath. No
+   backdrop blur at any quality level (spec 030, FR-001; Q1): the room is seen through the glass, and the tint alone
+   carries the contrast, as it always did. */
 html[data-hud="column"] .hud-glass,
 html[data-hud="dock"] .hud-glass {
   color: var(--hud-text);
   background: rgb(var(--glass) / var(--glass-alpha));
-}
-
-html[data-blur="on"] .hud-glass {
-  -webkit-backdrop-filter: var(--hud-blur);
-  backdrop-filter: var(--hud-blur);
 }
 
 html[data-hud="column"] .hud-tile,
@@ -693,32 +668,20 @@ html[data-hud="dock"] .hud-tile {
   padding: 0.125rem 0.5rem;
   font-size: 0.8125rem;
   line-height: 1.2;
-  white-space: nowrap;
-  color: var(--hud-text);
-  background: var(--tile-face);
-  border: 1px solid var(--tile-border);
-  border-radius: 0.5rem;
   text-decoration: none;
 }
 
-html[data-hud="column"] .hud-tile:active,
-html[data-hud="dock"] .hud-tile:active {
-  transform: translateY(1px);
-}
-
-/* A pressed tile, "Pause the room": an inset ring in the text's colour and its words underlined, beyond colour. */
+/* Spec 030 (T-INT02): a tile's colours, face, border, corners, wrapping, and its pressed, selected, and disabled looks
+   are the skin's, ui/button.css's, which wins each of them on every tile (its 44 px floor too, over the 2.75rem above,
+   which test/ui/hud.test.ts reads); the words' underline when pressed and their line-through when disabled stay here,
+   beyond colour. */
 html[data-hud="column"] .hud-tile[aria-pressed="true"],
 html[data-hud="dock"] .hud-tile[aria-pressed="true"] {
-  color: var(--hud-text);
-  background: var(--tile-face);
-  box-shadow: inset 0 0 0 2px var(--hud-text);
   text-decoration: underline;
 }
 
 html[data-hud="column"] .hud-tile[aria-disabled="true"],
 html[data-hud="dock"] .hud-tile[aria-disabled="true"] {
-  color: var(--hud-text);
-  opacity: 0.75;
   text-decoration: line-through;
 }
 
@@ -729,17 +692,14 @@ html[data-hud="dock"] .hud-tile[aria-disabled="true"] {
 }
 
 /* Focus on the glass: the highlight's yellow, 2 pixels, at 3:1 over the glass and over a tile, the conversation's text
-   box's ring among them (the review of 60b51de4, finding 4). */
+   box's ring among them (the review of 60b51de4, finding 4). The walking control's and "Eat"'s ring is the skin's,
+   inside its face (spec 030, T-INT02). */
 html[data-hud="column"] .hud-glass button:focus-visible,
 html[data-hud="column"] .hud-glass a:focus-visible,
 html[data-hud="dock"] .hud-glass button:focus-visible,
 html[data-hud="dock"] .hud-glass a:focus-visible,
 html[data-hud="column"] .hud-glass input:focus-visible,
 html[data-hud="dock"] .hud-glass input:focus-visible,
-html[data-hud="column"] .hud-glass.room-walk:focus-visible,
-html[data-hud="dock"] .hud-glass.room-walk:focus-visible,
-html[data-hud="column"] .hud-glass.room-eat:focus-visible,
-html[data-hud="dock"] .hud-glass.room-eat:focus-visible,
 html[data-hud="column"] .room-offer button:focus-visible,
 html[data-hud="dock"] .room-offer button:focus-visible {
   outline: 2px solid var(--hud-focus);
@@ -757,7 +717,8 @@ html[data-hud="column"][data-walk-place="column"] .room-walk {
   bottom: auto;
 }
 
-/* The walking control over the scene: a glass tile of its own, where no panel lies behind it. */
+/* The walking control over the scene, where no panel lies behind it: its icon beside its words; its face, border, and
+   colours the skin's (spec 030, T-INT02). */
 html[data-hud="column"] .room-walk,
 html[data-hud="dock"] .room-walk,
 html[data-hud="column"] .room-eat,
@@ -765,10 +726,6 @@ html[data-hud="dock"] .room-eat {
   flex-direction: row;
   gap: 0.25rem;
   padding: 0 0.5rem;
-  white-space: normal;
-  color: var(--hud-text);
-  background: rgb(var(--glass) / var(--glass-alpha));
-  border: 1px solid var(--tile-border);
 }
 
 /* The links and link-like buttons on the glass take the text's colour, underlined. */
@@ -815,26 +772,14 @@ html[data-hud="dock"] .hud-panels button[aria-current="true"] {
   box-shadow: inset 0 0 0 1px var(--accent-neon);
 }
 
+/* Spec 030 (T-INT02): the bar's tiles' and the walking control's hover are the skin's. */
 @media (hover: hover) {
   html[data-hud="column"] .hud-panels button:hover,
   html[data-hud="dock"] .hud-panels button:hover,
-  html[data-hud="column"] .hud-bar button:hover,
-  html[data-hud="dock"] .hud-bar button:hover,
-  html[data-hud="column"] .hud-bar a.hud-tile:hover,
-  html[data-hud="dock"] .hud-bar a.hud-tile:hover,
   html[data-hud="column"] .room-offer button:hover,
   html[data-hud="dock"] .room-offer button:hover {
     border-color: var(--accent-neon);
     background: var(--tile-face-lit);
-    box-shadow: inset 0 0 0 1px var(--accent-neon);
-  }
-
-  /* The walking control lies over the scene, not on a panel: its hover is the glass a step denser, which keeps its
-     words at 4.5:1 over a light scene and is opaque where the glass is. */
-  html[data-hud="column"] .room-walk:hover,
-  html[data-hud="dock"] .room-walk:hover {
-    border-color: var(--accent-neon);
-    background: rgb(var(--glass) / var(--glass-alpha-lit));
     box-shadow: inset 0 0 0 1px var(--accent-neon);
   }
 }
@@ -880,10 +825,8 @@ html[data-hud="dock"] .talk-counter {
   font-family: var(--figure-font);
 }
 
-/* Motion (FR-027): at most 150 ms, and none under reduced motion. */
+/* Motion (FR-027): at most 150 ms, and none under reduced motion. The tiles' fade is the skin's (spec 030, T-INT02). */
 @media (prefers-reduced-motion: no-preference) {
-  html[data-hud="column"] .hud-tile,
-  html[data-hud="dock"] .hud-tile,
   html[data-hud="column"] .hud-panels button,
   html[data-hud="dock"] .hud-panels button {
     transition:
@@ -943,12 +886,13 @@ html[data-hud="dock"] .room-list li {
 /* The column's larger conversation view (FR-028): the sheet beside the column, over the scene, up to half the window's
    width, its foot clear of the walking control; never a re-fit. Since spec 014 its containing block, the panels, is the
    compact column at its band's foot, so its top reaches back up the band to the notes' foot, where spec 005 put it
-   (T053's second review; FR-019 counts what the visitor opens in no HUD box). */
+   (T053's second review; FR-019 counts what the visitor opens in no HUD box). Since spec 030 the column stands
+   --hud-slice above the bar, so both ends count it back: the sheet's place on the window is unchanged. */
 html[data-hud="column"] .talk[data-larger="on"] .talk-sheet {
   position: absolute;
-  top: calc(var(--notes-h) + var(--column-h) - var(--clear-h));
+  top: calc(var(--notes-h) + var(--column-h) + var(--hud-slice) - var(--clear-h));
   right: 100%;
-  bottom: 3.75rem;
+  bottom: calc(3.75rem - var(--hud-slice));
   width: 50vw;
   max-width: calc(100vw - var(--column-w));
   box-sizing: border-box;
@@ -1132,23 +1076,21 @@ html[data-hud="dock"] .resume-panel {
   paint-order: stroke;
 }
 
-/* Forced colours: the system's colours throughout the HUD, no blur, and focus in Highlight (FR-006). The selectors
-   that name the root's attributes outrank the HUD's own rules (the review of 60b51de4's nit). */
+/* Forced colours: the system's colours throughout the HUD, no backdrop filter, and focus in Highlight (FR-006). The
+   selectors that name the root's attributes outrank the HUD's own rules (the review of 60b51de4's nit). */
 @media (forced-colors: active) {
   html[data-hud="column"] .disclosure,
   html[data-hud="dock"] .disclosure,
   .hud-glass,
-  :root[data-hud] .hud-glass,
-  :root[data-blur] .hud-glass {
+  :root[data-hud] .hud-glass {
     color: CanvasText;
     background: Canvas;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
 
-  .hud-bar button,
-  .hud-bar a,
-  :root[data-hud] .hud-tile,
+  /* The bar's tiles, the walking control, and "Eat" take the system's colours from the skin's own forced-colours rule
+     (ui/button.css; spec 030, T-INT02). */
   :root[data-hud] .hud-panels button,
   :root[data-hud] .room-offer button {
     color: ButtonText;
@@ -1167,18 +1109,9 @@ html[data-hud="dock"] .resume-panel {
   :root[data-hud] .hud-glass button:focus-visible,
   :root[data-hud] .hud-glass a:focus-visible,
   :root[data-hud] .hud-glass input:focus-visible,
-  :root[data-hud] .hud-glass.room-walk:focus-visible,
-  :root[data-hud] .hud-glass.room-eat:focus-visible,
   :root[data-hud] .room-offer button:focus-visible,
   :root[data-hud] .room-stage-view[role="application"]:focus-visible + .room-clear {
     outline-color: Highlight;
-  }
-
-  /* T053's second review: the walking control's hover in the system's colours, outranking its glass hover. */
-  :root[data-hud] .room-walk:hover {
-    color: ButtonText;
-    background: ButtonFace;
-    border-color: Highlight;
   }
 }
 
@@ -1285,8 +1218,8 @@ html[data-hud="stacked"] .resume-panel {
    layout.ts marks each HUD part whose box meets the room's box with data-over="room" (compose/over.ts): in the walking
    view every part, else those over the wall box at the room's framing, in the column, dock, and larger layouts. The
    split layout's variants are hud/split.css's last block, which outranks these. A part not marked is untouched: every
-   rule here names [data-over="room"] (FR-005). Over the room the part's glass drops to --over-glass-alpha, its blur as
-   today; each run of words sits on a plate of the glass at --over-plate-alpha, whose shadow carries it 0.25rem beyond
+   rule here names [data-over="room"] (FR-005). Over the room the part's glass drops to --over-glass-alpha, with no
+   blur (spec 030, FR-001); each run of words sits on a plate of the glass at --over-plate-alpha, whose shadow carries it 0.25rem beyond
    its box, so the focus ring drawn 2px outside a control on a plate lies on it, and nothing moves; the tiles keep their
    faces, which carry their words, and draw their ring inside; the text box stays white with dark text (FR-006). */
 
@@ -1345,12 +1278,9 @@ html[data-hud="dock"] [data-over="room"] .hud-keycap {
   background: var(--tile-face);
 }
 
-/* The tiles' ring inside the tile, on its face, never on the translucent glass beside it: the bar's tiles, the walking
-   control, the "Eat" tile, and every panel's button but the link-like one, whose ring lies on its message's plate. */
-html[data-hud="column"] [data-over="room"] .hud-tile:focus-visible,
-html[data-hud="dock"] [data-over="room"] .hud-tile:focus-visible,
-html[data-hud="column"] .hud-tile[data-over="room"]:focus-visible,
-html[data-hud="dock"] .hud-tile[data-over="room"]:focus-visible,
+/* The tiles' ring inside the tile, on its face, never on the translucent glass beside it: every panel's button but the
+   link-like one, whose ring lies on its message's plate. The bar's tiles, the walking control, and the "Eat" tile take
+   the skin's ring, inside its face (ui/button.css; spec 030, T-INT02). */
 html[data-hud="column"] .hud-panels[data-over="room"] button:focus-visible,
 html[data-hud="dock"] .hud-panels[data-over="room"] button:focus-visible {
   outline-offset: -4px;
@@ -1359,4 +1289,60 @@ html[data-hud="dock"] .hud-panels[data-over="room"] button:focus-visible {
 html[data-hud="column"] .hud-panels[data-over="room"] .talk-link:focus-visible,
 html[data-hud="dock"] .hud-panels[data-over="room"] .talk-link:focus-visible {
   outline-offset: 2px;
+}
+
+/* ---- Spec 030, group A: the right column's two halves (FR-002 to FR-007; Q2 to Q4; plan.md §R-A3) ----
+   layout.ts marks each half's element with data-half (compose/halves.ts): the top half is the element that already
+   has a box and glass (the column layout's column, the dock; the split layout's list, hud/split.css), the bottom half
+   the .hud-half panel, drawn behind the bar's cluster (and in the split layout the walking control and "Eat"), at
+   --half-bottom-*. Both are marked data-over="room" in every layout and view (Q2), so the block above draws their
+   glass at --over-glass-alpha and their words on plates; the slice between them, --hud-slice, is drawn as nothing.
+   Each half has its own corners and an edge of --half-border; the bar's own glass is none where a half holds it
+   (hud/split.css's last rule). Under the visitor's asks both alphas are 1 (above); in forced colours, Canvas. */
+html[data-halves="on"][data-hud="column"] .hud-half[data-over="room"],
+html[data-halves="on"][data-hud="dock"] .hud-half[data-over="room"] {
+  position: absolute;
+  left: var(--half-bottom-x);
+  top: var(--half-bottom-y);
+  width: var(--half-bottom-w);
+  height: var(--half-bottom-h);
+  z-index: 1;
+  box-sizing: border-box;
+  pointer-events: none;
+  background: rgb(var(--glass) / var(--over-glass-alpha));
+  border: 1px solid var(--half-border);
+  border-radius: 0.75rem;
+}
+
+/* Outside the split layout the bottom half is the bar's box, so it follows the bar's foot onto the keyboard's inset. */
+html[data-halves="on"][data-split="off"] .hud-half[data-over="room"] {
+  top: auto;
+  bottom: var(--keyboard);
+}
+
+/* The top half's edge, inside its padding, so its content box keeps the table's size. */
+html[data-hud="column"] .hud-panels[data-half="top"] {
+  padding: calc(0.25rem - 1px) calc(0.25rem - 1px + var(--safe-right)) calc(0.25rem - 1px) calc(0.25rem - 1px);
+  border: 1px solid var(--half-border);
+  border-radius: 0.75rem;
+}
+
+html[data-hud="dock"] .hud-panels[data-half="top"] {
+  padding: calc(0.25rem - 1px) calc(0.25rem - 1px + var(--safe-right)) calc(0.25rem - 1px)
+    calc(0.25rem - 1px + var(--safe-left));
+  border: 1px solid var(--half-border);
+  border-radius: 0.75rem;
+}
+
+@media (forced-colors: active) {
+  html[data-halves="on"][data-hud="column"] .hud-half[data-over="room"],
+  html[data-halves="on"][data-hud="dock"] .hud-half[data-over="room"] {
+    background: Canvas;
+    border-color: CanvasText;
+  }
+
+  html[data-hud="column"] .hud-panels[data-half="top"],
+  html[data-hud="dock"] .hud-panels[data-half="top"] {
+    border-color: CanvasText;
+  }
 }

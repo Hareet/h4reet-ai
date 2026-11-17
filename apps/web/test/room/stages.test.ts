@@ -142,7 +142,8 @@ describe("the stages (compose/stages.ts)", () => {
     expect(REFERENCE_PHONE.screen).toEqual({ w: 384, h: 740 });
     expect(REFERENCE_PHONE.dpr).toBe(2.8125);
     expect(REFERENCE_PHONE.stage).toEqual(stageFor(REFERENCE_PHONE.screen));
-    expect(REFERENCE_PHONE.stage).toEqual({ w: 384, h: 422 });
+    // Spec 030 (FR-004; T-A01 (d)): the dock's slice above the bar, from the clear area (was 384 × 422).
+    expect(REFERENCE_PHONE.stage).toEqual({ w: 384, h: 410 });
     expect(REFERENCE_PHONE.stage.w).toBeGreaterThanOrEqual(368);
     expect(REFERENCE_PHONE.stage.h).toBeGreaterThanOrEqual(368);
   });
@@ -152,8 +153,10 @@ describe("the stages (compose/stages.ts)", () => {
       { w: 320, h: 568 },
       { w: 568, h: 320 },
     ]);
+    // Spec 030 (FR-004; T-A01 (d)): the dock's slice from the portrait stage (was 320 × 250); the landscape one, a
+    // column layout, keeps its clear area.
     expect(SMALLEST.map((s) => s.stage)).toEqual([
-      { w: 320, h: 250 },
+      { w: 320, h: 238 },
       { w: 328, h: 240.5 },
     ]);
     const [portrait, landscape] = SMALLEST.map((s) => s.stage);
@@ -279,9 +282,11 @@ describe("room.css's HUD rules follow the table (plan.md §2.3)", () => {
     expect(decl(`${COLUMN} .hud-panels`, "width")).toBe("var(--column-w)");
     // Spec 014 (FR-017, FR-021; W4): the column is its content's height at its band's foot, no longer from the strip.
     expect(decl(`${COLUMN} .hud-panels`, "top")).toBe("auto");
-    expect(decl(`${COLUMN} .hud-panels`, "bottom")).toBe("calc(var(--bar-h) + var(--keyboard))");
+    // Spec 030 (FR-004; T-A01 (d)): the column and the dock stand the slice (--hud-slice, the table's sliceRem, which
+    // the room sets) above the bar (was "calc(var(--bar-h) + var(--keyboard))").
+    expect(decl(`${COLUMN} .hud-panels`, "bottom")).toBe("calc(var(--bar-h) + var(--hud-slice) + var(--keyboard))");
     expect(decl(`${DOCK} .hud-panels`, "height")).toBe("var(--dock-h)");
-    expect(decl(`${DOCK} .hud-panels`, "bottom")).toBe("calc(var(--bar-h) + var(--keyboard))");
+    expect(decl(`${DOCK} .hud-panels`, "bottom")).toBe("calc(var(--bar-h) + var(--hud-slice) + var(--keyboard))");
     for (const [p, v] of [
       ["left", "var(--clear-x)"],
       ["top", "var(--clear-y)"],
@@ -324,9 +329,10 @@ describe("room.css's HUD rules follow the table (plan.md §2.3)", () => {
     expect(RULES.some((r) => r.selector === `${DOCK} .disclosure` && r.decls.has("width"))).toBe(false);
     // The resume and the larger view keep reading the clear area, the notes' reserve, and the column's band.
     expect(decl(`${COLUMN} .resume-panel`, "width")).toBe("var(--clear-w)");
-    // Its top from the compact column back up to the notes' reserve (T053's second review).
+    // Its top from the compact column back up to the notes' reserve (T053's second review); spec 030 (T-A01 (d)):
+    // the slice under the column counted back, so the sheet's place is unchanged (was without --hud-slice).
     expect(decl(`${COLUMN} .talk[data-larger="on"] .talk-sheet`, "top")).toBe(
-      "calc(var(--notes-h) + var(--column-h) - var(--clear-h))",
+      "calc(var(--notes-h) + var(--column-h) + var(--hud-slice) - var(--clear-h))",
     );
     expect(decl(`${COLUMN} .talk[data-larger="on"] .talk-sheet`, "max-width")).toBe("calc(100vw - var(--column-w))");
   });
@@ -377,8 +383,9 @@ describe("room.css's HUD rules follow the table (plan.md §2.3)", () => {
 // T303 (spec 004; FR-064; spec.md's Clarifications, 2026-10-26, T302), as spec 005 moves it: the stage of the 2D
 // drawing's smallest scale, which RG6's reasons name, is now the 320 × 568 screen's clear area, at 1.
 describe("the 2D drawing's smallest scale (compose/stages.ts)", () => {
-  it("comes first at 320 × 250, at 1, and only at stages 320 px wide", async () => {
-    expect(smallestFlatStage()).toEqual({ w: 320, h: 250 });
+  // Spec 030 (FR-004; T-A01 (d)): 320 × 238 since the dock's slice (was 320 × 250).
+  it("comes first at 320 × 238, at 1, and only at stages 320 px wide", async () => {
+    expect(smallestFlatStage()).toEqual({ w: 320, h: 238 });
     expect(flatScale(smallestFlatStage())).toBe(1);
     for (const s of supportedStages()) if (flatScale(s) <= 1 + 1e-12) expect(s.w).toBe(320);
     // Spec 005's floor: the smallest 2D scale only grows, from spec 004's 0.95.

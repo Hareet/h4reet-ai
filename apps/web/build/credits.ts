@@ -9,22 +9,27 @@
 // page"): under the disclosure and before the contents, a section headed by the UI word credits.likeness, one line for
 // each model the room's bundle carries whose approval gives one, as the bundle carries it (main's approvals' words,
 // never code's), escaped; the twin's first, then the visitors' in the choice's order, each once; with none, none.
+// Spec 030 (FR-015, FR-016; plan.md §R-C1): a dark page, as the data-flow page is: its style.css is
+// src/pages/dark.css, read at build, then STYLE, which holds layout alone; <html> carries dark-page.
 import { readFileSync } from "node:fs";
 
 import type { Plugin } from "vite";
 
 import { AVATARS } from "../src/choice/avatars";
 import type { RoomIndex, RoomScene } from "../src/room/compose/bundle";
-import { renderBody } from "./disclosure";
+import { DARK_CSS, pageStyle, renderBody } from "./disclosure";
 
 const AI_DISCLOSURE = "You're talking with an AI representation of the Author, not the Author.";
 
-const STYLE = `body { font-family: system-ui, sans-serif; line-height: 1.5; margin: 0 auto; max-width: 90rem; padding: 1rem; }
-header { border-bottom: 1px solid #555; margin-bottom: 1rem; }
+// The header holding the AI disclosure stays in view as the page scrolls (spec 030, FR-016; Q77): sticky, opaque by
+// dark.css; the root's scroll padding above its height at a phone's width (8rem against 7.5rem: the disclosure on three
+// lines, "Back to the room" on one, the margins), so an anchor or a focused link stops below it (WCAG 2.4.11).
+const STYLE = `html { scroll-padding-top: 8rem; }
+body { font-family: system-ui, sans-serif; line-height: 1.5; margin: 0 auto; max-width: 90rem; padding: 1rem; }
+header { position: sticky; top: 0; z-index: 1; border-bottom: 1px solid; margin-bottom: 1rem; }
+header p { margin: 0.5rem 0; }
 nav ul { padding-left: 1.25rem; }
 code { font-family: ui-monospace, monospace; font-size: 0.95em; }
-a { color: #0b4f9c; }
-a:focus-visible { outline: 2px solid #0b4f9c; outline-offset: 2px; }
 `;
 
 const escape = (text: string): string =>
@@ -104,7 +109,7 @@ export function renderCredits(markdown: string, likeness?: LikenessLines): strin
     return `<h2 id="${anchorOf(text)}">${inner}</h2>`;
   });
   return `<!doctype html>
-<html lang="en">
+<html lang="en" class="dark-page">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -129,21 +134,22 @@ ${body}
 `;
 }
 
-/** The Vite plugin: emits credits/index.html and its stylesheet from assets/CREDITS.md, read when the bundle is
- *  written, and the AI-made figures' lines `likeness` gives then (the room's bundle's, spec 028). */
+/** The Vite plugin: emits credits/index.html and its stylesheet from assets/CREDITS.md and dark.css, read when the
+ *  bundle is written, and the AI-made figures' lines `likeness` gives then (the room's bundle's, spec 028). */
 export function creditsPage(options: { source: string; likeness?: () => LikenessLines | undefined }): Plugin {
   return {
     name: "h4-credits-page",
     apply: "build",
     generateBundle() {
       this.addWatchFile(options.source);
+      this.addWatchFile(DARK_CSS);
       const markdown = readFileSync(options.source, "utf8");
       this.emitFile({
         type: "asset",
         fileName: "credits/index.html",
         source: renderCredits(markdown, options.likeness?.()),
       });
-      this.emitFile({ type: "asset", fileName: "credits/style.css", source: STYLE });
+      this.emitFile({ type: "asset", fileName: "credits/style.css", source: pageStyle(STYLE) });
     },
   };
 }

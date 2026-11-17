@@ -373,7 +373,9 @@ describe("RG6: FR-064's carve-out for side-wall selectables", () => {
       (at(placement(scene, SIDE.lower), "mount").offset as number[])[1] = 1.1;
     });
     expect(reasons(t)).toEqual([]);
-    expect(listed(t)).toEqual(["fx-lower: 3D 320 × 322 and 62 others, 2D –"]);
+    // Spec 030 (FR-004; Q82): the dock's slice takes 12 px from the dock's clear areas, so the first such stage is
+    // 320 × 326 and 60 others (320 × 322 and 62 others before).
+    expect(listed(t)).toEqual(["fx-lower: 3D 320 × 326 and 60 others, 2D –"]);
     expect(picks(t)[0]?.stages.some((s) => s.startsWith("336 × "))).toBe(true);
   });
 
@@ -386,15 +388,18 @@ describe("RG6: FR-064's carve-out for side-wall selectables", () => {
     });
     expect(reasons(t)).toEqual([]);
     // T053 (W19): the walking control at the column's head moves the frame areas, 117 others in 2D before.
-    expect(listed(t)).toEqual(["fx-lower: 3D 320 × 250 and 53 others, 2D 320 × 250 and 114 others"]);
+    // Spec 030 (FR-004; Q82): the dock's slice makes the smallest stage 320 × 238, and 115 others in 2D (320 × 250 and
+    // 114 before).
+    expect(listed(t)).toEqual(["fx-lower: 3D 320 × 238 and 53 others, 2D 320 × 238 and 115 others"]);
     expect(picks(t)[0]?.flat.some((s) => s.startsWith("336 × "))).toBe(true);
   });
 
-  /** RG6 on the stages 320 px wide, for the two signs, once neither is a side-wall selectable (304 px before spec 005). */
+  /** RG6 on the stages 320 px wide, for the two signs, once neither is a side-wall selectable (304 px before spec 005);
+   *  the smallest 320 × 238 since spec 030's dock slice (FR-004; Q82; 320 × 250 before). */
   const NOT_SIDE_WALL = [
-    "selectables[2]: its exclusive core overlaps the core of selectables[3] in 3D at 320 × 250 and 53 others",
+    "selectables[2]: its exclusive core overlaps the core of selectables[3] in 3D at 320 × 238 and 53 others",
     "selectables[2]: its exclusive core overlaps the core of selectables[3] in 2D, at the drawing's smallest scale",
-    "selectables[3]: its exclusive core overlaps the core of selectables[2] in 3D at 320 × 250 and 53 others",
+    "selectables[3]: its exclusive core overlaps the core of selectables[2] in 3D at 320 × 238 and 53 others",
     "selectables[3]: its exclusive core overlaps the core of selectables[2] in 2D, at the drawing's smallest scale",
   ];
   const sides = (t: Tree): boolean[] => composed(t).index.selectables.map((x) => x.side_wall);
@@ -442,7 +447,7 @@ describe("RG6: FR-064's carve-out for side-wall selectables", () => {
       expect(found, `selectables[${k}]`).toContainEqual(
         expect.stringMatching(
           new RegExp(
-            `^selectables\\[${k}\\]: its exclusive core overlaps the core of selectables\\[${other}\\] in 3D at 320 × 250`,
+            `^selectables\\[${k}\\]: its exclusive core overlaps the core of selectables\\[${other}\\] in 3D at 320 × 238`,
           ),
         ),
       );
@@ -543,9 +548,10 @@ describe("RG6: FR-064's carve-out for side-wall selectables", () => {
       });
     });
     // Spec 014: 7,158 sizes of frame area in place of spec 005's 7,080 clear areas; 7,182 since spec 026's human patch
-    // (r3) gives the dock's list two rows below 39rem, not 36rem, for its fifth entry.
+    // (r3) gives the dock's list two rows below 39rem, not 36rem, for its fifth entry. Spec 030 (FR-004; Q82): the
+    // dock's slice makes the smallest stage 320 × 238, with 7186 others (320 × 250 and 7181 others before).
     expect(reasons(t)).toContain(
-      "selectables[4]: its exclusive core overlaps a member of selectables[3] in 3D at 320 × 250 and 7181 others",
+      "selectables[4]: its exclusive core overlaps a member of selectables[3] in 3D at 320 × 238 and 7186 others",
     );
   });
 });

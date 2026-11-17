@@ -65,7 +65,7 @@ body {
 }
 
 /* Spec 005's window views (FR-059; plan.md §10.4): the HUD's docked boxes laid over the canvas as static glass, with
-   the room's classes, so the frame time counts the glass and its blur at quality levels 0 and 1. */
+   the room's classes, so the frame time counts the glass (since spec 030, FR-001, the glass draws no blur). */
 .lookdev-hud {
   position: absolute;
   top: 0;

@@ -1,0 +1,268 @@
+// T-INT02 (spec 030; FR-008; plan.md §R-B3, "As built (int2-030)"): with B's component in the cascade, no declaration
+// of room.css or split.css that sets a property the component owns is left that loses on every element it matches.
+// The probe reads the whole page as B's tests read it (test/helpers/button-room.ts's stylesheets in the bundle's order,
+// the root's data-skin the build's, the cascade of test/helpers/button-cascade.ts), through the real room at each
+// layout the HUD has (split, column, dock, stacked), at rest, walking, with the conversation open, with the resume
+// panel open, with the toggles pressed, and in 2D, under each media the stylesheets ask about (forced colours, less
+// transparency, more contrast, reduced motion, no hover), with every element in each state the selectors name
+// (normal, hover, pressed, focus-visible). A declaration of an owned property (or a shorthand of owned longhands alone;
+// never `font`, which also sets the size) that matches skinned controls (Q5) and nothing else, by a selector that names
+// one of them (or the bar, whose controls are all tiles), and wins no longhand it sets on any element in any of those,
+// is dead: B's rules took it over (T-INT02's GREEN removed each but KEPT's). A declaration that matches nothing here,
+// or an unskinned element too, isn't judged here; the run prints those that lose on the skinned controls.
+import { describe, expect, it } from "vitest";
+
+import { readSkins, resolveSkin } from "../../build/ui-skins";
+import { Cascade } from "../helpers/button-cascade";
+import type { Declaration, State } from "../helpers/button-cascade";
+import { bundleSheets, open, skinText } from "../helpers/button-room";
+import type { Open } from "../helpers/button-room";
+import { flush, intoRoom, roomIndex, start, stubViewport } from "../helpers/room";
+import type { Visit } from "../helpers/room";
+
+/** The skinned controls of Q5 (spec.md FR-008), as ui/button.css names them. */
+const SKINNED =
+  ".hud-bar .hud-tile, .room-walk, .room-eat, .split-back, .split-hint, .resume-close, .talk-larger, .talk-log-toggle, .talk-form .talk-row > button:not(.talk-voice)";
+
+/** The sheets whose dead declarations T-INT02 removes. */
+const PROBED = new Set(["room/room.css", "room/hud/split.css"]);
+
+const SIDES = ["top", "right", "bottom", "left"] as const;
+const side = (what: string): string[] => SIDES.map((s) => `border-${s}-${what}`);
+
+/** The longhands a declaration of the component's properties sets on the control (plan §R-B3: color, background,
+ *  border, border-radius, box-shadow, clip-path, filter, isolation, the font's family and weight, text-transform,
+ *  letter-spacing, white-space, min-height, min-width, opacity, transform, transition, the focus ring's outline), as
+ *  button-cascade.ts's SHORTHANDS maps them; null for a property the component doesn't own whole. */
+function longhands(property: string): string[] | null {
+  const whole = [
+    "color",
+    "background-color",
+    "background-image",
+    "border-image-source",
+    "border-radius",
+    "box-shadow",
+    "clip-path",
+    "filter",
+    "isolation",
+    "font-family",
+    "font-weight",
+    "text-transform",
+    "letter-spacing",
+    "white-space",
+    "min-height",
+    "min-width",
+    "opacity",
+    "transform",
+    "transition",
+    "outline-color",
+    "outline-style",
+    "outline-width",
+    "outline-offset",
+    ...side("color"),
+    ...side("width"),
+    ...side("style"),
+  ];
+  if (whole.includes(property)) return [property];
+  const map: Record<string, string[]> = {
+    background: ["background-color", "background-image"],
+    border: [...side("color"), ...side("width"), ...side("style")],
+    "border-color": side("color"),
+    "border-width": side("width"),
+    "border-style": side("style"),
+    "border-image": ["border-image-source"],
+    outline: ["outline-color", "outline-style", "outline-width"],
+    ...Object.fromEntries(
+      SIDES.map((s) => [`border-${s}`, [`border-${s}-color`, `border-${s}-width`, `border-${s}-style`]]),
+    ),
+  };
+  return map[property] ?? null;
+}
+
+/** What the component owns on the control's ::before (plan §R-B3). */
+const BEFORE_OWNED = new Set([
+  "content",
+  "position",
+  "inset",
+  "z-index",
+  "pointer-events",
+  "background-color",
+  "background-image",
+  "box-shadow",
+  "clip-path",
+]);
+
+const MEDIA: readonly (readonly string[])[] = [
+  [],
+  ["forced-colors: active"],
+  ["prefers-reduced-transparency: reduce"],
+  ["prefers-contrast: more"],
+  ["prefers-reduced-motion: reduce"],
+  ["hover: none", "any-hover: none", "pointer: coarse", "any-pointer: coarse"],
+];
+
+const STATES: readonly State[] = [{}, { hover: true }, { active: true }, { focusVisible: true }];
+
+interface Window {
+  readonly name: string;
+  readonly screen: { readonly w: number; readonly h: number };
+  readonly hud: string;
+  readonly walk?: boolean;
+  readonly opened?: Open;
+  /** The 2D drawing's room (no WebGL). */
+  readonly flat?: boolean;
+  /** Every toggle pressed, as layout.ts marks "Pause the room" while the room is paused (aria-pressed). */
+  readonly pressed?: boolean;
+}
+
+const WINDOWS: readonly Window[] = [
+  { name: "split", screen: { w: 1366, h: 768 }, hud: "column" },
+  { name: "split, walking", screen: { w: 1366, h: 768 }, hud: "column", walk: true },
+  { name: "split, the conversation open", screen: { w: 1366, h: 768 }, hud: "column", opened: "conversation" },
+  { name: "split, the resume open", screen: { w: 1366, h: 768 }, hud: "column", opened: "resume" },
+  { name: "column", screen: { w: 1280, h: 720 }, hud: "column" },
+  { name: "column, walking", screen: { w: 1280, h: 720 }, hud: "column", walk: true },
+  { name: "column, the conversation open", screen: { w: 1280, h: 720 }, hud: "column", opened: "conversation" },
+  { name: "column, the resume open", screen: { w: 1280, h: 720 }, hud: "column", opened: "resume" },
+  { name: "dock", screen: { w: 390, h: 844 }, hud: "dock" },
+  { name: "dock, walking", screen: { w: 390, h: 844 }, hud: "dock", walk: true },
+  { name: "dock, the conversation open", screen: { w: 390, h: 844 }, hud: "dock", opened: "conversation" },
+  { name: "stacked", screen: { w: 300, h: 400 }, hud: "stacked" },
+  { name: "split, paused", screen: { w: 1366, h: 768 }, hud: "column", pressed: true },
+  { name: "column, paused", screen: { w: 1280, h: 720 }, hud: "column", pressed: true },
+  { name: "dock, paused", screen: { w: 390, h: 844 }, hud: "dock", pressed: true },
+  { name: "split, 2D", screen: { w: 1366, h: 768 }, hud: "column", flat: true },
+  { name: "dock, 2D", screen: { w: 390, h: 844 }, hud: "dock", flat: true },
+];
+
+/** The dead declarations T-INT02 keeps, each read by an earlier test that isn't Q73's to rewrite (and must pass
+ *  unchanged), sorted as the probe prints them:
+ *  - spec 028's test/ui/hud-wall-dom.test.ts reads the split tiles' `min-height` scaled by --wall-scale-right;
+ *  - B's test/ui/button-states.test.ts and DS's test/ui/button-image-skin.test.ts need spec 029's plate on "Back" and
+ *    "Close, Escape" in the cascade, so their "no shadow on the control" cases discriminate (rework 3, R-2);
+ *  - spec 026's test/ui/hud-split-dog.test.ts reads "Back"'s `min-height: 2.75em`, which its model counts (hud-model.ts);
+ *  - spec 005's test/ui/hud.test.ts reads the tiles' `min-height` and `min-width` of 2.75rem. */
+const KEPT: readonly string[] = [
+  'room/hud/split.css | | html[data-split="on"][data-hud="column"] .hud-bar .hud-tile | min-height: calc(3.75rem * var(--wall-scale-right))',
+  'room/hud/split.css | | html[data-split="on"][data-hud="column"] .room-list[data-over="room"] .split-back | background: rgb(var(--glass) / var(--over-plate-alpha))',
+  'room/hud/split.css | | html[data-split="on"][data-hud="column"] .room-list[data-over="room"] .split-back | border-radius: 0.25rem',
+  'room/hud/split.css | | html[data-split="on"][data-hud="column"] .room-list[data-over="room"] .split-back | box-shadow: 0 0 0 0.25rem rgb(var(--glass) / var(--over-plate-alpha))',
+  'room/hud/split.css | | html[data-split="on"][data-hud="column"] .split-back | min-height: 2.75em',
+  'room/hud/split.css | | html[data-split="on"][data-hud="column"] .split-hint | min-height: 2.75em',
+  'room/hud/split.css | | html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint | background: rgb(var(--glass) / var(--over-plate-alpha))',
+  'room/hud/split.css | | html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint | border-radius: 0.25rem',
+  'room/hud/split.css | | html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint | box-shadow: 0 0 0 0.25rem rgb(var(--glass) / var(--over-plate-alpha))',
+  'room/room.css | | html[data-hud="column"] .hud-tile | min-height: 2.75rem',
+  'room/room.css | | html[data-hud="column"] .hud-tile | min-width: 2.75rem',
+  'room/room.css | | html[data-hud="dock"] .hud-tile | min-height: 2.75rem',
+  'room/room.css | | html[data-hud="dock"] .hud-tile | min-width: 2.75rem',
+];
+
+const key = (d: Declaration): string =>
+  `${d.sheet} | ${d.at.join(" ")} | ${d.selector} | ${d.property}: ${d.value}`.replace(/\s+/g, " ");
+
+/** The selector with the state pseudo-classes taken out: it matches every element the selector matches in a state. */
+const stateless = (selector: string): string =>
+  selector
+    .replace(/:not\(:(hover|active|focus-visible|focus)\)/g, "")
+    .replace(/:(hover|active|focus-visible|focus)(?![\w-])/g, "");
+
+async function visit(w: Window): Promise<Visit> {
+  const viewport = stubViewport(w.screen);
+  const v = start({ webgl: w.flat !== true, viewport: viewport.factory });
+  await intoRoom(v);
+  expect(v.doc.documentElement.getAttribute("data-hud"), w.name).toBe(w.hud);
+  if (w.walk) {
+    const walk = v.doc.querySelector<HTMLButtonElement>("button.room-walk");
+    if (!walk || walk.hidden) throw new Error(`${w.name}: no walking control`);
+    walk.click();
+    await flush();
+  }
+  // The split layout's conversation and every layout's resume as B's helper opens them; the column's and the dock's
+  // conversation by its entry in the list, as the visitor opens it there (no data-panel to wait for).
+  if (w.opened === "resume" || (w.opened === "conversation" && w.name.startsWith("split"))) await open(v, w.opened);
+  else if (w.opened === "conversation") {
+    const id = roomIndex().selectables.find((s) => s.action.kind === "talk")?.id ?? "";
+    v.doc.querySelector<HTMLButtonElement>(`.room-list button[data-object-id="${id}"]`)?.click();
+    await flush();
+  }
+  if (w.pressed)
+    for (const el of v.doc.querySelectorAll("button[aria-pressed]")) el.setAttribute("aria-pressed", "true");
+  // The root's data-skin as the build writes it: the resolved skin's (metal while the image skin's files are absent).
+  v.doc.documentElement.setAttribute("data-skin", resolveSkin(readSkins(skinText())).id);
+  return v;
+}
+
+describe("no declaration of room.css or split.css lost to B's component (spec 030, T-INT02)", () => {
+  it("leaves none that matches a skinned control and wins nowhere, in any layout, media, or state", async () => {
+    const sheets = bundleSheets(resolveSkin(readSkins(skinText())).id);
+    const matched = new Map<string, Declaration>();
+    const onSkinned = new Set<string>();
+    const onOther = new Set<string>();
+    const won = new Set<string>();
+    for (const w of WINDOWS) {
+      const t0 = Date.now();
+      const v = await visit(w);
+      for (const media of MEDIA) {
+        const cascade = new Cascade(sheets, { media, width: w.screen.w, height: w.screen.h });
+        const candidates = cascade.declarations.filter(
+          (d) =>
+            PROBED.has(d.sheet) &&
+            (d.pseudo === null
+              ? longhands(d.property) !== null
+              : d.pseudo === "before" && BEFORE_OWNED.has(d.property)),
+        );
+        const isCandidate = new Set(candidates);
+        const elements = new Set<Element>();
+        for (const d of candidates) {
+          let found: Element[];
+          try {
+            found = [...v.doc.querySelectorAll(stateless(d.element))];
+          } catch {
+            found = [...v.doc.querySelectorAll("*")];
+          }
+          for (const el of found) elements.add(el);
+        }
+        for (const el of elements) {
+          const skinned = el.matches(SKINNED);
+          for (const base of STATES)
+            for (const pseudo of [undefined, "before"] as const) {
+              const state: State = pseudo ? { ...base, pseudo } : base;
+              const names = new Set<string>();
+              for (const d of candidates)
+                if ((d.pseudo ?? undefined) === pseudo)
+                  for (const l of pseudo ? [d.property] : (longhands(d.property) ?? [])) names.add(l);
+              for (const name of names) {
+                for (const d of cascade.matching(el, name, state)) {
+                  // Only a candidate: a shorthand that also sets a longhand the component doesn't own (`font`: the
+                  // size and the line's height) is never dead here, though B wins its family and weight.
+                  if (!isCandidate.has(d)) continue;
+                  matched.set(key(d), d);
+                  (skinned ? onSkinned : onOther).add(key(d));
+                }
+                const winner = cascade.winner(el, name, state);
+                if (winner && PROBED.has(winner.sheet)) won.add(key(winner));
+              }
+            }
+        }
+      }
+      console.log(`${w.name}: ${Date.now() - t0} ms`);
+    }
+    // Dead: matched skinned controls alone, by a selector that names one (or the bar, whose controls are all tiles),
+    // and won nowhere. A rule for every button of the room (`.room button[aria-disabled="true"]`), or every glass
+    // panel's links and buttons, isn't B's to take, whatever these windows hold.
+    const names = (k: string): boolean =>
+      /\.(hud-tile|hud-bar|room-walk|room-eat|split-back|split-hint|resume-close|talk-larger|talk-log-toggle)\b/.test(
+        (matched.get(k) as Declaration).selector,
+      );
+    const dead = [...onSkinned].filter((k) => !won.has(k) && !onOther.has(k) && names(k)).sort();
+    const losing = [...onSkinned].filter((k) => !won.has(k) && !dead.includes(k)).sort();
+    console.log(
+      `the probe: ${matched.size} declarations matched, ${onSkinned.size} on a skinned control, ${dead.length} dead, ${losing.length} losing there but not B's alone`,
+    );
+    for (const k of dead) console.log(`dead: ${k}`);
+    for (const k of losing)
+      console.log(`not B's alone: ${k}${onOther.has(k) ? " (matches an unskinned element)" : ""}`);
+    expect(dead).toEqual(KEPT);
+  }, 1_800_000);
+});

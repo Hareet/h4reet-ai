@@ -813,6 +813,10 @@ secrets-check: ## (the Author) Which Parameter Store names infra/parameters.txt 
 	$(call AUTHOR_ONLY,it lists his account's parameters with his SSO session)
 	@$(PY_HOST) scripts/infra/secrets_check.py$(WITH_PROFILE)
 
+secrets-fill: ## (the Author) Each name infra/parameters.txt expects and the store lacks, written once: from the laptop's prod.env, else init_env.py's shapes, else a hidden prompt; never --overwrite; names printed, never values [PROFILE=…]
+	$(call AUTHOR_ONLY,it writes his account's parameters with his SSO session)
+	@$(PY_HOST) scripts/infra/secrets_fill.py$(WITH_PROFILE)
+
 # Spec 001's tunnel (contracts/tunnel.md §5; contracts/handover.md §7; research.md R-32; tasks.md T052), the Author's,
 # in his terminal, with his SSO session: each refuses inside the agent sandbox before its script runs, and the bash gate
 # refuses each to agent sessions too (P-1).
@@ -880,7 +884,7 @@ release: ## (the Author) A release of main's gated merge (contracts/releases-dep
 .PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
 	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite redteam-live matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan infra-mirror infra-check infra-plan-note disclosure-check \
-	measure-stack measure-tunnel-end arch-inventory infra-verify infra-record infra-audit secrets-check tunnel-keys tunnel-revoke cloud-session \
+	measure-stack measure-tunnel-end arch-inventory infra-verify infra-record infra-audit secrets-check secrets-fill tunnel-keys tunnel-revoke cloud-session \
 	shared-state-tls shared-state-roles shared-state-restore release ec2-status ec2-start ec2-stop ec2-autostart server-budget-restore
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or

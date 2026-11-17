@@ -1371,6 +1371,22 @@ cmd gap 'python3 -I -B scripts/infra/shared_state.py tls'
 cmd gap 'python3 -I -B scripts/infra/shared_state.py restore'
 # And the roles target's (P-1's), the same way (the second review, nit 2).
 cmd gap 'python3 -I -B scripts/infra/shared_state.py roles'
+# Spec 001's fix F8 (fixes/f8.md): make secrets-fill, the Author's fill of his missing parameters, P-1's, in each of
+# the spellings the gate already covers. Its API equivalent, the AWS CLI writing a /h4reet/ parameter, is P-1's too.
+cmd block 'make secrets-fill'
+cmd block 'make secrets-fill PROFILE=h4reet-admin'
+cmd block 'gmake secrets-fill'
+cmd block 'make -C . secrets-fill'
+cmd block 'bash -c "make secrets-fill"'
+cmd block 'make ./secrets-fill'
+cmd block 'make "secrets-"fill'
+cmd block 'make secrets-"fill"'
+cmd block '(make secrets-fill)'
+cmd block 'env PROFILE=x make secrets-fill'
+cmd allow 'make secrets-fillx'
+# Its script run directly, as shared_state.py's above: the gate reads make's words alone; the script refuses itself
+# in the sandbox (SANDBOX_RUNTIME), and an agent session holds no AWS credential to act with.
+cmd gap 'python3 -I -B scripts/infra/secrets_fill.py'
 cmd block 'make aws-login PROFILE=h4reet-admin'
 cmd block 'bash deploy/scripts/aws-sso-profile.sh h4reet-admin'
 cmd block './deploy/scripts/aws-sso-profile.sh h4reet-admin'

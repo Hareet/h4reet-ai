@@ -366,7 +366,8 @@ describe("the report's exempt faces and side-wall selectables", () => {
       "",
       "| Selectable | 3D | 2D |",
       "|---|---|---|",
-      "| `fx-lower` (left-wall) | list-only at 320 × 250 and 53 others | list-only at 320 × 250 and 53 others |",
+      // Spec 030 (FR-004; Q82): the dock's slice makes the smallest stage 320 × 238 (320 × 250 before).
+      "| `fx-lower` (left-wall) | list-only at 320 × 238 and 53 others | list-only at 320 × 238 and 53 others |",
       "",
     ]);
     // The legibility table's last row is right above it.
@@ -388,9 +389,10 @@ describe("the report's exempt faces and side-wall selectables", () => {
     const result = compose(tree, sideWallPolicy(), { mode: "strict", drafts: true });
     expect(result.findings).toEqual([]);
     const rows = lines(result);
-    // The upper sign keeps its tap there (`listOnly`'s release pass), so the lower alone is listed.
+    // The upper sign keeps its tap there (`listOnly`'s release pass), so the lower alone is listed. Spec 030 (FR-004;
+    // Q82): the dock's slice takes 12 px from the dock's clear areas: 320 × 326 and 60 others (320 × 322 and 62 before).
     expect(rows.filter((r) => r.startsWith("| `fx-"))).toContain(
-      "| `fx-lower` (left-wall) | list-only at 320 × 322 and 62 others | – |",
+      "| `fx-lower` (left-wall) | list-only at 320 × 326 and 60 others | – |",
     );
     expect(rows.some((r) => r.startsWith("| `fx-upper` (left-wall)"))).toBe(false);
     expect(rows).toContain("Findings: none.");
@@ -409,8 +411,9 @@ describe("the report's exempt faces and side-wall selectables", () => {
       printable: (v) => v !== "fx-lower",
     });
     expect(out.report.markdown).not.toContain("fx-lower");
+    // Spec 030 (FR-004; Q82): 320 × 238, the smallest stage since the dock's slice (320 × 250 before).
     expect(out.report.markdown).toContain(
-      "| selectables[3] (left-wall) | list-only at 320 × 250 and 53 others | list-only at 320 × 250 and 53 others |",
+      "| selectables[3] (left-wall) | list-only at 320 × 238 and 53 others | list-only at 320 × 238 and 53 others |",
     );
   });
 });
