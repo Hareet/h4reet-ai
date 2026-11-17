@@ -1,7 +1,7 @@
 /* The choice screen (spec 002, T040; contracts/room-scene.md §1). Targets and focus are room.css's; the cards' ring
    is beside it, here, for the radio under each card.
    Spec 030 (group C; FR-015 to FR-017; Q9, Q10; plan.md §R-C1): a dark page. Its colours are src/pages/dark.css's, the
-   room's panel tokens, which hold while the body carries dark-page (until "Enter"); the cards and the outcome are drawn
+   room's panel tokens, which hold while the root carries dark-page (until "Enter"); the cards and the outcome are drawn
    with group B's skin tokens where its stylesheet sets them, each read with a fallback so the screen holds without it:
    the face --btn-frame, the corners --btn-chamfer (a bevel where the browser draws corner-shape, a round corner where
    it doesn't, so the focus ring, an outline outside the card, is never clipped), the chosen card's glow
@@ -94,7 +94,7 @@ body:has(.choice) {
 
 /* Hover: a lit face and the neon's edge, the room's hover and selection edge (spec 014). */
 .choice-card:hover {
-  background: #353c47;
+  background: var(--page-face-hover);
   border-color: var(--accent-neon);
 }
 

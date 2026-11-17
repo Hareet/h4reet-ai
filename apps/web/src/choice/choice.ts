@@ -10,8 +10,9 @@
 // `label.choice-option`, named by the card's name and described by its line. A pointer activation, Enter, or Space on a
 // role card moves focus to step 2; the `click` an arrow key fires (detail 0) doesn't, and Enter in step 1 never submits.
 //
-// Spec 030 (group C; FR-015 to FR-018; plan.md §R-C1): a dark page. The body carries dark-page while the screen shows,
-// from its render until "Enter" (the room has its own look); dark.css holds the room's panel tokens, and choice.css draws
+// Spec 030 (group C; FR-015 to FR-018; plan.md §R-C1): a dark page. The root carries dark-page in index.html's own
+// markup, so the first paint is dark before any script (rework N-4), and this screen takes it off at "Enter" (the room
+// has its own look); dark.css holds the room's panel tokens, and choice.css draws
 // the cards from them and from group B's skin tokens, each with a fallback. Both arrive in the bundle's stylesheet, so
 // nothing is fetched before "Enter" (FR-018).
 import "../pages/dark.css";
@@ -87,7 +88,7 @@ function option(
 
 const roleDescriptionId = (id: VisitPath): string => `choice-role-${id}`;
 
-/** The body's class while the screen shows (spec 030, FR-015; src/pages/dark.css). */
+/** The root's class until "Enter", from index.html (spec 030, FR-015; src/pages/dark.css). */
 const DARK_PAGE = "dark-page";
 
 export function renderChoice(doc: Document, options: { onEnter(choice: Choice): void; onPdf(): void }): HTMLElement {
@@ -223,11 +224,10 @@ export function renderChoice(doc: Document, options: { onEnter(choice: Choice): 
     event.preventDefault();
     const { path, avatar } = chosen();
     if (!(path && avatar)) return;
-    doc.body.classList.remove(DARK_PAGE);
+    doc.documentElement.classList.remove(DARK_PAGE);
     options.onEnter({ path, avatar });
   });
 
-  doc.body.classList.add(DARK_PAGE);
   return h(
     doc,
     "section",
