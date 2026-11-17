@@ -552,12 +552,19 @@ describe("the credits and data-flow pages, dark (FR-015, FR-016)", () => {
       expect(bg?.a, `${page.name}'s header, opaque`).toBe(1);
       expect(bg?.rgb).toEqual([16, 20, 26]);
       // A control or an anchor scrolled into view stops below the header, not under it (WCAG 2.4.11): the root's scroll
-      // padding at least the header's height at three lines of its words (line-height 1.5) and its paragraph's margins.
+      // padding at least the header's height at a phone's width, its paragraphs at line-height 1.5 (the disclosure on
+      // three lines, each other paragraph, "Back to the room", on one) and their margins, collapsed between them.
       const pad = /^([\d.]+)rem$/.exec(c.value(doc.documentElement, ["scroll-padding-top"]) ?? "");
       expect(pad, `${page.name}: the root's scroll-padding-top, in rem`).not.toBeNull();
-      const margin = /^([\d.]+)rem\b/.exec(c.value(header.querySelector("p") ?? header, ["margin"]) ?? "");
-      expect(margin, `${page.name}: the disclosure line's margin, in rem`).not.toBeNull();
-      expect(Number(pad?.[1])).toBeGreaterThanOrEqual(3 * 1.5 + 2 * Number(margin?.[1]));
+      const paragraphs = [...header.querySelectorAll(":scope > p")];
+      expect(paragraphs.length, `${page.name}: the header's paragraphs`).toBeGreaterThan(0);
+      const margin = /^([\d.]+)rem\b/.exec(c.value(paragraphs[0] ?? header, ["margin"]) ?? "");
+      expect(margin, `${page.name}: the header's paragraphs' margin, in rem`).not.toBeNull();
+      const lines = 3 + (paragraphs.length - 1);
+      const height = lines * 1.5 + (paragraphs.length + 1) * Number(margin?.[1]);
+      expect(Number(pad?.[1]), `${page.name}: the scroll padding against the header's ${height}rem`).toBeGreaterThan(
+        height,
+      );
     });
   }
 

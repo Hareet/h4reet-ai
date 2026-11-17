@@ -552,3 +552,22 @@ exit 1
 ```
 
 Each failure is the missing change: the body half of dark.css's token rule; the root's class in `index.html` (absent in the file, so absent under `start()`); the no-script fallback with no ground (style.css's light page); the built pages' header with no `position`. The ring cases pass at RED because the body still carries the class: they hold the re-key in GREEN (a focus rule left on `body.dark-page` would fall to room.css's `#0b4f9c`).
+
+### The Q77 bound tightened, before its GREEN
+
+Writing the layout, I found the built pages' header holds two paragraphs (the disclosure and "Back to the room"), so the RED commit's bound (three lines of the disclosure and one paragraph's two margins, 5.5rem) was lower than the header itself. A second test commit, while the two Q77 cases still failed, makes the bound the header's height at a phone's width: the disclosure on three lines, each other paragraph on one, line-height 1.5, the paragraphs' margins collapsed between them (`(n + 1) × margin`), the scroll padding strictly above it (the header's 1px rule). Seen failing, still on the missing `position`:
+
+```
+$ cd apps/web && timeout 600 npx --no-install vitest run test/ui/dark-pages.test.ts -t "Q77"
+ FAIL  test/ui/dark-pages.test.ts > the credits and data-flow pages, dark (FR-015, FR-016) > /credits/: keeps the header holding the AI disclosure in view as the page scrolls: sticky, opaque (Q77)
+AssertionError: /credits/'s header: expected null to be 'sticky' // Object.is equality
+ FAIL  test/ui/dark-pages.test.ts > the credits and data-flow pages, dark (FR-015, FR-016) > /disclosure/: keeps the header holding the AI disclosure in view as the page scrolls: sticky, opaque (Q77)
+AssertionError: /disclosure/'s header: expected null to be 'sticky' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 20 skipped (22)
+   Start at  04:35:03
+   Duration  61.94s (transform 45%, import 38%, tests 17%)
+```
+
+(Trimmed to the reporter's FAIL and summary lines: each failure's diff and source frame are as in the RED paste above, at the same line.)
