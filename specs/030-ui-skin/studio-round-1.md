@@ -90,10 +90,156 @@ The extracted file's SHA-256: `98eb47ddbcf7ac6193e3fafa6420b33f6f3bb3d8e8e3ff1e1
   ```
 
   Main's policy read from `refs/heads/main` (`f6baef8c`); the real handoff folder (`/srv/studio/handoff/`, no `ui-buttons/` in it). R-1 wrote nothing else under `/srv/studio/`.
-- `line.py candidate` output, dry and recorded: *(R-3)*
-- The result: `/srv/studio/briefs/ui-buttons/1.result.json`, its SHA-256: *(R-3)*
-- The eleven files' SHA-256s (from `records.json`, and from the bytes, which must agree): *(R-3)*
-- `slices.json`, pasted: *(R-3)*
+- `line.py candidate` output, dry and recorded (R-3, `judge-ui-r1`, 2026-11-17, from `impl-030dj`'s tip `c77eb4ce`, T-DJ02, which holds the still set's checks; the brief's SHA-256 checked equal to R-1's first; the eleven names checked by hand, Q69, in [judge-r1.md](judge-r1.md)). **Round 1 passes.** The dry run:
+
+  ```
+  $ python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/ui-buttons/1 --brief /srv/studio/briefs/ui-buttons/1.json; echo "exit $?"
+  arrival-check: main's copy, at f6baef8ce027, on a scratch copy under assets/ui/buttons/
+  file                                          bytes     gzip      vertices  triangles  texture
+  assets/ui/buttons/btn-primary-disabled.png    3517      3466      -         -          -
+  assets/ui/buttons/btn-primary-hover.png       3761      3712      -         -          -
+  assets/ui/buttons/btn-primary-normal.png      3641      3587      -         -          -
+  assets/ui/buttons/btn-primary-pressed.png     3621      3571      -         -          -
+  assets/ui/buttons/btn-primary-selected.png    4224      4184      -         -          -
+  assets/ui/buttons/btn-secondary-disabled.png  3344      3284      -         -          -
+  assets/ui/buttons/btn-secondary-hover.png     3797      3747      -         -          -
+  assets/ui/buttons/btn-secondary-normal.png    3883      3823      -         -          -
+  assets/ui/buttons/btn-secondary-pressed.png   3601      3544      -         -          -
+  assets/ui/buttons/btn-secondary-selected.png  4174      4131      -         -          -
+  assets/ui/buttons/panel-frame.png             6614      6485      -         -          -
+  arrival-check: 0 findings in 13 files
+  line: pass; round 1
+  exit 0
+  ```
+
+  Recorded, once (its output equal to the dry run's, `diff` empty):
+
+  ```
+  $ python3 -I -B scripts/studio/line.py candidate /srv/studio/handoff/ui-buttons/1 --brief /srv/studio/briefs/ui-buttons/1.json --record; echo "exit $?"
+  arrival-check: main's copy, at f6baef8ce027, on a scratch copy under assets/ui/buttons/
+  file                                          bytes     gzip      vertices  triangles  texture
+  assets/ui/buttons/btn-primary-disabled.png    3517      3466      -         -          -
+  assets/ui/buttons/btn-primary-hover.png       3761      3712      -         -          -
+  assets/ui/buttons/btn-primary-normal.png      3641      3587      -         -          -
+  assets/ui/buttons/btn-primary-pressed.png     3621      3571      -         -          -
+  assets/ui/buttons/btn-primary-selected.png    4224      4184      -         -          -
+  assets/ui/buttons/btn-secondary-disabled.png  3344      3284      -         -          -
+  assets/ui/buttons/btn-secondary-hover.png     3797      3747      -         -          -
+  assets/ui/buttons/btn-secondary-normal.png    3883      3823      -         -          -
+  assets/ui/buttons/btn-secondary-pressed.png   3601      3544      -         -          -
+  assets/ui/buttons/btn-secondary-selected.png  4174      4131      -         -          -
+  assets/ui/buttons/panel-frame.png             6614      6485      -         -          -
+  arrival-check: 0 findings in 13 files
+  line: pass; round 1
+  exit 0
+  ```
+
+  A pass prints no line for the still set's checks; their measures, from `line.py`'s own functions, are in [judge-r1.md](judge-r1.md): every file 8-bit RGBA, non-interlaced, 192 × 96 (buttons) or 256 × 256 (frame), ring alpha 0; lowest ΔE76 between two states 17.07 (secondary disabled/normal; primary's lowest 19.82, normal/pressed); lowest label ratio 5.69:1 (`#14171c` on primary disabled).
+- The result: `/srv/studio/briefs/ui-buttons/1.result.json`, its SHA-256: `703278d72786a8788d763ee9745b726606c24760513146f648f6c8175bf531a3`
+
+  ```
+  {
+    "schema": 1,
+    "asset": "ui-buttons",
+    "round": 1,
+    "result": "pass",
+    "findings": []
+  }
+  ```
+- The eleven files' SHA-256s (from `records.json`, and from the bytes, which must agree): all eleven agree.
+
+  | File | `records.json` | The bytes | Agree |
+  |---|---|---|---|
+  | `btn-primary-disabled.png` | `fe4da5713f32ea8b0f08719161d94b74eea224c8e661e1ba2c0dbcc51fc2d626` | `fe4da5713f32ea8b0f08719161d94b74eea224c8e661e1ba2c0dbcc51fc2d626` | yes |
+  | `btn-primary-hover.png` | `ce93cdc64bf4dcdb6dd63b325afe25b5bd32e72601aa817610eea7395ff6c43f` | `ce93cdc64bf4dcdb6dd63b325afe25b5bd32e72601aa817610eea7395ff6c43f` | yes |
+  | `btn-primary-normal.png` | `17b6faa32027e312d59d546c8764e1de519a74a708138238eee3373c683147c3` | `17b6faa32027e312d59d546c8764e1de519a74a708138238eee3373c683147c3` | yes |
+  | `btn-primary-pressed.png` | `0e831b953301bad2c5244ee27f2c0221db3281d42ecbf2606780abae5f5c9da5` | `0e831b953301bad2c5244ee27f2c0221db3281d42ecbf2606780abae5f5c9da5` | yes |
+  | `btn-primary-selected.png` | `5062c8adb92a204943c291baabdd5637a102bdb4bb294fc599ce695bbaf89cc9` | `5062c8adb92a204943c291baabdd5637a102bdb4bb294fc599ce695bbaf89cc9` | yes |
+  | `btn-secondary-disabled.png` | `30fd1dcfd3fe9bab75280a8058c31395bb798dce944163bfe592aa36d8929d90` | `30fd1dcfd3fe9bab75280a8058c31395bb798dce944163bfe592aa36d8929d90` | yes |
+  | `btn-secondary-hover.png` | `30c1e35db047f465fdbcdeae35650023c7c6d18c7f6afb7471e4dc043ca041bf` | `30c1e35db047f465fdbcdeae35650023c7c6d18c7f6afb7471e4dc043ca041bf` | yes |
+  | `btn-secondary-normal.png` | `1d98c57c0782e0af6c4949b4e0a6e08688dc2279b94600acb623610292f48fdd` | `1d98c57c0782e0af6c4949b4e0a6e08688dc2279b94600acb623610292f48fdd` | yes |
+  | `btn-secondary-pressed.png` | `1b5af9a30d13ec8c7eee02690198b4da63dc4bc36b7bf76628e9b54f32efd5c1` | `1b5af9a30d13ec8c7eee02690198b4da63dc4bc36b7bf76628e9b54f32efd5c1` | yes |
+  | `btn-secondary-selected.png` | `08e54a06ef44eaf56b254a9dfeded13ae8752fbc5b672628a58cc34f47199dff` | `08e54a06ef44eaf56b254a9dfeded13ae8752fbc5b672628a58cc34f47199dff` | yes |
+  | `panel-frame.png` | `dbf6bd7caf6b6f43a6de90238c165646a52d69255961f8fd00ff73b52cfef34d` | `dbf6bd7caf6b6f43a6de90238c165646a52d69255961f8fd00ff73b52cfef34d` | yes |
+- `slices.json`, pasted (SHA-256 `a7dcbaf09b29f43d5502330a4858e01166256deaa638d09198a91831856af872`): every button 24 on each side, the frame 48, the labels the brief's.
+
+  ```json
+  {
+    "schema": 1,
+    "files": {
+      "btn-primary-disabled.png": {
+        "top": 24,
+        "right": 24,
+        "bottom": 24,
+        "left": 24
+      },
+      "btn-primary-hover.png": {
+        "top": 24,
+        "right": 24,
+        "bottom": 24,
+        "left": 24
+      },
+      "btn-primary-normal.png": {
+        "top": 24,
+        "right": 24,
+        "bottom": 24,
+        "left": 24
+      },
+      "btn-primary-pressed.png": {
+        "top": 24,
+        "right": 24,
+        "bottom": 24,
+        "left": 24
+      },
+      "btn-primary-selected.png": {
+        "top": 24,
+        "right": 24,
+        "bottom": 24,
+        "left": 24
+      },
+      "btn-secondary-disabled.png": {
+        "top": 24,
+        "right": 24,
+        "bottom": 24,
+        "left": 24
+      },
+      "btn-secondary-hover.png": {
+        "top": 24,
+        "right": 24,
+        "bottom": 24,
+        "left": 24
+      },
+      "btn-secondary-normal.png": {
+        "top": 24,
+        "right": 24,
+        "bottom": 24,
+        "left": 24
+      },
+      "btn-secondary-pressed.png": {
+        "top": 24,
+        "right": 24,
+        "bottom": 24,
+        "left": 24
+      },
+      "btn-secondary-selected.png": {
+        "top": 24,
+        "right": 24,
+        "bottom": 24,
+        "left": 24
+      },
+      "panel-frame.png": {
+        "top": 48,
+        "right": 48,
+        "bottom": 48,
+        "left": 48
+      }
+    },
+    "labels": {
+      "primary": "#14171c",
+      "secondary": "#e6fbff"
+    }
+  }
+  ```
 
 ## His intake: what it needs (plan §R-D3)
 
