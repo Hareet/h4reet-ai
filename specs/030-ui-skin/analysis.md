@@ -56,3 +56,40 @@ All in spec.md's Amendments table and Assumptions, each with its clause: 018 FR-
 ## Not checked here
 
 The screenshots (`resume/` unreachable; spec.md's Assumptions). The brief on the real `/srv/studio/` folder (unreachable; R-1). Any code: this branch writes none.
+
+## Re-run after the rework (rework-spec-030, from `35a75b2c`)
+
+The same pass over spec.md, plan.md, tasks.md, and studio-round-1.md after `rv-spec-030`'s six blocking findings were fixed (S-1 to S-6; [notes.md](notes.md), "Rework"). What changed:
+
+### The review's findings, each where it landed
+
+| ID | Fix | Where |
+|---|---|---|
+| S-1 | "Close" is `.split-hint` (the pair of "Back") and `.resume-close`; Q5's premise ("the split layout has no other close") corrected as a named departure; Q51's recommended answer taken; both in the component's selectors and tests; `.resume-close`'s boundary computed against the resume panel's `#ffffff` | spec Readings, Q5, Q51, FR-008, Terms; plan §R-B3, §R-B4; tasks T-B01 (a) (b) (c), T-B03 |
+| S-2 | `choice-cards.test.ts:425-436` rewritten in T-C01's RED, old and new assertion named (3:1 against `rgb(16 20 26)`); also `:459-463` (the card's focus ring), which the review didn't name and fails the same way; the file C's alone; T-C03 runs the rest unchanged | spec Assumptions, US3 scenario 3; plan §R-C2, §R-C3, §9; tasks T-C01, T-C02, T-C03 |
+| S-3 | A `ui-assets` named context in `web_image.py` and an empty stage and copy in `apps/web/Dockerfile`, on `visitor-assets`' terms; its tests in `deploy/scripts/test_web_image.py` and `scripts/test_makefile.py`'s `WEB_BUILD`, RED first, T-DS's; SC-007 in the image | spec FR-027 (new), SC-007, Amendments; plan §1, §R-D4, §9; tasks T-DS01 (c), T-DS02 |
+| S-4 | The chamfer on a `::before` for every control; nothing clips the box, outline, or glow; `button-states.test.ts` asserts no `clip-path` on any skinned control | spec FR-011, FR-013; plan §R-B3, §R-B4, §10; tasks T-B01 (c), T-B03 |
+| S-5 | §9 names every file for one group, no search; B owns no earlier test file; `hud-contrast`, `hud-over-contrast`, `hud-look`, `hud-over-layers` (and `hud-split-contrast`) A's; `choice-cards` C's; B's cases in others' files go to T-INT02b (new), RED between A's merge and B's | spec Assumptions; plan §R-A4, §R-B5, §9; tasks T-A01 (d), T-B01 (d), T-INT01, T-INT02b |
+| S-6 | `border-width` and `padding` stay the CSS skin's; `border-image-width` (insets ÷ 2) with `-outset: 0` draws the insets over the border and padding; buttons with `fill`, the panel frame without; T-DS01 checks the tiles', `.room-walk`'s, `.room-eat`'s, and the halves' content boxes equal under both skins | spec FR-024; plan §R-D4, §10; tasks T-DS01 (b), T-DS02 |
+
+### New findings of this pass
+
+| ID | Category | Severity | Where | Finding | State |
+|---|---|---|---|---|---|
+| R-1 | Inconsistency | HIGH | plan §R-B3 against §R-D4 | S-4's `::before` (`z-index: -1` in the control's own stacking context) paints after the context root's borders, so it would cover the image skin's `border-image` whole: the studio's images would never show. | *Fixed*: under `data-skin-kind="image"` the `::before` is off and `filter` `none`; the control's `background-color` is the fallback's face beneath the image, so a failed decode shows a flat face (spec's edge case amended); T-DS01 (b) asserts it. |
+| R-2 | Inconsistency | MEDIUM | plan §R-B3; spec FR-012 | With the frame drawn by the `::before`, the control's own border must be transparent (a coloured one shows square corners round the chamfer), so "disabled by a dashed border" on the control would be unseen in the CSS skin too, not only under `border-image` (the review's I-2). | *Fixed*: the dashes are B's `::after`, in every skin, clipped to the octagon; D sets only its inset (`--btn-dash-inset`); T-B01 (c), T-DS01 (b). |
+| R-3 | Coverage gap | MEDIUM | spec FR-024; tasks T-DS01 | The image skin's label colours weren't tied to `slices.json`'s, so the label drawn could differ from the one the judge measured (the review's I-2). | *Fixed*: the entry carries `labels`; the build sets them on every state; the schema refuses an image skin without them. |
+| R-4 | Underspecification | LOW | plan §R-B2 | Which attributes the root carries on a fallback (the review's N-3). | *Fixed*: the resolved skin's `data-skin` and `data-skin-kind`, set only by the plugin. |
+| R-5 | Inconsistency | LOW | plan §R-A1 | The `@supports not (backdrop-filter …)` block kept the glass opaque where the blur was missing, against FR-005's clear glass everywhere (the review's N-1). | *Fixed*: the block goes; `hud-no-blur.test.ts` refuses such a condition. |
+| R-6 | Test design | LOW | plan §R-A3, §R-B4 | Two assertions checked the code against itself: the halves' boxes against `halves()`'s own output, and the swap's "inputs differ only by the YAML" (the review's N-2, as this pass reads it; its text wasn't reachable, only the page's summary). | *Fixed*: the boxes against numbers the test derives (and `halves()`'s own unit cases); the swap by its effect, T-B04's `git status` for "no source file". |
+| R-7 | Risk | LOW | plan §R-C1 | The selection screen's first paint was light: the class came from script (the review's N-4). | *Fixed*: `index.html`'s root carries the class (C's file now); the no-script fallback is dark too, its text at 4.5:1 (spec's edge case amended; a question on the page). |
+| R-8 | Inconsistency | LOW | plan §R-D3; studio-round-1.md R-4 row | The intake's route wasn't 021's (the review's N-5). | *Fixed*: `docs/merge-requests/human-patches/030.md`, 021's table; the R-4 row's path in studio-round-1.md updated, its brief's JSON block untouched (checked by `git diff`). |
+| R-9 | Ambiguity | LOW | spec edge case against FR-013 | A label longer than two lines "grows" the button, but the split layout's tiles hold two lines (the review's I-3). | *Fixed in the text*: the edge case names the tiles' exception; the real labels' fit under `metal`'s uppercase is unmeasured (jsdom has no layout, and the plan adds no browser), so it is his look's (SC-008), named in notes.md. |
+
+### Coverage and metrics after the rework
+
+FR-027 (new) → T-DS01 (c), T-DS02. Every other row of the coverage table stands, with T-INT02b added to FR-008 and FR-012's (the cases B's look needs in A's files). 27 functional requirements; 9 success criteria; 17 clarifications (Q1 to Q16, Q51); 33 tasks (A 5, B 4, C 3, DJ 2, the round 3, DS 5, INT 6); the review's 6 blocking findings fixed, its 8 others in notes.md (7 fixed, 1 in part); this pass's 9 findings, all fixed in the text, R-1 and R-2 new. 0 unmapped requirements; 0 CRITICAL. §9's rows are disjoint but for the one sequential share by design: a script over §9's backticked paths finds only `build/ui-skins.ts` and `content/ui-skins.yaml` in two rows, B's and DS's, which DS edits after B on B's tip (its image case and the `metal-image` entry), never beside it.
+
+### Still not checked
+
+As above; and the S-6 look (the image's 12 px band over a 60 px tile's icon and words) is his, at SC-008.
