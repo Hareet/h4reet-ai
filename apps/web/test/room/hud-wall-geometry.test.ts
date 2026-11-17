@@ -206,7 +206,7 @@ describe("the wall placement table (Key Entities)", () => {
   });
 });
 
-describe("the split layout's list holds \"Back\" (spec 030, T-INT02a; Q100; FR-013)", () => {
+describe('the split layout\'s list holds "Back" (spec 030, T-INT02a; Q100; FR-013)', () => {
   it("refuses the split layout where the list can't hold its top padding and Back's 44 px, so the column layout takes it", () => {
     const floor = 0.5 * DEFAULT_METRICS.rem + 44;
     expect(floor).toBe(52);
@@ -224,17 +224,19 @@ describe("the split layout's list holds \"Back\" (spec 030, T-INT02a; Q100; FR-0
         refused.push(`${s.w}x${s.h}`);
       }
     }
-    // rv3-rework-030b-r2's I-1: at 1360 × 320 the list was 2.9 px; every such window is 320 to 368 px tall, and keeps
-    // the column layout, holding its HUD.
+    // rv3-rework-030b-r2's I-1: at 1360 × 320 the list was 2.9 px, and "Back" was cut at 144 split windows 320 to 368 px
+    // tall; with the list's top padding counted, the floor takes 35 more, 384 px tall, where the list held 44 px but
+    // not the padding above "Back": 179, each keeping the column layout and holding its HUD.
     expect(wallBoxes({ w: 1360, h: 320 }, OPENING, DEFAULT_METRICS, { wall: PROTECT })).toBeNull();
     for (const where of refused) {
       const [w = 0, h = 0] = where.split("x").map(Number);
       expect(h, where).toBeGreaterThanOrEqual(320);
-      expect(h, where).toBeLessThanOrEqual(368);
+      expect(h, where).toBeLessThanOrEqual(384);
       expect(layoutFor({ w, h }), where).toBe("column");
       expect(fitsHud({ w, h }), where).toBe(true);
     }
-    expect(refused).toHaveLength(144);
+    expect(refused.filter((r) => Number(r.split("x")[1]) <= 368)).toHaveLength(144);
+    expect(refused).toHaveLength(179);
   });
 });
 
