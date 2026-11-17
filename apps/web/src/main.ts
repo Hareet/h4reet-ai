@@ -4,6 +4,9 @@
 // cookie, browser storage, or the URL (FR-003).
 import "./style.css";
 import "./fonts.css";
+// Spec 030 (FR-010; plan.md §R-B2): the active skin's custom properties, generated at build from
+// content/ui-skins.yaml, before room.css (app.ts's).
+import "virtual:ui-skin.css";
 
 import { content, room } from "virtual:room-content";
 import { createFrameLog } from "virtual:room-frame-log";

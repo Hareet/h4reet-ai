@@ -16,6 +16,7 @@ import { DEFAULT_POLICY_DIR } from "./build/policy";
 import { roomBundle } from "./build/room/plugin";
 import { roomTextPart } from "./build/room/text";
 import { statusPage } from "./build/status";
+import { uiSkins } from "./build/ui-skins";
 
 const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
 
@@ -69,5 +70,8 @@ export default defineConfig({
     resumeDownloadName({ policyDir: () => process.env.ROOM_POLICY_DIR || DEFAULT_POLICY_DIR }),
     // The room's bundle (above).
     room,
+    // Spec 030 (FR-009, FR-010): the button skin from content/ui-skins.yaml, its custom properties served as
+    // virtual:ui-skin.css and its ID written on index.html's root as data-skin; a swap is an edit of that file alone.
+    uiSkins({ source: here("content/ui-skins.yaml") }),
   ],
 });
