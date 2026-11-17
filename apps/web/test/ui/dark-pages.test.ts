@@ -8,7 +8,8 @@
 //   choice.css), each built page's emitted style.css alone. Each property's winner is the cascade's: !important, then
 //   specificity, then order; var() resolves through the custom properties each element inherits, and a var() with no
 //   value takes its fallback, so the cards' reads of group B's --btn-* tokens resolve without B's stylesheet. The same
-//   checks run again with a stand-in for B's `metal` skin (plan.md §R-B1's estimates), so the cards hold with B too.
+//   checks run again with the skin the build ships, its generated stylesheet and the root's data-skin (spec 030,
+//   T-INT02, Q108: was a stand-in of plan.md §R-B1's estimates), so the cards hold with B too.
 // - A run of words is judged over its own background and each ancestor's, composited over white (a page whose ground
 //   is missing reads as white): every text at 4.5:1 (no large-text allowance, so the floor is never too low). Links
 //   underlined and at 4.5:1. The focus ring at 3:1 over what lies outside the control (a radio's ring is its card's,
@@ -23,6 +24,7 @@ import { describe, expect, it } from "vitest";
 
 import { creditsPage, renderCredits } from "../../build/credits";
 import { disclosurePage, renderDisclosure } from "../../build/disclosure";
+import { builtSkin } from "../helpers/built-skin";
 import { REPO, WEB, button, enter, flush, parseCss, radio, start, tabOrder } from "../helpers/room";
 
 const read = (path: string): string => readFileSync(join(WEB, path), "utf8");
@@ -30,8 +32,10 @@ const DARK = "src/pages/dark.css";
 /** dark.css's text; "" where it doesn't exist yet, so each case below fails on its own assertion. */
 const darkCss = (): string => (existsSync(join(WEB, DARK)) ? read(DARK) : "");
 
-/** The stand-in for group B's `metal` skin: plan.md §R-B1's estimates of the tokens the cards read. */
-const METAL = `:root[data-skin="metal"] { --btn-frame: #2a3038; --btn-chamfer: 0.5rem; --btn-secondary-selected-glow: #46d7f0; }`;
+/** Spec 030 (T-INT02; Q108, C's ask in impl-c.md; was the stand-in `:root[data-skin="metal"] { --btn-frame: #2a3038;
+ *  --btn-chamfer: 0.5rem; --btn-secondary-selected-glow: #46d7f0; }`, plan.md §R-B1's estimates): the skin the build
+ *  ships, its generated stylesheet, and the root's data-skin the build writes (test/helpers/built-skin.ts). */
+const SKIN = builtSkin();
 
 // ---- The cascade, as far as these sheets need it ----
 
@@ -346,13 +350,14 @@ describe("the dark tokens (FR-015, Q9)", () => {
 
 // ---- The selection screen ----
 
-/** The selection screen's sheets in the bundle's order: main.ts's style.css, app.ts's room.css, choice.ts's two. */
+/** The selection screen's sheets in the bundle's order: main.ts's style.css, app.ts's room.css, choice.ts's two; with
+ *  a skin, its generated stylesheet where main.ts imports it, after style.css (spec 030, T-INT02: was appended last). */
 const choiceSheets = (skin?: string): string[] => [
   read("src/style.css"),
+  ...(skin ? [skin] : []),
   read("src/room/room.css"),
   darkCss(),
   read("src/choice/choice.css"),
-  ...(skin ? [skin] : []),
 ];
 
 async function screens(): Promise<[string, Document][]> {
@@ -424,11 +429,11 @@ describe("the selection screen, dark (FR-015 to FR-018)", () => {
 
   for (const [skin, sheet] of [
     ["without group B's sheet", undefined],
-    ["with a stand-in for B's metal skin", METAL],
+    [`with B's built skin (${SKIN.id})`, SKIN.css],
   ] as const) {
     it(`gives the screen the glass ground, white text, and every text at 4.5:1, ${skin}`, async () => {
       for (const [name, doc] of await screens()) {
-        if (sheet) doc.documentElement.setAttribute("data-skin", "metal");
+        if (sheet) doc.documentElement.setAttribute("data-skin", SKIN.id);
         for (const state of ["rest", "hover"] as const) {
           const c = cascade(choiceSheets(sheet), state);
           const where = `${name}, ${state}, ${skin}`;
@@ -440,7 +445,7 @@ describe("the selection screen, dark (FR-015 to FR-018)", () => {
 
     it(`underlines its links at 4.5:1 and rings every Tab stop at 3:1 over the dark ground, ${skin}`, async () => {
       for (const [name, doc] of await screens()) {
-        if (sheet) doc.documentElement.setAttribute("data-skin", "metal");
+        if (sheet) doc.documentElement.setAttribute("data-skin", SKIN.id);
         const c = cascade(choiceSheets(sheet));
         ground(doc, c, `${name}, ${skin}`);
         links(doc, c, `${name}, ${skin}`);
@@ -450,7 +455,7 @@ describe("the selection screen, dark (FR-015 to FR-018)", () => {
 
     it(`draws the steps, the cards, the outcome, and the chosen card's border at 3:1, ${skin}`, async () => {
       for (const [name, doc] of await screens()) {
-        if (sheet) doc.documentElement.setAttribute("data-skin", "metal");
+        if (sheet) doc.documentElement.setAttribute("data-skin", SKIN.id);
         for (const state of ["rest", "hover"] as const) {
           const c = cascade(choiceSheets(sheet), state);
           const where = `${name}, ${state}, ${skin}`;

@@ -3,12 +3,15 @@
 // the brightest and darkest a scene pixel can be, and the tile face over that; every text pair reaches 4.5:1, and every
 // border, focus ring, and pressed mark 3:1, so the floor holds over any part of any look, in 3D and 2D, with or without
 // the blur. The glass's alpha is the lowest 5% step at which all pass: the step below fails at least one pair. The rules
-// that draw the HUD take their colours from the palette, so this test judges what the visitor sees.
+// that draw the HUD take their colours from the palette, so this test judges what the visitor sees. Spec 030 (T-INT02;
+// Q73): the controls the skin draws (ui/button.css, on the root's data-skin) take their colours from the skin the build
+// ships, so their pairs read its tokens (test/helpers/built-skin.ts); the tiles' pairs name the tiles the skin leaves.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { SKIN_STATES, SKIN_VARIANTS, builtSkin, stateColours } from "../helpers/built-skin";
 import { parseCss } from "../helpers/room";
 import type { CssRule } from "../helpers/room";
 
@@ -61,7 +64,51 @@ const ratio = (a: Rgb, b: Rgb): number => {
 const WHITE: Rgb = [255, 255, 255];
 const BLACK: Rgb = [0, 0, 0];
 
-/** Every pair the HUD draws, at a glass alpha: its contrast, and the floor it must reach. */
+/** The skin the build ships, its tokens on :root[data-skin="<id>"], the root's data-skin on the built page. */
+const SKIN = builtSkin();
+
+/** Spec 030 (T-INT02; Q73): the pairs of the skinned controls (Q5: the bar's tiles, the walking control, "Eat", "Back",
+ *  both "Close" buttons, the conversation's header toggles, "Send"), read from the built skin's tokens, at a glass
+ *  alpha, over white and black: each variant's and state's label on its face (4.5:1; the faces are opaque); its edge on
+ *  the glass, the border's line or the face, whichever stands out more (3:1; B's two-tone rule, FR-012); the focus ring
+ *  inside the face in every state a control can be focused in (3:1; Q72); and the selected state's line on its face
+ *  (3:1), the mark a pressed control carries, which was the tile's inset ring. */
+function skinPairs(alpha: number): { name: string; contrast: number; floor: number }[] {
+  const glassRgb = colour(palette().get("--glass") ?? "").rgb;
+  const out: { name: string; contrast: number; floor: number }[] = [];
+  for (const [beneath, under] of [
+    ["white", WHITE],
+    ["black", BLACK],
+  ] as const) {
+    const glass = over({ rgb: glassRgb, a: alpha }, under);
+    for (const variant of SKIN_VARIANTS)
+      for (const state of SKIN_STATES) {
+        const c = stateColours(SKIN, variant, state);
+        const face = over(colour(c.face), glass);
+        const at = `${SKIN.id}'s ${variant} ${state} control over ${beneath}`;
+        out.push(
+          { name: `${at}: its label on its face`, contrast: ratio(over(colour(c.label), face), face), floor: 4.5 },
+          {
+            name: `${at}: its edge on the glass`,
+            contrast: Math.max(ratio(over(colour(c.border), glass), glass), ratio(face, glass)),
+            floor: 3,
+          },
+        );
+        if (state !== "disabled")
+          out.push({ name: `${at}: its focus ring inside its face`, contrast: ratio(colour(c.ring).rgb, face), floor: 3 });
+        if (state === "selected")
+          out.push({ name: `${at}: its selected line on its face`, contrast: ratio(over(colour(c.border), face), face), floor: 3 });
+      }
+  }
+  return out;
+}
+
+/** Every pair the HUD draws, at a glass alpha: its contrast, and the floor it must reach. Spec 030 (T-INT02; Q73;
+ *  was: "text on a tile", "a tile's border on the glass", "the focus ring on a tile", and "the pressed mark on a tile",
+ *  from room.css's --tile-face and --tile-border, for every control): the controls the skin draws take their pairs from
+ *  the built skin's tokens (skinPairs); the tile pairs name the tiles the skin leaves, the list's entries and the
+ *  conversation's other buttons in the column layout and the dock (test/ui/hud-look.test.ts's "the rest the tile's
+ *  face"); and the pressed mark is the skin's selected line, since every control that can be pressed is skinned. */
 function pairs(alpha: number): { name: string; contrast: number; floor: number }[] {
   const p = palette();
   const glassRgb = colour(p.get("--glass") ?? "").rgb;
@@ -78,15 +125,17 @@ function pairs(alpha: number): { name: string; contrast: number; floor: number }
     const tile = over(face, glass);
     out.push(
       { name: `text on the glass over ${beneath}`, contrast: ratio(text, glass), floor: 4.5 },
-      { name: `text on a tile over ${beneath}`, contrast: ratio(text, tile), floor: 4.5 },
-      { name: `a tile's border on the glass over ${beneath}`, contrast: ratio(over(border, glass), glass), floor: 3 },
+      { name: `text on a tile the skin leaves over ${beneath}`, contrast: ratio(text, tile), floor: 4.5 },
+      {
+        name: `a tile's border the skin leaves on the glass over ${beneath}`,
+        contrast: ratio(over(border, glass), glass),
+        floor: 3,
+      },
       { name: `the focus ring on the glass over ${beneath}`, contrast: ratio(focus, glass), floor: 3 },
-      { name: `the focus ring on a tile over ${beneath}`, contrast: ratio(focus, tile), floor: 3 },
-      // The pressed mark: an inset ring in the text's colour inside the tile, and its words underlined.
-      { name: `the pressed mark on a tile over ${beneath}`, contrast: ratio(text, tile), floor: 3 },
+      { name: `the focus ring on a tile the skin leaves over ${beneath}`, contrast: ratio(focus, tile), floor: 3 },
     );
   }
-  return out;
+  return [...out, ...skinPairs(alpha)];
 }
 
 const failing = (alpha: number): string[] =>

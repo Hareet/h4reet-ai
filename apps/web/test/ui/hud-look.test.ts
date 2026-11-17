@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { readSkins, resolveSkin } from "../../build/ui-skins";
 import { DEFAULT_METRICS, OPENING, compactBoxes, hudBoxes, logRestRem } from "../../src/room/compose/hud";
 import { flatProtectorFor } from "../../src/room/compose/protect";
 import {
@@ -114,12 +115,12 @@ const controls = (v: Visit): Element[] => [
 ];
 
 // Spec 030 (T-INT02b, found by impl-b.md's T-B01 (d); Q73's form): the page the build serves names its skin on the
-// root (data-skin, build/ui-skins.ts), so the two layouts' cases below set it as the build does, from
-// content/ui-skins.yaml's `active`, and read the skin's controls by the cascade of the whole selector list.
+// root (data-skin, build/ui-skins.ts), so the two layouts' cases and the resume's below set it as the build does, to
+// the skin content/ui-skins.yaml's `active` resolves to (resolveSkin: `metal`, the image skin's fallback, while its
+// files aren't in the tree; T-INT02, rv-int-030's nit 1: was `active` itself, `metal-image`), and read the skin's
+// controls by the cascade of the whole selector list.
 const SKINS_YAML = join(dirname(fileURLToPath(import.meta.url)), "../../content/ui-skins.yaml");
-const ACTIVE_SKIN = existsSync(SKINS_YAML)
-  ? (/^active:\s*([\w-]+)/m.exec(readFileSync(SKINS_YAML, "utf8"))?.[1] ?? "")
-  : "";
+const ACTIVE_SKIN = existsSync(SKINS_YAML) ? resolveSkin(readSkins(readFileSync(SKINS_YAML, "utf8"))).id : "";
 
 /** Spec 030's skinned controls among the HUD's (Q5; spec.md FR-008), and its one primary (Q6). */
 const SKINNED =
@@ -278,13 +279,49 @@ describe("every HUD control a tile (spec 014, T024; FR-022)", () => {
       expect(ACTIVE_SKIN, "content/ui-skins.yaml's active skin").not.toBe("");
     });
 
-  it("keeps the resume's panel spec 005's white document, its buttons the page's", async () => {
+  // Spec 030 (T-INT02; Q73; spec.md's Amendments, R-7; was "… its buttons the page's": the panel's `background` and
+  // each of its buttons' `background` `#ffffff`, by winning(), with no data-skin): with the root's data-skin the build's
+  // and the resume's view rendered, the panel stays spec 005's white document; its "Close" is the skin's secondary
+  // button by the cascade, as the column's controls above are; its PDF link and its items keep the page's look.
+  it("keeps the resume's panel spec 005's white document, its Close the skin's secondary button, the rest the page's", async () => {
     const v = await room({ w: 1920, h: 1200 });
+    v.doc.documentElement.setAttribute("data-skin", ACTIVE_SKIN || "none-built");
     button(v.doc, "Resume").click();
+    // The resume's view renders once its room-data.json has loaded.
+    await flush();
     const panel = v.doc.querySelector(".resume-panel");
-    expect(panel).not.toBeNull();
-    expect(winning(panel as Element, "background")).toBe("#ffffff");
-    for (const el of panel?.querySelectorAll("button") ?? []) expect(winning(el, "background")).toBe("#ffffff");
+    if (!panel) throw new Error("no resume panel");
+    expect(winning(panel, "background")).toBe("#ffffff");
+    const close = panel.querySelector(".resume .resume-close");
+    if (!close) throw new Error("no Close in the resume panel");
+    expect(close.matches(SKINNED), "Close is a skinned control (Q5)").toBe(true);
+    const token = (what: string): RegExp => new RegExp(`^var\\(--btn-secondary-normal-${what}\\)$`);
+    expect(throughPrivate(close, cascaded(close, ["color"])), "Close: label").toMatch(token("label"));
+    expect(throughPrivate(close, cascaded(close, ["background-color"], true)), "Close: face").toMatch(token("face"));
+    expect(cascaded(close, ["--_border"]), "Close: border's line").toMatch(token("border"));
+    expect(cascaded(close, ["background-color", "background"]), "Close: its own background").toBe("transparent");
+    expect(cascaded(close, ["border-color", "border"]), "Close: its own border").toBe("transparent");
+    expect(cascaded(close, ["border-radius"]), "Close: radius").toBe("var(--btn-radius)");
+    // The PDF link, which shares 002's rule with "Close", and an item as resume/view.ts marks one: the page's, no token
+    // of the skin's or the component's.
+    const pdf = panel.querySelector(".resume .resume-pdf");
+    if (!pdf) throw new Error("no PDF link in the resume panel");
+    const list = v.doc.createElement("ul");
+    list.className = "resume-items";
+    const item = v.doc.createElement("button");
+    item.type = "button";
+    list.append(v.doc.createElement("li"));
+    list.firstElementChild?.append(item);
+    panel.append(list);
+    for (const [el, name] of [
+      [pdf, "the PDF link"],
+      [item, "an item"],
+    ] as const) {
+      expect(el.matches(SKINNED), `${name}: not skinned`).toBe(false);
+      for (const properties of [["color"], ["background-color", "background"], ["border-color", "border"]])
+        expect(cascaded(el, properties) ?? "", `${name}: ${properties[0] ?? ""}`).not.toMatch(/--btn-|--_/);
+    }
+    expect(cascaded(item, ["background-color", "background"]), "an item: the page's white button").toBe("#ffffff");
   });
 
   it("keeps the page's buttons in the stacked layout: no tile rule names it", () => {
