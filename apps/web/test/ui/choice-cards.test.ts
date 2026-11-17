@@ -9,7 +9,7 @@
 //
 // The words below are the page's drafts as taken under the Author's rule 1 for night 4 (spec Q11, Q13; the page's Q19
 // for the dog's): this test pins what ships, for his look.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -372,14 +372,44 @@ const atRule = (pattern: RegExp): { prelude: string; body: string }[] =>
 const declared = (rules: readonly CssRule[], selector: RegExp, property: string): string[] =>
   rules.filter((r) => selector.test(r.selector)).flatMap((r) => r.declarations.get(property) ?? []);
 
-/** A #rrggbb's contrast against white. */
-function onWhite(hex: string): number {
+/** A #rrggbb's relative luminance. */
+function luminanceOf(hex: string): number {
   const channel = (i: number): number => {
     const c = parseInt(hex.slice(1 + 2 * i, 3 + 2 * i), 16) / 255;
     return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
   };
-  const l = 0.2126 * channel(0) + 0.7152 * channel(1) + 0.0722 * channel(2);
-  return 1.05 / (l + 0.05);
+  return 0.2126 * channel(0) + 0.7152 * channel(1) + 0.0722 * channel(2);
+}
+
+// Spec 030 (T-C01; FR-015 to FR-017; plan.md §R-C1): the screen is a dark page, so a card's marks stand on the glass
+// colour, dark.css's ground (`rgb(16 20 26)`), not on white; and choice.css reads dark.css's tokens and group B's
+// --btn-* (each with a fallback), so a value is judged with its var()s resolved through dark.css's token rule, a token
+// it doesn't hold by its fallback.
+function darkTokens(): Map<string, string> {
+  const path = join(WEB, "src/pages/dark.css");
+  if (!existsSync(path)) return new Map();
+  const rule = parseCss(readFileSync(path, "utf8")).rules.find((r) =>
+    r.selector.split(",").some((s) => s.trim() === "body.dark-page"),
+  );
+  return new Map([...(rule?.declarations ?? [])].filter(([k]) => k.startsWith("--")));
+}
+
+function resolved(value: string): string {
+  const tokens = darkTokens();
+  let v = value;
+  const inner = /var\((--[\w-]+)\s*(?:,\s*([^()]*))?\)/;
+  for (let m = inner.exec(v), n = 0; m && n < 20; m = inner.exec(v), n += 1) {
+    const got = tokens.get(m[1] ?? "") ?? m[2];
+    if (got === undefined) throw new Error(`${m[1]} has no value and no fallback`);
+    v = v.slice(0, m.index) + got.trim() + v.slice(m.index + m[0].length);
+  }
+  return v;
+}
+
+/** A #rrggbb's contrast against the dark page's ground, the glass colour rgb(16 20 26). */
+function onGround(hex: string): number {
+  const [hi, lo] = [luminanceOf(hex), luminanceOf("#10141a")].sort((a, b) => b - a);
+  return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05);
 }
 
 const hexes = (value: string): string[] => value.match(/#[0-9a-fA-F]{6}\b/g) ?? [];
@@ -428,11 +458,11 @@ describe("the cards' look (FR-028)", () => {
     const chosen = top.filter((r) => /^\.choice-card:has\(input:checked\)$/.test(r.selector.trim()));
     expect(chosen.length).toBeGreaterThan(0);
     const colours = chosen.flatMap((r) => [
-      ...hexes(r.declarations.get("border-color") ?? ""),
-      ...hexes(r.declarations.get("box-shadow") ?? ""),
+      ...hexes(resolved(r.declarations.get("border-color") ?? "")),
+      ...hexes(resolved(r.declarations.get("box-shadow") ?? "")),
     ]);
     expect(colours.length).toBeGreaterThan(0);
-    for (const c of colours) expect(onWhite(c), c).toBeGreaterThanOrEqual(3);
+    for (const c of colours) expect(onGround(c), c).toBeGreaterThanOrEqual(3);
     // The mark and the word are hidden on an unchosen card, shown on a chosen one.
     for (const part of [".choice-check", ".choice-selected"]) {
       expect(declared(top, new RegExp(`^\\.choice-card ${part.replace(".", "\\.")}$`), "display")).toEqual(["none"]);
@@ -457,10 +487,10 @@ describe("the cards' look (FR-028)", () => {
     expect(input.getAttribute("aria-hidden")).toBeNull();
     expect(input.getAttribute("tabindex")).toBeNull();
     const ring = css().rules.find((r) => r.selector.includes(".choice-card:has(input:focus-visible)"));
-    const m = /^(\d+)px\s+solid\s+(#[0-9a-fA-F]{6})$/.exec(ring?.declarations.get("outline") ?? "");
+    const m = /^(\d+)px\s+solid\s+(#[0-9a-fA-F]{6})$/.exec(resolved(ring?.declarations.get("outline") ?? ""));
     expect(m, "the card's focus ring").not.toBeNull();
     expect(Number(m?.[1])).toBeGreaterThanOrEqual(2);
-    expect(onWhite(m?.[2] ?? "#ffffff")).toBeGreaterThanOrEqual(3);
+    expect(onGround(m?.[2] ?? "#10141a")).toBeGreaterThanOrEqual(3);
   });
 
   it("gives hover and focus looks of their own, distinct from the chosen one", () => {
