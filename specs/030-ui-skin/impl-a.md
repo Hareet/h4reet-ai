@@ -54,10 +54,10 @@ Implementer `impl-030a`, branch `night/impl-030a/impl-030a`, from `7cdc31d2` (`s
 | same, the oracle's list | `h: column.h − tilesH − tgap` | `h: max(0, column.h − tilesH − sliceRem × scaleRight × rem)` | FR-003 (and the clamp, below) |
 | same, 1280 × 720 probe | y 349, y 301 | y 337, y 289 | FR-004 |
 | `test/ui/hud-split-dog.test.ts` (026's human patch r4, 028), the ratchet | at least 1,601 split stages fit the five entries | at least 1,558 | the slice takes 0.5rem × scale from the list's box; a question on the page |
-| `test/room/__snapshots__/eat-box.test.ts.snap` (024's SC-004 "today's boxes") | the boxes before the slice | 461 values moved: every one a `y` or `h` less the slice at that root size (−12 at 16 px, −15 at 20 px, −24 at 32 px; counted from the diff) | FR-004 |
+| `test/room/__snapshots__/eat-box.test.ts.snap` (024's SC-004 "today's boxes") | the boxes before the slice | 459 values moved (461 here before `rework-030a`'s count, `rv-030a`'s N-3): every one a `y` or `h` less the slice at that root size (−12 at 16 px, −15 at 20 px, −24 at 32 px; counted from the diff) | FR-004 |
 | `test/room/__snapshots__/protect.test.ts.snap` (014), the reference desktop's boxes | column at y 781 | y 769 (two values) | FR-004 |
 
-**The two snapshot files were written by `vitest run -u`, not by the Edit or Write tool.** The brief says every tracked file is written by Edit or Write (night 4's Q40). `eat-box.test.ts.snap` is 8,515 lines and the change is 461 hunks of one number each; by Edit that is 461 calls, by Write the whole 141 KB file retyped. I ran `npx --no-install vitest run test/room/eat-box.test.ts test/room/protect.test.ts -u` once, on the prototype, and checked the diff by a script that read it (not one that wrote anything): every changed line is a `y`, `h`, or bare number less exactly the slice at its root size (228 × −12 `y`, 96 × −15 `y`, 36 × −24 `y`, 36 × −12 `h`, 20 × −15 `h`, 16 × −24 `h`, 29 bare). The question is on the page.
+**The two snapshot files were written by `vitest run -u`, not by the Edit or Write tool.** The brief says every tracked file is written by Edit or Write (night 4's Q40). `eat-box.test.ts.snap` is 8,515 lines and the change is 459 hunks of one number each (461 here before `rework-030a`'s count; see "Rework: rework-030a", N-3); by Edit that is 461 calls, by Write the whole 141 KB file retyped. I ran `npx --no-install vitest run test/room/eat-box.test.ts test/room/protect.test.ts -u` once, on the prototype, and checked the diff by a script that read it (not one that wrote anything): every changed line is a `y`, `h`, or bare number less exactly the slice at its root size (228 × −12 `y`, 96 × −15 `y`, 36 × −24 `y`, 36 × −12 `h`, 20 × −15 `h`, 16 × −24 `h`, 27 bare; "29" here before N-3's count). The question is on the page.
 
 ### The run on the base's code
 
@@ -427,4 +427,79 @@ The two new cases fail on A's tip, as RED should. The 14 rewritten cases pass th
 
 `make lint` on the RED tree: first `prettier --check` flagged `degraded.test.ts` (the new preludes' array on one line); I rewrapped it by Edit to the form `prettier` printed to stdout (read only, no `--write`), and `make lint` then exited 0.
 
-RUNS-TO-COME
+## T-A07: GREEN, and the valve before it
+
+The GREEN changes were made in the working tree first, all of them (T-A07's `room.css`, R-2's `split.css`, the nits' comments), and run before any was committed.
+
+**The valve found two cases** that neither plan §R-A4's table (at rework 3's tip) nor T-A06 holds, in a run of the RED files and the halves' and contrast files on the uncommitted tree:
+
+```
+npx --no-install vitest run test/ui/hud-no-blur.test.ts test/ui/degraded.test.ts test/ui/loading-a11y.test.ts test/ui/hud-halves.test.ts test/room/halves.test.ts test/lookdev/phone.test.ts test/room/geometry.test.ts test/room/report.test.ts test/ui/hud-split-dog.test.ts test/ui/hud-halves-contrast.test.ts test/ui/hud-split-list.test.ts test/ui/hud-split.test.ts test/room/hud-contrast.test.ts
+
+ ❯ test/ui/hud-halves-contrast.test.ts (19 tests | 7 failed) 21009ms
+ ❯ test/room/hud-contrast.test.ts (12 tests | 1 failed) 20ms
+ FAIL  test/room/hud-contrast.test.ts > the HUD's palette (room.css; FR-024, FR-025) > makes the glass opaque where the fallbacks hold, and every pair passes there too
+AssertionError: /^@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\)$/: expected false to be true // Object.is equality
+ ❯ test/room/hud-contrast.test.ts:158:9
+ FAIL  test/ui/hud-halves-contrast.test.ts > both halves at AA over the room (FR-005, FR-006, SC-002) > holds every ratio at 1366 × 768 (split) in 3d, at rest
+   (and walking; 1440 × 900 and 1920 × 1080 at rest and walking; 1366 × 768 in 2D at rest: the seven split cases)
+ ❯ length test/helpers/layers.ts:243:9
+ ❯ paddingTop test/helpers/layers.ts:351:10
+ ❯ bandLeaves test/helpers/layers.ts:362:43
+ ❯ pairsOf test/helpers/layers.ts:438:19
+ Test Files  2 failed | 11 passed (13)
+      Tests  8 failed | 302 passed (310)
+   Duration  170.69s (tests 86%, import 14%)
+```
+
+The first is T-A07's (the block's removal); the second is R-2's: the layers model's `length()` throws "not a length this test reads" on the list's new padding, `calc(0.5rem - 1px)`. Both are A's files. Rewritten in a RED test commit before the GREEN commits (`229b45c3`), named in plan.md's §R-A4 "As built (`rework-030a`)":
+
+| File, case | Old | New | Why |
+|---|---|---|---|
+| `test/room/hud-contrast.test.ts:148-159` (spec 005), "makes the glass opaque where the fallbacks hold, and every pair passes there too" | three preludes, the third `@supports not ((backdrop-filter: blur(1px)) or …)`, each holding `:root { --glass-alpha: 1 }` | the two `@media` preludes; `failing(1)` unchanged | T-A07 (N-1) |
+| `test/helpers/layers.ts`, `length()` | a length, or `calc(<length> * n)` | also `calc(<length> ± <length> …)` | R-2's padding; the seven split cases of `hud-halves-contrast.test.ts` then pass unchanged |
+
+Those three files, run again on the same tree: `test/ui/hud-halves-contrast.test.ts test/room/hud-contrast.test.ts test/ui/hud-over-layers.test.ts`: `Test Files 3 passed (3)`, `Tests 55 passed (55)`, `Duration 92.17s`. Neither new form can fail on A's tip (each asks less, or reads more), so each was seen failing in its old form, on the GREEN tree, as above. The same holds for T-A06's `degraded` and `loading-a11y` rewrites; their old forms, from `c0cd9826` (untracked scratch copies, deleted after), on the GREEN tree:
+
+```
+npx --no-install vitest run test/ui/zz-scratch-old-degraded.test.ts test/ui/zz-scratch-old-loading-a11y.test.ts -t "no backdrop blur"
+ FAIL  test/ui/zz-scratch-old-degraded.test.ts > the layout's degraded paths (spec 005, T010) > makes the glass opaque, with no blur, under reduced transparency, more contrast, and no backdrop blur
+AssertionError: /^@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\)$/: expected 0 to be greater than 0
+ FAIL  test/ui/zz-scratch-old-loading-a11y.test.ts > loading.css, read (FR-040 to FR-042; PD-23) > makes the card's glass opaque with no blur under reduced transparency, more contrast, and no backdrop blur, in every layout
+AssertionError: /@supports not/: expected undefined to be '1' // Object.is equality
+ Test Files  2 failed (2)
+      Tests  2 failed | 77 skipped (79)
+```
+
+**Then the whole `apps/web` suite on the uncommitted GREEN tree** (T-A07's valve, and R-2's and the nits', since all of them were in the tree), from `apps/web/`, in the background:
+
+```
+npx --no-install vitest run
+
+ Test Files  277 passed (277)
+      Tests  4865 passed | 6 skipped (4871)
+   Start at  06:07:21
+   Duration  1657.67s (tests 70%, import 30%)
+exit 0
+```
+
+Then the GREEN commits, each without a test file: T-A07 (`801b619a`, `room.css`: the `@supports not ((backdrop-filter: blur(1px)) or …)` block removed, and the fallbacks' comment no longer naming the browser without a backdrop filter), R-2 (`02e72751`), the nits (`0aac0e98`). `room.css` held both T-A07's hunks and N-1's comment, so N-1's comment was set back by Edit for T-A07's commit and restored by Edit for the nits'. After the three commits, `git diff 229b45c3 HEAD -- apps/web` equals the saved diff of the tree the valve ran on, byte for byte.
+
+## R-2: the split list's content box (`02e72751`)
+
+`hud/split.css`'s `.room-list[data-half="top"]` pads `calc(0.5rem - 1px) calc(0.75rem - 1px)` under its 1 px edge, as `room.css` pads the column's top half, so the content box is what the model counts. The RED case (T-A06) failed on A's tip with `top: 0.5rem 0.75rem: expected 9 to be close to 8`, and passes now. **A reading beyond the review's words:** the review asked for the vertical padding; I took the sides' 1 px too, so the width is as before as well. It is on the page with that as the recommended answer, and vertical-only and "count the edge in the model" as the others.
+
+**The Dog ratchet, re-measured on this tree** (an untracked scratch copy of `hud-split-dog.test.ts` with the ratchet's `expect` replaced by a `console.log`, run with `-t`, then deleted): `SCRATCH-DOG 1558 of 3329 split stages; four: 1855`. That is Q81's 1,558, so `hud-split-dog.test.ts:96`'s `toBeGreaterThanOrEqual(1558)` stands unchanged. The count comes from `wallBoxes` and the model, which R-2 doesn't change. R-2 makes the list's real content box match the model again: on A's tip, before R-2, the real box was 2 px shorter than the model counted.
+
+## The nits (`0aac0e98`, comments only)
+
+- **N-1:** `room.css:149-152`'s `--half-border` comment now reads "3:1 against white or black outside it, whatever the glass inside", as plan.md's §R-A3 "As built" says. It no longer says "over any room pixel beside it".
+- **N-2:** `lookdev/lookdev.css:67-68` ("the frame time counts the glass and its blur at quality levels 0 and 1") and `app.ts:960` ("dark glass, blurred where the glass is"): both stale since T-A02, now without the blur. Both lines are outside A's file list (app.ts's are the three `blurAt` lines). They are named in plan.md's §R-A4 "As built"; the brief asked for them, comment only.
+- **N-3:** this file's snapshot count, corrected in place above (marked): 459 one-line hunks in `eat-box.test.ts.snap`, 27 bare, where A wrote 461 and 29. Counted read-only from `git show -U0 e053a0cd -- …eat-box.test.ts.snap`: 459 `@@` hunks, all one line; 360 `"y":`, 72 `"h":`, 27 with neither. `protect.test.ts.snap` has its own 2.
+- **N-4, N-5:** noted only, as the brief says; nothing changed for them.
+
+## plan.md and tasks.md
+
+The departures are in this branch's `plan.md`, in one "As built (`rework-030a`)" list under §R-A4: the valve's two cases; `test/room/halves.test.ts`; R-2's padding, which belongs to §R-A3; and N-2's two files outside A's list. R-2's line sits in §R-A4's list, not §R-A3's, because both this branch and rework 3 add A's §R-A3 "As built" list to a base that lacks it. A line inside that list conflicts (`git merge-tree` showed it, and I moved the line). No row was added to §9: every file I touched is already in A's row (rework 3's), except N-2's two comment lines, which are named above. `tasks.md` on this branch is A's, cut before rework 3, so it has no T-A06 to T-A08 to tick; adding them here would conflict with rework 3's section. They are ticked by this note, and rework 3's tasks.md holds them.
+
+TA08-TO-COME
