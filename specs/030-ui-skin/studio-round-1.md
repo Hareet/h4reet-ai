@@ -2,7 +2,7 @@
 
 Spec 030's group D (spec.md FR-019 to FR-023; plan.md §7, R-D1 to R-D3), shaped as spec 021's round 2 ran ([`specs/021-dinosaur-modeled-and-brought-in/studio-round-2.md`](../021-dinosaur-modeled-and-brought-in/studio-round-2.md)): a brief, the studio task, the judge, the record, then his intake. Written by `spec-030` (spec-writer, night of 2026-11-17), documents only.
 
-**Status: the brief is written here and checked against a scratch briefs folder; it is NOT yet at `/srv/studio/briefs/ui-buttons/1.json`.** `/srv/studio/` isn't reachable from this session. Task R-1 (`brief-ui-r1`) writes it there byte for byte and runs `line.py brief` on it. R-3 (`judge-ui-r1`) needs T-DJ's commits (the still set's checks, plan §R-D1) on the branch it judges from: without them, `line.py` judges only the bytes, the tools, the record, and the arrival check, and the round's other checks aren't made. R-3 must not `--record` from a branch without T-DJ.
+**Status: the brief is at `/srv/studio/briefs/ui-buttons/1.json` (R-1, 2026-11-17: SHA-256 `98eb47dd…1c4267`, `cmp` 0, `line.py brief` pass; "The record" below).** The spec-writer's session couldn't reach `/srv/studio/`; R-1 (`brief-ui-r1`) wrote it there byte for byte and ran `line.py brief` on it. R-3 (`judge-ui-r1`) needs T-DJ's commits (the still set's checks, plan §R-D1) on the branch it judges from: without them, `line.py` judges only the bytes, the tools, the record, and the arrival check, and the round's other checks aren't made. R-3 must not `--record` from a branch without T-DJ.
 
 His words, which this round answers: "Maybe use the studio pipeline to create the buttons for UI?" and, to the page's Q1, "Let's use studio image skins now" (spec.md, "Source").
 
@@ -77,7 +77,19 @@ The extracted file's SHA-256: `98eb47ddbcf7ac6193e3fafa6420b33f6f3bb3d8e8e3ff1e1
 
 ## The record (R-3 fills this)
 
-- Brief SHA-256: *(R-1)*
+- Brief SHA-256: `98eb47ddbcf7ac6193e3fafa6420b33f6f3bb3d8e8e3ff1e1ceabc169f1c4267` (R-1, `brief-ui-r1`, 2026-11-17, from `spec-030`'s tip `7cdc31d2`). Before placing it, none of `/srv/studio/briefs/ui-buttons/1.json`, `1.result.json`, or `/srv/studio/handoff/ui-buttons/1/` existed. The block above, extracted byte for byte to `/tmp/brief-ui-r1/1.json` (9,685 bytes), then copied to `/srv/studio/briefs/ui-buttons/1.json`:
+
+  ```
+  $ sha256sum /srv/studio/briefs/ui-buttons/1.json
+  98eb47ddbcf7ac6193e3fafa6420b33f6f3bb3d8e8e3ff1e1ceabc169f1c4267  /srv/studio/briefs/ui-buttons/1.json
+  $ cmp /tmp/brief-ui-r1/1.json /srv/studio/briefs/ui-buttons/1.json; echo "cmp exit $?"
+  cmp exit 0
+  $ python3 -I -B scripts/studio/line.py brief /srv/studio/briefs/ui-buttons/1.json; echo "exit $?"
+  line: pass
+  exit 0
+  ```
+
+  Main's policy read from `refs/heads/main` (`f6baef8c`); the real handoff folder (`/srv/studio/handoff/`, no `ui-buttons/` in it). R-1 wrote nothing else under `/srv/studio/`.
 - `line.py candidate` output, dry and recorded: *(R-3)*
 - The result: `/srv/studio/briefs/ui-buttons/1.result.json`, its SHA-256: *(R-3)*
 - The eleven files' SHA-256s (from `records.json`, and from the bytes, which must agree): *(R-3)*
