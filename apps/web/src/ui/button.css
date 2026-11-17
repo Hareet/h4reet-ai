@@ -162,6 +162,17 @@
   letter-spacing: normal;
 }
 
+/* The split layout's tiles whose words, in a skin's case, would run past the row's two lines (rework 2, Q75; T-B04's
+   estimate in impl-b.md: "Leave full screen" and "How data flows" take three in metal's uppercase) keep their words'
+   own case under every skin. The tiles have no class of their own and B changes no DOM, so the rule names them by the
+   attributes layout.ts gives them: the full-screen control's description and the data-flow link's address. */
+:root[data-skin][data-hud][data-split="on"]
+  .room
+  .hud-bar
+  .hud-tile:is([aria-describedby="room-fullscreen-help"], [href="./disclosure/"]) {
+  text-transform: none;
+}
+
 /* Primary: "Send" (and "Stop", the same button while the twin answers) and "Enter" (Q6). */
 :root[data-skin][data-hud][data-split] .talk-form .talk-row > button:not(.talk-voice),
 :root[data-skin] :is(.choice .choice-enter, .ui-button[data-variant="primary"]) {
