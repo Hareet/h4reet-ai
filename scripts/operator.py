@@ -70,6 +70,7 @@ import secrets
 import stat
 import subprocess
 import sys
+import time
 import unicodedata
 import urllib.error
 import urllib.parse
@@ -1635,6 +1636,9 @@ def record_command(
 SHARED = "shared"
 PROD_PROJECT = "h4reet-prod"
 PROD_ENV_FILE = Path(".config") / "h4reet-ai" / "env" / "prod.env"
+# Prod's run file (contracts/env-files.md §12; Makefile's RUNFILE): its H4_REF names the commit whose gateway image,
+# h4reet-gateway:<commit>, prod's make up built, and which prod's compose names (deploy/compose.yaml's gateway).
+PROD_RUN_FILE = Path(".local") / "state" / "h4reet" / "prod" / "run.env"
 EC2_TAG = "h4-prod-ec2"
 
 
@@ -1719,12 +1723,69 @@ def ec2_running(profile: str | None) -> bool:
 
 # The admin-only stack's one-off tunnel, named so its stop removes it alone.
 ADMIN_TUNNEL = "h4reet-prod-tunnel-admin"
+# The admin-only stack's waits (night 5's F5, specs/001-cloud-elevation/fixes/f5.md). The tunnel's client writes
+# /run/tunnel/connected once ssh is up (deploy/tunnel/entrypoint.sh, ssh's LocalCommand): 60 s covers a first try's
+# ConnectTimeout 10 and three more after the 1, 2, and 5 s backoff. Then the gateway, which retries the store every
+# 5 s, must read it: 20 s, four of its retries. One probe a second.
+ADMIN_TUNNEL_WAIT_S = 60
+ADMIN_STORE_WAIT_S = 20
+ADMIN_POLL_S = 1
+TUNNEL_MARK = "/run/tunnel/connected"
+# The gateway's own GET /health, asked inside its container, as compose's health check asks /health/live.
+GATEWAY_HEALTH_URL = "http://127.0.0.1:8080/health"
+FULL_SHA = re.compile(r"[0-9a-f]{40}")
+
+
+def store_probe_js(url: str) -> str:
+    """A node one-liner: exit 0 once the gateway reads the store (ok, or uninitialized, which init needs), else 1."""
+    return (
+        f"fetch('{url}',{{signal:AbortSignal.timeout(2000)}})"
+        ".then(r=>r.json())"
+        ".then(b=>process.exit(b.store==='ok'||b.store==='uninitialized'?0:1),()=>process.exit(1))"
+    )
+
+
+def prod_ref(run_file: Path) -> str:
+    """The commit prod's run file names, which tags prod's own gateway image."""
+    try:
+        lines = run_file.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        raise StackProblem(
+            f"{run_file} is missing, so prod's gateway image is unknown: make up ENV=prod writes it, "
+            "with the image, then make down ENV=prod"
+        ) from None
+    except OSError as error:
+        raise StackProblem(
+            f"{run_file} can't be read ({failure_reason(error)}), so prod's gateway image is unknown"
+        ) from None
+    refs = [line[len("H4_REF=") :] for line in lines if line.startswith("H4_REF=")]
+    if len(refs) != 1 or not FULL_SHA.fullmatch(refs[0]):
+        raise StackProblem(
+            f"{run_file}'s H4_REF isn't one full commit SHA, so prod's gateway image is unknown"
+        )
+    return refs[0]
 
 
 class AdminOnlyStack:
-    """The tunnel's -L 5432, the gateway, and edge, under prod's project, for one command (shared-state.md §7)."""
+    """The tunnel's -L 5432, the gateway, and edge, under prod's project, for one command (shared-state.md §7).
 
-    def __init__(self, root: Path, env_file: Path) -> None:
+    The gateway is prod's own image, h4reet-gateway:<prod's run file's H4_REF>, never dev-cpu's working-tree, and
+    start() returns only once the tunnel has connected and the gateway reads the store, each within its bound."""
+
+    def __init__(
+        self,
+        root: Path,
+        env_file: Path,
+        run_file: Path | None = None,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        self.ref = prod_ref(
+            run_file if run_file is not None else Path.home() / PROD_RUN_FILE
+        )
+        self.clock = clock
+        self.sleep = sleep
         self.base = [
             "docker",
             "compose",
@@ -1739,15 +1800,24 @@ class AdminOnlyStack:
         ]
         keep = ("PATH", "HOME", "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG")
         self.env = {k: os.environ[k] for k in keep if k in os.environ}
-        # No relay block and no telemetry block: their tokens empty, both answer 401. The tree's own files.
+        # No relay block and no telemetry block: their tokens empty, both answer 401. The tree's own files. H4_REF
+        # is prod's, so compose names prod's own gateway image, as prod's compose does with its run file.
         self.env.update(
-            {"H4_TREE": str(root), "RELAY_TOKEN_SELF": "", "TELEMETRY_BLOCK_TOKEN": ""}
+            {
+                "H4_TREE": str(root),
+                "H4_REF": self.ref,
+                "RELAY_TOKEN_SELF": "",
+                "TELEMETRY_BLOCK_TOKEN": "",
+            }
         )
 
     def start(self) -> None:
         up = [*self.base, "up", "-d", "--wait", "--no-deps", "gateway", "edge"]
         if run_docker(up, self.env) != 0:
-            raise StackProblem("the admin-only stack's gateway and edge didn't start")
+            raise StackProblem(
+                f"the admin-only stack's gateway and edge didn't start: its gateway is prod's own image, "
+                f"h4reet-gateway:{self.ref}, which make up ENV=prod builds if this engine lacks it"
+            )
         tunnel = [
             *self.base,
             "run",
@@ -1762,6 +1832,36 @@ class AdminOnlyStack:
         ]
         if run_docker(tunnel, self.env) != 0:
             raise StackProblem("the admin-only stack's tunnel didn't start")
+        mark = ["docker", "exec", ADMIN_TUNNEL, "test", "-f", TUNNEL_MARK]
+        if not self.wait(lambda: run_docker(mark, self.env) == 0, ADMIN_TUNNEL_WAIT_S):
+            raise StackProblem(
+                f"the admin-only stack's tunnel didn't connect within {ADMIN_TUNNEL_WAIT_S} s (no {TUNNEL_MARK} "
+                "mark): docs/runbooks/tunnel-end.md"
+            )
+        probe = [
+            *self.base,
+            "exec",
+            "-T",
+            "gateway",
+            "node",
+            "-e",
+            store_probe_js(GATEWAY_HEALTH_URL),
+        ]
+        if not self.wait(lambda: run_docker(probe, self.env) == 0, ADMIN_STORE_WAIT_S):
+            raise StackProblem(
+                f"the tunnel connected, but the admin-only stack's gateway didn't read the store within "
+                f"{ADMIN_STORE_WAIT_S} s: docs/runbooks/store-unreachable.md"
+            )
+
+    def wait(self, ready: Callable[[], bool], bound_s: float) -> bool:
+        """Probe until ready, one probe every ADMIN_POLL_S, and at least once; False once bound_s has passed."""
+        deadline = self.clock() + bound_s
+        while True:
+            if ready():
+                return True
+            if self.clock() >= deadline:
+                return False
+            self.sleep(ADMIN_POLL_S)
 
     def stop(self) -> None:
         # What it started alone: `down` under prod's project would stop every prod container (group 6's review).
