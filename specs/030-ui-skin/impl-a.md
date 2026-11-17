@@ -390,7 +390,7 @@ Two `toContain` failures don't print what the tree gives. I read those two value
 | `test/lookdev/phone.test.ts:292`, `:300` | `stageFor({ w: 384, h: 740 })` is 384 × 422; the row "384 × 422 CSS px" | 384 × 410; "384 × 410 CSS px" | T-A06 (c); Q82, the dock's slice |
 | `test/room/geometry.test.ts:376` | "fx-lower: 3D 320 × 322 and 62 others, 2D –" | "fx-lower: 3D 320 × 326 and 60 others, 2D –" | T-A06 (c) (from the run) |
 | same, `:389` | "fx-lower: 3D 320 × 250 and 53 others, 2D 320 × 250 and 114 others" | "… 320 × 238 and 53 others, 2D 320 × 238 and 115 others" | T-A06 (c) |
-| same, `:395`, `:397` (`NOT_SIDE_WALL`, read by the cases at `:415`, `:425`, `:482`, `:496`, `:512`) | "… in 3D at 320 × 250 and 53 others" | "… in 3D at 320 × 238 and 53 others" | T-A06 (c): five cases |
+| same, `:395`, `:397` (`NOT_SIDE_WALL`, read by the cases at `:402`, `:423`, `:481`, `:496`, `:512`) | "… in 3D at 320 × 250 and 53 others" | "… in 3D at 320 × 238 and 53 others" | T-A06 (c): five cases |
 | same, `:445` (`refusedBoth`, read by the cases at `:452`, `:462`) | `… in 3D at 320 × 250` | `… in 3D at 320 × 238` | T-A06 (c): two cases |
 | same, `:548` | "selectables[4]: … in 3D at 320 × 250 and 7181 others" | "… at 320 × 238 and 7186 others" | T-A06 (c) (the scratch run above) |
 | `test/room/report.test.ts:369` | "list-only at 320 × 250 and 53 others" (both columns) | "list-only at 320 × 238 and 53 others" | T-A06 (c) |
