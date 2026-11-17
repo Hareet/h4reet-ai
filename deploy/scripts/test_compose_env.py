@@ -1278,15 +1278,35 @@ def test_the_relay_receives_its_literals_and_the_tunnel_ends_secrets() -> None:
     )
     pools = [p["base"] for p in daemon["default-address-pools"]]
     assert pools and all(p in env["RELAY_REFUSED_PEERS"].split(",") for p in pools)
+    budgets = {
+        "type": "bind",
+        "source": "${H4_TREE:?set by make up}/config/budgets.yaml",
+        "target": "/app/config/budgets.yaml",
+        "read_only": True,
+    }
+    # F7, part 1 (night 5; contracts/relay-http.md §6, amended): the tunnel end's relay also reads EC2's state from the
+    # document the snapshot sink's host write keeps, its folder bound read-only at the path the relay reads, and made
+    # if missing, so a fresh tunnel end's relay starts before the write's first run and reads `unknown` until it.
+    # dev-relay has no sink, and reads `unknown` as before.
+    document = re.search(
+        r'SNAPSHOT_DOCUMENT = "([^"]+)"',
+        (REPO / "services/relay/src/ec2state.ts").read_text(encoding="utf-8"),
+    )
+    assert document is not None
+    snapshot = str(Path(document.group(1)).parent)
+    assert snapshot == "/var/lib/h4reet/snapshot"
+    assert SERVICES["relay"]["volumes"] == [
+        budgets,
+        {
+            "type": "bind",
+            "source": snapshot,
+            "target": snapshot,
+            "read_only": True,
+            "bind": {"create_host_path": True},
+        },
+    ]
+    assert SERVICES["dev-relay"]["volumes"] == [budgets]
     for name in ("relay", "dev-relay"):
-        assert SERVICES[name]["volumes"] == [
-            {
-                "type": "bind",
-                "source": "${H4_TREE:?set by make up}/config/budgets.yaml",
-                "target": "/app/config/budgets.yaml",
-                "read_only": True,
-            }
-        ], name
         # T166 (2026-11-13): the relay peaked at exactly its old 96M on the Author's engine, so 128M.
         assert SERVICES[name]["deploy"]["resources"]["limits"]["memory"] == "128M", name
     # And the tunnel end's collector, which peaked at 94.6 of its old 96M (T166).
