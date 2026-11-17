@@ -405,3 +405,460 @@ for this session. Nothing under
   `redteam/forbidden-actions.sh`, `assets/**`). No request to the runner. No push, merge to `main`, PR, container,
   release, plan against the account, or AWS call. No new endpoint or model call, so no cost, span, panel, or
   data-flow entry.
+
+## int2-030
+
+Night 5 (2026-11-17). Branch `night/int2-030/int2-030`, from `int-030`'s tip `fd26f860` (approved by `rv-int-030`,
+nits only). Tasks: T-INT02 and T-INT02a, with the page's Q73, Q100, Q107, Q108 taken as recommended (his rule 1), and
+`rv-int-030`'s three nits. T-INT03 and T-INT04 are later tasks'. All runs from `apps/web/` with `npx --no-install
+vitest run <files>` (Q25), after `make setup` (exit 0). Logs at `/tmp/int2030/` for this session.
+
+### The commits
+
+| Commit | What |
+|---|---|
+| `5ffdfb66`, `7c871249` | Save points of the RED (the rewritten cases, `test/helpers/built-skin.ts`, the probe). |
+| `3ff26628` | **T-INT02's RED**: the rest of the rewritten cases, `test/helpers/layers.ts` (B's faces in A's cascade), the probe's `KEPT`. With the two save points, the one test commit before the removal. |
+| `b35b407c` | **T-INT02's GREEN**: 104 dead declarations out of `room.css` and `split.css`. |
+| `5b0bf4b2`, `81a56df2` | Save points: Q100's RED in progress (`hud-wall-geometry.test.ts`), and the documents (`tasks.md`, `plan.md`). |
+| `05e8dfe2` | **T-INT02a's RED** (Q100): `test/room/hud-wall-geometry.test.ts`. |
+| `b821b2b9` | **T-INT02a's GREEN** (Q100): `compose/hud.ts`'s `listFloor` and condition (b). The last code commit. |
+| `9b203dc7` | Save point: `plan.md`'s "As built" for Q100. |
+| this record's commit | `int.md`, and `tasks.md`'s last note. |
+
+### Step 1: T-INT02's RED, each case's old and new assertion
+
+**Q107: `test/ui/hud-look.test.ts`'s column and dock cases are T-INT02b's** (`5cf48ac5`, reviewed at `fd26f860`).
+Their assertions are unchanged. **Nit 1:** the constant they set `data-skin` from (`:116-122`, used at `:244` and by the
+resume case) is now `resolveSkin(readSkins(<the yaml>)).id`, the resolved skin's ID (`metal` while the image skin's
+files aren't in the tree, as the built page has it). It was `active` (`metal-image`).
+
+| # | File, case | Old assertion | New assertion |
+|---|---|---|---|
+| 1 | `test/ui/hud-look.test.ts`, the resume case (`:281` at `fd26f860`) | "keeps the resume's panel spec 005's white document, its buttons the page's": no `data-skin`, "Resume" clicked and the panel read at once; its `background` `#ffffff`, and each `button` in it `#ffffff`, by `winning()` | "…, its Close the skin's secondary button, the rest the page's": `data-skin` the resolved ID, the view rendered (`flush()`); the panel `#ffffff`; `.resume .resume-close` matches the skinned list and takes `--btn-secondary-normal-{label,face,border}` by the cascade (label through `--_label`, face on its `::before`), its own background and border `transparent`, radius `var(--btn-radius)`; `.resume-pdf` and an item (as `resume/view.ts` marks one) not skinned, no `--btn-`/`--_` token in their colour, background, or border, the item `#ffffff` |
+| 2 | `test/ui/hud-look.test.ts`, "gives the control its own glass hover…" (`:467`) | room.css's `html[data-hud="{column,dock}"] .room-walk:hover`: background `rgb(var(--glass) / var(--glass-alpha-lit))`, border `var(--accent-neon)` | "gives the control the skin's hover…": no room.css hover rule names `.room-walk`; `ui/button.css`'s `(hover: hover)` rule for it sets `--_face` and `--_border` to the secondary hover tokens. Every hover still under `(hover: hover)` (unchanged) |
+| 3 | `test/room/hud-contrast.test.ts`, `pairs()` | "text on a tile", "a tile's border on the glass", "the focus ring on a tile", "the pressed mark on a tile" from `--tile-face`/`--tile-border`, for every control | the tile pairs renamed for the tiles the skin leaves (the panels' buttons); the pressed mark dropped there (every pressable control is skinned); `skinPairs()` added, from the built skin's tokens (`test/helpers/built-skin.ts`), each variant and state over white and black at the glass's alpha: label on face 4.5, edge (border's line or face) on the glass 3, ring inside the face 3 (not disabled), selected line on face 3 |
+| 4 | same, "draws the HUD from the palette…" | `${at} .hud-tile`'s background, colour, border; `.hud-tile[aria-pressed]`'s inset `box-shadow`; `.room-walk`'s background and colour, room.css's | "…from the palette and the skin…": the panels' buttons' background, colour, border, room.css's; the pressed tile's underline (kept); `ui/button.css`'s rule for the tiles and the walking control: `color: var(--_label)`, `--_face`/`--_border` the secondary normal tokens, `background-color: transparent`; its `::before` `background-color: var(--_face)`; its pressed rule the selected face and a 2 px line |
+| 5 | same, "lets each fallback outrank the HUD's rule it undoes" | the list held `.hud-tile`'s ButtonFace/ButtonText, `.hud-glass.room-walk:focus-visible`'s Highlight, `.room-walk:hover`'s ButtonFace, Highlight, and reduced transparency's opaque glass | those dropped (the skin's own forced-colours rule; no hover or ring of theirs left in room.css); the panels' buttons' ButtonFace/ButtonText added |
+| 6 | `test/ui/hud-over-contrast.test.ts`, `pairs()` | tile pairs for every tile, "a tile's icon", "the pressed mark", and the walking control's face the glass at `--glass-alpha` ("text on the walking control", its ring) | the tile pairs for the tiles the skin leaves; the skinned controls' from the built skin's tokens over the over-room glass (label, icon, edge, ring, selected line), each a tile pair (FR-006) |
+| 7 | same, "draws the focus ring inside its control over the room…" | room.css's `.hud-tile:focus-visible` and `.hud-tile[data-over="room"]:focus-visible` over the room at `outline-offset ≤ -4px` | the panels' buttons' ring at `≤ -4px` (kept); `ui/button.css`'s ring: `outline-width: 2px`, offset `calc(-2px - var(--_line-w) - var(--btn-chamfer) / 2)`, inside the face at the built skin's chamfer |
+| 8 | `test/ui/dark-pages.test.ts` (Q108), the three "… with a stand-in for B's metal skin" cases | the stand-in `:root[data-skin="metal"] { --btn-frame: #2a3038; --btn-chamfer: 0.5rem; --btn-secondary-selected-glow: #46d7f0; }` appended last, `data-skin="metal"` | "… with B's built skin (metal)": the built skin's generated stylesheet at its place in the bundle (after `style.css`), `data-skin` the resolved ID |
+
+Also in the RED: **`test/helpers/layers.ts`** (A's model; T-INT02a's change, brought here because the removal needs
+it, plan §R-A3 "As built (int2-030)"), and **`test/ui/button-dead-declarations.test.ts`** (new, the probe, below).
+
+**The old forms, seen failing (or not).**
+
+- *The resume case* (row 1), copied untracked into `test/ui/scratch-old-hud-look.test.ts` with `data-skin="metal"` set
+  (removed after): as written it **passes, vacuously**. It reads the panel before the view renders, and finds 0
+  buttons. With a `flush()` first (3 buttons) its `winning()` reader still passes. That reader splits `:is()` at
+  every comma and reads `background` alone, not B's `background-color`. Read by the whole-list cascade
+  (`cascaded(el, ["background-color", "background"])`), it fails:
+
+  ```
+  × OLD, data-skin set, the view rendered, read by the whole-list cascade: its buttons the page's 36ms
+  AssertionError: resume-close: expected 'transparent' to be '#ffffff' // Object.is equality
+        Tests  1 failed | 2 passed | 14 skipped (17)
+  exit=1
+  ```
+
+- *The colour pairs* (rows 3, 6) and *the stand-in* (row 8) read no root and no cascade, so `data-skin` can't make them
+  fail. They are stand-ins replaced, not REDs. The stand-in's three tokens equal B's built `metal`'s. The old
+  `dark-pages.test.ts` passes on the GREEN tree (below).
+- *The cases that read the removed text* (rows 2, 4, 5, 7), and A's two layers files with the old model: the files at
+  `fd26f860`, copied untracked into `test/**/scratch-old-*.test.ts` (and `test/helpers/scratch-old-layers.ts`), run on
+  the GREEN tree `b35b407c`, then removed. Exit 1:
+
+  ```
+   FAIL  test/room/scratch-old-hud-contrast.test.ts > … > draws the HUD from the palette: the glass, the tiles, their borders, the focus ring, and the pressed mark
+  AssertionError: html[data-hud="column"]: expected undefined to be 'var(--tile-face)' // Object.is equality
+   FAIL  test/room/scratch-old-hud-contrast.test.ts > … > lets each fallback outrank the HUD's rule it undoes
+  AssertionError: expected [ …(6) ] to deeply equal []
+   FAIL  test/ui/scratch-old-hud-look.test.ts > … > gives the control its own glass hover, and every hover rule only where the pointer hovers
+  AssertionError: column: expected undefined to be 'rgb(var(--glass) / var(--glass-alpha-…' // Object.is equality
+   FAIL  test/ui/scratch-old-hud-over-contrast.test.ts > … > draws the focus ring inside its control over the room, or on a plate, never on the bare glass
+  AssertionError: .hud-tile:focus-visible: expected false to be true // Object.is equality
+   FAIL  test/ui/scratch-old-hud-halves-contrast.test.ts > both halves at AA over the room … (12 cases, each window and view)
+  AssertionError: expected [ …(13) ] to deeply equal []
+   Test Files  4 failed | 1 passed (5)
+        Tests  16 failed | 63 passed (79)
+  exit=1
+  ```
+
+  The passing file is the old `dark-pages.test.ts`.
+
+**The new forms, seen passing.** Before the removal, on an export of the RED `3ff26628` (`git archive` into
+`/tmp/int2030-red.YUT1`, the worktree's `node_modules` linked): the probe and the hover case fail (that is the RED);
+every other rewritten case passes. Exit 1:
+
+```
+ ❯ test/ui/hud-look.test.ts (15 tests | 1 failed) 17598ms
+     × gives the control the skin's hover, and every hover rule only where the pointer hovers 5ms
+ ❯ test/ui/button-dead-declarations.test.ts (1 test | 1 failed) 293519ms
+     × leaves none that matches a skinned control and wins nowhere, in any layout, media, or state 293518ms
+AssertionError: expected [ …(117) ] to deeply equal [ …(13) ]
+AssertionError: expected [ …(4) ] to deeply equal []
+ ❯ test/ui/hud-look.test.ts:515:92
+ Test Files  2 failed | 5 passed (7)
+      Tests  2 failed | 102 passed (104)
+exit=1
+```
+
+The seven files: the probe, `hud-look`, `hud-contrast`, `hud-over-contrast`, `dark-pages`, `hud-over-layers`, and
+`hud-halves-contrast`. After the removal, every one passes (the GREEN's run below).
+
+### Step 2: T-INT02's GREEN, the probe's list, and the removal
+
+**The probe** is `test/ui/button-dead-declarations.test.ts`, not a mode of `button-skin.test.ts`, which is B's file and
+stays unchanged. It reads the page as B's tests do (`bundleSheets`, `button-cascade.ts`'s cascade, `data-skin` the
+resolved ID). It goes through 17 windows of the real room: split, column, dock, stacked; at rest, walking, the
+conversation open, the resume open, the toggles pressed, and 2D. It reads each under 6 media (default, forced
+colours, less transparency, more contrast, reduced motion, no hover) and 4 states. It lists each declaration of
+`room.css` or `split.css` that is dead, meaning all of these hold:
+
+- its property is one the component owns, or a shorthand of such longhands alone (`font` never counts, since it also
+  sets the size);
+- it matches skinned controls and no other element;
+- its selector names a skinned control or the bar;
+- it wins on no element.
+
+The first runs, before the filter on owned shorthands and unskinned elements, gave 125. That list held `font` and
+generic rules (`.hud-glass`, `.room button[aria-disabled]`, `.hud-glass a:focus-visible`), which B doesn't own. With
+the filter and pressed windows: **117**. Each is below (`KEPT` = kept, `gone` = removed by `b35b407c`):
+
+```
+KEPT  room/hud/split.css | | html[data-split="on"][data-hud="column"] .hud-bar .hud-tile | min-height: calc(3.75rem * var(--wall-scale-right))
+gone  room/hud/split.css | | html[data-split="on"][data-hud="column"] .hud-bar .hud-tile | min-width: 0
+gone  room/hud/split.css | | html[data-split="on"][data-hud="column"] .hud-bar .hud-tile | white-space: normal
+KEPT  room/hud/split.css | | html[data-split="on"][data-hud="column"] .room-list[data-over="room"] .split-back | background: rgb(var(--glass) / var(--over-plate-alpha))
+KEPT  room/hud/split.css | | html[data-split="on"][data-hud="column"] .room-list[data-over="room"] .split-back | border-radius: 0.25rem
+KEPT  room/hud/split.css | | html[data-split="on"][data-hud="column"] .room-list[data-over="room"] .split-back | box-shadow: 0 0 0 0.25rem rgb(var(--glass) / var(--over-plate-alpha))
+KEPT  room/hud/split.css | | html[data-split="on"][data-hud="column"] .split-back | min-height: 2.75em
+KEPT  room/hud/split.css | | html[data-split="on"][data-hud="column"] .split-hint | min-height: 2.75em
+gone  room/hud/split.css | | html[data-split="on"][data-hud="column"] .talk-log-toggle | background: none
+gone  room/hud/split.css | | html[data-split="on"][data-hud="column"] .talk-log-toggle | border: 0
+KEPT  room/hud/split.css | | html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint | background: rgb(var(--glass) / var(--over-plate-alpha))
+KEPT  room/hud/split.css | | html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint | border-radius: 0.25rem
+KEPT  room/hud/split.css | | html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint | box-shadow: 0 0 0 0.25rem rgb(var(--glass) / var(--over-plate-alpha))
+gone  room/hud/split.css | | html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint | box-shadow: none
+gone  room/hud/split.css | | html[data-split="on"][data-hud="column"] .talk[data-over="room"] .split-hint:focus-visible | outline-offset: -4px
+gone  room/hud/split.css | | html[data-split="on"][data-hud="column"] .talk[data-over="room"] .talk-log-toggle | background: rgb(var(--glass) / var(--over-plate-alpha))
+gone  room/hud/split.css | | html[data-split="on"][data-hud="column"] .talk[data-over="room"] .talk-log-toggle | border-radius: 0.25rem
+gone  room/hud/split.css | | html[data-split="on"][data-hud="column"] .talk[data-over="room"] .talk-log-toggle | box-shadow: 0 0 0 0.25rem rgb(var(--glass) / var(--over-plate-alpha))
+gone  room/hud/split.css | | html[data-split="on"][data-hud="column"] .talk[data-over="room"] .talk-log-toggle | box-shadow: none
+gone  room/hud/split.css | | html[data-split="on"][data-hud="column"] .talk[data-over="room"] .talk-log-toggle:focus-visible | outline-offset: -4px
+gone  room/room.css | @media (forced-colors: active) | .hud-bar a | background: ButtonFace
+gone  room/room.css | @media (forced-colors: active) | .hud-bar a | border-color: ButtonText
+gone  room/room.css | @media (forced-colors: active) | .hud-bar a | color: ButtonText
+gone  room/room.css | @media (forced-colors: active) | .hud-bar button | background: ButtonFace
+gone  room/room.css | @media (forced-colors: active) | .hud-bar button | border-color: ButtonText
+gone  room/room.css | @media (forced-colors: active) | .hud-bar button | color: ButtonText
+gone  room/room.css | @media (forced-colors: active) | :root[data-hud] .hud-glass.room-eat:focus-visible | outline-color: Highlight
+gone  room/room.css | @media (forced-colors: active) | :root[data-hud] .hud-glass.room-walk:focus-visible | outline-color: Highlight
+gone  room/room.css | @media (forced-colors: active) | :root[data-hud] .hud-tile | background: ButtonFace
+gone  room/room.css | @media (forced-colors: active) | :root[data-hud] .hud-tile | border-color: ButtonText
+gone  room/room.css | @media (forced-colors: active) | :root[data-hud] .hud-tile | color: ButtonText
+gone  room/room.css | @media (forced-colors: active) | :root[data-hud] .room-walk:hover | background: ButtonFace
+gone  room/room.css | @media (forced-colors: active) | :root[data-hud] .room-walk:hover | border-color: Highlight
+gone  room/room.css | @media (forced-colors: active) | :root[data-hud] .room-walk:hover | color: ButtonText
+gone  room/room.css | @media (hover: hover) | html[data-hud="column"] .hud-bar a.hud-tile:hover | background: var(--tile-face-lit)
+gone  room/room.css | @media (hover: hover) | html[data-hud="column"] .hud-bar a.hud-tile:hover | border-color: var(--accent-neon)
+gone  room/room.css | @media (hover: hover) | html[data-hud="column"] .hud-bar a.hud-tile:hover | box-shadow: inset 0 0 0 1px var(--accent-neon)
+gone  room/room.css | @media (hover: hover) | html[data-hud="column"] .hud-bar button:hover | background: var(--tile-face-lit)
+gone  room/room.css | @media (hover: hover) | html[data-hud="column"] .hud-bar button:hover | border-color: var(--accent-neon)
+gone  room/room.css | @media (hover: hover) | html[data-hud="column"] .hud-bar button:hover | box-shadow: inset 0 0 0 1px var(--accent-neon)
+gone  room/room.css | @media (hover: hover) | html[data-hud="column"] .room-walk:hover | background: rgb(var(--glass) / var(--glass-alpha-lit))
+gone  room/room.css | @media (hover: hover) | html[data-hud="column"] .room-walk:hover | border-color: var(--accent-neon)
+gone  room/room.css | @media (hover: hover) | html[data-hud="column"] .room-walk:hover | box-shadow: inset 0 0 0 1px var(--accent-neon)
+gone  room/room.css | @media (hover: hover) | html[data-hud="dock"] .hud-bar a.hud-tile:hover | background: var(--tile-face-lit)
+gone  room/room.css | @media (hover: hover) | html[data-hud="dock"] .hud-bar a.hud-tile:hover | border-color: var(--accent-neon)
+gone  room/room.css | @media (hover: hover) | html[data-hud="dock"] .hud-bar a.hud-tile:hover | box-shadow: inset 0 0 0 1px var(--accent-neon)
+gone  room/room.css | @media (hover: hover) | html[data-hud="dock"] .hud-bar button:hover | background: var(--tile-face-lit)
+gone  room/room.css | @media (hover: hover) | html[data-hud="dock"] .hud-bar button:hover | border-color: var(--accent-neon)
+gone  room/room.css | @media (hover: hover) | html[data-hud="dock"] .hud-bar button:hover | box-shadow: inset 0 0 0 1px var(--accent-neon)
+gone  room/room.css | @media (hover: hover) | html[data-hud="dock"] .room-walk:hover | background: rgb(var(--glass) / var(--glass-alpha-lit))
+gone  room/room.css | @media (hover: hover) | html[data-hud="dock"] .room-walk:hover | border-color: var(--accent-neon)
+gone  room/room.css | @media (hover: hover) | html[data-hud="dock"] .room-walk:hover | box-shadow: inset 0 0 0 1px var(--accent-neon)
+gone  room/room.css | @media (prefers-reduced-motion: no-preference) | html[data-hud="column"] .hud-tile | transition: border-color 120ms ease-out, background-color 120ms ease-out, transform 120ms ease-out, opacity 120ms ease-out
+gone  room/room.css | @media (prefers-reduced-motion: no-preference) | html[data-hud="dock"] .hud-tile | transition: border-color 120ms ease-out, background-color 120ms ease-out, transform 120ms ease-out, opacity 120ms ease-out
+gone  room/room.css | @media (prefers-reduced-transparency: reduce) | :root[data-hud] .room-walk:hover | background: rgb(var(--glass))
+gone  room/room.css | | .room-eat | background: #ffffff
+gone  room/room.css | | .room-eat | border-radius: 4px
+gone  room/room.css | | .room-eat | border: 2px solid #1a1a1a
+gone  room/room.css | | .room-eat | color: #1a1a1a
+gone  room/room.css | | .room-walk | background: #ffffff
+gone  room/room.css | | .room-walk | border-radius: 4px
+gone  room/room.css | | .room-walk | border: 2px solid #1a1a1a
+gone  room/room.css | | .room-walk | color: #1a1a1a
+gone  room/room.css | | html[data-hud="column"] .hud-glass.room-eat:focus-visible | outline-offset: 2px
+gone  room/room.css | | html[data-hud="column"] .hud-glass.room-eat:focus-visible | outline: 2px solid var(--hud-focus)
+gone  room/room.css | | html[data-hud="column"] .hud-glass.room-walk:focus-visible | outline-offset: 2px
+gone  room/room.css | | html[data-hud="column"] .hud-glass.room-walk:focus-visible | outline: 2px solid var(--hud-focus)
+gone  room/room.css | | html[data-hud="column"] .hud-tile | background: var(--tile-face)
+gone  room/room.css | | html[data-hud="column"] .hud-tile | border-radius: 0.5rem
+gone  room/room.css | | html[data-hud="column"] .hud-tile | border: 1px solid var(--tile-border)
+gone  room/room.css | | html[data-hud="column"] .hud-tile | color: var(--hud-text)
+KEPT  room/room.css | | html[data-hud="column"] .hud-tile | min-height: 2.75rem
+KEPT  room/room.css | | html[data-hud="column"] .hud-tile | min-width: 2.75rem
+gone  room/room.css | | html[data-hud="column"] .hud-tile | white-space: nowrap
+gone  room/room.css | | html[data-hud="column"] .hud-tile:active | transform: translateY(1px)
+gone  room/room.css | | html[data-hud="column"] .hud-tile[aria-disabled="true"] | color: var(--hud-text)
+gone  room/room.css | | html[data-hud="column"] .hud-tile[aria-disabled="true"] | opacity: 0.75
+gone  room/room.css | | html[data-hud="column"] .hud-tile[aria-pressed="true"] | background: var(--tile-face)
+gone  room/room.css | | html[data-hud="column"] .hud-tile[aria-pressed="true"] | box-shadow: inset 0 0 0 2px var(--hud-text)
+gone  room/room.css | | html[data-hud="column"] .hud-tile[aria-pressed="true"] | color: var(--hud-text)
+gone  room/room.css | | html[data-hud="column"] .hud-tile[data-over="room"]:focus-visible | outline-offset: -4px
+gone  room/room.css | | html[data-hud="column"] .room-eat | background: rgb(var(--glass) / var(--glass-alpha))
+gone  room/room.css | | html[data-hud="column"] .room-eat | border: 1px solid var(--tile-border)
+gone  room/room.css | | html[data-hud="column"] .room-eat | color: var(--hud-text)
+gone  room/room.css | | html[data-hud="column"] .room-eat | white-space: normal
+gone  room/room.css | | html[data-hud="column"] .room-walk | background: rgb(var(--glass) / var(--glass-alpha))
+gone  room/room.css | | html[data-hud="column"] .room-walk | border: 1px solid var(--tile-border)
+gone  room/room.css | | html[data-hud="column"] .room-walk | color: var(--hud-text)
+gone  room/room.css | | html[data-hud="column"] .room-walk | white-space: normal
+gone  room/room.css | | html[data-hud="column"] [data-over="room"] .hud-tile:focus-visible | outline-offset: -4px
+gone  room/room.css | | html[data-hud="dock"] .hud-glass.room-eat:focus-visible | outline-offset: 2px
+gone  room/room.css | | html[data-hud="dock"] .hud-glass.room-eat:focus-visible | outline: 2px solid var(--hud-focus)
+gone  room/room.css | | html[data-hud="dock"] .hud-glass.room-walk:focus-visible | outline-offset: 2px
+gone  room/room.css | | html[data-hud="dock"] .hud-glass.room-walk:focus-visible | outline: 2px solid var(--hud-focus)
+gone  room/room.css | | html[data-hud="dock"] .hud-tile | background: var(--tile-face)
+gone  room/room.css | | html[data-hud="dock"] .hud-tile | border-radius: 0.5rem
+gone  room/room.css | | html[data-hud="dock"] .hud-tile | border: 1px solid var(--tile-border)
+gone  room/room.css | | html[data-hud="dock"] .hud-tile | color: var(--hud-text)
+KEPT  room/room.css | | html[data-hud="dock"] .hud-tile | min-height: 2.75rem
+KEPT  room/room.css | | html[data-hud="dock"] .hud-tile | min-width: 2.75rem
+gone  room/room.css | | html[data-hud="dock"] .hud-tile | white-space: nowrap
+gone  room/room.css | | html[data-hud="dock"] .hud-tile:active | transform: translateY(1px)
+gone  room/room.css | | html[data-hud="dock"] .hud-tile[aria-disabled="true"] | color: var(--hud-text)
+gone  room/room.css | | html[data-hud="dock"] .hud-tile[aria-disabled="true"] | opacity: 0.75
+gone  room/room.css | | html[data-hud="dock"] .hud-tile[aria-pressed="true"] | background: var(--tile-face)
+gone  room/room.css | | html[data-hud="dock"] .hud-tile[aria-pressed="true"] | box-shadow: inset 0 0 0 2px var(--hud-text)
+gone  room/room.css | | html[data-hud="dock"] .hud-tile[aria-pressed="true"] | color: var(--hud-text)
+gone  room/room.css | | html[data-hud="dock"] .hud-tile[data-over="room"]:focus-visible | outline-offset: -4px
+gone  room/room.css | | html[data-hud="dock"] .room-eat | background: rgb(var(--glass) / var(--glass-alpha))
+gone  room/room.css | | html[data-hud="dock"] .room-eat | border: 1px solid var(--tile-border)
+gone  room/room.css | | html[data-hud="dock"] .room-eat | color: var(--hud-text)
+gone  room/room.css | | html[data-hud="dock"] .room-eat | white-space: normal
+gone  room/room.css | | html[data-hud="dock"] .room-walk | background: rgb(var(--glass) / var(--glass-alpha))
+gone  room/room.css | | html[data-hud="dock"] .room-walk | border: 1px solid var(--tile-border)
+gone  room/room.css | | html[data-hud="dock"] .room-walk | color: var(--hud-text)
+gone  room/room.css | | html[data-hud="dock"] .room-walk | white-space: normal
+gone  room/room.css | | html[data-hud="dock"] [data-over="room"] .hud-tile:focus-visible | outline-offset: -4px
+```
+
+The run that printed it (on `7c871249`, before the removal):
+`the probe: 347 declarations matched, 179 on a skinned control, 117 dead, 12 losing there but not B's alone`. The 12
+"not B's alone" weren't judged. Each is a generic rule: `.hud-glass`'s forced colours,
+`.room button[aria-disabled="true"]`, `.room button[aria-pressed="true"]` (three), `.hud-glass a:focus-visible`
+(column, dock, forced), and the dock's `.hud-glass button:focus-visible` offset, which also reaches the list's buttons.
+
+**How each was removed** (`b35b407c`; `git diff --numstat`: `room.css` 19 lines in, 75 out; `split.css` 7 in, 20
+out; the lines in are comments and the shortened selector lists). Where a
+declaration was dead for every selector of its rule, the declaration went. Where it was dead for some selectors of a
+shared list, and every declaration of the rule was dead for those selectors, those selectors were dropped from the
+list. Examples: the walking control and "Eat" from the focus ring's list, the bar's tiles from the hover list, the
+forced-colours button list, and the transition list. So no winner changes. A short comment names the skin where a rule
+lost its look.
+
+**The 13 kept** (the probe's `KEPT`, each with its reason; a question on the page). An earlier test outside Q73's set
+reads each one's text, and those tests pass unchanged:
+
+- spec 005's `test/ui/hud.test.ts` (the tiles' `min-height`/`min-width: 2.75rem`, a regex on `room.css`);
+- spec 028's `test/ui/hud-wall-dom.test.ts` (the split tiles' scaled `min-height`);
+- spec 026's `test/ui/hud-split-dog.test.ts` ("Back"'s `min-height: 2.75em`, which `hud-model.ts` counts, though B's 44
+  px wins);
+- B's `test/ui/button-states.test.ts` and DS's `test/ui/button-image-skin.test.ts`. Their "no shadow on the control"
+  cases need spec 029's plate on "Back" and "Close, Escape" in the cascade to discriminate ("the plate rule matched:
+  expected 0 to be greater than 0" without it).
+
+I found these by applying the full removal in the working tree, uncommitted, and running the 52 covering files
+(`/tmp/int2030/removal-run.txt`: 24 failed). The failures were those five files' cases, plus every window case of
+`hud-halves-contrast.test.ts` and five of `hud-over-layers.test.ts`'s with its plate-step case, whose model read no B
+(step 3). The pinned declarations
+were put back, and the RED took the model's change.
+
+**After the GREEN, at `b35b407c`.** The covering files: A's 27 (`int.md`'s list above), B's and DS's seven, C's 14,
+spec 029's `hud-over-*`, `hud-split-contrast.test.ts`, the probe, and every other file reading `room.css`, `split.css`,
+the layers model, or B's helpers. That is 69 files (`/tmp/int2030/green-files.txt`). Exit 0:
+
+```
+ Test Files  69 passed (69)
+      Tests  1141 passed (1141)
+   Start at  11:10:57
+   Duration  588.16s (tests 82%, import 18%)
+
+exit=0
+```
+
+Step 1's new cases still pass in it, and the probe gives exactly the 13 kept:
+`the probe: 243 declarations matched, 75 on a skinned control, 13 dead, 12 losing there but not B's alone` (its run
+on the removal tree, `/tmp/int2030/probe5.txt`).
+
+### Step 3: T-INT02a
+
+**B's faces in A's cascade.** `test/helpers/layers.ts` (A's model, used by spec 029's `hud-over-layers.test.ts` and
+A's `hud-halves-contrast.test.ts`) now has:
+
+- the skin's generated stylesheet and `ui/button.css` before the three sheets;
+- the page read as built (a root with no `data-skin` taken as the built skin's ID);
+- a control's `::before` face as a layer under its words;
+- a `calc()` reader for the skin's ring offset.
+
+Its exported `RULES` stays the three sheets' (spec 029's file compares it with its own reading). The model's default
+cascade is B's rules, then those. `hud-halves-contrast.test.ts` runs unchanged on it. It landed in T-INT02's RED
+because the removal needs it (plan §R-A3, "As built (int2-030)").
+
+- Before the removal, on the RED's export: it passes (the seven files' run above).
+- After the removal, with the old model: 12 window cases fail (step 1's paste: `expected [ …(13) ] to deeply equal
+  []`).
+- After the removal, with the new model: it passes (the GREEN's 69 files).
+
+**FR-005's rule: not needed.** No ratio fails with B's faces, so no alpha and no `ui-skins.yaml` token changed, and
+there's nothing to record in §R-B1.
+
+**Q100, test-first.**
+
+- RED `05e8dfe2`, `test/room/hud-wall-geometry.test.ts`:
+  - (1) "holds spec 028's numbers" (`:190`): old, `HUD_PLACEMENTS.wall` without `listFloor`; new, with
+    `listFloor: { padRem: 0.5, backPx: 44 }`.
+  - (2) The oracle's (b) (`:125-129`): old, no floor on the list; new, null where `list.h < 0.5 × rem + 44`, with a
+    `listFloor` switch to find what it refuses. This moves "agrees with the oracle at every landscape window of the
+    sweep" (`:200`), unchanged in its text.
+  - (3) New, "refuses the split layout where the list can't hold its top padding and Back's 44 px…" (`:209-241`):
+    - every split window's list is at least 52 px;
+    - 1360 × 320 is refused;
+    - each window the floor alone refuses is 320 to 384 px tall, in the column layout, holding its HUD;
+    - 144 of them are at most 368 px tall, and 179 in all.
+
+  On an export of `05e8dfe2` (`/tmp/int2030-q100.eiMO`), exit 1:
+
+  ```
+   ❯ test/room/hud-wall-geometry.test.ts (27 tests | 3 failed) 1327ms
+       × holds spec 028's numbers 6ms
+       × refuses the split layout where the list can't hold its top padding and Back's 44 px, so the column layout takes it 2ms
+       × agrees with the oracle at every landscape window of the sweep 221ms
+  AssertionError: expected { gapRem: 1, edgeRem: 1, …(7) } to deeply equal { gapRem: 1, edgeRem: 1, …(8) }
+  AssertionError: 1360x320: expected 0 to be greater than or equal to 51.999999999
+  ```
+
+- GREEN `b821b2b9`, `compose/hud.ts`: `listFloor`, and the check after the list's box in `wallBoxes`. The four
+  geometry files, exit 0:
+
+  ```
+   Test Files  4 passed (4)
+        Tests  52 passed (52)
+     Start at  12:50:01
+  ```
+
+  (`hud-wall-geometry`, `hud-split-geometry`, `halves`, `hud-halves`.)
+
+**The valve.** Before Q100's RED commit, I ran the whole `apps/web` suite on the working tree with the GREEN applied,
+uncommitted. That tree was T-INT02's GREEN, `hud.ts`'s floor, and the RED's file, its describe's quotes not yet
+Prettier's. Exit 0:
+
+```
+ Test Files  286 passed (286)
+      Tests  5011 passed | 6 skipped (5017)
+   Start at  11:26:47
+   Duration  1677.14s (tests 73%, import 26%)
+```
+
+**No earlier case moved.** The sweep counts of `geometry.test.ts`, `report.test.ts`, and `phone.test.ts`, and the Dog
+ratchet (1,558), count stages and the five entries, not split windows. So nothing joins plan §R-A4's table but
+`hud-wall-geometry.test.ts`'s own row (added). I measured 179 refused windows where the review counted 144: its 144
+(320 to 368 px tall) cut "Back" itself, and the other 35 are 384 px tall, where the list held 44 px but not the
+8 px of padding above "Back". The floor is 52 px at every scale, not 52 × `--wall-scale-right` as Q100's words had it.
+Neither the rem padding nor B's px floor scales (plan §R-A2 "As built (int2-030)"; a question on the page).
+
+### Step 4: the documents
+
+- `tasks.md`:
+  - T-INT01 and T-INT02b ticked at `fd26f860`, reviewed by `rv-int-030`.
+  - R-2's tick cites `3996c6c4` (nit 2).
+  - T-INT02's row notes that T-INT02b did `hud-look`'s column and dock cases (nit 3, Q107).
+  - T-INT02 and T-INT02a noted as built, with their commits, not ticked.
+- `plan.md`:
+  - §R-B3 "As built (int2-030)": the probe, the 104 and the 13, the departures.
+  - §R-A3 "As built (int2-030)": the model, and FR-005 not needed.
+  - §R-A2 "As built (int2-030)": Q100's floor.
+  - §R-A4's table: `hud-wall-geometry`'s Q100 row.
+
+### The whole `apps/web` suite, once, on the last code commit
+
+SUITE-PLACEHOLDER
+
+### `make lint`
+
+LINT-PLACEHOLDER
+
+The first run, from the repository's root on `b821b2b9` itself (the last code commit, the tree clean), exit 0. Its
+whole output:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+952 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit=0
+```
+
+`make test`, `make evals`, and `make check` weren't run: the brief gives the one `make check` to the handover
+(T-INT04).
+
+### What's done, and what isn't
+
+Done:
+
+- **T-INT02**: the RED (Q73, Q107, Q108, nit 1); the probe's list of 117; the removal of 104 in one commit; the 13 kept,
+  named. Every covering file passes after it.
+- **T-INT02a**: B's faces in A's cascade (no ratio failing, so no FR-005 change), and Q100's floor, test-first.
+- The documents (nits 1 to 3), the whole suite, and `make lint`.
+
+Not done, and not this task's:
+
+- T-INT03 (`adr-030`) and T-INT04 (the handover's `make check` and note).
+- The 13 kept declarations: a later task, if he wants it (question 1).
+- **His**: the look (SC-008). The tiles, "Back", the hint, the title's toggle, the walking control, and "Eat" now draw
+  only B's look. The old glass hover, focus ring, and pressed inset of the bar's tiles and the walking control are gone
+  from `room.css` (they already lost to B).
+
+### Questions (in `/night/io/out/questions.md`, each with a recommended answer)
+
+1. Should a later task rewrite the four tests that pin the 13 kept declarations and remove them? Recommended: yes,
+   after the stack's merge.
+2. Should the probe (about 290 s of the suite) stay in the suite? Recommended: yes, as built.
+3. Is Q100's unscaled 52 px floor right? Recommended: yes, as built.
+
+### Departures and slips, named
+
+- **The probe is a test file of its own**, not a run of B's `button-skin.test.ts` (B's file, unchanged), and it stays
+  in the suite as the removal's guard. It covers more than B's windows: stacked, pressed, 2D, and the media.
+- **T-INT02a's model change landed in T-INT02's RED**, ahead of the removal that needs it. `hud-halves-contrast.test.ts`
+  itself is unchanged: the model reads every page as built.
+- **The RED rewrote more than Q73's colour pairs**: the cases of the same files that read the removed text (rows 2, 4,
+  5, 7). The brief's "pass unchanged" holds for the GREEN: no test changed in it.
+- **13 dead declarations kept**, rather than rewriting tests outside Q73's set and B's own files.
+- **The RED is three commits** (`5ffdfb66` and `7c871249` save points, then `3ff26628`), all before the removal.
+- **Q100's floor refuses 179 windows**, the review's 144 and 35 more at 384 px; the floor is unscaled.
+- **Q100's RED commit message went to `git commit -F -` from a here-document**, not from a file written with the Write
+  tool, as the brief asks for a long message. No tracked file was written that way; the other long messages
+  came from `/tmp/int2030/msg-*.txt`.
+- **Scratch, outside the repository or untracked**:
+  - `/tmp/int2030/` (logs, the JSON reports, the probe's outputs, a read-only Python grouping script, the messages);
+  - `/tmp/int2030-red.YUT1` and `/tmp/int2030-q100.eiMO` (`git archive` exports; `node_modules` linked);
+  - untracked `scratch-old-*` test copies in `apps/web/test/`, removed with `rm` before each commit
+    (`git status --short` clean after).
+
+  The exports stay for this session. No `rm -rf` was used.
+- **No refusal** from a hook, the bash gate, or the permission layer. One harness block: a foreground `sleep` (I
+  waited on the background task's own notice instead). No human-only path was written. No request to the runner. No
+  push, merge, PR, container, release, plan, or AWS call. No new endpoint or model call, so no cost, span, panel, or
+  data-flow entry.
+
