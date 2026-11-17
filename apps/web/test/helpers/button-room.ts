@@ -1,6 +1,7 @@
 // The room and the selection screen with the skin in place (spec 030, T-B01; plan.md §R-B4), for B's tests: the real
-// room as main.ts starts it (test/helpers/room.ts's start), its root carrying the data-skin the build writes on
-// index.html, and the page's stylesheets in the bundle's order (main.ts's import graph: style.css, fonts.css, the
+// room as main.ts starts it (test/helpers/room.ts's start), its root carrying the data-skin a build without the image
+// skin's files writes on index.html (the CSS skin, before his intake and after it: rework-030ds, F-2), and the page's
+// stylesheets in the bundle's order (main.ts's import graph: style.css, fonts.css, the
 // skin's generated stylesheet, ui/button.css, then app.ts's room.css and the modules' own), both inserted into the
 // document, where jsdom's getComputedStyle reads them, and given to the cascade (button-cascade.ts), which also reads
 // @media and the states jsdom can't enter. Declares no test.
@@ -10,6 +11,8 @@ import { join } from "node:path";
 import { expect } from "vitest";
 
 import { readSkins, resolveSkin, skinCss } from "../../build/ui-skins";
+import type { ResolvedSkin } from "../../build/ui-skins";
+import type { ReadFile } from "../../build/ui-skins-image";
 import { Cascade } from "./button-cascade";
 import type { Env, Sheet } from "./button-cascade";
 import { WEB, button, flush, intoRoom, radio, roomIndex, start, stubViewport } from "./room";
@@ -21,10 +24,23 @@ export function skinText(id?: string): string {
   return id === undefined ? text : text.replace(/^active: .*$/m, `active: ${id}`);
 }
 
+/** A reader that finds no file, as a checkout without the image skin's files (rework-030ds, rv-030ds's F-2, Q101). */
+const NO_FILES: ReadFile = (path) => {
+  throw Object.assign(new Error(`ENOENT: ${path} (B's helpers read no image file)`), { code: "ENOENT" });
+};
+
+/** `id`'s skin, `metal` where `id` is absent (the repository's `active`, `metal-image`, is the image skin whose CSS
+ *  fallback `metal` is), built as the build builds it with no image file anywhere, so B's cases get `metal`, the CSS
+ *  skin, before his intake and after it (rework-030ds, F-2, Q101), and a named image skin its CSS fallback, whole.
+ *  DS's cases put the image skin's stylesheet in its place themselves (test/ui/button-image-skin.test.ts). */
+function cssSkin(id?: string): ResolvedSkin {
+  return resolveSkin(readSkins(skinText(id ?? "metal")), { read: NO_FILES });
+}
+
 /** The stylesheets in the bundle's order, the skin's generated one among them; main.ts imports ./resume (its
  *  resume.css, where the resume panel's "Close" is drawn) after the component and before the room's. */
 export function bundleSheets(id?: string): Sheet[] {
-  const skin = skinCss(resolveSkin(readSkins(skinText(id))));
+  const skin = skinCss(cssSkin(id));
   const src = (rel: string): Sheet => ({ name: rel, text: readFileSync(join(WEB, "src", rel), "utf8") });
   return [
     src("style.css"),
@@ -73,7 +89,7 @@ export interface Skinned {
 
 function dress(v: Visit, id: string | undefined, env: Env): Skinned {
   const sheets = bundleSheets(id);
-  const active = resolveSkin(readSkins(skinText(id))).id;
+  const active = cssSkin(id).id;
   v.doc.documentElement.setAttribute("data-skin", active);
   for (const sheet of sheets) {
     const style = v.doc.createElement("style");
