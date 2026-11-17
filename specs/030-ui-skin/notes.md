@@ -292,12 +292,18 @@ e483e2694f74f654a31e052bbdb56525dc5c0253
 exit 0
 ```
 
-At the base, `plan.md`'s conflict was one hunk: §R-A3's tests bullet (the first rework's N-2) against A's T-A04 "As built" list inserted before it. `tasks.md`'s was A's ticks on T-A01 to T-A05 against the reworks' text in T-A01, T-A02 and T-A05. **Made clean on this side.** Both "As built" lists are in plan.md as A wrote them. §R-A3's old tests bullet is kept word for word, with the reworked bullet after it, which says it replaces the old one. tasks.md's T-A01 to T-A05 are A's ticked lines byte for byte (checked line by line against `c0cd9826`). The reworks' changes to A are T-A06 to T-A08, in a section after Group B: anything placed beside A's ticks conflicts. DSB's "As built, the DS row" paragraph is in §9 as DSB wrote it. The rework's amendment to the no-row rule stands after "Cross-group reads", because the paragraph next to DSB's must stay as it was. **This branch's tip against each** (re-run at the last commit before this note, `wip(rework3-spec-030): R-1, the three grep-found files…`, and again at the final tip; notes.md is no other branch's file):
+At the base, `plan.md`'s conflict was one hunk: §R-A3's tests bullet (the first rework's N-2) against A's T-A04 "As built" list inserted before it. `tasks.md`'s was A's ticks on T-A01 to T-A05 against the reworks' text in T-A01, T-A02 and T-A05. **Made clean on this side.** Both "As built" lists are in plan.md as A wrote them. §R-A3's old tests bullet is kept word for word, with the reworked bullet after it, which says it replaces the old one. tasks.md's T-A01 to T-A05 are A's ticked lines byte for byte (checked line by line against `c0cd9826`). The reworks' changes to A are T-A06 to T-A08, in a section after Group B: anything placed beside A's ticks conflicts. DSB's "As built, the DS row" paragraph is in §9 as DSB wrote it. The rework's amendment to the no-row rule stands after "Cross-group reads", because the paragraph next to DSB's must stay as it was. **This branch's tip against each**, run at `9a14f684`. The final commit changes only this file, which no other branch touches. The tips hadn't moved: `c0cd9826`, `7ac200da`.
 
 ```
-$ git merge-tree --write-tree HEAD c0cd9826   →  exit 0 (no conflict)
-$ git merge-tree --write-tree HEAD 7ac200da   →  exit 0 (no conflict)
-$ (both at once) git merge-tree --write-tree <HEAD merged with c0cd9826> 7ac200da  →  exit 0 (no conflict)
+$ git merge-tree --write-tree 9a14f684 c0cd9826
+ea7cdf3426a8fe730ea40ec78abfd91585700783
+exit 0
+$ git merge-tree --write-tree 9a14f684 7ac200da
+98618be8cb0540061a1139e2810d8dfa9974dc4c
+exit 0
+$ git merge-tree --write-tree 5f45b487 7ac200da   # 5f45b487 = 9a14f684 merged with c0cd9826 (git commit-tree of the tree above; no ref)
+b233b806a06831b2fc1ecd0d9d8187f617e7882e
+exit 0
 ```
 
 Nothing is left in conflict between these three. The other branches (`impl-030b`, `rework-030c`, `judge-ui-r1`, F's) weren't asked of this task. Q86's hunk in `studio-round-1.md` isn't touched here, since this rework leaves that file alone.
