@@ -10,9 +10,10 @@ agent sandbox, and the bash gate refuses the targets to agent sessions (P-G2).
 tls      a CA kept in ~/.config/h4reet-ai/shared-state/ (0600 in 0700), which agents can't read, made once unless
          --rotate (ROTATE=1); and a new server key and certificate for the one name `shared-state`, signed by it. It
          writes the key to the SecureString /h4reet/tunnel-end/SHARED_STATE_TLS_KEY, the certificate to
-         /h4reet/tunnel-end/SHARED_STATE_TLS_CERT, and the CA's to /h4reet/hosts/SHARED_STATE_TLS_CA, each from a 0600
-         file, never a command line, and no copy of the server's key stays on the laptop. Then the laptop prod env
-         file's GATEWAY_DB_TLS_CA (base64 of the CA's PEM) and GATEWAY_DB_TLS_SERVERNAME, and nothing else in it.
+         /h4reet/tunnel-end/SHARED_STATE_TLS_CERT, and the CA's, as base64 of its PEM on one line, to
+         /h4reet/hosts/SHARED_STATE_TLS_CA, each from a 0600 file, never a command line, and no copy of the server's
+         key stays on the laptop. Then the laptop prod env file's GATEWAY_DB_TLS_CA (the parameter's value exactly)
+         and GATEWAY_DB_TLS_SERVERNAME, and nothing else in it. A rotation writes the new CA in the same form.
 roles    one Systems Manager command on the tunnel end: its host script reads the four role passwords from Parameter
          Store and sets each as a verifier over the store's socket. No password passes through here.
 restore  refuses while EC2 runs or the laptop's prod does. It lists the backups' prefix with his session, takes the dump
@@ -249,7 +250,9 @@ def tls(profile: str, rotate: bool) -> int:
             "-out",
             str(crt),
         )
-        ca_pem = ca_crt.read_text(encoding="utf-8")
+        # One form for every reader: base64 of the CA's PEM on one line. The hosts' write_env.py refuses a value
+        # with a line break, and both the gateway and the relay decode base64 (spec 001 F3).
+        ca_b64 = base64.b64encode(ca_crt.read_bytes()).decode()
         put(
             profile,
             KEY_PARAMETER,
@@ -258,12 +261,12 @@ def tls(profile: str, rotate: bool) -> int:
             stage,
         )
         put(profile, CERT_PARAMETER, crt.read_text(encoding="utf-8"), "String", stage)
-        put(profile, CA_PARAMETER, ca_pem, "String", stage)
+        put(profile, CA_PARAMETER, ca_b64, "String", stage)
         write_env(
             env_file,
             lines,
             {
-                "GATEWAY_DB_TLS_CA": base64.b64encode(ca_pem.encode()).decode(),
+                "GATEWAY_DB_TLS_CA": ca_b64,
                 "GATEWAY_DB_TLS_SERVERNAME": SERVER_NAME,
             },
         )
