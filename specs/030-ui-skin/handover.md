@@ -2193,15 +2193,15 @@ Save point `ffcc39bd` (`wip(rework-handover-030): step 4, the documents`, empty)
   git grep at e835bb3c exit=0
   ```
 
-  After the edits (run once this step's text was in), the only hits are the two correction markers and this step's
-  own lines:
+  After the edits, `docs/` holds the old range only in the note's correction marker, and this file's step 1 line
+  holds it only in its own (this step quotes the range too, so it isn't searched):
 
   ```text
-  $ git grep -n '513-517' -- docs specs | cut -c1-120; echo "git grep exit=$?"
-  docs/merge-requests/2026-11-17-030-ui-skin.md:137:  (`room.css:1124-1133`, `.hud-glass`; `split.css:514-518`, the list; co
-  specs/030-ui-skin/handover.md:51:  `.hud-panels[data-half="top"]` (`border-color: CanvasText`, `:1400-1403`); `split.css:514-
-  specs/030-ui-skin/handover.md:2147:- **Nit 1**: `split.css:513-517` → `:514-518` in ADR 0056's decision 4 (`:30`), the not
-  specs/030-ui-skin/handover.md:2163:  $ git grep -n '513-517' e835bb3c -- docs specs | cut -c1-120; echo "git grep at e835
+  $ git grep -n '513-517' -- docs | cut -c1-120; echo "git grep exit=$?"
+  docs/merge-requests/2026-11-17-030-ui-skin.md:137:  (`room.css:1124-1133`, `.hud-glass`; `split.css:514-518`, the list; 
+  git grep exit=0
+  $ sed -n '51p' specs/030-ui-skin/handover.md
+    `.hud-panels[data-half="top"]` (`border-color: CanvasText`, `:1400-1403`); `split.css:514-518` (corrected from `:513-517` by `rework-handover-030`, `rv-handover-030`'s nit 1) the list's
   ```
 
 - **Nit 2**: Q119's recommended answer beside the patch table's row 1, and Q118's beside the morning list's reading,
@@ -2296,7 +2296,74 @@ prettier exit=0
 
 (The first line is `date -u +%FT%TZ`'s, run first.) Save point `e33fbccd` (16:57:45Z).
 
-STEP_6_7_PLACEHOLDER
+### 6.7 The small tests, last (the brief's step 5)
+
+On `7d4f2d42` (step 6's text in), from the worktree's root. No `make check`: `handover2-030`'s run stands, and the
+patch is outside the stack's tree.
+
+```text
+$ date -u +%FT%TZ; python3 -I -B -m pytest evals/test_docs_links.py evals/test_repository_docs.py -q -p no:cacheprovider > /tmp/rw030/log/pytest-docs.txt 2>&1; echo "exit=$?" >> /tmp/rw030/log/pytest-docs.txt; tail -15 /tmp/rw030/log/pytest-docs.txt; wc -l /tmp/rw030/log/pytest-docs.txt
+2026-11-17T17:03:00Z
+.............................................................            [100%]
+61 passed in 2.10s
+exit=0
+3 /tmp/rw030/log/pytest-docs.txt
+$ python3 -I -B evals/docs_links.py > /tmp/rw030/log/docs-links.txt 2>&1; echo "exit=$?" >> /tmp/rw030/log/docs-links.txt; cat /tmp/rw030/log/docs-links.txt
+PASS  every relative link resolves: 2666 links in 559 files
+PASS  README.md links the ADR index (docs/adr/)
+PASS  the ADR index links every ADR file: 53 of 53
+PASS  User Story 6's five decisions have their ADRs: 0001 (local-first routing), 0002 (one compose topology), 0003 (local-compose-first delivery), 0004 (Langfuse and Grafana), 0005 (Telegram alerting)
+docs links: 0 failed, 2666 relative links in 559 files
+exit=0
+$ date -u +%FT%TZ; make lint > /tmp/rw030/log/lint.txt 2>&1; echo "exit=$?" >> /tmp/rw030/log/lint.txt; cat /tmp/rw030/log/lint.txt
+2026-11-17T17:03:06Z
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+955 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/edge/entrypoint.sh deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh deploy/tunnel/entrypoint.sh redteam/forbidden-actions.sh redteam/night-shift/run.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit=0
+```
+
+Every pasted block of this step was compared with its log by a read-only `python3 -I -B -` script (its source on
+stdin): each log's lines, whole, must stand as one contiguous run of lines in this step. The two diffs were made
+again from the logs for it (`d-cases.txt`, `d-matrix.txt`):
+
+```text
+final/hunk-E1.txt: 83 lines, in step 6 contiguous: True
+final/cases-E1.txt: 80 lines, in step 6 contiguous: True
+d-cases.txt: 34 lines, in step 6 contiguous: True
+d-matrix.txt: 37 lines, in step 6 contiguous: True
+lint.txt: 12 lines, in step 6 contiguous: True
+docs-links.txt: 6 lines, in step 6 contiguous: True
+pytest-docs.txt: 3 lines, in step 6 contiguous: True
+setup.log: 23 lines, in step 6 contiguous: True
+```
+
+After the last edits to the note, ADR 0056 and this file (run again after this paste went in, with the same output but
+pytest's time, "61 passed in 1.70s"):
+
+```text
+$ npx --no-install prettier --check docs/merge-requests/2026-11-17-030-ui-skin.md docs/adr/0056-no-backdrop-blur.md specs/030-ui-skin/handover.md; echo "prettier exit=$?"
+Checking formatting...
+All matched files use Prettier code style!
+prettier exit=0
+$ python3 -I -B -m pytest evals/test_docs_links.py evals/test_repository_docs.py -q -p no:cacheprovider 2>&1 | tail -1; echo "exit=${PIPESTATUS[0]}"
+61 passed in 1.15s
+exit=0
+$ python3 -I -B evals/docs_links.py 2>&1 | tail -1; echo "exit=${PIPESTATUS[0]}"
+docs links: 0 failed, 2666 relative links in 559 files
+exit=0
+$ git grep -n '513-517' -- docs | cut -c1-120; echo "git grep exit=$?"
+docs/merge-requests/2026-11-17-030-ui-skin.md:137:  (`room.css:1124-1133`, `.hud-glass`; `split.css:514-518`, the list; 
+git grep exit=0
+```
 
 ### 6.8 Questions, refusals, scratch
 
