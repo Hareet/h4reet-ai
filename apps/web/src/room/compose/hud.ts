@@ -169,6 +169,10 @@ export const HUD_PLACEMENTS = {
     /** Spec 030 (FR-002, FR-003; plan.md §R-A2): the slice between the column's two halves, the list above and the
      *  tiles' block below, scaled by the right side's scale; drawn as nothing, the room seen through it. */
     sliceRem: 0.75,
+    /** Spec 030 (T-INT02a; Q100; FR-013): the list's least height in the split layout, its top padding (split.css's
+     *  0.5rem, in rem, so no side's scale grows it) and "Back"'s hit area (ui/button.css's 44 px floor): 52 CSS px at
+     *  a 16-pixel root. A window whose list is shorter takes the column layout (wallBoxes' condition (b)). */
+    listFloor: { padRem: 0.5, backPx: 44 },
   },
   /** The dock, across the foot above the bar: its padding around the list's strip and the text box's row. */
   dock: { padRem: 0.25 },
@@ -679,7 +683,7 @@ function sideScale(width: number, minRem: number, maxRem: number, rem: number): 
 /**
  * The split layout's boxes beside the room's walls, or null where the window takes none (spec 028, FR-009): (a) the
  * window takes the column layout and holds its HUD; (b) the wall area is at least spec 005's floor and the wall box
- * there at least `minHeightRem` tall; (c) the bands beside the wall box hold the panel's and the column's least widths;
+ * there at least `minHeightRem` tall, and (spec 030, Q100) the column's list at least `listFloor` tall; (c) the bands beside the wall box hold the panel's and the column's least widths;
  * and the protector accepts the area. Without a wall source (no protector, or one without a wall) there is none, and
  * the window keeps today's column or dock layout. The panel's and the column's boxes never overlap the wall box.
  */
@@ -740,6 +744,9 @@ export function wallBoxes(
   // the column is too short for the block and the slice (a window under about 340 px tall).
   const sliceH = t.sliceRem * scaleRight * rem;
   const list: Box = { x: column.x, y: column.y, w: column.w, h: Math.max(0, column.h - tilesH - sliceH) };
+  // (b), spec 030 (T-INT02a; Q100): the list holds its top padding and "Back"'s 44 × 44 hit area, which its
+  // `overflow-y: hidden` cut below that (FR-013); else the window keeps the column layout.
+  if (list.h < t.listFloor.padRem * rem + t.listFloor.backPx - 1e-9) return null;
   const slice: Box = { x: column.x, y: list.y + list.h, w: column.w, h: sliceH };
   const title: Box = { x: panel.x, y: panel.y, w: panel.w, h: T.split.panel.titleRem * scaleLeft * rem };
   return { area, wall, panel, title, frame: panel, column, list, slice, tiles, bar, walk, eat, scaleLeft, scaleRight };
