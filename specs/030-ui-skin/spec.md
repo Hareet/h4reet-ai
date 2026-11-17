@@ -218,13 +218,13 @@ Terms: **a half**: one of the right column's two panels (Q3, Q4); **the slice**:
 | Spec, clause | Amended to | By |
 |---|---|---|
 | 005, FR-025 ("A backdrop blur SHALL be drawn behind the panels at quality levels 0 and 1 only"), FR-058 ("with the HUD and its blur shown"), FR-006 (its blur fallbacks); ADR 0043 decision 5's blur clause | No backdrop blur at any level; FR-006's opaque fallbacks kept. ADR 0043 is "proposed" in its own header; a new ADR (0056) records the change | His item 1; Q1; FR-001 |
+| 014, the compact bar's tiles in the column layout and the dock (its FR-017 to FR-021; `compose/hud.ts`'s `HUD_PLACEMENTS.bar`: six in one row of 35rem, the dock's two) | Not amended: they keep spec 014's metrics (the words' own case, weight 400, no tracking) under every skin, and take the skin's colours, chamfer, bevel, ring and glow; this spec's FR-011 (`metal`'s Bold, uppercase, tracking) applies to every other control and to the split layout's tiles | `rv-030b`'s R-1; the page's Q89 (rework-030b) |
 | 018, FR-014 (the split layout's 0.78 glass for the list and the bar) | The right column's halves at spec 029's over-room alphas in every layout and view | Q2; FR-005 |
 | 028, FR-007, FR-008 (the column's list at its top and the tiles' block at its foot, 0.25rem apart) | Two panels with a `0.75rem × scale` slice; the tiles' block one panel holding the bar, the walking control, and "Eat" | Q3; FR-002, FR-003 |
 | 029, FR-002 ("the blur (`data-blur`) applies as today"), FR-005 (a part beside the room looks as on `f411d8e1`) | No blur; the right column's halves take the over-room look everywhere; the left panel keeps FR-005 | Q1, Q2 |
 | 029, FR-028 (the chosen card's look), the cards' colours (light) | The skin's frame, chamfer, and glow on a dark page; structure and states unchanged | Q9, Q10; FR-017 |
 | 016, FR-042 (the credits page) and the data-flow page's look (light) | Dark, the room's tokens | Q9; FR-015 |
 | 017, the studio line's candidate checks (`contracts/studio-line.md`; `line.py`) | Also the still set's checks | Q16; FR-022 |
-| 014, the compact bar's tiles in the column layout and the dock (its FR-017 to FR-021; `compose/hud.ts`'s `HUD_PLACEMENTS.bar`: six in one row of 35rem, the dock's two) | Not amended: they keep spec 014's metrics (the words' own case, weight 400, no tracking) under every skin, and take the skin's colours, chamfer, bevel, ring and glow; this spec's FR-011 (`metal`'s Bold, uppercase, tracking) applies to every other control and to the split layout's tiles | `rv-030b`'s R-1; the page's Q89 (rework-030b) |
 
 ## Assumptions
 
