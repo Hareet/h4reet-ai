@@ -1,0 +1,101 @@
+---
+description: "Task list for spec 030, the interface's skin"
+---
+
+# Tasks: The Interface's Skin
+
+**Approved provisionally by the Author's order of 2026-11-16 (night 5)**, with his words. His review of the live site, 2026-11-16 about 19:15 his time, verbatim:
+
+> 1. You can see from one of our latest two screenshots in the resume/ that the right side panel UI is not transparent, it is more blurred. We also want to change the UI buttons to look more like the screenshot in resume/ (the other one that is the latest). Let's separate the right-side panel UI into two halves, making the separation a horizontal slice. Then use the buttons, and let's create them in css and data so we can swap them out. 2) Let's make the character selection screen, the credits, the data flow all dark themed web pages, and use the same button styling if appropriate on the character selection screen. Maybe use the studio pipeline to create the buttons for UI? https://www.sprungstudios.com/how-to-design-a-ui-button-for-video-games/
+
+His answer to the page's Q1, 2026-11-16 about 19:50 his time, verbatim:
+
+> Let's use studio image skins now
+
+His rule for night 5, from the brief's words: "**Approval, given ahead.** The spec-writer takes the recommended answer at clarify and at the plan, and records at the top of `plan.md` and `tasks.md`: "Approved provisionally by the Author's order of 2026-11-16 (night 5)", with his words above. F's tasks take the same approval for their designs. Each question goes on the morning page with its recommended answer."
+
+**Input**: [spec.md](spec.md), [plan.md](plan.md), [studio-round-1.md](studio-round-1.md).
+
+**Who**: T-A, T-B, T-C, and T-DJ are four implementers' (`impl-030a`, `impl-030b`, `impl-030c`, `impl-030dj`), each on its own branch from this branch's tip, all at once; their files are disjoint (plan §9). T-DS (`impl-030ds`) branches from T-B's tip once T-B04 is done (its one sequential share, plan §R-D4). The round's tasks R-1 to R-3 are the studio line's (plan §R-D2): R-1 may run tonight from this branch; R-3 needs T-DJ. T-INT merges A, B, C, DJ, DS, in that order.
+
+**Tests**: test-first. Each RED step's tests are written, committed, and seen to fail before its GREEN step. A task runs the test files it adds or changes and those covering the files it changes (`npx vitest run <files>` from `apps/web/`; `python3 -I -B scripts/studio/test_line.py` for T-DJ), and `make lint`, and pastes them in its group's notes (`specs/030-ui-skin/impl-{a,b,c,dj,ds}.md`). The full `make check` runs once, in T-INT. A test of an earlier spec is rewritten only in a RED commit of a feature task, seen failing on the tree before its GREEN, and named in the notes with its old and new assertion (spec.md's Assumptions); never in a fix task.
+
+**Rules for every task**: no edit to `.claude/**`, `CLAUDE.md`, `REVIEW.md`, the constitution, `corpus/**`, `config/twin-readiness.yaml`, `tools/gates/**`, `evals/agent-config/**`, `redteam/forbidden-actions.sh`, `assets/**`, `assets/policy/**` (a change there is a patch for the Author, from plain copies). A departure from the plan updates `plan.md` in the same commit. A save point (`wip(<task>): <step>`) before each step. A hook or the bash gate refusing a command: never respell it; record it in the notes. Never push, merge to `main`, or open a PR.
+
+## Group A: the right column, two halves, no blur (`impl-030a`)
+
+- [ ] T-A01 [US1] RED: (a) `test/ui/hud-no-blur.test.ts` (plan §R-A1): no rule of `room.css`, `hud/split.css`, `talk/talk.css`, `bubble.css` sets `backdrop-filter`/`-webkit-backdrop-filter` to other than `none`; `--hud-blur` undefined; through the real room at quality levels 0 to 3, the root never carries `data-blur`; `layout` has no `setBlur` (FR-001, SC-001). (b) `test/ui/hud-halves.test.ts` (plan §R-A3): at 1366 × 768, 1440 × 900, 1920 × 1080, 1280 × 720, 390 × 844, at rest and walking in 3D, and 1366 × 768 and 390 × 844 in 2D at rest: two halves; the top holds exactly "Back", "In the room", the list's heading, and the entries (split), or the column (column), or the dock's sheet (dock); the bottom exactly the six tiles, the walking control, and "Eat" where offered (or the bar); boxes equal to `halves()`'s; the slice `0.75rem × --wall-scale-right` (split) or `0.75rem` between; no overlap; both halves `data-over="room"` at rest and walking; the stacked layout (300 × 400) has none (FR-002 to FR-005). (c) `test/helpers/layers.ts` extracted from `test/ui/hud-over-layers.test.ts` (its cascade evaluator; that file changes only by the import, and still passes) and `test/ui/hud-halves-contrast.test.ts`: every text and mark of both halves at AA over white and black at the windows of (b), at rest and walking; under reduced transparency, more contrast, forced colours, both halves opaque (FR-006, FR-007, SC-002). (d) The earlier tests that pin the blur or the column's old gap and heights, rewritten in this commit (plan §R-A2, §R-A4), each named in `impl-a.md` with its old and new assertion. Seen failing on this branch's tip; paste the failures.
+- [ ] T-A02 [US1] GREEN (FR-001): the blur's removal (plan §R-A1): `room.css`, `split.css`, `layout.ts`'s `setBlur`, `app.ts`'s `blurAt` and its two calls, `lookdev/stage.ts`'s comment. (a) passes.
+- [ ] T-A03 [US1] GREEN (FR-002 to FR-004): `compose/hud.ts` (`sliceRem`; `wallBoxes`' list height and `slice`; the column layout's and the dock's slice) and `compose/halves.ts` (new); `npm run room:check -w apps/web` (no box but the list's, the column's content, and the dock's moves) pasted. (b)'s box cases pass.
+- [ ] T-A04 [US1] GREEN (FR-005 to FR-007): `layout.ts` (the bottom half's element, its `--half-bottom-*`, `data-over` on both halves always), `room.css` and `split.css` (the halves' glass, corners, borders; the bar's glass `none` under a half; forced colours). (b) and (c) pass; if (c) finds a ratio under its floor, raise the one alpha concerned by 5% and record it in plan §R-A3 in the same commit (FR-005).
+- [ ] T-A05 [US1] Run beside A's tests, unchanged: `test/ui/hud-over-*.test.ts`, `hud-split*.test.ts`, `hud-look.test.ts`, `hud-a11y.test.ts`, `resize.test.ts`, `test/room/stages*.test.ts`, `test/room/hud-contrast.test.ts`; `make lint`; paste in `impl-a.md`.
+
+## Group B: the buttons, a skin in CSS and data (`impl-030b`)
+
+- [ ] T-B01 [US2] RED: (a) `test/ui-skins.test.ts` (plan §R-B4): the schema refuses an unknown key, a missing token, a missing state, a bad colour; `skinCss` emits `:root[data-skin="metal"]` with every `--btn-*`; FR-012's ratios for every skin, variant, and state (the label 4.5:1 against the face over white and black; the border 3:1 against spec 029's over-room glass over white and black); the swap (SC-004): a fixture tree with `active: plain` builds `plain`'s stylesheet and `data-skin="plain"`, the two builds' inputs differing only by the YAML (FR-009 to FR-012). (b) `test/ui/button-skin.test.ts`: through the real room (split, column, dock, walking) and the selection screen, with the stylesheets inserted in the bundle's order, each control of Q5 (`.hud-bar .hud-tile` ×6, `.room-walk`, `.room-eat`, `.split-back`, `.talk-larger`, `.talk-log-toggle`, `.talk-form button[type="submit"]`, `.choice-enter`) wins the component's declarations by the cascade, variant right ("Send" and "Enter" primary), min 44 × 44, `white-space` not `nowrap` (FR-008, FR-013, SC-003). (c) `test/ui/button-states.test.ts`: normal, hover, focus-visible, pressed, disabled, selected reach each control that has the state; each differs from normal by more than colour; the focus ring visible (no `clip-path` on a control whose ring is outside, plan §R-B3); a label doubled wraps (no ellipsis); reduced motion: no `transition`, no `animation`; forced colours: `border-image: none`, system colours (FR-012 to FR-014). (d) The earlier tests that pin the tiles' or buttons' colours, rewritten here, each named in `impl-b.md`. Seen failing; paste.
+- [ ] T-B02 [US2] GREEN (FR-009 to FR-011): `content/ui-skins.yaml` (`active: metal`; `metal`, `plain`; plan §R-B1), `build/ui-skins.ts` (schema, `skinCss`, the plugin; `kind: image` resolved to its fallback with the line "<id>: falling back to <fallback> (image skins not built)"), `src/ui/skin.d.ts`, `vite.config.ts`, `src/main.ts`'s two imports. (a) passes but the ratios a token fails: adjust the token by 5% lightness steps until each holds, and record each change in plan §R-B1.
+- [ ] T-B03 [US2] GREEN (FR-008, FR-012 to FR-014): `src/ui/button.css` (plan §R-B3), the chamfer by `clip-path` or `::before` per control, recorded in `impl-b.md`. (b) and (c) pass.
+- [ ] T-B04 [US2] `npm run build -w apps/web` with `active: metal`, then with `active: plain` (a scratch edit, reverted, never committed): paste both builds' skin lines and the generated stylesheets' first lines; `make lint`; paste. T-DS may start from this commit.
+
+## Group C: dark pages (`impl-030c`)
+
+- [ ] T-C01 [US3] RED: `test/ui/dark-pages.test.ts` (plan §R-C2): the selection screen, the built `/credits/` and `/disclosure/` pages: ground, text, links (underlined, 4.5:1), focus ring (3:1), table and header borders (3:1), the disclosure in view at 4.5:1, `color-scheme: dark`; `src/pages/dark.css`'s token values equal to `room.css`'s and `split.css`'s `:root`; the body's `dark-page` class before "Enter" and gone after it; each built page's `style.css` starting with `dark.css`; "Enter" carries `.choice-enter` (B's primary selector) and the cards read `--btn-*` with fallbacks (FR-015 to FR-018). `test/ui/credits.test.ts` and `test/disclosure.test.ts` rewritten only where they pin the light `STYLE`, named in `impl-c.md`. Seen failing; paste.
+- [ ] T-C02 [US3] GREEN: `src/pages/dark.css` (new), `src/choice/choice.ts` (the import, the body class on and off), `src/choice/choice.css` (dark; the cards from the skin's tokens with fallbacks; spec 029's structure, states, layout untouched), `build/credits.ts` and `build/disclosure.ts` (`dark.css` first, `STYLE` layout only, `class="dark-page"`). T-C01 passes.
+- [ ] T-C03 [US3] Run beside C's tests, unchanged: `test/ui/choice-cards.test.ts` (its "nothing before Enter" case included), `test/ui/choice.test.ts`, `test/ui/a11y.test.ts`, `test/ui/loading-*.test.ts`; `make lint`; paste in `impl-c.md`.
+
+## Group D: the judge's still checks (`impl-030dj`)
+
+- [ ] T-DJ01 [US4] RED: `scripts/studio/test_line.py` (plan §R-D1): fixtures the test writes itself (PNGs by `zlib`, no binary committed) in a scratch handoff with a `still` brief: an RGB PNG (no alpha), an opaque pixel in the outermost ring, a side over `texture_px`, a 16-bit PNG, a `ui-` folder without `slices.json`, `slices.json` naming a file not in `files` or missing one, an inset of 0 or one crossing the image, two states of a variant ΔE76 < 15 apart, a label at 4.4:1 over one centre pixel, and a passing set; each failing case gives its finding line and exit 1, the passing set exit 0; every existing case of `test_line.py` unchanged (FR-022). Seen failing; paste.
+- [ ] T-DJ02 [US4] GREEN: `scripts/studio/line.py` (the still checks after the bytes check; the docstring's `candidate:` paragraph gains one sentence). T-DJ01 and every existing case pass; `ruff check` and `ruff format --check` on both files; `make lint`; paste in `impl-dj.md`.
+
+## The round (the studio line; plan §R-D2, studio-round-1.md)
+
+- [ ] R-1 `brief-ui-r1` [US4]: write studio-round-1.md's brief to `/srv/studio/briefs/ui-buttons/1.json` (`cmp` with the block returns 0; SHA-256 `74e309f2…87049`), run `line.py brief` on it, paste the SHA-256 and the output in studio-round-1.md. Changes nothing else (FR-019).
+- [ ] R-2 `studio-ui-r1` [US4]: the studio's run, on his machine (FR-020, FR-021).
+- [ ] R-3 `judge-ui-r1` [US4]: from a branch holding T-DJ02: `line.py candidate /srv/studio/handoff/ui-buttons/1 --brief /srv/studio/briefs/ui-buttons/1.json` dry, then `--record` once; paste the whole output, the result's SHA-256, every file's SHA-256 (from `records.json` and from the bytes), and `slices.json` in studio-round-1.md (FR-022, FR-023). On a pass: write `docs/merge-requests/2026-11-17-030-ui-buttons-intake.md` (plan §R-D3, his patch, never applied) and the data edit of T-DS05. On a fail: the findings sorted (candidate, brief, `line.py`), and round 2's brief as round 1's with the findings verbatim.
+
+## The image skin (`impl-030ds`, from T-B04's tip)
+
+- [ ] T-DS01 [US4] RED: `test/ui-skin-image.test.ts` (plan §R-D4): files absent → `metal` and the line naming the reason; fixture PNGs (written by the test) with matching hashes in a fixture YAML → `data:` URIs, `--btn-*-slice`, widths at half the pixels; one hash wrong → fallback naming the file; a file over 48,000 bytes, the total over 96,000, a `pending` hash → fallback (FR-024, FR-025, SC-007). `test/ui/button-image-skin.test.ts`: with the fixture skin built, each control's `border-image-source` is its state's URI, its label is its text and its accessible name unchanged, forced colours `border-image: none`, both halves' frame image; `choice-cards.test.ts`'s "nothing before Enter" case passes with the image skin active (the test runs it with that skin's stylesheet inserted, not by editing it). Seen failing; paste.
+- [ ] T-DS02 [US4] GREEN: `build/ui-skins-image.ts` (new: `resolveImageSkin`), `build/ui-skins.ts`'s image case (the one sequential share), `src/ui/button-image.css` (new). T-DS01 passes.
+- [ ] T-DS03 [US4] Data: `content/ui-skins.yaml` gains `metal-image` (`kind: image`, `fallback: metal`, the eleven files under `assets/ui/buttons/`, hashes `pending`, the brief's insets) and `active: metal-image` (Q15). `npm run build -w apps/web`: paste the line "metal-image: falling back to metal (hash pending)".
+- [ ] T-DS04 [US4] `make lint`; the tests of T-B and T-DS together; paste in `impl-ds.md`.
+- [ ] T-DS05 [US4] After R-3's pass (a later night if the round runs later): the record's hashes and `slices.json`'s insets into `metal-image`, one data commit; the build still falls back ("files absent") until his intake; paste.
+
+## Integration (`int-030`)
+
+- [ ] T-INT01 Merge T-A, T-B, T-C, T-DJ, T-DS in that order into an integration branch from this branch's tip; resolve nothing by hand in a file two groups own (there is none, plan §9); record each merge's commit.
+- [ ] T-INT02 RED, then GREEN: with B's rules in place, list the declarations of `room.css` and `split.css` that no control's cascade selects any more (B's `button-skin.test.ts` run with a probe that reports each losing declaration of a property the component owns); remove them in one commit, the cascade tests proving no winner changes (A's, B's, C's, and spec 029's `hud-over-*` tests pass unchanged).
+- [ ] T-INT03 `docs/adr/0056-no-backdrop-blur.md` by the docs agent: the change to ADR 0043's decision 5 and spec 005's FR-025, his words quoted.
+- [ ] T-INT04 `make check`, once; paste. Then `docs/merge-requests/2026-11-17-030-ui-skin.md`: what's done, what waits for him (his look, SC-008; the round's record; his intake), the questions' state.
+
+## Dependencies
+
+- T-A, T-B, T-C, T-DJ, R-1: from this branch's tip, at once.
+- T-DS01 to T-DS04: after T-B04. T-DS05: after R-3's pass.
+- R-2: after R-1. R-3: after R-2 and T-DJ02.
+- T-INT: after T-A05, T-B04, T-C03, T-DJ02, T-DS04 (not R-3 or T-DS05: the fallback ships).
+
+## Every check named in the brief, and where
+
+| Check | Task |
+|---|---|
+| No `backdrop-filter` blur | T-A01 (a) |
+| The halves at split, column, dock, and walking | T-A01 (b) |
+| AA over the room's brightest pixels, as 029 tested it | T-A01 (c) |
+| One button component (room's controls, Back, Close, Send, the selection screen) | T-B01 (b) |
+| Skin as data, read at build into CSS custom properties | T-B01 (a) |
+| Swap by data alone | T-B01 (a), T-B04 |
+| Every state; primary and secondary | T-B01 (a), (c) |
+| Labels that grow | T-B01 (c) |
+| Hit areas ≥ 44 × 44 | T-B01 (b) |
+| AA in each state | T-B01 (a) |
+| No motion under reduced motion | T-B01 (c) |
+| A second, plain skin | T-B01 (a), T-B04 |
+| Dark pages with the same tokens, AA | T-C01 |
+| The selection screen with B's buttons; keyboard, reader, forced colours, phone as 029 | T-C01, T-C03 |
+| The brief passes `line.py brief` | studio-round-1.md (scratch), R-1 |
+| Size, transparency, insets, distinguishable states, label contrast | T-DJ01, R-3 |
+| The record's hashes | R-3 |
+| The image skin through `border-image` with the recorded insets | T-DS01 |
+| The fallback to the CSS skin, tested both ways | T-DS01 |
