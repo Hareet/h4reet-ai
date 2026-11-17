@@ -7,7 +7,10 @@ What the root must hold:
   - the tunnel end: one instance with two interfaces, the public one at 10.42.0.10 with the Elastic IP and the private
     one at 10.42.1.10, IMDSv2 with hop limit 1 (T13), spot, persistent, stopping on interruption (T11);
   - its security groups: 2222 from anywhere and 8087 from Route 53's health checkers on the public interface, 8080 from
-    CloudFront's origin-facing list on the private one, and nothing else in;
+    CloudFront's origin-facing list and from its VPC origins' own group on the private one, and nothing else in. The
+    VPC origin connects from that group, CloudFront-VPCOrigins-Service-SG, read by name in prod's VPC once the origin
+    exists; the deploy needed it, added by hand (fix F1, specs/001-cloud-elevation/fixes/f1.md). The private group's
+    name and description stay as applied, since a change to either replaces it;
   - its role, h4-prod-tunnel-end (R-15): ECR pulls from the project's repositories, its Parameter Store path, the
     release bucket's reads, sns:Publish on h4-alerts, by name-built ARNs only, and Session Manager's and Run Command's
     own actions inline, with no managed policy (group 5's review, I1: AmazonSSMManagedInstanceCore reads every
@@ -103,7 +106,15 @@ PROD_DATA = {
     "aws_iam_policy_document",
     # Group 8: CloudFront's own managed CachingDisabled, AWS's fact, read in edge-limits.tf.
     "aws_cloudfront_cache_policy",
+    # Fix F1: CloudFront's VPC origins' own group, which CloudFront makes in prod's VPC once an origin exists, and no
+    # root makes. check_reads takes this type for that group's name alone.
+    "aws_security_group",
 }
+# The group a VPC origin connects from (fix F1), and the private group as applied: a change to its name or its
+# description replaces it, and the interface that holds it with it.
+VPC_ORIGINS_GROUP = "CloudFront-VPCOrigins-Service-SG"
+PRIVATE_GROUP_NAME = "h4-tunnel-end-private"
+PRIVATE_GROUP_DESCRIPTION = "The tunnel end private interface: 8080 from the CloudFront origin-facing addresses, 5432 and 2301 from EC2"
 # The account's own rehearsal instance, and killswitch.tf's references to it, are the account's (tasks.md T046).
 ACCOUNT_OWN_INSTANCE = "aws_instance.rehearsal"
 
@@ -512,15 +523,48 @@ def check_groups(root: dict[str, list]) -> list[str]:
         )
     private = group_rules(root, "tunnel_end_private")
     # Group 6 (tasks.md T066): the shared state's 5432, from EC2's group alone; group 10 (tasks.md T137): the public
-    # view's sink's 2301, for EC2's publisher, from EC2's group alone too.
+    # view's sink's 2301, for EC2's publisher, from EC2's group alone too. Fix F1: the VPC origin connects from its own
+    # group, not from the origin-facing list's addresses, so 8080 admits that group too; the prefix list's rule stays
+    # until the Author decides (specs/001-cloud-elevation/fixes/f1.md, Q-F1-1).
     if private != [
         (8080, "prefix_list_ids=[data.aws_ec2_managed_prefix_list.cloudfront.id]"),
+        (
+            8080,
+            "security_groups=[data.aws_security_group.cloudfront_vpc_origins.id]",
+        ),
         (5432, "security_groups=[aws_security_group.ec2.id]"),
         (2301, "security_groups=[aws_security_group.ec2.id]"),
     ]:
         found.append(
-            "groups: the private interface doesn't admit exactly 8080 from CloudFront's origin-facing list and 5432 "
-            "and 2301 from EC2's group"
+            "groups: the private interface doesn't admit exactly 8080 from CloudFront's origin-facing list and from "
+            "its VPC origins' group, and 5432 and 2301 from EC2's group"
+        )
+    # The VPC origins' group, by its name in prod's VPC, in tunnel-end.tf. CloudFront makes it only once an origin
+    # exists, so on a rebuild from nothing a read at plan time would find nothing and fail the plan: the read waits on
+    # the VPC origin, and is made at the apply whenever the origin has a change pending.
+    origins = one(root, "aws_security_group", "cloudfront_vpc_origins", "data")
+    if (
+        origins is None
+        or where(root, origins) != "tunnel-end.tf"
+        or lit(origins, "name") != VPC_ORIGINS_GROUP
+        or raw(origins, "vpc_id") != "aws_vpc.prod.id"
+        or raw(origins, "depends_on") != "[aws_cloudfront_vpc_origin.relay]"
+    ):
+        found.append(
+            f"groups: {VPC_ORIGINS_GROUP} isn't read by its name in prod's VPC, in tunnel-end.tf, once the VPC "
+            "origin exists"
+        )
+    # A plan from a fresh clone shows the rule in place, never the group replaced: its name, description, and VPC as
+    # applied (a change to any of them forces a new group, which its interface holds).
+    group = one(root, "aws_security_group", "tunnel_end_private")
+    if (
+        group is None
+        or lit(group, "name") != PRIVATE_GROUP_NAME
+        or lit(group, "description") != PRIVATE_GROUP_DESCRIPTION
+        or raw(group, "vpc_id") != "aws_vpc.prod.id"
+    ):
+        found.append(
+            "groups: the private group's name, description, or VPC isn't the applied one, so the plan replaces it"
         )
     ranges = one(root, "aws_ip_ranges", "route53_health_checks", "data")
     if ranges is None or lit(ranges, "services") != ["route53_healthchecks"]:
@@ -872,6 +916,12 @@ def check_reads(root: dict[str, list]) -> list[str]:
             found.append(f"reads: {address(d)} reads another root's state")
         elif d.labels[0] not in PROD_DATA:
             found.append(f"reads: {address(d)} reads what another root may make")
+        elif d.labels[0] == "aws_security_group" and lit(d, "name") != (
+            VPC_ORIGINS_GROUP
+        ):
+            found.append(
+                f"reads: {address(d)} reads a security group other than CloudFront's VPC origins'"
+            )
     return found
 
 
