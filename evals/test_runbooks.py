@@ -672,3 +672,42 @@ def test_the_shared_states_page_covers_its_alert_and_each_case_t076_names() -> N
         assert f"make {name}" in restore, name
     laptop = (RUNBOOKS / "laptop.md").read_text(encoding="utf-8")
     assert "### The shared state" in laptop and "make up ENV=dev" in laptop
+
+
+# Spec 001's F7, part 5 (night 5): make cloud-session is a Systems Manager port-forward to one listener
+# (scripts/infra/cloud_session.py, AWS-StartPortForwardingSession), which the AWS CLI runs through AWS's Session
+# Manager plugin. It gives no shell; the console's Session Manager does.
+CLOUD_SESSION = re.compile(r"make cloud-session[^.\n]*")
+
+
+def test_no_runbook_calls_make_cloud_session_a_shell() -> None:
+    said = []
+    for page in sorted(RUNBOOKS.glob("*.md")):
+        text = page.read_text(encoding="utf-8")
+        for match in CLOUD_SESSION.finditer(text):
+            sentence = text[match.start() : text.find(".", match.end()) + 1]
+            if re.search(
+                r"opens a (?:shell|session)\b|that shell's|\bin a session\b", sentence
+            ):
+                said.append(f"{page.name}: {sentence[:120]}")
+        if re.search(r"In a session \(`make cloud-session", text):
+            said.append(f"{page.name}: runs commands in a cloud-session")
+    assert said == []
+
+
+def test_the_ec2_page_says_what_cloud_session_is_and_where_the_shell_is() -> None:
+    text = (RUNBOOKS / "ec2.md").read_text(encoding="utf-8")
+    act = text[text.index("## Act") : text.index("## Verify")]
+    for words in (
+        "port-forward",
+        "Session Manager plugin",
+        "18503",
+        "Connect",
+        "Session Manager",
+    ):
+        assert words in act, words
+    assert "EC2 console" in act
+    script = (REPO / "scripts" / "infra" / "cloud_session.py").read_text(
+        encoding="utf-8"
+    )
+    assert "AWS-StartPortForwardingSession" in script
