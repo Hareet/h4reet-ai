@@ -128,6 +128,7 @@ cloud-init status --long
   s.create_connection(
     ('10.42.1.10', 2301), 5)"
   ```
+- The relay's 8080 on `10.42.1.10`: the private group, `h4-tunnel-end-private`, admits it from CloudFront's VPC origins' own group, `CloudFront-VPCOrigins-Service-SG`, which CloudFront makes in the VPC with the origin. `infra/prod/tunnel-end.tf` reads that group by name (fix F1, [specs/001-cloud-elevation/fixes/f1.md](../../specs/001-cloud-elevation/fixes/f1.md)). The rule beside it, from CloudFront's origin-facing prefix list, lets nothing in there: the VPC origin doesn't connect from those addresses. Without the group's rule, every `/api/*` request answers 503 with the cause `no_host_serving`, the edge's own degraded answer, and the site still loads (contracts/edge.md §4). The group's rules are inline, so the next apply removes any rule added by hand. A rule added in the console to restore service is recorded, and lands in `tunnel-end.tf` before the next apply.
 - If the first boot timed out (`/var/log/cloud-init-output.log` shows `dnf` failing), the public interface wasn't attached or had no route: check the attachment in the console, then replace the tunnel end.
 
 ### A spot interruption
