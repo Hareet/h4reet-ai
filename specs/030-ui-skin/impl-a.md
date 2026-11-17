@@ -489,11 +489,11 @@ Then the GREEN commits, each without a test file: T-A07 (`801b619a`, `room.css`:
 
 `hud/split.css`'s `.room-list[data-half="top"]` pads `calc(0.5rem - 1px) calc(0.75rem - 1px)` under its 1 px edge, as `room.css` pads the column's top half, so the content box is what the model counts. The RED case (T-A06) failed on A's tip with `top: 0.5rem 0.75rem: expected 9 to be close to 8`, and passes now. **A reading beyond the review's words:** the review asked for the vertical padding; I took the sides' 1 px too, so the width is as before as well. It is on the page with that as the recommended answer, and vertical-only and "count the edge in the model" as the others.
 
-**The Dog ratchet, re-measured on this tree** (an untracked scratch copy of `hud-split-dog.test.ts` with the ratchet's `expect` replaced by a `console.log`, run with `-t`, then deleted): `SCRATCH-DOG 1558 of 3329 split stages; four: 1855`. That is Q81's 1,558, so `hud-split-dog.test.ts:96`'s `toBeGreaterThanOrEqual(1558)` stands unchanged. The count comes from `wallBoxes` and the model, which R-2 doesn't change. R-2 makes the list's real content box match the model again: on A's tip, before R-2, the real box was 2 px shorter than the model counted.
+**The Dog ratchet, re-measured on this tree** (an untracked scratch copy of `hud-split-dog.test.ts` with the ratchet's `expect` replaced by a `console.log`, run with `-t`, then deleted): `SCRATCH-DOG 1558 of 3329 split stages; four: 1855`. That is Q81's 1,558, so `hud-split-dog.test.ts`'s `toBeGreaterThanOrEqual(1558)` (`:96` at A's tip, `:132` after T-A06's new case) stands unchanged. The count comes from `wallBoxes` and the model, which R-2 doesn't change. R-2 makes the list's real content box match the model again: on A's tip, before R-2, the real box was 2 px shorter than the model counted.
 
 ## The nits (`0aac0e98`, comments only)
 
-- **N-1:** `room.css:149-152`'s `--half-border` comment now reads "3:1 against white or black outside it, whatever the glass inside", as plan.md's §R-A3 "As built" says. It no longer says "over any room pixel beside it".
+- **N-1:** `room.css:149-152`'s `--half-border` comment (A's tip's lines; `:150-154` now) now reads "3:1 against white or black outside it, whatever the glass inside", as plan.md's §R-A3 "As built" says. It no longer says "over any room pixel beside it".
 - **N-2:** `lookdev/lookdev.css:67-68` ("the frame time counts the glass and its blur at quality levels 0 and 1") and `app.ts:960` ("dark glass, blurred where the glass is"): both stale since T-A02, now without the blur. Both lines are outside A's file list (app.ts's are the three `blurAt` lines). They are named in plan.md's §R-A4 "As built"; the brief asked for them, comment only.
 - **N-3:** this file's snapshot count, corrected in place above (marked): 459 one-line hunks in `eat-box.test.ts.snap`, 27 bare, where A wrote 461 and 29. Counted read-only from `git show -U0 e053a0cd -- …eat-box.test.ts.snap`: 459 `@@` hunks, all one line; 360 `"y":`, 72 `"h":`, 27 with neither. `protect.test.ts.snap` has its own 2.
 - **N-4, N-5:** noted only, as the brief says; nothing changed for them.
@@ -502,4 +502,94 @@ Then the GREEN commits, each without a test file: T-A07 (`801b619a`, `room.css`:
 
 The departures are in this branch's `plan.md`, in one "As built (`rework-030a`)" list under §R-A4: the valve's two cases; `test/room/halves.test.ts`; R-2's padding, which belongs to §R-A3; and N-2's two files outside A's list. R-2's line sits in §R-A4's list, not §R-A3's, because both this branch and rework 3 add A's §R-A3 "As built" list to a base that lacks it. A line inside that list conflicts (`git merge-tree` showed it, and I moved the line). No row was added to §9: every file I touched is already in A's row (rework 3's), except N-2's two comment lines, which are named above. `tasks.md` on this branch is A's, cut before rework 3, so it has no T-A06 to T-A08 to tick; adding them here would conflict with rework 3's section. They are ticked by this note, and rework 3's tasks.md holds them.
 
-TA08-TO-COME
+## T-A08: the whole `apps/web` suite on the reworked tip, and `make lint`
+
+From `apps/web/`, in the background with a two-hour limit, waiting for its own notice (Q53), at `a3f20348`. Nothing under `apps/web/` changed after that commit (`git diff a3f20348 HEAD -- apps/web` is empty); the later commits are this file only.
+
+```
+npx --no-install vitest run
+
+ Test Files  277 passed (277)
+      Tests  4865 passed | 6 skipped (4871)
+   Start at  06:38:28
+   Duration  1627.80s (tests 71%, import 29%)
+exit 0
+```
+
+`twin-2d.test.ts` passed in all three whole-suite runs, so I had no rerun to make. `chunk.test.ts`, which rework 3's run on an export of A's tip failed twice (its environment, by its notes), passed here.
+
+`make lint`, from the repository's root, at the tip:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+916 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay … (the repository's shell scripts)
+exit 0
+```
+
+Not run, as rule 4 and the brief have it: `make test`, `make evals`, and `make check` (T-INT04's single `make check`; `make evals` judges `.claude/**` and `CLAUDE.md`, which this branch doesn't touch), and the image stage (his gate's). The whole `apps/web` suite above is the part of `make test` this branch reaches. Following A's notes and the brief, I wrote no note in `docs/merge-requests/`: T-INT04 writes the stack's note, and this file is the record.
+
+## Rework 3's tip, read again, and the merge checks
+
+`rework3-spec-030` moved while this ran: `11af54f1` → `75472b30` → `01999312`. `git diff 11af54f1 01999312 -- specs/030-ui-skin` changes `analysis.md`, `notes.md` and `plan.md`. None of them changes an A row: tasks.md's T-A06 to T-A08 are unchanged. Plan §R-A4 gains the whole-suite run on A's export ("Run, untouched … by the whole suite's run on an export of A's tip") and nothing to build. **I built every A row; none is left undone.**
+
+`git merge-tree --write-tree` at this branch's tip (`8c508e02`, before this note's commit; the note's commit changes only this file, which no other branch touches). Each exit code was captured right after the merge-tree command; an earlier pass printed them wrong, because a `$(git rev-parse)` in the same `echo` reset `$?`:
+
+```
+HEAD vs rework-030b 44708023 (its tip now; 889a64be when this rework started): exit 0
+HEAD vs rework-030c a3898c60: exit 0
+HEAD vs impl-030dsb 7ac200da: exit 1 CONFLICT (content): Merge conflict in specs/030-ui-skin/plan.md CONFLICT (content): Merge conflict in specs/030-ui-skin/tasks.md
+HEAD vs F ab6e64e6: exit 0
+HEAD vs rework3-spec-030 01999312: exit 0
+(HEAD merged with 01999312) vs 7ac200da: exit 0
+(HEAD merged with 01999312) vs 44708023: exit 1 CONFLICT (content): Merge conflict in specs/030-ui-skin/plan.md
+(HEAD merged with 01999312) vs a3898c60: exit 0
+(HEAD merged with 01999312) vs ab6e64e6: exit 0
+A's tip c0cd9826 vs 7ac200da: exit 1 CONFLICT (content): Merge conflict in specs/030-ui-skin/plan.md CONFLICT (content): Merge conflict in specs/030-ui-skin/tasks.md
+rework3 01999312 vs rework-030b 44708023: exit 1 CONFLICT (content): Merge conflict in specs/030-ui-skin/plan.md
+```
+
+**The two conflicts are not this rework's:**
+
+- **DSB's** is A's own, the same at A's tip `c0cd9826`. Rework 3 reconciles it by design: merged after rework 3, DSB is clean.
+- **rework-030b's** is between rework 3 and rework-030b. It is in B's sections, §R-B2 and §R-B3: rework 3's text against rework-030b's "As built" lines. It shows without this branch, and this branch alone merges clean with rework-030b.
+
+For the Author's merge order: rework 3 first, then this branch, then DSB; B's merge after rework 3 needs §R-B2 and §R-B3 resolved. That is B's and rework 3's to settle, not A's. Every new line this branch adds to plan.md merges clean with rework 3's tip. I checked each with a dangling `git commit-tree` probe (objects only, no ref), and moved R-2's line out of §R-A3's list when the probe showed it conflicting.
+
+## Refusals and slips
+
+- **One refusal**: the Monitor tool's read-only wait on the suite's log (`until grep -q … ; do sleep 15; done; grep -E …`) needed approval for its two `grep`s. I didn't respell it. I waited on the background task's own notice instead (Q53). It is on the page.
+- **No write to a tracked file except by Edit or Write.** The scratch test files were `cp` copies under `apps/web/test/`, untracked, each run with `-t` and then deleted with `rm`. Each was gone before the next commit (`git status` checked). The `git commit-tree` probes wrote objects and no refs.
+- No hook or bash-gate refusal. `make setup` again noted that the shared `.git/hooks` isn't writable here (the Author's `make git-hooks`).
+
+## What's done and what isn't
+
+Done (tip after this note):
+
+- **T-A06** RED (`294d8143`, and the valve's `229b45c3`):
+  - (a) the `@supports` refusal, with the `degraded` and `loading-a11y` rewrites;
+  - (b) `hud-halves` against numbers it derives itself, the walking control and "Eat" by their boxes (R-3), and `test/room/halves.test.ts` on hand-written boxes;
+  - (c) the 14 cases in `phone`, `geometry` and `report`, each number from the run on A's tip (R-1, blocking);
+  - (d) the whole suite on A's tip: nothing beyond those 14;
+  - R-2's content-box case;
+  - the valve's two cases, `hud-contrast:148-159` and `layers.ts`'s `length()`, found before the GREEN commits and named in plan.md.
+- **T-A07** GREEN (`801b619a`): the `@supports` block is gone. The whole suite ran on the uncommitted tree before the commit: 277 files, 4,865 tests passed.
+- **R-2** (`02e72751`): the list's edge sits inside its padding. The Dog ratchet, re-measured, is 1,558 (Q81's), unchanged.
+- **N-1, N-2** (`0aac0e98`, comments); **N-3** (this file's count, 459 and 27, verified); **N-4, N-5** noted only.
+- **T-A08**: the whole suite on the tip, 277 files and 4,865 tests passed; `make lint` exits 0; the merge checks above.
+
+Not done, or not mine:
+
+- His answer to this rework's question: R-2's side padding, taken as recommended. The page also has the refusal's record.
+- `tasks.md`'s T-A06 to T-A08 ticks: they exist only on rework 3's branch, so they're ticked by this note.
+- `make test`, `make evals`, `make check`, and the image stage: T-INT's and his gate's.
+- The B/rework-3 conflict in plan.md §R-B2 and §R-B3 (above): rework 3's or B's.
+- Left as A's notes had them: `compose/over.ts`'s dock part, 12 px low; T-INT02a's contrast with B's faces; his look (SC-008). His screenshots weren't read: `resume/` is in his checkout, and I didn't need it.
