@@ -103,3 +103,29 @@ Two, each taken provisionally with its recommended answer: the no-script fallbac
 ## Interruptions
 
 None refused. Every file change was made with Edit or Write. The review's own `review.md` isn't reachable, so the non-blocking findings are read from the page's summary (above).
+
+## Checks run
+
+No code or test changed (documents only), so the check is lint. The first `make lint` stopped at "node_modules is missing: run make setup"; `make setup` ran, exit 0 (it noted the shared `.git/hooks` isn't writable here, which is the Author's `make git-hooks`). Then `make lint` at `9f0cb10d`, exit 0:
+
+```
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+915 files already formatted
+{ git ls-files -z '*.sh' … } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- … (the repository's shell scripts)
+exit 0
+```
+
+`make test` and `make evals` weren't run: this branch changes no code, test, or eval.
+
+## What's left
+
+- `rv-rework-spec-030`, a reviewer who wrote none of spec 030, on `35a75b2c..` this branch's tip.
+- The groups' rework on their tips once that review passes (the supervisor's queue): B for S-1, S-4, S-5 and the `::after` (R-2); C for S-2 (both `choice-cards` cases), S-5 and `index.html` (N-4); A for S-5's file list, N-1 and N-2's derived boxes; `impl-030ds` for S-3, S-6, I-2, N-3 and R-1, from B's reworked tip. T-INT02b goes between A's merge and B's.
+- His part: Q51 and this rework's two questions, his look (SC-008: the halves, the skins, the dark pages, the image's band over the tiles, the real labels' fit), his intake (`docs/merge-requests/human-patches/030.md`, after R-3's pass), and every merge.
