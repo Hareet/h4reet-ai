@@ -149,7 +149,10 @@ def test_the_marks_table_is_his_two_lines_in_his_order_before_inet_h4reets() -> 
         "delete table inet h4reet_reply",
     ]
     assert len(re.findall(r"^table inet h4reet_reply \{$", text, re.MULTILINE)) == 1
-    assert len(re.findall(r"^table ", text, re.MULTILINE)) == 1
+    # No other table: the idiom's two lines and the block name this one alone.
+    assert set(re.findall(r"^(?:delete )?table (\S+ \S+)", text, re.MULTILINE)) == {
+        "inet h4reet_reply"
+    }
     assert re.findall(r"^\s*chain (\w+) \{", text, re.MULTILINE) == ["prerouting"]
     priority, hook, rules = chain(text, "inet h4reet_reply", "prerouting")
     assert hook.startswith("type filter hook prerouting priority ") and hook.endswith(
