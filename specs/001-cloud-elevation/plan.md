@@ -1225,3 +1225,22 @@ Verdict: **PASS**, conditional on the 1.1.0 patch, with the deviations below.
 | Host services outside compose (deployers, egress proxies, credential timers, the handover loop) | They need the Docker socket, the firewall, an instance role, or the Author's SSO session | In containers they would need `docker.sock` or host networking, which spec 000 refuses |
 | **Spec FR-032's one exception:** the Author's test client reaches the relay's internal listener through a Systems Manager session, as a fixed documentation-range identity (as September) | The relay has to be testable before the edge exists | Testing only through CloudFront: no test before group 8 |
 | The health block answers without a credential (spec FR-053's conditional) | Route 53's checkers can't send one (to confirm) | An authenticated check: not possible with Route 53's HTTP checks; the block returns only a status |
+
+## Bug-fixes, night 5 (2026-11-17)
+
+- [`fixes/f1.md`](fixes/f1.md): F1, the fix
+- [`fixes/f2.md`](fixes/f2.md): F2, the fix
+- [`fixes/f3.md`](fixes/f3.md): F3, the fix
+- [`fixes/f4.md`](fixes/f4.md): F4, the fix
+- [`fixes/f5.md`](fixes/f5.md): F5, the fix
+- [`fixes/f6.md`](fixes/f6.md): F6, the fix
+- [`fixes/f7.md`](fixes/f7.md): F7, the fix
+- [`fixes/merge-f-1.md`](fixes/merge-f-1.md): the merge of F2, F3, F4 and F5
+- [`fixes/merge-f-2.md`](fixes/merge-f-2.md): the merge of F1 and F6
+- [`fixes/verify-f1.md`](fixes/verify-f1.md): F1's verify
+- [`fixes/verify-f2.md`](fixes/verify-f2.md): F2's verify
+- [`fixes/verify-f3.md`](fixes/verify-f3.md): F3's verify
+- [`fixes/verify-f4.md`](fixes/verify-f4.md): F4's verify
+- [`fixes/verify-f5.md`](fixes/verify-f5.md): F5's verify
+- [`fixes/verify-f6.md`](fixes/verify-f6.md): F6's verify
+- [`fixes/verify-f7.md`](fixes/verify-f7.md): F7's verify
