@@ -190,7 +190,8 @@ def test_it_does_nothing_otherwise_and_writes_its_line(
 ) -> None:
     aws = Aws()
     result = run(RUNNING, aws)
-    assert result["outcome"] == "nothing" and aws.stops() == [] and aws.alerts() == []
+    # From spec 032's rework the rule matches every instance, so an instance the tag doesn't find is another's.
+    assert result["outcome"] == "not_ec2" and aws.stops() == [] and aws.alerts() == []
     (line,) = emf_lines(capsys)
     assert line["Outcome"] == "nothing"
 
@@ -233,7 +234,8 @@ def test_an_untagged_named_instance_isnt_stopped() -> None:
     # The parameter names an instance the tag filter doesn't find: the guard may stop only a tagged one.
     aws = Aws({("ec2", "DescribeInstances"): {"Reservations": []}, **with_alarm("OK")})
     result = run(RUNNING, aws)
-    assert result["outcome"] == "nothing" and aws.stops() == []
+    # From spec 032's rework the rule matches every instance, so an instance the tag doesn't find is another's.
+    assert result["outcome"] == "not_ec2" and aws.stops() == []
 
 
 # ----------------------------------------------------------------------------------------------------------------------
