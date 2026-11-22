@@ -42,7 +42,10 @@ generation moves a stopped EC2 alone; and every wait ends MARGIN_S before Lambda
 From fix/032-launch-policy (2026-11-22): a launch or dry run refused UnauthorizedOperation logs AWS's whole message,
 its encoded part apart, on a line of its own (log_refusal), so the refusal decodes in one step; the alert, the metric,
 and the result carry the code alone. The result carries a refusal's code (busy, no_capacity, AWS's), so the Author's
-ec2_ops.py tells a busy refusal, which sends no alert, from a failed start.
+ec2_ops.py tells a busy refusal, which sends no alert, from a failed start. After the first real replace, which Lambda
+killed at 900 s between the cancel and the terminate: the SDK's calls time out in seconds with at most 3 attempts, one
+client a service; a call of a replace, its waits, or an attach starts only with CALL_S of the run's time left, and
+the cancel only with COMMIT_S, else the step refuses wait_timeout (Budgeted); the function runs at 1024 MB.
 
 A read that fails refuses at its own step, with `unread` among the facts, so EC2 starts only when every check passes.
 It makes one pass and never retries a type; it raises nothing, so Lambda never retries it. Each outcome is one log line in
@@ -130,6 +133,16 @@ WAIT_S = 240
 # refuses wait_timeout and alerts, never dies unheard; BUDGET_S stands in when the context can't say (the tests).
 MARGIN_S = 60
 BUDGET_S = 840
+# fix/032-launch-policy, from the first real replace on AWS (2026-11-22), which Lambda killed at 900 s between the
+# cancel and the terminate: each SDK call has a 5 s connect and a 20 s read timeout, at most 3 attempts (BotoAws), and
+# a call of a replace, its waits, or an attach starts only with CALL_S of the run's time left (Budgeted), one attempt's
+# worst case; the cancel, from which there is no way back, only with COMMIT_S left, what the terminate, the launch,
+# the wait until it runs, and the attach need in the usual case. Short of either, the step refuses wait_timeout.
+CONNECT_S = 5
+READ_S = 20
+ATTEMPTS = 3
+CALL_S = 30
+COMMIT_S = 300
 # The tunnel end's check (FR-013, Q-C4): AWS's own restart is waited for this long after a capacity stop.
 TUNNEL_END_GRACE_S = 600
 TYPE = re.compile(r"[a-z][a-z0-9]{1,7}\.[a-z0-9]{3,10}")
@@ -236,16 +249,25 @@ class BotoAws:
 
     def __init__(self) -> None:
         import boto3
+        from botocore.config import Config
 
         self.session = boto3.session.Session(region_name=REGION)
+        self.config = Config(
+            connect_timeout=CONNECT_S,
+            read_timeout=READ_S,
+            retries={"max_attempts": ATTEMPTS, "mode": "standard"},
+        )
         self.clients: dict[str, object] = {}
 
     def call(self, service: str, op: str, **params: object) -> dict:
         from botocore.exceptions import BotoCoreError, ClientError
 
-        client = self.clients.setdefault(
-            service, self.session.client(service, region_name=REGION)
-        )
+        # One client a service: building one loads the service's model, which costs seconds on a small function.
+        client = self.clients.get(service)
+        if client is None:
+            client = self.clients[service] = self.session.client(
+                service, region_name=REGION, config=self.config
+            )
         name = "".join("_" + c.lower() if c.isupper() else c for c in op).lstrip("_")
         try:
             return getattr(client, name)(**params)
@@ -304,6 +326,24 @@ class Clock:
     def until(self, seconds: float) -> datetime:
         """The end of a wait of `seconds`, or the run's own deadline, whichever comes first."""
         return min(self.now() + timedelta(seconds=seconds), self.deadline)
+
+    def left(self) -> float:
+        """The run's time left, in seconds, before its deadline (MARGIN_S before Lambda's own)."""
+        return (self.deadline - self.now()).total_seconds()
+
+
+class Budgeted:
+    """AWS for a replace, its waits, and an attach: a call starts only with CALL_S of the run's time left, else it
+    refuses wait_timeout without reaching AWS (fix/032-launch-policy)."""
+
+    def __init__(self, aws, clock: Clock) -> None:
+        self.aws = aws.aws if isinstance(aws, Budgeted) else aws
+        self.clock = clock
+
+    def call(self, service: str, op: str, **params: object) -> dict:
+        if self.clock.left() < CALL_S:
+            raise AwsError("wait_timeout")
+        return self.aws.call(service, op, **params)
 
 
 def trigger_of(event: object) -> str | None:
@@ -493,6 +533,7 @@ def release_lock(aws) -> None:
 
 
 def wait_for(aws, clock: Clock, instance_id: str, want: str) -> None:
+    aws = Budgeted(aws, clock)
     deadline = clock.until(WAIT_S)
     while True:
         try:
@@ -514,6 +555,7 @@ def attach(aws, clock: Clock, host: str, instance_id: str) -> bool:
     """The host's volume, by its Name tag, at /dev/sdf, once the old instance has let it go: True if this attached it,
     False if it was attached already. Called before every start too, so a replace that failed before its attach is
     repaired by the next trigger (the rework's review)."""
+    aws = Budgeted(aws, clock)
     deadline = clock.until(WAIT_S)
     while True:
         volumes = (
@@ -615,10 +657,13 @@ def replace(
         return None
     tried: list[str] = []
     step = "dry_run"
+    # Every call from here starts only with CALL_S of the run's time left; the lock's write and release, and EC2's new
+    # ID, which the next trigger needs to find and repair the instance, go straight to AWS (fix/032-launch-policy).
+    timed = Budgeted(aws, clock)
     try:
         # Nothing is cancelled or terminated before a dry run proves a launch (the rework's review): a type the role
         # or the request's context refuses is passed over, and none passing refuses with the host as it was.
-        answers = dry_runs(aws, [(k, t) for k, t in listed if k not in skip])
+        answers = dry_runs(timed, [(k, t) for k, t in listed if k not in skip])
         tried += [
             f"{k} dry_run:{c}" for k, c in answers.items() if c != "DryRunOperation"
         ]
@@ -633,17 +678,21 @@ def replace(
             )
             return None
         step = "cancel"
+        # No way back from here: the cancel of a stopped spot instance's request terminates it. So the replace goes on
+        # only with the time the rest needs in the usual case; short of it, the host stays as it was.
+        if clock.left() < COMMIT_S:
+            raise AwsError("wait_timeout")
         if old is not None:
             request = old.get("SpotInstanceRequestId")
             if isinstance(request, str):
-                aws.call(
+                timed.call(
                     "ec2",
                     "CancelSpotInstanceRequests",
                     SpotInstanceRequestIds=[request],
                 )
             step = "terminate"
-            aws.call("ec2", "TerminateInstances", InstanceIds=[old["InstanceId"]])
-            wait_for(aws, clock, old["InstanceId"], "terminated")
+            timed.call("ec2", "TerminateInstances", InstanceIds=[old["InstanceId"]])
+            wait_for(timed, clock, old["InstanceId"], "terminated")
         step = "launch"
         new: dict | None = None
         for kind, template in ready:
@@ -651,7 +700,7 @@ def replace(
                 launched = instances(
                     {
                         "Reservations": [
-                            aws.call(
+                            timed.call(
                                 "ec2",
                                 "RunInstances",
                                 LaunchTemplate={
@@ -689,9 +738,9 @@ def replace(
                 Overwrite=True,
             )
         step = "run"
-        wait_for(aws, clock, new["InstanceId"], "running")
+        wait_for(timed, clock, new["InstanceId"], "running")
         step = "attach"
-        attach(aws, clock, host, new["InstanceId"])
+        attach(timed, clock, host, new["InstanceId"])
     except AwsError as exc:
         facts = {"code": exc.code, "step": step}
         if tried:
