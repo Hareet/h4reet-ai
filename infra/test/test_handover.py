@@ -1219,6 +1219,15 @@ START_SIDS = [
 ]
 
 
+# fix/032-launch-policy, from the first real replace on AWS (2026-11-22): at 128 MB, Lambda's slowest CPU, the start
+# function's calls ran slow enough that it died at its 900 s limit mid-replace. The Author set 1024 MB by hand; the
+# account renders the same, so its plan finds nothing to change.
+def test_the_start_function_has_1024_mb() -> None:
+    (fn,) = named(account(), "aws_lambda_function", "h4-ec2-start", "function_name")
+    assert lit(fn, "memory_size") == 1024
+    assert lit(fn, "timeout") == 900
+
+
 def test_the_start_policy_is_the_one_tried_on_aws() -> None:
     stand_in = f"arn:aws:ec2:us-east-1:{'1' * 4}{'2' * 4}{'3' * 4}"
     tried = {

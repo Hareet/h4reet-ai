@@ -997,9 +997,16 @@ class _ClientError(Exception):
         self.response = {"Error": {"Code": code, "Message": message}}
 
 
-def _boto(monkeypatch: pytest.MonkeyPatch, error: Exception) -> None:
-    """The runtime's SDK, as far as BotoAws reaches it: a session whose EC2 client raises `error`."""
+def _boto(monkeypatch: pytest.MonkeyPatch, error: Exception) -> list[dict]:
+    """The runtime's SDK, as far as BotoAws reaches it: a session whose EC2 client raises `error`. Returns each client's
+    arguments as BotoAws made it, its config's as a dict."""
     import types
+
+    made: list[dict] = []
+
+    class Config:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
 
     class Client:
         def run_instances(self, **_: object) -> dict:
@@ -1009,7 +1016,15 @@ def _boto(monkeypatch: pytest.MonkeyPatch, error: Exception) -> None:
         def __init__(self, region_name: str) -> None:
             pass
 
-        def client(self, service: str, region_name: str) -> Client:
+        def client(
+            self, service: str, region_name: str, config: Config | None = None
+        ) -> Client:
+            made.append(
+                {
+                    "service": service,
+                    "config": config.kwargs if config is not None else None,
+                }
+            )
             return Client()
 
     boto3 = types.ModuleType("boto3")
@@ -1017,11 +1032,35 @@ def _boto(monkeypatch: pytest.MonkeyPatch, error: Exception) -> None:
     exceptions = types.ModuleType("botocore.exceptions")
     exceptions.ClientError = _ClientError  # type: ignore[attr-defined]
     exceptions.BotoCoreError = type("BotoCoreError", (Exception,), {})  # type: ignore[attr-defined]
+    config = types.ModuleType("botocore.config")
+    config.Config = Config  # type: ignore[attr-defined]
     botocore = types.ModuleType("botocore")
     botocore.exceptions = exceptions  # type: ignore[attr-defined]
+    botocore.config = config  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "boto3", boto3)
     monkeypatch.setitem(sys.modules, "botocore", botocore)
     monkeypatch.setitem(sys.modules, "botocore.exceptions", exceptions)
+    monkeypatch.setitem(sys.modules, "botocore.config", config)
+    return made
+
+
+# fix/032-launch-policy, from the first real replace on AWS (2026-11-22): boto's defaults (60 s to connect and to read,
+# and several retries) let a stalled call eat minutes outside the waits' caps, and the function died at its 900 s limit
+# between the cancel and the terminate. Every client gets short timeouts and few attempts.
+def test_the_sdk_wrapper_uses_short_timeouts_and_few_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    made = _boto(monkeypatch, _ClientError("DryRunOperation", "ok"))
+    with pytest.raises(start.AwsError):
+        start.BotoAws().call("ec2", "RunInstances", DryRun=True)
+    (client,) = made
+    assert client["config"] == {
+        "connect_timeout": 5,
+        "read_timeout": 20,
+        "retries": {"max_attempts": 3, "mode": "standard"},
+    }
+    # One call's worst case at one attempt fits the budget the function keeps for it.
+    assert start.CALL_S >= 5 + 20
 
 
 def test_the_sdk_wrapper_keeps_an_unauthorized_operations_message(
@@ -1087,6 +1126,70 @@ def test_the_waits_end_inside_the_functions_time() -> None:
     assert result["reason"] == "start_failed"
     assert facts(c.alerts()[0])["code"] == "wait_timeout"
     assert c.clock.slept <= 200 - start.MARGIN_S
+
+
+# fix/032-launch-policy, from the first real replace on AWS (2026-11-22): the dry runs took up to 40 s each, a call
+# stalled for minutes, and the function was killed at 900 s after cancelling EC2's request (which terminated it) and
+# before the terminate, the launch, or the attach. A step starts only when the run's time left can cover it.
+def slow(c: Cloud, dry_s: float = 0, launch_left_s: float | None = None) -> None:
+    """Each dry run takes dry_s; the real launch leaves launch_left_s of the run's time (840 s from INSIDE)."""
+    real = c.ec2_RunInstances
+
+    def launch(LaunchTemplate, MinCount, MaxCount, DryRun=False):
+        try:
+            return real(LaunchTemplate, MinCount, MaxCount, DryRun)
+        finally:
+            if DryRun:
+                c.clock.at += timedelta(seconds=dry_s)
+            elif launch_left_s is not None:
+                c.clock.at = INSIDE + timedelta(seconds=start.BUDGET_S - launch_left_s)
+
+    c.ec2_RunInstances = launch  # type: ignore[method-assign]
+
+
+def test_too_little_time_after_the_dry_runs_cancels_nothing() -> None:
+    c = cloud()
+    c.short = {"t4g.large"}
+    slow(c, dry_s=200)  # three dry runs: 600 s of 840
+    result = run(ALARM, c)
+    assert result["reason"] == "start_failed"
+    f = facts(c.alerts()[0])
+    assert (f["code"], f["step"]) == ("wait_timeout", "cancel")
+    assert not c.ops("CancelSpotInstanceRequests") and not c.ops("TerminateInstances")
+    assert c.instances[OLD_EC2]["State"]["Name"] == "stopped"
+    assert c.params["/h4reet/prod/ec2-instance-id"] == OLD_EC2
+    assert "/h4reet/prod/host-lock" not in c.params
+
+
+def test_a_dry_run_the_time_left_cant_cover_isnt_sent() -> None:
+    c = cloud()
+    c.short = {"t4g.large"}
+    slow(c, dry_s=420)
+    run(ALARM, c)
+    assert len([p for p in c.ops("RunInstances") if p.get("DryRun")]) == 2
+    assert facts(c.alerts()[0])["code"] == "wait_timeout"
+    assert not c.ops("TerminateInstances")
+
+
+def test_after_a_launch_with_too_little_time_only_the_id_is_written() -> None:
+    c = cloud()
+    c.short = {"t4g.large"}
+    slow(c, launch_left_s=10)
+    result = run(ALARM, c)
+    assert result["reason"] == "start_failed"
+    f = facts(c.alerts()[0])
+    assert (f["code"], f["step"]) == ("wait_timeout", "run")
+    (new,) = c.live("h4-prod-ec2")
+    # The new ID is written, so the next trigger finds it and attaches its volume (the repair).
+    assert c.params["/h4reet/prod/ec2-instance-id"] == new["InstanceId"]
+    launched = max(
+        i
+        for i, (_, o, p) in enumerate(c.calls)
+        if o == "RunInstances" and not p.get("DryRun")
+    )
+    after = [o for _, o, _ in c.calls[launched + 1 :]]
+    assert "DescribeInstances" not in after and "AttachVolume" not in after
+    assert "/h4reet/prod/host-lock" not in c.params
 
 
 def test_a_tunnel_end_left_without_its_volume_and_origin_is_repaired_by_the_next_check() -> (
