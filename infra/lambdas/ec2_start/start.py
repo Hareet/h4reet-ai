@@ -140,6 +140,8 @@ BUDGET_S = 840
 # a call of a replace, its waits, or an attach starts only with CALL_S of the run's time left (Budgeted), one attempt's
 # worst case; the cancel, from which there is no way back, only with COMMIT_S left, what the terminate, the launch,
 # the wait until it runs, and the attach need in the usual case. Short of either, the step refuses wait_timeout.
+# ATTEMPTS counts every attempt, the first included (botocore's total_max_attempts; its max_attempts would count the
+# retries alone), so the last call Budgeted starts ends, at worst 3 x 25 s plus about 3 s of backoff, inside MARGIN_S.
 CONNECT_S = 5
 READ_S = 20
 ATTEMPTS = 3
@@ -257,7 +259,7 @@ class BotoAws:
         self.config = Config(
             connect_timeout=CONNECT_S,
             read_timeout=READ_S,
-            retries={"max_attempts": ATTEMPTS, "mode": "standard"},
+            retries={"total_max_attempts": ATTEMPTS, "mode": "standard"},
         )
         self.clients: dict[str, object] = {}
 
