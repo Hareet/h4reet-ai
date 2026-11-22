@@ -331,16 +331,28 @@ the template maps, and the two data sources.
      }
    })
  
-@@ -135,7 +136,7 @@
+@@ -126,7 +127,9 @@
+ }
+ 
+ # EC2 entering running, whoever started it, to the guard (contracts/handover.md §4; FR-071): AWS's own restart once
+-# spot capacity returns among them. The rule needs nothing of another root; its one target, the account's guard by its
++# spot capacity returns among them. From spec 032's rework the rule names no instance: every instance entering running
++# goes to the guard, which acts on the one tagged h4-prod-ec2 alone, so an EC2 the start function replaced is guarded
++# before the next prod apply. The rule needs nothing of another root; its one target, the account's guard by its
+ # name-built ARN, waits behind the switch until W2.
+ resource "aws_cloudwatch_event_rule" "ec2_running" {
+   name        = "h4-ec2-running"
+@@ -135,8 +138,7 @@
      source      = ["aws.ec2"]
      detail-type = ["EC2 Instance State-change Notification"]
      detail = {
 -      instance-id = [aws_instance.ec2.id]
-+      instance-id = [data.aws_instance.ec2.id]
-       state       = ["running"]
+-      state       = ["running"]
++      state = ["running"]
      }
    })
-@@ -154,14 +155,20 @@
+ 
+@@ -154,14 +156,20 @@
  
  # EC2's ID, by its name, for what acts on it from another root at run time (plan.md §16; research.md R-15, amended): the
  # start function and the guard read it (W2; group 9), and the guard stops any running instance tagged h4-prod-ec2 that

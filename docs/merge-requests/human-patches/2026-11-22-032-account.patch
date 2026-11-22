@@ -12,17 +12,33 @@ Apply the account after prod's apply and after the start function's new image is
 
 --- a/infra/account/iam.tf
 +++ b/infra/account/iam.tf
-@@ -372,7 +372,8 @@
+@@ -372,7 +372,24 @@
  # Name = h4-prod-ec2, the condition the credential audit reads (infra/lambdas/credential_audit/audit.py's
  # HANDOVER_ROLES and HANDOVER_SETS). W1's: none needs another root, and the functions arrive with W2's digests.
  
 -# h4-ec2-start-fn: the start of the tagged instance, and the reads of its six checks.
++# The types the start function may launch, prod's two lists (infra/prod/ec2.tf's local.ec2_types and tunnel-end.tf's
++# local.tunnel_end_types), repeated here since no root reads another's; infra/test/test_handover.py holds the two, and
++# the credential audit's LISTED_TYPES, alike (spec 032's rework).
++locals {
++  launch_types = [
++    "t4g.large",
++    "m7g.large",
++    "m6g.large",
++    "t4g.xlarge",
++    "t4g.small",
++    "c7g.medium",
++    "c6g.medium",
++    "t4g.medium",
++  ]
++}
++
 +# h4-ec2-start-fn: the start of the tagged instance, and the reads of its six checks; from spec 032, a host's
 +# replace from its launch templates.
  resource "aws_iam_role" "ec2_start" {
    name               = "h4-ec2-start-fn"
    path               = "/"
-@@ -392,6 +393,7 @@
+@@ -392,6 +409,7 @@
      resources = ["${aws_cloudwatch_log_group.ec2_start.arn}:*"]
    }
  
@@ -30,7 +46,7 @@ Apply the account after prod's apply and after the start function's new image is
    statement {
      sid     = "TheSwitchAndEC2sID"
      effect  = "Allow"
-@@ -399,9 +401,31 @@
+@@ -399,9 +417,31 @@
      resources = [
        "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/ec2-autostart",
        "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/ec2-instance-id",
@@ -62,7 +78,7 @@ Apply the account after prod's apply and after the start function's new image is
    statement {
      sid       = "TheServerActionsStatus"
      effect    = "Allow"
-@@ -409,11 +433,12 @@
+@@ -409,11 +449,12 @@
      resources = ["arn:aws:budgets::${data.aws_caller_identity.current.account_id}:budget/h4-server-month"]
    }
  
@@ -77,7 +93,7 @@ Apply the account after prod's apply and after the start function's new image is
      resources = ["*"]
    }
  
-@@ -437,6 +462,126 @@
+@@ -437,6 +478,162 @@
      }
    }
  
@@ -99,6 +115,8 @@ Apply the account after prod's apply and after the start function's new image is
 +    }
 +  }
 +
++  # The instance only with a host's Name, of a listed type, on spot: FR-002's ceiling lives in the templates, and a
++  # request can't override their type or their market here (the rework after the reviews of 52308132).
 +  statement {
 +    sid       = "LaunchOnlyAHost"
 +    effect    = "Allow"
@@ -110,16 +128,44 @@ Apply the account after prod's apply and after the start function's new image is
 +      variable = "aws:RequestTag/Name"
 +      values   = ["h4-prod-ec2", "h4-prod-tunnel-end"]
 +    }
++
++    condition {
++      test     = "StringEquals"
++      variable = "ec2:InstanceType"
++      values   = local.launch_types
++    }
++
++    condition {
++      test     = "StringEquals"
++      variable = "ec2:InstanceMarketType"
++      values   = ["spot"]
++    }
 +  }
 +
 +  statement {
-+    sid     = "WhatALaunchFromATemplateUses"
++    sid     = "WhatALaunchFromATemplateMakes"
 +    effect  = "Allow"
 +    actions = ["ec2:RunInstances"]
 +    resources = [
 +      "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:volume/*",
-+      "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:network-interface/*",
 +      "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:spot-instances-request/*",
++    ]
++
++    condition {
++      test     = "ArnLike"
++      variable = "ec2:LaunchTemplate"
++      values   = ["arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:launch-template/*"]
++    }
++  }
++
++  # The image, the subnet, the group, and the interfaces only as the template names them: a request can't put the
++  # instance elsewhere, or on another image (ec2:IsLaunchTemplateResource).
++  statement {
++    sid     = "WhatOnlyTheTemplateNames"
++    effect  = "Allow"
++    actions = ["ec2:RunInstances"]
++    resources = [
++      "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:network-interface/*",
 +      "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:subnet/*",
 +      "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:security-group/*",
 +      "arn:aws:ec2:us-east-1::image/*",
@@ -129,6 +175,12 @@ Apply the account after prod's apply and after the start function's new image is
 +      test     = "ArnLike"
 +      variable = "ec2:LaunchTemplate"
 +      values   = ["arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:launch-template/*"]
++    }
++
++    condition {
++      test     = "Bool"
++      variable = "ec2:IsLaunchTemplateResource"
++      values   = ["true"]
 +    }
 +  }
 +
@@ -233,12 +285,19 @@ Apply the account after prod's apply and after the start function's new image is
  }
  
  resource "aws_lambda_function_event_invoke_config" "ec2_guard" {
-@@ -264,6 +267,30 @@
+@@ -264,6 +267,63 @@
  
      retry_policy {
        maximum_retry_attempts = 0
 +    }
 +  }
++}
++
++# The tunnel end's check's state: DISABLED until the Author's dry run of the start function proves its role
++# launches each listed type (the merge-request note's step 6, `make ec2-start REPLACE=… DRY_RUN=1`); his hand
++# sets ENABLED, in this protected file, and his account apply turns it on (spec 032's rework).
++locals {
++  tunnel_end_check_state = "DISABLED"
 +}
 +
 +# The tunnel end's check (spec 032 FR-013; ADR 0057): every 5 minutes, the start function, `from: tunnel_end_check`,
@@ -249,6 +308,7 @@ Apply the account after prod's apply and after the start function's new image is
 +  name                = "h4-tunnel-end-check"
 +  description         = "The tunnel end's check: the start function, from tunnel_end_check (spec 032)"
 +  schedule_expression = "rate(5 minutes)"
++  state               = local.tunnel_end_check_state
 +
 +  flexible_time_window {
 +    mode = "OFF"
@@ -258,6 +318,31 @@ Apply the account after prod's apply and after the start function's new image is
 +    arn      = aws_lambda_function.ec2_start[0].arn
 +    role_arn = aws_iam_role.ec2_hours.arn
 +    input    = jsonencode({ from = "tunnel_end_check" })
++
++    retry_policy {
++      maximum_retry_attempts = 0
++    }
++  }
++}
++
++# The guard's budget check (spec 032's rework): every 5 minutes, h4-ec2-guard, `from: budget_check`, which stops every
++# running EC2 while the server action has run and isn't reversed, whichever instance the action names, so a replace
++# before the next prod apply leaves the kill switch these minutes' gap. Enabled from its apply: it reads, and stops
++# only by the server action's own condition.
++resource "aws_scheduler_schedule" "ec2_budget_check" {
++  count               = local.wired ? 1 : 0
++  name                = "h4-ec2-budget-check"
++  description         = "The guard's budget check: h4-ec2-guard, from budget_check (spec 032)"
++  schedule_expression = "rate(5 minutes)"
++
++  flexible_time_window {
++    mode = "OFF"
++  }
++
++  target {
++    arn      = aws_lambda_function.ec2_guard[0].arn
++    role_arn = aws_iam_role.ec2_hours.arn
++    input    = jsonencode({ from = "budget_check" })
 +
 +    retry_policy {
 +      maximum_retry_attempts = 0

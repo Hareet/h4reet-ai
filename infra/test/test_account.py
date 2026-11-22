@@ -89,6 +89,8 @@ HANDOVER_EVENTS = {
     "ec2_hours_open",
     "ec2_hours_close",
     "tunnel_end_check",
+    # And the guard's budget check, from spec 032's rework.
+    "ec2_budget_check",
 }
 INVOKE = {"bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"}
 TOPIC = "data.aws_sns_topic.alerts.arn"
