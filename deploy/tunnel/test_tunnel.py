@@ -1084,8 +1084,15 @@ def bash(script: str, *args: str, timeout: float = 10) -> subprocess.CompletedPr
     )
 
 
-# sshd's own line (-e, VERBOSE), as it reaches the loop: through scrub, ending in sshd's \r.
-CONFLICT = "error: channel_setup_fwd_listener_tcpip: cannot listen to port: {port}\r"
+# sshd's own line (-e, VERBOSE), as it reaches the loop: through scrub, ending in sshd's \r. With -e, OpenSSH's log.c
+# gives an error-level line no "error: " prefix (only syslog's lines carry the level's name), so the raw line is the
+# function's name and its message, as the night's journal shows it, and as the client prints the same function's line
+# for a local forward ("channel_setup_fwd_listener_tcpip: cannot listen to port: 8080").
+CONFLICT = "channel_setup_fwd_listener_tcpip: cannot listen to port: {port}\r"
+# The review of bd7e0765, I1: 2222 is open to anywhere, and sshd logs an unauthenticated client's user name and
+# identification as sent. A stranger whose user name or banner is the conflict's text must not end anything: only
+# sshd's own line, the whole line, does.
+STRANGER = "cannot listen to port: 2201"
 
 
 @pytest.mark.parametrize(
@@ -1094,15 +1101,31 @@ CONFLICT = "error: channel_setup_fwd_listener_tcpip: cannot listen to port: {por
         (CONFLICT.format(port=2201), True),
         (CONFLICT.format(port=2202), True),
         (CONFLICT.format(port=2203), True),
+        (CONFLICT.format(port=2201).rstrip("\r"), True),
         (CONFLICT.format(port=5432), False),
-        ("error: bind [0.0.0.0]:2201: Address already in use\r", False),
+        (CONFLICT.format(port=22010), False),
+        ("bind [0.0.0.0]:2201: Address already in use\r", False),
         (
             "Accepted publickey for tunnel from 192.0.2.7 port 50000 ssh2: ED25519\r",
             False,
         ),
+        (f"Invalid user {STRANGER} from 192.0.2.7 port 50000\r", False),
+        (
+            f"Connection closed by invalid user {STRANGER} 192.0.2.7 port 50000 [preauth]\r",
+            False,
+        ),
+        (
+            (
+                "kex_exchange_identification: client sent invalid protocol identifier "
+                f'"{STRANGER}"\r'
+            ),
+            False,
+        ),
+        (f"x {CONFLICT.format(port=2201)}", False),
+        (CONFLICT.format(port=2201).rstrip("\r") + " [preauth]\r", False),
     ],
 )
-def test_the_line_that_ends_older_sessions_is_sshds_after_scrub(
+def test_the_line_that_ends_older_sessions_is_sshds_own_whole_line(
     line: str, conflict: bool
 ) -> None:
     done = bash(
@@ -1166,8 +1189,10 @@ def test_the_older_sessions_are_the_daemons_children_started_before_the_limit_an
     assert done.stdout.decode().split() == ["7"], done.stderr
 
 
-# The server, under bash, with a stand-in sshd that starts an old session, then, after the grace, a new one that logs
-# sshd's conflict: the entrypoint ends the old one and leaves the new one.
+# The server, under bash, with a stand-in sshd that starts an old session, then, after the grace, a new one, and logs
+# the accepted login, the bind line, and $LINES (one a line): with sshd's conflict, the entrypoint ends the old session
+# and leaves the new one; with a stranger's text, it ends nothing. A session is alive while its stat file is there and
+# it isn't a zombie (bash reaps its children as they end).
 SERVER_SSHD = """#!/bin/bash
 sleep 30 & old=$!
 echo "old $old" >>"$LOG"
@@ -1175,19 +1200,45 @@ sleep 2
 sleep 30 & new=$!
 echo "new $new" >>"$LOG"
 printf 'Accepted publickey for tunnel from 192.0.2.7 port 50000 ssh2: ED25519 SHA256:x\\r\\n' >&2
-printf 'error: bind [0.0.0.0]:2201: Address already in use\\r\\n' >&2
-printf 'error: channel_setup_fwd_listener_tcpip: cannot listen to port: 2201\\r\\n' >&2
-printf 'error: channel_setup_fwd_listener_tcpip: cannot listen to port: 2202\\r\\n' >&2
-wait "$old"
-echo "old ended $?" >>"$LOG"
-kill -0 "$new" 2>/dev/null && echo "new alive" >>"$LOG"
-kill "$new"
+printf 'bind [0.0.0.0]:2201: Address already in use\\r\\n' >&2
+while IFS= read -r line; do printf '%s\\r\\n' "$line" >&2; done <<<"$LINES"
+sleep 1.5
+for s in old new; do
+  state=ended
+  if read -r _ _ st _ 2>/dev/null <"/proc/${!s}/stat" && [ "$st" != Z ]; then state=alive; fi
+  echo "$s $state" >>"$LOG"
+done
+kill "$old" "$new" 2>/dev/null
 sleep 5
 """
 
 
+@pytest.mark.parametrize(
+    ("lines", "ends"),
+    [
+        (
+            [
+                CONFLICT.format(port=2201).rstrip("\r"),
+                CONFLICT.format(port=2202).rstrip("\r"),
+            ],
+            True,
+        ),
+        (
+            [
+                f"Invalid user {STRANGER} from 192.0.2.7 port 50000",
+                f"Connection closed by invalid user {STRANGER} 192.0.2.7 port 50000 [preauth]",
+                (
+                    "kex_exchange_identification: client sent invalid protocol identifier "
+                    f'"{STRANGER}"'
+                ),
+            ],
+            False,
+        ),
+    ],
+    ids=["sshds-conflict", "a-strangers-text"],
+)
 def test_a_session_that_cant_listen_ends_the_older_ones_holding_the_forwards(
-    tmp_path: Path,
+    tmp_path: Path, lines: list[str], ends: bool
 ) -> None:
     state, bin_ = tmp_path / "state", tmp_path / "bin"
     for d in (state, bin_):
@@ -1211,23 +1262,30 @@ def test_a_session_that_cant_listen_ends_the_older_ones_holding_the_forwards(
     log.touch()
     proc = subprocess.Popen(
         ["/bin/bash", str(script), "server"],
-        env={"PATH": f"{bin_}:/usr/bin:/bin", "LOG": str(log)},
+        env={
+            "PATH": f"{bin_}:/usr/bin:/bin",
+            "LOG": str(log),
+            "LINES": "\n".join(lines),
+        },
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )
     try:
-        out, _ = proc.communicate(timeout=6)
+        out, _ = proc.communicate(timeout=7)
     except subprocess.TimeoutExpired:
         os.killpg(proc.pid, 9)
         out, _ = proc.communicate()
     said_ = out.decode(errors="replace")
-    lines = log.read_text(encoding="utf-8").splitlines()
-    assert "old ended 143" in lines, (lines, said_)  # SIGTERM
-    assert "new alive" in lines, (lines, said_)
-    old = next(line.split()[1] for line in lines if line.startswith("old "))
+    seen = log.read_text(encoding="utf-8").splitlines()
+    assert ("old ended" if ends else "old alive") in seen, (seen, said_)
+    assert "new alive" in seen, (seen, said_)
+    old = next(line.split()[1] for line in seen if line.startswith("old "))
     ended = [line for line in said_.splitlines() if "older session" in line]
-    assert len(ended) == 1 and old in ended[0], said_
+    if ends:
+        assert len(ended) == 1 and old in ended[0], said_
+    else:
+        assert ended == [], said_
     assert "<address>" in said_ and "192.0.2.7" not in said_
 
 

@@ -585,11 +585,13 @@ def test_an_address_lost_during_the_step_is_undone_and_fails_it(
     assert ss.prepare(host, paths, tree) == 1
     err = capsys.readouterr().err
     assert PRIVATE in err and "undone" in err, err
-    # Its own changes undone: the route and the rules it made gone, the drop-in as it was.
+    # Its own changes undone: the route and the rules it made gone, a changed drop-in as it was. A new one stays (the
+    # review of bd7e0765, nit 1): its text is right for the next boot, and a rollback to a step that still reloads
+    # networkd on a changed drop-in (f1abe245's) must find it unchanged, never missing.
     assert host.table == [] and host.rules == []
     placed = paths.network / DROPIN.name
     if before == "new":
-        assert not placed.exists()
+        assert placed.read_bytes() == DROPIN.read_bytes()
     else:
         assert placed.read_text(encoding="utf-8") == old
     assert not [c for c in ran(host) if touches_networkd(c)]
@@ -611,9 +613,30 @@ def test_a_live_command_that_fails_undoes_the_ones_before_it(world, capsys) -> N
     host.answer(MAKE_LIVE[-1], 1)
     assert ss.prepare(host, paths, tree) == 1
     assert host.table == [] and host.rules == []
-    assert not (paths.network / DROPIN.name).exists()
+    assert (paths.network / DROPIN.name).read_bytes() == DROPIN.read_bytes()
     err = capsys.readouterr().err
     assert "the private interface's replies" in err and "undone" in err, err
+
+
+def older_step_reloads(paths, tree) -> bool:
+    """F2's rule, as f1abe245's host step has it (shared_state.py:248-249, 269-273 there): networkd is reloaded and
+    ens5 reconfigured when the drop-in on disk is missing or differs from its release's."""
+    placed = paths.network / DROPIN.name
+    release = tree / "deploy" / "hosts" / "tunnel-end" / "release" / DROPIN.name
+    return not placed.is_file() or placed.read_bytes() != release.read_bytes()
+
+
+@pytest.mark.parametrize("losing", MAKE_LIVE)
+def test_after_an_undo_a_rollback_to_the_older_step_reloads_nothing(
+    world, losing: str
+) -> None:
+    # A host whose drop-in is missing (one F2's step never reached): this step writes it, then fails and undoes. The
+    # deployer's rollback runs the previous release's step; with this branch's drop-in text unchanged from f1abe245's,
+    # that step must find nothing to reload.
+    host, paths, tree = world
+    host.lose_address_on = losing
+    assert ss.prepare(host, paths, tree) == 1
+    assert not older_step_reloads(paths, tree)
 
 
 def test_a_dropin_the_step_cant_make_live_fails_before_anything_changes(
