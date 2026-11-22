@@ -105,6 +105,9 @@ class Cloud:
         # Types whose dry run IAM refuses; instances that never leave pending or shutting-down.
         self.dry_refused: set[str] = set()
         self.stuck: set[str] = set()
+        # RunInstances' client tokens, each with the instance its first launch made: a launch sent again with the
+        # same token answers that instance, as EC2 does (fix/032-launch-policy).
+        self.tokens: dict[str, str] = {}
 
     @staticmethod
     def arn(instance: str) -> str:
@@ -245,7 +248,7 @@ class Cloud:
         return {}
 
     def ec2_RunInstances(
-        self, LaunchTemplate, MinCount, MaxCount, DryRun=False
+        self, LaunchTemplate, MinCount, MaxCount, DryRun=False, ClientToken=None
     ) -> dict:
         assert (MinCount, MaxCount) == (1, 1)
         assert LaunchTemplate["Version"] == "$Default"
@@ -256,6 +259,11 @@ class Cloud:
                 if kind in self.dry_refused
                 else "DryRunOperation"
             )
+        if ClientToken is not None and ClientToken in self.tokens:
+            again = self.instances[self.tokens[ClientToken]]
+            return {
+                "Instances": [{"InstanceId": again["InstanceId"], "InstanceType": kind}]
+            }
         name = "h4-prod-tunnel-end" if kind in TUNNEL_TYPES else "h4-prod-ec2"
         if self.live(name):
             raise TwoHosts(f"a second {name} would run")
@@ -271,6 +279,8 @@ class Cloud:
             "fulfilled",
             template=LaunchTemplate["LaunchTemplateId"],
         )
+        if ClientToken is not None:
+            self.tokens[ClientToken] = iid
         return {"Instances": [{"InstanceId": iid, "InstanceType": kind}]}
 
     def ec2_DescribeVolumes(self, Filters) -> dict:
@@ -469,10 +479,11 @@ def test_another_launch_code_stops_the_list() -> None:
     c.short = {"t4g.large"}
     real = c.ec2_RunInstances
 
-    def launch(LaunchTemplate, MinCount, MaxCount, DryRun=False):
+    # Changed on fix/032-launch-policy: a launch carries its client token too, which this passes on.
+    def launch(LaunchTemplate, MinCount, MaxCount, DryRun=False, **more):
         if not DryRun:
             raise start.AwsError("UnauthorizedOperation")
-        return real(LaunchTemplate, MinCount, MaxCount, DryRun)
+        return real(LaunchTemplate, MinCount, MaxCount, DryRun, **more)
 
     c.ec2_RunInstances = launch  # type: ignore[method-assign]
     result = run(ALARM, c)
@@ -917,11 +928,11 @@ def refusals(out: str) -> list[dict]:
 def refuse_with_the_message(c: Cloud, kinds: set[str], dry: bool) -> None:
     real = c.ec2_RunInstances
 
-    def launch(LaunchTemplate, MinCount, MaxCount, DryRun=False):
+    def launch(LaunchTemplate, MinCount, MaxCount, DryRun=False, **more):
         kind = c.templates[LaunchTemplate["LaunchTemplateId"]]
         if kind in kinds and DryRun is dry:
             raise start.AwsError("UnauthorizedOperation", REFUSAL)
-        return real(LaunchTemplate, MinCount, MaxCount, DryRun)
+        return real(LaunchTemplate, MinCount, MaxCount, DryRun, **more)
 
     c.ec2_RunInstances = launch  # type: ignore[method-assign]
 
@@ -1148,9 +1159,9 @@ def slow(c: Cloud, dry_s: float = 0, launch_left_s: float | None = None) -> None
     """Each dry run takes dry_s; the real launch leaves launch_left_s of the run's time (840 s from INSIDE)."""
     real = c.ec2_RunInstances
 
-    def launch(LaunchTemplate, MinCount, MaxCount, DryRun=False):
+    def launch(LaunchTemplate, MinCount, MaxCount, DryRun=False, **more):
         try:
-            return real(LaunchTemplate, MinCount, MaxCount, DryRun)
+            return real(LaunchTemplate, MinCount, MaxCount, DryRun, **more)
         finally:
             if DryRun:
                 c.clock.at += timedelta(seconds=dry_s)
@@ -1203,6 +1214,78 @@ def test_after_a_launch_with_too_little_time_only_the_id_is_written() -> None:
     after = [o for _, o, _ in c.calls[launched + 1 :]]
     assert "DescribeInstances" not in after and "AttachVolume" not in after
     assert "/h4reet/prod/host-lock" not in c.params
+
+
+# fix/032-launch-policy: with retries on and a 20 s read timeout, a launch that succeeded at EC2 but whose answer was
+# lost is sent again. Without a client token the second would launch another instance, which EC2's fixed address or the
+# tunnel end's interfaces refuse (InvalidIPAddress.InUse), and the run would refuse while the first ran unrecorded.
+# With one, EC2 answers the same instance. The token is the same for one replace attempt, of its host and type, and at
+# most 64 ASCII characters; a dry run carries none.
+class Resent:
+    """AWS whose answer to the first real launch is lost, so the launch is sent again as it was (the SDK's retry)."""
+
+    def __init__(self, c: Cloud) -> None:
+        self.c = c
+        self.lost = False
+
+    def call(self, service: str, op: str, **p: object) -> dict:
+        if op == "RunInstances" and not p.get("DryRun") and not self.lost:
+            self.lost = True
+            self.c.call(service, op, **p)  # it ran at EC2; its answer never came back
+        return self.c.call(service, op, **p)
+
+
+@pytest.mark.parametrize(
+    ("event", "host", "name", "short"),
+    [
+        (ALARM, "ec2", "h4-prod-ec2", {"t4g.large"}),
+        (
+            {"manual": True, "replace": "tunnel_end", "skip": []},
+            "tunnel_end",
+            "h4-prod-tunnel-end",
+            set(),
+        ),
+    ],
+)
+def test_a_launch_sent_again_after_a_lost_answer_is_the_same_instance(
+    event: dict, host: str, name: str, short: set[str]
+) -> None:
+    c = cloud()
+    c.short = short
+    result = start.handler(
+        event, Context(), aws=Resent(c), now=c.clock.now, sleep=c.clock.sleep
+    )
+    assert result["outcome"] == "started", result
+    (one,) = c.live(name)
+    launches = [p for p in c.ops("RunInstances") if not p.get("DryRun")]
+    assert len(launches) == 2
+    tokens = {p.get("ClientToken") for p in launches}
+    (token,) = tokens
+    assert isinstance(token, str) and 0 < len(token) <= 64 and token.isascii()
+    assert host in token and one["InstanceType"] in token
+    assert c.count == 1  # one instance launched, answered twice
+    if host == "ec2":
+        assert c.params["/h4reet/prod/ec2-instance-id"] == one["InstanceId"]
+
+
+def test_each_launch_of_a_replace_has_its_own_types_token_and_a_dry_run_none() -> None:
+    c = cloud()
+    c.short = {"t4g.large", "m7g.large"}
+    assert run(ALARM, c)["outcome"] == "started"
+    dry = [p for p in c.ops("RunInstances") if p.get("DryRun")]
+    assert dry and all("ClientToken" not in p for p in dry)
+    launches = [p for p in c.ops("RunInstances") if not p.get("DryRun")]
+    tokens = [p["ClientToken"] for p in launches]
+    # m7g.large was short, then m6g.large launched: one token each, from the same replace.
+    assert len(launches) == 2 and len(set(tokens)) == 2
+    assert "m7g.large" in tokens[0] and "m6g.large" in tokens[1]
+    assert tokens[0].rsplit("-", 1)[1] == tokens[1].rsplit("-", 1)[1]
+    # A later replace gets another token for the same type.
+    c2 = cloud(INSIDE + timedelta(minutes=30))
+    c2.short = {"t4g.large", "m7g.large"}
+    run(ALARM, c2)
+    later = [p["ClientToken"] for p in c2.ops("RunInstances") if not p.get("DryRun")]
+    assert later[0] != tokens[0]
 
 
 def test_a_tunnel_end_left_without_its_volume_and_origin_is_repaired_by_the_next_check() -> (
