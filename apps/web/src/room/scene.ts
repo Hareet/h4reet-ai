@@ -49,6 +49,7 @@ import {
   frameCamera,
   framedBoxes,
   keepPaper,
+  keptPaper,
   selectablePicker,
   showHandoff as drawHandoff,
 } from "./scene/bundle3d";
@@ -325,6 +326,8 @@ export function createScene(options: SceneOptions): Stage3D {
   let handedOff = false;
   void handoffEnded.then(() => {
     handedOff = true;
+    // Spec 033 (FR-011): the kept sheet is the one drawn from the hand-off's end, whether or not figures run.
+    keptPaper(room);
   });
   const gate = (): Promise<unknown> => (closed ? handoffEnded : Promise.resolve());
   // What the stage will load (spec 012): resolved once the loader's chunk has built the entries; never rejected.

@@ -354,6 +354,8 @@ export function buildRoom(part: RoomScene, options: RoomOptions): Room3D {
     ] as const)
       mesh.add(sheetBack(sheet, front, face.back));
   scene.add(paper, kept);
+  // Spec 033 (FR-011): the kept sheet starts at opacity 0, so it isn't drawn until it shows.
+  kept.visible = false;
 
   // The look's lights, over the pieces the shell holds (the shell itself, in a room of one).
   const held = part.placements.filter((p) => p.mount !== null);
@@ -532,14 +534,13 @@ export function showHandoff(
 ): void {
   const p = Math.min(1, Math.max(0, progress));
   const { twinHand, visitorHand } = room.anchors;
-  const { sheet, atTwin, atVisitor } = room.paper;
+  const { sheet } = room.paper;
   // Spec 016 (FR-031; plan.md R-10; contracts/twin-states.md §5): while the twin shows its own picture, the paper
   // appears with the visitor: no sheet at the twin, the visitor's fading in with the progress at its hand, the turns
   // spec 002's, none under reduced motion.
   if (mode === "appear") {
     sheet.position.copy(visitorHand);
-    atTwin.opacity = 0;
-    atVisitor.opacity = p;
+    fadePaper(room.paper, 0, p);
     if (reducedMotion) {
       room.twin.rotation.y = 0;
       room.visitor.rotation.y = 0;
@@ -551,8 +552,7 @@ export function showHandoff(
   }
   if (reducedMotion) {
     sheet.position.copy(twinHand);
-    atTwin.opacity = 1 - p;
-    atVisitor.opacity = p;
+    fadePaper(room.paper, 1 - p, p);
     room.twin.rotation.y = 0;
     room.visitor.rotation.y = 0;
     return;
@@ -560,10 +560,26 @@ export function showHandoff(
   const e = easeInOut(p);
   sheet.position.lerpVectors(twinHand, visitorHand, e);
   sheet.position.y += Math.sin(Math.PI * e) * PAPER_ARC;
-  atTwin.opacity = 1;
-  atVisitor.opacity = 0;
+  fadePaper(room.paper, 1, 0);
   room.twin.rotation.y = room.facing.twin * TWIN_TURN * Math.min(1, p / 0.3) * Math.min(1, (1 - p) / 0.2);
   room.visitor.rotation.y = room.facing.visitor * VISITOR_TURN * visitorTurnShare(p);
+}
+
+/** Spec 033 (FR-011; "The flicker's cause"): the two sheets at their opacities, each drawn only while it shows. Three
+ *  draws a visible mesh whatever its opacity, and a transparent material writes depth, so a sheet faded to 0 and left
+ *  drawn hid what lay behind its plane whenever three sorted it first: the held sheet's top half, on and off as the
+ *  holding hand moved through it. Every write of the paper's opacities goes through here. */
+export function fadePaper(paper: Room3D["paper"], atTwin: number, atVisitor: number): void {
+  paper.atTwin.opacity = atTwin;
+  paper.atVisitor.opacity = atVisitor;
+  paper.sheet.visible = atTwin > 0;
+  paper.kept.visible = atVisitor > 0;
+}
+
+/** Spec 033 (FR-011): the hand-off's end, whichever way it ended: the kept sheet is the one drawn, at the visitor's
+ *  hand, and the travelling one is hidden, so the paper that walks with the figure is the one seen. */
+export function keptPaper(room: Room3D): void {
+  fadePaper(room.paper, 0, 1);
 }
 
 /** The kept paper into the visitor's picture, its world transform kept, so it walks and mirrors with the figure and
