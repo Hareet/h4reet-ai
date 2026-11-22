@@ -143,6 +143,7 @@ The functions and the loop change EC2's running state only. The relay's choice i
 | The laptop's health check (FR-054) | time series | `max(h4_health_check_healthy_share)` |
 | The handover window (FR-063) | stat | `max(max_over_time(h4_handover_window_seconds[1d]))` |
 | The server's month against its budget (FR-021) | time series | `max(h4_server_month_usd)` and `max(h4_server_budget_usd)` |
+| Host types (spec 032 FR-018) | state timeline | `max by (host, type) (h4_host_type)` |
 
 - **The sink's cloud reads** (`deploy/scripts/snapshot_sink.py`; contracts/public-view.md §2), every 2 minutes through the tunnel end's collector (C15), with no address or ID in a label:
   - **`h4_ec2_state`** is `h4.ec2.state`, one-hot by `state` (`pending`, `running`, `stopping`, `stopped`, `shutting-down`, `terminated`, `none`): EC2's, the instance tagged `h4-prod-ec2`;
@@ -151,6 +152,7 @@ The functions and the loop change EC2's running state only. The relay's choice i
   - **`h4_ec2_autostart`** is `h4.ec2.autostart`: 1 while the switch is `on`, 0 while `off`;
   - **`h4_health_check_healthy_share`** is `h4.health_check.healthy_share`: the share of Route 53's checkers that see the laptop's health block answer, from 0 to 1;
   - **`h4_server_month_usd`** and **`h4_server_budget_usd`** are `h4.server.month_usd` and `h4.server.budget_usd`: the server budget's month to date and its figure, read once an hour, beside spec 000's and spec 010's spend panels above.
+  - **`h4_host_type`** is `h4.host.type`, by `host` (`ec2`, `tunnel_end`) and `type`, 1 for the instance each host's `Name` tag finds (amended by spec 032, FR-018): which listed type runs, so the timeline shows each replace onto another type;
   - A read that fails gets no point and counts in `h4.sink.read_errors`, by `read`: the panels show no data, never a stale value as fresh.
 - **`h4_handover_window_seconds`** is `h4.handover.window_seconds`, the laptop loop's gauge (§6), posted through the laptop's collector: the last takeover's window, from the relay's first `laptop` to EC2's `stopped`. It reads green under 300 s (FR-063), red from 300 s.
 - **The hours** are the schedules', in the zone `local.ec2_hours` names; the panel shows each scheduled start and stop by its outcome. The hours themselves are on the public view, `/status/`, from the document's `ec2_hours`, which the sink reads from the two schedules (T170; the Author's "1b A" and "Only /status/ (Recommended)"); this row's panels show the outcomes.
