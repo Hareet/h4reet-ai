@@ -412,9 +412,14 @@ def test_the_public_interfaces_default_route_comes_first() -> None:
 # and changes nothing else.
 def test_the_private_interface_answers_ec2_by_one_host_route() -> None:
     ec2 = patches.patched_text("infra/prod/ec2-market.tf") or ""
-    block = re.search(r'resource "aws_instance" "ec2" \{(.*?)\n\}', ec2, re.DOTALL)
-    assert block, "aws_instance.ec2"
-    m = re.search(r'^\s*private_ip\s*=\s*"([0-9.]+)"', block.group(1), re.MULTILINE)
+    # From spec 032, EC2's launch templates carry its fixed address (infra/prod/ec2-market.tf).
+    block = re.search(
+        r'resource "aws_launch_template" "ec2" \{(.*?)\n\}', ec2, re.DOTALL
+    )
+    assert block, "aws_launch_template.ec2"
+    m = re.search(
+        r'^\s*private_ip_address\s*=\s*"([0-9.]+)"', block.group(1), re.MULTILINE
+    )
     assert m, "EC2's fixed address"
     address = m.group(1)
     private = {p: s for p, s in dropins().items() if PRIVATE_IF in p.split("/")[4]}

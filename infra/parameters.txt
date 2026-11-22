@@ -67,3 +67,9 @@
 /h4reet/tunnel-end/HEALTH_CHECK_ID String
 /h4reet/tunnel-end/SHARED_STATE_TLS_KEY SecureString
 /h4reet/tunnel-end/SHARED_STATE_TLS_CERT String
+# Spec 032: prod's root makes the hosts' template lists and the VPC origin's ID (infra/prod/ssm.tf). The start
+# function's lock, /h4reet/prod/host-lock, isn't listed: it exists only while a replace runs, when secrets-check shows
+# it as unexpected.
+/h4reet/prod/ec2-launch-templates String
+/h4reet/prod/tunnel-end-launch-templates String
+/h4reet/prod/relay-vpc-origin-id String

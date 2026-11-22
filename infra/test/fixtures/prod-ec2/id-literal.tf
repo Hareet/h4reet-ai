@@ -9,4 +9,8 @@ resource "aws_ssm_parameter" "ec2_instance_id" {
   tags = {
     component = "ec2"
   }
+
+  lifecycle {
+    ignore_changes = [value]
+  }
 }

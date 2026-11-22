@@ -270,9 +270,11 @@ def test_the_reads_ask_by_name_and_tag_alone() -> None:
     aws = Aws()
     sink.Sink(aws, ACCOUNT, Clock()).read()
     by = {(s, o): p for s, o, p in aws.calls}
-    assert by[("ec2", "DescribeInstances")] == {
-        "Filters": [{"Name": "tag:Name", "Values": ["h4-prod-ec2"]}]
-    }
+    # EC2's read, and from spec 032 the tunnel end's type's, each by its Name tag alone.
+    assert [p for s, o, p in aws.calls if (s, o) == ("ec2", "DescribeInstances")] == [
+        {"Filters": [{"Name": "tag:Name", "Values": ["h4-prod-ec2"]}]},
+        {"Filters": [{"Name": "tag:Name", "Values": ["h4-prod-tunnel-end"]}]},
+    ]
     assert by[("budgets", "DescribeBudget")] == {
         "AccountId": ACCOUNT,
         "BudgetName": "h4-server-month",
@@ -317,3 +319,67 @@ def test_the_payload_is_otlp_json_with_the_error_counter() -> None:
         a["key"]: a["value"]["stringValue"] for a in rm["resource"]["attributes"]
     }
     assert resource["service.name"] == "snapshot-sink"
+
+
+# Spec 032 (FR-018): each host's type, by its Name tag, so the dashboard shows which listed type runs.
+class TypedAws(Aws):
+    """DescribeInstances answered by the Name its filter asks for, each instance with its type."""
+
+    def __init__(self, ec2_type: str | None, tunnel_type: str | None) -> None:
+        super().__init__()
+        self.types = {"h4-prod-ec2": ec2_type, "h4-prod-tunnel-end": tunnel_type}
+
+    def call(self, service: str, op: str, **params: object) -> dict:
+        if (service, op) != ("ec2", "DescribeInstances"):
+            return super().call(service, op, **params)
+        self.calls.append((service, op, dict(params)))
+        name = params["Filters"][0]["Values"][0]  # type: ignore[index]
+        kind = self.types.get(name)
+        if kind is None:
+            return {"Reservations": []}
+        return {
+            "Reservations": [
+                {
+                    "Instances": [
+                        {
+                            "InstanceId": EC2_ID,
+                            "InstanceType": kind,
+                            "State": {"Name": "running"},
+                            "SpotInstanceRequestId": SPOT_ID,
+                            "Tags": [{"Key": "Name", "Value": name}],
+                        }
+                    ]
+                }
+            ]
+        }
+
+
+def test_each_hosts_type_is_a_point_by_host_and_type() -> None:
+    reads = sink.Sink(TypedAws("m7g.large", "c7g.medium"), ACCOUNT, Clock()).read()
+    assert reads.errors == []
+    assert sorted(
+        (labels["host"], labels["type"], v)
+        for labels, v in points(reads)["h4.host.type"]
+    ) == [("ec2", "m7g.large", 1.0), ("tunnel_end", "c7g.medium", 1.0)]
+
+
+def test_a_host_with_no_instance_has_no_type_point() -> None:
+    reads = sink.Sink(TypedAws(None, "t4g.small"), ACCOUNT, Clock()).read()
+    assert [labels["host"] for labels, _ in points(reads)["h4.host.type"]] == [
+        "tunnel_end"
+    ]
+
+
+def test_a_failed_tunnel_end_read_is_an_error_never_a_type() -> None:
+    aws = TypedAws("t4g.large", "t4g.small")
+    original = aws.call
+
+    def call(service: str, op: str, **params: object) -> dict:
+        if op == "DescribeInstances" and "h4-prod-tunnel-end" in str(params):
+            raise sink.AwsError("ThrottlingException")
+        return original(service, op, **params)
+
+    aws.call = call  # type: ignore[method-assign]
+    reads = sink.Sink(aws, ACCOUNT, Clock()).read()
+    assert "tunnel_end_type" in reads.errors
+    assert [labels["host"] for labels, _ in points(reads)["h4.host.type"]] == ["ec2"]

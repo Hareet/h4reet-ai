@@ -93,6 +93,7 @@ def answers(**over: object) -> dict:
                     "Instances": [
                         {
                             "InstanceId": EC2_ID,
+                            "InstanceType": "m7g.large",
                             "State": {"Name": "running"},
                             "SpotInstanceRequestId": SPOT_ID,
                         }
@@ -212,6 +213,57 @@ def test_start_invokes_the_function_by_hand_once(world: dict) -> None:
     assert value(invoke, "--invocation-type") == "RequestResponse"
     # It starts nothing itself: only the function does, after its checks.
     assert calls_of(world, "ec2", "start-instances") == []
+
+
+# Spec 032 (FR-009): the Author's hand replace, through the same function and its checks.
+@pytest.mark.parametrize(
+    ("argv", "payload"),
+    [
+        (
+            ("start", "--replace", "ec2", "--skip", "t4g.large"),
+            {"manual": True, "replace": "ec2", "skip": ["t4g.large"]},
+        ),
+        (
+            ("start", "--replace", "ec2", "--skip", "t4g.large,m7g.large"),
+            {"manual": True, "replace": "ec2", "skip": ["t4g.large", "m7g.large"]},
+        ),
+        (
+            ("start", "--replace", "tunnel_end"),
+            {"manual": True, "replace": "tunnel_end", "skip": []},
+        ),
+    ],
+)
+def test_start_with_a_replace_sends_the_host_and_the_types_to_skip(
+    world: dict, argv: tuple[str, ...], payload: dict
+) -> None:
+    done = run(world, *argv)
+    assert done.returncode in (0, 1), done.stderr
+    (invoke,) = calls_of(world, "lambda", "invoke")
+    assert json.loads(value(invoke, "--payload")) == payload
+    assert calls_of(world, "ec2", "terminate-instances") == []
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ("start", "--skip", "t4g.large"),
+        ("start", "--replace", "laptop"),
+        ("start", "--replace", "ec2", "--skip", "t4g.large;id"),
+        ("stop", "--replace", "ec2"),
+    ],
+)
+def test_a_replace_it_cant_read_invokes_nothing(
+    world: dict, argv: tuple[str, ...]
+) -> None:
+    done = run(world, *argv)
+    assert done.returncode == 2
+    assert calls_of(world, "lambda", "invoke") == []
+
+
+def test_the_start_target_passes_replace_and_skip() -> None:
+    recipe = MAKEFILE.split("\nec2-start:", 1)[1].split("\n\n", 1)[0]
+    assert '$(if $(call from_cli,REPLACE), --replace "$$REPLACE")' in recipe
+    assert '$(if $(call from_cli,SKIP), --skip "$$SKIP")' in recipe
 
 
 def test_autostart_on_writes_the_switch_invokes_the_start_once_and_writes_the_audit_row(
@@ -385,3 +437,37 @@ def test_the_targets_are_the_authors_and_run_their_scripts(
 def test_the_targets_that_need_a_value_say_so(target: str, name: str) -> None:
     recipe = MAKEFILE.split(f"\n{target}:", 1)[1].split("\n\n", 1)[0]
     assert f"$(call NEEDS,{name}," in recipe
+
+
+# Spec 032's rework: the status names each host's type, and the hand dry run proves the role without a change.
+def test_status_names_each_hosts_type(world: dict, relay: str) -> None:
+    done = run(world, "status", H4_STATUS_URL=relay, H4_NOW="2026-11-18T17:00:00Z")
+    assert done.returncode == 0, done.stderr
+    assert f"ec2        {EC2_ID} running, m7g.large" in done.stdout
+    assert f"tunnel end {EC2_ID} running, m7g.large" in done.stdout
+    filters = [
+        value(c, "--filters") for c in calls_of(world, "ec2", "describe-instances")
+    ]
+    assert any("h4-prod-tunnel-end" in f for f in filters)
+
+
+def test_start_with_a_dry_run_sends_it_and_changes_nothing(world: dict) -> None:
+    done = run(world, "start", "--replace", "tunnel_end", "--dry-run")
+    assert done.returncode in (0, 1), done.stderr
+    (invoke,) = calls_of(world, "lambda", "invoke")
+    assert json.loads(value(invoke, "--payload")) == {
+        "manual": True,
+        "replace": "tunnel_end",
+        "skip": [],
+        "dry_run": True,
+    }
+
+
+def test_a_dry_run_needs_a_replace(world: dict) -> None:
+    assert run(world, "start", "--dry-run").returncode == 2
+    assert calls_of(world, "lambda", "invoke") == []
+
+
+def test_the_start_target_passes_dry_run() -> None:
+    recipe = MAKEFILE.split("\nec2-start:", 1)[1].split("\n\n", 1)[0]
+    assert "$(if $(call from_cli,DRY_RUN), --dry-run)" in recipe

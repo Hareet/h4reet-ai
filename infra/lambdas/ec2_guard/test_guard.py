@@ -233,7 +233,8 @@ def test_an_untagged_named_instance_isnt_stopped() -> None:
     # The parameter names an instance the tag filter doesn't find: the guard may stop only a tagged one.
     aws = Aws({("ec2", "DescribeInstances"): {"Reservations": []}, **with_alarm("OK")})
     result = run(RUNNING, aws)
-    assert result["outcome"] == "nothing" and aws.stops() == []
+    # From spec 032's rework the rule matches every instance, so an instance the tag doesn't find is another's.
+    assert result["outcome"] == "not_ec2" and aws.stops() == []
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -453,3 +454,74 @@ def test_an_unreadable_window_counts_as_outside(
     aws = Aws()
     assert run(RUNNING, aws)["outcome"] == "ec2_stopped_outside_hours"
     assert "- unread: hours" in aws.alerts()[0].splitlines()
+
+
+def test_after_a_replace_the_new_instance_the_parameter_names_is_ec2s_and_isnt_stopped() -> (
+    None
+):
+    """Spec 032 (FR-007, FR-012): the start function writes the new instance's ID to the parameter as soon as it
+    launches; the old one is terminated, so AWS's listing of pending and running instances (the guard's filter) doesn't hold it. The
+    guard's code doesn't change: this holds its reading of the parameter to the replace's identity model."""
+    new = "i-0" + "ef" * 8
+    aws = Aws(
+        {
+            ("ssm", "/h4reet/prod/ec2-instance-id"): {"Parameter": {"Value": new}},
+            ("ec2", "DescribeInstances"): {
+                "Reservations": [{"Instances": [instance(new)]}]
+            },
+        }
+    )
+    run({**RUNNING, "detail": {"instance-id": new, "state": "running"}}, aws)
+    assert aws.stops() == []
+    assert aws.alerts() == []
+
+
+# Spec 032's rework (the reviews of 52308132, the kill switch's gap): h4-ec2-running matches every instance entering
+# running, so a replaced EC2's restart by AWS is guarded before the next prod apply; the guard acts only on EC2's.
+def test_another_instance_entering_running_is_left_to_its_own(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    aws = Aws(with_alarm("OK"))  # the laptop serves: EC2's own running would be stopped
+    run(
+        {**RUNNING, "detail": {"instance-id": "i-0" + "cd" * 8, "state": "running"}},
+        aws,
+    )
+    assert aws.stops() == []
+    assert aws.alerts() == []
+    assert emf_lines(capsys) == []
+
+
+BUDGET_CHECK = {"from": "budget_check"}
+EXECUTED = {
+    ("budgets", "DescribeBudgetActionsForBudget"): {
+        "Actions": [{"ActionType": "RUN_SSM_DOCUMENTS", "Status": "EXECUTION_FAILURE"}]
+    }
+}
+
+
+def test_the_budget_check_stops_a_running_ec2_once_the_server_action_has_run() -> None:
+    # A replaced EC2 isn't the instance the action names until the next prod apply: the check, every 5 minutes, stops
+    # it whatever the action did to the old one.
+    aws = Aws(EXECUTED)
+    run(BUDGET_CHECK, aws)
+    assert aws.stops() == [[EC2_ID]]
+    (alert,) = aws.alerts()
+    assert alert.startswith("[hareet.ai aws] ec2_stopped_server_budget: ")
+    assert "- trigger: budget_check" in alert.splitlines()
+
+
+def test_the_budget_check_reads_nothing_else_and_is_a_plain_line_while_clear(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    aws = Aws(with_alarm("OK"))  # neither the laptop nor the hours are its business
+    run(BUDGET_CHECK, aws, now=OUTSIDE)
+    assert aws.stops() == [] and aws.alerts() == []
+    assert ("cloudwatch", "DescribeAlarms") not in aws.ops()
+    out = capsys.readouterr().out.splitlines()
+    assert len(out) == 1 and "_aws" not in json.loads(out[0])
+
+
+def test_the_budget_check_with_ec2_stopped_stops_nothing() -> None:
+    aws = Aws({**EXECUTED, ("ec2", "DescribeInstances"): {"Reservations": []}})
+    run(BUDGET_CHECK, aws)
+    assert aws.stops() == [] and aws.alerts() == []

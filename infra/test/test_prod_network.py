@@ -4,8 +4,10 @@ read with group 1's standard-library reader, tools/gates/infra_policy.py's, neve
 
 What the root must hold:
   - one VPC, a public subnet with a route to the internet gateway and a private one with none, in one zone;
-  - the tunnel end: one instance with two interfaces, the public one at 10.42.0.10 with the Elastic IP and the private
-    one at 10.42.1.10, IMDSv2 with hop limit 1 (T13), spot, persistent, stopping on interruption (T11);
+  - the tunnel end: from spec 032, one launch template for each type on its list (no instance Terraform holds: it
+    forgets the one it made, never destroying it, and reads the current one by its Name tag), each taking the two
+    interfaces by ID, the private one at 10.42.1.10 as device 0 and the public one at 10.42.0.10, with the Elastic IP,
+    as device 1, IMDSv2 with hop limit 1 (T13), spot, persistent, stopping on interruption (T11);
   - its security groups: 2222 from anywhere and 8087 from Route 53's health checkers on the public interface, 8080 from
     CloudFront's origin-facing list and from its VPC origins' own group on the private one, and nothing else in. The
     VPC origin connects from that group, CloudFront-VPCOrigins-Service-SG, read by name in prod's VPC at plan time;
@@ -29,12 +31,14 @@ What the root must hold:
     true from W2's P-W2, which a test T175 flipped holds (plan.md §16, "Why a switch"; group 5's review, I8);
   - neither root reading the other: nothing under infra/account names a prod instance or health check, or reads prod's
     state; nothing under infra/prod reads, by a data source or a remote state, what the account makes;
-  - the tunnel end's type as local.tunnel_end_type in the unprotected tunnel-end.tf, "t4g.small", T166's measured type
-    (2026-11-13: "The type, the larger of the two (R-33's rule on the peaks and on the limits): t4g.small."); the
-    instance reads it, no other file sets a type, and a precondition still refuses the placeholder, "measure-in-T166";
-  - a changed host file, or a new local.tunnel_end_generation (an OS update), replaces the tunnel end in the plan:
-    terraform_data.tunnel_end_host in tunnel-end.tf holds the user data's SHA-256 and the generation, and the instance
-    is replace_triggered_by it, though it ignores its user data's and its image's drift (group 5's review, I3).
+  - the tunnel end's types as local.tunnel_end_types in the unprotected tunnel-end.tf, first "t4g.small", T166's
+    measured type (2026-11-13: "The type, the larger of the two (R-33's rule on the peaks and on the limits):
+    t4g.small."), then Graviton types with its memory or more, each with a price ceiling no higher than the first
+    type's on-demand price (spec 032 FR-001, FR-002); each template reads its own type, and no other file sets one;
+  - a changed host file, or a new local.tunnel_end_generation (an OS update), replaces the tunnel end's templates in the
+    plan: terraform_data.tunnel_end_host in tunnel-end.tf holds the user data's SHA-256 and the generation, and the
+    templates are replace_triggered_by it, though they ignore their user data's and their image's drift (group 5's
+    review, I3); the running tunnel end moves onto them by the Author's hand replace (spec 032 FR-010).
 
 ec2-market.tf, iam.tf, and handover.tf (both roots') are protected, so they reach the branch only with the Author's
 patch, P-I3 (docs/merge-requests/2026-11-13-feat-001-pi3-tunnel-end.patch). Until he applies it these tests read them
@@ -114,7 +118,32 @@ PROD_DATA = {
     # Fix F1: CloudFront's VPC origins' own group, which CloudFront makes in prod's VPC once an origin exists, and no
     # root makes. check_reads takes this type for that group's name alone.
     "aws_security_group",
+    # Spec 032 (FR-015): prod's own hosts, the instances h4-ec2-start launched from prod's templates, by their Name tags.
+    "aws_instance",
 }
+# Spec 032 (FR-001, FR-002): AWS's on-demand list prices, Linux, us-east-1, in US dollars an hour, and each type's
+# memory in GiB, as its research R-9 records them; the Author confirms the prices before his apply (SC-006).
+ON_DEMAND = {
+    "t4g.small": 0.0168,
+    "t4g.medium": 0.0336,
+    "t4g.large": 0.0672,
+    "t4g.xlarge": 0.1344,
+    "c7g.medium": 0.0363,
+    "c6g.medium": 0.0340,
+    "m7g.large": 0.0816,
+    "m6g.large": 0.0770,
+}
+MEMORY_GIB = {
+    "t4g.small": 2,
+    "t4g.medium": 4,
+    "t4g.large": 8,
+    "t4g.xlarge": 16,
+    "c7g.medium": 2,
+    "c6g.medium": 2,
+    "m7g.large": 8,
+    "m6g.large": 8,
+}
+GRAVITON = re.compile(r"[a-z][0-9]+g[a-z]*\.[a-z0-9]+")
 # The group a VPC origin connects from (fix F1), and the private group as applied: a change to its name or its
 # description replaces it, and the interface that holds it with it.
 VPC_ORIGINS_GROUP = "CloudFront-VPCOrigins-Service-SG"
@@ -349,42 +378,57 @@ def check_network(root: dict[str, list]) -> list[str]:
     return found
 
 
-def instance(root: dict[str, list]):
-    return one(root, "aws_instance", "tunnel_end")
+def templates(root: dict[str, list]):
+    return one(root, "aws_launch_template", "tunnel_end")
+
+
+def removed_from(root: dict[str, list], address_: str):
+    """The removed block that forgets address_, if it keeps the object (destroy = false)."""
+    for b in blocks(root, "removed"):
+        lc = b.block("lifecycle")
+        if (
+            raw(b, "from") == address_
+            and lc is not None
+            and lit(lc, "destroy") is False
+        ):
+            return b
+    return None
 
 
 def check_instance(root: dict[str, list]) -> list[str]:
     found = []
-    i = instance(root)
-    if i is None:
-        return ["tunnel end: aws_instance.tunnel_end is missing"]
-    if where(root, i) != "ec2-market.tf":
-        found.append("tunnel end: the instance lives outside ec2-market.tf")
-    src = ip.Source("infra/prod/ec2-market.tf", "", ip.Body([i]))
+    t = templates(root)
+    if t is None:
+        return ["tunnel end: aws_launch_template.tunnel_end is missing"]
+    if where(root, t) != "ec2-market.tf":
+        found.append("tunnel end: the templates live outside ec2-market.tf")
+    if raw(t, "for_each") != "local.tunnel_end_templates":
+        found.append(
+            "tunnel end: the templates aren't one for each type on local.tunnel_end_types"
+        )
+    src = ip.Source("infra/prod/ec2-market.tf", "", ip.Body([t]))
     for f in ip.t11_spot(src) + ip.t13_imds(src):
         found.append(f"tunnel end: {f.message}")
+    spot = t.block("instance_market_options")
+    so = spot.block("spot_options") if spot is not None else None
+    if so is None or raw(so, "max_price") != "each.value.max_price":
+        found.append("tunnel end: a template doesn't carry its type's price ceiling")
     # B-6, option C (the Author's answer: "We aren't building option A, we went with Option C"): the private interface
     # is the instance's primary, device 0, so the instance sits in the private subnet, where AWS documents a VPC
     # origin's instance, and the origin reaches 10.42.1.10, where the relay listens; the public one, with the Elastic
-    # IP, is its second, device 1. Built before W1's apply: moving the primary interface later replaces the tunnel end.
-    primary = i.block("primary_network_interface")
-    if primary is None or raw(primary, "network_interface_id") != (
-        "aws_network_interface.tunnel_end_private.id"
+    # IP, is its second, device 1. From spec 032 both by ID in each template, so every launch takes both.
+    interfaces = sorted(
+        (lit(n, "device_index"), raw(n, "network_interface_id"))
+        for n in t.blocks("network_interfaces")
+    )
+    if not interfaces or interfaces[0] != (
+        0,
+        "aws_network_interface.tunnel_end_private.id",
     ):
         found.append(
             "tunnel end: its primary interface isn't the private one, device 0 (B-6, option C)"
         )
-    attachments = [
-        a
-        for a in resource(root, "aws_network_interface_attachment")
-        if raw(a, "instance_id") == "aws_instance.tunnel_end.id"
-    ]
-    if (
-        len(attachments) != 1
-        or raw(attachments[0], "network_interface_id")
-        != "aws_network_interface.tunnel_end_public.id"
-        or lit(attachments[0], "device_index") != 1
-    ):
+    if interfaces[1:] != [(1, "aws_network_interface.tunnel_end_public.id")]:
         found.append("tunnel end: the public interface isn't its second, device 1")
     for name, subnet, addr, group in (
         ("tunnel_end_public", "public", PUBLIC_ADDRESS, "tunnel_end_public"),
@@ -408,63 +452,132 @@ def check_instance(root: dict[str, list]) -> list[str]:
         or lit(eips[0], "domain") != "vpc"
     ):
         found.append("tunnel end: its one Elastic IP isn't on the public interface")
-    if raw(i, "iam_instance_profile") != "aws_iam_instance_profile.tunnel_end.name":
-        found.append("tunnel end: it doesn't run as its instance profile")
-    root_disk = i.block("root_block_device")
+    profile = t.block("iam_instance_profile")
     if (
-        root_disk is None
-        or lit(root_disk, "encrypted") is not True
-        or lit(root_disk, "volume_type") != "gp3"
+        profile is None
+        or raw(profile, "name") != "aws_iam_instance_profile.tunnel_end.name"
+    ):
+        found.append("tunnel end: it doesn't run as its instance profile")
+    disks = [m.block("ebs") for m in t.blocks("block_device_mappings")]
+    if (
+        len(disks) != 1
+        or disks[0] is None
+        or lit(disks[0], "encrypted") is not True
+        or lit(disks[0], "volume_type") != "gp3"
     ):
         found.append("tunnel end: its root volume isn't encrypted gp3")
-    credits = i.block("credit_specification")
-    if credits is None or lit(credits, "cpu_credits") != "standard":
+    credits = [d for d in t.blocks("dynamic") if d.labels == ["credit_specification"]]
+    if not (
+        len(credits) == 1
+        and re.sub(r"\s+", "", raw(credits[0], "for_each"))
+        == 'startswith(each.key,"t")?["standard"]:[]'
+    ):
         found.append("tunnel end: its CPU credits aren't standard (research.md R-04)")
+    tagged = [d for d in t.blocks("dynamic") if d.labels == ["tag_specifications"]]
+    content = tagged[0].block("content") if len(tagged) == 1 else None
+    tags = lit(content, "tags") if content is not None else None
+    if not (
+        isinstance(tags, dict)
+        and tags.get("Name") == "h4-prod-tunnel-end"
+        and tags.get("project") == "h4reet-ai"
+        and tags.get("component") == "tunnel-end"
+        and '"instance"' in raw(tagged[0], "for_each")
+        and '"volume"' in raw(tagged[0], "for_each")
+    ):
+        found.append(
+            "tunnel end: what a template launches isn't tagged Name = h4-prod-tunnel-end with project and component"
+        )
+    if resource(root, "aws_instance"):
+        found.append(
+            "tunnel end: prod holds an instance; h4-ec2-start launches the hosts (spec 032)"
+        )
+    for gone in (
+        "aws_instance.tunnel_end",
+        "aws_network_interface_attachment.tunnel_end_public",
+    ):
+        if removed_from(root, gone) is None:
+            found.append(
+                f"tunnel end: {gone} isn't forgotten by a removed block that keeps it"
+            )
+    current = one(root, "aws_instance", "tunnel_end", kind="data")
+    if current is None or "h4-prod-tunnel-end" not in raw(
+        current.block("filter"), "values"
+    ):
+        found.append(
+            "tunnel end: the root doesn't read the current tunnel end by its Name tag"
+        )
     return found
 
 
 def check_type(root: dict[str, list]) -> list[str]:
     found = []
-    mine = locals_in(root, "tunnel-end.tf").get("tunnel_end_type")
-    if mine is None or ip.literal(mine) != MEASURED_TYPE:
-        found.append(
-            f"type: tunnel-end.tf's local.tunnel_end_type isn't \"{MEASURED_TYPE}\", T166's measured type"
-        )
+    mine = locals_in(root, "tunnel-end.tf")
+    listed = (
+        ip.literal(mine["tunnel_end_types"]) if "tunnel_end_types" in mine else None
+    )
+    if not (
+        isinstance(listed, list)
+        and listed
+        and all(isinstance(e, dict) and {"type", "max_price"} <= set(e) for e in listed)
+    ):
+        return [
+            "type: tunnel-end.tf's local.tunnel_end_types isn't a list of types and ceilings"
+        ]
+    found += type_list_problems(listed, MEASURED_TYPE, "tunnel end")
     elsewhere = [
         name
         for name in root
-        if name != "tunnel-end.tf" and "tunnel_end_type" in locals_in(root, name)
+        if name != "tunnel-end.tf"
+        and {"tunnel_end_type", "tunnel_end_types"} & set(locals_in(root, name))
     ]
     if elsewhere:
         found.append(
-            f"type: local.tunnel_end_type is set in {', '.join(elsewhere)} too"
+            f"type: the tunnel end's types are set in {', '.join(elsewhere)} too"
         )
+    t = templates(root)
+    if t is None or raw(t, "instance_type") != "each.key":
+        found.append("type: a tunnel end template doesn't read its own type")
+    # EC2's are ec2.tf's (test_prod_ec2.py); nothing else sets a type.
     typed = [b for b in blocks(root, "resource") if b.attr("instance_type") is not None]
-    i = instance(root)
-    if i is None or raw(i, "instance_type") != "local.tunnel_end_type":
-        found.append("type: the tunnel end doesn't read local.tunnel_end_type")
-    # EC2's is ec2.tf's local.ec2_type (test_prod_ec2.py); nothing else sets one.
-    if [address(b) for b in typed if b is not i and address(b) != "aws_instance.ec2"]:
+    if [
+        address(b)
+        for b in typed
+        if address(b)
+        not in ("aws_launch_template.tunnel_end", "aws_launch_template.ec2")
+    ]:
         found.append("type: another resource sets an instance type")
-    conditions = (
-        [
-            raw(p, "condition")
-            for lc in i.blocks("lifecycle")
-            for p in lc.blocks("precondition")
-        ]
-        if i is not None
-        else []
-    )
-    if not any(
-        re.fullmatch(rf'local\.tunnel_end_type\s*!=\s*"{PLACEHOLDER}"', c.strip())
-        for c in conditions
-    ):
-        found.append("type: no precondition refuses the placeholder")
+    return found
+
+
+def type_list_problems(listed: list, first: str, host: str) -> list[str]:
+    """Spec 032 FR-001, FR-002: the first type first; Graviton types alone, each with the first's memory or more, each
+    once; each ceiling a number no higher than the first type's on-demand price."""
+    found = []
+    types = [e["type"] for e in listed]
+    if types[0] != first:
+        found.append(f"type: the {host}'s first type isn't \"{first}\"")
+    if len(set(types)) != len(types):
+        found.append(f"type: a {host} type is listed twice")
+    for kind in types:
+        if not GRAVITON.fullmatch(str(kind)) or kind not in MEMORY_GIB:
+            found.append(f"type: {kind} isn't a Graviton type this check knows")
+        elif MEMORY_GIB[kind] < MEMORY_GIB.get(first, 0):
+            found.append(f"type: {kind} has less memory than {first}")
+    for e in listed:
+        try:
+            ceiling = float(e["max_price"])
+        except (TypeError, ValueError):
+            found.append(f"type: {e['type']}'s ceiling isn't a price")
+            continue
+        if not 0 < ceiling <= ON_DEMAND.get(first, 0):
+            found.append(
+                f"type: {e['type']}'s ceiling is above {first}'s on-demand price (spec 032 FR-002)"
+            )
     return found
 
 
 def check_host_replace(root: dict[str, list]) -> list[str]:
-    """A changed host file, or a new generation, plans as the tunnel end's replace (group 5's review, I3)."""
+    """A changed host file, or a new generation, plans as the templates' replace (group 5's review, I3; spec 032)."""
     found = []
     held = one(root, "terraform_data", "tunnel_end_host")
     generation = locals_in(root, "tunnel-end.tf").get("tunnel_end_generation")
@@ -479,17 +592,19 @@ def check_host_replace(root: dict[str, list]) -> list[str]:
         )
     if generation is None or not isinstance(ip.literal(generation), int):
         found.append("host: tunnel-end.tf's local.tunnel_end_generation isn't a number")
-    i = instance(root)
-    triggers = (
-        [raw(lc, "replace_triggered_by") for lc in i.blocks("lifecycle")]
-        if i is not None
-        else []
-    )
-    if triggers != ["[terraform_data.tunnel_end_host]"]:
+    t = templates(root)
+    lifecycles = t.blocks("lifecycle") if t is not None else []
+    if [raw(lc, "replace_triggered_by") for lc in lifecycles] != [
+        "[terraform_data.tunnel_end_host]"
+    ]:
         found.append(
             "host: a changed host file or a new generation doesn't replace the tunnel end"
         )
-    metadata = i.block("metadata_options") if i is not None else None
+    if [raw(lc, "ignore_changes") for lc in lifecycles] != ["[image_id, user_data]"]:
+        found.append(
+            "host: the templates don't ignore their image's and their user data's drift"
+        )
+    metadata = t.block("metadata_options") if t is not None else None
     if metadata is not None and lit(metadata, "instance_metadata_tags") == "enabled":
         found.append(
             "host: the instance's tags are in its metadata, which nothing on it reads"
@@ -822,7 +937,7 @@ def check_warning_rule(root: dict[str, list]) -> list[str]:
     if not (
         '"aws.ec2"' in pattern
         and '"EC2 Spot Instance Interruption Warning"' in pattern
-        and "aws_instance.tunnel_end.id" in pattern
+        and "data.aws_instance.tunnel_end.id" in pattern
     ):
         found.append(
             "warning: the rule doesn't match the tunnel end's own interruption warning, from this root"
@@ -872,7 +987,7 @@ def check_return_rule(root: dict[str, list]) -> list[str]:
         '"aws.ec2"' in pattern
         and '"EC2 Instance State-change Notification"' in pattern
         and re.search(r'state\s*=\s*\["running"\]', pattern)
-        and "aws_instance.tunnel_end.id" in pattern
+        and "data.aws_instance.tunnel_end.id" in pattern
     ):
         found.append(
             "return: the rule doesn't match the tunnel end entering running, from this root"
@@ -1300,7 +1415,7 @@ def test_the_tunnel_end_two_interfaces_its_address_imdsv2_and_spot_that_stops() 
     assert check_instance(parsed(root_texts())) == []
 
 
-def test_the_type_is_the_unprotected_local_and_the_placeholder_is_refused() -> None:
+def test_the_types_are_the_unprotected_list_each_template_reads_its_own() -> None:
     assert check_type(parsed(root_texts())) == []
 
 
@@ -1415,16 +1530,17 @@ def test_the_walk_reads_every_file_of_prods_root() -> None:
 
 def test_the_walk_reads_each_other_edge_of_the_chain_the_review_named() -> None:
     # The four edges that stay, so the walk isn't blind to them: the private group's 8080 names the read; the private
-    # interface holds the private group; the instance's primary interface is the private one; the VPC origin targets
-    # the instance.
+    # interface holds the private group; the templates' primary interface is the private one; and, from spec 032, the
+    # VPC origin targets the tunnel end this root reads by its tag.
     edges = graph(parsed(root_texts()))
     read = "data.aws_security_group.cloudfront_vpc_origins"
     assert read in edges[PRIVATE_GROUP]
     assert PRIVATE_GROUP in edges["aws_network_interface.tunnel_end_private"]
     assert (
-        "aws_network_interface.tunnel_end_private" in edges["aws_instance.tunnel_end"]
+        "aws_network_interface.tunnel_end_private"
+        in edges["aws_launch_template.tunnel_end"]
     )
-    assert "aws_instance.tunnel_end" in edges["aws_cloudfront_vpc_origin.relay"]
+    assert "data.aws_instance.tunnel_end" in edges["aws_cloudfront_vpc_origin.relay"]
 
 
 def test_the_walk_reads_references_and_depends_on_never_a_strings_words_or_a_comment() -> (

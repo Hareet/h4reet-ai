@@ -1,5 +1,7 @@
 # The server action's role able to stop any instance in the account.
 # expect: server action: its role may do more than that document on EC2
+# expect: server action: ec2:StartInstances isn't held to the instance tagged h4-prod-ec2
+# expect: server action: ec2:StopInstances isn't held to the instance tagged h4-prod-ec2
 data "aws_iam_policy_document" "server_action" {
   statement {
     sid     = "TheStopDocumentAndItsReverse"

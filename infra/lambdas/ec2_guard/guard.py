@@ -6,6 +6,8 @@ What invokes it, and how it knows which:
 
     running        EventBridge's "EC2 Instance State-change Notification" into running, prod's h4-ec2-running rule
     hours_close    {"from": "hours_close"}, the schedule h4-ec2-hours-close
+    budget_check   {"from": "budget_check"}, the schedule h4-ec2-budget-check, every 5 minutes (spec 032's rework):
+                   every running EC2 stops while the server action has run; nothing else is read
 
 Each run:
 
@@ -186,8 +188,8 @@ class Run:
 def trigger_of(event: object) -> str | None:
     if not isinstance(event, dict):
         return None
-    if event.get("from") == "hours_close":
-        return "hours_close"
+    if event.get("from") in ("hours_close", "budget_check"):
+        return str(event["from"])
     detail = event.get("detail")
     if (
         event.get("detail-type") == "EC2 Instance State-change Notification"
@@ -291,6 +293,8 @@ def guard(event: object, context: object, aws, now: datetime) -> Run:
         run.record("ec2_guard_failed", code="unknown_trigger")
         return run
     run = Run(trigger)
+    if trigger == "budget_check":
+        return budget_check(aws, context, run)
     # 1. The instance Terraform made, by its parameter (research.md R-15, amended).
     # At the close no parameter is needed: every running tagged instance stops (group 9's review A, nit 1).
     named: str | None
@@ -320,6 +324,13 @@ def guard(event: object, context: object, aws, now: datetime) -> Run:
         for i in r.get("Instances") or []
         if isinstance(i, dict) and isinstance(i.get("InstanceId"), str)
     ]
+    # From spec 032's rework, h4-ec2-running matches every instance entering running, so a replaced EC2 is guarded
+    # before the next prod apply re-points the rule: another instance's, the tunnel end's among them, is left alone.
+    detail = event.get("detail") if isinstance(event, dict) else None
+    entered = detail.get("instance-id") if isinstance(detail, dict) else None
+    if trigger == "running" and entered not in found:
+        run.record("not_ec2")
+        return run
     for other in [i for i in found if i != named]:
         if named is None:
             stop(aws, run, other, "ec2_stopped_outside_hours")
@@ -331,6 +342,43 @@ def guard(event: object, context: object, aws, now: datetime) -> Run:
         if reason is not None:
             kind, unread = reason
             stop(aws, run, named, kind, unread=unread)
+    if not run.outcomes:
+        run.record("nothing")
+    return run
+
+
+def budget_check(aws, context: object, run: Run) -> Run:
+    """Every 5 minutes (spec 032's rework): while the server action has run and isn't reversed, every running instance
+    tagged h4-prod-ec2 stops, whichever instance the action itself names, so a replace before the next prod apply
+    leaves no gap but these minutes. It reads nothing else; a failed read counts as the action having run, as in the
+    table. Nothing to do is a plain log line, never a metric."""
+    try:
+        answer = aws.call(
+            "ec2",
+            "DescribeInstances",
+            Filters=[
+                {"Name": "tag:Name", "Values": [EC2_NAME]},
+                {"Name": "instance-state-name", "Values": ["pending", "running"]},
+            ],
+        )
+    except AwsError as exc:
+        run.record("ec2_guard_failed", unread=True, unread_code=exc.code)
+        return run
+    running = [
+        i["InstanceId"]
+        for r in answer.get("Reservations") or []
+        for i in r.get("Instances") or []
+        if isinstance(i, dict) and isinstance(i.get("InstanceId"), str)
+    ]
+    if running:
+        unread: str | None = None
+        try:
+            clear = server_action_clear(aws, account_of(context))
+        except AwsError as exc:
+            clear, unread = False, exc.code
+        if not clear:
+            for instance_id in running:
+                stop(aws, run, instance_id, "ec2_stopped_server_budget", unread=unread)
     if not run.outcomes:
         run.record("nothing")
     return run
@@ -352,7 +400,7 @@ def message(trigger: str, kind: str, facts: list[tuple[str, str]]) -> str:
 
 
 def alerted(trigger: str, kind: str, unread: bool) -> bool:
-    if kind == "nothing":
+    if kind in ("nothing", "not_ec2"):
         return False
     if trigger != "hours_close" or unread or kind in ALWAYS_ALERTED:
         return True
@@ -393,6 +441,13 @@ def handler(
         run.record("ec2_guard_failed", code=type(exc).__name__)
     topic = os.environ.get("H4_ALERTS_TOPIC_ARN", "")
     for kind, facts, unread in run.outcomes:
+        if kind == "not_ec2" or (run.trigger == "budget_check" and kind == "nothing"):
+            print(
+                json.dumps(
+                    {"function": FUNCTION, "trigger": run.trigger, "outcome": kind}
+                )
+            )
+            continue
         print(json.dumps(emf(run.trigger, kind, at), sort_keys=True))
         if alerted(run.trigger, kind, unread):
             try:

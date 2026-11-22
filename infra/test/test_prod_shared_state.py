@@ -97,19 +97,20 @@ def check_volume(r: dict[str, list]) -> list[str]:
     tags = lit(v, "tags")
     if not (isinstance(tags, dict) and tags.get("component") == "shared-state"):
         found.append("volume: it isn't tagged component = shared-state")
-    # The shared state's volume's attachments, and anything attached to the tunnel end: EC2's data volume is its own
-    # (group 7, test_prod_ec2.py).
-    attachments = [
-        a
-        for a in resource(r, "aws_volume_attachment")
-        if "shared_state" in raw(a, "volume_id")
-        or raw(a, "instance_id") == "aws_instance.tunnel_end.id"
-    ]
-    if [
-        (lit(a, "device_name"), raw(a, "instance_id"), raw(a, "volume_id"))
-        for a in attachments
-    ] != [("/dev/sdf", "aws_instance.tunnel_end.id", "aws_ebs_volume.shared_state.id")]:
-        found.append("volume: it isn't attached to the tunnel end alone, as /dev/sdf")
+    # From spec 032 (FR-007, FR-015) h4-ec2-start attaches the volume at /dev/sdf to each tunnel end it launches, finding
+    # it by its Name tag; Terraform attaches nothing, and forgets the attachment it made, never detaching it.
+    if not (isinstance(tags, dict) and tags.get("Name") == "h4-shared-state"):
+        found.append(
+            "volume: it isn't named h4-shared-state, by which h4-ec2-start finds it"
+        )
+    if resource(r, "aws_volume_attachment"):
+        found.append(
+            "volume: Terraform attaches it, which h4-ec2-start does for each tunnel end it launches (spec 032)"
+        )
+    if net.removed_from(r, "aws_volume_attachment.shared_state") is None:
+        found.append(
+            "volume: its attachment isn't forgotten by a removed block that keeps it, so the plan would detach it"
+        )
     return found
 
 
