@@ -155,6 +155,12 @@ class StandIn:
         self.lag = 0  # answer this many dashboard writes 404, as a fresh widget's placement does (research R-3)
         self.page_size = 4
         self.omit_descriptions = False
+        self.update_method = (
+            "PATCH"  # the update method the stand-in takes; the other answers 405
+        )
+        self.refuse_board_writes = (
+            0  # answer this many dashboard writes 400, as a changed body shape would be
+        )
         self.next_id = 0
         self.server: http.server.ThreadingHTTPServer | None = None
 
@@ -303,13 +309,21 @@ class StandIn:
                 return 404, {"message": "widget not found"}
             if method == "GET":
                 return 200, self.widgets[wid]
-            if method == "PATCH":
+            if method in ("PATCH", "PUT"):
+                if method != self.update_method:
+                    return 405, {"message": "Method Not Allowed"}
                 problem = self.bad_widget(body)
                 if problem:
                     return 400, {"message": problem}
                 self.widgets[wid].update(body)
                 return 200, self.widgets[wid]
             if method == "DELETE":
+                if any(
+                    p.get("widgetId") == wid
+                    for d in self.dashboards.values()
+                    for p in d.get("definition", {}).get("widgets", [])
+                ):
+                    return 409, {"message": "widget is placed on a dashboard"}
                 del self.widgets[wid]
                 return 200, {"message": "deleted"}
         if path == dashboards:
@@ -320,9 +334,9 @@ class StandIn:
                 ]
                 return 200, self.page(listed, query)
             if method == "POST":
-                lag = self.lagging(body)
-                if lag:
-                    return lag
+                refused = self.refusing() or self.lagging(body)
+                if refused:
+                    return refused
                 obj = {
                     "id": self.new_id("d"),
                     "owner": "PROJECT",
@@ -337,16 +351,24 @@ class StandIn:
                 return 404, {"message": "dashboard not found"}
             if method == "GET":
                 return 200, self.dashboards[did]
-            if method == "PATCH":
-                lag = self.lagging(body)
-                if lag:
-                    return lag
+            if method in ("PATCH", "PUT"):
+                if method != self.update_method:
+                    return 405, {"message": "Method Not Allowed"}
+                refused = self.refusing() or self.lagging(body)
+                if refused:
+                    return refused
                 self.dashboards[did].update(body)
                 return 200, self.dashboards[did]
             if method == "DELETE":
                 del self.dashboards[did]
                 return 200, {"message": "deleted"}
         return 404, {"message": f"no route {method} {path}"}
+
+    def refusing(self) -> tuple[int, Any] | None:
+        if self.refuse_board_writes > 0:
+            self.refuse_board_writes -= 1
+            return 400, {"message": "Invalid request body: definition.widgets[0].id"}
+        return None
 
     def lagging(self, body: Any) -> tuple[int, Any] | None:
         if self.lag > 0:
@@ -1253,6 +1275,155 @@ def test_the_requests_carry_no_proxy_and_follow_no_redirect(
         client.call("GET", "/redirect")
     assert caught.value.status == 302
     assert [p for _, p, _, _ in standin.requests] == ["/api/openapi.yaml", "/redirect"]
+
+
+def test_a_write_refused_part_way_stops_and_a_second_run_finishes(
+    standin: StandIn, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The likeliest outcome of the Author's first run, if a body's shape changed (analysis A-1; review F1): the writes
+    # before the refusal stay, marked, and the next run makes only what is missing.
+    standin.refuse_board_writes = 1
+    code, out = run(standin, tmp_path, "--apply", capsys=capsys)
+    assert code == 1
+    assert (
+        "Langfuse refused POST /api/public/unstable/dashboards: 400 Invalid request body"
+        in out
+    )
+    assert len(standin.managed(standin.widgets)) == 17
+    assert standin.dashboards == {}
+    before = len(standin.requests)
+    code, out = run(standin, tmp_path, "--apply", capsys=capsys)
+    assert code == 0, out
+    posts = [p for m, p, _, _ in standin.requests[before:] if m == "POST"]
+    assert posts == [f"{PREFIX}/dashboards"] * 2
+    assert len(standin.managed(standin.widgets)) == 17
+    assert len(standin.managed(standin.dashboards)) == 2
+
+
+def test_a_dashboard_made_by_hand_is_left_alone(
+    standin: StandIn, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # US2's scenario 3, for a dashboard: no mark, no change, even when it places a managed widget.
+    run(standin, tmp_path, "--apply", capsys=capsys)
+    placed = next(iter(standin.widgets))
+    standin.dashboards["d950"] = {
+        "id": "d950",
+        "name": "His own",
+        "description": "made in Langfuse's UI",
+        "definition": {
+            "widgets": [
+                {
+                    "id": "p1",
+                    "type": "widget",
+                    "widgetId": placed,
+                    "x": 0,
+                    "y": 0,
+                    "x_size": 6,
+                    "y_size": 6,
+                }
+            ]
+        },
+    }
+    kept = json.dumps(standin.dashboards["d950"], sort_keys=True)
+    before = len(standin.requests)
+    code, out = run(standin, tmp_path, "--apply", capsys=capsys)
+    assert code == 0, out
+    assert json.dumps(standin.dashboards["d950"], sort_keys=True) == kept
+    assert [r for r in standin.requests[before:] if r[0] != "GET"] == []
+
+
+def test_a_stale_widget_a_dashboard_places_is_unplaced_before_it_is_deleted(
+    standin: StandIn, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # US2's scenario 4: the dashboard is rewritten first, so the widget is deleted once nothing places it (the
+    # stand-in refuses to delete a placed widget).
+    run(standin, tmp_path, "--apply", capsys=capsys)
+    standin.widgets["w900"] = {
+        "id": "w900",
+        "name": "Old",
+        "description": "x\n\n[h4 traces/old]",
+    }
+    board = next(
+        d
+        for d in standin.dashboards.values()
+        if d["description"].endswith("[h4 traces]")
+    )
+    board["definition"]["widgets"].append(
+        {
+            "id": "h4-traces-old",
+            "type": "widget",
+            "widgetId": "w900",
+            "x": 0,
+            "y": 16,
+            "x_size": 6,
+            "y_size": 5,
+        }
+    )
+    before = len(standin.requests)
+    code, out = run(standin, tmp_path, "--apply", capsys=capsys)
+    assert code == 0, out
+    writes = [(m, p) for m, p, _, _ in standin.requests[before:] if m != "GET"]
+    assert writes == [
+        ("PATCH", f"{PREFIX}/dashboards/{board['id']}"),
+        ("DELETE", f"{PREFIX}/dashboard-widgets/w900"),
+    ]
+    assert "w900" not in standin.widgets
+    assert "w900" not in {p["widgetId"] for p in board["definition"]["widgets"]}
+
+
+def test_an_instance_that_updates_by_put_is_updated_by_put(
+    standin: StandIn, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The update method is the one the instance's API description lists (plan D3.1).
+    assert standin.spec
+    for name in ("unstable_dashboardWidgets_update", "unstable_dashboards_update"):
+        standin.spec = standin.spec.replace(
+            f"    patch:\n      operationId: {name}",
+            f"    put:\n      operationId: {name}",
+        )
+    standin.update_method = "PUT"
+    code, out = run(standin, tmp_path, "--apply", capsys=capsys)
+    assert code == 0, out
+    assert "(update: PUT)" in out
+    widget = next(
+        w
+        for w in standin.widgets.values()
+        if w["description"].endswith("[h4 traces/slowest]")
+    )
+    widget["name"] = "Renamed in the UI"
+    board = next(
+        d
+        for d in standin.dashboards.values()
+        if d["description"].endswith("[h4 traces]")
+    )
+    board["definition"]["widgets"][0]["x"] = 3
+    before = len(standin.requests)
+    code, out = run(standin, tmp_path, "--apply", capsys=capsys)
+    assert code == 0, out
+    writes = [(m, p) for m, p, _, _ in standin.requests[before:] if m != "GET"]
+    assert writes == [
+        ("PUT", f"{PREFIX}/dashboard-widgets/{widget['id']}"),
+        ("PUT", f"{PREFIX}/dashboards/{board['id']}"),
+    ]
+    assert widget["name"] == "The slowest traces"
+    assert board["definition"]["widgets"][0]["x"] == 0
+
+
+def test_names_and_ids_from_langfuse_reach_the_terminal_without_control_characters(
+    standin: StandIn, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Review F5: dev-cpu's Langfuse takes writes with its public dummy keys, so a marked widget's name or ID can carry an
+    # escape sequence (OSC 52 sets a terminal's clipboard). What the command prints from Langfuse is shown with its
+    # control characters replaced, as a refusal's text is.
+    standin.widgets["w9\x1b[2J"] = {
+        "id": "w9\x1b[2J",
+        "name": "Old\x1b]52;c;payload\x07name\x9b",
+        "description": "x\n\n[h4 traces/old]",
+    }
+    code, out = run(standin, tmp_path, capsys=capsys)
+    assert code == 0, out
+    assert "\x1b" not in out and "\x07" not in out and "\x9b" not in out
+    assert 'delete widget: traces/old (w9?[2J), "Old?]52;c;payload?name?"' in out
 
 
 # --- The recipe (FR-010) --------------------------------------------------------------------------------------------
