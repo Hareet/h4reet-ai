@@ -1165,6 +1165,39 @@ def test_the_waits_end_inside_the_functions_time() -> None:
     assert result["reason"] == "start_failed"
     assert facts(c.alerts()[0])["code"] == "wait_timeout"
     assert c.clock.slept <= 200 - start.MARGIN_S
+    # Since fix/032-launch-policy, 140 s of run is short of COMMIT_S, so this run refuses before the cancel and never
+    # reaches the stuck terminate (the review's finding 4); the test below holds the wait after a cancel.
+
+
+class Shortish(Context):
+    """Lambda's context with 400 s left: enough for the cancel (340 s of run, over COMMIT_S), short of a whole replace."""
+
+    def get_remaining_time_in_millis(self) -> int:
+        return 400_000
+
+
+# The branch's review, finding 4: FR-007b after a cancel. The terminate is sent, its wait never sees it terminated, and
+# the run still refuses wait_timeout at step terminate, MARGIN_S before Lambda's limit, with its lock released.
+def test_the_wait_after_a_cancel_ends_inside_the_functions_time() -> None:
+    c = cloud()
+    c.short = {"t4g.large"}
+    original = c.ec2_TerminateInstances
+
+    def stuck(InstanceIds):
+        original(InstanceIds)
+        c.stuck.update(InstanceIds)
+
+    c.ec2_TerminateInstances = stuck  # type: ignore[method-assign]
+    result = start.handler(
+        ALARM, Shortish(), aws=c, now=c.clock.now, sleep=c.clock.sleep
+    )
+    assert result["reason"] == "start_failed"
+    assert c.ops("CancelSpotInstanceRequests") and c.ops("TerminateInstances")
+    f = facts(c.alerts()[0])
+    assert (f["code"], f["step"]) == ("wait_timeout", "terminate")
+    assert 0 < c.clock.slept <= 400 - start.MARGIN_S
+    assert not [p for p in c.ops("RunInstances") if not p.get("DryRun")]
+    assert "/h4reet/prod/host-lock" not in c.params
 
 
 # fix/032-launch-policy, from the first real replace on AWS (2026-11-22): the dry runs took up to 40 s each, a call
