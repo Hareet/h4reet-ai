@@ -60,7 +60,7 @@ From the worktree, `UV_CACHE_DIR=$TMPDIR/uv uv run --offline --frozen pytest -q 
 
 - RED, each at its own commit: `f5d0fb6d` (the policy, the audit, the message) `19 failed, 281 passed` over `infra/lambdas/credential_audit infra/lambdas/ec2_start infra/test/test_handover.py`; `8cad47d5` (the hand start) `5 failed, 175 passed` over `infra/lambdas/ec2_start scripts/infra/test_ec2_ops.py`; `c3fb7ddb` (memory, timeouts, deadline) `5 failed, 180 passed` over `infra/lambdas/ec2_start infra/test/test_handover.py`; `07ceccfa` (one client a service) `1 failed`; `c2a42aaa` (the client token) `3 failed, 143 passed` over `infra/lambdas/ec2_start`.
 - GREEN at `5b07c8a4`: `infra/lambdas scripts/infra/test_ec2_ops.py infra/test`, `814 passed in 18.50s`; on an export of `5b07c8a4` with the patch applied, the same, `814 passed in 17.15s`.
-- `make -f Makefile lint` (after `npm ci --cache $TMPDIR/npm`): `-> PASS lint` (eslint, tsc, Prettier `All matched files use Prettier code style!`, ruff `All checks passed!`, `974 files already formatted`, shellcheck).
+- `make -f Makefile lint` (after `npm ci --cache $TMPDIR/npm`), on the final tree: exit 0 (eslint `--max-warnings 0`, tsc, Prettier `All matched files use Prettier code style!`, ruff `All checks passed!`, `975 files already formatted`, shellcheck).
 - `make -f Makefile check ENGINE_MODE=none-yet`, on the tree with every code change above:
 
 ```text
