@@ -205,3 +205,15 @@ Run over spec.md, plan.md, research.md, and tasks.md after tasks.
 | A6 | Terminology | LOW | "replace" | Used for both the Terraform replace (templates) and the function's (instances) | the plan says which in each place |
 
 No CRITICAL or HIGH findings.
+
+## As built (2026-11-22, `fix/032-launch-policy`, after the account apply)
+
+The start function's by-hand dry runs (the start target with `REPLACE=…` and `DRY_RUN=1`) were refused `UnauthorizedOperation` for all eight types. CloudTrail's reasons: the tunnel end's four on `security-group/*`, the group of the existing interfaces its template attaches, which isn't "from the template", so the `ec2:IsLaunchTemplateResource` condition failed; EC2's four on `spot-instances-request/*`, for which AWS supplies no `ec2:LaunchTemplate`. CloudTrail cut the encoded message at 1,024 characters, so it couldn't be decoded. The Author put a corrected policy on `h4-ec2-start-fn` by hand, and every dry run answered `DryRunOperation`. This departs from §4 and the rework's Important 1 as follows ([ADR 0057](../../docs/adr/0057-spot-with-interchangeable-types.md), "Amended 2026-11-22"), and the patch P-032-launch-policy makes `iam.tf` render that policy exactly:
+
+- `LaunchOnlyAHost` (`instance/*`): `ec2:InstanceType` in `local.launch_types` and `ec2:InstanceMarketType = spot`; no `aws:RequestTag/Name` (the Name comes from the template's tags; `LaunchFromTheHostsTemplates` holds the template to a host's `component`).
+- `WhatALaunchFromATemplateMakes` (`volume/*`, `spot-instances-request/*`): no condition.
+- `OnlyTheTemplatesImage` (new, just before the next): `image/*` with `ec2:IsLaunchTemplateResource = true`. A request can't name another image, and a launch without a template is refused on its image, so every launch still goes through a template.
+- `WhatOnlyTheTemplateNames` (`network-interface/*`, `subnet/*`, `security-group/*`): no condition; all three are within this one-project account, and the type and market stay locked.
+- The credential audit's `RUN_KINDS` follows: the instance needs its type and market, the image `IsLaunchTemplateResource`, the rest nothing; `*`, an unknown kind, an instance without its type or market, and an image without its condition stay too broad.
+- The start function logs AWS's whole message for an `UnauthorizedOperation` (a dry run or a launch), its encoded part apart, so the next refusal decodes with `aws sts decode-authorization-message` in one step; the alert, the metric, and the result carry the code alone.
+- Found in the same session: `ec2_ops.py`'s hand start gave up at the CLI's default 60-second read timeout and the CLI sent it again; the second invocation found the first's lock and answered `busy`, printed as `start_failed`. The hand start now waits 960 seconds (the function's timeout is 900), is sent once (`AWS_MAX_ATTEMPTS=1`), and prints `busy` as another start holding the lock; the function's result carries the refusal's code.

@@ -48,6 +48,10 @@ And on 2026-11-22, verbatim: "Go with your recommendations. Let's have you build
 - **To verify on AWS**: whether CloudFront's VPC origin needs the re-point at all with the same interface and DNS name, and whether it accepts a new ARN while in use. The function alerts a refusal, and the tunnel end's rehearsal settles it first.
 - **Who stopped EC2 near 01:00Z on 2026-11-18** stays the Author's question, from CloudTrail and the guard's logs; nothing here assumes its answer.
 
+## Amended 2026-11-22
+
+After the account apply, AWS refused the start function's dry runs for all eight types (`UnauthorizedOperation`). CloudTrail's reasons: the tunnel end's on `security-group/*`, the group of the existing interfaces its template attaches, which isn't "from the template", so `ec2:IsLaunchTemplateResource` failed; EC2's on `spot-instances-request/*`, for which AWS supplies no `ec2:LaunchTemplate`. The Author put a corrected policy on `h4-ec2-start-fn` by hand, every dry run passed, and `fix/032-launch-policy`'s patch makes `iam.tf` render it. The launch's shape now: the launch template only with a host's `component` tag; the instance only of a listed type and on spot (no longer by the requested `Name`, which the template's tags give); the image only as the template names it (`ec2:IsLaunchTemplateResource`), which still forces every launch through a template, since a launch without one is refused on its image; the volume, the spot request, the subnet, the group, and the interfaces with no condition, all within this one-project account. "Launches held at the enforcement point" above reads so from this date; the credential audit holds this shape. The start function now logs AWS's whole message for an `UnauthorizedOperation`, so the next refusal decodes in one step.
+
 ## Links
 
 Intent: [specs/032-spot-flexibility/intent.md](../../specs/032-spot-flexibility/intent.md) · Spec: [spec.md](../../specs/032-spot-flexibility/spec.md) · Plan: [plan.md](../../specs/032-spot-flexibility/plan.md) · Note: [docs/merge-requests/2026-11-22-feat-032-spot-flexibility.md](../merge-requests/2026-11-22-feat-032-spot-flexibility.md)
