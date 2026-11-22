@@ -37,12 +37,13 @@ locals {
     # 5932748c, 2026-11-16, written here by T175.
     alert_bridge     = "sha256:e0f5e03b15b620a0bcaff76e16cc1d1594c1dd2bc45dc399f76dc44d4051b95a"
     probe            = "sha256:85e0a4e0a428482e9f10829f8fde23313762cce3fc06410b3fd87ca460e7f205"
-    credential_audit = "sha256:dd899845f873e200d23db827797e8e556588f5c4c74aee2c4e4e1f0d71264494"
-    # Group 9's (tasks.md T122), pushed by the Author's T174 to the repositories W1's apply made, from main 5932748c,
-    # 2026-11-16, and written here by T175. "" was the one form handover.tf's preconditions refuse, so no plan ran
-    # before these digests were in.
-    ec2_start = "sha256:bd6a6a044d5d0c8353db65066bdbfa86627bef972d567c08850646f85df93a8a"
-    ec2_guard = "sha256:0172b6d16564624020224dd73a8212d990e7e54acbf739b549239d146f76fdd6"
+    # Spec 032's (the launch permissions' check, run_holds): the Author's push from main f2f63e7f, 2026-11-22.
+    credential_audit = "sha256:76f01fe94d7aeec7ca4d91d7e975ebc5c69bdc3c2a7fbd22b2fbcb1cde1be0da"
+    # Group 9's (tasks.md T122), then spec 032's (the replace, the dry runs, the repair, the budget check): the
+    # Author's push from main f2f63e7f, 2026-11-22. "" was the one form handover.tf's preconditions refuse, so no plan
+    # ran before these digests were in.
+    ec2_start = "sha256:b457ac9f4f7458cce2df54c40e7d781cae842d568cd3d39cb7382578d07e6992"
+    ec2_guard = "sha256:67866d55c51facdf86cfca79ba94920aceea2f6d0ff91712ead29adc2b616b95"
   }
 
   # One repository per function, and one per service the cloud hosts run (contracts/env-cloud.md §3): EC2's whole
