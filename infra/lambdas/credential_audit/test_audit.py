@@ -485,6 +485,28 @@ TAGGED = {"StringEquals": {"aws:ResourceTag/Name": "h4-prod-ec2"}}
 HOSTS = {
     "StringEquals": {"ec2:ResourceTag/Name": ["h4-prod-ec2", "h4-prod-tunnel-end"]}
 }
+INSTANCE_LAUNCH = {
+    "StringEquals": {
+        "aws:RequestTag/Name": ["h4-prod-ec2", "h4-prod-tunnel-end"],
+        "ec2:InstanceType": [
+            "t4g.large",
+            "m7g.large",
+            "m6g.large",
+            "t4g.xlarge",
+            "t4g.small",
+            "c7g.medium",
+            "c6g.medium",
+            "t4g.medium",
+        ],
+        "ec2:InstanceMarketType": "spot",
+    }
+}
+FROM_THE_TEMPLATE = {
+    "ArnLike": {
+        "ec2:LaunchTemplate": f"arn:aws:ec2:us-east-1:{ACCOUNT}:launch-template/*"
+    },
+    "Bool": {"ec2:IsLaunchTemplateResource": "true"},
+}
 
 
 # Spec 032 (FR-016; its plan.md §4): h4-ec2-start-fn's replace, each action held to its own condition.
@@ -502,6 +524,17 @@ HOSTS = {
             },
             False,
         ),
+        # The rework after the reviews of 52308132 (Important 1): an instance only of a listed type, on spot, with a
+        # host's Name; what the template supplies only from it; any other resource, or *, too broad.
+        (
+            {
+                "Effect": "Allow",
+                "Action": "ec2:RunInstances",
+                "Resource": "arn:aws:ec2:us-east-1:*:instance/*",
+                "Condition": INSTANCE_LAUNCH,
+            },
+            False,
+        ),
         (
             {
                 "Effect": "Allow",
@@ -513,6 +546,48 @@ HOSTS = {
                     }
                 },
             },
+            True,
+        ),
+        (
+            {
+                "Effect": "Allow",
+                "Action": "ec2:RunInstances",
+                "Resource": "arn:aws:ec2:us-east-1:*:instance/*",
+                "Condition": {
+                    "StringEquals": {
+                        **INSTANCE_LAUNCH["StringEquals"],
+                        "ec2:InstanceType": ["t4g.large", "p5.48xlarge"],
+                    }
+                },
+            },
+            True,
+        ),
+        (
+            {
+                "Effect": "Allow",
+                "Action": "ec2:RunInstances",
+                "Resource": "arn:aws:ec2:us-east-1:*:instance/*",
+                "Condition": {
+                    "StringEquals": {
+                        **INSTANCE_LAUNCH["StringEquals"],
+                        "ec2:InstanceMarketType": ["spot", "on-demand"],
+                    }
+                },
+            },
+            True,
+        ),
+        (
+            {
+                "Effect": "Allow",
+                "Action": "ec2:RunInstances",
+                "Resource": [
+                    "arn:aws:ec2:us-east-1:*:subnet/*",
+                    "arn:aws:ec2:us-east-1::image/*",
+                    "arn:aws:ec2:us-east-1:*:security-group/*",
+                    "arn:aws:ec2:us-east-1:*:network-interface/*",
+                ],
+                "Condition": FROM_THE_TEMPLATE,
+            },
             False,
         ),
         (
@@ -520,13 +595,39 @@ HOSTS = {
                 "Effect": "Allow",
                 "Action": "ec2:RunInstances",
                 "Resource": "arn:aws:ec2:us-east-1:*:subnet/*",
-                "Condition": {
-                    "ArnLike": {
-                        "ec2:LaunchTemplate": f"arn:aws:ec2:us-east-1:{ACCOUNT}:launch-template/*"
-                    }
-                },
+                "Condition": {"ArnLike": FROM_THE_TEMPLATE["ArnLike"]},
+            },
+            True,
+        ),
+        (
+            {
+                "Effect": "Allow",
+                "Action": "ec2:RunInstances",
+                "Resource": [
+                    "arn:aws:ec2:us-east-1:*:volume/*",
+                    "arn:aws:ec2:us-east-1:*:spot-instances-request/*",
+                ],
+                "Condition": {"ArnLike": FROM_THE_TEMPLATE["ArnLike"]},
             },
             False,
+        ),
+        (
+            {
+                "Effect": "Allow",
+                "Action": "ec2:RunInstances",
+                "Resource": "*",
+                "Condition": FROM_THE_TEMPLATE,
+            },
+            True,
+        ),
+        (
+            {
+                "Effect": "Allow",
+                "Action": "ec2:RunInstances",
+                "Resource": "arn:aws:ec2:us-east-1:*:key-pair/*",
+                "Condition": FROM_THE_TEMPLATE,
+            },
+            True,
         ),
         ({"Effect": "Allow", "Action": "ec2:RunInstances", "Resource": "*"}, True),
         (
