@@ -63,12 +63,12 @@ In your own terminal, from main's checkout, with the stack up (`make status ENV=
 
 - `make langfuse-dashboards ENV=<stack>` again, read-only: every line `keep`, and `Plan: nothing to write: every widget and dashboard matches its file.`
 - In Langfuse, Dashboards lists both, laid out as their files place them; open two or three of the costliest traces and check their cost against the widget's.
-- For today's range, "Spend over the range" should agree with Grafana's "Spend today (stat)" within a reservation's rounding: Langfuse's is the traces' cost, Grafana's the meter's committed spend.
+- **On dev only**, with Langfuse's range set from today's 00:00 UTC to now (the meter's day is UTC, `config/budgets.yaml`, and the date picker shows your local time), "Spend over the range" should agree with Grafana's "Spend today (stat)": Langfuse's is the traces' cost, Grafana's the meter's committed spend, and a reservation that expired, settled at its maximum with no trace, is the one difference. Not on prod: prod's meter also counts EC2's calls, whose traces are in EC2's own Langfuse.
 
 ## Undo
 
-- **One dashboard or widget**: remove it from its file on a branch, merge, and run `make langfuse-dashboards ENV=<stack> APPLY=1`: it deletes the managed dashboard, then the widgets nothing places.
-- **All of them**: remove both files and apply, or delete, in Langfuse's UI, each dashboard and widget whose description ends with `[h4 …]`. Nothing else depends on them.
+- **One widget, or one of the two dashboards**: remove the widget from its file, or the dashboard's file, on a branch, merge, and run `make langfuse-dashboards ENV=<stack> APPLY=1`: it rewrites or deletes the managed dashboard, then deletes the widgets nothing places. The folder keeps at least one file: an empty one is refused with exit 2, and nothing is deleted.
+- **All of them**: delete, in Langfuse's UI, each dashboard whose description ends with `[h4 …]`, then each such widget. Nothing else depends on them.
 - The command never changes a trace, a score, or a dashboard without its mark.
 
 ## Record

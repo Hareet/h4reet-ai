@@ -101,6 +101,8 @@ LAG_WAIT_S = 5
 PAGE_LIMIT = 100
 MAX_PAGES = 50
 REFUSAL_CHARS = 300
+SHOWN_CHARS = 120  # a name or an ID from Langfuse, as printed
+CONTROL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 
 
 def _sleep(seconds: float) -> None:
@@ -623,7 +625,13 @@ def refusal_text(raw: bytes) -> str:
             if isinstance(body.get(key), str):
                 text = body[key]
                 break
-    return re.sub(r"[\x00-\x1f\x7f-\x9f]", "?", text)[:REFUSAL_CHARS]
+    return shown(text, REFUSAL_CHARS)
+
+
+def shown(value: object, limit: int = SHOWN_CHARS) -> str:
+    """Text from Langfuse as the terminal may show it: its C0 and C1 control characters replaced, so no escape
+    sequence it carries reaches the terminal (an OSC 52 sets the clipboard), and trimmed (FR-008; review F5)."""
+    return CONTROL_RE.sub("?", str(value))[:limit]
 
 
 def retry_after(value: str | None) -> float:
@@ -959,8 +967,8 @@ def run(
     plan = make_plan(definitions, widgets_found, boards_found)
     out.write("Plan:\n")
     for a in plan.widgets + plan.dashboards + plan.deletions:
-        ident = f" ({a.id})" if a.id else ""
-        out.write(f'  {a.kind} {a.what}: {a.mark}{ident}, "{a.name}"\n')
+        ident = f" ({shown(a.id)})" if a.id else ""
+        out.write(f'  {a.kind} {a.what}: {a.mark}{ident}, "{shown(a.name)}"\n')
     if not plan.writes():
         out.write(
             "Plan: nothing to write: every widget and dashboard matches its file.\n"
@@ -988,13 +996,13 @@ def run(
                 )
             ids[a.mark] = str(obj["id"])
             created = True
-            out.write(f"  created widget {a.mark} ({ids[a.mark]})\n")
+            out.write(f"  created widget {a.mark} ({shown(ids[a.mark])})\n")
         else:
             assert a.id is not None
             ids[a.mark] = a.id
             if a.kind == "update":
                 client.call(methods["widget"], f"{WIDGETS}/{_quoted(a.id)}", body=body)
-                out.write(f"  updated widget {a.mark} ({a.id})\n")
+                out.write(f"  updated widget {a.mark} ({shown(a.id)})\n")
     if created and any(a.kind != "keep" for a in plan.dashboards):
         SLEEP(CREATED_WAIT_S)
     addresses: list[str] = []
@@ -1013,7 +1021,7 @@ def run(
                     "an answer without the new dashboard's id",
                 )
             did = str(obj["id"])
-            out.write(f"  created dashboard {a.mark} ({did})\n")
+            out.write(f"  created dashboard {a.mark} ({shown(did)})\n")
         else:
             assert a.id is not None
             did = a.id
@@ -1021,15 +1029,15 @@ def run(
                 _write_dashboard(
                     client, methods["dashboard"], f"{DASHBOARDS}/{_quoted(did)}", body
                 )
-                out.write(f"  updated dashboard {a.mark} ({did})\n")
+                out.write(f"  updated dashboard {a.mark} ({shown(did)})\n")
         addresses.append(
-            f"  {d['name']}: {client.base.replace(HOST, 'localhost', 1)}/project/h4reet-{stack}/dashboards/{did}"
+            f"  {d['name']}: {client.base.replace(HOST, 'localhost', 1)}/project/h4reet-{stack}/dashboards/{shown(did)}"
         )
     for a in plan.deletions:
         assert a.id is not None
         path = DASHBOARDS if a.what == "dashboard" else WIDGETS
         client.call("DELETE", f"{path}/{_quoted(a.id)}")
-        out.write(f"  deleted {a.what} {a.mark} ({a.id})\n")
+        out.write(f"  deleted {a.what} {a.mark} ({shown(a.id)})\n")
     out.write("Open them at:\n" + "\n".join(addresses) + "\n")
     return 0
 

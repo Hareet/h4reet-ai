@@ -94,6 +94,8 @@ As the Author, I want the command to find out, before it writes anything, whethe
 - **The widget-placement lag** (research R-3): a dashboard written in the same run as new widgets waits 6 seconds first, and a 404 on a dashboard write is tried again (FR-007).
 - **A list without descriptions**: if Langfuse's list omits a widget's description, the command can't see its mark, so it reads each widget it can't classify (FR-006).
 - **A stack without its env file or keys** (`__GENERATE__` still in place): the command exits 2 naming the key, never its value.
+- **A body whose shape changed under the same names** (the review's F3): the checks prove the operations and the field names, not a body's shape, so Langfuse refuses the write part way through an apply, with its reason; the writes before it stay, marked, and the next run, once fixed, makes only what is missing (FR-004, FR-005).
+- **Text from Langfuse with control characters** (the review's F5): a name or an ID it returns is printed with its control characters replaced, as a refusal's text is (FR-008).
 
 ## Requirements *(mandatory)*
 
@@ -111,7 +113,7 @@ As the Author, I want the command to find out, before it writes anything, whethe
 - **FR-005**: WHEN the files and the instance already agree, THE COMMAND SHALL write nothing, with or without `APPLY=1`.
 - **FR-006**: THE COMMAND SHALL mark each widget and dashboard it manages by ending its description with `[h4 <dashboard>/<widget>]` or `[h4 <dashboard>]`, SHALL identify managed objects by that mark alone, and SHALL never change or delete an object without it.
 - **FR-007**: WHEN Langfuse answers 429, THE COMMAND SHALL wait the `Retry-After` seconds (1 when absent or unreadable, at most 60) and try again, at most 5 times a request; WHEN it created a widget in the run, IT SHALL wait 6 seconds before writing a dashboard; WHEN a dashboard write answers 404, IT SHALL try again up to 3 times, 5 seconds apart.
-- **FR-008**: THE COMMAND SHALL print no key, no env-file value, and no request body, and SHALL print Langfuse's answer to a refused request trimmed to 300 characters with its control characters replaced.
+- **FR-008**: THE COMMAND SHALL print no key, no env-file value, and no request body, and SHALL print Langfuse's answer to a refused request trimmed to 300 characters, and any name or ID Langfuse returns trimmed to 120, each with its control characters replaced (the review's F5).
 - **FR-009**: THE COMMAND SHALL exit 0 when every check passed (and, with `APPLY=1`, every write); 1 when a check failed or Langfuse refused a request; 2 for its usage, the definitions, or the env file; 4 when Langfuse didn't answer.
 - **FR-010**: WHEN run with `--recipe`, THE COMMAND SHALL print, from the same files and with no env file, key, or network, a recipe for making each dashboard by hand in Langfuse's UI: each widget's name, view, measure and aggregation, dimension, filters, chart type, and place.
 - **FR-011**: THE MAKE TARGET SHALL be the Author's (`## (the Author)`), refuse inside the agent sandbox, take `APPLY` as `1` or unset only, and pass the stack's env file the Makefile names for `ENV`.

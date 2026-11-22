@@ -48,9 +48,13 @@ session could read gave their exact bodies, and no Langfuse was reachable to try
 
 ## Consequences
 
-- **The risk is the unstable API.** A Langfuse upgrade that changes it shows as the command's `FAIL` lines with nothing
-  written; the fix is in the command's constants, and the recipe works meanwhile. The Author's first run against 4.54.0 is
-  the proof the tests can't give (spec 034 SC-004).
+- **The risk is the unstable API.** The checks prove that each operation exists and that each field name appears
+  somewhere in the instance's description, not how a body is shaped. So a Langfuse change shows in one of two ways: an
+  operation or a field name gone is the command's `FAIL` lines, with nothing written; a body whose shape changed under
+  the same names is a write Langfuse refuses part way through an apply, with its reason, after the writes before it,
+  which stay, marked, so the next run, once fixed, makes only what is missing. The fix is in the command's constants or
+  a file, and the recipe works meanwhile. The Author's first run against 4.54.0 is the proof the tests can't give (spec
+  034 SC-004).
 - **Cost**: $0; the dashboards' queries run on the stack's ClickHouse when opened.
 - **Data flow**: none new; the command and the browser use x001 on the host (disclosure rows S9, B1).
 - **Not covered**: EC2's Langfuse (a follow-up once a cloud session forwards its x001); eval and red-team scores, which
