@@ -46,6 +46,14 @@ Format: `[ID] [P?] [Story] Description` · FR it serves.
 
 - [x] T050 `make -f Makefile lint`; the suites touched; `make -f Makefile check ENGINE_MODE=none-yet` in the background; outputs in the note.
 
+## Phase 7: Rework after the reviews of 52308132
+
+- [x] T060 RED then GREEN: `start.py`'s repairs (adopt, attach before every start, the tunnel end's repair), the dry runs and the hand dry run, the waits bounded by Lambda's time, generations for a stopped EC2, `Unsupported` refused; the fake corrected.
+- [x] T061 RED then GREEN: the guard's `not_ec2` and `budget_check`.
+- [x] T062 RED then GREEN: the audit's `run_holds`; the account patch's RunInstances conditions; `local.tunnel_end_check_state`; `h4-ec2-budget-check`; the prod patch's `h4-ec2-running` with no instance; the infra suites.
+- [x] T063 RED then GREEN: `ec2_ops.py status` types; `start --dry-run`; the Makefile's `DRY_RUN`.
+- [x] T064 The spec, plan, ADR 0057, runbooks, contracts, and the note.
+
 ## Dependencies
 
 T010, T011 → T012. T016 → T017, T020, T021, T022. T020, T021 → T024. T012 → T014 (kinds used). All → T043 → T050.

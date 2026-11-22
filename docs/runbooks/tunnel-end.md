@@ -144,7 +144,9 @@ The tunnel end has a list of interchangeable Graviton types, `local.tunnel_end_t
 - **`tunnel_end_back` with `- trigger: tunnel_end_check`, `- type:`, `- replaced:`:** the tunnel end runs as another type. Its first boot takes up to a few minutes, then the laptop's tunnel reconnects with the same host key (from Parameter Store). Check `/api/status`. Plan and apply prod when convenient (`- repoint:`): its two rules name the old instance until then.
 - **`- origin:`** reads `re-pointed` or `unchanged` when all is well. Any other value is CloudFront's refusal of the re-point (it may refuse a change while the distribution uses the origin): run prod's plan, which shows `aws_cloudfront_vpc_origin.relay`'s ARN to update, and apply it; record what CloudFront did, for spec 032's open question.
 - **`ec2_start_refused (tunnel_end_down)` with `- tunnel_end: not replaced`:** no listed type had capacity (`- code: no_capacity`, `- tried:`), or a step failed (`- code:`, `- step:`). No host serves; the next check tries again in 5 minutes.
-- **A hand replace**, for an OS update or a changed host file, or to rehearse: `make ec2-start REPLACE=tunnel_end PROFILE=$pf` (`SKIP=` to skip types). It stops every host for a few minutes: pick a quiet hour.
+- **A hand replace**, for an OS update or a changed host file, or to rehearse: `make ec2-start REPLACE=tunnel_end PROFILE=$pf` (`SKIP=` to skip types). It stops every host for a few minutes: pick a quiet hour. Add `DRY_RUN=1` to prove the role launches each type, with no change.
+- **`tunnel_end_back` with `- repaired:`** (`volume`, `origin`): the check found a running tunnel end a replace had left without its volume or its origin, and fixed it. A repair that fails isn't alerted every 5 minutes: the dashboard's outcomes show `tunnel_end_repair_failed`; act as for the step it names.
+- **The check is off until you turn it on**: `h4-tunnel-end-check` is made DISABLED (`local.tunnel_end_check_state` in `infra/account/handover.tf`) until your dry run passes (the merge-request note, step 6).
 
 ### An OS update, or a changed host file
 

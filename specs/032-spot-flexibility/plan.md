@@ -183,6 +183,14 @@ Two patches (five protected files in the draft, six as built), each built from `
 |---|---|---|
 | Kill switch's stop names the old instance until the next prod apply (Principle V) | Terraform reads the instance at plan time; the function must not edit budget actions | Function-owned budget edits put the kill switch in a function's hands; on-demand removes the need but triples the price |
 
+## Rework (2026-11-22, after the reviews of `52308132`)
+
+- **Important 1** (security and cost): the account patch's RunInstances statements hold the instance to `local.launch_types` (prod's eight types, repeated; a test holds prod, the account, and the audit alike) and `ec2:InstanceMarketType = spot`, and the image, subnet, security group, and interfaces to `ec2:IsLaunchTemplateResource = true`; the credential audit's `run_holds` reads each RunInstances statement's resources and requires each kind's conditions, so `*` with only `ec2:LaunchTemplate` is too broad. `MaxCount` has no IAM key; the code sends 1.
+- **Important 2** (behaviour): the start function adopts a live tagged EC2 the parameter doesn't name, attaches the volume before every start, repairs a running tunnel end's volume and VPC origin at the check, and ends every wait 60 s before Lambda's timeout (read from its context).
+- **Required**: every candidate is dry-run before any cancel or terminate; the Author's hand dry run (`DRY_RUN=1`) proves the role; `h4-tunnel-end-check` is made DISABLED behind `local.tunnel_end_check_state` until it passes.
+- **The kill switch's gap, closed** to minutes: `h4-ec2-running` names no instance; the guard ignores another instance's running (`not_ec2`) and gains `budget_check`, every 5 minutes on `h4-ec2-budget-check`. Chosen over a reword because the change was small (one rule, one schedule, one trigger) and the measured bound (about $1.60 an event) wasn't.
+- **The rest**: generations move a stopped EC2 alone; `Unsupported` on a start refuses; the test fake frees a volume only at `terminated` and raises a `BaseException` for a second host; the spec's `- step: attach`; `ec2_ops.py status` names each host's type; the note's checks of `DeleteOnTermination` and of the VPC origin; ADR 0057 on cross-attach and on the tunnel end's check after the server action.
+
 ## Analysis (speckit-analyze, 2026-11-22)
 
 Run over spec.md, plan.md, research.md, and tasks.md after tasks.
