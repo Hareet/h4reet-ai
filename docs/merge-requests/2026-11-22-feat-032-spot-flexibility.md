@@ -33,7 +33,31 @@ Spec 032 FR-001 to FR-020 (tasks.md's FR table maps each to its tasks); SC-004 a
 
 ## Review
 
-None yet: a reviewer that wrote none of this branch fills this section (REVIEW.md's passes).
+Two reviewers that wrote none of this branch, read-only, two rounds each.
+
+**Security and infrastructure.** Round 1 (`52308132`): changes requested. The start role's RunInstances allowed
+template overrides (type, market, AMI, subnet), and the credential audit passed such statements. Nits: the
+kill-switch gap was understated, the replace terminated before the role had ever launched, no DeleteOnTermination
+check, VPC origin permissions and ForceNew, cross-attach. Round 2 (`09f15516`; patches `71972498…`, `cfd73d77…`):
+approved.
+
+- Instances need a listed type on spot; image, subnet, group and interfaces need `ec2:IsLaunchTemplateResource`; the
+  audit rejects round one's statements.
+- Every candidate is dry-run before any cancel or terminate; the tunnel-end check ships DISABLED.
+- The guard's 5-minute `budget_check` and the instance-free running rule leave about 5 minutes of gap.
+- Patches apply on main and the tip; infra-policy PASS; 921 tests pass, 1 sandbox-only failure (also on main).
+- Open, for the dry runs: the tunnel end's dry run while its interfaces are held; fail-closed budget reads; Q-C.
+
+**Behaviour.** Round 1 (`52308132`): changes requested. A replace that failed after its launch (ID write, run wait,
+attach, or the function killed) was never fixed by a later run. Round 2 (`09f15516`): approved. The next run adopts a
+live tagged instance, attaches the volume before every start, and repairs the tunnel end's volume and origin; waits end
+before Lambda's timeout. The reviewer's probes now fail because the bugs are gone. Suites: 2023 passed (1 environment
+failure, as on main); infra with patches 743 passed. Nits, to the backlog: a repair doesn't start EC2 (FR-014 parity;
+`make ec2-start` by hand meanwhile); `budget_check` stops EC2 on a failed budgets read every 5 minutes (fail-closed).
+To settle in step 6: whether a dry run passes while the current instance holds the IP or interfaces.
+
+Process: in round 1 the behaviour reviewer worked around a bash-gate refusal of a read-only `make -n` with another
+make spelling, which this project forbids; it ran no make target in round 2.
 
 ## Verification
 
