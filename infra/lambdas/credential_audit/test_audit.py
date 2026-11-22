@@ -482,6 +482,176 @@ def test_the_laptop_identity_after_the_cutover(
 TAGGED = {"StringEquals": {"aws:ResourceTag/Name": "h4-prod-ec2"}}
 
 
+HOSTS = {
+    "StringEquals": {"ec2:ResourceTag/Name": ["h4-prod-ec2", "h4-prod-tunnel-end"]}
+}
+
+
+# Spec 032 (FR-016; its plan.md §4): h4-ec2-start-fn's replace, each action held to its own condition.
+@pytest.mark.parametrize(
+    ("statement", "too_broad"),
+    [
+        (
+            {
+                "Effect": "Allow",
+                "Action": "ec2:RunInstances",
+                "Resource": "arn:aws:ec2:us-east-1:*:launch-template/*",
+                "Condition": {
+                    "StringEquals": {"aws:ResourceTag/component": ["ec2", "tunnel-end"]}
+                },
+            },
+            False,
+        ),
+        (
+            {
+                "Effect": "Allow",
+                "Action": "ec2:RunInstances",
+                "Resource": "arn:aws:ec2:us-east-1:*:instance/*",
+                "Condition": {
+                    "StringEquals": {
+                        "aws:RequestTag/Name": ["h4-prod-ec2", "h4-prod-tunnel-end"]
+                    }
+                },
+            },
+            False,
+        ),
+        (
+            {
+                "Effect": "Allow",
+                "Action": "ec2:RunInstances",
+                "Resource": "arn:aws:ec2:us-east-1:*:subnet/*",
+                "Condition": {
+                    "ArnLike": {
+                        "ec2:LaunchTemplate": f"arn:aws:ec2:us-east-1:{ACCOUNT}:launch-template/*"
+                    }
+                },
+            },
+            False,
+        ),
+        ({"Effect": "Allow", "Action": "ec2:RunInstances", "Resource": "*"}, True),
+        (
+            {
+                "Effect": "Allow",
+                "Action": "ec2:RunInstances",
+                "Resource": "*",
+                "Condition": {"StringEquals": {"aws:RequestTag/Name": "anything"}},
+            },
+            True,
+        ),
+        (
+            {
+                "Effect": "Allow",
+                "Action": "ec2:RunInstances",
+                "Resource": "*",
+                "Condition": {"ArnLike": {"ec2:LaunchTemplate": "*"}},
+            },
+            True,
+        ),
+        (
+            {
+                "Effect": "Allow",
+                "Action": "ec2:CreateTags",
+                "Resource": "*",
+                "Condition": {"StringEquals": {"ec2:CreateAction": "RunInstances"}},
+            },
+            False,
+        ),
+        ({"Effect": "Allow", "Action": "ec2:CreateTags", "Resource": "*"}, True),
+        (
+            {
+                "Effect": "Allow",
+                "Action": ["ec2:TerminateInstances", "ec2:CancelSpotInstanceRequests"],
+                "Resource": "*",
+                "Condition": HOSTS,
+            },
+            False,
+        ),
+        (
+            {
+                "Effect": "Allow",
+                "Action": "ec2:TerminateInstances",
+                "Resource": "*",
+                "Condition": {
+                    "StringEquals": {"ec2:ResourceTag/Name": ["h4-prod-ec2", "other"]}
+                },
+            },
+            True,
+        ),
+        (
+            {
+                "Effect": "Allow",
+                "Action": "ec2:AttachVolume",
+                "Resource": "*",
+                "Condition": {
+                    "StringEquals": {
+                        "ec2:ResourceTag/Name": [
+                            "h4-prod-ec2",
+                            "h4-prod-tunnel-end",
+                            "h4-ec2-data",
+                            "h4-shared-state",
+                        ]
+                    }
+                },
+            },
+            False,
+        ),
+        (
+            {
+                "Effect": "Allow",
+                "Action": "ec2:AttachVolume",
+                "Resource": "*",
+                "Condition": {
+                    "StringEquals": {"ec2:ResourceTag/Name": "someone-elses"}
+                },
+            },
+            True,
+        ),
+        (
+            {
+                "Effect": "Allow",
+                "Action": ["ec2:DescribeSpotInstanceRequests", "ec2:DescribeVolumes"],
+                "Resource": "*",
+            },
+            False,
+        ),
+        (
+            # The start itself stays on EC2 alone, as before spec 032.
+            {
+                "Effect": "Allow",
+                "Action": "ec2:StartInstances",
+                "Resource": "*",
+                "Condition": HOSTS,
+            },
+            True,
+        ),
+    ],
+)
+def test_the_start_functions_replace_holds_each_action_to_its_condition(
+    aws: StubAws, statement: dict, too_broad: bool
+) -> None:
+    aws.role(
+        "h4-ec2-start-fn",
+        trust(allow({"Service": "lambda.amazonaws.com"})),
+        inline={"start": policy(statement)},
+    )
+    want = [("handover_policy_too_broad", "h4-ec2-start-fn")] if too_broad else []
+    assert findings(aws) == want
+
+
+def test_the_guard_may_not_replace() -> None:
+    doc = policy(
+        {
+            "Effect": "Allow",
+            "Action": "ec2:TerminateInstances",
+            "Resource": "*",
+            "Condition": HOSTS,
+        }
+    )
+    assert (
+        audit.handover_too_broad([doc], audit.HANDOVER_ROLES["h4-ec2-guard-fn"]) is True
+    )
+
+
 @pytest.mark.parametrize(
     ("statement", "too_broad"),
     [
@@ -518,10 +688,12 @@ TAGGED = {"StringEquals": {"aws:ResourceTag/Name": "h4-prod-ec2"}}
             },
             True,
         ),
+        # Spec 032 made TerminateInstances the start function's, on the hosts' names (below); an EC2 action no
+        # identity of the handover holds stays too broad, tag or not.
         (
             {
                 "Effect": "Allow",
-                "Action": "ec2:TerminateInstances",
+                "Action": "ec2:ModifyInstanceAttribute",
                 "Resource": "*",
                 "Condition": TAGGED,
             },
