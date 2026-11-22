@@ -1065,13 +1065,28 @@ def test_the_sdk_wrapper_uses_short_timeouts_and_few_attempts(
     with pytest.raises(start.AwsError):
         start.BotoAws().call("ec2", "RunInstances", DryRun=True)
     (client,) = made
+    # Changed after the branch's review (finding 1): botocore's retries["max_attempts"] counts the retries, not the
+    # attempts (botocore's args.py makes total_max_attempts = max_attempts + 1), so {"max_attempts": 3} allowed four.
+    # total_max_attempts counts every attempt, the first included. The fake Config can't tell the two apart, so the
+    # key itself is what this holds.
     assert client["config"] == {
         "connect_timeout": 5,
         "read_timeout": 20,
-        "retries": {"max_attempts": 3, "mode": "standard"},
+        "retries": {"total_max_attempts": 3, "mode": "standard"},
     }
     # One call's worst case at one attempt fits the budget the function keeps for it.
     assert start.CALL_S >= 5 + 20
+
+
+# The review's finding 1: the last call Budgeted lets start, with CALL_S of the run left, may stall through every
+# attempt. Its worst case, each attempt's connect and read timeouts plus standard mode's backoff between attempts (at
+# most min(2 ** (n - 1), 20) s before the n-th retry, botocore's retries/standard.py), must end inside the MARGIN_S the
+# run keeps before Lambda's limit, with room left for the lock's release and the alert.
+def test_a_stalled_call_still_ends_before_lambdas_limit() -> None:
+    backoff = sum(min(2**n, 20) for n in range(start.ATTEMPTS - 1))
+    worst = start.ATTEMPTS * (start.CONNECT_S + start.READ_S) + backoff
+    room_for_the_release_and_the_alert = 10
+    assert worst + room_for_the_release_and_the_alert <= start.CALL_S + start.MARGIN_S
 
 
 # The same review: BotoAws built a new client, loading the service's model again, at every call (setdefault evaluates
