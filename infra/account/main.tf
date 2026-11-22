@@ -35,8 +35,8 @@ locals {
   lambda_images = {
     # The bridge's again, since W1's patches changed bridge.py (P-I3, P-I7, P-I6): the Author's T174 push, from main
     # 5932748c, 2026-11-16, written here by T175.
-    alert_bridge     = "sha256:e0f5e03b15b620a0bcaff76e16cc1d1594c1dd2bc45dc399f76dc44d4051b95a"
-    probe            = "sha256:85e0a4e0a428482e9f10829f8fde23313762cce3fc06410b3fd87ca460e7f205"
+    alert_bridge = "sha256:e0f5e03b15b620a0bcaff76e16cc1d1594c1dd2bc45dc399f76dc44d4051b95a"
+    probe        = "sha256:85e0a4e0a428482e9f10829f8fde23313762cce3fc06410b3fd87ca460e7f205"
     # Spec 032's (the launch permissions' check, run_holds): the Author's push from main f2f63e7f, 2026-11-22.
     credential_audit = "sha256:76f01fe94d7aeec7ca4d91d7e975ebc5c69bdc3c2a7fbd22b2fbcb1cde1be0da"
     # Group 9's (tasks.md T122), then spec 032's (the replace, the dry runs, the repair, the budget check): the
