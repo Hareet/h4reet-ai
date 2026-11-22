@@ -866,6 +866,9 @@ def test_each_visit_share_counts_visits_as_resume_kept_alone(title: str) -> None
     ), target
     assert "resume_opened|resume_kept" not in target["expr"]
     assert "spec 033" in panel["description"]
+    # FR-013: the caveat for a range reaching back before the release that carries the change.
+    assert "before the release that carries spec 033" in panel["description"]
+    assert "reads high" in panel["description"]
 
 
 def test_the_walked_share_reads_as_a_percentage_of_a_stand_in_for_visits() -> None:

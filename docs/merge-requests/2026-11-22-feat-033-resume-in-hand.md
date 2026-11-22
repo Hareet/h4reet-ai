@@ -67,7 +67,7 @@ $0 at runtime: no model call, request, or asset. No byte leaves the device that 
 
 **Decisions (each provisional, from your direction; spec.md's Clarifications):**
 
-- Q1: `resume_kept` now marks the hand-off's end and is the dashboard's visit count. A dashboard range that reaches back before the merge reads high for that span.
+- Q1: `resume_kept` now marks the hand-off's end and is the dashboard's visit count. A dashboard range that reaches back before the release that carries this change to the serving host reads high for that span, a range between the merge and that release too.
 - Q2: focus stays on the heading at the hand-off's end.
 - Q3: "Resume" is the paper's keyboard path and name.
 - Q4: the paper uses spec 008's highlight, with a pick area of at least 44 px.

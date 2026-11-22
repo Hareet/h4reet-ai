@@ -111,7 +111,7 @@ Found by the first whole-suite run (T012), and changed in the commit that names 
 ## Risks
 
 - **Many UI tests pass through the offer**: each loses one line; the full suite run catches any missed.
-- **The visit stand-in's history**: a dashboard range reaching back before the merge reads high for that span (Q1); each description says so.
+- **The visit stand-in's history**: a dashboard range reaching back before the release that carries this change to the serving host (a range between the merge and that release too) reads high for that span (Q1); each description says so.
 - **Focus on "Resume" now sets a target**: a test asserting the exact list of targets after closing the resume sees `held-paper` in 3D; that is FR-009's behaviour.
 - **Pick precedence**: the paper's 44 px area can overlap a selectable's core near the visitor; the paper wins there, since it stands in front (FR-008). RG6's cores are measured without it; a later piece placed right behind the visitor's hand would be reached through the list there.
 - **No WebGL in the tests**: the flicker's test measures the cause geometrically (the draw order three uses, and the depth each drawn sheet writes), not pixels; the Author's 30-second look is the pixel check (SC-004).
