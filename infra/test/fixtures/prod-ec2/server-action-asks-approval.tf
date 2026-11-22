@@ -15,7 +15,7 @@ resource "aws_budgets_budget_action" "server" {
   definition {
     ssm_action_definition {
       action_sub_type = "STOP_EC2_INSTANCES"
-      instance_ids    = [aws_instance.ec2.id]
+      instance_ids    = [data.aws_instance.ec2.id]
       region          = "us-east-1"
     }
   }

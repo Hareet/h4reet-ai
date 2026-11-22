@@ -3,7 +3,7 @@
 resource "aws_cloudfront_vpc_origin" "relay" {
   vpc_origin_endpoint_config {
     name                   = "h4-relay"
-    arn                    = aws_instance.tunnel_end.arn
+    arn                    = data.aws_instance.tunnel_end.arn
     http_port              = 8080
     https_port             = 443
     origin_protocol_policy = "https-only"

@@ -22,7 +22,7 @@ resource "aws_cloudfront_distribution" "site" {
   # 25 s deadline and its hops.
   origin {
     origin_id   = "relay"
-    domain_name = aws_instance.tunnel_end.private_dns
+    domain_name = aws_network_interface.tunnel_end_private.private_dns_name
 
     vpc_origin_config {
       vpc_origin_id            = aws_cloudfront_vpc_origin.relay.id

@@ -83,7 +83,13 @@ EVENTS = (
 )
 # Group 9's, by their resource names, in handover.tf (tasks.md T119): h4-laptop-away-rule and its target, and the
 # hours' two schedules.
-HANDOVER_EVENTS = {"laptop_away", "ec2_hours_open", "ec2_hours_close"}
+# Spec 032 adds the tunnel end's check, a schedule of the start function's, beside the hours'.
+HANDOVER_EVENTS = {
+    "laptop_away",
+    "ec2_hours_open",
+    "ec2_hours_close",
+    "tunnel_end_check",
+}
 INVOKE = {"bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"}
 TOPIC = "data.aws_sns_topic.alerts.arn"
 SSO_PATH = "aws-reserved/sso.amazonaws.com/"

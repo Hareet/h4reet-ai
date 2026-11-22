@@ -21,6 +21,12 @@ What the account must hold (P-I6):
     h4-ec2-stop permission set, on the tag;
   - main.tf and registry.tf: the two functions' digests, empty until W2, and their repositories (test_account.py).
 
+From spec 032 (its FR-015, FR-016; ADR 0057) prod's rules name EC2 by the instance this root reads by its tag
+(data.aws_instance.ec2), since h4-ec2-start may replace it with another type; h4-ec2-start-fn may also launch a host
+from its tagged launch templates, retire the old one, attach its volume, write EC2's ID and the lock, and point the
+relay's VPC origin at a new tunnel end, each action held to its condition; and the account holds a third schedule,
+h4-tunnel-end-check, every 5 minutes.
+
 Nothing under infra/account names a prod instance or health check, or reads prod's state. Every check passes with the
 switches off, as W1 holds them, and on, as P-W2 sets them. What a check can't read as a literal is a finding, never
 empty. Each fixture in fixtures/handover/ is one defect, in the root its `# root:` line names.
@@ -209,7 +215,7 @@ def check_ec2_warning(root: dict[str, list]) -> list[str]:
     if not (
         '"aws.ec2"' in p
         and '"EC2 Spot Instance Interruption Warning"' in p
-        and re.search(r"instance-id\s*=\s*\[aws_instance\.ec2\.id\]", p)
+        and re.search(r"instance-id\s*=\s*\[data\.aws_instance\.ec2\.id\]", p)
     ):
         found.append(
             "ec2 warning: the rule doesn't match EC2's own warning, from this root"
@@ -250,7 +256,7 @@ def check_ec2_running(root: dict[str, list]) -> list[str]:
     if not (
         '"EC2 Instance State-change Notification"' in p
         and re.search(r'state\s*=\s*\["running"\]', p)
-        and re.search(r"instance-id\s*=\s*\[aws_instance\.ec2\.id\]", p)
+        and re.search(r"instance-id\s*=\s*\[data\.aws_instance\.ec2\.id\]", p)
     ):
         found.append(
             "ec2 running: the rule doesn't match EC2 entering running, from this root"
@@ -527,13 +533,23 @@ SCHEDULES = {
     "h4-ec2-hours-open": ("ec2_start", "hours_open", "open"),
     "h4-ec2-hours-close": ("ec2_guard", "hours_close", "close"),
 }
+# Spec 032 (FR-013): the tunnel end's check, every 5 minutes, in no zone, through the hours' role.
+CHECK_SCHEDULE = "h4-tunnel-end-check"
 
 
 def check_schedules(root: dict[str, list]) -> list[str]:
     found = []
-    schedules = resource(root, "aws_scheduler_schedule")
-    if sorted(lit(s, "name") or "?" for s in schedules) != sorted(SCHEDULES):
-        return ["schedules: the hours' two schedules aren't the account's only ones"]
+    every = resource(root, "aws_scheduler_schedule")
+    if sorted(lit(s, "name") or "?" for s in every) != sorted(
+        [*SCHEDULES, CHECK_SCHEDULE]
+    ):
+        return [
+            "schedules: the hours' two schedules and the tunnel end's check aren't the account's only ones"
+        ]
+    found += check_tunnel_end_check(
+        root, next(s for s in every if lit(s, "name") == CHECK_SCHEDULE)
+    )
+    schedules = [s for s in every if lit(s, "name") in SCHEDULES]
     roles = [
         r for r in resource(root, "aws_iam_role") if lit(r, "name") == "h4-ec2-hours"
     ]
@@ -570,6 +586,38 @@ def check_schedules(root: dict[str, list]) -> list[str]:
     return found
 
 
+def check_tunnel_end_check(root: dict[str, list], s) -> list[str]:
+    roles = [
+        r for r in resource(root, "aws_iam_role") if lit(r, "name") == "h4-ec2-hours"
+    ]
+    hours_role = f"aws_iam_role.{roles[0].labels[1]}.arn" if len(roles) == 1 else "?"
+    found = []
+    if where(root, s) != "handover.tf" or not switched(s):
+        found.append(
+            "schedules: the tunnel end's check isn't handover.tf's, behind the switch"
+        )
+    if lit(s, "schedule_expression") != "rate(5 minutes)":
+        found.append("schedules: the tunnel end's check doesn't run every 5 minutes")
+    window = s.block("flexible_time_window")
+    target = s.block("target")
+    retry = target.block("retry_policy") if target else None
+    if (
+        window is None
+        or lit(window, "mode") != "OFF"
+        or target is None
+        or raw(target, "arn") != "aws_lambda_function.ec2_start[0].arn"
+        or raw(target, "role_arn") != hours_role
+        or re.sub(r"\s+", "", raw(target, "input"))
+        != 'jsonencode({from="tunnel_end_check"})'
+        or retry is None
+        or lit(retry, "maximum_retry_attempts") != 0
+    ):
+        found.append(
+            "schedules: the tunnel end's check doesn't invoke h4-ec2-start once, `from: tunnel_end_check`, through h4-ec2-hours"
+        )
+    return found
+
+
 def _cron_reads(root: dict[str, list], edge: str) -> bool:
     want = (
         f'"cron(${{tonumber(split(":", local.ec2_hours.{edge})[1])}} '
@@ -587,17 +635,88 @@ def _cron_reads(root: dict[str, list], edge: str) -> bool:
     return False
 
 
-# Each role's grants: action → (resources, conditions), exactly.
+# Spec 032's grants for h4-ec2-start-fn (FR-016): each with its condition. RunInstances alone takes three statements,
+# one for each kind of resource a launch from a template touches, so its want is a list of them, in their order.
+EC2_ARN = f"arn:aws:ec2:us-east-1:{ACCOUNT_ID}"
+HOSTS = '["h4-prod-ec2", "h4-prod-tunnel-end"]'
+START_READS = (
+    f'[ "{parameter_arn("/h4reet/prod/ec2-autostart")}", '
+    f'"{parameter_arn("/h4reet/prod/ec2-instance-id")}", '
+    f'"{parameter_arn("/h4reet/prod/ec2-launch-templates")}", '
+    f'"{parameter_arn("/h4reet/prod/tunnel-end-launch-templates")}", '
+    f'"{parameter_arn("/h4reet/prod/relay-vpc-origin-id")}", '
+    f'"{parameter_arn("/h4reet/prod/host-lock")}", ]'
+)
+START_WRITES = (
+    f'[ "{parameter_arn("/h4reet/prod/ec2-instance-id")}", '
+    f'"{parameter_arn("/h4reet/prod/host-lock")}", ]'
+)
+LAUNCH = [
+    (
+        f'["{EC2_ARN}:launch-template/*"]',
+        [("StringEquals", "aws:ResourceTag/component", '["ec2", "tunnel-end"]')],
+    ),
+    (f'["{EC2_ARN}:instance/*"]', [("StringEquals", "aws:RequestTag/Name", HOSTS)]),
+    (
+        (
+            f'[ "{EC2_ARN}:volume/*", "{EC2_ARN}:network-interface/*", "{EC2_ARN}:spot-instances-request/*", '
+            f'"{EC2_ARN}:subnet/*", "{EC2_ARN}:security-group/*", "arn:aws:ec2:us-east-1::image/*", ]'
+        ),
+        [("ArnLike", "ec2:LaunchTemplate", f'["{EC2_ARN}:launch-template/*"]')],
+    ),
+]
+RETIRE = (
+    f'[ "{EC2_ARN}:instance/*", "{EC2_ARN}:spot-instances-request/*", ]',
+    [("StringEquals", "ec2:ResourceTag/Name", HOSTS)],
+)
+
+# Each role's grants: action → (resources, conditions), exactly; or a list of them, one for each statement.
 LOG = "{}:*"
 ROLE_GRANTS = {
     "h4-ec2-start-fn": {
         "logs:CreateLogStream": ('["${aws_cloudwatch_log_group.ec2_start.arn}:*"]', []),
         "logs:PutLogEvents": ('["${aws_cloudwatch_log_group.ec2_start.arn}:*"]', []),
-        "ssm:GetParameter": (SWITCHES, []),
+        "ssm:GetParameter": (START_READS, []),
+        "ssm:PutParameter": (START_WRITES, []),
+        "ssm:DeleteParameter": (
+            f'["{parameter_arn("/h4reet/prod/host-lock")}"]',
+            [],
+        ),
         "budgets:DescribeBudgetActionsForBudget": (f'["{BUDGET_ARN}"]', []),
         "ec2:DescribeInstances": ('["*"]', []),
+        "ec2:DescribeSpotInstanceRequests": ('["*"]', []),
+        "ec2:DescribeVolumes": ('["*"]', []),
         "cloudwatch:DescribeAlarms": (f'["{ALARM_ARN}"]', []),
         "ec2:StartInstances": (f'["{INSTANCES}"]', TAGGED),
+        "ec2:RunInstances": LAUNCH,
+        "ec2:CreateTags": (
+            f'["{EC2_ARN}:*/*"]',
+            [("StringEquals", "ec2:CreateAction", '["RunInstances"]')],
+        ),
+        "ec2:TerminateInstances": RETIRE,
+        "ec2:CancelSpotInstanceRequests": RETIRE,
+        "ec2:AttachVolume": (
+            f'[ "{EC2_ARN}:instance/*", "{EC2_ARN}:volume/*", ]',
+            [
+                (
+                    "StringEquals",
+                    "ec2:ResourceTag/Name",
+                    '["h4-prod-ec2", "h4-prod-tunnel-end", "h4-ec2-data", "h4-shared-state"]',
+                )
+            ],
+        ),
+        "iam:PassRole": (
+            f'[ "arn:aws:iam::{ACCOUNT_ID}:role/h4-prod-ec2", "arn:aws:iam::{ACCOUNT_ID}:role/h4-prod-tunnel-end", ]',
+            [("StringEquals", "iam:PassedToService", '["ec2.amazonaws.com"]')],
+        ),
+        "cloudfront:GetVpcOrigin": (
+            f'["arn:aws:cloudfront::{ACCOUNT_ID}:vpcorigin/*"]',
+            [],
+        ),
+        "cloudfront:UpdateVpcOrigin": (
+            f'["arn:aws:cloudfront::{ACCOUNT_ID}:vpcorigin/*"]',
+            [],
+        ),
         "sns:Publish": ("[data.aws_sns_topic.alerts.arn]", []),
     },
     "h4-ec2-guard-fn": {
@@ -622,6 +741,11 @@ TRUSTS = {
     "h4-ec2-guard-fn": ("Service", '["lambda.amazonaws.com"]'),
     "h4-ec2-hours": ("Service", '["scheduler.amazonaws.com"]'),
 }
+
+
+def multi(who: str, action: str) -> bool:
+    """An action the role's want lists statement by statement (spec 032's RunInstances)."""
+    return isinstance(ROLE_GRANTS.get(who, {}).get(action), list)
 
 
 def document_grants(root: dict[str, list], doc, who: str) -> tuple[dict, list[str]]:
@@ -660,6 +784,9 @@ def document_grants(root: dict[str, list], doc, who: str) -> tuple[dict, list[st
         if s["effect"] != "Allow":
             continue
         for a in s["actions"]:
+            if multi(who, a):
+                granted.setdefault(a, []).append((s["resources"], s["conditions"]))  # type: ignore[union-attr]
+                continue
             if a in granted:
                 found.append(f"roles: {who} is granted {a} twice")
             granted[a] = (s["resources"], s["conditions"])
@@ -712,8 +839,8 @@ def check_roles(root: dict[str, list]) -> list[str]:
             found.append(
                 f"roles: {name}'s actions aren't its own: {sorted(set(granted) ^ set(want))}"
             )
-        for action, (resources, conditions) in want.items():
-            if action in granted and granted[action] != (resources, conditions):
+        for action, grant in want.items():
+            if action in granted and granted[action] != grant:
                 found.append(f"roles: {name}'s {action} reaches {granted[action]}")
         if any(a.startswith("route53:") for a in granted):
             found.append(f"roles: {name} reads a Route 53 health check")
@@ -923,9 +1050,17 @@ def as_policy(root: dict[str, list], doc) -> dict:
     for st in doc.blocks("statement"):
         conditions: dict[str, dict[str, list]] = {}
         for c in st.blocks("condition"):
-            conditions.setdefault(lit(c, "test"), {})[lit(c, "variable")] = lit(
-                c, "values"
-            )
+            values = lit(c, "values")
+            if not (
+                isinstance(values, list) and all(isinstance(v, str) for v in values)
+            ):
+                # Spec 032's ArnLike on the launch templates' ARN names the account by interpolation, which IAM holds
+                # as the account's ID: read it with a stand-in ID, built here so no 12-digit run is in the file.
+                values = [
+                    v.replace(ACCOUNT_ID, "1" * 4 + "2" * 4 + "3" * 4)
+                    for v in re.findall(r'"([^"]*)"', raw(c, "values"))
+                ]
+            conditions.setdefault(lit(c, "test"), {})[lit(c, "variable")] = values
         out.append(
             {
                 "Effect": lit(st, "effect") or "Allow",

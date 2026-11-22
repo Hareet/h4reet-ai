@@ -1,14 +1,18 @@
-# EC2's tags out of its metadata, so write_env.py and preflight can't confirm h4-prod-ec2.
+# EC2's tags out of its metadata: write_env.py and preflight can't confirm the host (research.md R-28).
 # expect: ec2: its tags aren't in its metadata
-resource "aws_instance" "ec2" {
-  ami                         = data.aws_ami.al2023.id
-  instance_type               = local.ec2_type
-  iam_instance_profile        = aws_iam_instance_profile.ec2.name
-  user_data_base64            = base64gzip(local.ec2_user_data)
-  subnet_id                   = aws_subnet.public.id
-  private_ip                  = "10.42.0.20"
-  associate_public_ip_address = true
-  vpc_security_group_ids      = [aws_security_group.ec2.id]
+resource "aws_launch_template" "ec2" {
+  for_each = local.ec2_templates
+
+  name                   = "h4-prod-ec2-${each.key}"
+  description            = "EC2 as ${each.key} (spec 032)"
+  image_id               = data.aws_ami.al2023.id
+  instance_type          = each.key
+  update_default_version = true
+  user_data              = base64gzip(local.ec2_user_data)
+
+  iam_instance_profile {
+    name = aws_iam_instance_profile.ec2.name
+  }
 
   instance_market_options {
     market_type = "spot"
@@ -16,6 +20,7 @@ resource "aws_instance" "ec2" {
     spot_options {
       spot_instance_type             = "persistent"
       instance_interruption_behavior = "stop"
+      max_price                      = each.value.max_price
     }
   }
 
@@ -27,36 +32,61 @@ resource "aws_instance" "ec2" {
     http_put_response_hop_limit = 1
   }
 
-  # A busy burstable instance slows down rather than billing past its baseline (research.md R-04).
-  credit_specification {
-    cpu_credits = "standard"
+  # A busy burstable instance slows down rather than billing past its baseline (research.md R-04); a fixed-performance
+  # type takes no credit setting.
+  dynamic "credit_specification" {
+    for_each = startswith(each.key, "t") ? ["standard"] : []
+
+    content {
+      cpu_credits = credit_specification.value
+    }
   }
 
-  # The images and the OS; the stack's stores are on the data volume (ec2.tf). Tagged with project too, which the
-  # server budget's filter reads and the provider's default tags may not reach on a root volume (T154).
-  root_block_device {
-    volume_type           = "gp3"
-    volume_size           = 20
-    encrypted             = true
-    delete_on_termination = true
+  # The images and the OS; the stack's stores are on the data volume (ec2.tf).
+  block_device_mappings {
+    device_name = "/dev/xvda"
 
-    tags = {
-      project   = "h4reet-ai"
-      component = "ec2"
+    ebs {
+      volume_type           = "gp3"
+      volume_size           = 20
+      encrypted             = true
+      delete_on_termination = true
+    }
+  }
+
+  network_interfaces {
+    device_index                = 0
+    subnet_id                   = aws_subnet.public.id
+    private_ip_address          = "10.42.0.20"
+    associate_public_ip_address = true
+    security_groups             = [aws_security_group.ec2.id]
+    delete_on_termination       = true
+  }
+
+  # The provider's default tags don't reach what a template launches: the server budget filters on project (T154).
+  dynamic "tag_specifications" {
+    for_each = ["instance", "volume", "network-interface", "spot-instances-request"]
+
+    content {
+      resource_type = tag_specifications.value
+      tags = {
+        Name        = "h4-prod-ec2"
+        project     = "h4reet-ai"
+        environment = "prod"
+        component   = "ec2"
+      }
     }
   }
 
   tags = {
-    Name      = "h4-prod-ec2"
     component = "ec2"
   }
 
   lifecycle {
-    # A newer image or a changed host file reaches EC2 only through a reviewed replace: terraform_data.ec2_generation
-    # holds the user data's SHA-256 and local.ec2_generation (ec2.tf), and W2 sets the generation to 2 for SC-005
-    # (tasks.md T097). The server action, EC2's model action's role, and /h4reet/prod/ec2-instance-id name this
-    # instance from this root, so the same plan updates them.
-    ignore_changes       = [ami, user_data_base64]
+    # A newer image or a changed host file reaches EC2 only through a reviewed change: the templates ignore the image's
+    # and the user data's drift, and a new terraform_data.ec2_generation (ec2.tf) replaces them; h4-ec2-start then
+    # replaces EC2 at its next start, since it was launched from a template no longer listed (spec 032 FR-010).
+    ignore_changes       = [image_id, user_data]
     replace_triggered_by = [terraform_data.ec2_generation]
   }
 }

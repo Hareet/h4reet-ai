@@ -9,7 +9,7 @@ resource "aws_cloudwatch_event_rule" "tunnel_end_spot_warning" {
     source      = ["aws.ec2"]
     detail-type = ["EC2 Spot Instance Interruption Warning"]
     detail = {
-      instance-id = [aws_instance.tunnel_end.id]
+      instance-id = [data.aws_instance.tunnel_end.id]
     }
   })
 

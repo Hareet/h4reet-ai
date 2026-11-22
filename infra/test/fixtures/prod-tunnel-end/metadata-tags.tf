@@ -1,10 +1,18 @@
 # The instance's tags in its metadata, which nothing on the host reads (group 5's review, nits).
 # expect: host: the instance's tags are in its metadata
-resource "aws_instance" "tunnel_end" {
-  ami                  = data.aws_ami.al2023.id
-  instance_type        = local.tunnel_end_type
-  iam_instance_profile = aws_iam_instance_profile.tunnel_end.name
-  user_data_base64     = base64gzip(local.tunnel_end_user_data)
+resource "aws_launch_template" "tunnel_end" {
+  for_each = local.tunnel_end_templates
+
+  name                   = "h4-prod-tunnel-end-${each.key}"
+  description            = "The tunnel end as ${each.key} (spec 032)"
+  image_id               = data.aws_ami.al2023.id
+  instance_type          = each.key
+  update_default_version = true
+  user_data              = base64gzip(local.tunnel_end_user_data)
+
+  iam_instance_profile {
+    name = aws_iam_instance_profile.tunnel_end.name
+  }
 
   instance_market_options {
     market_type = "spot"
@@ -12,6 +20,7 @@ resource "aws_instance" "tunnel_end" {
     spot_options {
       spot_instance_type             = "persistent"
       instance_interruption_behavior = "stop"
+      max_price                      = each.value.max_price
     }
   }
 
@@ -23,43 +32,62 @@ resource "aws_instance" "tunnel_end" {
     instance_metadata_tags      = "enabled"
   }
 
-  # A busy burstable instance slows down rather than billing past its baseline (research.md R-04).
-  credit_specification {
-    cpu_credits = "standard"
-  }
+  # A busy burstable instance slows down rather than billing past its baseline (research.md R-04); a fixed-performance
+  # type takes no credit setting.
+  dynamic "credit_specification" {
+    for_each = startswith(each.key, "t") ? ["standard"] : []
 
-  root_block_device {
-    volume_type           = "gp3"
-    volume_size           = 8
-    encrypted             = true
-    delete_on_termination = true
-
-    tags = {
-      component = "tunnel-end"
+    content {
+      cpu_credits = credit_specification.value
     }
   }
 
-  primary_network_interface {
+  block_device_mappings {
+    device_name = "/dev/xvda"
+
+    ebs {
+      volume_type           = "gp3"
+      volume_size           = 8
+      encrypted             = true
+      delete_on_termination = true
+    }
+  }
+
+  network_interfaces {
+    device_index         = 0
     network_interface_id = aws_network_interface.tunnel_end_private.id
   }
 
+  network_interfaces {
+    device_index         = 1
+    network_interface_id = aws_network_interface.tunnel_end_public.id
+  }
+
+  # The provider's default tags don't reach what a template launches: the server budget filters on project (T154).
+  # The interfaces are Terraform's own, tagged in tunnel-end.tf.
+  dynamic "tag_specifications" {
+    for_each = ["instance", "volume", "spot-instances-request"]
+
+    content {
+      resource_type = tag_specifications.value
+      tags = {
+        Name        = "h4-prod-tunnel-end"
+        project     = "h4reet-ai"
+        environment = "prod"
+        component   = "tunnel-end"
+      }
+    }
+  }
+
   tags = {
-    Name      = "h4-prod-tunnel-end"
     component = "tunnel-end"
   }
 
   lifecycle {
-    # A newer image or a changed host file reaches the tunnel end only through a reviewed replace, never as drift in
-    # a later plan: terraform_data.tunnel_end_host holds the user data's SHA-256 and local.tunnel_end_generation
-    # (tunnel-end.tf), so a changed host file or a new generation plans as the replace (group 5's review, I3;
-    # docs/runbooks/tunnel-end.md).
-    ignore_changes       = [ami, user_data_base64]
+    # A newer image or a changed host file reaches the tunnel end only through a reviewed change: the templates ignore
+    # the image's and the user data's drift, and a new terraform_data.tunnel_end_host (tunnel-end.tf) replaces them;
+    # the running tunnel end moves onto them by the Author's hand replace (docs/runbooks/tunnel-end.md).
+    ignore_changes       = [image_id, user_data]
     replace_triggered_by = [terraform_data.tunnel_end_host]
-
-    # T166 measures the type with the tunnel end's five services; until then prod's plan stops here.
-    precondition {
-      condition     = local.tunnel_end_type != "measure-in-T166"
-      error_message = "The tunnel end's type isn't measured yet: tasks.md T166 sets local.tunnel_end_type in infra/prod/tunnel-end.tf."
-    }
   }
 }
