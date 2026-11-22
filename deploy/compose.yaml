@@ -797,6 +797,12 @@ services:
         read_only: true
     read_only: true
     tmpfs: ["/run:uid=10001,gid=10001,mode=0700"]
+    # Fix F10 (specs/001-cloud-elevation/fixes/f10.md): in its own network namespace, a peer that stops answering with
+    # data outstanding is given up after 8 retries, about 100 s, not the kernel's 15, about 15 minutes, which is how
+    # long a dead laptop's session held 2201 to 2203 while the relay's checks kept sshd's client-alive probe from
+    # running.
+    sysctls:
+      net.ipv4.tcp_retries2: "8"
     deploy:
       resources:
         limits:

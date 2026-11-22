@@ -220,6 +220,7 @@ class StubHost:
         self.metrics: list[dict] = []
         self.alerts: list[str] = []
         self.owned: list[tuple[str, int]] = []
+        self.slept: list[float] = []
         self.root = tmp
 
     def answer(self, prefix: str, code: int = 0, out: bytes = b"") -> None:
@@ -245,6 +246,57 @@ class StubHost:
     def account(self) -> str:
         return ACCOUNT
 
+    def sleep(self, seconds: float) -> None:
+        # Fix F9: the host step's waits for ens5's address, counted, never slept.
+        self.slept.append(seconds)
+
+
+# Fix F9 (specs/001-cloud-elevation/fixes/f9.md): ens5 as the tunnel end has it once its reply route is live, as `ip`
+# prints it: its address, table 105's default by its DHCP gateway, and networkd's two rules (the Author's reading after
+# the reboot of 2026-11-18). A step that finds them so changes nothing of the network.
+NET_LIVE = {
+    "ip -4 -o addr show dev ens5": (
+        0,
+        (
+            b"2: ens5    inet 10.42.1.10/24 metric 512 brd 10.42.1.255 scope global dynamic ens5\\       "
+            b"valid_lft 3400sec preferred_lft 3400sec\n"
+        ),
+    ),
+    "ip -4 -j rule show": (
+        0,
+        json.dumps(
+            [
+                {"priority": 0, "src": "all", "table": "local"},
+                {
+                    "priority": 104,
+                    "src": "all",
+                    "fwmark": "0x105",
+                    "table": "105",
+                    "protocol": "static",
+                },
+                {"priority": 105, "src": PRIVATE, "table": "105", "protocol": "static"},
+                {"priority": 32766, "src": "all", "table": "main"},
+                {"priority": 32767, "src": "all", "table": "default"},
+            ]
+        ).encode(),
+    ),
+    "ip -4 -j route show table 105": (
+        0,
+        json.dumps(
+            [
+                {
+                    "dst": "default",
+                    "gateway": "10.42.1.1",
+                    "dev": "ens5",
+                    "protocol": "dhcp",
+                    "metric": 512,
+                    "flags": [],
+                }
+            ]
+        ).encode(),
+    ),
+}
+
 
 @pytest.fixture
 def world(tmp_path: Path) -> tuple[StubHost, object]:
@@ -261,6 +313,8 @@ def world(tmp_path: Path) -> tuple[StubHost, object]:
     # in the test's folder, never the host's /etc.
     paths.network = tmp_path / "etc" / "systemd" / "network" / "70-ens5.network.d"
     paths.config = tmp_path / "etc" / "h4reet"
+    for prefix, (code, out) in NET_LIVE.items():
+        host.answer(prefix, code, out)
     return host, paths
 
 
