@@ -7,9 +7,13 @@
 // whose `select` and `target` are the room's own handlers.
 import { describe, expect, it } from "vitest";
 
+import { compose } from "../../build/room/compose";
+import { noPolicy } from "../../build/room/policy";
+import type { RoomIndex } from "../../src/room/compose/bundle";
 import { HELD_PAPER } from "../../src/room/stage";
-import { button, enter, flush, start } from "../helpers/room";
+import { button, enter, flush, start, stubViewport, throughLoader } from "../helpers/room";
 import type { Visit } from "../helpers/room";
+import { goodTree } from "../helpers/room-fixtures";
 
 const PAPER = "held-paper";
 
@@ -105,5 +109,38 @@ describe("no paper target or selection where the room doesn't take it (spec 033,
     stage.select(PAPER);
     expect(resumeOpen(v)).toBe(false);
     expect(v.events.slice(before).map((e) => e.kind)).not.toContain("resume_opened");
+  });
+});
+
+// The review of 842d8d18, nit 4: the split layout's list marks its selected entry, the piece focused or targeted, else
+// the hovered one, else the open conversation's (hud/split.ts). The held paper is no list entry, so its target, by
+// "Resume"'s focus or a hover on the paper, never takes that mark from the open conversation's entry.
+describe("the held paper and the split layout's list (spec 033, FR-009)", () => {
+  it("leaves the open conversation's entry marked while the paper is targeted", async () => {
+    const tree = compose(goodTree(), noPolicy(), { mode: "strict", drafts: false }).index;
+    const index: RoomIndex = {
+      ...tree,
+      live: { ...tree.live, turn: "site" },
+      topics: tree.topics.map((t) => ({ ...t, ready: true })),
+    };
+    const viewport = stubViewport({ w: 1920, h: 1080 });
+    const v = start({ webgl: true, room: index, viewport: viewport.factory, sendTurn: () => undefined });
+    await enter(v, "engineer");
+    await throughLoader(v);
+    v.clock.advance(5000);
+    await flush();
+    expect(v.doc.documentElement.getAttribute("data-split")).toBe("on");
+    const id = index.selectables.find((s) => s.action.kind === "talk")?.id ?? "";
+    const piece = v.doc.querySelector<HTMLButtonElement>(`.room-list button[data-object-id="${id}"]`);
+    if (!piece) throw new Error("no talking piece in the list");
+    piece.click();
+    await flush();
+    expect(piece.getAttribute("aria-current")).toBe("true");
+    button(v.doc, "Resume").focus();
+    expect(v.scene.targets.at(-1)).toBe(PAPER);
+    expect(piece.getAttribute("aria-current"), "while Resume has focus").toBe("true");
+    expect(piece.hasAttribute("data-selected"), "its strokes while Resume has focus").toBe(true);
+    v.scene.created[0]?.target?.("pointer", PAPER);
+    expect(piece.getAttribute("aria-current"), "while the paper is hovered").toBe("true");
   });
 });
