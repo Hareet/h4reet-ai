@@ -39,6 +39,11 @@ volume is attached before every start; the check repairs a running tunnel end's 
 generation moves a stopped EC2 alone; and every wait ends MARGIN_S before Lambda's timeout. {"manual": true,
 "replace": host, "dry_run": true} returns each type's dry run and changes nothing.
 
+From fix/032-launch-policy (2026-11-22): a launch or dry run refused UnauthorizedOperation logs AWS's whole message,
+its encoded part apart, on a line of its own (log_refusal), so the refusal decodes in one step; the alert, the metric,
+and the result carry the code alone. The result carries a refusal's code (busy, no_capacity, AWS's), so the Author's
+ec2_ops.py tells a busy refusal, which sends no alert, from a failed start.
+
 A read that fails refuses at its own step, with `unread` among the facts, so EC2 starts only when every check passes.
 It makes one pass and never retries a type; it raises nothing, so Lambda never retries it. Each outcome is one log line in
 CloudWatch's embedded metric format (namespace h4reet/handover, dimensions Function, Trigger, and Outcome), and one alert on
@@ -1101,6 +1106,9 @@ def handler(
     }
     if last.reason is not None:
         result["reason"] = last.reason
+        code = dict(last.facts).get("code")
+        if code:
+            result["code"] = code
     if last.dry_run is not None:
         result["dry_run"] = last.dry_run
     return result
