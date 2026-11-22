@@ -214,6 +214,57 @@ def test_start_invokes_the_function_by_hand_once(world: dict) -> None:
     assert calls_of(world, "ec2", "start-instances") == []
 
 
+# Spec 032 (FR-009): the Author's hand replace, through the same function and its checks.
+@pytest.mark.parametrize(
+    ("argv", "payload"),
+    [
+        (
+            ("start", "--replace", "ec2", "--skip", "t4g.large"),
+            {"manual": True, "replace": "ec2", "skip": ["t4g.large"]},
+        ),
+        (
+            ("start", "--replace", "ec2", "--skip", "t4g.large,m7g.large"),
+            {"manual": True, "replace": "ec2", "skip": ["t4g.large", "m7g.large"]},
+        ),
+        (
+            ("start", "--replace", "tunnel_end"),
+            {"manual": True, "replace": "tunnel_end", "skip": []},
+        ),
+    ],
+)
+def test_start_with_a_replace_sends_the_host_and_the_types_to_skip(
+    world: dict, argv: tuple[str, ...], payload: dict
+) -> None:
+    done = run(world, *argv)
+    assert done.returncode in (0, 1), done.stderr
+    (invoke,) = calls_of(world, "lambda", "invoke")
+    assert json.loads(value(invoke, "--payload")) == payload
+    assert calls_of(world, "ec2", "terminate-instances") == []
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ("start", "--skip", "t4g.large"),
+        ("start", "--replace", "laptop"),
+        ("start", "--replace", "ec2", "--skip", "t4g.large;id"),
+        ("stop", "--replace", "ec2"),
+    ],
+)
+def test_a_replace_it_cant_read_invokes_nothing(
+    world: dict, argv: tuple[str, ...]
+) -> None:
+    done = run(world, *argv)
+    assert done.returncode == 2
+    assert calls_of(world, "lambda", "invoke") == []
+
+
+def test_the_start_target_passes_replace_and_skip() -> None:
+    recipe = MAKEFILE.split("\nec2-start:", 1)[1].split("\n\n", 1)[0]
+    assert '$(if $(call from_cli,REPLACE), --replace "$$REPLACE")' in recipe
+    assert '$(if $(call from_cli,SKIP), --skip "$$SKIP")' in recipe
+
+
 def test_autostart_on_writes_the_switch_invokes_the_start_once_and_writes_the_audit_row(
     world: dict,
 ) -> None:
