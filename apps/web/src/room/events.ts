@@ -7,6 +7,8 @@ export const EVENT_KINDS = [
   "object_selected",
   "item_selected",
   "resume_opened",
+  // Spec 033 (FR-003): sent once a visit at the hand-off's end, the paper kept in the visitor's hand; the visits'
+  // stand-in on the dashboard. Before it, "Keep it for later" sent it.
   "resume_kept",
   "pdf_downloaded",
   "turn_sent",

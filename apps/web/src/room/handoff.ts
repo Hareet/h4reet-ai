@@ -1,7 +1,7 @@
 // The hand-off (spec 002, FR-007, FR-008; contracts/room-scene.md §3; research.md R-13): the twin hands the visitor's
 // avatar a paper, the resume. It lasts 4.5 s in 3D, never more than 5; 1 s under reduced motion, a crossfade; and in
-// 2D, three still frames of 1.5 s. Nothing skips it: this timeline has no way to end early. Its line goes to the
-// polite live region when it starts, and the room offers "Read the resume now" when it ends. The paper ends in the
+// 2D, three still frames of 1.5 s. Nothing skips it: this timeline has no way to end early. Its line goes to the polite
+// live region when it starts, and the room is the visitor's when it ends (spec 033: no offer). The paper ends in the
 // avatar's own hand, placed from its size, as code (spec 004, FR-008): the room's data gives one anchor, where the
 // first avatar holds it on the side nearer the twin, and handOffset moves it to the chosen avatar's hand on that side.
 // The visitor turns a little toward the twin to take it, then back (the Author, 2026-10-23: "we can have the user

@@ -31,7 +31,6 @@ async function arrive(avatar: string, o: { webgl?: boolean; through?: boolean } 
   if (o.through === false) return v;
   await throughLoader(v);
   v.clock.advance(5000);
-  button(v.doc, "Keep it for later").click();
   await flush();
   return v;
 }
@@ -55,7 +54,6 @@ describe("the room's degraded states (US3; FR-001, FR-009)", () => {
     if (v.doc.documentElement.getAttribute("data-loading") === "on") expect(eating?.state().loading).toBe(true);
     await throughLoader(v);
     v.clock.advance(5000);
-    button(v.doc, "Keep it for later").click();
     await flush();
     expect(eating?.state().loading).toBe(false);
   });

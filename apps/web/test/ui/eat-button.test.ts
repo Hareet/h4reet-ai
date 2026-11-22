@@ -118,7 +118,6 @@ async function visit(screen: { w: number; h: number }, avatar: string, o: { webg
   await enter(v, "engineer", avatar);
   await throughLoader(v);
   v.clock.advance(5000);
-  button(v.doc, "Keep it for later").click();
   await flush();
   (v as unknown as { press: typeof press }).press = press;
   return v;

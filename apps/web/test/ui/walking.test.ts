@@ -31,7 +31,6 @@ describe("the walking control (spec 008, T045)", () => {
     expect(control(v).hidden).toBe(true);
     expect(control(v).closest("[inert]") ?? (control(v).hasAttribute("inert") ? control(v) : null)).not.toBeNull();
     v.clock.advance(5000);
-    button(v.doc, "Keep it for later").click();
     await flush();
     expect(control(v).hidden).toBe(false);
     expect(control(v).hasAttribute("inert")).toBe(false);
@@ -84,12 +83,14 @@ describe("the walking control (spec 008, T045)", () => {
     expect(control(v).hidden).toBe(true);
     expect(view(v).hasAttribute("role")).toBe(false);
     expect(v.room.visit.mode).toBe("2d");
-    // The conversation as it was, its text box and what it held, and the resume still kept for later.
+    // The conversation as it was, its text box and what it held, and the visit still in the room, its paper kept once
+    // (spec 033: resume_kept at the hand-off's end, not again at the fall to 2D).
     expect(message).not.toBeNull();
     expect(message?.isConnected).toBe(true);
     expect(message?.value).toBe("half a thought");
     expect(message?.closest("[inert]")).toBeNull();
-    expect(v.room.visit.resumeKept).toBe(true);
+    expect(v.room.visit.stage).toBe("room");
+    expect(v.events.filter((e) => e.kind === "resume_kept")).toHaveLength(1);
     expect(v.doc.getElementById("room-walk-help")?.hidden).toBe(true);
   });
 

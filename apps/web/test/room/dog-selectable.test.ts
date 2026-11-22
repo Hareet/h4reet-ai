@@ -85,7 +85,6 @@ function listButton(v: Visit, id: string): HTMLButtonElement {
 async function inRoom(v: Visit): Promise<string[]> {
   await enter(v, "non-engineer");
   v.clock.advance(5000);
-  button(v.doc, "Keep it for later").click();
   await flush();
   const pets: string[] = [];
   const stage = v.scene.stage as (Stage3D & { pet?: (id: string) => void }) | null;

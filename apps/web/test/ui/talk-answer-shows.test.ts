@@ -161,9 +161,8 @@ async function toOffer(layout: Layout, mode: (typeof MODES)[number], o: { freeTa
   return { v, gateway };
 }
 
-/** From the offer into the room ("Keep it for later"), then the walking view where the layout asks for it. */
+/** Into the room at the hand-off's end (spec 033: no offer), then the walking view where the layout asks for it. */
 async function intoTheRoom(v: Visit, layout: Layout, mode: (typeof MODES)[number]): Promise<void> {
-  button(v.doc, "Keep it for later").click();
   await flush();
   const root = v.doc.documentElement;
   expect(root.getAttribute("data-hud") ?? "stacked", "the layout").toBe(layout.hud);

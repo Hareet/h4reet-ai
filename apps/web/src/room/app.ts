@@ -5,7 +5,7 @@
 // - The choice screen comes first. Behind it, the WebGL 2 check runs and, only if it passes, the 3D chunk (scene.ts)
 //   is imported: a device without WebGL 2 never downloads Three.js.
 // - "Enter" builds the room with its controls inert, mounts the 3D scene or the 2D drawing, and plays the hand-off,
-//   which nothing skips; its end offers the resume now or later and opens the room.
+//   which nothing skips; its end opens the room at once, with no offer (spec 033, FR-001), and sends resume_kept.
 // - The quality controller, a lost context, or the visitor's "2D view" moves the room to 2D, once, keeping the visit;
 //   each studio model whose load hadn't recorded its end is skipped then (spec 004, FR-071).
 // - Every selectable runs its action from the bundle's index (spec 004, FR-036 to FR-038; R-33): an unready topic
@@ -36,7 +36,7 @@
 //   h4FrameLog() on the window. A release build gives none, so the room keeps no log.
 // - The target (spec 008, Phase 1; FR-007 to FR-013; plan.md R-06): one store a visit, in this function's memory
 //   (walk/target.ts's reducer), so it outlives the fall to 2D. The stage's pointer reports a hover's and a press's pick
-//   and the "In the room" list each button's focus, only once the hand-off and its offer are over, and only for a
+//   and the "In the room" list each button's focus, only once the hand-off is over, and only for a
 //   selectable the index lists (FR-010); each change goes to the stage that draws, which shows it with the highlight.
 //   A selection, on any path, clears it in the same call (FR-011); the fall to 2D resets it. A target sends nothing:
 //   no event, request, or storage, and no log line outside a drafts build's frame log (FR-013).
@@ -192,7 +192,6 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   let controller: QualityController | null = null;
   let unwatch: (() => void) | null = null;
   let handoff: Handoff | null = null;
-  let offering = false;
   let resumeOpen = false;
   let copy: TextCopy | null = null;
   /** The room text, once room-data.json has loaded at Enter; null before, and for good if it failed twice. */
@@ -201,8 +200,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   /** The room's target (spec 008): the selectable the stage shows with the highlight, and what set it. */
   let targeting: TargetState = NO_TARGET;
 
-  /** The room takes input only after the hand-off and its offer. */
-  const open = (): boolean => visit.stage === "room" && !offering;
+  /** The room takes input only after the hand-off (spec 033, FR-001: no offer follows it). */
+  const open = (): boolean => visit.stage === "room";
 
   /** The HUD's docked panels' states (spec 005): every panel starts open (FR-020). */
   let hudState: HudState = OPENING;
@@ -1013,7 +1012,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         announcer.say(line);
       },
       show: (progress) => stage?.showHandoff(progress),
-      onDone: offerResume,
+      onDone: enterRoom,
     });
   }
 
@@ -1238,33 +1237,18 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     if (stage?.mode === "3d") (stage as Stage3D).say?.(line);
   }
 
-  function offerResume(): void {
+  /** Spec 033 (FR-001 to FR-005): the hand-off's end opens the room at once, with no offer: its controls and pieces
+   *  take input, the walking control shows where the stage walks, focus stays on the room's heading, where the hand-off
+   *  held it (FR-002), and resume_kept goes, once a visit: the paper is kept in the visitor's hand (FR-003). */
+  function enterRoom(): void {
     handoffEnded();
     const layout = room;
     if (!layout) return;
     visit.stage = "room";
     introduceDogVisitor();
-    offering = true;
-    const settle = (): void => {
-      offering = false;
-      removeOffer();
-      layout.setInteractive(true);
-      layout.setWalkOffered(walker(stage) !== null);
-    };
-    const removeOffer = layout.offer(
-      () => {
-        if (!offering) return;
-        settle();
-        openResume();
-      },
-      () => {
-        if (!offering) return;
-        settle();
-        visit.resumeKept = true;
-        emit({ kind: "resume_kept" });
-        layout.resumeButton.focus();
-      },
-    );
+    layout.setInteractive(true);
+    layout.setWalkOffered(walker(stage) !== null);
+    emit({ kind: "resume_kept" });
   }
 
   function openResume(): void {

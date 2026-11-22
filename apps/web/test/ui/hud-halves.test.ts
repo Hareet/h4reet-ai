@@ -75,7 +75,6 @@ async function inConversation(c: Case): Promise<Visit> {
   await enter(v, "engineer", "dinosaur");
   await throughLoader(v);
   v.clock.advance(5000);
-  button(v.doc, "Keep it for later").click();
   await flush();
   const id = room.selectables.find((s) => s.action.kind === "talk")?.id ?? "";
   v.doc.querySelector<HTMLButtonElement>(`.room-list button[data-object-id="${id}"]`)?.click();
@@ -284,7 +283,6 @@ describe("no halves in the stacked layout (FR-004)", () => {
     await enter(v);
     await throughLoader(v);
     v.clock.advance(5000);
-    button(v.doc, "Keep it for later").click();
     await flush();
     expect(v.doc.documentElement.getAttribute("data-hud")).toBe("stacked");
     expect(v.doc.querySelectorAll('[data-half="top"]').length).toBe(0);

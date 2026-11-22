@@ -79,7 +79,6 @@ async function expectWhole(v: Visit, from: number, what: string): Promise<void> 
   // The hand-off to its end, then the offer answered: the room is the visitor's.
   v.clock.advance(5000);
   await flush();
-  button(v.doc, "Keep it for later").click();
   await flush();
   expect(v.doc.querySelector(".room-loader"), `${what}: no loader left`).toBeNull();
   expect(v.doc.documentElement.hasAttribute("data-loading"), what).toBe(false);

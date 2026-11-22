@@ -579,11 +579,13 @@ describe("the room's modes", () => {
     await flush();
     expect(v.scene.created).toHaveLength(0);
     expect(v.room.visit).toMatchObject({ mode: "2d", stage: "room" });
-    expect(v.doc.querySelectorAll(".room-offer")).toHaveLength(1);
+    // The hand-off ended once: one resume_kept (spec 033, which took out the offer this counted before).
+    const kept = (): number => v.events.filter((e) => e.kind === "resume_kept").length;
+    expect(kept()).toBe(1);
     expect(v.doc.querySelectorAll("canvas")).toHaveLength(0);
     expect(twoD(v.events)).toBe(1);
     v.clock.advance(10_000);
-    expect(v.doc.querySelectorAll(".room-offer")).toHaveLength(1);
+    expect(kept()).toBe(1);
   });
 
   it("ignores frames while the page is hidden, and starts a new window when it shows", async () => {
@@ -632,7 +634,7 @@ describe("the room's modes", () => {
     expect(v.doc.querySelector("canvas")).toBeNull();
     expect(v.doc.querySelector(".flat")).not.toBeNull();
     expect(v.room.visit).toMatchObject({ stage: before.stage, path: before.path, avatar: before.avatar });
-    expect(v.room.visit.resumeKept).toBe(true);
+    expect(v.events.filter((e) => e.kind === "resume_kept")).toHaveLength(1);
     expect(twoD(v.events)).toBe(1);
     v.clock.advance(60_000, 100);
     expect(twoD(v.events)).toBe(1);

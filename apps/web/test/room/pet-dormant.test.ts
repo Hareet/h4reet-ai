@@ -190,7 +190,6 @@ describe("the dog selectable opens its conversation as any piece (FR-028; Q17)",
       const v = start({ webgl: true, room: indexWithDog() });
       await enter(v, "non-engineer", avatar);
       v.clock.advance(5000);
-      button(v.doc, "Keep it for later").click();
       await flush();
       const before = v.events.length;
       const logBefore = talkLog(v.doc).children.length;

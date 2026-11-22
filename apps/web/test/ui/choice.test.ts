@@ -88,7 +88,6 @@ describe("the choice screen", () => {
     expect(v.room.visit).toMatchObject({ path: "non-engineer", avatar: "dinosaur", stage: "handoff" });
     expect(radios(v.doc, "path")).toHaveLength(0);
     v.clock.advance(5000);
-    button(v.doc, "Keep it for later").click();
     expect(radios(v.doc, "path")).toHaveLength(0);
     expect(radios(v.doc, "avatar")).toHaveLength(0);
     expect(v.room.visit).toMatchObject({ path: "non-engineer", avatar: "dinosaur", stage: "room" });
@@ -154,7 +153,7 @@ describe("the choice screen", () => {
     await intoRoom(first);
     // A reload is a new page: nothing carries over, because nothing was kept anywhere.
     const second = start();
-    expect(second.room.visit).toMatchObject({ stage: "choosing", path: null, avatar: null, resumeKept: false });
+    expect(second.room.visit).toMatchObject({ stage: "choosing", path: null, avatar: null });
     expect([...radios(second.doc, "path"), ...radios(second.doc, "avatar")].some((r) => r.checked)).toBe(false);
     expect(hasButton(second.doc, "Resume")).toBe(false);
     await enter(second);

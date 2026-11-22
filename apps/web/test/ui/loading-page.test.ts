@@ -202,7 +202,6 @@ describe("the page behind the loader, through the room (FR-024, FR-027)", () => 
     v.clock.advance(5000);
     await flush();
     expect(v.doc.querySelector(".hud-bar")?.hasAttribute("inert")).toBe(true);
-    button(v.doc, "Keep it for later").click();
     await flush();
     expect(v.doc.querySelector(".hud-bar")?.hasAttribute("inert")).toBe(false);
   });

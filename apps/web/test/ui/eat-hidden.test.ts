@@ -27,7 +27,6 @@ describe("the room tells the eating of a held state at once (FR-009; I-A)", () =
     expect(seen.at(-1), "the loader's end, told").toEqual({ paused: false, loading: false });
     expect(sync).toHaveBeenCalled();
     v.clock.advance(5000);
-    button(v.doc, "Keep it for later").click();
     await flush();
 
     sync.mockClear();

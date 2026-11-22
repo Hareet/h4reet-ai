@@ -212,7 +212,6 @@ describe("the target on the stand-in 3D stage", () => {
     target("pointer", id);
     listButton(v, ids()[1] ?? "").focus();
     expect(v.scene.targets).toEqual([]);
-    button(v.doc, "Keep it for later").click();
     await flush();
     target("pointer", id);
     expect(last(v)).toBe(id);

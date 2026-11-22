@@ -139,7 +139,6 @@ describe("object_selected", () => {
     for (const area of areas) tap(v.win, flat, at(area), "touch");
     expect(selections(v, 0)).toEqual([]);
     v.clock.advance(5000);
-    button(v.doc, "Keep it for later").click();
     for (const pointer of ["mouse", "touch"]) {
       for (const area of areas) {
         const [from, expected] = [v.events.length, sends(v, index, area.id)];

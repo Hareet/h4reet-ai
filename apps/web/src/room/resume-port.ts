@@ -1,7 +1,7 @@
 // The room's side of the interactive resume (spec 002, contracts/room-scene.md §1; tasks.md T029). The room owns the
-// resume's panel: it opens it from "Resume", "Read the resume now", or a fixed message's "Read the resume", gives it
-// its heading ("The resume") and the focus, closes it on Escape, returns focus to "Resume", and counts resume_opened.
-// What goes inside is a ResumeView's: here, Phase 3's view (src/resume/), behind an adapter.
+// resume's panel: it opens it from "Resume", the paper in the visitor's hand (spec 033), or a fixed message's "Read the
+// resume", gives it its heading ("The resume") and the focus, closes it on Escape, returns focus to "Resume", and
+// counts resume_opened. What goes inside is a ResumeView's: here, Phase 3's view (src/resume/), behind an adapter.
 import type { VisitPath } from "../choice/visit";
 import { asRoomNarration, createNarrator } from "../narration";
 import type { NarrationSource, Narrator, RoomNarration } from "../narration";

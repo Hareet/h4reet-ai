@@ -278,8 +278,7 @@ describe("the HUD's palette (room.css; FR-024, FR-025)", () => {
         [/forced-colors/, "color", "ButtonText", `${at} .hud-panels button`],
         [/forced-colors/, "outline-color", "Highlight", `${at} .hud-glass button:focus-visible`],
         [/forced-colors/, "outline-color", "Highlight", `${at} .hud-glass input:focus-visible`],
-        // T053's second review: the offer's ring has its fallback too.
-        [/forced-colors/, "outline-color", "Highlight", `${at} .room-offer button:focus-visible`],
+        // T053's second review gave the hand-off offer's ring its fallback too; spec 033 took the offer out.
       );
     const losing: string[] = [];
     for (const [block, property, value, rule] of FALLBACKS) {
@@ -392,13 +391,13 @@ describe("the look's new pairs (spec 014, T025)", () => {
   });
 });
 
-// T053 (spec 014, the review's I2 and I3): the hand-off offer's buttons take the yellow ring on the glass, not the
-// page's #0b4f9c (about 1.7:1 there); the walking control's hover face, the glass at --glass-alpha-lit, keeps its words
+// T053 (spec 014, the review's I2 and I3): the HUD's buttons take the yellow ring on the glass, not the page's #0b4f9c
+// (about 1.7:1 there), as the hand-off offer's did until spec 033 took the offer out; the walking control's hover face, the glass at --glass-alpha-lit, keeps its words
 // at 4.5:1 over a white scene, and turns opaque where the visitor asks for less transparency or more contrast.
-describe("the offer's focus ring and the walking control's hover (spec 014, T053)", () => {
-  it("rings the offer's buttons in the highlight's yellow, at 3:1 over the glass on white and on black", () => {
+describe("the HUD's focus ring and the walking control's hover (spec 014, T053)", () => {
+  it("rings the HUD's buttons in the highlight's yellow, at 3:1 over the glass on white and on black", () => {
     for (const layout of ["column", "dock"]) {
-      const at = `html[data-hud="${layout}"] .room-offer button:focus-visible`;
+      const at = `html[data-hud="${layout}"] .hud-glass button:focus-visible`;
       expect(declared(at, "outline"), at).toBe("2px solid var(--hud-focus)");
     }
     const glass = colour(`${palette().get("--glass")} `.trim());
