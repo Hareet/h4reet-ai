@@ -335,7 +335,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     for (const b of doc.querySelectorAll<HTMLButtonElement>(".room-list button[data-object-id]"))
       if (b.dataset.objectId === after) b.setAttribute("aria-current", "true");
       else b.removeAttribute("aria-current");
-    split?.setTarget(after);
+    // Spec 033 (the review's nit 4): the held paper is no list entry, so the split list's selected entry (the piece
+    // targeted, else hovered, else the open conversation's) never gives way to it.
+    split?.setTarget(after === HELD_PAPER ? null : after);
     try {
       stage?.setTarget(after);
     } catch {
