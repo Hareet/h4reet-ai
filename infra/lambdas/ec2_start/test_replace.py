@@ -884,6 +884,158 @@ def test_a_hand_dry_run_launches_nothing_and_reports_each_type() -> None:
     assert all(p.get("DryRun") for p in c.ops("RunInstances"))
 
 
+# fix/032-launch-policy: on 2026-11-22 every dry run was refused UnauthorizedOperation, and CloudTrail cut AWS's encoded
+# message at 1,024 characters, so it couldn't be decoded. The function now logs AWS's whole message for that code, so
+# the next refusal decodes in one step (aws sts decode-authorization-message); never in an alert or the result.
+ENCODED = "AbC-" + "x" * 2000
+REFUSAL = (
+    "You are not authorized to perform this operation. User: arn:aws:sts::"
+    f"{ACCOUNT}:assumed-role/h4-ec2-start-fn/h4-ec2-start is not authorized to perform: "
+    "ec2:RunInstances on resource: arn:aws:ec2:us-east-1:"
+    f"{ACCOUNT}:spot-instances-request/* because no identity-based policy allows the "
+    f"ec2:RunInstances action. Encoded authorization failure message: {ENCODED}"
+)
+
+
+def refusals(out: str) -> list[dict]:
+    return [d for d in (json.loads(x) for x in out.splitlines()) if "message" in d]
+
+
+def refuse_with_the_message(c: Cloud, kinds: set[str], dry: bool) -> None:
+    real = c.ec2_RunInstances
+
+    def launch(LaunchTemplate, MinCount, MaxCount, DryRun=False):
+        kind = c.templates[LaunchTemplate["LaunchTemplateId"]]
+        if kind in kinds and DryRun is dry:
+            raise start.AwsError("UnauthorizedOperation", REFUSAL)
+        return real(LaunchTemplate, MinCount, MaxCount, DryRun)
+
+    c.ec2_RunInstances = launch  # type: ignore[method-assign]
+
+
+def test_a_refused_dry_run_logs_aws_whole_message_and_alerts_its_code_alone(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    c = cloud()
+    c.short = {"t4g.large"}
+    refuse_with_the_message(c, set(EC2_TYPES), dry=True)
+    result = run(ALARM, c)
+    assert result["reason"] == "start_failed"
+    out = capsys.readouterr().out
+    logged = refusals(out)
+    assert {d["type"] for d in logged} == set(EC2_TYPES) - {"t4g.large"}
+    for d in logged:
+        assert d["function"] == "h4-ec2-start"
+        assert (d["op"], d["dry_run"], d["code"]) == (
+            "RunInstances",
+            True,
+            "UnauthorizedOperation",
+        )
+        assert d["message"] == REFUSAL  # whole, never cut
+        assert d["encoded"] == ENCODED  # what decode-authorization-message takes
+    (alert,) = c.alerts()
+    assert facts(alert)["code"] == "UnauthorizedOperation"
+    assert ENCODED not in alert and "not authorized" not in alert
+    assert ENCODED not in json.dumps(result)
+    for line in out.splitlines():
+        if "_aws" in json.loads(line):
+            assert ENCODED not in line
+
+
+def test_a_hand_dry_run_logs_the_message_and_returns_codes_alone(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    c = cloud(OUTSIDE)
+    refuse_with_the_message(c, {"m7g.large"}, dry=True)
+    result = run({"manual": True, "replace": "ec2", "dry_run": True}, c)
+    assert result["dry_run"]["m7g.large"] == "UnauthorizedOperation"
+    assert ENCODED not in json.dumps(result)
+    (logged,) = refusals(capsys.readouterr().out)
+    assert (logged["type"], logged["encoded"]) == ("m7g.large", ENCODED)
+    assert not c.alerts()
+
+
+def test_a_refused_launch_logs_the_message_too(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    c = cloud()
+    c.short = {"t4g.large"}
+    refuse_with_the_message(c, {"m7g.large"}, dry=False)
+    assert run(ALARM, c)["reason"] == "start_failed"
+    (logged,) = refusals(capsys.readouterr().out)
+    assert (logged["type"], logged["dry_run"], logged["message"]) == (
+        "m7g.large",
+        False,
+        REFUSAL,
+    )
+    assert ENCODED not in c.alerts()[0]
+
+
+def test_another_code_keeps_no_message(capsys: pytest.CaptureFixture[str]) -> None:
+    c = cloud()
+    c.short = set(EC2_TYPES)
+    run(ALARM, c)
+    assert refusals(capsys.readouterr().out) == []
+
+
+class _ClientError(Exception):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(code)
+        self.response = {"Error": {"Code": code, "Message": message}}
+
+
+def _boto(monkeypatch: pytest.MonkeyPatch, error: Exception) -> None:
+    """The runtime's SDK, as far as BotoAws reaches it: a session whose EC2 client raises `error`."""
+    import types
+
+    class Client:
+        def run_instances(self, **_: object) -> dict:
+            raise error
+
+    class Session:
+        def __init__(self, region_name: str) -> None:
+            pass
+
+        def client(self, service: str, region_name: str) -> Client:
+            return Client()
+
+    boto3 = types.ModuleType("boto3")
+    boto3.session = types.SimpleNamespace(Session=Session)  # type: ignore[attr-defined]
+    exceptions = types.ModuleType("botocore.exceptions")
+    exceptions.ClientError = _ClientError  # type: ignore[attr-defined]
+    exceptions.BotoCoreError = type("BotoCoreError", (Exception,), {})  # type: ignore[attr-defined]
+    botocore = types.ModuleType("botocore")
+    botocore.exceptions = exceptions  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "boto3", boto3)
+    monkeypatch.setitem(sys.modules, "botocore", botocore)
+    monkeypatch.setitem(sys.modules, "botocore.exceptions", exceptions)
+
+
+def test_the_sdk_wrapper_keeps_an_unauthorized_operations_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _boto(monkeypatch, _ClientError("UnauthorizedOperation", REFUSAL))
+    with pytest.raises(start.AwsError) as raised:
+        start.BotoAws().call("ec2", "RunInstances", DryRun=True)
+    assert (raised.value.code, raised.value.message) == (
+        "UnauthorizedOperation",
+        REFUSAL,
+    )
+    assert str(raised.value) == "UnauthorizedOperation"  # the code alone, as before
+
+
+def test_the_sdk_wrapper_keeps_no_other_codes_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _boto(monkeypatch, _ClientError("InsufficientInstanceCapacity", "in us-east-1a"))
+    with pytest.raises(start.AwsError) as raised:
+        start.BotoAws().call("ec2", "RunInstances")
+    assert (raised.value.code, raised.value.message) == (
+        "InsufficientInstanceCapacity",
+        None,
+    )
+
+
 def test_a_running_instance_of_an_earlier_generation_isnt_replaced() -> None:
     c = cloud()
     c.instances[OLD_EC2]["Tags"].append(
