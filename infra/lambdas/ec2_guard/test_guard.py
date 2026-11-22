@@ -453,3 +453,23 @@ def test_an_unreadable_window_counts_as_outside(
     aws = Aws()
     assert run(RUNNING, aws)["outcome"] == "ec2_stopped_outside_hours"
     assert "- unread: hours" in aws.alerts()[0].splitlines()
+
+
+def test_after_a_replace_the_new_instance_the_parameter_names_is_ec2s_and_isnt_stopped() -> (
+    None
+):
+    """Spec 032 (FR-007, FR-012): the start function writes the new instance's ID to the parameter as soon as it
+    launches; the old one is terminated, so AWS's listing of pending and running instances (the guard's filter) doesn't hold it. The
+    guard's code doesn't change: this holds its reading of the parameter to the replace's identity model."""
+    new = "i-0" + "ef" * 8
+    aws = Aws(
+        {
+            ("ssm", "/h4reet/prod/ec2-instance-id"): {"Parameter": {"Value": new}},
+            ("ec2", "DescribeInstances"): {
+                "Reservations": [{"Instances": [instance(new)]}]
+            },
+        }
+    )
+    run({**RUNNING, "detail": {"instance-id": new, "state": "running"}}, aws)
+    assert aws.stops() == []
+    assert aws.alerts() == []
