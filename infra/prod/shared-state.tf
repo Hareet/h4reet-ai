@@ -32,13 +32,15 @@ resource "aws_ebs_volume" "shared_state" {
 }
 
 # /dev/sdf, which the tunnel end's host script, deploy/hosts/tunnel-end/shared_state.py, formats once, when it holds no
-# filesystem, and mounts at /srv/h4reet/shared-state. The tunnel end stops before a detach, so Postgres never loses
-# its disk under it.
-resource "aws_volume_attachment" "shared_state" {
-  device_name                    = "/dev/sdf"
-  volume_id                      = aws_ebs_volume.shared_state.id
-  instance_id                    = aws_instance.tunnel_end.id
-  stop_instance_before_detaching = true
+# filesystem, and mounts at /srv/h4reet/shared-state. From spec 032, h4-ec2-start attaches it to each tunnel end it
+# launches, once the one before is terminated, so Postgres never loses its disk under it (FR-007); this root forgets
+# the attachment it made for the first, never detaching it.
+removed {
+  from = aws_volume_attachment.shared_state
+
+  lifecycle {
+    destroy = false
+  }
 }
 
 # The backups' bucket (the regrouping note's question 4, option A, relayed by the main session as the Author's

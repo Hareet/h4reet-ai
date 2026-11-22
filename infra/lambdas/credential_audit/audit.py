@@ -69,11 +69,49 @@ LAPTOP_PERMISSION_SET: str | None = "h4reet-ai-cloud"
 _THE_MODULES = object()
 TAGGED_INSTANCE = "h4-prod-ec2"
 HANDOVER_ROLES = {
-    "h4-ec2-start-fn": {"ec2:startinstances"},
+    # Spec 032 (FR-016; ADR 0057): the start function also replaces a short host from its launch templates.
+    "h4-ec2-start-fn": {
+        "ec2:startinstances",
+        "ec2:runinstances",
+        "ec2:createtags",
+        "ec2:terminateinstances",
+        "ec2:cancelspotinstancerequests",
+        "ec2:attachvolume",
+    },
     "h4-ec2-guard-fn": {"ec2:stopinstances"},
 }
 HANDOVER_SETS = {"h4-ec2-stop": {"ec2:stopinstances"}}
-DESCRIBE = {"ec2:describeinstances", "ec2:describeinstancestatus"}
+DESCRIBE = {
+    "ec2:describeinstances",
+    "ec2:describeinstancestatus",
+    "ec2:describespotinstancerequests",
+    "ec2:describevolumes",
+}
+HOSTS = frozenset({TAGGED_INSTANCE, "h4-prod-tunnel-end"})
+HOST_VOLUMES = frozenset({"h4-ec2-data", "h4-shared-state"})
+_STRING = ("StringEquals", "ForAllValues:StringEquals")
+_NAME = r"(?:aws|ec2):ResourceTag/Name"
+# Each EC2 action an identity of the handover may hold, and the conditions any one of which holds it: (operators, the
+# key's pattern, the values the condition may name; None for a launch template's ARN). A condition naming a value
+# outside its set holds nothing.
+HOLDS: dict[str, tuple[tuple[tuple[str, ...], str, frozenset[str] | None], ...]] = {
+    "ec2:startinstances": ((_STRING, _NAME, frozenset({TAGGED_INSTANCE})),),
+    "ec2:stopinstances": ((_STRING, _NAME, frozenset({TAGGED_INSTANCE})),),
+    "ec2:terminateinstances": ((_STRING, _NAME, HOSTS),),
+    "ec2:cancelspotinstancerequests": ((_STRING, _NAME, HOSTS),),
+    "ec2:attachvolume": ((_STRING, _NAME, HOSTS | HOST_VOLUMES),),
+    "ec2:runinstances": (
+        (
+            _STRING,
+            r"(?:aws|ec2):ResourceTag/component",
+            frozenset({"ec2", "tunnel-end"}),
+        ),
+        (_STRING, r"aws:RequestTag/Name", HOSTS),
+        (("ArnLike", "ArnEquals"), r"ec2:LaunchTemplate", None),
+    ),
+    "ec2:createtags": ((_STRING, r"ec2:CreateAction", frozenset({"RunInstances"})),),
+}
+LAUNCH_TEMPLATE = re.compile(r"arn:aws:ec2:[a-z0-9-]+:[^:*]+:launch-template/[^:]*")
 RUNBOOK = "docs/runbooks/credential-audit.md"
 # The Author's allowlist (ADR 0047), out of the repository: his file in the terminal, a parameter in the function.
 ALLOW_PARAMETER_ENV = "H4_AUDIT_ALLOW_PARAMETER"
@@ -266,7 +304,7 @@ def managed_document(aws, arn: str) -> dict | None:
 
 
 def handover_too_broad(docs: list[dict] | None, allowed: set[str]) -> bool:
-    """Any EC2 action but describe, and the identity's own action unless its condition names the tagged instance."""
+    """Any EC2 action but describe, and the identity's own actions unless each statement's condition holds it (HOLDS)."""
     if docs is None:
         return True
     for doc in docs:
@@ -280,28 +318,41 @@ def handover_too_broad(docs: list[dict] | None, allowed: set[str]) -> bool:
                     continue
                 if action in DESCRIBE:
                     continue
-                if action not in allowed or not names_tagged_instance(
-                    s.get("Condition")
+                if action not in allowed or not holds(action, s.get("Condition")):
+                    return True
+    return False
+
+
+def holds(action: str, condition: object) -> bool:
+    """The statement's condition names only what HOLDS lets this action reach."""
+    if not isinstance(condition, dict):
+        return False
+    for operator, pairs in condition.items():
+        if not isinstance(pairs, dict):
+            continue
+        for key, values in pairs.items():
+            named = as_list(values)
+            for operators, pattern, allowed in HOLDS.get(action, ()):
+                if (
+                    operator not in operators
+                    or not re.fullmatch(pattern, key)
+                    or not named
                 ):
+                    continue
+                if allowed is None:
+                    if all(
+                        isinstance(v, str) and LAUNCH_TEMPLATE.fullmatch(v)
+                        for v in named
+                    ):
+                        return True
+                elif set(named) <= allowed:
                     return True
     return False
 
 
 def names_tagged_instance(condition: object) -> bool:
-    if not isinstance(condition, dict):
-        return False
-    for operator, pairs in condition.items():
-        if operator not in (
-            "StringEquals",
-            "ForAllValues:StringEquals",
-        ) or not isinstance(pairs, dict):
-            continue
-        for key, values in pairs.items():
-            if re.fullmatch(r"(?:aws|ec2):ResourceTag/.+", key) and as_list(values) == [
-                TAGGED_INSTANCE
-            ]:
-                return True
-    return False
+    """The condition names h4-prod-ec2 alone (kept for the readers of spec 001's rule)."""
+    return holds("ec2:startinstances", condition)
 
 
 class PermissionSets:

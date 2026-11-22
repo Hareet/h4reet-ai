@@ -1,14 +1,28 @@
 # The tunnel end's network side and its host (spec 001 FR-051 to FR-055, FR-076; research.md R-04, R-10, R-11;
-# contracts/tunnel.md §1 and §6; plan.md §4): its type, its image, its two interfaces and their groups, its Elastic IP,
-# and the user data that makes its host. The instance itself, on spot, is the protected ec2-market.tf's; its role is
-# iam.tf's.
+# contracts/tunnel.md §1 and §6; plan.md §4): its types, its image, its two interfaces and their groups, its Elastic IP,
+# and the user data that makes its host. Its launch templates, on spot, are the protected ec2-market.tf's; its role is
+# iam.tf's. From spec 032 Terraform no longer holds the instance: h4-ec2-start launches it from the templates, and this
+# root reads it by its tag (below).
 
 locals {
   # The tunnel end's type, measured with its five services before W1's plan blocks (tasks.md T166) and priced by the
   # Author (T167). It is the only type the root names; ec2-market.tf's precondition still refuses the placeholder,
   # "measure-in-T166". T166's block, on his engine, 2026-11-13: "The type, the larger of the two (R-33's rule on the
-  # peaks and on the limits): t4g.small." (research.md R-33).
-  tunnel_end_type = "t4g.small"
+  # peaks and on the limits): t4g.small." (research.md R-33). From spec 032 the first of the tunnel end's list.
+  tunnel_end_type = local.tunnel_end_types[0].type
+
+  # The tunnel end's interchangeable types, in the order h4-ec2-start tries them when it replaces the tunnel end (spec
+  # 032 FR-001, FR-002; ADR 0057): Graviton alone, each with the first type's memory or more, in local.zone, and each
+  # able to hold the tunnel end's two interfaces. Each one's price ceiling, in US dollars an hour, is the first type's
+  # on-demand price (the Author confirms the list prices before his apply; spec 032 SC-006).
+  tunnel_end_types = [
+    { type = "t4g.small", max_price = "0.0168" },
+    { type = "c7g.medium", max_price = "0.0168" },
+    { type = "c6g.medium", max_price = "0.0168" },
+    { type = "t4g.medium", max_price = "0.0168" },
+  ]
+  # The protected ec2-market.tf's launch templates, one for each type, with its place on the list.
+  tunnel_end_templates = { for i, t in local.tunnel_end_types : t.type => merge(t, { order = i }) }
 
   # The tunnel end's generation: a new one replaces it on the newest Amazon Linux 2023 image, which is how its OS is
   # updated (docs/runbooks/tunnel-end.md, "An OS update"), since nftables keeps dnf from the repository after the first
@@ -58,8 +72,9 @@ locals {
 }
 
 # What the tunnel end's host is made of: its rendered user data's SHA-256 and its generation. A change to either is an
-# update here, and the instance's replace_triggered_by makes that its replace (ec2-market.tf), so a changed host file or
-# an OS update shows in the plan as the tunnel end replaced, never as drift it ignores (group 5's review, I3).
+# update here, and the launch templates' replace_triggered_by makes that their replace (ec2-market.tf), so a changed
+# host file or an OS update shows in the plan as the templates replaced, never as drift they ignore (group 5's review,
+# I3); the running tunnel end moves onto them by the Author's hand replace (spec 032 FR-010).
 resource "terraform_data" "tunnel_end_host" {
   input = {
     user_data  = sha256(local.tunnel_end_user_data)
@@ -240,15 +255,32 @@ resource "aws_network_interface" "tunnel_end_private" {
 }
 
 # The second interface, device 1: the public one. B-6, option C (the Author's answer: "We aren't building option A, we
-# went with Option C"): the private one is the instance's primary, device 0 (ec2-market.tf), so the instance sits in the
-# private subnet and CloudFront's VPC origin reaches 10.42.1.10, where the relay listens. The host's way out is this
-# interface's default route, which the user data's networkd drop-in puts first (zz-h4-public-first.conf). Both stay
-# through a spot stop, and the Elastic IP with the public one, on a second interface as on a first (contracts/tunnel.md
-# §1, to confirm at T058). Attached once the instance runs, so its first boot waits for it (cloud-init.yaml.tftpl).
-resource "aws_network_interface_attachment" "tunnel_end_public" {
-  instance_id          = aws_instance.tunnel_end.id
-  network_interface_id = aws_network_interface.tunnel_end_public.id
-  device_index         = 1
+# went with Option C"): the private one is the instance's primary, device 0, so the instance sits in the private subnet
+# and CloudFront's VPC origin reaches 10.42.1.10, where the relay listens. The host's way out is this interface's
+# default route, which the user data's networkd drop-in puts first (zz-h4-public-first.conf). Both stay through a spot
+# stop, and the Elastic IP with the public one. From spec 032 the launch templates attach both at launch
+# (ec2-market.tf), so this root forgets the attachment it made for the first instance, never detaching it.
+removed {
+  from = aws_network_interface_attachment.tunnel_end_public
+
+  lifecycle {
+    destroy = false
+  }
+}
+
+# The tunnel end h4-ec2-start launched, by its Name tag, in any state but gone (spec 032 FR-015): what its two instance
+# rules and the VPC origin name. A plan while it has no instance, or two, fails here with AWS's message: plan once it
+# has one again (docs/runbooks/tunnel-end.md).
+data "aws_instance" "tunnel_end" {
+  filter {
+    name   = "tag:Name"
+    values = ["h4-prod-tunnel-end"]
+  }
+
+  filter {
+    name   = "instance-state-name"
+    values = ["pending", "running", "stopping", "stopped"]
+  }
 }
 
 # The tunnel's address, which the laptop dials and Route 53's check targets (contracts/handover.md §1).
