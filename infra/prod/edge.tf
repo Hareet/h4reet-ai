@@ -68,11 +68,12 @@ resource "aws_acm_certificate" "site" {
 # one, 10.42.1.10, where the relay listens, so the instance sits in the private subnet, as AWS documents for a VPC
 # origin. Made in W1, unswitched (the Author's answer: "Yes w1 can create the vpc origin"); nothing sends through it
 # until W2's distribution, and the private group's 8080 admits CloudFront's origin-facing prefix list alone (plan.md
-# §16, "B-6: option C, and the VPC origin from W1").
+# §16, "B-6: option C, and the VPC origin from W1"). From spec 032 it names the tunnel end this root reads by its tag
+# (tunnel-end.tf), and h4-ec2-start points it at a replaced tunnel end itself (FR-014).
 resource "aws_cloudfront_vpc_origin" "relay" {
   vpc_origin_endpoint_config {
     name                   = "h4-relay"
-    arn                    = aws_instance.tunnel_end.arn
+    arn                    = data.aws_instance.tunnel_end.arn
     http_port              = 8080
     https_port             = 443
     origin_protocol_policy = "http-only"
@@ -109,8 +110,9 @@ resource "aws_cloudfront_distribution" "site" {
   # The relay on the tunnel end, which picks the serving host (contracts/relay-http.md). Read for 30 s, the relay's
   # 25 s deadline and its hops.
   origin {
-    origin_id   = "relay"
-    domain_name = aws_instance.tunnel_end.private_dns
+    origin_id = "relay"
+    # The private interface's DNS name, ip-10-42-1-10's, which a replace of the tunnel end doesn't change (spec 032).
+    domain_name = aws_network_interface.tunnel_end_private.private_dns_name
 
     vpc_origin_config {
       vpc_origin_id            = aws_cloudfront_vpc_origin.relay.id

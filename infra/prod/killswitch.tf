@@ -1,9 +1,11 @@
 # Prod's budget actions (spec 001 FR-021, FR-023; research.md R-22, amended; contracts/aws-alerts.md §4; plan.md §16,
 # "No root holds another root's instance or health-check ID", W1's departure 10; ADR 0049, proposed): the server action,
 # which stops EC2, and EC2's model action, which revokes Bedrock from h4-prod-gateway. Each names what it acts on from
-# this root, beside it, so a replace of EC2 updates them in its own plan, and each is W1's, made in the same apply as
-# what it acts on. What they share with the account's, the budgets and the deny policy, they name by name. Protected
-# (FR-012; rule T5): it changes only by the Author's patch, P-I4.
+# this root, beside it, and each is W1's, made in the same apply as what it acts on. From spec 032 the server action
+# names the EC2 instance this root reads by its tag (ec2.tf), so the next plan after h4-ec2-start replaces EC2
+# re-points it (spec 032 Assumptions, "The gap after a replace"; ADR 0057), and its role names EC2 by tag. What they
+# share with the account's, the budgets and the deny policy, they name by name. Protected (FR-012; rule T5): it changes
+# only by the Author's patch, P-I4, then P-032-prod.
 
 # AWS Budgets runs each action with its execution role, for this account alone.
 data "aws_iam_policy_document" "budgets_trust" {
@@ -57,12 +59,19 @@ data "aws_iam_policy_document" "server_action" {
     sid       = "ThatInstanceThroughSystemsManager"
     effect    = "Allow"
     actions   = ["ec2:StartInstances", "ec2:StopInstances"]
-    resources = [aws_instance.ec2.arn]
+    resources = ["arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:instance/*"]
 
     condition {
       test     = "ForAnyValue:StringEquals"
       variable = "aws:CalledVia"
       values   = ["ssm.amazonaws.com"]
+    }
+
+    # EC2 by its tag, not its ARN, from spec 032: h4-ec2-start may replace it with an instance of another type.
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:ResourceTag/Name"
+      values   = ["h4-prod-ec2"]
     }
   }
 
@@ -95,7 +104,7 @@ resource "aws_budgets_budget_action" "server" {
   definition {
     ssm_action_definition {
       action_sub_type = "STOP_EC2_INSTANCES"
-      instance_ids    = [aws_instance.ec2.id]
+      instance_ids    = [data.aws_instance.ec2.id]
       region          = "us-east-1"
     }
   }
