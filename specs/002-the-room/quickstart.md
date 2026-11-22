@@ -45,8 +45,8 @@ Spec 000's conventions hold ([its quickstart](../000-local-foundations/quickstar
 Run on dev, at `http://127.0.0.1:18105/`:
 1. **A visit:** choose a path and an avatar, then "Enter". **Expected:**
    - the hand-off plays, unskippable, ending within 5 s;
-   - "Read the resume now" and "Keep it for later" appear;
-   - after "later", the "Resume" button stays in the toolbar.
+   - **(spec 033)** no offer appears: the room is open at the hand-off's end, focus on its heading ([spec 033](../033-resume-in-hand/spec.md), Amendment A5);
+   - the "Resume" button stays in the toolbar, and in 3D the paper in the visitor's hand opens the resume too.
 2. **Reload:** **Expected:** back at the choice, and the hand-off plays again (FR-002).
 3. **SC-001, the floor:** stop dev's model server (`docker compose … stop model-server-gpu`, the Author), then repeat 1, open every resume item, and download the PDF. **Expected:**
    - every step succeeds;

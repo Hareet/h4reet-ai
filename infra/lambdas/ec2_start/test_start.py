@@ -109,6 +109,16 @@ class Aws:
                 ]
             },
             ("sns", "Publish"): {"MessageId": "m-1"},
+            # Spec 032's rework: the data volume, attached to EC2, which every start checks first.
+            ("ec2", "DescribeVolumes"): {
+                "Volumes": [
+                    {
+                        "VolumeId": "vol-1",
+                        "State": "in-use",
+                        "Attachments": [{"InstanceId": EC2_ID}],
+                    }
+                ]
+            },
         }
         self.answers.update(over or {})
 
@@ -361,6 +371,8 @@ def test_the_order_is_paused_hours_budget_tunnel_end_laptop_then_the_start() -> 
         ("budgets", "DescribeBudgetActionsForBudget"),
         ("ec2", "DescribeInstances"),
         ("cloudwatch", "DescribeAlarms"),
+        # Spec 032's rework: the data volume, attached first if a replace left it behind.
+        ("ec2", "DescribeVolumes"),
         ("ec2", "StartInstances"),
     ]
 
@@ -391,15 +403,16 @@ def test_step_6_reads_the_instance_by_its_parameter_and_needs_its_tag() -> None:
 
 
 def test_start_failed_carries_awss_code_and_makes_one_attempt() -> None:
+    # Spec 032: a capacity code replaces the instance from its list (test_replace.py); any other code refuses.
     aws = Aws(
-        {("ec2", "StartInstances"): start.AwsError("InsufficientInstanceCapacity")}  # type: ignore[arg-type]
+        {("ec2", "StartInstances"): start.AwsError("UnauthorizedOperation")}  # type: ignore[arg-type]
     )
     result = run(ALARM, aws)
     assert (result["outcome"], result["reason"]) == ("refused", "start_failed")
     assert aws.ops().count(("ec2", "StartInstances")) == 1
     (alert,) = aws.alerts()
     assert alert.startswith("[hareet.ai aws] ec2_start_refused (start_failed): ")
-    assert "- code: InsufficientInstanceCapacity" in alert.splitlines()
+    assert "- code: UnauthorizedOperation" in alert.splitlines()
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -536,7 +549,7 @@ def test_the_alerted_set_at_the_scheduled_open_is_one_constant_provisionally_que
             True,
         ),
         (
-            {("ec2", "StartInstances"): start.AwsError("InsufficientInstanceCapacity")},
+            {("ec2", "StartInstances"): start.AwsError("UnauthorizedOperation")},
             "start_failed",
             True,
         ),

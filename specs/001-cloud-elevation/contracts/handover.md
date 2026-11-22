@@ -50,6 +50,8 @@ A Lambda container image (stdlib Python, arm64), in `infra/lambdas/ec2_start/`. 
 
 Each outcome, started or refused and why, is one message to `h4-alerts`, and one log line in CloudWatch's embedded metric format, which the sink counts for the dashboard (contracts/public-view.md §2; to confirm in group 9). It makes one attempt per invocation and never loops (FR-065).
 
+**Amended by spec 032** (its FR-005 to FR-014; ADR 0057): step 5 starts the instance the parameter names, and when AWS refuses it for capacity, stopped it for capacity, it is gone, or it was launched from an earlier generation's template, the function replaces it from EC2's launch templates in their list's order (`/h4reet/prod/ec2-launch-templates`), under the lock `/h4reet/prod/host-lock`: it cancels the spot request, terminates the instance, launches the next type with capacity, writes its ID to the parameter, and attaches `h4-ec2-data`. None launching refuses `start_failed` with `- code: no_capacity`. A schedule, `h4-tunnel-end-check`, invokes it every 5 minutes `from: tunnel_end_check`, which replaces the tunnel end the same way after 10 minutes of a capacity stop, points the VPC origin at it, and then runs these steps `from: tunnel_end_back`. The Author's hand replace is `{"manual": true, "replace": "ec2"|"tunnel_end", "skip": [...]}`. Its role gains the grants spec 032's FR-016 names; "one attempt" becomes one pass over the list. Its rework adds: every candidate dry-run before any cancel or terminate; a tagged EC2 the parameter doesn't name adopted when the named one is gone; the volume attached before every start; a running tunnel end's volume and origin repaired at the check; and §4's guard gains `from: budget_check` (`h4-ec2-budget-check`, every 5 minutes), while `h4-ec2-running` names no instance and the guard acts on the instance tagged `h4-prod-ec2` alone.
+
 **The hours** (amended; ADR 0048, decision 3). Second, after step 1, on every trigger, the Author's hand start among them: outside EC2's hours, 07:00 to 19:00 in `America/Denver`, it refuses with `outside_hours`. `h4-ec2-hours-open` invokes it at 07:00 with `{"from": "hours_open"}`, which takes step 4's read as a hand start does. The open's routine outcomes are recorded and on the dashboard, and alerted only for `start_failed`, `server_budget_stopped`, and `tunnel_end_down`.
 
 ## 4. `h4-ec2-guard`
@@ -143,6 +145,7 @@ The functions and the loop change EC2's running state only. The relay's choice i
 | The laptop's health check (FR-054) | time series | `max(h4_health_check_healthy_share)` |
 | The handover window (FR-063) | stat | `max(max_over_time(h4_handover_window_seconds[1d]))` |
 | The server's month against its budget (FR-021) | time series | `max(h4_server_month_usd)` and `max(h4_server_budget_usd)` |
+| Host types (FR-018, spec 032) | state timeline | `max by (host, type) (h4_host_type)` |
 
 - **The sink's cloud reads** (`deploy/scripts/snapshot_sink.py`; contracts/public-view.md §2), every 2 minutes through the tunnel end's collector (C15), with no address or ID in a label:
   - **`h4_ec2_state`** is `h4.ec2.state`, one-hot by `state` (`pending`, `running`, `stopping`, `stopped`, `shutting-down`, `terminated`, `none`): EC2's, the instance tagged `h4-prod-ec2`;
@@ -151,6 +154,7 @@ The functions and the loop change EC2's running state only. The relay's choice i
   - **`h4_ec2_autostart`** is `h4.ec2.autostart`: 1 while the switch is `on`, 0 while `off`;
   - **`h4_health_check_healthy_share`** is `h4.health_check.healthy_share`: the share of Route 53's checkers that see the laptop's health block answer, from 0 to 1;
   - **`h4_server_month_usd`** and **`h4_server_budget_usd`** are `h4.server.month_usd` and `h4.server.budget_usd`: the server budget's month to date and its figure, read once an hour, beside spec 000's and spec 010's spend panels above.
+  - **`h4_host_type`** is `h4.host.type`, by `host` (`ec2`, `tunnel_end`) and `type`, 1 for the instance each host's `Name` tag finds (amended by spec 032, FR-018): which listed type runs, so the timeline shows each replace onto another type;
   - A read that fails gets no point and counts in `h4.sink.read_errors`, by `read`: the panels show no data, never a stale value as fresh.
 - **`h4_handover_window_seconds`** is `h4.handover.window_seconds`, the laptop loop's gauge (§6), posted through the laptop's collector: the last takeover's window, from the relay's first `laptop` to EC2's `stopped`. It reads green under 300 s (FR-063), red from 300 s.
 - **The hours** are the schedules', in the zone `local.ec2_hours` names; the panel shows each scheduled start and stop by its outcome. The hours themselves are on the public view, `/status/`, from the document's `ec2_hours`, which the sink reads from the two schedules (T170; the Author's "1b A" and "Only /status/ (Recommended)"); this row's panels show the outcomes.

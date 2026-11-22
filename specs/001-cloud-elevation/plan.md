@@ -1249,3 +1249,8 @@ Verdict: **PASS**, conditional on the 1.1.0 patch, with the deviations below.
 - [`fixes/verify-f6.md`](fixes/verify-f6.md): F6's verify
 - [`fixes/verify-f7.md`](fixes/verify-f7.md): F7's verify
 - [`fixes/verify-f8.md`](fixes/verify-f8.md): F8's verify
+
+## Bug-fixes, 2026-11-18
+
+- [`fixes/f9.md`](fixes/f9.md): F9, a release never reconfigures the tunnel end's live private interface
+- [`fixes/f10.md`](fixes/f10.md): F10, the tunnel end lets go of a dead laptop session's forwards

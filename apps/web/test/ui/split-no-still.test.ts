@@ -34,7 +34,6 @@ async function room(screen: { w: number; h: number } = WIDE, o: { webgl?: boolea
   await enter(v, "engineer");
   await throughLoader(v);
   v.clock.advance(5000);
-  [...v.doc.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Keep it for later")?.click();
   await flush();
   return { v, sent, viewport };
 }

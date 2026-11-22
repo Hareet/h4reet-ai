@@ -69,11 +69,79 @@ LAPTOP_PERMISSION_SET: str | None = "h4reet-ai-cloud"
 _THE_MODULES = object()
 TAGGED_INSTANCE = "h4-prod-ec2"
 HANDOVER_ROLES = {
-    "h4-ec2-start-fn": {"ec2:startinstances"},
+    # Spec 032 (FR-016; ADR 0057): the start function also replaces a short host from its launch templates.
+    "h4-ec2-start-fn": {
+        "ec2:startinstances",
+        "ec2:runinstances",
+        "ec2:createtags",
+        "ec2:terminateinstances",
+        "ec2:cancelspotinstancerequests",
+        "ec2:attachvolume",
+    },
     "h4-ec2-guard-fn": {"ec2:stopinstances"},
 }
 HANDOVER_SETS = {"h4-ec2-stop": {"ec2:stopinstances"}}
-DESCRIBE = {"ec2:describeinstances", "ec2:describeinstancestatus"}
+DESCRIBE = {
+    "ec2:describeinstances",
+    "ec2:describeinstancestatus",
+    "ec2:describespotinstancerequests",
+    "ec2:describevolumes",
+}
+HOSTS = frozenset({TAGGED_INSTANCE, "h4-prod-tunnel-end"})
+HOST_VOLUMES = frozenset({"h4-ec2-data", "h4-shared-state"})
+_STRING = ("StringEquals", "ForAllValues:StringEquals")
+_NAME = r"(?:aws|ec2):ResourceTag/Name"
+# Each EC2 action an identity of the handover may hold, and the conditions any one of which holds it: (operators, the
+# key's pattern, the values the condition may name; None for a launch template's ARN). A condition naming a value
+# outside its set holds nothing.
+HOLDS: dict[str, tuple[tuple[tuple[str, ...], str, frozenset[str] | None], ...]] = {
+    "ec2:startinstances": ((_STRING, _NAME, frozenset({TAGGED_INSTANCE})),),
+    "ec2:stopinstances": ((_STRING, _NAME, frozenset({TAGGED_INSTANCE})),),
+    "ec2:terminateinstances": ((_STRING, _NAME, HOSTS),),
+    "ec2:cancelspotinstancerequests": ((_STRING, _NAME, HOSTS),),
+    "ec2:attachvolume": ((_STRING, _NAME, HOSTS | HOST_VOLUMES),),
+    "ec2:createtags": ((_STRING, r"ec2:CreateAction", frozenset({"RunInstances"})),),
+}
+LAUNCH_TEMPLATE = re.compile(r"arn:aws:ec2:[a-z0-9-]+:[^:*]+:launch-template/[^:]*")
+# The rework after the reviews of 52308132 (Important 1): RunInstances is held statement by statement to the kinds of
+# resource it names, each kind needing all of its conditions, so a request can't override the template's type, market,
+# image, subnet, group, or interface. The listed types are prod's two lists (infra/prod/ec2.tf, tunnel-end.tf), which
+# the account's iam.tf repeats and infra/test/test_handover.py holds alike.
+LISTED_TYPES = frozenset(
+    {
+        "t4g.large",
+        "m7g.large",
+        "m6g.large",
+        "t4g.xlarge",
+        "t4g.small",
+        "c7g.medium",
+        "c6g.medium",
+        "t4g.medium",
+    }
+)
+_FROM_TEMPLATE = (("ArnLike", "ArnEquals"), r"ec2:LaunchTemplate", None)
+_TEMPLATE_PART = (("Bool",), r"ec2:IsLaunchTemplateResource", frozenset({"true"}))
+RUN_KINDS: dict[str, tuple[tuple[tuple[str, ...], str, frozenset[str] | None], ...]] = {
+    "launch-template": (
+        (
+            _STRING,
+            r"(?:aws|ec2):ResourceTag/component",
+            frozenset({"ec2", "tunnel-end"}),
+        ),
+    ),
+    "instance": (
+        (_STRING, r"aws:RequestTag/Name", HOSTS),
+        (_STRING, r"ec2:InstanceType", LISTED_TYPES),
+        (_STRING, r"ec2:InstanceMarketType", frozenset({"spot"})),
+    ),
+    "volume": (_FROM_TEMPLATE,),
+    "spot-instances-request": (_FROM_TEMPLATE,),
+    "image": (_FROM_TEMPLATE, _TEMPLATE_PART),
+    "subnet": (_FROM_TEMPLATE, _TEMPLATE_PART),
+    "security-group": (_FROM_TEMPLATE, _TEMPLATE_PART),
+    "network-interface": (_FROM_TEMPLATE, _TEMPLATE_PART),
+}
+EC2_ARN = re.compile(r"arn:aws:ec2:[a-z0-9-]*:[^:]*:([a-z-]+)/.+")
 RUNBOOK = "docs/runbooks/credential-audit.md"
 # The Author's allowlist (ADR 0047), out of the repository: his file in the terminal, a parameter in the function.
 ALLOW_PARAMETER_ENV = "H4_AUDIT_ALLOW_PARAMETER"
@@ -266,7 +334,7 @@ def managed_document(aws, arn: str) -> dict | None:
 
 
 def handover_too_broad(docs: list[dict] | None, allowed: set[str]) -> bool:
-    """Any EC2 action but describe, and the identity's own action unless its condition names the tagged instance."""
+    """Any EC2 action but describe, and the identity's own actions unless each statement's condition holds it (HOLDS)."""
     if docs is None:
         return True
     for doc in docs:
@@ -280,28 +348,87 @@ def handover_too_broad(docs: list[dict] | None, allowed: set[str]) -> bool:
                     continue
                 if action in DESCRIBE:
                     continue
-                if action not in allowed or not names_tagged_instance(
-                    s.get("Condition")
+                if action == "ec2:runinstances" and action in allowed:
+                    if not run_holds(s):
+                        return True
+                    continue
+                if action not in allowed or not holds(action, s.get("Condition")):
+                    return True
+    return False
+
+
+def run_holds(statement: dict) -> bool:
+    """A RunInstances statement names only kinds RUN_KINDS knows, never *, and its condition holds every requirement of
+    every kind it names."""
+    kinds = set()
+    for resource in as_list(statement.get("Resource")):
+        m = EC2_ARN.fullmatch(str(resource))
+        if m is None or m.group(1) not in RUN_KINDS:
+            return False
+        kinds.add(m.group(1))
+    condition = statement.get("Condition")
+    return bool(kinds) and all(
+        meets(condition, need) for kind in kinds for need in RUN_KINDS[kind]
+    )
+
+
+def meets(
+    condition: object, need: tuple[tuple[str, ...], str, frozenset[str] | None]
+) -> bool:
+    """One requirement: a key of the pattern, under one of the operators, naming only allowed values."""
+    operators, pattern, allowed = need
+    if not isinstance(condition, dict):
+        return False
+    for operator, pairs in condition.items():
+        if operator not in operators or not isinstance(pairs, dict):
+            continue
+        for key, values in pairs.items():
+            named = [
+                str(v).lower() if allowed is not None and operator == "Bool" else v
+                for v in as_list(values)
+            ]
+            if not re.fullmatch(pattern, key) or not named:
+                continue
+            if allowed is None:
+                if all(
+                    isinstance(v, str) and LAUNCH_TEMPLATE.fullmatch(v) for v in named
                 ):
+                    return True
+            elif set(named) <= allowed:
+                return True
+    return False
+
+
+def holds(action: str, condition: object) -> bool:
+    """The statement's condition names only what HOLDS lets this action reach."""
+    if not isinstance(condition, dict):
+        return False
+    for operator, pairs in condition.items():
+        if not isinstance(pairs, dict):
+            continue
+        for key, values in pairs.items():
+            named = as_list(values)
+            for operators, pattern, allowed in HOLDS.get(action, ()):
+                if (
+                    operator not in operators
+                    or not re.fullmatch(pattern, key)
+                    or not named
+                ):
+                    continue
+                if allowed is None:
+                    if all(
+                        isinstance(v, str) and LAUNCH_TEMPLATE.fullmatch(v)
+                        for v in named
+                    ):
+                        return True
+                elif set(named) <= allowed:
                     return True
     return False
 
 
 def names_tagged_instance(condition: object) -> bool:
-    if not isinstance(condition, dict):
-        return False
-    for operator, pairs in condition.items():
-        if operator not in (
-            "StringEquals",
-            "ForAllValues:StringEquals",
-        ) or not isinstance(pairs, dict):
-            continue
-        for key, values in pairs.items():
-            if re.fullmatch(r"(?:aws|ec2):ResourceTag/.+", key) and as_list(values) == [
-                TAGGED_INSTANCE
-            ]:
-                return True
-    return False
+    """The condition names h4-prod-ec2 alone (kept for the readers of spec 001's rule)."""
+    return holds("ec2:startinstances", condition)
 
 
 class PermissionSets:

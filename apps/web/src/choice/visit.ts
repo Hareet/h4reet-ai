@@ -29,8 +29,6 @@ export interface Visit {
   path: VisitPath | null;
   avatar: AvatarId | null;
   stage: VisitStage;
-  /** Set when the hand-off ends with "Keep it for later". */
-  resumeKept: boolean;
   mode: Mode;
   /** The quality controller's level, 0 to 3. */
   quality: number;
@@ -39,5 +37,5 @@ export interface Visit {
 }
 
 export function newVisit(): Visit {
-  return { path: null, avatar: null, stage: "choosing", resumeKept: false, mode: "3d", quality: 0, turns: [] };
+  return { path: null, avatar: null, stage: "choosing", mode: "3d", quality: 0, turns: [] };
 }

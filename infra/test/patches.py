@@ -39,9 +39,13 @@ PW2 = MERGE_REQUESTS / "2026-11-13-feat-001-pw2-switch-on.patch"
 PI5B = MERGE_REQUESTS / "2026-11-13-feat-001-pi5b-edge.patch"
 W1_PATCHES = (PI3, PI7, PI4, PI5, PI6)
 W2_PATCHES = (PW2, PI5B)
-# W1's are in the tree since W1's -p branch merged into main (the Author applied them there), so only W2's
-# are pending on this branch: the tests read the tree as it will be once P-W2 and P-I5b are on.
-PATCHES = W2_PATCHES
+# W1's are in the tree since W1's -p branch merged into main (the Author applied them there), and so are W2's.
+# Spec 032's two, P-032-prod and P-032-account (its plan.md §5), are pending on its branch: the tests read the tree as
+# it will be once the Author applies them. W2's stay listed, already applied, so a test that names them still reads.
+HUMAN_PATCHES = MERGE_REQUESTS / "human-patches"
+P032_PROD = HUMAN_PATCHES / "2026-11-22-032-prod.patch"
+P032_ACCOUNT = HUMAN_PATCHES / "2026-11-22-032-account.patch"
+PATCHES = (*W2_PATCHES, P032_PROD, P032_ACCOUNT)
 
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 

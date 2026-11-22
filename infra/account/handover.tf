@@ -81,7 +81,9 @@ resource "aws_lambda_function" "ec2_start" {
   image_uri     = "${aws_ecr_repository.lambda["h4-ec2-start"].repository_url}@${local.lambda_images.ec2_start}"
   architectures = ["arm64"]
   memory_size   = 128
-  timeout       = 30
+  # Spec 032: a replace waits for a terminate, a launch, and an attach, and the tunnel end's then starts EC2
+  # (its research R-8): Lambda's maximum.
+  timeout = 900
 
   logging_config {
     log_format = "Text"
@@ -145,10 +147,11 @@ resource "aws_lambda_function" "ec2_guard" {
 # One attempt per invocation (FR-065): Lambda retries no asynchronous invocation of either. Each function also raises
 # nothing, so a retry could only follow Lambda's own failure.
 resource "aws_lambda_function_event_invoke_config" "ec2_start" {
-  count                        = local.wired ? 1 : 0
-  function_name                = aws_lambda_function.ec2_start[0].function_name
-  maximum_retry_attempts       = 0
-  maximum_event_age_in_seconds = 300
+  count                  = local.wired ? 1 : 0
+  function_name          = aws_lambda_function.ec2_start[0].function_name
+  maximum_retry_attempts = 0
+  # Spec 032: as long as a run may take, so an invocation queued behind a replace still runs.
+  maximum_event_age_in_seconds = 900
 }
 
 resource "aws_lambda_function_event_invoke_config" "ec2_guard" {
@@ -261,6 +264,63 @@ resource "aws_scheduler_schedule" "ec2_hours_close" {
     arn      = aws_lambda_function.ec2_guard[0].arn
     role_arn = aws_iam_role.ec2_hours.arn
     input    = jsonencode({ from = "hours_close" })
+
+    retry_policy {
+      maximum_retry_attempts = 0
+    }
+  }
+}
+
+# The tunnel end's check's state: DISABLED until the Author's dry run of the start function proves its role
+# launches each listed type (the merge-request note's step 6, `make ec2-start REPLACE=… DRY_RUN=1`); his hand
+# sets ENABLED, in this protected file, and his account apply turns it on (spec 032's rework).
+locals {
+  tunnel_end_check_state = "DISABLED"
+}
+
+# The tunnel end's check (spec 032 FR-013; ADR 0057): every 5 minutes, the start function, `from: tunnel_end_check`,
+# which replaces the tunnel end from its list after 10 minutes of a capacity stop. Through h4-ec2-hours, which may
+# invoke the start function already; no retry, since the next check is 5 minutes away.
+resource "aws_scheduler_schedule" "tunnel_end_check" {
+  count               = local.wired ? 1 : 0
+  name                = "h4-tunnel-end-check"
+  description         = "The tunnel end's check: the start function, from tunnel_end_check (spec 032)"
+  schedule_expression = "rate(5 minutes)"
+  state               = local.tunnel_end_check_state
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_lambda_function.ec2_start[0].arn
+    role_arn = aws_iam_role.ec2_hours.arn
+    input    = jsonencode({ from = "tunnel_end_check" })
+
+    retry_policy {
+      maximum_retry_attempts = 0
+    }
+  }
+}
+
+# The guard's budget check (spec 032's rework): every 5 minutes, h4-ec2-guard, `from: budget_check`, which stops every
+# running EC2 while the server action has run and isn't reversed, whichever instance the action names, so a replace
+# before the next prod apply leaves the kill switch these minutes' gap. Enabled from its apply: it reads, and stops
+# only by the server action's own condition.
+resource "aws_scheduler_schedule" "ec2_budget_check" {
+  count               = local.wired ? 1 : 0
+  name                = "h4-ec2-budget-check"
+  description         = "The guard's budget check: h4-ec2-guard, from budget_check (spec 032)"
+  schedule_expression = "rate(5 minutes)"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_lambda_function.ec2_guard[0].arn
+    role_arn = aws_iam_role.ec2_hours.arn
+    input    = jsonencode({ from = "budget_check" })
 
     retry_policy {
       maximum_retry_attempts = 0

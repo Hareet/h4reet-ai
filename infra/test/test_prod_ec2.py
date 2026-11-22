@@ -3,21 +3,26 @@ R-15, R-22, R-30; plan.md §5.1 and §16, "Why a switch", "No root holds another
 and "Group 7, as built"): infra/prod's EC2, read with group 1's standard-library HCL reader, never with Terraform.
 
 What the root must hold:
-  - EC2 itself, in the protected ec2-market.tf: spot, persistent, stopping on interruption (T11); IMDSv2 with hop limit
-    1 (T13), its tags in its metadata, which write_env.py and preflight read (research.md R-28); standard credits; its
-    one interface, in the public subnet at 10.42.0.20 with an address AWS assigns at each start; its role's profile; an
-    encrypted gp3 root volume tagged with project and component (T154); its type, `local.ec2_type`, R-04's t4g.large,
-    from the unprotected ec2.tf; and replaced when terraform_data.ec2_generation changes (T097);
-  - ec2.tf: the generation's terraform_data, from `local.ec2_generation` and the user data's SHA-256; the data volume, a
-    resource of its own, kept across a replace, tagged (T154), attached as /dev/sdf; and
-    `aws_ec2_instance_state.ec2_w1`, stopped, behind `!local.wired` (spec.md Assumptions, "From W1 to W2");
+  - EC2's launch templates, from spec 032 (its FR-001 to FR-004, FR-010, FR-015; ADR 0057), in the protected
+    ec2-market.tf, one for each type on `local.ec2_types`: spot, persistent, stopping on interruption (T11), at its
+    type's price ceiling; IMDSv2 with hop limit 1 (T13), its tags in its metadata, which write_env.py and preflight read
+    (research.md R-28); standard credits for a burstable type; its one interface, made in the public subnet at
+    10.42.0.20 with an address AWS assigns at each start; its role's profile; an encrypted gp3 root volume; what it
+    launches tagged Name = h4-prod-ec2 with project and component (T154); replaced when terraform_data.ec2_generation
+    changes (T097). No instance is Terraform's: the one it made is forgotten by a removed block that keeps it, and the
+    current one is read by its Name tag;
+  - ec2.tf: EC2's types, first R-04's t4g.large, then Graviton types with its memory or more, each with a price ceiling
+    no higher than t4g.large's on-demand price; the generation's terraform_data, from `local.ec2_generation` and the
+    user data's SHA-256; the data volume, a resource of its own, kept across a replace, tagged (T154), which
+    h4-ec2-start attaches at /dev/sdf (its attachment forgotten, never destroyed);
   - EC2's security group: the relay block's 8085 and the collector's 4318 from the tunnel end's two fixed addresses
     alone; out, HTTPS through the egress proxy and the VPC;
   - its two ordinary roles (R-15), in iam.tf: h4-prod-ec2, the instance's, and h4-prod-gateway, which only h4-prod-ec2
     may assume and which holds Bedrock on the one inference profile alone;
-  - /h4reet/prod/ec2-instance-id, a String holding EC2's ID, in handover.tf;
-  - killswitch.tf: the server action, AWS-StopEC2Instance on EC2's ID from this root, whose execution role may run only
-    that document and its reverse on that instance; and EC2's model action, a second action on h4-model-month by its
+  - /h4reet/prod/ec2-instance-id, a String holding EC2's ID, in handover.tf, made from the instance read by tag, its
+    value the start function's after (ignored drift);
+  - killswitch.tf: the server action, AWS-StopEC2Instance on EC2's ID from this root (read by tag), whose execution role
+    may run only that document and its reverse on the instance tagged h4-prod-ec2; and EC2's model action, a second action on h4-model-month by its
     name, attaching h4-deny-paid-models to h4-prod-gateway alone, with its own execution role (T180). The account's
     model action gains no target.
 
@@ -103,77 +108,93 @@ def root() -> dict[str, list]:
 
 
 def ec2(r: dict[str, list]):
-    return one(r, "aws_instance", "ec2")
+    return one(r, "aws_launch_template", "ec2")
 
 
 def check_instance(r: dict[str, list]) -> list[str]:
-    i = ec2(r)
-    if i is None:
-        return ["ec2: aws_instance.ec2 is missing"]
+    t = ec2(r)
+    if t is None:
+        return ["ec2: aws_launch_template.ec2 is missing"]
     found = []
-    if where(r, i) != "ec2-market.tf":
-        found.append("ec2: the instance lives outside ec2-market.tf")
-    src = ip.Source("infra/prod/ec2-market.tf", "", ip.Body([i]))
+    if where(r, t) != "ec2-market.tf":
+        found.append("ec2: the templates live outside ec2-market.tf")
+    if raw(t, "for_each") != "local.ec2_templates":
+        found.append("ec2: the templates aren't one for each type on local.ec2_types")
+    src = ip.Source("infra/prod/ec2-market.tf", "", ip.Body([t]))
     for f in ip.t11_spot(src) + ip.t13_imds(src):
         found.append(f"ec2: {f.message}")
-    credits = i.block("credit_specification")
-    if credits is None or lit(credits, "cpu_credits") != "standard":
+    spot = t.block("instance_market_options")
+    so = spot.block("spot_options") if spot is not None else None
+    if so is None or raw(so, "max_price") != "each.value.max_price":
+        found.append("ec2: a template doesn't carry its type's price ceiling")
+    credits = [d for d in t.blocks("dynamic") if d.labels == ["credit_specification"]]
+    if not (
+        len(credits) == 1
+        and re.sub(r"\s+", "", raw(credits[0], "for_each"))
+        == 'startswith(each.key,"t")?["standard"]:[]'
+    ):
         found.append("ec2: its CPU credits aren't standard (research.md R-04)")
-    metadata = i.block("metadata_options")
+    metadata = t.block("metadata_options")
     if metadata is None or lit(metadata, "instance_metadata_tags") != "enabled":
         found.append(
             "ec2: its tags aren't in its metadata, which write_env.py and preflight read (R-28)"
         )
+    interfaces = t.blocks("network_interfaces")
+    n = interfaces[0] if len(interfaces) == 1 else None
     if (
-        raw(i, "subnet_id") != "aws_subnet.public.id"
-        or lit(i, "private_ip") != ADDRESS
-        or lit(i, "associate_public_ip_address") is not True
-        or raw(i, "vpc_security_group_ids") != "[aws_security_group.ec2.id]"
-        or i.blocks("network_interface")
-        or i.block("primary_network_interface") is not None
+        n is None
+        or lit(n, "device_index") != 0
+        or raw(n, "subnet_id") != "aws_subnet.public.id"
+        or lit(n, "private_ip_address") != ADDRESS
+        or lit(n, "associate_public_ip_address") is not True
+        or raw(n, "security_groups") != "[aws_security_group.ec2.id]"
+        or n.attr("network_interface_id") is not None
     ):
         found.append(
             f"ec2: its one interface isn't {ADDRESS} in the public subnet, with an assigned address and EC2's group"
         )
-    if [
-        address(a)
-        for a in resource(r, "aws_network_interface_attachment")
-        if raw(a, "instance_id") == "aws_instance.ec2.id"
-    ] or [
-        address(e)
-        for e in resource(r, "aws_eip")
-        if "aws_instance.ec2" in raw(e, "instance")
-    ]:
+    if [address(e) for e in resource(r, "aws_eip") if "ec2" in raw(e, "instance")]:
         found.append("ec2: it has a second interface or a fixed address")
-    if raw(i, "iam_instance_profile") != "aws_iam_instance_profile.ec2.name":
+    profile = t.block("iam_instance_profile")
+    if profile is None or raw(profile, "name") != "aws_iam_instance_profile.ec2.name":
         found.append("ec2: it doesn't run as its instance profile")
-    disk = i.block("root_block_device")
-    tags = lit(disk, "tags") if disk is not None else None
+    mappings = t.blocks("block_device_mappings")
+    disk = mappings[0].block("ebs") if mappings else None
     if (
         disk is None
+        or lit(mappings[0], "device_name") != "/dev/xvda"
         or lit(disk, "encrypted") is not True
         or lit(disk, "volume_type") != "gp3"
-        or not isinstance(tags, dict)
-        or tags.get("project") != "h4reet-ai"
-        or tags.get("component") != "ec2"
     ):
-        found.append(
-            "ec2: its root volume isn't encrypted gp3 tagged with project and component (T154)"
-        )
-    if i.blocks("ebs_block_device"):
+        found.append("ec2: its root volume isn't encrypted gp3")
+    if len(mappings) > 1:
         found.append(
             "ec2: its data volume is the instance's, so a replace would take it"
         )
-    tags = lit(i, "tags")
+    tagged = [d for d in t.blocks("dynamic") if d.labels == ["tag_specifications"]]
+    content = tagged[0].block("content") if len(tagged) == 1 else None
+    tags = lit(content, "tags") if content is not None else None
     if not (
         isinstance(tags, dict)
         and tags.get("Name") == "h4-prod-ec2"
+        and tags.get("project") == "h4reet-ai"
         and tags.get("component") == "ec2"
+        and all(
+            f'"{kind}"' in raw(tagged[0], "for_each")
+            for kind in (
+                "instance",
+                "volume",
+                "network-interface",
+                "spot-instances-request",
+            )
+        )
     ):
-        found.append("ec2: it isn't tagged Name = h4-prod-ec2 and component = ec2")
-    if raw(i, "instance_type") != "local.ec2_type":
-        found.append("ec2: it doesn't read local.ec2_type")
-    lc = i.block("lifecycle")
+        found.append(
+            "ec2: what a template launches isn't tagged Name = h4-prod-ec2 with project and component (T154)"
+        )
+    if raw(t, "instance_type") != "each.key":
+        found.append("ec2: a template doesn't read its own type")
+    lc = t.block("lifecycle")
     if (
         lc is None
         or raw(lc, "replace_triggered_by") != "[terraform_data.ec2_generation]"
@@ -181,9 +202,22 @@ def check_instance(r: dict[str, list]) -> list[str]:
         found.append(
             "ec2: a new generation or a changed host file doesn't replace it (T097)"
         )
-    if lc is None or raw(lc, "ignore_changes") != "[ami, user_data_base64]":
+    if lc is None or raw(lc, "ignore_changes") != "[image_id, user_data]":
         found.append(
             "ec2: it doesn't ignore its image's and its user data's drift, so a plan could restart it"
+        )
+    if net.removed_from(r, "aws_instance.ec2") is None:
+        found.append(
+            "ec2: aws_instance.ec2 isn't forgotten by a removed block that keeps it"
+        )
+    current = one(r, "aws_instance", "ec2", kind="data")
+    if (
+        current is None
+        or where(r, current) != "ec2.tf"
+        or "h4-prod-ec2" not in raw(current.block("filter"), "values")
+    ):
+        found.append(
+            "ec2: the root doesn't read the current EC2 instance by its Name tag"
         )
     return found
 
@@ -202,16 +236,25 @@ def check_generation(r: dict[str, list]) -> list[str]:
             "generation: no terraform_data.ec2_generation in ec2.tf holds local.ec2_generation and the user data's SHA-256"
         )
     generation = mine.get("ec2_generation")
-    # W1 held 1; W2's T175 sets 2, so W2's block shows EC2 replaced, and SC-005 is checked after W2's apply (T097).
+    # W1 held 1; W2's T175 set 2, so W2's block showed EC2 replaced, and SC-005 was checked after W2's apply (T097).
     if generation is None or ip.literal(generation) != 2:
         found.append("generation: ec2.tf's local.ec2_generation isn't W2's 2")
-    kind = mine.get("ec2_type")
-    if kind is None or ip.literal(kind) != "t4g.large":
-        found.append("type: ec2.tf's local.ec2_type isn't R-04's t4g.large")
+    listed = ip.literal(mine["ec2_types"]) if "ec2_types" in mine else None
+    if not (
+        isinstance(listed, list)
+        and listed
+        and all(isinstance(e, dict) and {"type", "max_price"} <= set(e) for e in listed)
+    ):
+        found.append(
+            "type: ec2.tf's local.ec2_types isn't a list of types and ceilings"
+        )
+    else:
+        found += net.type_list_problems(listed, "t4g.large", "EC2")
     elsewhere = [
         n
         for n in r
-        if n != "ec2.tf" and {"ec2_type", "ec2_generation"} & set(net.locals_in(r, n))
+        if n != "ec2.tf"
+        and {"ec2_type", "ec2_types", "ec2_generation"} & set(net.locals_in(r, n))
     ]
     if elsewhere:
         found.append(f"type: EC2's locals are set in {', '.join(elsewhere)} too")
@@ -232,38 +275,33 @@ def check_volume(r: dict[str, list]) -> list[str]:
     ):
         found.append("volume: it isn't encrypted gp3 in EC2's zone")
     tags = lit(v, "tags")
-    if not (isinstance(tags, dict) and tags.get("component") == "ec2"):
-        found.append("volume: it isn't tagged component = ec2 (T154)")
-    attached = [
-        (
-            lit(a, "device_name"),
-            raw(a, "volume_id"),
-            lit(a, "stop_instance_before_detaching"),
-        )
-        for a in resource(r, "aws_volume_attachment")
-        if raw(a, "instance_id") == "aws_instance.ec2.id"
-    ]
-    if attached != [("/dev/sdf", "aws_ebs_volume.ec2_data.id", True)]:
+    if not (
+        isinstance(tags, dict)
+        and tags.get("component") == "ec2"
+        and tags.get("Name") == "h4-ec2-data"
+    ):
         found.append(
-            "volume: it isn't attached to EC2 alone, as /dev/sdf, stopped before a detach"
+            "volume: it isn't tagged Name = h4-ec2-data, by which h4-ec2-start finds it, and component = ec2 (T154)"
+        )
+    if resource(r, "aws_volume_attachment"):
+        found.append(
+            "volume: Terraform attaches a volume, which h4-ec2-start does for each instance it launches (spec 032)"
+        )
+    if net.removed_from(r, "aws_volume_attachment.ec2_data") is None:
+        found.append(
+            "volume: its attachment isn't forgotten by a removed block that keeps it, so the plan would detach it"
         )
     return found
 
 
 def check_stopped(r: dict[str, list]) -> list[str]:
-    states = resource(r, "aws_ec2_instance_state")
-    mine = [s for s in states if raw(s, "instance_id") == "aws_instance.ec2.id"]
-    if len(mine) != 1 or mine[0].labels[1] != "ec2_w1" or where(r, mine[0]) != "ec2.tf":
-        return ["stopped: no one aws_ec2_instance_state.ec2_w1 in ec2.tf names EC2"]
-    s = mine[0]
-    found = []
-    if lit(s, "state") != "stopped":
-        found.append("stopped: W1's apply doesn't make EC2 stopped")
-    if raw(s, "count") != "local.wired ? 0 : 1":
-        found.append(
-            "stopped: it doesn't stand behind !local.wired, so W2 would fight the start function"
-        )
-    return found
+    # W1's stop, aws_ec2_instance_state.ec2_w1, went with W2's switch; from spec 032 no plan holds an instance's state,
+    # which would fight the start function and the guard (FR-072).
+    if resource(r, "aws_ec2_instance_state"):
+        return [
+            "stopped: a plan holds an instance's state, which would fight the start function and the guard"
+        ]
+    return []
 
 
 def check_group(r: dict[str, list]) -> list[str]:
@@ -547,10 +585,12 @@ def check_server_action(r: dict[str, list]) -> list[str]:
     if (
         ssm is None
         or lit(ssm, "action_sub_type") != "STOP_EC2_INSTANCES"
-        or raw(ssm, "instance_ids") != "[aws_instance.ec2.id]"
+        or raw(ssm, "instance_ids") != "[data.aws_instance.ec2.id]"
         or lit(ssm, "region") != "us-east-1"
     ):
-        found.append("server action: it doesn't stop EC2, by its ID from this root")
+        found.append(
+            "server action: it doesn't stop EC2, by the ID this root reads by its tag"
+        )
     name, problems = execution_role(r, a)
     found += problems
     if name is None:
@@ -560,8 +600,8 @@ def check_server_action(r: dict[str, list]) -> list[str]:
         "ssm:StartAutomationExecution": "[ "
         '"arn:aws:ssm:us-east-1:*:automation-definition/AWS-StopEC2Instance:*", '
         '"arn:aws:ssm:us-east-1:*:automation-definition/AWS-StartEC2Instance:*", ]',
-        "ec2:StartInstances": "[aws_instance.ec2.arn]",
-        "ec2:StopInstances": "[aws_instance.ec2.arn]",
+        "ec2:StartInstances": f'["arn:aws:ec2:us-east-1:{ACCOUNT_ID}:instance/*"]',
+        "ec2:StopInstances": f'["arn:aws:ec2:us-east-1:{ACCOUNT_ID}:instance/*"]',
         "ec2:DescribeInstances": '["*"]',
         "ec2:DescribeInstanceStatus": '["*"]',
     }
@@ -576,6 +616,15 @@ def check_server_action(r: dict[str, list]) -> list[str]:
             '["ssm.amazonaws.com"]',
         ) not in conditions.get(act, []):
             found.append(f"server action: {act} isn't held to Systems Manager's calls")
+        # Spec 032: EC2 by its tag, since a replace gives it another ARN.
+        if act in granted and (
+            "StringEquals",
+            "ec2:ResourceTag/Name",
+            '["h4-prod-ec2"]',
+        ) not in conditions.get(act, []):
+            found.append(
+                f"server action: {act} isn't held to the instance tagged h4-prod-ec2"
+            )
     return found
 
 
@@ -626,13 +675,18 @@ def check_instance_id(r: dict[str, list]) -> list[str]:
         return ["id: no one /h4reet/prod/ec2-instance-id parameter"]
     p = found[0]
     out = []
+    lc = p.block("lifecycle")
     if (
         where(r, p) != "handover.tf"
         or lit(p, "type") != "String"
-        or raw(p, "value") != "aws_instance.ec2.id"
+        or raw(p, "value") != "data.aws_instance.ec2.id"
     ):
         out.append(
             "id: /h4reet/prod/ec2-instance-id isn't handover.tf's String of EC2's ID"
+        )
+    if lc is None or raw(lc, "ignore_changes") != "[value]":
+        out.append(
+            "id: a plan would undo the ID h4-ec2-start writes after a replace (spec 032 FR-015)"
         )
     tags = lit(p, "tags")
     if not (isinstance(tags, dict) and tags.get("component")):
@@ -673,7 +727,7 @@ def test_the_data_volume_is_its_own_resource_tagged_and_attached() -> None:
     assert check_volume(root()) == []
 
 
-def test_w1_makes_ec2_stopped_behind_the_switch() -> None:
+def test_no_plan_holds_ec2s_state() -> None:
     assert check_stopped(root()) == []
 
 

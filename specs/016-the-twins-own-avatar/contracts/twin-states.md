@@ -79,7 +79,7 @@ The slot changes text in place when the picture changes; it isn't a live region,
 - The controller decides the mode once, at the hand-off's first frame: `appear` where the twin's figure shows its own model, `travel` otherwise; the 2D room decides it the same way from its still.
 - **`appear`**: the twin's sheet has opacity 0 at every frame; the visitor's sheet sits at the visitor's holding hand's grip (spec 014), or at the visitor's anchor where it shows its fallback, its opacity `progress` (0 at the start, 1 at the end); the figures' turns are spec 002's; the visitor plays `idle-holding` from the first frame where it has it, and no `take`; the twin enters `arriving`.
 - **Reduced motion**: 1 s, no turns, the same fade.
-- `handoff.ts`'s timing, `HANDOFF_LINE`, and the offer at the end are unchanged.
+- `handoff.ts`'s timing, `HANDOFF_LINE`, and the offer at the end are unchanged. **(spec 033)** No offer follows the hand-off any more; its timing and `HANDOFF_LINE` are unchanged ([spec 033](../../033-resume-in-hand/spec.md), FR-001; its Amendment A7).
 
 ## 6. The 2D room's twin
 

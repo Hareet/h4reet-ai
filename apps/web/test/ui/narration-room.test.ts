@@ -60,7 +60,6 @@ async function narrating(path: "engineer" | "non-engineer" = "engineer"): Promis
   const v = start({ narration: built() });
   await enter(v, path);
   v.clock.advance(5000);
-  button(v.doc, "Keep it for later").click();
   await flush();
   button(v.doc, "Resume").click();
   await flush();

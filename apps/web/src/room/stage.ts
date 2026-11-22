@@ -16,6 +16,12 @@ import type { MotionState } from "./motion";
 import type { CostState } from "./signals/turn-cost";
 import type { TargetInput } from "./walk/target";
 
+/** Spec 033 (FR-006 to FR-010; Q3, Q4): the target ID of the paper in the visitor's hand, the code's own (the hand-off
+ *  and its paper are code, spec 004's FR-008), which the 3D stage picks and highlights and the room opens the resume
+ *  for, as its "Resume" does. No room data takes it: spec 004's scan refuses a code string a data ID takes. It never
+ *  leaves the device: a selection of the paper sends resume_opened, not object_selected. */
+export const HELD_PAPER = "held-paper";
+
 export interface Stage {
   readonly mode: "3d" | "2d";
   /** The element the room puts in its stage: the canvas, or the drawing. The room keeps it aria-hidden (§5). */

@@ -13,7 +13,8 @@ locals {
 }
 
 # AWS's two-minute warning before it stops the tunnel end (spec FR-076, "You get an alert"): the rule names the
-# instance from this root, so a replace or a move to another zone updates it in the same plan. It targets h4-alerts
+# instance from this root, read by its Name tag (tunnel-end.tf's data source; spec 032 FR-015), so the next plan after
+# h4-ec2-start replaces it re-points the rule (spec 032 Assumptions, "The gap after a replace"). It targets h4-alerts
 # directly, so it needs no other root's apply and waits behind no switch.
 resource "aws_cloudwatch_event_rule" "tunnel_end_spot_warning" {
   name        = "h4-tunnel-end-spot-warning"
@@ -22,7 +23,7 @@ resource "aws_cloudwatch_event_rule" "tunnel_end_spot_warning" {
     source      = ["aws.ec2"]
     detail-type = ["EC2 Spot Instance Interruption Warning"]
     detail = {
-      instance-id = [aws_instance.tunnel_end.id]
+      instance-id = [data.aws_instance.tunnel_end.id]
     }
   })
 
@@ -57,7 +58,7 @@ resource "aws_cloudwatch_event_rule" "tunnel_end_running" {
     source      = ["aws.ec2"]
     detail-type = ["EC2 Instance State-change Notification"]
     detail = {
-      instance-id = [aws_instance.tunnel_end.id]
+      instance-id = [data.aws_instance.tunnel_end.id]
       state       = ["running"]
     }
   })
@@ -101,7 +102,7 @@ resource "aws_cloudwatch_event_rule" "ec2_spot_warning" {
     source      = ["aws.ec2"]
     detail-type = ["EC2 Spot Instance Interruption Warning"]
     detail = {
-      instance-id = [aws_instance.ec2.id]
+      instance-id = [data.aws_instance.ec2.id]
     }
   })
 
@@ -126,7 +127,9 @@ resource "aws_cloudwatch_event_target" "ec2_spot_warning" {
 }
 
 # EC2 entering running, whoever started it, to the guard (contracts/handover.md §4; FR-071): AWS's own restart once
-# spot capacity returns among them. The rule needs nothing of another root; its one target, the account's guard by its
+# spot capacity returns among them. From spec 032's rework the rule names no instance: every instance entering running
+# goes to the guard, which acts on the one tagged h4-prod-ec2 alone, so an EC2 the start function replaced is guarded
+# before the next prod apply. The rule needs nothing of another root; its one target, the account's guard by its
 # name-built ARN, waits behind the switch until W2.
 resource "aws_cloudwatch_event_rule" "ec2_running" {
   name        = "h4-ec2-running"
@@ -135,8 +138,7 @@ resource "aws_cloudwatch_event_rule" "ec2_running" {
     source      = ["aws.ec2"]
     detail-type = ["EC2 Instance State-change Notification"]
     detail = {
-      instance-id = [aws_instance.ec2.id]
-      state       = ["running"]
+      state = ["running"]
     }
   })
 
@@ -154,14 +156,20 @@ resource "aws_cloudwatch_event_target" "ec2_running_guard" {
 
 # EC2's ID, by its name, for what acts on it from another root at run time (plan.md §16; research.md R-15, amended): the
 # start function and the guard read it (W2; group 9), and the guard stops any running instance tagged h4-prod-ec2 that
-# it doesn't name (contracts/handover.md §4). A replace of EC2 updates it in the same plan. A String, never a secret.
+# it doesn't name (contracts/handover.md §4). From spec 032 its value is h4-ec2-start's, which writes a replaced EC2's ID
+# as soon as it launches (FR-007): Terraform makes it from the instance it reads by tag, and ignores its drift after.
+# A String, never a secret.
 resource "aws_ssm_parameter" "ec2_instance_id" {
   name        = "/h4reet/prod/ec2-instance-id"
   description = "EC2's instance ID, which the start function and the guard act on (spec 001 contracts/handover.md §2)"
   type        = "String"
-  value       = aws_instance.ec2.id
+  value       = data.aws_instance.ec2.id
 
   tags = {
     component = "ec2"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
   }
 }

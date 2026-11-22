@@ -20,7 +20,6 @@ describe("the fall to 2D (FR-009)", () => {
     await enter(v, "engineer", "dinosaur");
     await throughLoader(v);
     v.clock.advance(5000);
-    button(v.doc, "Keep it for later").click();
     await flush();
     const tile = v.doc.querySelector(".room-eat") as HTMLButtonElement;
     v.scene.created.at(-1)?.eating?.available?.(true);

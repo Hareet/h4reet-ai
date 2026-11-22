@@ -19,7 +19,7 @@ import type { AvatarId } from "../../src/choice/avatars";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import { createScene } from "../../src/room/scene";
 import type { FigureSignal } from "../../src/room/stage";
-import { FakeClock, REPO, button, enter, flush, repositoryBundle, start, talkLog } from "../helpers/room";
+import { FakeClock, REPO, enter, flush, repositoryBundle, start, talkLog } from "../helpers/room";
 import type { TestWindow, Visit } from "../helpers/room";
 import { placementLabelled, selectableNamed, topicPhrased } from "../helpers/room-ids";
 
@@ -190,7 +190,6 @@ describe("the dog selectable opens its conversation as any piece (FR-028; Q17)",
       const v = start({ webgl: true, room: indexWithDog() });
       await enter(v, "non-engineer", avatar);
       v.clock.advance(5000);
-      button(v.doc, "Keep it for later").click();
       await flush();
       const before = v.events.length;
       const logBefore = talkLog(v.doc).children.length;

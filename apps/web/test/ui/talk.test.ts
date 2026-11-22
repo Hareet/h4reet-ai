@@ -215,7 +215,6 @@ describe("a selectable's action (T205)", () => {
     const v = start({ room: readyIndex(base, topic), sendTurn: (request, ended) => sent.push({ request, ended }) });
     await enter(v, "non-engineer");
     v.clock.advance(5000);
-    button(v.doc, "Keep it for later").click();
     await flush();
     const shown = talkLog(v.doc).children.length;
     listButton(v, id).click();

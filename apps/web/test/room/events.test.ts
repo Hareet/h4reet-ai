@@ -21,7 +21,7 @@ import type { RoomIndex } from "../../src/room/compose/bundle";
 import type { RoomEvent } from "../../src/room/events";
 import { bindPointerSelection } from "../../src/room/objects";
 import { framedBoxes, pickAreasOn, selectablePicker } from "../../src/room/scene/bundle3d";
-import { button, enter, intoRoom, start } from "../helpers/room";
+import { enter, intoRoom, start } from "../helpers/room";
 import type { TestWindow, Visit } from "../helpers/room";
 import { goodTree } from "../helpers/room-fixtures";
 
@@ -139,7 +139,6 @@ describe("object_selected", () => {
     for (const area of areas) tap(v.win, flat, at(area), "touch");
     expect(selections(v, 0)).toEqual([]);
     v.clock.advance(5000);
-    button(v.doc, "Keep it for later").click();
     for (const pointer of ["mouse", "touch"]) {
       for (const area of areas) {
         const [from, expected] = [v.events.length, sends(v, index, area.id)];

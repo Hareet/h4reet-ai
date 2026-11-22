@@ -15,8 +15,10 @@ prepare:  the data volume, /dev/sdf, formatted once while it holds no filesystem
           first start reads; this file and the backup's units installed, and the timer enabled; and, from group 10, the
           public view's write, deploy/scripts/snapshot_sink.py, with its unit, enabled and restarted; and, from fix F2,
           the private interface's replies: ens5's networkd drop-in (table 105, its two rules) and the marks' table
-          with its unit, enabled and loaded, networkd reloaded when the drop-in changed (fixes/f2.md). A missing
-          parameter stops it, naming it, and the deployer's start with it; so does a reply route that isn't set.
+          with its unit, enabled and loaded (fixes/f2.md); and, from fix F9, never networkd's reload or reconfigure
+          on the live interface: the drop-in is written for the next boot, and its route and rules made live here with
+          `ip`, ens5's address checked before and after, the step's own changes undone if it went (fixes/f9.md). A
+          missing parameter stops it, naming it, and the deployer's start with it; so does a reply route that isn't set.
 backup:   pg_dump inside the container, over its socket, as its postgres user; the dump put to
           s3://h4reet-ai-shared-state-<account>/dumps/<UTC>.dump through the egress proxy. The last good dump stays on
           the host. A failed dump or put alerts shared_state_backup_failed once a failing streak, and each run pushes
@@ -36,6 +38,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -85,6 +88,18 @@ REPLY_UNIT = "h4-reply-route.service"
 REPLY_TABLE = "h4-reply-route.nft"
 REPLY_DROPIN = "zz-h4-reply-route.conf"
 PRIVATE_INTERFACE = "ens5"
+# Fix F9 (specs/001-cloud-elevation/fixes/f9.md): ens5's fixed address (infra/prod/tunnel-end.tf, private_ips), which
+# the relay, the store, and the sink publish on. A release never asks networkd to reload or reconfigure ens5: on
+# 2026-11-18 that left it with no IPv4, and the release couldn't start, nor the one before it. The step checks the
+# address before and after its own changes, waiting up to ADDRESS_WAIT seconds for a boot's lease, and SETTLE seconds
+# after a change before it reads it again.
+PRIVATE_ADDRESS = "10.42.1.10"
+ADDRESS_WAIT = 30
+SETTLE = 2
+# What the step can make live from the drop-in, and how: a route by ens5's DHCP gateway into a table, and a rule by
+# source or mark; any other key fails the step before anything changes, so the boot's state and the live one agree.
+ROUTE_KEYS = {"Gateway", "Table"}
+RULE_KEYS = {"From", "FirewallMark", "Table", "Priority"}
 PROXY = "http://127.0.0.1:3128"
 
 
@@ -177,6 +192,279 @@ def write_private(host, path: Path, text: str, mode: int, uid: int) -> None:
     path.chmod(mode)
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+# The private interface's replies (fixes F2 and F9).
+
+
+def dropin_sections(text: str) -> list[tuple[str, dict[str, str]]]:
+    """systemd's syntax, each section in its order: a section may repeat, and each is its own route or rule."""
+    out: list[tuple[str, dict[str, str]]] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith(("#", ";")):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            out.append((line[1:-1], {}))
+        elif out and "=" in line:
+            key, _, value = line.partition("=")
+            out[-1][1][key.strip()] = value.strip()
+        else:
+            raise ValueError(f"a line outside any section, {line!r}")
+    return out
+
+
+def live_plan(text: str) -> tuple[list[str], list[dict[str, str]]]:
+    """The drop-in's tables, each with a default by ens5's DHCP gateway, and its rules; ValueError, naming the key or
+    section, for anything else."""
+    tables: list[str] = []
+    rules: list[dict[str, str]] = []
+    for name, keys in dropin_sections(text):
+        if name == "Route":
+            unknown = sorted(set(keys) - ROUTE_KEYS)
+            if unknown or keys.get("Gateway") != "_dhcp4" or "Table" not in keys:
+                raise ValueError(
+                    f"[Route] {', '.join(unknown) or 'without Gateway=_dhcp4 and Table='}"
+                )
+            tables.append(keys["Table"])
+        elif name == "RoutingPolicyRule":
+            unknown = sorted(set(keys) - RULE_KEYS)
+            selector = "From" in keys or "FirewallMark" in keys
+            if unknown or not selector or not {"Table", "Priority"} <= set(keys):
+                raise ValueError(
+                    f"[RoutingPolicyRule] {', '.join(unknown) or 'without a selector, Table=, and Priority='}"
+                )
+            int(keys.get("FirewallMark", "0"), 0)
+            int(keys["Priority"])
+            rules.append(keys)
+        else:
+            raise ValueError(f"[{name}]")
+    return tables, rules
+
+
+def has_address(host) -> bool:
+    code, out = host.run(["ip", "-4", "-o", "addr", "show", "dev", PRIVATE_INTERFACE])
+    pattern = rf"\binet {re.escape(PRIVATE_ADDRESS)}/\d+\b"
+    return code == 0 and re.search(pattern, out.decode(errors="replace")) is not None
+
+
+def wait_for_address(host) -> bool:
+    """The address, waited for while a boot's lease may still be coming, every 2 s, up to ADDRESS_WAIT."""
+    for attempt in range(ADDRESS_WAIT // 2 + 1):
+        if has_address(host):
+            return True
+        if attempt < ADDRESS_WAIT // 2:
+            host.sleep(2)
+    return False
+
+
+def ip_json(host, args: list[str]) -> list | None:
+    code, out = host.run(["ip", "-4", "-j", *args])
+    if code != 0:
+        return None
+    try:
+        doc = json.loads(out.decode() or "[]")
+    except ValueError:
+        return None
+    return doc if isinstance(doc, list) else None
+
+
+def rule_matches(entry: dict, rule: dict[str, str]) -> bool:
+    """One of `ip -j rule show`'s entries is the drop-in's rule: the same priority, table, source, and mark."""
+    if (
+        entry.get("priority") != int(rule["Priority"])
+        or str(entry.get("table")) != rule["Table"]
+    ):
+        return False
+    if entry.get("src", "all") != rule.get("From", "all"):
+        return False
+    if "From" in rule and entry.get("srclen") not in (None, 32):
+        return False
+    mark = entry.get("fwmark")
+    if "FirewallMark" not in rule:
+        return mark is None
+    try:
+        return int(str(mark), 0) == int(rule["FirewallMark"], 0)
+    except ValueError:
+        return False
+
+
+def route_args(entry: dict, table: str) -> list[str]:
+    """`ip route replace`'s arguments for one of `ip -j route show`'s entries, to put it back."""
+    args = [str(entry.get("dst", "default"))]
+    if entry.get("gateway"):
+        args += ["via", str(entry["gateway"])]
+    if entry.get("dev"):
+        args += ["dev", str(entry["dev"])]
+    args += ["table", table]
+    if entry.get("protocol"):
+        args += ["proto", str(entry["protocol"])]
+    if "metric" in entry:
+        args += ["metric", str(entry["metric"])]
+    return args
+
+
+def make_live(
+    host, tables: list[str], rules: list[dict[str, str]], undo: list[list[str]]
+) -> str | None:
+    """The drop-in's routes and rules, live, as networkd makes them at boot: each table's default by ens5's DHCP gateway,
+    with that route's proto and metric, then each rule, proto static. Only what's missing is made; what's right is
+    left alone. Each change's undo goes first in `undo`. None, or the command that failed."""
+    for table in tables:
+        current = ip_json(host, ["route", "show", "table", table])
+        if current is None:
+            return f"ip -4 -j route show table {table}"
+        if any(
+            e.get("dst") == "default"
+            and e.get("dev") == PRIVATE_INTERFACE
+            and e.get("gateway")
+            for e in current
+        ):
+            continue
+        main = (
+            ip_json(host, ["route", "show", "default", "dev", PRIVATE_INTERFACE]) or []
+        )
+        dhcp = next((e for e in main if e.get("gateway")), None)
+        if dhcp is None:
+            return (
+                f"ip -4 -j route show default dev {PRIVATE_INTERFACE} (no DHCP gateway)"
+            )
+        ours = [
+            "default",
+            "via",
+            str(dhcp["gateway"]),
+            "dev",
+            PRIVATE_INTERFACE,
+            "table",
+            table,
+            "proto",
+            "dhcp",
+        ]
+        if "metric" in dhcp:
+            ours += ["metric", str(dhcp["metric"])]
+        replaced = [
+            e
+            for e in current
+            if e.get("dst") == "default" and e.get("metric") == dhcp.get("metric")
+        ]
+        command = ["ip", "-4", "route", "replace", *ours]
+        if host.run(command)[0] != 0:
+            return " ".join(command)
+        delete = [
+            "ip",
+            "-4",
+            "route",
+            "del",
+            *[a for a in ours if a not in ("proto", "dhcp")],
+        ]
+        undo[0:0] = [
+            delete,
+            *(
+                ["ip", "-4", "route", "replace", *route_args(e, table)]
+                for e in replaced
+            ),
+        ]
+    current = ip_json(host, ["rule", "show"])
+    if current is None:
+        return "ip -4 -j rule show"
+    for rule in rules:
+        if any(rule_matches(e, rule) for e in current):
+            continue
+        selector = ["from", rule["From"]] if "From" in rule else []
+        if "FirewallMark" in rule:
+            selector += ["fwmark", f"{int(rule['FirewallMark'], 0):#x}"]
+        tail = [
+            "table",
+            rule["Table"],
+            "priority",
+            rule["Priority"],
+            "protocol",
+            "static",
+        ]
+        command = ["ip", "-4", "rule", "add", *selector, *tail]
+        if host.run(command)[0] != 0:
+            return " ".join(command)
+        undo[0:0] = [["ip", "-4", "rule", "del", *selector, *tail]]
+    return None
+
+
+def reply_route(host, paths: Paths, dropin: bytes) -> int:
+    """Fix F2's parts, by fix F9's rule: ens5's address checked first; the marks' unit enabled and restarted; the drop-in
+    written, when its text differs, for networkd at the next boot; its route and rules made live here, never by
+    networkd's reload or reconfigure; and the address checked again. A failure, or the address gone, undoes the step's
+    own changes (the routes and rules it made, and a changed drop-in's old text; a new drop-in stays, right for the next
+    boot and unchanged for a rollback's step), says so, and fails the step."""
+    try:
+        tables, rules = live_plan(dropin.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError) as error:
+        print(
+            f"shared_state: the release's {REPLY_DROPIN} holds {error}, which the host step can't make live: nothing "
+            "of the network changed, and the release doesn't start",
+            file=sys.stderr,
+        )
+        return 1
+    if not wait_for_address(host):
+        print(
+            f"shared_state: {PRIVATE_INTERFACE} has no {PRIVATE_ADDRESS} before the host step (waited {ADDRESS_WAIT} s): "
+            "nothing of the network changed, and the release doesn't start; docs/runbooks/tunnel-end.md, T058, says "
+            "how to set it by hand",
+            file=sys.stderr,
+        )
+        return 1
+    if (
+        host.run(["systemctl", "enable", REPLY_UNIT])[0] != 0
+        or host.run(["systemctl", "restart", REPLY_UNIT])[0] != 0
+    ):
+        print(
+            f"shared_state: the private interface's replies weren't set ({REPLY_UNIT}): the release doesn't start",
+            file=sys.stderr,
+        )
+        return 1
+    placed = paths.network / REPLY_DROPIN
+    before = placed.read_bytes() if placed.is_file() else None
+    undo: list[list[str]] = []
+
+    def put_back(why: str) -> int:
+        # A changed drop-in goes back to its old text. A new one stays (the review of bd7e0765, nit 1): its text is
+        # right for the next boot, and the rollback that follows runs the previous release's step, which, before this
+        # fix, reloaded networkd and reconfigured ens5 whenever the drop-in was missing or changed.
+        undone = [" ".join(c) for c in undo if host.run(c)[0] != 0]
+        try:
+            if before is not None and placed.read_bytes() != before:
+                placed.write_bytes(before)
+        except OSError:
+            undone.append(str(placed))
+        left = f"; these didn't undo: {', '.join(undone)}" if undone else ""
+        kept = "as it was" if before is not None else "kept for the next boot"
+        print(
+            f"shared_state: {why}: the step's own changes are undone ({len(undo)} live; the drop-in {kept})"
+            f"{left}; the release doesn't start",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        if before != dropin:
+            paths.network.mkdir(parents=True, exist_ok=True)
+            tmp = placed.with_name(f".{placed.name}")
+            tmp.write_bytes(dropin)
+            tmp.chmod(0o644)
+            os.replace(str(tmp), str(placed))
+    except OSError as error:
+        return put_back(
+            f"the release's {REPLY_DROPIN} didn't install ({type(error).__name__})"
+        )
+    failed = make_live(host, tables, rules, undo)
+    if failed is not None:
+        return put_back(f"the private interface's replies weren't set ({failed})")
+    if undo:
+        host.sleep(SETTLE)
+    if not has_address(host):
+        return put_back(
+            f"{PRIVATE_INTERFACE} lost {PRIVATE_ADDRESS} during the host step"
+        )
+    return 0
+
+
 def prepare(host, paths: Paths, tree: Path) -> int:
     # 1. The data volume: formatted once, while it holds no filesystem; never again. A volume mounted already isn't
     # probed; blkid's exit 2 alone means no filesystem, and any other failure formats nothing (group 6's review).
@@ -237,20 +525,14 @@ def prepare(host, paths: Paths, tree: Path) -> int:
         for unit in UNITS:
             shutil.copyfile(str(source / "release" / unit), str(paths.units / unit))
             (paths.units / unit).chmod(0o644)
-        # Fix F2: the marks' table, which its unit loads; and ens5's drop-in, written only when its text differs, so a
-        # rerun reloads nothing.
+        # Fix F2: the marks' table, which its unit loads; and ens5's drop-in, read here and written below, after the
+        # address is checked (fix F9).
         paths.config.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(
             str(source / "release" / REPLY_TABLE), str(paths.config / REPLY_TABLE)
         )
         (paths.config / REPLY_TABLE).chmod(0o600)
         dropin = (source / "release" / REPLY_DROPIN).read_bytes()
-        placed = paths.network / REPLY_DROPIN
-        changed = not placed.is_file() or placed.read_bytes() != dropin
-        if changed:
-            paths.network.mkdir(parents=True, exist_ok=True)
-            placed.write_bytes(dropin)
-            placed.chmod(0o644)
     except OSError as error:
         print(
             f"shared_state: the release's host files didn't install: {type(error).__name__}",
@@ -258,27 +540,10 @@ def prepare(host, paths: Paths, tree: Path) -> int:
         )
         return 1
     host.run(["systemctl", "daemon-reload"])
-    # Fix F2: the marks loaded again, whole, and networkd's rules made again when the drop-in changed (`networkctl
-    # reload`, then ens5 reconfigured, as the first boot's runcmd does). Without them the relay's replies time out and
-    # the site answers nothing, so a failure fails the step, and the start with it; a drop-in networkd didn't take is
-    # removed, so the next run writes it and reloads again.
-    loaded = (
-        host.run(["systemctl", "enable", REPLY_UNIT])[0] == 0
-        and host.run(["systemctl", "restart", REPLY_UNIT])[0] == 0
-    )
-    if loaded and changed:
-        loaded = (
-            host.run(["networkctl", "reload"])[0] == 0
-            and host.run(["networkctl", "reconfigure", PRIVATE_INTERFACE])[0] == 0
-        )
-        if not loaded:
-            placed.unlink()
-    if not loaded:
-        print(
-            f"shared_state: the private interface's replies weren't set ({REPLY_UNIT}, or networkd's "
-            f"{REPLY_DROPIN}): the release doesn't start",
-            file=sys.stderr,
-        )
+    # Fix F2: the marks loaded again, whole, and ens5's route and rules in place. Without them the relay's replies time
+    # out and the site answers nothing, so a failure fails the step, and the start with it. Fix F9: never by networkd
+    # on the live interface (reply_route).
+    if reply_route(host, paths, dropin) != 0:
         return 1
     if (
         host.run(["systemctl", "enable", "--now", "h4-shared-state-backup.timer"])[0]
@@ -570,6 +835,9 @@ class RealHost:
 
     def chown(self, path: Path, uid: int) -> None:
         os.chown(str(path), uid, uid)
+
+    def sleep(self, seconds: float) -> None:
+        time.sleep(seconds)
 
     def account(self) -> str:
         try:

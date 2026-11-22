@@ -15,7 +15,7 @@ Spec: FR-054, FR-056, SC-010. Plan: §6. Research: R-10. Data: [data-model.md](.
 | `object_selected` | the object's ID | an object is selected by pointer, touch, or the list |
 | `item_selected` | the resume item's ID | a resume item is selected |
 | `resume_opened` | – | the resume opens |
-| `resume_kept` | – | "Keep it for later" after the hand-off |
+| `resume_kept` | – | **(spec 033)** the hand-off's end, once a visit, the paper kept in the visitor's hand ([spec 033](../../033-resume-in-hand/spec.md), FR-003; Amendment A3); before it, "Keep it for later" after the hand-off |
 | `pdf_downloaded` | – | the PDF link is followed, on any screen |
 | `turn_sent` | – | the text box sends, or a transcript is sent |
 | `voice_pressed` | – | the talk button is pressed |
@@ -65,5 +65,5 @@ Spec 001's relay applies its own public cap when this route is public.
 Both are in spec 000's [telemetry.md §4.1](../../000-local-foundations/contracts/telemetry.md#41-the-gateways-instruments), and the Prometheus names are `h4_room_events_total` and `h4_room_events_refused_total`.
 
 **The "Room" row** of `h4-runtime.json`:
-- **built now:** use per object per day, use per item per day, PDF downloads per day, the share of visits shown the 2D mode (`mode_2d` over `resume_opened` + `resume_kept`, a stand-in for visits, since no visit is counted), turns sent beside the talk button's presses, and refusals by reason. Their panels and exact queries are spec 000's [telemetry.md §7.8](../../000-local-foundations/contracts/telemetry.md#78-the-room-spec-002), which `deploy/scripts/test_dashboard.py` reads like the rest of §7; the row sits above the development-time row;
+- **built now:** use per object per day, use per item per day, PDF downloads per day, the share of visits shown the 2D mode (`mode_2d` over `resume_kept` since spec 033's Amendment A3, before it `resume_opened` + `resume_kept`, a stand-in for visits, since no visit is counted), turns sent beside the talk button's presses, and refusals by reason. Their panels and exact queries are spec 000's [telemetry.md §7.8](../../000-local-foundations/contracts/telemetry.md#78-the-room-spec-002), which `deploy/scripts/test_dashboard.py` reads like the rest of §7; the row sits above the development-time row;
 - **when conversations exist:** cost per room feature today and this month, beside latency and errors, from spec 000's `h4.cost.usd` and duration series filtered by `h4.room.feature`, plus degraded responses by cause.

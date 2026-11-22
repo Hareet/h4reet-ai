@@ -209,7 +209,7 @@ def check_vpc_origin(r: dict[str, list]) -> list[str]:
         or origin.attr("count") is not None
         or origin.attr("for_each") is not None
         or config is None
-        or raw(config, "arn") != "aws_instance.tunnel_end.arn"
+        or raw(config, "arn") != "data.aws_instance.tunnel_end.arn"
         or lit(config, "http_port") != 8080
         or lit(config, "origin_protocol_policy") != "http-only"
     ):
@@ -698,13 +698,13 @@ def test_the_certificate_validated_by_dns_behind_the_switch() -> None:
 
 
 def primary_eni(r: dict[str, list]):
-    """The tunnel end's primary interface: its primary_network_interface, or a network_interface at device 0."""
-    instance = one(r, "aws_instance", "tunnel_end")
-    if instance is None:
+    """The tunnel end's primary interface: from spec 032 its launch templates' network_interfaces at device 0."""
+    template = one(r, "aws_launch_template", "tunnel_end")
+    if template is None:
         return None
-    found = list(instance.blocks("primary_network_interface")) + [
+    found = [
         b
-        for b in instance.blocks("network_interface")
+        for b in template.blocks("network_interfaces")
         if lit(b, "device_index") in (0, None)
     ]
     if len(found) != 1:
@@ -725,7 +725,7 @@ def reached_by_the_origin(r: dict[str, list]) -> list[str] | None:
     origin = one(r, "aws_cloudfront_vpc_origin", "relay")
     config = origin.block("vpc_origin_endpoint_config") if origin else None
     arn = raw(config, "arn") if config is not None else None
-    if arn == "aws_instance.tunnel_end.arn":
+    if arn == "data.aws_instance.tunnel_end.arn":
         eni = primary_eni(r)
         return eni_addresses(eni) if eni is not None else None
     m = re.fullmatch(r"aws_lb\.(\w+)\.arn", arn or "")
@@ -745,7 +745,7 @@ def reached_by_the_origin(r: dict[str, list]) -> list[str] | None:
         target = lit(b, "target_id")
         if isinstance(target, str) and re.fullmatch(r"10\.42\.[01]\.[0-9]+", target):
             reached.append(target)
-        elif raw(b, "target_id") == "aws_instance.tunnel_end.id":
+        elif raw(b, "target_id") == "data.aws_instance.tunnel_end.id":
             eni = primary_eni(r)
             reached += eni_addresses(eni) if eni is not None else []
     return reached or None
@@ -775,7 +775,7 @@ def test_the_vpc_origin_reaches_the_interface_the_relay_publishes_on() -> None:
 
 
 # B-6, option C: the VPC origin's instance has its primary interface in the private subnet, 10.42.1.10 alone, and the
-# relay's origin is the instance's private DNS name, which is that interface's.
+# relay's origin is that interface's private DNS name, which a replace of the tunnel end doesn't change (spec 032).
 def test_option_c_the_origin_reaches_the_private_interface_by_the_instances_private_dns() -> (
     None
 ):
@@ -786,10 +786,13 @@ def test_option_c_the_origin_reaches_the_private_interface_by_the_instances_priv
     assert eni_addresses(eni) == ["10.42.1.10"]
     origin = one(r, "aws_cloudfront_vpc_origin", "relay")
     config = origin.block("vpc_origin_endpoint_config") if origin else None
-    assert raw(config, "arn") == "aws_instance.tunnel_end.arn"
+    assert raw(config, "arn") == "data.aws_instance.tunnel_end.arn"
     d = one(r, "aws_cloudfront_distribution", "site")
     relay = next(o for o in d.blocks("origin") if lit(o, "origin_id") == "relay")
-    assert raw(relay, "domain_name") == "aws_instance.tunnel_end.private_dns"
+    assert (
+        raw(relay, "domain_name")
+        == "aws_network_interface.tunnel_end_private.private_dns_name"
+    )
 
 
 def test_the_vpc_origin_to_the_tunnel_ends_relay() -> None:

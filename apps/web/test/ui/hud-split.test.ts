@@ -61,7 +61,6 @@ async function room(screen: { w: number; h: number } = WIDE, o: { freeTalk?: boo
   await enter(v, "engineer");
   await throughLoader(v);
   v.clock.advance(5000);
-  button(v.doc, "Keep it for later").click();
   await flush();
   return { v, sent, viewport };
 }

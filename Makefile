@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT MINUTES OUTCOME EXIT_STATUS HOST ROTATE RESTORE DUMP REGISTRY BUCKET COMPOSE_PLUGIN COMPOSE_SHA256 PUBLIC REDTEAM SITE_BUCKET DISTRIBUTION INCIDENT
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT MINUTES OUTCOME EXIT_STATUS HOST ROTATE RESTORE DUMP REGISTRY BUCKET COMPOSE_PLUGIN COMPOSE_SHA256 PUBLIC REDTEAM SITE_BUCKET DISTRIBUTION INCIDENT REPLACE SKIP
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -857,7 +857,7 @@ ec2-status: ## (the Author) EC2's state and its spot request's, the autostart sw
 
 ec2-start: ## (the Author) Invoke h4-ec2-start by hand, so its checks apply (contracts/handover.md §7) [PROFILE=…]
 	$(call AUTHOR_ONLY,it invokes the start function with his SSO session)
-	@$(PY_HOST) scripts/infra/ec2_ops.py start$(WITH_PROFILE)
+	@$(PY_HOST) scripts/infra/ec2_ops.py start$(if $(call from_cli,REPLACE), --replace "$$REPLACE")$(if $(call from_cli,SKIP), --skip "$$SKIP")$(if $(call from_cli,DRY_RUN), --dry-run)$(WITH_PROFILE)
 
 ec2-stop: ## (the Author) Stop EC2 through his h4reet-ec2-stop profile (the h4-ec2-stop permission set); an audit line and an alert (contracts/handover.md §7) [PROFILE=…]
 	$(call AUTHOR_ONLY,it stops EC2 with his SSO session)

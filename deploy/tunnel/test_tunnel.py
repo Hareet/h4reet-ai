@@ -1018,3 +1018,294 @@ def test_the_client_reads_a_0700_folder_it_doesnt_own_and_runs_as_10001(
             docker("rm", "-f", "-v", ctr)
         docker("volume", "rm", volume)
         docker("start", tunnel["client"])
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Fix F10 (specs/001-cloud-elevation/fixes/f10.md): the tunnel end kept a dead laptop session's remote forwards. On
+# 2026-11-18, after the laptop froze and was restarted, its client reconnected every 30 s, and each new session was
+# refused 2201, 2202, and 2203 ("cannot listen to port: 2201") for 15 minutes and more, until the container was
+# restarted by hand. sshd's client-alive probe runs only when its poll times out, and the relay's check through 2201
+# every second woke it each time, so the probe never ran; the dead session ended only when the kernel gave up
+# retransmitting to the laptop, tcp_retries2's 15 tries, about 15 minutes. Two parts: the tunnel end's own network
+# namespace retries fewer times, so a dead peer with data outstanding ends in under two minutes; and the server ends
+# the older sessions as soon as a new one can't listen, so the laptop's next retry gets its forwards.
+
+TCP_RETRIES2 = 8
+RTO_MIN = 0.2  # seconds, the kernel's TCP_RTO_MIN
+
+
+def tunnel_end_service() -> dict:
+    return yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))["services"]["tunnel-end"]
+
+
+def test_a_dead_peer_with_data_outstanding_ends_in_under_two_minutes() -> None:
+    sysctls = tunnel_end_service().get("sysctls") or {}
+    assert {k: str(v) for k, v in sysctls.items()} == {
+        "net.ipv4.tcp_retries2": str(TCP_RETRIES2)
+    }
+
+    # The kernel's bound for n retries from TCP_RTO_MIN (tcp_model_timeout): (2^(n+1) - 1) * 0.2 s while n stays under
+    # TCP_RTO_MAX's doubling (9). The default, 15, is the night's 924.6 s.
+    def bound(n: int) -> float:
+        linear = 9
+        if n <= linear:
+            return ((2 << n) - 1) * RTO_MIN
+        return ((2 << linear) - 1) * RTO_MIN + (n - linear) * 120
+
+    assert bound(15) > 900
+    assert 60 < bound(TCP_RETRIES2) < 120
+
+
+def test_the_grace_is_sshds_own() -> None:
+    # A session that started within LoginGraceTime may still be setting up; one older has asked for its forwards.
+    text = ENTRYPOINT.read_text(encoding="utf-8")
+    (grace,) = re.findall(r"^GRACE=(\d+)$", text, re.MULTILINE)
+    assert [[grace]] == setting(SSHD, "LoginGraceTime")
+
+
+def functions(replacements: dict[str, str]) -> str:
+    """The entrypoint's definitions alone, before its dispatch, with its paths moved."""
+    text = ENTRYPOINT.read_text(encoding="utf-8")
+    head, marker, _ = text.partition('if [ "$(id -u)" = 0 ]; then')
+    assert marker, "the entrypoint's dispatch moved"
+    for old, new in replacements.items():
+        assert old in head, old
+        head = head.replace(old, new)
+    return head
+
+
+def bash(script: str, *args: str, timeout: float = 10) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["/bin/bash", "-c", script, "h4-tunnel", *args],
+        capture_output=True,
+        timeout=timeout,
+        check=False,
+        env={"PATH": "/usr/bin:/bin"},
+    )
+
+
+# sshd's own line (-e, VERBOSE), as it reaches the loop: through scrub, ending in sshd's \r. With -e, OpenSSH's log.c
+# gives an error-level line no "error: " prefix (only syslog's lines carry the level's name), so the raw line is the
+# function's name and its message, as the night's journal shows it, and as the client prints the same function's line
+# for a local forward ("channel_setup_fwd_listener_tcpip: cannot listen to port: 8080").
+CONFLICT = "channel_setup_fwd_listener_tcpip: cannot listen to port: {port}\r"
+# The review of bd7e0765, I1: 2222 is open to anywhere, and sshd logs an unauthenticated client's user name and
+# identification as sent. A stranger whose user name or banner is the conflict's text must not end anything: only
+# sshd's own line, the whole line, does.
+STRANGER = "cannot listen to port: 2201"
+
+
+@pytest.mark.parametrize(
+    ("line", "conflict"),
+    [
+        (CONFLICT.format(port=2201), True),
+        (CONFLICT.format(port=2202), True),
+        (CONFLICT.format(port=2203), True),
+        (CONFLICT.format(port=2201).rstrip("\r"), True),
+        (CONFLICT.format(port=5432), False),
+        (CONFLICT.format(port=22010), False),
+        ("bind [0.0.0.0]:2201: Address already in use\r", False),
+        (
+            "Accepted publickey for tunnel from 192.0.2.7 port 50000 ssh2: ED25519\r",
+            False,
+        ),
+        (f"Invalid user {STRANGER} from 192.0.2.7 port 50000\r", False),
+        (
+            f"Connection closed by invalid user {STRANGER} 192.0.2.7 port 50000 [preauth]\r",
+            False,
+        ),
+        (
+            (
+                "kex_exchange_identification: client sent invalid protocol identifier "
+                f'"{STRANGER}"\r'
+            ),
+            False,
+        ),
+        (f"x {CONFLICT.format(port=2201)}", False),
+        (CONFLICT.format(port=2201).rstrip("\r") + " [preauth]\r", False),
+    ],
+)
+def test_the_line_that_ends_older_sessions_is_sshds_own_whole_line(
+    line: str, conflict: bool
+) -> None:
+    done = bash(
+        functions({})
+        + 'line="$(printf "%s\\n" "$1" | scrub)"\n'
+        + 'printf "%s\\n" "$line"\n'
+        + 'holds_forward "$line" && echo conflict || echo none\n',
+        line,
+    )
+    assert done.returncode == 0, done.stderr
+    scrubbed, verdict = done.stdout.decode().splitlines()
+    assert verdict == ("conflict" if conflict else "none"), scrubbed
+
+
+def fake_proc(root: Path, table: dict[int, tuple[str, int, int]]) -> None:
+    """/proc/<pid>/stat for each pid: its command, its parent, and its start in clock ticks since boot."""
+    for pid, (comm, ppid, start) in table.items():
+        (root / str(pid)).mkdir(parents=True)
+        fields = ["S", str(ppid)] + ["0"] * 17 + [str(start)] + ["0"] * 30
+        (root / str(pid) / "stat").write_text(
+            f"{pid} ({comm}) {' '.join(fields)}\n", encoding="utf-8"
+        )
+
+
+def test_the_older_sessions_are_the_daemons_children_started_before_the_limit_and_theirs(
+    tmp_path: Path,
+) -> None:
+    proc = tmp_path / "proc"
+    fake_proc(
+        proc,
+        {
+            1: ("h4-tunnel", 0, 100),
+            7: ("sshd", 1, 200),  # the listening daemon
+            20: ("sshd", 7, 5_000),  # the dead laptop's session, its monitor
+            21: (
+                "sshd",
+                20,
+                5_010,
+            ),  # and its post-auth child, which holds the forwards
+            22: (
+                "sshd) x (y",
+                21,
+                5_020,
+            ),  # a command with a parenthesis and a space in it
+            30: ("sshd", 7, 9_950),  # the new session, still setting up
+            31: ("sshd", 30, 9_960),
+            40: ("sshd", 1, 1_000),  # not the daemon's
+            41: ("sleep", 40, 1_100),
+        },
+    )
+    done = bash(
+        functions({"PROC=/proc\n": f"PROC={proc}\n"}) + 'stale_sessions "$1" "$2"\n',
+        "7",
+        "9000",
+    )
+    assert done.returncode == 0, done.stderr
+    assert sorted(int(p) for p in done.stdout.split()) == [20, 21, 22]
+    done = bash(
+        functions({"PROC=/proc\n": f"PROC={proc}\n"}) + "daemon_pid 1\n",
+    )
+    assert done.stdout.decode().split() == ["7"], done.stderr
+
+
+# The server, under bash, with a stand-in sshd that starts an old session, then, after the grace, a new one, and logs
+# the accepted login, the bind line, and $LINES (one a line): with sshd's conflict, the entrypoint ends the old session
+# and leaves the new one; with a stranger's text, it ends nothing. A session is alive while its stat file is there and
+# it isn't a zombie (bash reaps its children as they end).
+SERVER_SSHD = """#!/bin/bash
+sleep 30 & old=$!
+echo "old $old" >>"$LOG"
+sleep 2
+sleep 30 & new=$!
+echo "new $new" >>"$LOG"
+printf 'Accepted publickey for tunnel from 192.0.2.7 port 50000 ssh2: ED25519 SHA256:x\\r\\n' >&2
+printf 'bind [0.0.0.0]:2201: Address already in use\\r\\n' >&2
+while IFS= read -r line; do printf '%s\\r\\n' "$line" >&2; done <<<"$LINES"
+sleep 1.5
+for s in old new; do
+  state=ended
+  if read -r _ _ st _ 2>/dev/null <"/proc/${!s}/stat" && [ "$st" != Z ]; then state=alive; fi
+  echo "$s $state" >>"$LOG"
+done
+kill "$old" "$new" 2>/dev/null
+sleep 5
+"""
+
+
+@pytest.mark.parametrize(
+    ("lines", "ends"),
+    [
+        (
+            [
+                CONFLICT.format(port=2201).rstrip("\r"),
+                CONFLICT.format(port=2202).rstrip("\r"),
+            ],
+            True,
+        ),
+        (
+            [
+                f"Invalid user {STRANGER} from 192.0.2.7 port 50000",
+                f"Connection closed by invalid user {STRANGER} 192.0.2.7 port 50000 [preauth]",
+                (
+                    "kex_exchange_identification: client sent invalid protocol identifier "
+                    f'"{STRANGER}"'
+                ),
+            ],
+            False,
+        ),
+    ],
+    ids=["sshds-conflict", "a-strangers-text"],
+)
+def test_a_session_that_cant_listen_ends_the_older_ones_holding_the_forwards(
+    tmp_path: Path, lines: list[str], ends: bool
+) -> None:
+    state, bin_ = tmp_path / "state", tmp_path / "bin"
+    for d in (state, bin_):
+        d.mkdir()
+    (bin_ / "sshd").write_text(SERVER_SSHD, encoding="utf-8")
+    (bin_ / "sshd").chmod(0o755)
+    (bin_ / "id").write_text(
+        '#!/bin/sh\n[ "$1" = -u ] && echo 10001 && exit 0\nexec /usr/bin/id "$@"\n',
+        encoding="utf-8",
+    )
+    (bin_ / "id").chmod(0o755)
+    text = (
+        ENTRYPOINT.read_text(encoding="utf-8")
+        .replace("STATE=/run/tunnel\n", f"STATE={state}\n")
+        .replace("/usr/sbin/sshd ", f"{bin_}/sshd ")
+        .replace("GRACE=10\n", "GRACE=1\n")
+    )
+    script = tmp_path / "h4-tunnel"
+    script.write_text(text, encoding="utf-8")
+    log = tmp_path / "log"
+    log.touch()
+    proc = subprocess.Popen(
+        ["/bin/bash", str(script), "server"],
+        env={
+            "PATH": f"{bin_}:/usr/bin:/bin",
+            "LOG": str(log),
+            "LINES": "\n".join(lines),
+        },
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    try:
+        out, _ = proc.communicate(timeout=7)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, 9)
+        out, _ = proc.communicate()
+    said_ = out.decode(errors="replace")
+    seen = log.read_text(encoding="utf-8").splitlines()
+    assert ("old ended" if ends else "old alive") in seen, (seen, said_)
+    assert "new alive" in seen, (seen, said_)
+    old = next(line.split()[1] for line in seen if line.startswith("old "))
+    ended = [line for line in said_.splitlines() if "older session" in line]
+    if ends:
+        assert len(ended) == 1 and old in ended[0], said_
+    else:
+        assert ended == [], said_
+    assert "<address>" in said_ and "192.0.2.7" not in said_
+
+
+def test_a_frozen_clients_forwards_go_to_its_next_connection(tunnel: dict) -> None:
+    # The laptop frozen: its client paused, its connection open and silent. A new client of the same key at once, as
+    # the restarted laptop's: refused its forwards first, then, once the tunnel end has ended the frozen session, given
+    # them, well before client-alive's 40 s.
+    second = tunnel["client_with"](
+        "tunnel-again", tunnel["known"], tunnel["image"], "client"
+    )
+    assert docker("pause", tunnel["client"]).returncode == 0
+    try:
+        assert docker("start", second).returncode == 0
+        assert (
+            wait_for(tunnel, "tunnel-end", 2201, "edge:8085", seconds=25) == "edge:8085"
+        )
+        logs = said(docker("logs", tunnel["server"]))
+        assert "cannot listen to port: 2201" in logs, logs
+        assert "older session" in logs, logs
+    finally:
+        docker("rm", "-f", "-v", second)
+        docker("unpause", tunnel["client"])
+    assert wait_for(tunnel, "tunnel-end", 2201, "edge:8085", seconds=60) == "edge:8085"

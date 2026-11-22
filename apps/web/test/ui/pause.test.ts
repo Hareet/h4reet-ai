@@ -76,7 +76,6 @@ describe('"Pause the room" (FR-060)', () => {
     await enter(v);
     expect(pauseButton(v, index).closest("[inert]")).not.toBeNull();
     v.clock.advance(5000);
-    button(v.doc, "Keep it for later").click();
     await flush();
     expect(pauseButton(v, index).closest("[inert]")).toBeNull();
   });

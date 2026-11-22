@@ -60,7 +60,7 @@ import {
   tracks,
 } from "../helpers/layers";
 import type { Pair, Rgb, Rule } from "../helpers/layers";
-import { button, enter, flush, parseCss, roomIndex, start, stubViewport, throughLoader } from "../helpers/room";
+import { enter, flush, parseCss, roomIndex, start, stubViewport, throughLoader } from "../helpers/room";
 import type { Visit } from "../helpers/room";
 
 // ---- The room, walking, a conversation open, the "Eat" tile offered ----
@@ -83,7 +83,6 @@ async function walkingInConversation(screen: Screen): Promise<Visit> {
   await enter(v, "engineer", "dinosaur");
   await throughLoader(v);
   v.clock.advance(5000);
-  button(v.doc, "Keep it for later").click();
   await flush();
   const id = room.selectables.find((s) => s.action.kind === "talk")?.id ?? "";
   v.doc.querySelector<HTMLButtonElement>(`.room-list button[data-object-id="${id}"]`)?.click();
@@ -433,7 +432,6 @@ async function waitingIn(c: PulseCase): Promise<Visit> {
   await enter(v, "engineer", "dinosaur");
   await throughLoader(v);
   v.clock.advance(5000);
-  button(v.doc, "Keep it for later").click();
   await flush();
   const id = room.selectables.find((s) => s.action.kind === "talk")?.id ?? "";
   v.doc.querySelector<HTMLButtonElement>(`.room-list button[data-object-id="${id}"]`)?.click();

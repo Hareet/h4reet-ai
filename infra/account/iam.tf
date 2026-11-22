@@ -372,7 +372,24 @@ resource "aws_iam_role_policy" "credential_audit" {
 # Name = h4-prod-ec2, the condition the credential audit reads (infra/lambdas/credential_audit/audit.py's
 # HANDOVER_ROLES and HANDOVER_SETS). W1's: none needs another root, and the functions arrive with W2's digests.
 
-# h4-ec2-start-fn: the start of the tagged instance, and the reads of its six checks.
+# The types the start function may launch, prod's two lists (infra/prod/ec2.tf's local.ec2_types and tunnel-end.tf's
+# local.tunnel_end_types), repeated here since no root reads another's; infra/test/test_handover.py holds the two, and
+# the credential audit's LISTED_TYPES, alike (spec 032's rework).
+locals {
+  launch_types = [
+    "t4g.large",
+    "m7g.large",
+    "m6g.large",
+    "t4g.xlarge",
+    "t4g.small",
+    "c7g.medium",
+    "c6g.medium",
+    "t4g.medium",
+  ]
+}
+
+# h4-ec2-start-fn: the start of the tagged instance, and the reads of its six checks; from spec 032, a host's
+# replace from its launch templates.
 resource "aws_iam_role" "ec2_start" {
   name               = "h4-ec2-start-fn"
   path               = "/"
@@ -392,6 +409,7 @@ data "aws_iam_policy_document" "ec2_start" {
     resources = ["${aws_cloudwatch_log_group.ec2_start.arn}:*"]
   }
 
+  # From spec 032 also the hosts' template lists, the VPC origin's ID (prod's ssm.tf), and the lock.
   statement {
     sid     = "TheSwitchAndEC2sID"
     effect  = "Allow"
@@ -399,7 +417,29 @@ data "aws_iam_policy_document" "ec2_start" {
     resources = [
       "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/ec2-autostart",
       "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/ec2-instance-id",
+      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/ec2-launch-templates",
+      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/tunnel-end-launch-templates",
+      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/relay-vpc-origin-id",
+      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/host-lock",
     ]
+  }
+
+  # Spec 032 (FR-007, FR-011): a replaced EC2's ID, written as soon as it launches, and the lock around a replace.
+  statement {
+    sid     = "EC2sIDAndTheLock"
+    effect  = "Allow"
+    actions = ["ssm:PutParameter"]
+    resources = [
+      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/ec2-instance-id",
+      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/host-lock",
+    ]
+  }
+
+  statement {
+    sid       = "TheLocksRelease"
+    effect    = "Allow"
+    actions   = ["ssm:DeleteParameter"]
+    resources = ["arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/host-lock"]
   }
 
   statement {
@@ -409,11 +449,12 @@ data "aws_iam_policy_document" "ec2_start" {
     resources = ["arn:aws:budgets::${data.aws_caller_identity.current.account_id}:budget/h4-server-month"]
   }
 
-  # The tunnel end's state, by its tag, and EC2's tag before the start. EC2's describe calls take no narrower resource.
+  # The tunnel end's state, by its tag, and EC2's tag before the start; from spec 032, the spot requests' statuses and
+  # the two volumes, by their tags. EC2's describe calls take no narrower resource.
   statement {
     sid       = "TheInstancesStates"
     effect    = "Allow"
-    actions   = ["ec2:DescribeInstances"]
+    actions   = ["ec2:DescribeInstances", "ec2:DescribeSpotInstanceRequests", "ec2:DescribeVolumes"]
     resources = ["*"]
   }
 
@@ -435,6 +476,162 @@ data "aws_iam_policy_document" "ec2_start" {
       variable = "ec2:ResourceTag/Name"
       values   = ["h4-prod-ec2"]
     }
+  }
+
+  # Spec 032, the replace (FR-007, FR-016; ADR 0057): a host's instance launched only from a launch template tagged with
+  # its component, only with its Name; tags only at that launch; the old one's request cancelled and the old one
+  # terminated only by its Name; the two volumes attached only by their Names; the hosts' two roles passed to EC2
+  # alone; and the VPC origin re-pointed at a new tunnel end. The credential audit holds each to its condition
+  # (infra/lambdas/credential_audit/audit.py's START_ROLE).
+  statement {
+    sid       = "LaunchFromTheHostsTemplates"
+    effect    = "Allow"
+    actions   = ["ec2:RunInstances"]
+    resources = ["arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:launch-template/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/component"
+      values   = ["ec2", "tunnel-end"]
+    }
+  }
+
+  # The instance only with a host's Name, of a listed type, on spot: FR-002's ceiling lives in the templates, and a
+  # request can't override their type or their market here (the rework after the reviews of 52308132).
+  statement {
+    sid       = "LaunchOnlyAHost"
+    effect    = "Allow"
+    actions   = ["ec2:RunInstances"]
+    resources = ["arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:instance/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestTag/Name"
+      values   = ["h4-prod-ec2", "h4-prod-tunnel-end"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:InstanceType"
+      values   = local.launch_types
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:InstanceMarketType"
+      values   = ["spot"]
+    }
+  }
+
+  statement {
+    sid     = "WhatALaunchFromATemplateMakes"
+    effect  = "Allow"
+    actions = ["ec2:RunInstances"]
+    resources = [
+      "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:volume/*",
+      "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:spot-instances-request/*",
+    ]
+
+    condition {
+      test     = "ArnLike"
+      variable = "ec2:LaunchTemplate"
+      values   = ["arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:launch-template/*"]
+    }
+  }
+
+  # The image, the subnet, the group, and the interfaces only as the template names them: a request can't put the
+  # instance elsewhere, or on another image (ec2:IsLaunchTemplateResource).
+  statement {
+    sid     = "WhatOnlyTheTemplateNames"
+    effect  = "Allow"
+    actions = ["ec2:RunInstances"]
+    resources = [
+      "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:network-interface/*",
+      "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:subnet/*",
+      "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:security-group/*",
+      "arn:aws:ec2:us-east-1::image/*",
+    ]
+
+    condition {
+      test     = "ArnLike"
+      variable = "ec2:LaunchTemplate"
+      values   = ["arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:launch-template/*"]
+    }
+
+    condition {
+      test     = "Bool"
+      variable = "ec2:IsLaunchTemplateResource"
+      values   = ["true"]
+    }
+  }
+
+  statement {
+    sid       = "TagOnlyAtTheLaunch"
+    effect    = "Allow"
+    actions   = ["ec2:CreateTags"]
+    resources = ["arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:*/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:CreateAction"
+      values   = ["RunInstances"]
+    }
+  }
+
+  statement {
+    sid     = "RetireTheOldHost"
+    effect  = "Allow"
+    actions = ["ec2:TerminateInstances", "ec2:CancelSpotInstanceRequests"]
+    resources = [
+      "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:instance/*",
+      "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:spot-instances-request/*",
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:ResourceTag/Name"
+      values   = ["h4-prod-ec2", "h4-prod-tunnel-end"]
+    }
+  }
+
+  statement {
+    sid     = "AttachTheHostsVolume"
+    effect  = "Allow"
+    actions = ["ec2:AttachVolume"]
+    resources = [
+      "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:instance/*",
+      "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:volume/*",
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:ResourceTag/Name"
+      values   = ["h4-prod-ec2", "h4-prod-tunnel-end", "h4-ec2-data", "h4-shared-state"]
+    }
+  }
+
+  statement {
+    sid     = "PassTheHostsRolesToEC2"
+    effect  = "Allow"
+    actions = ["iam:PassRole"]
+    resources = [
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/h4-prod-ec2",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/h4-prod-tunnel-end",
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["ec2.amazonaws.com"]
+    }
+  }
+
+  # The relay's VPC origin, whose ID is prod's (its ID's parameter); the account has the one.
+  statement {
+    sid       = "RepointTheRelaysOrigin"
+    effect    = "Allow"
+    actions   = ["cloudfront:GetVpcOrigin", "cloudfront:UpdateVpcOrigin"]
+    resources = ["arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:vpcorigin/*"]
   }
 
   statement {

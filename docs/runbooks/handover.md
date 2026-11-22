@@ -5,13 +5,13 @@ One host serves at a time: the laptop while you run its prod, else EC2, inside i
 ## Symptoms
 
 - **Telegram and the mailbox,** from W2 (the functions are W2's):
-  - `[hareet.ai aws] ec2_started: EC2 started`, with `- trigger: alarm`, `manual`, or `tunnel_end_back`: the laptop went, you started it, or the tunnel end came back. At the hours' open (`hours_open`) a start is recorded and not alerted (provisional: the regrouping note's question 3, option A);
+  - `[hareet.ai aws] ec2_started: EC2 started`, with `- trigger: alarm`, `manual`, or `tunnel_end_back`: the laptop went, you started it, or the tunnel end came back. At the hours' open (`hours_open`) a start is recorded and not alerted (provisional: the regrouping note's question 3, option A). From spec 032 it names `- type:`, and after a replace `- replaced:` (the old type and why: AWS's code, `instance-stopped-no-capacity`, `earlier_generation`, or `by_hand`), `- tried:` (the types refused before it), and `- repoint:`, your next prod plan and apply ([ec2.md](ec2.md), "A type with no capacity");
   - `[hareet.ai aws] ec2_start_refused (<reason>): EC2 not started`, the reason one of:
     - `paused`: the autostart switch is `off`;
     - `outside_hours`: outside 07:00 to 19:00 Mountain time (`America/Denver`, question 1a, your answer "1a A"); for your own start too (question 2, "2 A");
     - `server_budget_stopped`: the server action has run and isn't reversed;
     - `laptop_serving`: by hand, on the tunnel end's return, or at the open, while `h4-laptop-away` reads `OK`;
-    - `start_failed`: AWS refused the start, with `- code:` its code, `InsufficientInstanceCapacity` among them; or `untagged`, the instance `/h4reet/prod/ec2-instance-id` names doesn't carry `h4-prod-ec2`; or `unknown_trigger`;
+    - `start_failed`: AWS refused the start, with `- code:` its code; or `untagged`, the instance `/h4reet/prod/ec2-instance-id` names doesn't carry `h4-prod-ec2`; or `unknown_trigger`. From spec 032 a capacity code (`InsufficientInstanceCapacity`, `InsufficientCapacity`, `SpotMaxPriceTooLow`, `Unsupported`) isn't a refusal: the function replaces EC2 with the next listed type ([ec2.md](ec2.md), "A type with no capacity"). Its own codes: `no_capacity`, with `- tried:` each listed type and AWS's code, when none launched (EC2 has no instance until the next trigger; the laptop serves when up); `busy`, another replace holds the lock; `wait_timeout`, with `- step:`, a terminate, a launch, or a volume that didn't finish in 4 minutes;
     - with `- unread: <code>` when the step couldn't read what it checks, and refused for it: a failed read always alerts;
   - `[hareet.ai aws] ec2_stopped_laptop_serving` or `ec2_stopped_paused`: the guard stopped EC2 when it entered `running`; its `ec2_stopped_server_budget` is [server-budget.md](server-budget.md)'s;
   - `[hareet.ai aws] ec2_stopped_by_author: EC2 stopped by hand`: your stop target.

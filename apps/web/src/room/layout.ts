@@ -2,7 +2,7 @@
 // "Pause the room", the data-flow disclosure link), the stage, the "In the room" list, the conversation panel, "Around
 // the room" (spec 004, FR-063), and the resume's panel, in that order, which is the Tab order: "Around the room" is a
 // Tab stop of its own after the conversation (FR-065; Amendment B8; text-copy.ts). While the hand-off plays, every part
-// a visitor acts on is inert; the offer of "Read the resume now" and "Keep it for later" comes when it ends. The
+// a visitor acts on is inert; when it ends, the room is the visitor's at once (spec 033, FR-001: no offer). The
 // layout's CSS (room.css) frames it from 320 CSS pixels wide, with the stage, the list, the text box, and the talk
 // button on screen in portrait: its grid's areas run toolbar, stage, list, talk, around, resume, and in landscape
 // "around" spans both columns before the resume; below a portrait width of 35rem, where five controls (spec 003's
@@ -16,7 +16,7 @@
 // is in aria-pressed; the room's motion store holds what it sets (motion.ts).
 // Spec 005 (FR-008, FR-019 to FR-022; plan.md §2.3, §5.4, §6.1): the room's block fills the window, and the interface
 // is a HUD laid over it. In Tab order, the room block holds the heading, the bar (the toolbar), the stage (its view, the
-// canvas's place, and over it the clear box with the notes, the offer, and the walking control), and the panels (the
+// canvas's place, and over it the clear box with the notes and the walking control), and the panels (the
 // list, then the conversation); "Around the room" and the resume follow it. applyHud sets the layout the room chose
 // (compose/hud.ts) on the page's root, its data attributes and its sizes as CSS properties through the CSS object model
 // (style.setProperty, which the CSP's style-src 'self' allows), never a style attribute; room.css places every docked
@@ -96,15 +96,13 @@ export interface RoomLayout {
   readonly resumeBody: HTMLElement;
   /** Makes the toolbar, the stage, the list, the conversation, and the resume inert, or not. */
   setInteractive(on: boolean): void;
-  /** Offers the resume now or later, with focus on "Read the resume now"; returns what removes the offer. */
-  offer(now: () => void, later: () => void): () => void;
   /** The room is in 2D for the rest of the visit: "2D view" stays, marked unavailable. */
   markFlat(): void;
   /** Shows whether the room is paused, in "Pause the room"'s aria-pressed. */
   setPaused(on: boolean): void;
   /** Spec 008's walking control (FR-020, FR-021; R-09): in the stage's bottom-right corner, inert with the rest. */
   readonly walkButton: HTMLButtonElement;
-  /** Offers the walking control, in 3D after the hand-off's offer, or takes it away, in 2D. */
+  /** Offers the walking control, in 3D from the hand-off's end, or takes it away, in 2D. */
   setWalkOffered(on: boolean): void;
   /** Spec 024's "Eat" tile (FR-001, FR-012; plan.md §5.5): after the walking control in the clear box, its name
    *  "{eat.button}, B", hidden until offered. */
@@ -113,7 +111,7 @@ export interface RoomLayout {
   setEatOffered(on: boolean): void;
   /** The walking view on or off: the control's words, and the view's name, role, and focus while walking (R-13). */
   setWalking(on: boolean): void;
-  /** The clear box, over the stage at the clear area (spec 005): the notes, the offer, and the walking control. */
+  /** The clear box, over the stage at the clear area (spec 005): the notes and the walking control. */
   readonly clear: HTMLElement;
   /** Sets the HUD's layout on the page's root: data-hud, data-list, and the sizes as CSS properties (spec 005). */
   applyHud(applied: HudApplied): void;
@@ -388,23 +386,6 @@ export function renderRoom(
     resumeBody,
     setInteractive(on) {
       for (const part of controls) part.toggleAttribute("inert", !on);
-    },
-    offer(now, later) {
-      const nowButton = h(doc, "button", { type: "button" }, "Read the resume now");
-      const laterButton = h(doc, "button", { type: "button" }, "Keep it for later");
-      nowButton.addEventListener("click", now);
-      laterButton.addEventListener("click", later);
-      const panel = h(
-        doc,
-        "div",
-        { class: "room-offer", role: "group", "aria-labelledby": "room-offer-text" },
-        h(doc, "p", { id: "room-offer-text" }, "The twin handed you the Author's resume."),
-        nowButton,
-        laterButton,
-      );
-      clear.append(panel);
-      nowButton.focus();
-      return () => panel.remove();
     },
     markFlat() {
       flatButton.setAttribute("aria-disabled", "true");

@@ -1,0 +1,454 @@
+Spec 032, patch P-032-prod: spot with interchangeable instance types, prod's protected files.
+Branch feat/032-spot-flexibility; built from plain copies of refs/heads/main (f1abe245) with diff -u.
+Apply from the repository's root with: patch -p1 < docs/merge-requests/human-patches/2026-11-22-032-prod.patch
+
+  infra/prod/ec2-market.tf   one spot launch template per listed type for each host (persistent, stop, a price
+                             ceiling each); the two instances forgotten by removed blocks, never destroyed
+  infra/prod/handover.tf     the four instance rules and EC2's ID's parameter read the current instances by tag;
+                             the parameter's value is the start function's after its creation
+  infra/prod/killswitch.tf   the server action's role names EC2 by tag; the budget action the instance read by tag
+  infra/prod/edge.tf         the VPC origin's ARN from the tunnel end read by tag; the relay origin's DNS name from
+                             the private interface
+
+It needs the branch's unprotected files (ec2.tf, tunnel-end.tf, shared-state.tf, ssm.tf), which hold the type lists,
+the template maps, and the two data sources.
+
+--- a/infra/prod/ec2-market.tf
++++ b/infra/prod/ec2-market.tf
+@@ -1,14 +1,45 @@
+ # The tunnel end and EC2 on spot (spec 001 FR-069, FR-076; research.md R-04, R-30; the Author's answers to the spec's
+-# question 15 and the plan's question 2; contracts/tunnel.md §1): each a persistent spot request that stops on
+-# interruption, so the instance, its volumes, and its interfaces stay, and AWS starts it again when capacity returns.
++# question 15 and the plan's question 2; contracts/tunnel.md §1), from spec 032 as launch templates, one for each type
++# on each host's list (spec 032 FR-003, FR-004; ADR 0057): each a persistent spot request that stops on interruption,
++# so the instance, its volumes, and its interfaces stay, and AWS starts it again when capacity for its type returns.
++# When a type has no capacity, h4-ec2-start launches the host from the next template on its list
++# (infra/lambdas/ec2_start/start.py). Terraform no longer holds the instances: it forgets them without destroying them
++# (the removed blocks below), and reads each host's current one by its Name tag (ec2.tf, tunnel-end.tf).
+ # Protected (FR-012; rule T5: what holds instance_market_options lives only in ec2-market*): it changes only by the
+-# Author's patch. Group 5 wrote the tunnel end; group 7 adds EC2 (P-I4).
++# Author's patch. Group 5 wrote the tunnel end; group 7 added EC2 (P-I4); spec 032 the templates (P-032-prod).
+ 
+-resource "aws_instance" "tunnel_end" {
+-  ami                  = data.aws_ami.al2023.id
+-  instance_type        = local.tunnel_end_type
+-  iam_instance_profile = aws_iam_instance_profile.tunnel_end.name
+-  user_data_base64     = base64gzip(local.tunnel_end_user_data)
++removed {
++  from = aws_instance.tunnel_end
++
++  lifecycle {
++    destroy = false
++  }
++}
++
++removed {
++  from = aws_instance.ec2
++
++  lifecycle {
++    destroy = false
++  }
++}
++
++# The tunnel end's templates, one for each type on local.tunnel_end_types (tunnel-end.tf), each with its type's price
++# ceiling. Its two interfaces by ID, the private one as device 0 (B-6, option C) and the public one, with the Elastic
++# IP, as device 1, so a new instance takes both at launch, and the Elastic IP and the addresses never move.
++resource "aws_launch_template" "tunnel_end" {
++  for_each = local.tunnel_end_templates
++
++  name                   = "h4-prod-tunnel-end-${each.key}"
++  description            = "The tunnel end as ${each.key} (spec 032)"
++  image_id               = data.aws_ami.al2023.id
++  instance_type          = each.key
++  update_default_version = true
++  user_data              = base64gzip(local.tunnel_end_user_data)
++
++  iam_instance_profile {
++    name = aws_iam_instance_profile.tunnel_end.name
++  }
+ 
+   instance_market_options {
+     market_type = "spot"
+@@ -16,6 +47,7 @@
+     spot_options {
+       spot_instance_type             = "persistent"
+       instance_interruption_behavior = "stop"
++      max_price                      = each.value.max_price
+     }
+   }
+ 
+@@ -26,61 +58,85 @@
+     http_put_response_hop_limit = 1
+   }
+ 
+-  # A busy burstable instance slows down rather than billing past its baseline (research.md R-04).
+-  credit_specification {
+-    cpu_credits = "standard"
++  # A busy burstable instance slows down rather than billing past its baseline (research.md R-04); a fixed-performance
++  # type takes no credit setting.
++  dynamic "credit_specification" {
++    for_each = startswith(each.key, "t") ? ["standard"] : []
++
++    content {
++      cpu_credits = credit_specification.value
++    }
+   }
+ 
+-  root_block_device {
+-    volume_type           = "gp3"
+-    volume_size           = 8
+-    encrypted             = true
+-    delete_on_termination = true
++  block_device_mappings {
++    device_name = "/dev/xvda"
+ 
+-    tags = {
+-      component = "tunnel-end"
++    ebs {
++      volume_type           = "gp3"
++      volume_size           = 8
++      encrypted             = true
++      delete_on_termination = true
+     }
+   }
+ 
+-  primary_network_interface {
++  network_interfaces {
++    device_index         = 0
+     network_interface_id = aws_network_interface.tunnel_end_private.id
+   }
+ 
++  network_interfaces {
++    device_index         = 1
++    network_interface_id = aws_network_interface.tunnel_end_public.id
++  }
++
++  # The provider's default tags don't reach what a template launches: the server budget filters on project (T154).
++  # The interfaces are Terraform's own, tagged in tunnel-end.tf.
++  dynamic "tag_specifications" {
++    for_each = ["instance", "volume", "spot-instances-request"]
++
++    content {
++      resource_type = tag_specifications.value
++      tags = {
++        Name        = "h4-prod-tunnel-end"
++        project     = "h4reet-ai"
++        environment = "prod"
++        component   = "tunnel-end"
++      }
++    }
++  }
++
+   tags = {
+-    Name      = "h4-prod-tunnel-end"
+     component = "tunnel-end"
+   }
+ 
+   lifecycle {
+-    # A newer image or a changed host file reaches the tunnel end only through a reviewed replace, never as drift in
+-    # a later plan: terraform_data.tunnel_end_host holds the user data's SHA-256 and local.tunnel_end_generation
+-    # (tunnel-end.tf), so a changed host file or a new generation plans as the replace (group 5's review, I3;
+-    # docs/runbooks/tunnel-end.md).
+-    ignore_changes       = [ami, user_data_base64]
++    # A newer image or a changed host file reaches the tunnel end only through a reviewed change: the templates ignore
++    # the image's and the user data's drift, and a new terraform_data.tunnel_end_host (tunnel-end.tf) replaces them;
++    # the running tunnel end moves onto them by the Author's hand replace (docs/runbooks/tunnel-end.md).
++    ignore_changes       = [image_id, user_data]
+     replace_triggered_by = [terraform_data.tunnel_end_host]
+-
+-    # T166 measures the type with the tunnel end's five services; until then prod's plan stops here.
+-    precondition {
+-      condition     = local.tunnel_end_type != "measure-in-T166"
+-      error_message = "The tunnel end's type isn't measured yet: tasks.md T166 sets local.tunnel_end_type in infra/prod/tunnel-end.tf."
+-    }
+   }
+ }
+ 
+-# EC2, prod's default host (spec 001 FR-043, FR-044, FR-050, FR-069; research.md R-04, R-28, R-30; plan.md §5.1): the
+-# whole stack but the model server, from its release. Its type, its generation, its user data, its data volume, and
+-# W1's stop are the unprotected ec2.tf's. One interface, in the public subnet, at its fixed private address, a literal
+-# the compose file's ec2 class publishes on, with an address AWS assigns at each start, used only for egress through
+-# its proxy (R-10): no Elastic IP, and nothing reaches it from outside but the tunnel end (network.tf's group).
+-resource "aws_instance" "ec2" {
+-  ami                         = data.aws_ami.al2023.id
+-  instance_type               = local.ec2_type
+-  iam_instance_profile        = aws_iam_instance_profile.ec2.name
+-  user_data_base64            = base64gzip(local.ec2_user_data)
+-  subnet_id                   = aws_subnet.public.id
+-  private_ip                  = "10.42.0.20"
+-  associate_public_ip_address = true
+-  vpc_security_group_ids      = [aws_security_group.ec2.id]
++# EC2's templates, one for each type on local.ec2_types (ec2.tf), each with its type's price ceiling (spec 001
++# FR-043, FR-044, FR-050, FR-069; research.md R-04, R-28, R-30; plan.md §5.1; spec 032): the whole stack but the
++# model server, from its release. One interface, made at each launch in the public subnet at the fixed private address,
++# a literal the compose file's ec2 class publishes on, with an address AWS assigns at each start, used only for egress
++# through its proxy (R-10): no Elastic IP, and nothing reaches it from outside but the tunnel end (network.tf's group).
++# Its data volume is ec2.tf's, attached by h4-ec2-start after each launch.
++resource "aws_launch_template" "ec2" {
++  for_each = local.ec2_templates
++
++  name                   = "h4-prod-ec2-${each.key}"
++  description            = "EC2 as ${each.key} (spec 032)"
++  image_id               = data.aws_ami.al2023.id
++  instance_type          = each.key
++  update_default_version = true
++  user_data              = base64gzip(local.ec2_user_data)
++
++  iam_instance_profile {
++    name = aws_iam_instance_profile.ec2.name
++  }
+ 
+   instance_market_options {
+     market_type = "spot"
+@@ -88,6 +144,7 @@
+     spot_options {
+       spot_instance_type             = "persistent"
+       instance_interruption_behavior = "stop"
++      max_price                      = each.value.max_price
+     }
+   }
+ 
+@@ -100,36 +157,61 @@
+     instance_metadata_tags      = "enabled"
+   }
+ 
+-  # A busy burstable instance slows down rather than billing past its baseline (research.md R-04).
+-  credit_specification {
+-    cpu_credits = "standard"
+-  }
+-
+-  # The images and the OS; the stack's stores are on the data volume (ec2.tf). Tagged with project too, which the
+-  # server budget's filter reads and the provider's default tags may not reach on a root volume (T154).
+-  root_block_device {
+-    volume_type           = "gp3"
+-    volume_size           = 20
+-    encrypted             = true
+-    delete_on_termination = true
+-
+-    tags = {
+-      project   = "h4reet-ai"
+-      component = "ec2"
++  # A busy burstable instance slows down rather than billing past its baseline (research.md R-04); a fixed-performance
++  # type takes no credit setting.
++  dynamic "credit_specification" {
++    for_each = startswith(each.key, "t") ? ["standard"] : []
++
++    content {
++      cpu_credits = credit_specification.value
++    }
++  }
++
++  # The images and the OS; the stack's stores are on the data volume (ec2.tf).
++  block_device_mappings {
++    device_name = "/dev/xvda"
++
++    ebs {
++      volume_type           = "gp3"
++      volume_size           = 20
++      encrypted             = true
++      delete_on_termination = true
++    }
++  }
++
++  network_interfaces {
++    device_index                = 0
++    subnet_id                   = aws_subnet.public.id
++    private_ip_address          = "10.42.0.20"
++    associate_public_ip_address = true
++    security_groups             = [aws_security_group.ec2.id]
++    delete_on_termination       = true
++  }
++
++  # The provider's default tags don't reach what a template launches: the server budget filters on project (T154).
++  dynamic "tag_specifications" {
++    for_each = ["instance", "volume", "network-interface", "spot-instances-request"]
++
++    content {
++      resource_type = tag_specifications.value
++      tags = {
++        Name        = "h4-prod-ec2"
++        project     = "h4reet-ai"
++        environment = "prod"
++        component   = "ec2"
++      }
+     }
+   }
+ 
+   tags = {
+-    Name      = "h4-prod-ec2"
+     component = "ec2"
+   }
+ 
+   lifecycle {
+-    # A newer image or a changed host file reaches EC2 only through a reviewed replace: terraform_data.ec2_generation
+-    # holds the user data's SHA-256 and local.ec2_generation (ec2.tf), and W2 sets the generation to 2 for SC-005
+-    # (tasks.md T097). The server action, EC2's model action's role, and /h4reet/prod/ec2-instance-id name this
+-    # instance from this root, so the same plan updates them.
+-    ignore_changes       = [ami, user_data_base64]
++    # A newer image or a changed host file reaches EC2 only through a reviewed change: the templates ignore the image's
++    # and the user data's drift, and a new terraform_data.ec2_generation (ec2.tf) replaces them; h4-ec2-start then
++    # replaces EC2 at its next start, since it was launched from a template no longer listed (spec 032 FR-010).
++    ignore_changes       = [image_id, user_data]
+     replace_triggered_by = [terraform_data.ec2_generation]
+   }
+ }
+--- a/infra/prod/handover.tf
++++ b/infra/prod/handover.tf
+@@ -13,7 +13,8 @@
+ }
+ 
+ # AWS's two-minute warning before it stops the tunnel end (spec FR-076, "You get an alert"): the rule names the
+-# instance from this root, so a replace or a move to another zone updates it in the same plan. It targets h4-alerts
++# instance from this root, read by its Name tag (tunnel-end.tf's data source; spec 032 FR-015), so the next plan after
++# h4-ec2-start replaces it re-points the rule (spec 032 Assumptions, "The gap after a replace"). It targets h4-alerts
+ # directly, so it needs no other root's apply and waits behind no switch.
+ resource "aws_cloudwatch_event_rule" "tunnel_end_spot_warning" {
+   name        = "h4-tunnel-end-spot-warning"
+@@ -22,7 +23,7 @@
+     source      = ["aws.ec2"]
+     detail-type = ["EC2 Spot Instance Interruption Warning"]
+     detail = {
+-      instance-id = [aws_instance.tunnel_end.id]
++      instance-id = [data.aws_instance.tunnel_end.id]
+     }
+   })
+ 
+@@ -57,7 +58,7 @@
+     source      = ["aws.ec2"]
+     detail-type = ["EC2 Instance State-change Notification"]
+     detail = {
+-      instance-id = [aws_instance.tunnel_end.id]
++      instance-id = [data.aws_instance.tunnel_end.id]
+       state       = ["running"]
+     }
+   })
+@@ -101,7 +102,7 @@
+     source      = ["aws.ec2"]
+     detail-type = ["EC2 Spot Instance Interruption Warning"]
+     detail = {
+-      instance-id = [aws_instance.ec2.id]
++      instance-id = [data.aws_instance.ec2.id]
+     }
+   })
+ 
+@@ -126,7 +127,9 @@
+ }
+ 
+ # EC2 entering running, whoever started it, to the guard (contracts/handover.md §4; FR-071): AWS's own restart once
+-# spot capacity returns among them. The rule needs nothing of another root; its one target, the account's guard by its
++# spot capacity returns among them. From spec 032's rework the rule names no instance: every instance entering running
++# goes to the guard, which acts on the one tagged h4-prod-ec2 alone, so an EC2 the start function replaced is guarded
++# before the next prod apply. The rule needs nothing of another root; its one target, the account's guard by its
+ # name-built ARN, waits behind the switch until W2.
+ resource "aws_cloudwatch_event_rule" "ec2_running" {
+   name        = "h4-ec2-running"
+@@ -135,8 +138,7 @@
+     source      = ["aws.ec2"]
+     detail-type = ["EC2 Instance State-change Notification"]
+     detail = {
+-      instance-id = [aws_instance.ec2.id]
+-      state       = ["running"]
++      state = ["running"]
+     }
+   })
+ 
+@@ -154,14 +156,20 @@
+ 
+ # EC2's ID, by its name, for what acts on it from another root at run time (plan.md §16; research.md R-15, amended): the
+ # start function and the guard read it (W2; group 9), and the guard stops any running instance tagged h4-prod-ec2 that
+-# it doesn't name (contracts/handover.md §4). A replace of EC2 updates it in the same plan. A String, never a secret.
++# it doesn't name (contracts/handover.md §4). From spec 032 its value is h4-ec2-start's, which writes a replaced EC2's ID
++# as soon as it launches (FR-007): Terraform makes it from the instance it reads by tag, and ignores its drift after.
++# A String, never a secret.
+ resource "aws_ssm_parameter" "ec2_instance_id" {
+   name        = "/h4reet/prod/ec2-instance-id"
+   description = "EC2's instance ID, which the start function and the guard act on (spec 001 contracts/handover.md §2)"
+   type        = "String"
+-  value       = aws_instance.ec2.id
++  value       = data.aws_instance.ec2.id
+ 
+   tags = {
+     component = "ec2"
+   }
++
++  lifecycle {
++    ignore_changes = [value]
++  }
+ }
+--- a/infra/prod/killswitch.tf
++++ b/infra/prod/killswitch.tf
+@@ -1,9 +1,11 @@
+ # Prod's budget actions (spec 001 FR-021, FR-023; research.md R-22, amended; contracts/aws-alerts.md §4; plan.md §16,
+ # "No root holds another root's instance or health-check ID", W1's departure 10; ADR 0049, proposed): the server action,
+ # which stops EC2, and EC2's model action, which revokes Bedrock from h4-prod-gateway. Each names what it acts on from
+-# this root, beside it, so a replace of EC2 updates them in its own plan, and each is W1's, made in the same apply as
+-# what it acts on. What they share with the account's, the budgets and the deny policy, they name by name. Protected
+-# (FR-012; rule T5): it changes only by the Author's patch, P-I4.
++# this root, beside it, and each is W1's, made in the same apply as what it acts on. From spec 032 the server action
++# names the EC2 instance this root reads by its tag (ec2.tf), so the next plan after h4-ec2-start replaces EC2
++# re-points it (spec 032 Assumptions, "The gap after a replace"; ADR 0057), and its role names EC2 by tag. What they
++# share with the account's, the budgets and the deny policy, they name by name. Protected (FR-012; rule T5): it changes
++# only by the Author's patch, P-I4, then P-032-prod.
+ 
+ # AWS Budgets runs each action with its execution role, for this account alone.
+ data "aws_iam_policy_document" "budgets_trust" {
+@@ -57,13 +59,20 @@
+     sid       = "ThatInstanceThroughSystemsManager"
+     effect    = "Allow"
+     actions   = ["ec2:StartInstances", "ec2:StopInstances"]
+-    resources = [aws_instance.ec2.arn]
++    resources = ["arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:instance/*"]
+ 
+     condition {
+       test     = "ForAnyValue:StringEquals"
+       variable = "aws:CalledVia"
+       values   = ["ssm.amazonaws.com"]
+     }
++
++    # EC2 by its tag, not its ARN, from spec 032: h4-ec2-start may replace it with an instance of another type.
++    condition {
++      test     = "StringEquals"
++      variable = "ec2:ResourceTag/Name"
++      values   = ["h4-prod-ec2"]
++    }
+   }
+ 
+   statement {
+@@ -95,7 +104,7 @@
+   definition {
+     ssm_action_definition {
+       action_sub_type = "STOP_EC2_INSTANCES"
+-      instance_ids    = [aws_instance.ec2.id]
++      instance_ids    = [data.aws_instance.ec2.id]
+       region          = "us-east-1"
+     }
+   }
+--- a/infra/prod/edge.tf
++++ b/infra/prod/edge.tf
+@@ -68,11 +68,12 @@
+ # one, 10.42.1.10, where the relay listens, so the instance sits in the private subnet, as AWS documents for a VPC
+ # origin. Made in W1, unswitched (the Author's answer: "Yes w1 can create the vpc origin"); nothing sends through it
+ # until W2's distribution, and the private group's 8080 admits CloudFront's origin-facing prefix list alone (plan.md
+-# §16, "B-6: option C, and the VPC origin from W1").
++# §16, "B-6: option C, and the VPC origin from W1"). From spec 032 it names the tunnel end this root reads by its tag
++# (tunnel-end.tf), and h4-ec2-start points it at a replaced tunnel end itself (FR-014).
+ resource "aws_cloudfront_vpc_origin" "relay" {
+   vpc_origin_endpoint_config {
+     name                   = "h4-relay"
+-    arn                    = aws_instance.tunnel_end.arn
++    arn                    = data.aws_instance.tunnel_end.arn
+     http_port              = 8080
+     https_port             = 443
+     origin_protocol_policy = "http-only"
+@@ -109,8 +110,9 @@
+   # The relay on the tunnel end, which picks the serving host (contracts/relay-http.md). Read for 30 s, the relay's
+   # 25 s deadline and its hops.
+   origin {
+-    origin_id   = "relay"
+-    domain_name = aws_instance.tunnel_end.private_dns
++    origin_id = "relay"
++    # The private interface's DNS name, ip-10-42-1-10's, which a replace of the tunnel end doesn't change (spec 032).
++    domain_name = aws_network_interface.tunnel_end_private.private_dns_name
+ 
+     vpc_origin_config {
+       vpc_origin_id            = aws_cloudfront_vpc_origin.relay.id
