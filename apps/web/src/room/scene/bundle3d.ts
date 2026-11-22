@@ -582,6 +582,44 @@ export function keptPaper(room: Room3D): void {
   fadePaper(room.paper, 0, 1);
 }
 
+/** Spec 033 (FR-008): the least side of the held paper's pick area, in CSS pixels, spec 004's RG6 floor for a core. */
+export const HELD_PAPER_MIN_PX = 44;
+
+/** Spec 033 (FR-008): the held paper's pick area on a canvas of `canvas` CSS pixels, `[x, y, w, h]` from its top left:
+ *  the kept sheet's four corners projected by the camera drawing the room (its view offset included, so a canvas
+ *  point), their bounds grown to at least `min` × `min` about their centre. Null where the kept sheet isn't drawn
+ *  (FR-011's visibility, up to the scene) or a corner lies behind the camera. */
+export function heldPaperArea(
+  room: Room3D,
+  camera: PerspectiveCamera,
+  canvas: { readonly w: number; readonly h: number },
+  min = HELD_PAPER_MIN_PX,
+): readonly [number, number, number, number] | null {
+  const { kept } = room.paper;
+  for (let at: Object3D | null = kept; at !== room.scene; at = at.parent) if (!at?.visible) return null;
+  if (canvas.w <= 0 || canvas.h <= 0) return null;
+  kept.updateWorldMatrix(true, false);
+  camera.updateMatrixWorld();
+  const [hw, hh] = [SHEET[0] / 2, SHEET[1] / 2];
+  let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const [sx, sy] of [
+    [-1, -1],
+    [1, -1],
+    [1, 1],
+    [-1, 1],
+  ] as const) {
+    const corner = new Vector3(sx * hw, sy * hh, 0).applyMatrix4(kept.matrixWorld);
+    // Behind the camera: in its own frame, at or past its plane.
+    if (corner.clone().applyMatrix4(camera.matrixWorldInverse).z >= 0) return null;
+    corner.project(camera);
+    const [x, y] = [((corner.x + 1) / 2) * canvas.w, ((1 - corner.y) / 2) * canvas.h];
+    [x0, y0, x1, y1] = [Math.min(x0, x), Math.min(y0, y), Math.max(x1, x), Math.max(y1, y)];
+  }
+  const [w, h] = [Math.max(min, x1 - x0), Math.max(min, y1 - y0)];
+  const [cx, cy] = [(x0 + x1) / 2, (y0 + y1) / 2];
+  return [cx - w / 2, cy - h / 2, w, h];
+}
+
 /** The kept paper into the visitor's picture, its world transform kept, so it walks and mirrors with the figure and
  *  comes back with it (spec 008, FR-034; R-12): once the hand-off has ended, before the walking view first moves the
  *  figure. Nothing the second time. */

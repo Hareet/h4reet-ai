@@ -191,7 +191,7 @@ describe("the held paper at the 3D stage (spec 033, FR-006, FR-008, FR-010)", ()
       [21, -21],
       [-21, 21],
       [21, 21],
-    ]) {
+    ] as const) {
       r.selected.length = 0;
       r.tap(at.x + dx, at.y + dy);
       expect(r.selected, `at (${dx}, ${dy}) from its centre`).toEqual([PAPER]);

@@ -122,6 +122,7 @@ import { caseFor } from "./signals/tier";
 import type { TierValue } from "./signals/tier";
 import { classifyTurn, createCostChannel } from "./signals/turn-cost";
 import type { CostChannel } from "./signals/turn-cost";
+import { HELD_PAPER } from "./stage";
 import type { ClearArea, FigureSignal, FrameGiven, SceneModule, Stage, Stage3D, WalkEnd } from "./stage";
 import { renderTextCopy } from "./text-copy";
 import type { TextCopy } from "./text-copy";
@@ -344,10 +345,12 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   }
 
   /** A targeting input's name: taken only while the room takes input, and only for a selectable the index lists, or
-   *  none (spec 008, FR-008, FR-010). */
+   *  none (spec 008, FR-008, FR-010); or, in the 3D room, the paper in the visitor's hand (spec 033, FR-006, FR-010). */
   function targetInput(input: TargetInput, id: string | null): void {
     if (!open()) return;
-    if (id !== null && !deps.room.selectables.some((s) => s.id === id)) return;
+    if (id === HELD_PAPER) {
+      if (stage?.mode !== "3d") return;
+    } else if (id !== null && !deps.room.selectables.some((s) => s.id === id)) return;
     retarget({ kind: "name", input, id });
   }
   const pdfFollowed = (): void => emit({ kind: "pdf_downloaded" });
@@ -911,6 +914,10 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     showPlaceholders();
     layout.setInteractive(false);
     layout.resumeButton.addEventListener("click", openResume);
+    // Spec 033 (FR-009; Q3): "Resume" is the held paper's keyboard path: its focus shows the paper's highlight in 3D,
+    // as an "In the room" entry's focus shows its piece's.
+    layout.resumeButton.addEventListener("focus", () => targetInput("focus", HELD_PAPER));
+    layout.resumeButton.addEventListener("blur", () => targetInput("focus", null));
     layout.flatButton.addEventListener("click", () => {
       if (!open()) return;
       toFlat("visitor");
@@ -1294,6 +1301,14 @@ export function startRoom(deps: RoomDeps): RoomHandle {
    * config/room-topics.yaml, which the gateway's pack carries, so nothing here sends it. `resume`: the resume opens.
    */
   function selectObject(id: string): void {
+    // Spec 033 (FR-007): the paper in the visitor's hand opens the resume through "Resume"'s own handler, clearing the
+    // target in the same call; no object_selected, since it isn't a selectable of the index.
+    if (id === HELD_PAPER) {
+      if (!open() || stage?.mode !== "3d") return;
+      retarget({ kind: "select", id });
+      openResume();
+      return;
+    }
     const selectable = deps.room.selectables.find((s) => s.id === id);
     if (!open() || !talk || !selectable) return;
     emit({ kind: "object_selected", id: selectable.id });
