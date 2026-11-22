@@ -10,8 +10,11 @@ night of the deploy. The Author's lines, in memory that night, from the release'
     `iifname "ens5" ct state new ct mark set 0x105`, then `iifname != "ens5" meta mark set ct mark`, hooked before
     `inet h4reet`'s prerouting;
   - a oneshot unit that loads it at each boot, after the user data's filter and before Docker;
-  - `shared_state.py prepare` installs the three, enables and restarts the unit, and reloads networkd only when the
-    drop-in changed; a rerun adds no second rule, and every part is on the root volume, so it holds after a reboot;
+  - `shared_state.py prepare` installs the three, enables and restarts the unit, and (fix F9, fixes/f9.md) never
+    reloads or reconfigures networkd on the live interface: it writes the drop-in for the next boot and makes its
+    route and rules live itself, with `ip`, as networkd makes them at boot, touching nothing that is right already;
+    it checks ens5's address before and after, and undoes its own changes and fails the step when the address is
+    gone; a rerun adds no second rule, and every part is on the root volume, so it holds after a reboot;
   - a routing model, from the files as written: CloudFront's reply, EC2's on 5432 and 2301, and the tunnel end's own
     connection to EC2 leave by ens5; the laptop's tunnel and the host's way out by ens6.
 Nothing here reaches AWS, Docker, or the host's network.
@@ -21,6 +24,7 @@ from __future__ import annotations
 
 import importlib.util
 import ipaddress
+import json
 import re
 import shutil
 import sys
@@ -202,10 +206,142 @@ def test_none_of_it_travels_in_the_user_data_so_nothing_is_replaced() -> None:
 # ----------------------------------------------------------------------------------------------------------------------
 # The host step.
 
+# Fix F9 (specs/001-cloud-elevation/fixes/f9.md): ens5 as the kernel holds it, read and changed by `ip` as iproute2
+# prints and takes it. On 2026-11-18 the release's step ran `networkctl reload` and `networkctl reconfigure ens5`, and
+# networkd failed ens5 ("Could not set DHCPv4 route: Nexthop has invalid gateway"), leaving it with no IPv4; after a
+# clean reboot networkd made the same drop-in's route and rules perfectly. These are what it made, as the Author read
+# them then: table 105's default by ens5's DHCP gateway, with its proto and metric, and the two rules, proto static.
+ADDRESS_LINE = (
+    b"2: ens5    inet 10.42.1.10/24 metric 512 brd 10.42.1.255 scope global dynamic ens5\\       "
+    b"valid_lft 3400sec preferred_lft 3400sec\n"
+)
+MAIN_DEFAULT = {
+    "dst": "default",
+    "gateway": "10.42.1.1",
+    "protocol": "dhcp",
+    "prefsrc": PRIVATE,
+    "metric": 512,
+    "flags": [],
+}
+NETWORKD_ROUTE = {
+    "dst": "default",
+    "gateway": "10.42.1.1",
+    "dev": PRIVATE_IF,
+    "protocol": "dhcp",
+    "metric": 512,
+    "flags": [],
+}
+NETWORKD_RULES = [
+    {
+        "priority": 104,
+        "src": "all",
+        "fwmark": f"{MARK:#x}",
+        "table": str(TABLE_ID),
+        "protocol": "static",
+    },
+    {"priority": 105, "src": PRIVATE, "table": str(TABLE_ID), "protocol": "static"},
+]
+KERNEL_RULES = (
+    [{"priority": 0, "src": "all", "table": "local"}],
+    [
+        {"priority": 32766, "src": "all", "table": "main"},
+        {"priority": 32767, "src": "all", "table": "default"},
+    ],
+)
+
+
+def rule_entry(kv: dict[str, str]) -> dict:
+    entry: dict = {"priority": int(kv["priority"]), "src": kv.get("from", "all")}
+    if "fwmark" in kv:
+        entry["fwmark"] = f"{int(kv['fwmark'], 0):#x}"
+    entry["table"] = kv["table"]
+    if "protocol" in kv:
+        entry["protocol"] = kv["protocol"]
+    return entry
+
+
+class NetHost(sst.StubHost):
+    """The stub host, with ens5's address, main's DHCP default by it, table 105, and the rules. An answer a test sets
+    wins, as the stub's do. `networkctl reconfigure ens5` loses the address, as it did on the night; `lose_address_on`
+    makes any other command lose it."""
+
+    def __init__(self, tmp: Path) -> None:
+        super().__init__(tmp)
+        self.address = True
+        self.table: list[dict] = []
+        self.rules: list[dict] = []
+        self.lose_address_on: str | None = None
+
+    def networkd_made_it(self) -> None:
+        self.table = [dict(NETWORKD_ROUTE)]
+        self.rules = [dict(r) for r in NETWORKD_RULES]
+
+    def run(self, args: list[str], data: bytes | None = None) -> tuple[int, bytes]:
+        joined = " ".join(args)
+        answered = super().run(args, data)
+        if any(joined.startswith(prefix) for prefix in self.answers):
+            return answered
+        code, out = 0, b""
+        if args[:1] == ["networkctl"] and "reconfigure" in args:
+            self.address = False
+        if args[:2] == ["ip", "-4"]:
+            code, out = self.ip(args[2:])
+        if self.lose_address_on and joined.startswith(self.lose_address_on):
+            self.address = False
+        return code, out
+
+    def ip(self, a: list[str]) -> tuple[int, bytes]:
+        if a == ["-o", "addr", "show", "dev", PRIVATE_IF]:
+            return 0, ADDRESS_LINE if self.address else b""
+        if a == ["-j", "rule", "show"]:
+            before, after = KERNEL_RULES
+            ordered = sorted(self.rules, key=lambda r: r["priority"])
+            return 0, json.dumps([*before, *ordered, *after]).encode()
+        if a == ["-j", "route", "show", "table", str(TABLE_ID)]:
+            return 0, json.dumps(self.table).encode()
+        if a == ["-j", "route", "show", "default", "dev", PRIVATE_IF]:
+            # iproute2 leaves out the device a filter names.
+            return 0, json.dumps([MAIN_DEFAULT] if self.address else []).encode()
+        if a[:1] == ["route"] and a[1] in ("replace", "del"):
+            kv = dict(zip(a[3::2], a[4::2]))
+            assert kv.get("table") == str(TABLE_ID), a
+            same = [
+                r
+                for r in self.table
+                if r["dst"] == a[2]
+                and ("metric" not in kv or r.get("metric") == int(kv["metric"]))
+            ]
+            if a[1] == "del":
+                if not same:
+                    return 2, b""
+                self.table.remove(same[0])
+                return 0, b""
+            entry = {"dst": a[2], "gateway": kv["via"], "dev": kv["dev"]}
+            entry["protocol"] = kv.get("proto", "boot")
+            if "metric" in kv:
+                entry["metric"] = int(kv["metric"])
+            entry["flags"] = []
+            for r in same:
+                self.table.remove(r)
+            self.table.append(entry)
+            return 0, b""
+        if a[:1] == ["rule"] and a[1] in ("add", "del"):
+            entry = rule_entry(dict(zip(a[2::2], a[3::2])))
+            if a[1] == "add":
+                if entry in self.rules:
+                    return 2, b""  # EEXIST: iproute2 asks NLM_F_EXCL
+                self.rules.append(entry)
+                return 0, b""
+            if entry not in self.rules:
+                return 2, b""
+            self.rules.remove(entry)
+            return 0, b""
+        raise AssertionError(f"ip {' '.join(a)}: not a command the model knows")
+
 
 @pytest.fixture
 def world(tmp_path: Path):
-    host = sst.StubHost(tmp_path)
+    host = NetHost(tmp_path)
     paths = ss.Paths(
         data=tmp_path / "srv",
         tls=tmp_path / "run" / "shared-state",
@@ -239,6 +375,34 @@ def ran(host) -> list[str]:
     return [" ".join(args) for args, _ in host.calls]
 
 
+# Fix F9: what makes the drop-in live, as networkd makes it at boot, with no networkd command: the route first, so a
+# rule never points into an empty table, then the rules.
+MAKE_LIVE = [
+    f"ip -4 route replace default via 10.42.1.1 dev {PRIVATE_IF} table {TABLE_ID} proto dhcp metric 512",
+    f"ip -4 rule add from {PRIVATE} table {TABLE_ID} priority 105 protocol static",
+    f"ip -4 rule add fwmark {MARK:#x} table {TABLE_ID} priority 104 protocol static",
+]
+
+
+def changes(host) -> list[str]:
+    return [
+        c
+        for c in ran(host)
+        if c.startswith(
+            (
+                "ip -4 route replace",
+                "ip -4 route del",
+                "ip -4 rule add",
+                "ip -4 rule del",
+            )
+        )
+    ]
+
+
+def touches_networkd(command: str) -> bool:
+    return command.startswith("networkctl") or "systemd-networkd" in command
+
+
 def test_prepare_installs_the_three_from_the_releases_tree_and_loads_them(
     world,
 ) -> None:
@@ -257,10 +421,11 @@ def test_prepare_installs_the_three_from_the_releases_tree_and_loads_them(
         "systemctl daemon-reload",
         "systemctl enable h4-reply-route.service",
         "systemctl restart h4-reply-route.service",
-        "networkctl reload",
-        f"networkctl reconfigure {PRIVATE_IF}",
+        *MAKE_LIVE,
     ]
     assert [c for c in commands if c in order] == order
+    # Fix F9: networkd is never asked to reload or reconfigure the live interface.
+    assert not [c for c in commands if touches_networkd(c)]
     # Before the store's timer, so a failure here starts nothing of the store's either.
     assert commands.index(order[-1]) < commands.index(
         "systemctl enable --now h4-shared-state-backup.timer"
@@ -272,8 +437,7 @@ def test_prepare_installs_the_three_from_the_releases_tree_and_loads_them(
     [
         "systemctl enable h4-reply-route.service",
         "systemctl restart h4-reply-route.service",
-        "networkctl reload",
-        f"networkctl reconfigure {PRIVATE_IF}",
+        *MAKE_LIVE,
     ],
 )
 def test_a_part_that_doesnt_load_fails_the_step(world, failing: str, capsys) -> None:
@@ -290,7 +454,8 @@ def test_a_dropin_that_doesnt_install_fails_the_step(world, capsys) -> None:
     (tree / "deploy" / "hosts" / "tunnel-end" / "release" / DROPIN.name).unlink()
     assert ss.prepare(host, paths, tree) == 1
     assert "didn't install" in capsys.readouterr().err
-    assert not [c for c in ran(host) if c.startswith("networkctl")]
+    assert not [c for c in ran(host) if touches_networkd(c)]
+    assert not changes(host)
 
 
 def test_a_rerun_adds_no_second_rule(world) -> None:
@@ -299,23 +464,207 @@ def test_a_rerun_adds_no_second_rule(world) -> None:
     host.calls.clear()
     assert ss.prepare(host, paths, tree) == 0
     commands = ran(host)
-    # The drop-in, unchanged, isn't reloaded: networkd keeps the one rule of each section it made.
+    # The drop-in, unchanged, is left as it is, and so is what's live: one rule of each, one route.
     assert sorted(p.name for p in paths.network.iterdir()) == [DROPIN.name]
     assert (paths.network / DROPIN.name).read_bytes() == DROPIN.read_bytes()
-    assert not [c for c in commands if c.startswith("networkctl")]
+    assert not [c for c in commands if touches_networkd(c)]
+    assert not changes(host)
+    assert host.rules == NETWORKD_RULES and host.table == [NETWORKD_ROUTE]
     # The table's file is loaded again, and replaces its own table whole (above): one copy of each mark.
     assert commands.count("systemctl restart h4-reply-route.service") == 1
 
 
-def test_a_changed_dropin_is_written_and_reloaded_again(world) -> None:
+def test_a_changed_dropin_is_written_for_the_boot_and_made_live_without_networkd(
+    world,
+) -> None:
     host, paths, tree = world
     paths.network.mkdir(parents=True)
     (paths.network / DROPIN.name).write_text(
         "[Route]\nGateway=_dhcp4\nTable=105\n", encoding="utf-8"
     )
+    host.table = [dict(NETWORKD_ROUTE)]
     assert ss.prepare(host, paths, tree) == 0
     assert (paths.network / DROPIN.name).read_bytes() == DROPIN.read_bytes()
-    assert "networkctl reload" in ran(host)
+    assert not [c for c in ran(host) if touches_networkd(c)]
+    # The route was there already: only the two rules are added.
+    assert changes(host) == MAKE_LIVE[1:]
+    assert host.rules == [NETWORKD_RULES[1], NETWORKD_RULES[0]]
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Fix F9: a release never reconfigures the live private interface.
+
+
+def test_a_new_dropin_is_made_live_as_networkd_makes_it_at_boot(world) -> None:
+    # The table and the rules the step makes are the ones networkd made from the same drop-in after the reboot of
+    # 2026-11-18, field for field: the reading the Author took then.
+    host, paths, tree = world
+    assert ss.prepare(host, paths, tree) == 0
+    assert host.table == [NETWORKD_ROUTE]
+    assert sorted(host.rules, key=lambda r: r["priority"]) == NETWORKD_RULES
+    assert host.address
+
+
+def test_what_networkd_made_already_is_left_alone(world) -> None:
+    # After a boot, networkd's route and rules are there: the step reads them, and changes nothing.
+    host, paths, tree = world
+    paths.network.mkdir(parents=True)
+    shutil.copy2(DROPIN, paths.network / DROPIN.name)
+    host.networkd_made_it()
+    assert ss.prepare(host, paths, tree) == 0
+    assert not changes(host)
+    assert host.table == [NETWORKD_ROUTE] and host.rules == NETWORKD_RULES
+
+
+def test_an_unchanged_dropin_whose_rules_are_gone_has_them_made_again(world) -> None:
+    # F2's backlog R-1, and a reconfigure that dropped them: the drop-in is the release's, so nothing is written, and
+    # what's live is made again from it.
+    host, paths, tree = world
+    paths.network.mkdir(parents=True)
+    shutil.copy2(DROPIN, paths.network / DROPIN.name)
+    host.table = [dict(NETWORKD_ROUTE)]
+    assert ss.prepare(host, paths, tree) == 0
+    assert changes(host) == MAKE_LIVE[1:]
+    assert sorted(host.rules, key=lambda r: r["priority"]) == NETWORKD_RULES
+
+
+def test_the_step_checks_the_address_before_and_after(world) -> None:
+    host, paths, tree = world
+    assert ss.prepare(host, paths, tree) == 0
+    commands = ran(host)
+    check = f"ip -4 -o addr show dev {PRIVATE_IF}"
+    first, last = commands.index(check), len(commands) - 1 - commands[::-1].index(check)
+    assert first < commands.index(MAKE_LIVE[0])
+    assert last > commands.index(MAKE_LIVE[-1])
+    assert ss.PRIVATE_ADDRESS == PRIVATE
+
+
+def test_an_address_missing_before_the_step_changes_nothing_and_fails(
+    world, capsys
+) -> None:
+    host, paths, tree = world
+    host.address = False
+    assert ss.prepare(host, paths, tree) == 1
+    err = capsys.readouterr().err
+    assert PRIVATE in err and PRIVATE_IF in err and "before" in err, err
+    assert not (paths.network / DROPIN.name).exists()
+    assert not changes(host)
+    assert not [c for c in ran(host) if touches_networkd(c)]
+    assert "systemctl enable --now h4-shared-state-backup.timer" not in ran(host)
+    # It waits a little for a boot's lease, bounded, and never sleeps for real here.
+    assert host.slept and sum(host.slept) <= 60
+
+
+def test_an_address_that_comes_with_the_boots_lease_is_waited_for(world) -> None:
+    host, paths, tree = world
+    host.address = False
+    waits: list[float] = []
+
+    def sleep(seconds: float) -> None:
+        waits.append(seconds)
+        if len(waits) == 3:
+            host.address = True
+
+    host.sleep = sleep  # type: ignore[method-assign]
+    assert ss.prepare(host, paths, tree) == 0
+    assert len(waits) >= 3
+
+
+@pytest.mark.parametrize("before", ["new", "changed"])
+@pytest.mark.parametrize("losing", MAKE_LIVE)
+def test_an_address_lost_during_the_step_is_undone_and_fails_it(
+    world, capsys, before: str, losing: str
+) -> None:
+    host, paths, tree = world
+    old = "[Route]\nGateway=_dhcp4\nTable=105\n"
+    if before == "changed":
+        paths.network.mkdir(parents=True)
+        (paths.network / DROPIN.name).write_text(old, encoding="utf-8")
+    host.lose_address_on = losing
+    assert ss.prepare(host, paths, tree) == 1
+    err = capsys.readouterr().err
+    assert PRIVATE in err and "undone" in err, err
+    # Its own changes undone: the route and the rules it made gone, the drop-in as it was.
+    assert host.table == [] and host.rules == []
+    placed = paths.network / DROPIN.name
+    if before == "new":
+        assert not placed.exists()
+    else:
+        assert placed.read_text(encoding="utf-8") == old
+    assert not [c for c in ran(host) if touches_networkd(c)]
+    assert "systemctl enable --now h4-shared-state-backup.timer" not in ran(host)
+
+
+def test_an_undo_leaves_what_was_there_before_the_step(world, capsys) -> None:
+    # networkd's route was there; the step adds the rules, then the address goes: the rules go, the route stays.
+    host, paths, tree = world
+    host.table = [dict(NETWORKD_ROUTE)]
+    host.lose_address_on = MAKE_LIVE[-1]
+    assert ss.prepare(host, paths, tree) == 1
+    assert host.table == [NETWORKD_ROUTE] and host.rules == []
+    assert "undone" in capsys.readouterr().err
+
+
+def test_a_live_command_that_fails_undoes_the_ones_before_it(world, capsys) -> None:
+    host, paths, tree = world
+    host.answer(MAKE_LIVE[-1], 1)
+    assert ss.prepare(host, paths, tree) == 1
+    assert host.table == [] and host.rules == []
+    assert not (paths.network / DROPIN.name).exists()
+    err = capsys.readouterr().err
+    assert "the private interface's replies" in err and "undone" in err, err
+
+
+def test_a_dropin_the_step_cant_make_live_fails_before_anything_changes(
+    world, capsys
+) -> None:
+    # The step makes live only what it can read in the drop-in; a key it doesn't know would leave the boot's and the
+    # live state apart, so it fails the step and writes nothing.
+    host, paths, tree = world
+    release = tree / "deploy" / "hosts" / "tunnel-end" / "release" / DROPIN.name
+    release.write_text(
+        DROPIN.read_text(encoding="utf-8")
+        + "\n[Route]\nGateway=_dhcp4\nTable=105\nScope=link\n",
+        encoding="utf-8",
+    )
+    assert ss.prepare(host, paths, tree) == 1
+    assert "Scope" in capsys.readouterr().err
+    assert not (paths.network / DROPIN.name).exists()
+    assert not changes(host)
+
+
+def test_nothing_after_the_first_boot_reloads_or_reconfigures_networkd() -> None:
+    # The user data's runcmd runs once, at the instance's first boot, before Docker or the stack start; nothing a
+    # release, a boot's deployer, or a timer runs may touch networkd on the live host (the night of 2026-11-18).
+    found = []
+    for path in sorted((REPO / "deploy").rglob("*")):
+        if not path.is_file() or path.name.startswith("test_") or path.suffix == ".md":
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        for number, line in enumerate(text.splitlines(), 1):
+            code = line.split("#", 1)[0]
+            if "networkctl" in code or re.search(
+                r"\b(restart|reload|try-restart|reload-or-restart)\b.*systemd-networkd",
+                code,
+            ):
+                found.append(f"{path.relative_to(REPO)}:{number}: {line.strip()}")
+    first_boot = [
+        f
+        for f in found
+        if f.startswith("deploy/hosts/tunnel-end/cloud-init.yaml.tftpl:")
+    ]
+    assert found == first_boot, found
+    runcmd = (
+        (HOST / "cloud-init.yaml.tftpl")
+        .read_text(encoding="utf-8")
+        .split("\nruncmd:\n", 1)
+    )
+    assert len(runcmd) == 2 and all(
+        f.split(": ", 1)[1].startswith("- networkctl") for f in first_boot
+    )
 
 
 def test_it_holds_after_a_reboot(tmp_path: Path) -> None:
