@@ -845,6 +845,27 @@ def test_the_2d_share_reads_as_a_percentage_of_a_stand_in_for_visits() -> None:
         assert words in panel["description"], words
 
 
+VISIT_SHARES = (
+    "Visits shown the 2D mode",
+    "Visits whose avatar failed",
+    "Visits that walked",
+    "Visits in full screen",
+    "Visits whose loading was cut short",
+)
+
+
+@pytest.mark.parametrize("title", VISIT_SHARES)
+def test_each_visit_share_counts_visits_as_resume_kept_alone(title: str) -> None:
+    # Spec 033 (FR-003, FR-013; Amendment A6): with no offer after the hand-off, the room sends resume_kept once a
+    # visit at the hand-off's end, so it alone is the stand-in for visits; each description says so, and how a range
+    # reaching back before the change reads.
+    panel = by_title()[title]
+    (target,) = panel["targets"]
+    assert target["expr"].endswith('/ sum(increase(h4_room_events_total{kind="resume_kept"}[$__range]))'), target
+    assert "resume_opened|resume_kept" not in target["expr"]
+    assert "spec 033" in panel["description"]
+
+
 def test_the_walked_share_reads_as_a_percentage_of_a_stand_in_for_visits() -> None:
     # Spec 008's Amendment M1 (FR-053): walk_started over the same stand-in for visits as the 2D share.
     panel = by_title()["Visits that walked"]
