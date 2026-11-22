@@ -253,13 +253,15 @@ def check_ec2_running(root: dict[str, list]) -> list[str]:
     if where(root, rule) != "handover.tf":
         found.append("ec2 running: the rule lives outside prod's handover.tf")
     p = pattern(rule)
+    # Spec 032's rework: every instance entering running, so a replaced EC2 that AWS restarts is guarded before the
+    # next prod apply; the guard acts on the instance tagged h4-prod-ec2 alone (infra/lambdas/ec2_guard/guard.py).
     if not (
         '"EC2 Instance State-change Notification"' in p
         and re.search(r'state\s*=\s*\["running"\]', p)
-        and re.search(r"instance-id\s*=\s*\[data\.aws_instance\.ec2\.id\]", p)
+        and "instance-id" not in p
     ):
         found.append(
-            "ec2 running: the rule doesn't match EC2 entering running, from this root"
+            "ec2 running: the rule doesn't match every instance entering running, which the guard sorts by tag"
         )
     if not unswitched(rule):
         found.append("ec2 running: the rule itself waits behind a switch")
@@ -533,22 +535,28 @@ SCHEDULES = {
     "h4-ec2-hours-open": ("ec2_start", "hours_open", "open"),
     "h4-ec2-hours-close": ("ec2_guard", "hours_close", "close"),
 }
-# Spec 032 (FR-013): the tunnel end's check, every 5 minutes, in no zone, through the hours' role.
+# Spec 032 (FR-013): the tunnel end's check, every 5 minutes, in no zone, through the hours' role, made disabled
+# (local.tunnel_end_check_state) until the Author's dry run proves the role; and, from its rework, the guard's budget
+# check, every 5 minutes, enabled.
 CHECK_SCHEDULE = "h4-tunnel-end-check"
+BUDGET_SCHEDULE = "h4-ec2-budget-check"
+CHECKS = {
+    CHECK_SCHEDULE: ("ec2_start", "tunnel_end_check", "local.tunnel_end_check_state"),
+    BUDGET_SCHEDULE: ("ec2_guard", "budget_check", None),
+}
 
 
 def check_schedules(root: dict[str, list]) -> list[str]:
     found = []
     every = resource(root, "aws_scheduler_schedule")
-    if sorted(lit(s, "name") or "?" for s in every) != sorted(
-        [*SCHEDULES, CHECK_SCHEDULE]
-    ):
+    if sorted(lit(s, "name") or "?" for s in every) != sorted([*SCHEDULES, *CHECKS]):
         return [
-            "schedules: the hours' two schedules and the tunnel end's check aren't the account's only ones"
+            "schedules: the hours' two schedules and the two 5-minute checks aren't the account's only ones"
         ]
-    found += check_tunnel_end_check(
-        root, next(s for s in every if lit(s, "name") == CHECK_SCHEDULE)
-    )
+    for name in CHECKS:
+        found += check_tunnel_end_check(
+            root, next(s for s in every if lit(s, "name") == name)
+        )
     schedules = [s for s in every if lit(s, "name") in SCHEDULES]
     roles = [
         r for r in resource(root, "aws_iam_role") if lit(r, "name") == "h4-ec2-hours"
@@ -587,17 +595,36 @@ def check_schedules(root: dict[str, list]) -> list[str]:
 
 
 def check_tunnel_end_check(root: dict[str, list], s) -> list[str]:
+    """One of the two 5-minute checks (CHECKS): its function, its trigger, and its state."""
+    fn, source, gate = CHECKS[lit(s, "name")]
     roles = [
         r for r in resource(root, "aws_iam_role") if lit(r, "name") == "h4-ec2-hours"
     ]
     hours_role = f"aws_iam_role.{roles[0].labels[1]}.arn" if len(roles) == 1 else "?"
     found = []
+    name = lit(s, "name")
     if where(root, s) != "handover.tf" or not switched(s):
-        found.append(
-            "schedules: the tunnel end's check isn't handover.tf's, behind the switch"
-        )
+        found.append(f"schedules: {name} isn't handover.tf's, behind the switch")
     if lit(s, "schedule_expression") != "rate(5 minutes)":
-        found.append("schedules: the tunnel end's check doesn't run every 5 minutes")
+        found.append(f"schedules: {name} doesn't run every 5 minutes")
+    if (raw(s, "state") or None) != gate:
+        found.append(
+            f"schedules: {name}'s state isn't {gate or 'the default, enabled'}"
+        )
+    if gate is not None:
+        value = next(
+            (
+                ip.literal(a)
+                for body in root.values()
+                for b in body
+                if isinstance(b, ip.Block) and b.type == "locals"
+                for a in b.body
+                if isinstance(a, ip.Attribute) and a.name == gate.split(".", 1)[1]
+            ),
+            None,
+        )
+        if value not in ("DISABLED", "ENABLED"):
+            found.append(f"schedules: {gate} isn't DISABLED or ENABLED")
     window = s.block("flexible_time_window")
     target = s.block("target")
     retry = target.block("retry_policy") if target else None
@@ -605,15 +632,15 @@ def check_tunnel_end_check(root: dict[str, list], s) -> list[str]:
         window is None
         or lit(window, "mode") != "OFF"
         or target is None
-        or raw(target, "arn") != "aws_lambda_function.ec2_start[0].arn"
+        or raw(target, "arn") != f"aws_lambda_function.{fn}[0].arn"
         or raw(target, "role_arn") != hours_role
         or re.sub(r"\s+", "", raw(target, "input"))
-        != 'jsonencode({from="tunnel_end_check"})'
+        != f'jsonencode({{from="{source}"}})'
         or retry is None
         or lit(retry, "maximum_retry_attempts") != 0
     ):
         found.append(
-            "schedules: the tunnel end's check doesn't invoke h4-ec2-start once, `from: tunnel_end_check`, through h4-ec2-hours"
+            f"schedules: {name} doesn't invoke its function once, `from: {source}`, through h4-ec2-hours"
         )
     return found
 
@@ -656,13 +683,29 @@ LAUNCH = [
         f'["{EC2_ARN}:launch-template/*"]',
         [("StringEquals", "aws:ResourceTag/component", '["ec2", "tunnel-end"]')],
     ),
-    (f'["{EC2_ARN}:instance/*"]', [("StringEquals", "aws:RequestTag/Name", HOSTS)]),
+    # The rework (Important 1 of the reviews of 52308132): the instance only of a listed type, on spot; what the
+    # template supplies only from it.
+    (
+        f'["{EC2_ARN}:instance/*"]',
+        [
+            ("StringEquals", "aws:RequestTag/Name", HOSTS),
+            ("StringEquals", "ec2:InstanceType", "local.launch_types"),
+            ("StringEquals", "ec2:InstanceMarketType", '["spot"]'),
+        ],
+    ),
+    (
+        f'[ "{EC2_ARN}:volume/*", "{EC2_ARN}:spot-instances-request/*", ]',
+        [("ArnLike", "ec2:LaunchTemplate", f'["{EC2_ARN}:launch-template/*"]')],
+    ),
     (
         (
-            f'[ "{EC2_ARN}:volume/*", "{EC2_ARN}:network-interface/*", "{EC2_ARN}:spot-instances-request/*", '
-            f'"{EC2_ARN}:subnet/*", "{EC2_ARN}:security-group/*", "arn:aws:ec2:us-east-1::image/*", ]'
+            f'[ "{EC2_ARN}:network-interface/*", "{EC2_ARN}:subnet/*", "{EC2_ARN}:security-group/*", '
+            '"arn:aws:ec2:us-east-1::image/*", ]'
         ),
-        [("ArnLike", "ec2:LaunchTemplate", f'["{EC2_ARN}:launch-template/*"]')],
+        [
+            ("ArnLike", "ec2:LaunchTemplate", f'["{EC2_ARN}:launch-template/*"]'),
+            ("Bool", "ec2:IsLaunchTemplateResource", '["true"]'),
+        ],
     ),
 ]
 RETIRE = (
@@ -1051,7 +1094,9 @@ def as_policy(root: dict[str, list], doc) -> dict:
         conditions: dict[str, dict[str, list]] = {}
         for c in st.blocks("condition"):
             values = lit(c, "values")
-            if not (
+            if raw(c, "values") == "local.launch_types":
+                values = sorted(LISTED_TYPES)
+            elif not (
                 isinstance(values, list) and all(isinstance(v, str) for v in values)
             ):
                 # Spec 032's ArnLike on the launch templates' ARN names the account by interpolation, which IAM holds
@@ -1061,15 +1106,58 @@ def as_policy(root: dict[str, list], doc) -> dict:
                     for v in re.findall(r'"([^"]*)"', raw(c, "values"))
                 ]
             conditions.setdefault(lit(c, "test"), {})[lit(c, "variable")] = values
+        # The resources as IAM holds them, the account's ID by the same stand-in: the audit reads RunInstances' kinds.
+        resources = [
+            v.replace(ACCOUNT_ID, "1" * 4 + "2" * 4 + "3" * 4)
+            for v in re.findall(r'"([^"]*)"', raw(st, "resources"))
+        ] or ["*"]
         out.append(
             {
                 "Effect": lit(st, "effect") or "Allow",
                 "Action": lit(st, "actions"),
-                "Resource": "*",
+                "Resource": resources,
                 **({"Condition": conditions} if conditions else {}),
             }
         )
     return {"Statement": out}
+
+
+# The listed types, prod's two lists (infra/prod/ec2.tf, tunnel-end.tf), which the account's local.launch_types and
+# the credential audit's LISTED_TYPES repeat: the three must agree (spec 032's rework).
+LISTED_TYPES = {
+    "t4g.large",
+    "m7g.large",
+    "m6g.large",
+    "t4g.xlarge",
+    "t4g.small",
+    "c7g.medium",
+    "c6g.medium",
+    "t4g.medium",
+}
+
+
+def test_the_listed_types_agree_in_prod_the_account_and_the_audit() -> None:
+    audit = _load(
+        "credential_audit_for_types",
+        REPO / "infra" / "lambdas" / "credential_audit" / "audit.py",
+    )
+    p = prod()
+    listed = {
+        e["type"]
+        for name, file in (
+            ("ec2_types", "ec2.tf"),
+            ("tunnel_end_types", "tunnel-end.tf"),
+        )
+        for e in ip.literal(net.locals_in(p, file)[name])
+    }
+    account_types = None
+    for body in account().values():
+        for b in body:
+            if isinstance(b, ip.Block) and b.type == "locals":
+                for a in b.body:
+                    if isinstance(a, ip.Attribute) and a.name == "launch_types":
+                        account_types = set(ip.literal(a) or [])
+    assert listed == LISTED_TYPES == set(audit.LISTED_TYPES) == account_types
 
 
 def test_the_credential_audit_finds_none_of_them_too_broad() -> None:
