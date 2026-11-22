@@ -60,7 +60,7 @@ infra/prod/killswitch.tf          # PROTECTED, patch P-032-prod: the server acti
 infra/prod/ec2.tf                 # the type list, the template map, the data source, removed attachment
 infra/prod/tunnel-end.tf          # the type list, the template map, the data source, removed attachment
 infra/prod/shared-state.tf        # removed attachment
-infra/prod/edge.tf                # the VPC origin's ARN from the data source; the origin's DNS name from the interface
+infra/prod/edge.tf                # PROTECTED (infra/*edge*), patch P-032-prod: the VPC origin's ARN from the data source; the origin's DNS name from the interface
 infra/prod/ssm.tf                 # the two template lists and the VPC origin's ID
 infra/account/iam.tf              # PROTECTED, patch P-032-account: the start role's new grants
 infra/account/handover.tf         # PROTECTED, patch P-032-account: timeout 900 s, the 5-minute schedule
@@ -110,7 +110,7 @@ The removed attachments (`aws_volume_attachment.ec2_data`, `aws_volume_attachmen
 
 - `handover.tf` (protected): the four rules' `instance-id = [data.aws_instance.<host>.id]`; `/h4reet/prod/ec2-instance-id`'s `value = data.aws_instance.ec2.id` with `lifecycle { ignore_changes = [value] }`.
 - `killswitch.tf` (protected): the server action's role on `instance/*` with `ec2:ResourceTag/Name = h4-prod-ec2` beside `aws:CalledVia`; the budget action's `instance_ids = [data.aws_instance.ec2.id]`.
-- `edge.tf`: the VPC origin's `arn = data.aws_instance.tunnel_end.arn`; the distribution's relay origin `domain_name = aws_network_interface.tunnel_end_private.private_dns_name`.
+- `edge.tf` (protected, in P-032-prod): the VPC origin's `arn = data.aws_instance.tunnel_end.arn`; the distribution's relay origin `domain_name = aws_network_interface.tunnel_end_private.private_dns_name`.
 - `ssm.tf`: `/h4reet/prod/ec2-launch-templates` and `/h4reet/prod/tunnel-end-launch-templates`, `jsonencode` of `[{type, template}]` sorted by `order`; `/h4reet/prod/relay-vpc-origin-id`.
 
 ### 3. The start function
@@ -146,9 +146,9 @@ Metrics: the outcome line as today for every acting or refusing outcome (`Outcom
 
 ### 5. Patches
 
-Two patches, each built from `git show refs/heads/main:<path>` copies under `$TMPDIR`, `diff -u --label a/<path> --label b/<path>`, verified with `patch -p1 --dry-run` then `patch -p1` on a `git archive refs/heads/main` export and on an export of the branch's tip:
+Two patches (five protected files in the draft, six as built), each built from `git show refs/heads/main:<path>` copies under `$TMPDIR`, `diff -u --label a/<path> --label b/<path>`, verified with `patch -p1 --dry-run` then `patch -p1` on a `git archive refs/heads/main` export and on an export of the branch's tip:
 
-- `docs/merge-requests/human-patches/2026-11-22-032-prod.patch`: `infra/prod/ec2-market.tf`, `infra/prod/handover.tf`, `infra/prod/killswitch.tf`.
+- `docs/merge-requests/human-patches/2026-11-22-032-prod.patch`: `infra/prod/ec2-market.tf`, `infra/prod/handover.tf`, `infra/prod/killswitch.tf`, and `infra/prod/edge.tf` (as built: the protected-paths hook holds `infra/*edge*`, so edge.tf joined the patch).
 - `docs/merge-requests/human-patches/2026-11-22-032-account.patch`: `infra/account/iam.tf`, `infra/account/handover.tf`.
 
 `infra/test/patches.py`'s `PATCHES` names both, so the infra suites read the tree as the patches leave it.

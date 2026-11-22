@@ -17,30 +17,30 @@ Format: `[ID] [P?] [Story] Description` · FR it serves.
 - [x] T011 [US2] RED, same file: `tunnel_end_check` (FR-013: none, running, by user, young, old capacity stop), the re-point and `tunnel_end_replaced` and EC2's start after it (FR-014), the hand replace with `skip` (FR-009).
 - [x] T012 [US1][US2] GREEN: `infra/lambdas/ec2_start/start.py`.
 - [x] T013 [P] [US1] The guard: `infra/lambdas/ec2_guard/test_guard.py`, a replaced instance the parameter names isn't stopped and the old one isn't listed (characterization; the guard's code doesn't change).
-- [ ] T014 [P] [US3] Spec 001's `contracts/aws-alerts.md` §2: the new facts and codes on the existing kinds (the bridge, protected as `infra/*alert*`, doesn't change; its contract test still passes). As built: this replaces the first draft's new kinds.
-- [ ] T015 [P] [US4] RED then GREEN: `scripts/infra/ec2_ops.py` and its test: `start --replace ec2|tunnel_end [--skip TYPE ...]`; the Makefile's `ec2-start` passes `REPLACE=` and `SKIP=`.
+- [x] T014 [P] [US3] Spec 001's `contracts/aws-alerts.md` §2: the new facts and codes on the existing kinds (the bridge, protected as `infra/*alert*`, doesn't change; its contract test still passes). As built: this replaces the first draft's new kinds.
+- [x] T015 [P] [US4] RED then GREEN: `scripts/infra/ec2_ops.py` and its test: `start --replace ec2|tunnel_end [--skip TYPE ...]`; the Makefile's `ec2-start` passes `REPLACE=` and `SKIP=`.
 
 ## Phase 3: Infra (US1, US2) — FR-001 to FR-004, FR-010, FR-015 to FR-017
 
-- [ ] T016 RED: the infra suites (`infra/test/test_prod_ec2.py`, `test_prod_network.py`, `test_prod_cdn.py`, `test_handover.py`, `test_prod_shared_state.py`, `test_account.py`) and `deploy/hosts/test_hosts.py` to the new model: lists and ceilings (FR-001, FR-002), templates (FR-003, FR-004), removed instances and attachments, data sources, the ID parameter, the rules, the server action, the VPC origin (FR-015), the start role's grants (FR-016), the timeout and the schedule (FR-013).
-- [ ] T017 GREEN, unprotected: `infra/prod/ec2.tf`, `tunnel-end.tf`, `shared-state.tf`, `edge.tf`, `ssm.tf`; `infra/parameters.txt`.
-- [ ] T020 GREEN, protected, patch `docs/merge-requests/human-patches/2026-11-22-032-prod.patch`: `infra/prod/ec2-market.tf`, `handover.tf`, `killswitch.tf`; verified on exports of main and of the branch's tip.
-- [ ] T021 GREEN, protected, patch `docs/merge-requests/human-patches/2026-11-22-032-account.patch`: `infra/account/iam.tf`, `handover.tf`; verified the same way.
-- [ ] T022 `infra/test/patches.py`'s `PATCHES` names T020's and T021's patches.
-- [ ] T023 [P] RED then GREEN: `infra/lambdas/credential_audit/` (FR-016; research R-10).
-- [ ] T024 The offline checks on an export with both patches applied: `make -f Makefile plan`.
+- [x] T016 RED: the infra suites (`infra/test/test_prod_ec2.py`, `test_prod_network.py`, `test_prod_cdn.py`, `test_handover.py`, `test_prod_shared_state.py`, `test_account.py`) and `deploy/hosts/test_hosts.py` to the new model: lists and ceilings (FR-001, FR-002), templates (FR-003, FR-004), removed instances and attachments, data sources, the ID parameter, the rules, the server action, the VPC origin (FR-015), the start role's grants (FR-016), the timeout and the schedule (FR-013).
+- [x] T017 GREEN, unprotected: `infra/prod/ec2.tf`, `tunnel-end.tf`, `shared-state.tf`, `edge.tf`, `ssm.tf`; `infra/parameters.txt`.
+- [x] T020 GREEN, protected, patch `docs/merge-requests/human-patches/2026-11-22-032-prod.patch`: `infra/prod/ec2-market.tf`, `handover.tf`, `killswitch.tf`; verified on exports of main and of the branch's tip.
+- [x] T021 GREEN, protected, patch `docs/merge-requests/human-patches/2026-11-22-032-account.patch`: `infra/account/iam.tf`, `handover.tf`; verified the same way.
+- [x] T022 `infra/test/patches.py`'s `PATCHES` names T020's and T021's patches.
+- [x] T023 [P] RED then GREEN: `infra/lambdas/credential_audit/` (FR-016; research R-10).
+- [x] T024 The offline checks on an export with both patches applied: `make -f Makefile plan`.
 
 ## Phase 4: Observability (US3) — FR-018
 
-- [ ] T030 RED then GREEN: `deploy/scripts/snapshot_sink.py` writes `h4.host.type` for both hosts; its test.
-- [ ] T031 `deploy/grafana/dashboards/h4-runtime.json`: "Host types" beside EC2's state; the dashboard tests.
+- [x] T030 RED then GREEN: `deploy/scripts/snapshot_sink.py` writes `h4.host.type` for both hosts; its test.
+- [x] T031 `deploy/grafana/dashboards/h4-runtime.json`: "Host types" beside EC2's state; the dashboard tests.
 
 ## Phase 5: Docs — FR-019, FR-020
 
-- [ ] T040 [P] `docs/adr/0057-spot-with-interchangeable-types.md` and its row in `docs/adr/README.md`.
-- [ ] T041 [P] Runbooks: `docs/runbooks/handover.md` (`no_capacity`, `busy`, the type facts, the re-point at the next plan), `ec2.md` (a replace, a generation's roll, the hand replace), `tunnel-end.md` (`tunnel_end_replaced`, `tunnel_end_replace_failed`, the VPC origin's fallback, an OS update by hand replace).
-- [ ] T042 [P] Spec 001's `contracts/handover.md` §3: step 6 amended by spec 032.
-- [ ] T043 The merge-request note, `docs/merge-requests/2026-11-22-feat-032-spot-flexibility.md`, with "For the Author" (plan.md §6) and the CloudTrail step for Q5 (FR-019).
+- [x] T040 [P] `docs/adr/0057-spot-with-interchangeable-types.md` and its row in `docs/adr/README.md`.
+- [x] T041 [P] Runbooks: `docs/runbooks/handover.md` (`no_capacity`, `busy`, the type facts, the re-point at the next plan), `ec2.md` (a replace, a generation's roll, the hand replace), `tunnel-end.md` (`tunnel_end_replaced`, `tunnel_end_replace_failed`, the VPC origin's fallback, an OS update by hand replace).
+- [x] T042 [P] Spec 001's `contracts/handover.md` §3: step 6 amended by spec 032.
+- [x] T043 The merge-request note, `docs/merge-requests/2026-11-22-feat-032-spot-flexibility.md`, with "For the Author" (plan.md §6) and the CloudTrail step for Q5 (FR-019).
 
 ## Phase 6: Verify
 
