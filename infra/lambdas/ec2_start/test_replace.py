@@ -1063,6 +1063,19 @@ def test_the_sdk_wrapper_uses_short_timeouts_and_few_attempts(
     assert start.CALL_S >= 5 + 20
 
 
+# The same review: BotoAws built a new client, loading the service's model again, at every call (setdefault evaluates
+# its default first), which at 128 MB cost seconds a call. One client a service.
+def test_the_sdk_wrapper_makes_one_client_a_service(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    made = _boto(monkeypatch, _ClientError("DryRunOperation", "ok"))
+    aws = start.BotoAws()
+    for _ in range(3):
+        with pytest.raises(start.AwsError):
+            aws.call("ec2", "RunInstances", DryRun=True)
+    assert [m["service"] for m in made] == ["ec2"]
+
+
 def test_the_sdk_wrapper_keeps_an_unauthorized_operations_message(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
