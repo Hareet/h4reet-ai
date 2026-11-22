@@ -87,6 +87,95 @@ report() {
 	done
 }
 
+# Fix F10 (specs/001-cloud-elevation/fixes/f10.md): a dead laptop's session kept 2201 to 2203 for 15 minutes and more.
+# sshd's client-alive probe runs only when its poll times out, and the relay's check through 2201 every second woke it
+# each time; the session ended only when the kernel gave up on its connection. When a new session can't listen on one
+# of the three, every session the listening sshd started more than GRACE seconds before (its LoginGraceTime, so past
+# its setup) is ended: the laptop's client holds one connection at a time, so a new one means the old one is gone, and
+# its next try, 1 to 30 s later, takes the forwards.
+PROC=/proc
+GRACE=10
+SIGNALLED=""
+
+# sshd's line when a session asks for a forward another session holds: PermitListen's three ports.
+holds_forward() {
+	case "$1" in
+	*"cannot listen to port: 220"[123]*) return 0 ;;
+	esac
+	return 1
+}
+
+# One process's pid, parent, start (clock ticks since boot), and command, from its stat file, into STAT_PID, STAT_PPID,
+# STAT_START, and STAT_COMM; the command, in parentheses, may hold spaces and parentheses, so the fields are read after
+# its last ") ".
+stat_of() {
+	local line rest
+	local -a f
+	IFS= read -r line 2>/dev/null <"$1" || return 1
+	rest="${line##*) }"
+	read -r -a f <<<"$rest"
+	[[ "${f[1]:-}" =~ ^[0-9]+$ && "${f[19]:-}" =~ ^[0-9]+$ ]] || return 1
+	STAT_PID="${line%% *}"
+	STAT_PPID="${f[1]}"
+	STAT_START="${f[19]}"
+	STAT_COMM="${line#*(}"
+	STAT_COMM="${STAT_COMM%) *}"
+}
+
+# The listening sshd: the oldest sshd whose parent is $1, this script.
+daemon_pid() {
+	local stat best="" earliest=""
+	for stat in "$PROC"/[0-9]*/stat; do
+		stat_of "$stat" || continue
+		if [ "$STAT_COMM" = sshd ] && [ "$STAT_PPID" = "$1" ] && { [ -z "$earliest" ] || [ "$STAT_START" -lt "$earliest" ]; }; then
+			best="$STAT_PID"
+			earliest="$STAT_START"
+		fi
+	done
+	[ -n "$best" ] && echo "$best"
+}
+
+# The sessions the daemon $1 started before tick $2, each with its own processes, one pid a line.
+stale_sessions() {
+	local stat pid child i=0
+	local -A parent=() started=()
+	local -a ended=()
+	for stat in "$PROC"/[0-9]*/stat; do
+		stat_of "$stat" || continue
+		parent[$STAT_PID]="$STAT_PPID"
+		started[$STAT_PID]="$STAT_START"
+	done
+	for pid in "${!parent[@]}"; do
+		if [ "${parent[$pid]}" = "$1" ] && [ "${started[$pid]}" -lt "$2" ]; then ended+=("$pid"); fi
+	done
+	while [ "$i" -lt "${#ended[@]}" ]; do
+		for child in "${!parent[@]}"; do
+			if [ "${parent[$child]}" = "${ended[$i]}" ]; then ended+=("$child"); fi
+		done
+		i=$((i + 1))
+	done
+	if [ "${#ended[@]}" -gt 0 ]; then printf '%s\n' "${ended[@]}"; fi
+}
+
+# Ends the older sessions, each process once, and says so.
+end_older_sessions() {
+	local daemon ticks uptime now pid
+	local -a ended=()
+	daemon="$(daemon_pid "$$")" || return 0
+	ticks="$(getconf CLK_TCK 2>/dev/null || echo 100)"
+	read -r uptime _ 2>/dev/null <"$PROC/uptime" || return 0
+	# /proc/uptime has two decimals: hundredths of a second, then ticks.
+	now=$((10#${uptime/./} * ticks / 100))
+	for pid in $(stale_sessions "$daemon" "$((now - GRACE * ticks))"); do
+		case " $SIGNALLED " in *" $pid "*) continue ;; esac
+		SIGNALLED="$SIGNALLED $pid"
+		if kill -TERM "$pid" 2>/dev/null; then ended+=("$pid"); fi
+	done
+	if [ "${#ended[@]}" -gt 0 ]; then
+		echo "tunnel-end: a new session couldn't listen on its forwards; ended the older session holding them (processes ${ended[*]}), so the client's next try takes them" >&2
+	fi
+}
+
 server() {
 	local end=tunnel-end
 	mkdir -p "$STATE"
@@ -95,8 +184,12 @@ server() {
 	/usr/sbin/sshd -D -e -f /etc/ssh/h4/sshd_config 2>&1 | scrub | while IFS= read -r line; do
 		printf '%s\n' "$line"
 		case "$line" in
-		*"Accepted publickey for tunnel"*) printf '.' >>"$STATE/accepted" ;;
+		*"Accepted publickey for tunnel"*)
+			printf '.' >>"$STATE/accepted"
+			SIGNALLED=""
+			;;
 		esac
+		if holds_forward "$line"; then end_older_sessions; fi
 	done
 	echo "tunnel-end: sshd stopped" >&2
 	exit 1
