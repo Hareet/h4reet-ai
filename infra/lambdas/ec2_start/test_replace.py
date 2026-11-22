@@ -540,6 +540,19 @@ def test_a_live_lock_refuses_busy_and_touches_nothing(
     assert line["Outcome"] == "busy"
 
 
+# fix/032-launch-policy: the Author's ec2_ops.py tells a busy refusal from a failed start by the result's code, since
+# busy sends no alert to say why.
+def test_a_refusal_returns_its_code_to_the_hand_start() -> None:
+    c = cloud()
+    c.params["/h4reet/prod/host-lock"] = f"{int(INSIDE.timestamp()) - 60} hours_open"
+    result = run({"manual": True, "replace": "ec2", "skip": []}, c)
+    assert (result["reason"], result["code"]) == ("start_failed", "busy")
+    c = cloud()
+    c.short = set(EC2_TYPES)
+    assert run(ALARM, c)["code"] == "no_capacity"
+    assert "code" not in run(ALARM, cloud())
+
+
 def test_a_lock_older_than_twenty_minutes_is_taken_over() -> None:
     c = cloud()
     c.short = {"t4g.large"}

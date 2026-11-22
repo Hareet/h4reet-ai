@@ -18,6 +18,7 @@ from __future__ import annotations
 import http.server
 import importlib.util
 import json
+import re
 import sys
 import threading
 from pathlib import Path
@@ -471,3 +472,82 @@ def test_a_dry_run_needs_a_replace(world: dict) -> None:
 def test_the_start_target_passes_dry_run() -> None:
     recipe = MAKEFILE.split("\nec2-start:", 1)[1].split("\n\n", 1)[0]
     assert "$(if $(call from_cli,DRY_RUN), --dry-run)" in recipe
+
+
+# fix/032-launch-policy, found on AWS on 2026-11-22: the CLI's default 60-second read timeout gave up on a replace that
+# takes minutes, and its default retries sent the invocation again; the second found the first's lock and answered
+# busy, which this printed as a failed start while the first still replaced EC2.
+START_TIMEOUT = int(
+    re.search(
+        r'function_name\s*=\s*"h4-ec2-start".*?\btimeout\s*=\s*(\d+)',
+        (REPO / "infra" / "account" / "handover.tf").read_text(encoding="utf-8"),
+        re.DOTALL,
+    ).group(1)  # type: ignore[union-attr]
+)
+
+
+@pytest.mark.parametrize(
+    "argv", [("start",), ("start", "--replace", "ec2"), ("autostart", "--state", "on")]
+)
+def test_a_hand_start_outwaits_the_function_and_is_sent_once(
+    world: dict, argv: tuple[str, ...]
+) -> None:
+    run(world, *argv)
+    rows = kit.calls(world["bin"], "aws")
+    (invoke,) = [r for r in rows if r["argv"][:2] == ["lambda", "invoke"]]
+    assert int(value(invoke["argv"], "--cli-read-timeout")) > START_TIMEOUT
+    assert invoke["env"].get("AWS_MAX_ATTEMPTS") == "1"
+    # The other calls keep the CLI's defaults.
+    assert all(
+        "AWS_MAX_ATTEMPTS" not in r["env"] and "--cli-read-timeout" not in r["argv"]
+        for r in rows
+        if r["argv"][:2] != ["lambda", "invoke"]
+    )
+
+
+def _answered(monkeypatch: pytest.MonkeyPatch, result: dict):
+    ops = _load("ec2_ops_for_its_answers", HERE / "ec2_ops.py")
+
+    def invoked(profile: str, *args: str, **_: object) -> dict:
+        Path(args[-1]).write_text(json.dumps(result), encoding="utf-8")
+        return {"StatusCode": 200}
+
+    monkeypatch.setattr(ops, "aws", invoked)
+    return ops
+
+
+def test_a_busy_refusal_says_another_start_holds_the_lock(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    ops = _answered(
+        monkeypatch,
+        {
+            "outcome": "refused",
+            "trigger": "manual",
+            "reason": "start_failed",
+            "code": "busy",
+        },
+    )
+    assert ops.invoke_start(PROFILE, {"manual": True, "replace": "ec2"}) == 1
+    out = capsys.readouterr().out
+    assert "another start holds the lock" in out
+    assert "the function's log" in out
+    # busy sends no alert, so the line never points at one.
+    assert "start_failed" not in out and "alert" not in out
+
+
+def test_another_refusal_still_points_at_its_alert(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    ops = _answered(
+        monkeypatch,
+        {
+            "outcome": "refused",
+            "trigger": "manual",
+            "reason": "start_failed",
+            "code": "no_capacity",
+        },
+    )
+    assert ops.invoke_start(PROFILE) == 1
+    out = capsys.readouterr().out
+    assert "refused (start_failed)" in out and "its alert says why" in out
