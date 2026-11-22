@@ -41,6 +41,9 @@ Message format as September: `[hareet.ai aws] <kind>: <facts>`, one line, then f
 
 The laptop's own alerts go through spec 000's dispatcher, as its other alerts do, but the handover loop's failed stop, which goes to `h4-alerts` through the Author's stop profile, since the dispatcher has no host-script kind (plan.md §16, "Group 9, as built", item 13, after the review).
 
+
+**Amended by spec 032** (its FR-018; ADR 0057), with no new kind or reason, since the bridge's folder is protected: `ec2_started` carries `- type:`, and after a replace `- replaced:`, `- tried:`, and `- repoint:`; `ec2_start_refused (start_failed)` carries the function's own codes `no_capacity` (with `- tried:`), `busy`, and `wait_timeout` (with `- step:`) beside AWS's; `tunnel_end_back` is also the start function's, after it replaces the tunnel end, with `- trigger: tunnel_end_check` (or `manual`), `- type:`, `- replaced:`, and `- origin:`; and a tunnel end it couldn't replace is `ec2_start_refused (tunnel_end_down)` with `- tunnel_end: not replaced`. The runbooks are `handover.md`, `ec2.md`, and `tunnel-end.md`, as for each kind already.
+
 ## 3. The budgets (infra/bootstrap/budgets.tf, protected)
 
 | Budget | Amount | Filter | Notifications |
