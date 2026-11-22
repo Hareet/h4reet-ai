@@ -1,0 +1,103 @@
+{
+  "schema": 1,
+  "key": "traces",
+  "name": "h4 · Traces",
+  "description": "The traces worth opening: the costliest and the slowest by trace ID, spend and failures by endpoint, and how latency and tokens spread across the model calls. A trace is one request: a turn, a hello, or an admin call.",
+  "widgets": [
+    {
+      "key": "costliest",
+      "name": "The costliest traces",
+      "description": "The 20 traces that cost the most over the dashboard's range, in USD, by trace ID; open one at /project/h4reet-<stack>/traces/<ID>. The cost is the gateway's own price (config/prices.yaml; 0 for local calls). The authoritative spend and the meter's ceilings, prod's $5.00 a day and $20.00 a month and the laptop's $2.00-a-day fallback sub-budget (config/budgets.yaml), are Grafana's \"Spend\" row.",
+      "view": "observations",
+      "metric": { "measure": "totalCost", "agg": "sum" },
+      "dimensions": ["traceId"],
+      "filters": [],
+      "chartType": "PIVOT_TABLE",
+      "chartConfig": {
+        "type": "PIVOT_TABLE",
+        "row_limit": 20,
+        "defaultSort": { "column": "sum_totalCost", "order": "DESC" }
+      },
+      "place": { "x": 0, "y": 0, "w": 6, "h": 6 }
+    },
+    {
+      "key": "slowest",
+      "name": "The slowest traces",
+      "description": "The 20 slowest traces over the dashboard's range, in milliseconds, by trace ID: a trace's longest observation is its root, the whole request at the gateway. Open one at /project/h4reet-<stack>/traces/<ID> to see which call took the time. Grafana's \"Latency p50 and p95\" is the requests' latency over time.",
+      "view": "observations",
+      "metric": { "measure": "latency", "agg": "max" },
+      "dimensions": ["traceId"],
+      "filters": [],
+      "chartType": "PIVOT_TABLE",
+      "chartConfig": {
+        "type": "PIVOT_TABLE",
+        "row_limit": 20,
+        "defaultSort": { "column": "max_latency", "order": "DESC" }
+      },
+      "place": { "x": 6, "y": 0, "w": 6, "h": 6 }
+    },
+    {
+      "key": "spend-by-endpoint",
+      "name": "Spend by endpoint",
+      "description": "Spend by endpoint over the dashboard's range, in USD: a trace's name is the gateway route that made the calls (POST /room/turn for the twin's turns, POST /hello, and the admin routes the live runs use). The cost is the gateway's own price (config/prices.yaml; 0 for local calls). The authoritative spend and the meter's ceilings, prod's $5.00 a day and $20.00 a month and the laptop's $2.00-a-day fallback sub-budget (config/budgets.yaml), are Grafana's \"Spend\" row; Grafana's \"Cost per feature, today\" splits the turns' spend by feature.",
+      "view": "observations",
+      "metric": { "measure": "totalCost", "agg": "sum" },
+      "dimensions": ["traceName"],
+      "filters": [],
+      "chartType": "HORIZONTAL_BAR",
+      "chartConfig": { "type": "HORIZONTAL_BAR", "row_limit": 20 },
+      "place": { "x": 0, "y": 6, "w": 4, "h": 5 }
+    },
+    {
+      "key": "latency-spread",
+      "name": "Model latency spread",
+      "description": "How the model calls' latency spreads over the dashboard's range, in milliseconds, in 20 bins: a second hump is usually the paid fallback, or the local model under load.",
+      "view": "observations",
+      "metric": { "measure": "latency", "agg": "histogram" },
+      "dimensions": [],
+      "filters": [{ "column": "type", "operator": "any of", "value": ["GENERATION"], "type": "stringOptions" }],
+      "chartType": "HISTOGRAM",
+      "chartConfig": { "type": "HISTOGRAM", "bins": 20 },
+      "place": { "x": 4, "y": 6, "w": 4, "h": 5 }
+    },
+    {
+      "key": "failed-by-endpoint",
+      "name": "Failed model calls by endpoint",
+      "description": "Failed model calls by endpoint over the dashboard's range, in calls: attempts whose span ended in error, by the route that made them. Grafana's \"Turn errors by feature\" counts the turns that failed.",
+      "view": "observations",
+      "metric": { "measure": "count", "agg": "count" },
+      "dimensions": ["traceName"],
+      "filters": [
+        { "column": "type", "operator": "any of", "value": ["GENERATION"], "type": "stringOptions" },
+        { "column": "level", "operator": "any of", "value": ["ERROR"], "type": "stringOptions" }
+      ],
+      "chartType": "HORIZONTAL_BAR",
+      "chartConfig": { "type": "HORIZONTAL_BAR", "row_limit": 20 },
+      "place": { "x": 8, "y": 6, "w": 4, "h": 5 }
+    },
+    {
+      "key": "input-tokens-spread",
+      "name": "Input tokens per model call",
+      "description": "How many input tokens a model call sends, spread over the dashboard's range, in tokens, in 20 bins: the twin's pack and the conversation so far, so it grows with a conversation's length.",
+      "view": "observations",
+      "metric": { "measure": "inputTokens", "agg": "histogram" },
+      "dimensions": [],
+      "filters": [{ "column": "type", "operator": "any of", "value": ["GENERATION"], "type": "stringOptions" }],
+      "chartType": "HISTOGRAM",
+      "chartConfig": { "type": "HISTOGRAM", "bins": 20 },
+      "place": { "x": 0, "y": 11, "w": 6, "h": 5 }
+    },
+    {
+      "key": "output-tokens-spread",
+      "name": "Output tokens per model call",
+      "description": "How many output tokens a model call returns, spread over the dashboard's range, in tokens, in 20 bins: a pile at the right edge is answers cut at the output cap (300 for a turn, 128 for a hello; config/budgets.yaml).",
+      "view": "observations",
+      "metric": { "measure": "outputTokens", "agg": "histogram" },
+      "dimensions": [],
+      "filters": [{ "column": "type", "operator": "any of", "value": ["GENERATION"], "type": "stringOptions" }],
+      "chartType": "HISTOGRAM",
+      "chartConfig": { "type": "HISTOGRAM", "bins": 20 },
+      "place": { "x": 6, "y": 11, "w": 6, "h": 5 }
+    }
+  ]
+}

@@ -220,6 +220,12 @@ class StandIn:
                         {"message": "rate limited"},
                         {"Retry-After": standin.retry_after},
                     )
+                if url.path == "/redirect":
+                    return self.answer(
+                        302,
+                        {"message": "elsewhere"},
+                        {"Location": "http://127.0.0.1:9/elsewhere"},
+                    )
                 status, payload = standin.route(method, url.path, query, body)
                 if isinstance(payload, str):
                     return self.answer(status, payload.encode())
@@ -1230,16 +1236,23 @@ def test_a_refused_answer_is_trimmed_and_its_control_characters_replaced() -> No
 
 
 def test_the_requests_carry_no_proxy_and_follow_no_redirect(
-    monkeypatch: pytest.MonkeyPatch,
+    standin: StandIn, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("http_proxy", "http://127.0.0.1:9")
-    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9")
-    opener = ld.opener()
-    handlers = {type(h).__name__ for h in opener.handlers}
-    assert "ProxyHandler" in handlers
-    proxy = next(h for h in opener.handlers if type(h).__name__ == "ProxyHandler")
-    assert proxy.proxies == {}
-    assert "NoRedirect" in handlers
+    # Behaviour, not urllib's internals: with a proxy set that nothing answers, the stand-in is still reached, so no
+    # proxy carried the keys; and a redirect comes back as the refusal it is, never followed.
+    for name in ("http_proxy", "HTTP_PROXY", "all_proxy", "ALL_PROXY"):
+        monkeypatch.setenv(name, "http://127.0.0.1:9")
+    monkeypatch.delenv("no_proxy", raising=False)
+    monkeypatch.delenv("NO_PROXY", raising=False)
+    assert standin.server
+    client = ld.Langfuse(
+        f"http://127.0.0.1:{standin.server.server_address[1]}", PUBLIC, SECRET
+    )
+    assert client.call("GET", "/api/openapi.yaml", text=True) == SPEC_YAML
+    with pytest.raises(ld.Refused) as caught:
+        client.call("GET", "/redirect")
+    assert caught.value.status == 302
+    assert [p for _, p, _, _ in standin.requests] == ["/api/openapi.yaml", "/redirect"]
 
 
 # --- The recipe (FR-010) --------------------------------------------------------------------------------------------

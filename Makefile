@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT MINUTES OUTCOME EXIT_STATUS HOST ROTATE RESTORE DUMP REGISTRY BUCKET COMPOSE_PLUGIN COMPOSE_SHA256 PUBLIC REDTEAM SITE_BUCKET DISTRIBUTION INCIDENT REPLACE SKIP
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT MINUTES OUTCOME EXIT_STATUS HOST ROTATE RESTORE DUMP REGISTRY BUCKET COMPOSE_PLUGIN COMPOSE_SHA256 PUBLIC REDTEAM SITE_BUCKET DISTRIBUTION INCIDENT REPLACE SKIP APPLY
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -748,6 +748,16 @@ hello: ## POST /hello to ENV's gateway, and print the status and body: [MESSAGE=
 	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || [ "$(ENV)" = dev-cpu ] || { echo "make $@ ENV=$(ENV): agent sessions send hello to dev-cpu only; prod and dev are the Author's (FR-008, FR-039)" >&2; exit 2; }
 	$(HELLO)$(if $(call from_cli,MESSAGE), --message="$$MESSAGE")
 
+# Spec 034's Langfuse dashboards (docs/runbooks/langfuse-dashboards.md): scripts/langfuse_dashboards.py, by path through
+# PY_HOST, reads deploy/langfuse/dashboards/, checks ENV's Langfuse on 127.0.0.1 (its API description, and each widget's
+# query through the read-only Metrics API), and prints the plan; APPLY=1 writes it. It reads Langfuse's two keys from
+# ENV's env file, which the sandbox can't read, so it is the Author's; dev-cpu's are the committed dummies. APPLY comes
+# from the command line only, and is 1 or unset. Its --recipe, which needs no env file, is the runbook's fallback.
+langfuse-dashboards: ## (the Author) ENV's Langfuse dashboards from deploy/langfuse/dashboards/: a read-only check and plan, or APPLY=1 to write them (docs/runbooks/langfuse-dashboards.md)
+	$(call AUTHOR_ONLY,it reads Langfuse's keys from his env file and calls his stack's Langfuse on 127.0.0.1 (docs/runbooks/langfuse-dashboards.md))
+	@[ -z "$(call from_cli,APPLY)" ] || [ "$$APPLY" = 1 ] || { echo "make $@: APPLY is 1 or unset" >&2; exit 2; }
+	@$(PY_HOST) scripts/langfuse_dashboards.py --stack $(ENV) --env-file $(ENVFILE)$(if $(call from_cli,APPLY), --apply)
+
 # The Author's terminal: it reaches the registries. ONLY=svc,... limits it; TAG="svc=tag ..." pins a tag (an open
 # one, such as seaweedfs's, otherwise gets the newest release); DRY_RUN=1 prints the table and writes nothing.
 # The values reach the script through the environment, quoted by the shell, never spliced into the command line.
@@ -883,7 +893,7 @@ release: ## (the Author) A release of main's gated merge (contracts/releases-dep
 
 .PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
 	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite redteam-live matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
-	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan infra-mirror infra-check infra-plan-note disclosure-check \
+	init-env aws-login operator-token operator-status operator-init hello langfuse-dashboards isolation-check breach-test plan infra-mirror infra-check infra-plan-note disclosure-check \
 	measure-stack measure-tunnel-end arch-inventory infra-verify infra-record infra-audit secrets-check secrets-fill tunnel-keys tunnel-revoke cloud-session \
 	shared-state-tls shared-state-roles shared-state-restore release ec2-status ec2-start ec2-stop ec2-autostart server-budget-restore
 

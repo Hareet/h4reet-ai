@@ -119,11 +119,11 @@ python3 -I -B -X pycache_prefix=/dev/null scripts/langfuse_dashboards.py --recip
 1. **The API description.** `GET /api/openapi.yaml`, then `/generated/api/openapi.yml` if the first answers 404 (research
    R-2). Parsed as JSON when it starts with `{`, else by a small YAML reader that takes the `paths:` block's path keys
    and their method keys by indentation (no YAML library: the command is standard library only). Path parameters are
-   compared as `{}`. Required: `GET` and `POST` `/api/public/unstable/dashboard-widgets`; `PATCH` or `PUT` and `DELETE`
-   `/api/public/unstable/dashboard-widgets/{}`; `GET` and `POST` `/api/public/unstable/dashboards`; `GET`, `PATCH` or
+   compared as `{}`. Required: `GET` and `POST` `/api/public/unstable/dashboard-widgets`; `GET`, `PATCH` or `PUT`, and
+   `DELETE` `/api/public/unstable/dashboard-widgets/{}` (the `GET` reads a widget whose list entry has no description); `GET` and `POST` `/api/public/unstable/dashboards`; `GET`, `PATCH` or
    `PUT`, and `DELETE` `/api/public/unstable/dashboards/{}`; `GET /api/public/v2/metrics`. And the field names the command
    sends must each appear in the description's text: `chartType`, `chartConfig`, `dimensions`, `metrics`, `filters`,
-   `definition`, `widgetId`, `x_size`, `y_size`, `row_limit`, `defaultSort`. A missing operation or name is a `FAIL`
+   `definition`, `widgetId`, `x_size`, `y_size`, `row_limit`, `defaultSort`, `bins`. A missing operation or name is a `FAIL`
    line each and exit 1. The update method is whichever of `PATCH` and `PUT` the description lists, `PATCH` first.
 2. **Each widget's query**, through `GET /api/public/v2/metrics?query=<JSON>` over the last 7 days (research R-4): the
    widget's view, dimensions (`[{field}]`), metric as `{measure, aggregation}`, and filters; a time-series chart adds
