@@ -33,6 +33,12 @@ names the type that runs. The tunnel end's check replaces the tunnel end the sam
 minutes of a capacity stop, attaches h4-shared-state, points the VPC origin at the new instance, alerts
 tunnel_end_back with its type, and then runs EC2's start as `tunnel_end_back`.
 
+After the reviews of 52308132: every candidate's RunInstances is dry-run before anything is cancelled or terminated;
+a tagged EC2 the parameter doesn't name, when the named one is gone, is adopted rather than launched again; the data
+volume is attached before every start; the check repairs a running tunnel end's volume and VPC origin; a new
+generation moves a stopped EC2 alone; and every wait ends MARGIN_S before Lambda's timeout. {"manual": true,
+"replace": host, "dry_run": true} returns each type's dry run and changes nothing.
+
 A read that fails refuses at its own step, with `unread` among the facts, so EC2 starts only when every check passes.
 It makes one pass and never retries a type; it raises nothing, so Lambda never retries it. Each outcome is one log line in
 CloudWatch's embedded metric format (namespace h4reet/handover, dimensions Function, Trigger, and Outcome), and one alert on
@@ -97,7 +103,7 @@ VPC_ORIGIN_PARAMETER = "/h4reet/prod/relay-vpc-origin-id"
 # The lock (FR-011): written only if absent, deleted after; one older than LOCK_STALE_S is taken over.
 LOCK = "/h4reet/prod/host-lock"
 LOCK_STALE_S = 1200
-# AWS's codes that mean "not this type now": the next listed type is tried.
+# AWS's codes that mean "not this type now" for a launch: the next listed type is tried.
 CAPACITY = frozenset(
     {
         "InsufficientInstanceCapacity",
@@ -106,12 +112,19 @@ CAPACITY = frozenset(
         "Unsupported",
     }
 )
+# The codes of a start that mean no capacity for the instance's type now, which a replace answers. Unsupported, or a
+# price too low, can't come of a start of an existing instance, so they refuse as any other code (the rework's review).
+START_CAPACITY = frozenset({"InsufficientInstanceCapacity", "InsufficientCapacity"})
 # EC2 sets this tag on what it launches from a template; one not on the host's list is of an earlier generation.
 TEMPLATE_TAG = "aws:ec2launchtemplate:id"
 GONE = frozenset({"shutting-down", "terminated"})
 # Each wait polls every POLL_S, for at most WAIT_S; the function's timeout is 900 s (infra/account/handover.tf).
 POLL_S = 5
 WAIT_S = 240
+# Every wait also ends MARGIN_S before Lambda's own timeout, read from the context, so a run that runs out of time
+# refuses wait_timeout and alerts, never dies unheard; BUDGET_S stands in when the context can't say (the tests).
+MARGIN_S = 60
+BUDGET_S = 840
 # The tunnel end's check (FR-013, Q-C4): AWS's own restart is waited for this long after a capacity stop.
 TUNNEL_END_GRACE_S = 600
 TYPE = re.compile(r"[a-z][a-z0-9]{1,7}\.[a-z0-9]{3,10}")
@@ -246,6 +259,8 @@ class Outcome:
     silent: bool = False
     # A plain log line alone, no metric and no alert: the tunnel end's check's no-op (FR-013).
     quiet: bool = False
+    # The Author's hand dry run: each listed type and AWS's answer to RunInstances(DryRun=True).
+    dry_run: dict[str, str] | None = None
 
     def refuse(self, reason: str, **facts: str) -> Outcome:
         self.reason = reason
@@ -261,10 +276,18 @@ class Clock:
     """The time and the waits: the real ones in Lambda, a stepped clock in the tests."""
 
     def __init__(
-        self, now: Callable[[], datetime], sleep: Callable[[float], None]
+        self,
+        now: Callable[[], datetime],
+        sleep: Callable[[float], None],
+        deadline: datetime | None = None,
     ) -> None:
         self.now = now
         self.sleep = sleep
+        self.deadline = deadline or now() + timedelta(seconds=BUDGET_S)
+
+    def until(self, seconds: float) -> datetime:
+        """The end of a wait of `seconds`, or the run's own deadline, whichever comes first."""
+        return min(self.now() + timedelta(seconds=seconds), self.deadline)
 
 
 def trigger_of(event: object) -> str | None:
@@ -286,18 +309,19 @@ def trigger_of(event: object) -> str | None:
     return None
 
 
-def hand_replace(event: dict) -> tuple[str | None, tuple[str, ...]]:
-    """The Author's replace, {"manual": true, "replace": "ec2"|"tunnel_end", "skip": [types]} (spec 032 FR-009); a
-    shape it can't read raises ValueError, an unknown trigger."""
+def hand_replace(event: dict) -> tuple[str | None, tuple[str, ...], bool]:
+    """The Author's replace, {"manual": true, "replace": "ec2"|"tunnel_end", "skip": [types]} (spec 032 FR-009), or
+    its dry run with "dry_run": true; a shape it can't read raises ValueError, an unknown trigger."""
     host = event.get("replace")
     skip = event.get("skip", [])
-    if host is None and "skip" not in event:
-        return None, ()
-    if host not in HOSTS or not isinstance(skip, list):
+    dry = event.get("dry_run", False)
+    if host is None and "skip" not in event and "dry_run" not in event:
+        return None, (), False
+    if host not in HOSTS or not isinstance(skip, list) or not isinstance(dry, bool):
         raise ValueError("replace")
     if not all(isinstance(t, str) and TYPE.fullmatch(t) for t in skip):
         raise ValueError("skip")
-    return str(host), tuple(skip)
+    return str(host), tuple(skip), dry
 
 
 def account_of(context: object) -> str:
@@ -415,7 +439,7 @@ def live(aws, name: str) -> list[dict]:
             "ec2", "DescribeInstances", Filters=[{"Name": "tag:Name", "Values": [name]}]
         )
     )
-    return [i for i in found if state(i) not in GONE]
+    return [i for i in found if state(i) not in GONE and tag(i, "Name") == name]
 
 
 def take_lock(aws, clock: Clock, owner: str) -> bool:
@@ -453,7 +477,7 @@ def release_lock(aws) -> None:
 
 
 def wait_for(aws, clock: Clock, instance_id: str, want: str) -> None:
-    deadline = clock.now() + timedelta(seconds=WAIT_S)
+    deadline = clock.until(WAIT_S)
     while True:
         try:
             found = instances(
@@ -470,9 +494,11 @@ def wait_for(aws, clock: Clock, instance_id: str, want: str) -> None:
         clock.sleep(POLL_S)
 
 
-def attach(aws, clock: Clock, host: str, instance_id: str) -> None:
-    """The host's volume, by its Name tag, at /dev/sdf, once the old instance has let it go."""
-    deadline = clock.now() + timedelta(seconds=WAIT_S)
+def attach(aws, clock: Clock, host: str, instance_id: str) -> bool:
+    """The host's volume, by its Name tag, at /dev/sdf, once the old instance has let it go: True if this attached it,
+    False if it was attached already. Called before every start too, so a replace that failed before its attach is
+    repaired by the next trigger (the rework's review)."""
+    deadline = clock.until(WAIT_S)
     while True:
         volumes = (
             aws.call(
@@ -487,7 +513,7 @@ def attach(aws, clock: Clock, host: str, instance_id: str) -> None:
         volume = volumes[0]
         on = [a.get("InstanceId") for a in volume.get("Attachments") or []]
         if on == [instance_id]:
-            return
+            return False
         if volume.get("State") == "available":
             aws.call(
                 "ec2",
@@ -496,10 +522,30 @@ def attach(aws, clock: Clock, host: str, instance_id: str) -> None:
                 InstanceId=instance_id,
                 VolumeId=volume["VolumeId"],
             )
-            return
+            return True
         if clock.now() >= deadline:
             raise AwsError("wait_timeout")
         clock.sleep(POLL_S)
+
+
+def dry_runs(aws, candidates: list[tuple[str, str]]) -> dict[str, str]:
+    """Each candidate's RunInstances with DryRun, the exact launch: AWS's code, DryRunOperation when it would run. A dry
+    run checks the role and the request's context (the template, the tags, the type, the market), never capacity."""
+    answers: dict[str, str] = {}
+    for kind, template in candidates:
+        try:
+            aws.call(
+                "ec2",
+                "RunInstances",
+                LaunchTemplate={"LaunchTemplateId": template, "Version": "$Default"},
+                MinCount=1,
+                MaxCount=1,
+                DryRun=True,
+            )
+            answers[kind] = "DryRunOperation"
+        except AwsError as exc:
+            answers[kind] = exc.code
+    return answers
 
 
 def replace(
@@ -529,8 +575,25 @@ def replace(
         out.refuse("start_failed", code="busy")
         return None
     tried: list[str] = []
-    step = "cancel"
+    step = "dry_run"
     try:
+        # Nothing is cancelled or terminated before a dry run proves a launch (the rework's review): a type the role
+        # or the request's context refuses is passed over, and none passing refuses with the host as it was.
+        answers = dry_runs(aws, [(k, t) for k, t in listed if k not in skip])
+        tried += [
+            f"{k} dry_run:{c}" for k, c in answers.items() if c != "DryRunOperation"
+        ]
+        ready = [(k, t) for k, t in listed if answers.get(k) == "DryRunOperation"]
+        if not ready:
+            codes = [c for c in answers.values() if c != "DryRunOperation"]
+            out.refuse(
+                "start_failed",
+                code=codes[0] if codes else "no_candidates",
+                step="dry_run",
+                tried=", ".join(tried),
+            )
+            return None
+        step = "cancel"
         if old is not None:
             request = old.get("SpotInstanceRequestId")
             if isinstance(request, str):
@@ -544,9 +607,7 @@ def replace(
             wait_for(aws, clock, old["InstanceId"], "terminated")
         step = "launch"
         new: dict | None = None
-        for kind, template in listed:
-            if kind in skip:
-                continue
+        for kind, template in ready:
             try:
                 launched = instances(
                     {
@@ -685,8 +746,31 @@ def step_6(
         return out.unreadable("start_failed", exc.code)
     current = [i for i in named if state(i) not in GONE]
     if not current:
-        replace(out, aws, clock, "ec2", None, skip)
-        return out
+        # A replace that launched but never wrote the ID, or was cut off, leaves a tagged instance the parameter
+        # doesn't name: adopt it rather than launch a second (the rework's review). Two such is the guard's case.
+        try:
+            found = live(aws, EC2_NAME)
+        except AwsError as exc:
+            return out.unreadable("start_failed", exc.code)
+        if len(found) > 1:
+            return out.refuse("start_failed", code="two_instances")
+        if not found:
+            replace(out, aws, clock, "ec2", None, skip)
+            return out
+        current = found
+        ec2_id = str(found[0].get("InstanceId"))
+        try:
+            aws.call(
+                "ssm",
+                "PutParameter",
+                Name=INSTANCE_PARAMETER,
+                Value=ec2_id,
+                Type="String",
+                Overwrite=True,
+            )
+        except AwsError as exc:
+            return out.refuse("start_failed", code=exc.code, step="parameter")
+        out.facts.append(("adopted", str(found[0].get("InstanceType", "unknown"))))
     instance = current[0]
     if tag(instance, "Name") != EC2_NAME:
         return out.refuse("start_failed", code="untagged")
@@ -696,7 +780,8 @@ def step_6(
         replace(out, aws, clock, "ec2", instance, skip)
         return out
     template = tag(instance, TEMPLATE_TAG)
-    if template is not None:
+    # A new generation moves a stopped EC2 alone: a running one serves, and moves at its next start (the review).
+    if template is not None and state(instance) == "stopped":
         try:
             listed = {t for _, t in templates_of(aws, "ec2")}
         except AwsError as exc:
@@ -714,12 +799,17 @@ def step_6(
             out.facts.append(("replaced", f"{kind} {code}"))
             replace(out, aws, clock, "ec2", instance, (*skip, kind))
             return out
+    # Its data volume first, whatever stopped a replace before its attach: a no-op once attached.
+    try:
+        attach(aws, clock, "ec2", ec2_id)
+    except AwsError as exc:
+        return out.refuse("start_failed", code=exc.code, step="attach")
     try:
         started = aws.call("ec2", "StartInstances", InstanceIds=[ec2_id]).get(
             "StartingInstances"
         ) or [{}]
     except AwsError as exc:
-        if exc.code in CAPACITY:
+        if exc.code in START_CAPACITY:
             out.facts.append(("replaced", f"{kind} {exc.code}"))
             replace(out, aws, clock, "ec2", instance, (*skip, kind))
             return out
@@ -757,6 +847,39 @@ def repoint(aws, account: str, instance_id: str) -> str:
         return exc.code
 
 
+def repair(out: Outcome, context: object, aws, clock: Clock, instance: dict) -> Outcome:
+    """A running tunnel end's volume and VPC origin, which a replace cut short may have left behind (the rework's
+    review): attached and re-pointed if not, alerted as its return when either was; a plain line when neither was. A
+    repair that fails is recorded, never alerted every 5 minutes; the replace's own failure alerted it once."""
+    iid = str(instance.get("InstanceId"))
+    repaired = []
+    try:
+        if attach(aws, clock, "tunnel_end", iid):
+            repaired.append("volume")
+        origin = repoint(aws, account_of(context), iid)
+    except AwsError as exc:
+        out.silent = True
+        out.metric = "tunnel_end_repair_failed"
+        return out.refuse("tunnel_end_down", code=exc.code, step="repair")
+    if origin == "re-pointed":
+        repaired.append("origin")
+    elif origin != "unchanged":
+        out.silent = True
+        out.metric = "tunnel_end_repair_failed"
+        return out.refuse("tunnel_end_down", code=origin, step="origin")
+    if not repaired:
+        out.quiet = True
+        out.facts.append(("tunnel_end", "running"))
+        return out
+    out.silent = False
+    out.metric = "tunnel_end_repaired"
+    out.facts += [
+        ("type", str(instance.get("InstanceType", "unknown"))),
+        ("repaired", ", ".join(repaired)),
+    ]
+    return out
+
+
 def tunnel_end(
     trigger: str,
     context: object,
@@ -789,6 +912,8 @@ def tunnel_end(
             waited = (
                 (clock.now() - updated).total_seconds() if updated is not None else 0
             )
+            if now_state == "running" and not forced:
+                return [repair(out, context, aws, clock, old)]
             if not (capacity_stop(code) and waited >= TUNNEL_END_GRACE_S):
                 out.quiet = True
                 out.facts.append(("tunnel_end", code or now_state))
@@ -823,12 +948,28 @@ def run_all(event: object, context: object, aws, clock: Clock) -> list[Outcome]:
     skip: tuple[str, ...] = ()
     if trigger == "manual":
         try:
-            host, skip = hand_replace(event)  # type: ignore[arg-type]
+            host, skip, dry = hand_replace(event)  # type: ignore[arg-type]
         except ValueError:
             return [Outcome("manual").refuse("start_failed", code="unknown_trigger")]
+        if dry and host is not None:
+            return [hand_dry_run(aws, host, skip)]
     if trigger == "tunnel_end_check" or host == "tunnel_end":
         return tunnel_end(trigger, context, aws, clock, host == "tunnel_end", skip)
     return [decide(event, context, aws, clock, trigger, host == "ec2", skip)]
+
+
+def hand_dry_run(aws, host: str, skip: tuple[str, ...]) -> Outcome:
+    """The Author's proof of the role before the 5-minute check goes live (the note's step 6): each listed type's
+    dry run, no check, no lock, no change, no alert; the answers return to his ec2_ops.py."""
+    out = Outcome("manual", host=host, quiet=True)
+    try:
+        listed = templates_of(aws, host)
+    except AwsError as exc:
+        out.dry_run = {}
+        return out.refuse("dry_run", code=exc.code)
+    out.dry_run = dry_runs(aws, [(k, t) for k, t in listed if k not in skip])
+    out.facts += list(out.dry_run.items())
+    return out.refuse("dry_run")
 
 
 def message(out: Outcome) -> str:
@@ -878,11 +1019,11 @@ def handler(
     sleep: Callable[[float], None] | None = None,
 ) -> dict:
     """h4-ec2-start's entry. One pass; never raises."""
-    clock = Clock(
-        now or (lambda: datetime.fromtimestamp(time.time(), tz=timezone.utc)),
-        sleep or time.sleep,
-    )
-    at = clock.now()
+    tell = now or (lambda: datetime.fromtimestamp(time.time(), tz=timezone.utc))
+    at = tell()
+    remaining = getattr(context, "get_remaining_time_in_millis", None)
+    budget = remaining() / 1000 - MARGIN_S if callable(remaining) else BUDGET_S
+    clock = Clock(tell, sleep or time.sleep, at + timedelta(seconds=max(budget, 0)))
     try:
         aws = aws or BotoAws()
         outcomes = run_all(event, context, aws, clock)
@@ -925,4 +1066,6 @@ def handler(
     }
     if last.reason is not None:
         result["reason"] = last.reason
+    if last.dry_run is not None:
+        result["dry_run"] = last.dry_run
     return result

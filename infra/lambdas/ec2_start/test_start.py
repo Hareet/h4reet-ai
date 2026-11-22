@@ -371,6 +371,8 @@ def test_the_order_is_paused_hours_budget_tunnel_end_laptop_then_the_start() -> 
         ("budgets", "DescribeBudgetActionsForBudget"),
         ("ec2", "DescribeInstances"),
         ("cloudwatch", "DescribeAlarms"),
+        # Spec 032's rework: the data volume, attached first if a replace left it behind.
+        ("ec2", "DescribeVolumes"),
         ("ec2", "StartInstances"),
     ]
 

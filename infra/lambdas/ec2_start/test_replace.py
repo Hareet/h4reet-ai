@@ -467,7 +467,14 @@ def test_no_listed_type_refuses_no_capacity_with_every_code(
 def test_another_launch_code_stops_the_list() -> None:
     c = cloud()
     c.short = {"t4g.large"}
-    c.refuse["RunInstances"] = start.AwsError("UnauthorizedOperation")
+    real = c.ec2_RunInstances
+
+    def launch(LaunchTemplate, MinCount, MaxCount, DryRun=False):
+        if not DryRun:
+            raise start.AwsError("UnauthorizedOperation")
+        return real(LaunchTemplate, MinCount, MaxCount, DryRun)
+
+    c.ec2_RunInstances = launch  # type: ignore[method-assign]
     result = run(ALARM, c)
     assert result["reason"] == "start_failed"
     assert len([p for p in c.ops("RunInstances") if not p.get("DryRun")]) == 1
@@ -547,7 +554,8 @@ def test_a_refused_cancel_terminates_nothing() -> None:
     c.refuse["CancelSpotInstanceRequests"] = start.AwsError("UnauthorizedOperation")
     result = run(ALARM, c)
     assert result["reason"] == "start_failed"
-    assert not c.ops("TerminateInstances") and not c.ops("RunInstances")
+    assert not c.ops("TerminateInstances")
+    assert all(p.get("DryRun") for p in c.ops("RunInstances"))
     assert c.instances[OLD_EC2]["State"]["Name"] == "stopped"
     assert "/h4reet/prod/host-lock" not in c.params
 
