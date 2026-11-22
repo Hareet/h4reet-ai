@@ -12,7 +12,7 @@ import { parse } from "yaml";
 import { createEat3d } from "../../src/room/eat/eat3d";
 import { createMeal } from "../../src/room/eat/meal";
 import { pieceModel, roomGlb } from "../helpers/eat-pieces";
-import { announcer, button, enter, flush, repositoryBundle, start, throughLoader, WEB } from "../helpers/room";
+import { announcer, enter, flush, repositoryBundle, start, throughLoader, WEB } from "../helpers/room";
 import type { Visit } from "../helpers/room";
 
 const WORDS = (parse(readFileSync(join(WEB, "room/ui-words.yaml"), "utf8")) as { words: Record<string, string> }).words;

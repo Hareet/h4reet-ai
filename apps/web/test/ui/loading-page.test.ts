@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest";
 import { assetEvent } from "../../src/asset-events";
 import { LOADING_CEILING_MS } from "../../src/room/quality";
 import type { ExpectedFile, SceneOptions } from "../../src/room/stage";
-import { button, enter, flush, parseCss, roomIndex, start, stylesheets } from "../helpers/room";
+import { enter, flush, parseCss, roomIndex, start, stylesheets } from "../helpers/room";
 import type { CssRule, Visit } from "../helpers/room";
 
 const LOADING_CSS = stylesheets().find((s) => s.path.endsWith("src/room/loading/loading.css"))?.text ?? "";

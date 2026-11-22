@@ -27,7 +27,6 @@ import { sweepScreens } from "../../src/room/compose/stages";
 import { ICON_PATHS } from "../../src/room/hud/icons";
 import { renderRoom } from "../../src/room/layout";
 import {
-  button,
   enter,
   flush,
   matchesRule,

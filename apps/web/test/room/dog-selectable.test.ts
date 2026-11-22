@@ -26,7 +26,7 @@ import type { Chase, ChasePhase } from "../../src/room/scene/chase";
 import type { Stage3D } from "../../src/room/stage";
 import type { TurnResult } from "../../src/room/signals/turn-cost";
 import type { TurnRequest } from "../../src/talk/talk";
-import { REPO, button, enter, flush, start, talkLog } from "../helpers/room";
+import { REPO, enter, flush, start, talkLog } from "../helpers/room";
 import type { Visit } from "../helpers/room";
 import { placementLabelled, selectableNamed, topicPhrased } from "../helpers/room-ids";
 

@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import { UI_KEYS } from "../../src/room/ui-keys";
-import { button, enter, flush, intoRoom, roomIndex, start, textOf, throughLoader } from "../helpers/room";
+import { enter, flush, intoRoom, roomIndex, start, textOf, throughLoader } from "../helpers/room";
 import type { Visit } from "../helpers/room";
 
 const index = roomIndex();

@@ -21,7 +21,7 @@ import type { RoomIndex } from "../../src/room/compose/bundle";
 import type { RoomEvent } from "../../src/room/events";
 import { bindPointerSelection } from "../../src/room/objects";
 import { framedBoxes, pickAreasOn, selectablePicker } from "../../src/room/scene/bundle3d";
-import { button, enter, intoRoom, start } from "../helpers/room";
+import { enter, intoRoom, start } from "../helpers/room";
 import type { TestWindow, Visit } from "../helpers/room";
 import { goodTree } from "../helpers/room-fixtures";
 

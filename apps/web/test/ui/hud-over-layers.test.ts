@@ -60,7 +60,7 @@ import {
   tracks,
 } from "../helpers/layers";
 import type { Pair, Rgb, Rule } from "../helpers/layers";
-import { button, enter, flush, parseCss, roomIndex, start, stubViewport, throughLoader } from "../helpers/room";
+import { enter, flush, parseCss, roomIndex, start, stubViewport, throughLoader } from "../helpers/room";
 import type { Visit } from "../helpers/room";
 
 // ---- The room, walking, a conversation open, the "Eat" tile offered ----

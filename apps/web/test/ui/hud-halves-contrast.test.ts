@@ -15,7 +15,7 @@ import type { Protect } from "../../src/room/compose/frame";
 import { flatProtectorFor } from "../../src/room/compose/protect";
 import { background, failing, halfUnder, pairsOf, read } from "../helpers/layers";
 import type { Pair } from "../helpers/layers";
-import { button, enter, flush, parseCss, roomIndex, start, stubViewport, throughLoader } from "../helpers/room";
+import { enter, flush, parseCss, roomIndex, start, stubViewport, throughLoader } from "../helpers/room";
 import type { Visit } from "../helpers/room";
 
 type Screen = { readonly w: number; readonly h: number };

@@ -15,7 +15,6 @@ import { HUD_PLACEMENTS, splitBoxes } from "../../src/room/compose/hud";
 import { protectSceneOf, protectorFor } from "../../src/room/compose/protect";
 import {
   axeViolations,
-  button,
   enter,
   flush,
   nameOf,

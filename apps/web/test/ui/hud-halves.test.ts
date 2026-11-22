@@ -26,7 +26,7 @@ import { describe, expect, it } from "vitest";
 import type { Box } from "../../src/room/compose/hud";
 import type { Protect } from "../../src/room/compose/frame";
 import { flatProtectorFor } from "../../src/room/compose/protect";
-import { button, enter, flush, parseCss, roomIndex, start, stubViewport, throughLoader } from "../helpers/room";
+import { enter, flush, parseCss, roomIndex, start, stubViewport, throughLoader } from "../helpers/room";
 import type { Visit } from "../helpers/room";
 
 type Screen = { readonly w: number; readonly h: number };

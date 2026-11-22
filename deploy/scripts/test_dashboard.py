@@ -861,7 +861,9 @@ def test_each_visit_share_counts_visits_as_resume_kept_alone(title: str) -> None
     # reaching back before the change reads.
     panel = by_title()[title]
     (target,) = panel["targets"]
-    assert target["expr"].endswith('/ sum(increase(h4_room_events_total{kind="resume_kept"}[$__range]))'), target
+    assert target["expr"].endswith(
+        '/ sum(increase(h4_room_events_total{kind="resume_kept"}[$__range]))'
+    ), target
     assert "resume_opened|resume_kept" not in target["expr"]
     assert "spec 033" in panel["description"]
 
