@@ -34,3 +34,18 @@ Approved provisionally by the Author's direction of 2026-11-22: "Go with your re
 ## Dependencies
 
 T001 to T004 before T005; T005 before T006 to T008; T006 before T008 (the pick reads the sheet's visibility); T009 to T011 any time after T005; T012 after all; T013 last.
+
+## Analysis (`/speckit-analyze`, 2026-11-22, after these tasks and before code)
+
+Non-destructive: spec.md, plan.md, and this file read against each other and the constitution. (Kept here rather than in a file of its own.)
+
+| ID | Category | Severity | Where | Finding | Resolution |
+|---|---|---|---|---|---|
+| A-1 | Coverage | Medium | spec FR-012, FR-013; T009, T010 | The records have no automated test beyond `test_dashboard.py`'s comparison of the dashboard with telemetry.md; V4's words have none | Accepted: V4 is prose the reviewer reads; the queries are tested |
+| A-2 | Ambiguity | Low | spec FR-008, "the camera drawing the room" | Which camera while walking | plan D2: the stage's one camera, which the walking view drives; T004 tests the room's view; User Story 2's scenario 5 is the Author's look |
+| A-3 | Consistency | Low | spec Q3, FR-009; plan D2 | "Resume"'s focus targets the paper only in 3D | Consistent with FR-010; T003 covers 2D |
+| A-4 | Underspecification | Low | spec Edge Cases, "A paused room" | Pausing doesn't gate input today | Nothing to build |
+| A-5 | Coverage | Medium | spec SC-004 | The Author's look can't run here (no browser or WebGL in the sandbox) | T013's look list |
+| A-6 | Constitution | none | all | No MUST is at stake: no new flow (I), tests for each FR (II), amendments named (III) | none |
+
+Coverage: FR-001, FR-002, FR-003, FR-005 by T002 and T007 (handoff.test.ts); FR-004 by T007 (handoff.test.ts, choice.test.ts); FR-006 and FR-010 by T003, T004, T008; FR-007 and FR-009 by T003 and T008 (held-paper.test.ts); FR-008 by T004 and T008 (held-paper-pick.test.ts); FR-011 by T001 and T006 (paper-steady.test.ts); FR-012 by T010; FR-013 by T009 (test_dashboard.py). Every FR has a task, every task an FR or a verification step. 13 requirements, 4 success criteria, 13 tasks; no critical or high finding; no needs-clarification marker.
