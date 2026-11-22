@@ -13,11 +13,11 @@ Format: `[ID] [P?] [Story] Description` · FR it serves.
 
 ## Phase 2: The start function (US1, US2, US4) — FR-005 to FR-014, FR-018
 
-- [ ] T010 [US1] RED: `infra/lambdas/ec2_start/test_start.py`: the replace on a capacity code (FR-005), on a capacity stop and a missing or earlier-generation instance (FR-006), the order and skip (FR-007), `no_capacity` (FR-008), the lock and `busy` (FR-011), the cancel before the terminate (FR-012), `type`/`replaced`/`tried` facts and the new outcomes (FR-018); the two tests that held "one attempt, start_failed" on `InsufficientInstanceCapacity` become the replace's.
-- [ ] T011 [US2] RED, same file: `tunnel_end_check` (FR-013: none, running, by user, young, old capacity stop), the re-point and `tunnel_end_replaced` and EC2's start after it (FR-014), the hand replace with `skip` (FR-009).
-- [ ] T012 [US1][US2] GREEN: `infra/lambdas/ec2_start/start.py`.
-- [ ] T013 [P] [US1] The guard: `infra/lambdas/ec2_guard/test_guard.py`, a replaced instance the parameter names isn't stopped and the old one isn't listed (characterization; the guard's code doesn't change).
-- [ ] T014 [P] [US3] RED then GREEN: `infra/lambdas/alert_bridge/` and spec 001's `contracts/aws-alerts.md` §2: `ec2_start_refused` reasons `no_capacity`, `busy`; kinds `tunnel_end_replaced`, `tunnel_end_replace_failed`.
+- [x] T010 [US1] RED: `infra/lambdas/ec2_start/test_start.py`: the replace on a capacity code (FR-005), on a capacity stop and a missing or earlier-generation instance (FR-006), the order and skip (FR-007), `no_capacity` (FR-008), the lock and `busy` (FR-011), the cancel before the terminate (FR-012), `type`/`replaced`/`tried` facts and the new outcomes (FR-018); the two tests that held "one attempt, start_failed" on `InsufficientInstanceCapacity` become the replace's.
+- [x] T011 [US2] RED, same file: `tunnel_end_check` (FR-013: none, running, by user, young, old capacity stop), the re-point and `tunnel_end_replaced` and EC2's start after it (FR-014), the hand replace with `skip` (FR-009).
+- [x] T012 [US1][US2] GREEN: `infra/lambdas/ec2_start/start.py`.
+- [x] T013 [P] [US1] The guard: `infra/lambdas/ec2_guard/test_guard.py`, a replaced instance the parameter names isn't stopped and the old one isn't listed (characterization; the guard's code doesn't change).
+- [ ] T014 [P] [US3] Spec 001's `contracts/aws-alerts.md` §2: the new facts and codes on the existing kinds (the bridge, protected as `infra/*alert*`, doesn't change; its contract test still passes). As built: this replaces the first draft's new kinds.
 - [ ] T015 [P] [US4] RED then GREEN: `scripts/infra/ec2_ops.py` and its test: `start --replace ec2|tunnel_end [--skip TYPE ...]`; the Makefile's `ec2-start` passes `REPLACE=` and `SKIP=`.
 
 ## Phase 3: Infra (US1, US2) — FR-001 to FR-004, FR-010, FR-015 to FR-017

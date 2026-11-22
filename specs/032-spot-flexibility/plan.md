@@ -68,7 +68,6 @@ infra/parameters.txt              # the four new Strings, under "Names other han
 infra/lambdas/ec2_start/          # start.py, test_start.py: the replace path, the tunnel end check, the lock
 infra/lambdas/ec2_guard/          # test_guard.py: a replaced instance named by the parameter is never stopped
 infra/lambdas/credential_audit/   # audit.py, test_audit.py: the start role's table
-infra/lambdas/alert_bridge/       # bridge.py: new kinds and reason
 infra/test/                       # patches.py and the prod/account suites: the new model
 deploy/scripts/snapshot_sink.py   # h4.host.type
 deploy/grafana/dashboards/h4-runtime.json  # "Host types"
@@ -135,9 +134,9 @@ The replace (both hosts): take the lock; cancel the spot request (if any); termi
 
 The tunnel end's path (`tunnel_end_check` or its hand replace): describe the instances tagged `h4-prod-tunnel-end` not terminated. None: launch. Running or pending: a plain log line, done. Stopped: read its spot request; `instance-stopped-by-user`: a plain line, done; another `instance-stopped-*` code whose `UpdateTime` is 10 minutes old or more, or a hand replace: replace; younger: a plain line. After a replace: read `/h4reet/prod/relay-vpc-origin-id`, `GetVpcOrigin`, and if its ARN isn't the new instance's, `UpdateVpcOrigin` with the same configuration and the new ARN; alert `tunnel_end_replaced`; then run EC2's path as `tunnel_end_back`, whose outcome is its own line and alert.
 
-Alerts (contracts/aws-alerts.md §2, amended): `ec2_started` gains `- type:` always, and `- replaced:` / `- tried:` after a replace, plus `- re-point: prod's next plan` after a replace; `ec2_start_refused` gains the reasons `no_capacity` and `busy`; new kinds `tunnel_end_replaced` and `tunnel_end_replace_failed` (with `- code:` or `- tried:`), both `tunnel-end.md`. The scheduled open alerts `no_capacity` (it needs the Author); the check's `busy` isn't alerted.
+Alerts (contracts/aws-alerts.md §2, amended), in the bridge's existing kinds and reasons, since its folder is protected (`infra/*alert*`; as built, departing from this plan's first draft, which added kinds): `ec2_started` gains `- type:` always, and `- replaced:` / `- tried:` / `- repoint:` after a replace; no capacity and a live lock are `ec2_start_refused (start_failed)` with `- code: no_capacity` or `- code: busy`, a wait that doesn't end `- code: wait_timeout` with `- step:`; the tunnel end's replace is `tunnel_end_back` with `- type:`, `- replaced:`, `- origin:`; its failure is `ec2_start_refused (tunnel_end_down)` with `- tunnel_end: not replaced` and the code. The scheduled open alerts `no_capacity` (`start_failed` is in its alerted set); the check's `busy` and failed reads aren't alerted, only recorded.
 
-Metrics: the outcome line as today for every acting or refusing outcome (`Outcome` gains `no_capacity`, `busy`, `tunnel_end_replaced`, `tunnel_end_replace_failed`); the check's no-op as `{"function": "h4-ec2-start", "trigger": "tunnel_end_check", "tunnel_end": "<state>"}`, no `_aws` block.
+Metrics: the outcome line as today for every acting or refusing outcome (`Outcome` gains `no_capacity`, `busy`, `tunnel_end_replaced`; a failed tunnel end replace is `tunnel_end_down`); the check's no-op as `{"function": "h4-ec2-start", "trigger": "tunnel_end_check", "tunnel_end": "<state>"}`, no `_aws` block.
 
 ### 4. Account
 
@@ -163,7 +162,7 @@ Two patches, each built from `git show refs/heads/main:<path>` copies under `$TM
 
 ## Proof
 
-- **Tests** (this session): the start function's suite for FR-005 to FR-014; the guard's for a replaced named instance; the audit's for the new table; the bridge's for the amended contract; the sink's for `h4.host.type`; `scripts/infra/test_ec2_ops.py` for `REPLACE`/`SKIP`; the infra suites for FR-001 to FR-004 and FR-015 on the patched tree; `make -f Makefile lint`; `make -f Makefile check ENGINE_MODE=none-yet`.
+- **Tests** (this session): the start function's suite for FR-005 to FR-014; the guard's for a replaced named instance; the audit's for the new table; the bridge's, unchanged, against the amended contract; the sink's for `h4.host.type`; `scripts/infra/test_ec2_ops.py` for `REPLACE`/`SKIP`; the infra suites for FR-001 to FR-004 and FR-015 on the patched tree; `make -f Makefile lint`; `make -f Makefile check ENGINE_MODE=none-yet`.
 - **Offline plan** on an export with the patches applied: the infra policy (T5, T11, T13 among them) and `terraform fmt`; `validate` where the sandbox can start the provider (it can't in agent sessions: the provider plugin doesn't start here, on `main` too).
 - **On AWS** (the Author): prod's plan shows no instance destroyed (SC-005); a hand replace of EC2 skipping `t4g.large` inside the hours with the laptop down (SC-001); a hand replace of the tunnel end at a quiet hour (SC-002), which also settles the VPC origin's re-point (research R-6); then exactly one instance and no open untagged request per host (SC-003).
 
