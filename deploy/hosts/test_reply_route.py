@@ -469,7 +469,8 @@ def test_a_rerun_adds_no_second_rule(world) -> None:
     assert (paths.network / DROPIN.name).read_bytes() == DROPIN.read_bytes()
     assert not [c for c in commands if touches_networkd(c)]
     assert not changes(host)
-    assert host.rules == NETWORKD_RULES and host.table == [NETWORKD_ROUTE]
+    assert sorted(host.rules, key=lambda r: r["priority"]) == NETWORKD_RULES
+    assert host.table == [NETWORKD_ROUTE]
     # The table's file is loaded again, and replaces its own table whole (above): one copy of each mark.
     assert commands.count("systemctl restart h4-reply-route.service") == 1
 
