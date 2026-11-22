@@ -857,7 +857,7 @@ ec2-status: ## (the Author) EC2's state and its spot request's, the autostart sw
 
 ec2-start: ## (the Author) Invoke h4-ec2-start by hand, so its checks apply (contracts/handover.md §7) [PROFILE=…]
 	$(call AUTHOR_ONLY,it invokes the start function with his SSO session)
-	@$(PY_HOST) scripts/infra/ec2_ops.py start$(if $(call from_cli,REPLACE), --replace "$$REPLACE")$(if $(call from_cli,SKIP), --skip "$$SKIP")$(WITH_PROFILE)
+	@$(PY_HOST) scripts/infra/ec2_ops.py start$(if $(call from_cli,REPLACE), --replace "$$REPLACE")$(if $(call from_cli,SKIP), --skip "$$SKIP")$(if $(call from_cli,DRY_RUN), --dry-run)$(WITH_PROFILE)
 
 ec2-stop: ## (the Author) Stop EC2 through his h4reet-ec2-stop profile (the h4-ec2-stop permission set); an audit line and an alert (contracts/handover.md §7) [PROFILE=…]
 	$(call AUTHOR_ONLY,it stops EC2 with his SSO session)

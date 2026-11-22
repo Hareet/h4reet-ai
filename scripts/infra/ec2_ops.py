@@ -4,7 +4,7 @@ R-32; ADR 0048). His terminal alone, with his SSO session: each refuses inside t
 refuses the targets to agent sessions (P-1's rows).
 
     python3 -I -B scripts/infra/ec2_ops.py status [--profile NAME]
-    python3 -I -B scripts/infra/ec2_ops.py start [--replace ec2|tunnel_end [--skip TYPE,...]] [--profile NAME]
+    python3 -I -B scripts/infra/ec2_ops.py start [--replace ec2|tunnel_end [--skip TYPE,...] [--dry-run]] [--profile NAME]
     python3 -I -B scripts/infra/ec2_ops.py stop [--profile NAME]
     python3 -I -B scripts/infra/ec2_ops.py autostart --state on|off [--profile NAME]
     python3 -I -B scripts/infra/ec2_ops.py restore --incident docs/incidents/<note>.md [--profile NAME]
@@ -48,6 +48,7 @@ PROG = "ec2"
 REPO = Path(__file__).resolve().parents[2]
 PROFILE = re.compile(r"[A-Za-z0-9._-]+")
 EC2_NAME = "h4-prod-ec2"
+TUNNEL_END_NAME = "h4-prod-tunnel-end"
 AUTOSTART = "/h4reet/prod/ec2-autostart"
 SERVER_BUDGET = "h4-server-month"
 START_FUNCTION = "h4-ec2-start"
@@ -131,13 +132,15 @@ def account(profile: str) -> str:
     return value
 
 
-def tagged(profile: str, states: str = "pending,running") -> list[dict]:
+def tagged(
+    profile: str, states: str = "pending,running", name: str = EC2_NAME
+) -> list[dict]:
     answer = aws(
         profile,
         "ec2",
         "describe-instances",
         "--filters",
-        f"Name=tag:Name,Values={EC2_NAME}",
+        f"Name=tag:Name,Values={name}",
         f"Name=instance-state-name,Values={states}",
     )
     return [
@@ -151,16 +154,20 @@ def tagged(profile: str, states: str = "pending,running") -> list[dict]:
 TYPE = re.compile(r"[a-z][a-z0-9]{1,7}\.[a-z0-9]{3,10}")
 
 
-def start_event(replace: str | None, skip: str | None) -> dict:
-    """The start function's event: {"manual": true}, and spec 032's replace with the types it skips (FR-009)."""
+def start_event(replace: str | None, skip: str | None, dry: bool = False) -> dict:
+    """The start function's event: {"manual": true}, and spec 032's replace with the types it skips (FR-009), or its
+    dry run, which proves the role launches each listed type and changes nothing (the rework's note, step 6)."""
     if replace is None:
-        if skip is not None:
-            raise Usage("--skip goes with --replace ec2|tunnel_end")
+        if skip is not None or dry:
+            raise Usage("--skip and --dry-run go with --replace ec2|tunnel_end")
         return {"manual": True}
     types = [t for t in (skip or "").split(",") if t]
     if not all(TYPE.fullmatch(t) for t in types):
         raise Usage("--skip takes instance types, comma-separated: t4g.large,m7g.large")
-    return {"manual": True, "replace": replace, "skip": types}
+    event: dict = {"manual": True, "replace": replace, "skip": types}
+    if dry:
+        event["dry_run"] = True
+    return event
 
 
 def invoke_start(profile: str, event: dict | None = None) -> int:
@@ -186,6 +193,15 @@ def invoke_start(profile: str, event: dict | None = None) -> int:
         except (OSError, ValueError):
             result = {}
     outcome = result.get("outcome") if isinstance(result, dict) else None
+    dry = result.get("dry_run") if isinstance(result, dict) else None
+    if isinstance(dry, dict):
+        for kind, code in dry.items():
+            print(f"{PROG}: dry run {kind}: {code}")
+        ok = bool(dry) and all(code == "DryRunOperation" for code in dry.values())
+        print(
+            f"{PROG}: the role {'launches every listed type' if ok else 'refuses a type: see above'}"
+        )
+        return 0 if ok else 1
     if outcome == "started":
         print(f"{PROG}: {START_FUNCTION} started EC2")
         return 0
@@ -252,7 +268,8 @@ def status(profile: str) -> int:
         for i in found:
             state = (i.get("State") or {}).get("Name", "unknown")
             spot = i.get("SpotInstanceRequestId")
-            text = f"{i.get('InstanceId')} {state}"
+            # Spec 032: the listed type each host runs.
+            text = f"{i.get('InstanceId')} {state}, {i.get('InstanceType', 'unknown type')}"
             if isinstance(spot, str):
                 try:
                     req = (
@@ -271,6 +288,20 @@ def status(profile: str) -> int:
             lines.append(("ec2", text))
     except AwsFailed as exc:
         lines.append(("ec2", f"unknown ({exc})"))
+    try:
+        ends = tagged(profile, "pending,running,stopping,stopped", TUNNEL_END_NAME)
+        lines += [
+            (
+                "tunnel end",
+                (
+                    f"{i.get('InstanceId')} {(i.get('State') or {}).get('Name', 'unknown')}, "
+                    f"{i.get('InstanceType', 'unknown type')}"
+                ),
+            )
+            for i in ends
+        ] or [("tunnel end", f"no instance tagged {TUNNEL_END_NAME}")]
+    except AwsFailed as exc:
+        lines.append(("tunnel end", f"unknown ({exc})"))
     try:
         value = (
             aws(profile, "ssm", "get-parameter", "--name", AUTOSTART)
@@ -421,12 +452,13 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--profile")
     parser.add_argument("--replace", choices=("ec2", "tunnel_end"))
     parser.add_argument("--skip")
+    parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
-    if args.command != "start" and (args.replace or args.skip):
+    if args.command != "start" and (args.replace or args.skip or args.dry_run):
         print(f"{PROG}: --replace and --skip are start's alone", file=sys.stderr)
         return 2
     try:
-        event = start_event(args.replace, args.skip)
+        event = start_event(args.replace, args.skip, args.dry_run)
     except Usage as exc:
         print(f"{PROG}: {exc}", file=sys.stderr)
         return 2
