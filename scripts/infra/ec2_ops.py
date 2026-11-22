@@ -4,7 +4,7 @@ R-32; ADR 0048). His terminal alone, with his SSO session: each refuses inside t
 refuses the targets to agent sessions (P-1's rows).
 
     python3 -I -B scripts/infra/ec2_ops.py status [--profile NAME]
-    python3 -I -B scripts/infra/ec2_ops.py start [--profile NAME]
+    python3 -I -B scripts/infra/ec2_ops.py start [--replace ec2|tunnel_end [--skip TYPE,...]] [--profile NAME]
     python3 -I -B scripts/infra/ec2_ops.py stop [--profile NAME]
     python3 -I -B scripts/infra/ec2_ops.py autostart --state on|off [--profile NAME]
     python3 -I -B scripts/infra/ec2_ops.py restore --incident docs/incidents/<note>.md [--profile NAME]
@@ -14,6 +14,8 @@ status     EC2's state and its spot request's, the autostart switch, the server 
            The hours are read from infra/account/handover.tf's local.ec2_hours, their one source; the status request is
            marked as a probe (X-H4-Probe: 1), as the handover loop's is.
 start      invokes h4-ec2-start with {"manual": true}, so the function's checks apply (outside the hours, refused:
+           with --replace, spec 032's hand replace of that host from its list of launch templates, skipping the types
+           --skip names (FR-009; docs/runbooks/ec2.md, tunnel-end.md); EC2's still after its checks;
            the regrouping note's question 2, his answer "2 A"), and prints its outcome.
 stop       stops the running instance tagged h4-prod-ec2 through the profile he names, his h4-ec2-stop permission set;
            a line in ~/.local/state/h4reet/ec2-actions.jsonl, and ec2_stopped_by_author on h4-alerts. W1's: it needs no
@@ -56,6 +58,10 @@ HOURS = re.compile(
 
 
 class Refused(Exception):
+    pass
+
+
+class Usage(Exception):
     pass
 
 
@@ -142,7 +148,22 @@ def tagged(profile: str, states: str = "pending,running") -> list[dict]:
     ]
 
 
-def invoke_start(profile: str) -> int:
+TYPE = re.compile(r"[a-z][a-z0-9]{1,7}\.[a-z0-9]{3,10}")
+
+
+def start_event(replace: str | None, skip: str | None) -> dict:
+    """The start function's event: {"manual": true}, and spec 032's replace with the types it skips (FR-009)."""
+    if replace is None:
+        if skip is not None:
+            raise Usage("--skip goes with --replace ec2|tunnel_end")
+        return {"manual": True}
+    types = [t for t in (skip or "").split(",") if t]
+    if not all(TYPE.fullmatch(t) for t in types):
+        raise Usage("--skip takes instance types, comma-separated: t4g.large,m7g.large")
+    return {"manual": True, "replace": replace, "skip": types}
+
+
+def invoke_start(profile: str, event: dict | None = None) -> int:
     """h4-ec2-start, by hand, synchronously: its outcome is what this prints."""
     with tempfile.TemporaryDirectory() as folder:
         out = Path(folder) / "out.json"
@@ -157,7 +178,7 @@ def invoke_start(profile: str) -> int:
             "--cli-binary-format",
             "raw-in-base64-out",
             "--payload",
-            json.dumps({"manual": True}),
+            json.dumps(event or {"manual": True}),
             str(out),
         )
         try:
@@ -398,7 +419,17 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--state", choices=("on", "off"))
     parser.add_argument("--incident")
     parser.add_argument("--profile")
+    parser.add_argument("--replace", choices=("ec2", "tunnel_end"))
+    parser.add_argument("--skip")
     args = parser.parse_args(argv)
+    if args.command != "start" and (args.replace or args.skip):
+        print(f"{PROG}: --replace and --skip are start's alone", file=sys.stderr)
+        return 2
+    try:
+        event = start_event(args.replace, args.skip)
+    except Usage as exc:
+        print(f"{PROG}: {exc}", file=sys.stderr)
+        return 2
     if os.environ.get("SANDBOX_RUNTIME") == "1":
         print(
             f"{PROG}: this is the Author's: it acts on EC2 with his SSO session",
@@ -413,7 +444,7 @@ def main(argv: list[str]) -> int:
         if args.command == "status":
             return status(profile)
         if args.command == "start":
-            return invoke_start(profile)
+            return invoke_start(profile, event)
         if args.command == "stop":
             return stop(profile)
         if args.command == "autostart":
