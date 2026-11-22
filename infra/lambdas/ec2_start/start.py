@@ -208,12 +208,22 @@ def parse_hours(value: str | None) -> Hours:
 # AWS, as one call: the runtime's SDK in Lambda, a stub in the tests.
 
 
-class AwsError(RuntimeError):
-    """An AWS call that failed. Its code is AWS's error code alone, never a message that might hold an ID."""
+# The codes whose whole message BotoAws keeps: an UnauthorizedOperation's ends in AWS's encoded authorization message,
+# which `aws sts decode-authorization-message` reads, and which CloudTrail cuts at 1,024 characters (fix/032-launch-
+# policy, 2026-11-22).
+KEEP_MESSAGE = frozenset({"UnauthorizedOperation"})
+ENCODED = "Encoded authorization failure message: "
 
-    def __init__(self, code: str) -> None:
+
+class AwsError(RuntimeError):
+    """An AWS call that failed. Its code is AWS's error code alone, never a message that might hold an ID. For the codes
+    in KEEP_MESSAGE, `message` keeps AWS's whole message, which names the role and the resource: log_refusal logs it,
+    and it never reaches a fact, an alert, a metric, or the function's result."""
+
+    def __init__(self, code: str, message: str | None = None) -> None:
         super().__init__(code)
         self.code = code
+        self.message = message
 
 
 class BotoAws:
@@ -235,9 +245,10 @@ class BotoAws:
         try:
             return getattr(client, name)(**params)
         except ClientError as exc:
-            raise AwsError(
-                str(exc.response.get("Error", {}).get("Code", "ClientError"))
-            ) from None
+            error = exc.response.get("Error", {})
+            code = str(error.get("Code", "ClientError"))
+            kept = error.get("Message") if code in KEEP_MESSAGE else None
+            raise AwsError(code, str(kept) if kept else None) from None
         except BotoCoreError as exc:
             raise AwsError(type(exc).__name__) from None
 
@@ -528,6 +539,28 @@ def attach(aws, clock: Clock, host: str, instance_id: str) -> bool:
         clock.sleep(POLL_S)
 
 
+def log_refusal(exc: AwsError, op: str, kind: str, dry_run: bool) -> None:
+    """One log line with AWS's whole message for a code in KEEP_MESSAGE, and its encoded part alone, ready for `aws sts
+    decode-authorization-message --encoded-message`. Logged only: the outcome carries the code."""
+    if not exc.message:
+        return
+    _, found, encoded = exc.message.partition(ENCODED)
+    print(
+        json.dumps(
+            {
+                "function": FUNCTION,
+                "op": op,
+                "type": kind,
+                "dry_run": dry_run,
+                "code": exc.code,
+                "message": exc.message,
+                "encoded": encoded.strip() if found else None,
+            },
+            sort_keys=True,
+        )
+    )
+
+
 def dry_runs(aws, candidates: list[tuple[str, str]]) -> dict[str, str]:
     """Each candidate's RunInstances with DryRun, the exact launch: AWS's code, DryRunOperation when it would run. A dry
     run checks the role and the request's context (the template, the tags, the type, the market), never capacity."""
@@ -544,6 +577,7 @@ def dry_runs(aws, candidates: list[tuple[str, str]]) -> dict[str, str]:
             )
             answers[kind] = "DryRunOperation"
         except AwsError as exc:
+            log_refusal(exc, "RunInstances", kind, dry_run=True)
             answers[kind] = exc.code
     return answers
 
@@ -626,6 +660,7 @@ def replace(
                     }
                 )
             except AwsError as exc:
+                log_refusal(exc, "RunInstances", kind, dry_run=False)
                 tried.append(f"{kind} {exc.code}")
                 if exc.code in CAPACITY:
                     continue
