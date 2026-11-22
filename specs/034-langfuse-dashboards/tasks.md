@@ -8,22 +8,22 @@ Approved provisionally by the Author's direction of 2026-11-22: "Let's create La
 
 ## Phase 1: RED
 
-- [ ] T001 [US1] [US2] [US3] `scripts/test_langfuse_dashboards.py`: the stand-in Langfuse (plan Proof) and the tests of FR-001 to FR-014: the files load and validate, with the ceilings from `config/budgets.yaml` and the Grafana panel titles from `h4-runtime.json` (FR-013, FR-014); the validator's refusals (FR-002); the bodies and the mark (FR-006); the metrics queries (plan D3.2); the API description's reader, YAML and JSON (D3.1); the plan's create, update, keep, delete, and the unmarked object left alone (FR-004 to FR-006); the env file's three keys, no value echoed (FR-003, FR-008); 429, the 404 lag, no answer (FR-007, FR-009); the read-only run, the apply, the second apply (SC-001); a missing operation, a missing field, a refused query (SC-002); no key in any output (SC-003); the recipe (FR-010); the address (FR-012); the make target (FR-011).
-- [ ] T002 [P] `evals/test_runbooks.py`: admits the page plan D8's "Runbooks" line names, as for specs 010 and 017 (FR-015).
-- [ ] T003 Run T001 and T002, paste the failures.
+- [x] T001 [US1] [US2] [US3] `scripts/test_langfuse_dashboards.py`: the stand-in Langfuse (plan Proof) and the tests of FR-001 to FR-014: the files load and validate, with the ceilings from `config/budgets.yaml` and the Grafana panel titles from `h4-runtime.json` (FR-013, FR-014); the validator's refusals (FR-002); the bodies and the mark (FR-006); the metrics queries (plan D3.2); the API description's reader, YAML and JSON (D3.1); the plan's create, update, keep, delete, and the unmarked object left alone (FR-004 to FR-006); the env file's three keys, no value echoed (FR-003, FR-008); 429, the 404 lag, no answer (FR-007, FR-009); the read-only run, the apply, the second apply (SC-001); a missing operation, a missing field, a refused query (SC-002); no key in any output (SC-003); the recipe (FR-010); the address (FR-012); the make target (FR-011).
+- [x] T002 [P] `evals/test_runbooks.py`: admits the page plan D8's "Runbooks" line names, as for specs 010 and 017 (FR-015).
+- [x] T003 Run T001 and T002, paste the failures.
 
 ## Phase 2: GREEN
 
-- [ ] T004 [US1] D1: `deploy/langfuse/dashboards/model-calls.json` and `traces.json`.
-- [ ] T005 [US2] [US3] D2 to D6: `scripts/langfuse_dashboards.py`. T001 passes but the target's test.
-- [ ] T006 D7: the Makefile's `langfuse-dashboards` and `APPLY`. T001's target test and `scripts/test_makefile.py` pass.
-- [ ] T007 [P] D8: `docs/runbooks/langfuse-dashboards.md` and the index's row. T002 and `evals/test_runbooks.py` pass.
-- [ ] T008 [P] D8: ADR 0058 and the ADR index's row; the disclosure's row S9 (FR-016).
+- [x] T004 [US1] D1: `deploy/langfuse/dashboards/model-calls.json` and `traces.json`.
+- [x] T005 [US2] [US3] D2 to D6: `scripts/langfuse_dashboards.py`. T001 passes but the target's test.
+- [x] T006 D7: the Makefile's `langfuse-dashboards` and `APPLY`. T001's target test and `scripts/test_makefile.py` pass.
+- [x] T007 [P] D8: `docs/runbooks/langfuse-dashboards.md` and the index's row. T002 and `evals/test_runbooks.py` pass.
+- [x] T008 [P] D8: ADR 0058 and the ADR index's row; the disclosure's row S9 (FR-016).
 
 ## Phase 3: Verify and hand over
 
-- [ ] T009 `make -f Makefile lint`; T001's tests; `scripts/test_makefile.py`; `evals/test_runbooks.py`, `evals/test_docs_links.py`, `evals/test_disclosure.py`; `--recipe` run once; pasted.
-- [ ] T010 `docs/merge-requests/2026-11-22-feat-034-langfuse-dashboards.md`, with the Author's steps (SC-004).
+- [x] T009 `make -f Makefile lint`; T001's tests; `scripts/test_makefile.py`; `evals/test_runbooks.py`, `evals/test_docs_links.py`, `evals/test_disclosure.py`; `--recipe` run once; pasted.
+- [x] T010 `docs/merge-requests/2026-11-22-feat-034-langfuse-dashboards.md`, with the Author's steps (SC-004).
 
 ## Dependencies
 
