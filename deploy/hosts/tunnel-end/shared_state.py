@@ -391,7 +391,8 @@ def reply_route(host, paths: Paths, dropin: bytes) -> int:
     """Fix F2's parts, by fix F9's rule: ens5's address checked first; the marks' unit enabled and restarted; the drop-in
     written, when its text differs, for networkd at the next boot; its route and rules made live here, never by
     networkd's reload or reconfigure; and the address checked again. A failure, or the address gone, undoes the step's
-    own changes (the drop-in as it was, the routes and rules it made), says so, and fails the step."""
+    own changes (the routes and rules it made, and a changed drop-in's old text; a new drop-in stays, right for the next
+    boot and unchanged for a rollback's step), says so, and fails the step."""
     try:
         tables, rules = live_plan(dropin.decode("utf-8"))
     except (ValueError, UnicodeDecodeError) as error:
@@ -423,19 +424,20 @@ def reply_route(host, paths: Paths, dropin: bytes) -> int:
     undo: list[list[str]] = []
 
     def put_back(why: str) -> int:
+        # A changed drop-in goes back to its old text. A new one stays (the review of bd7e0765, nit 1): its text is
+        # right for the next boot, and the rollback that follows runs the previous release's step, which, before this
+        # fix, reloaded networkd and reconfigured ens5 whenever the drop-in was missing or changed.
         undone = [" ".join(c) for c in undo if host.run(c)[0] != 0]
         try:
-            if before is None:
-                if placed.exists():
-                    placed.unlink()
-            elif placed.read_bytes() != before:
+            if before is not None and placed.read_bytes() != before:
                 placed.write_bytes(before)
         except OSError:
             undone.append(str(placed))
         left = f"; these didn't undo: {', '.join(undone)}" if undone else ""
+        kept = "as it was" if before is not None else "kept for the next boot"
         print(
-            f"shared_state: {why}: the step's own changes are undone ({len(undo)} live, and the drop-in as it "
-            f"was){left}; the release doesn't start",
+            f"shared_state: {why}: the step's own changes are undone ({len(undo)} live; the drop-in {kept})"
+            f"{left}; the release doesn't start",
             file=sys.stderr,
         )
         return 1

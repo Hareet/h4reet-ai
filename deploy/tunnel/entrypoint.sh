@@ -97,10 +97,14 @@ PROC=/proc
 GRACE=10
 SIGNALLED=""
 
-# sshd's line when a session asks for a forward another session holds: PermitListen's three ports.
+# sshd's line when a session asks for a forward another session holds: PermitListen's three ports. The whole line, and
+# nothing else: 2222 is open to anywhere, and sshd logs a stranger's user name and identification as sent, so the text
+# inside another line ("Invalid user cannot listen to port: 2201 ...") must never end anyone's session. Under -e an
+# error-level line has no "error: " prefix; sshd's trailing \r is allowed, and sshd escapes any control character in
+# what it logs, so a stranger can't start a line of their own.
 holds_forward() {
-	case "$1" in
-	*"cannot listen to port: 220"[123]*) return 0 ;;
+	case "${1%$'\r'}" in
+	"channel_setup_fwd_listener_tcpip: cannot listen to port: 220"[123]) return 0 ;;
 	esac
 	return 1
 }
