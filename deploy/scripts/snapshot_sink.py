@@ -25,6 +25,8 @@ Prometheus keeps for the dashboard's Hosts row (contracts/handover.md §10; cont
     h4.ec2.state                    one-hot by `state`: EC2's, the instance tagged h4-prod-ec2, or `none`
     h4.ec2.spot_request             one-hot by `state`: its persistent spot request's
     h4.ec2.autostart                1 while /h4reet/prod/ec2-autostart is `on`, 0 while `off`
+    h4.host.type                    1 by `host` (ec2, tunnel_end) and `type`: the type each host's Name tag finds
+                                    running, from spec 032's lists (its FR-018)
     h4.health_check.healthy_share   the share of Route 53's checkers that see the laptop's health block answer
     h4.server_action.executed       1 while the server action has run and isn't reversed
     h4.server.month_usd             the server budget's month to date, read once an hour
@@ -63,6 +65,7 @@ from pathlib import Path
 
 REGION = "us-east-1"
 EC2_NAME = "h4-prod-ec2"
+TUNNEL_END_NAME = "h4-prod-tunnel-end"
 AUTOSTART = "/h4reet/prod/ec2-autostart"
 HEALTH_CHECK_PARAMETER = "/h4reet/tunnel-end/HEALTH_CHECK_ID"
 SERVER_BUDGET = "h4-server-month"
@@ -182,6 +185,7 @@ def read_ec2(aws, out: Reads) -> None:
         return
     state = str((found[0].get("State") or {}).get("Name", "none")) if found else "none"
     out.points += one_hot("h4.ec2.state", EC2_STATES, state)
+    host_type(out, "ec2", found)
     out.ec2_state = state
     spot = found[0].get("SpotInstanceRequestId") if found else None
     if not isinstance(spot, str):
@@ -204,6 +208,37 @@ def read_ec2(aws, out: Reads) -> None:
         and code != "instance-stopped-by-user"
     ):
         out.ec2_state = "interrupted"
+
+
+def host_type(out: Reads, host: str, found: list) -> None:
+    """Spec 032 (FR-018): the one instance's type, a point by host and type; none while there is no one instance."""
+    kind = found[0].get("InstanceType") if len(found) == 1 else None
+    if isinstance(kind, str) and re.fullmatch(
+        r"[a-z][a-z0-9]{1,7}\.[a-z0-9]{3,10}", kind
+    ):
+        out.points.append(Point("h4.host.type", 1, {"host": host, "type": kind}))
+
+
+def read_tunnel_end_type(aws, out: Reads) -> None:
+    """The tunnel end's type, by its Name tag, which h4-ec2-start may replace with another listed type (spec 032)."""
+    try:
+        answer = aws.call(
+            "ec2",
+            "DescribeInstances",
+            Filters=[{"Name": "tag:Name", "Values": [TUNNEL_END_NAME]}],
+        )
+    except AwsError:
+        out.errors.append("tunnel_end_type")
+        return
+    found = [
+        i
+        for r in answer.get("Reservations") or []
+        for i in r.get("Instances") or []
+        if isinstance(i, dict)
+        and (i.get("State") or {}).get("Name") not in ("terminated", "shutting-down")
+        and {"Key": "Name", "Value": TUNNEL_END_NAME} in (i.get("Tags") or [])
+    ]
+    host_type(out, "tunnel_end", found)
 
 
 def read_autostart(aws, out: Reads) -> None:
@@ -369,6 +404,7 @@ class Sink:
         out = Reads()
         now = self.clock()
         read_ec2(self.aws, out)
+        read_tunnel_end_type(self.aws, out)
         read_autostart(self.aws, out)
         read_health_check(self.aws, out)
         read_server_action(self.aws, self.account, out)

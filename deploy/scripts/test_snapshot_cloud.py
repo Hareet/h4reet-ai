@@ -270,9 +270,11 @@ def test_the_reads_ask_by_name_and_tag_alone() -> None:
     aws = Aws()
     sink.Sink(aws, ACCOUNT, Clock()).read()
     by = {(s, o): p for s, o, p in aws.calls}
-    assert by[("ec2", "DescribeInstances")] == {
-        "Filters": [{"Name": "tag:Name", "Values": ["h4-prod-ec2"]}]
-    }
+    # EC2's read, and from spec 032 the tunnel end's type's, each by its Name tag alone.
+    assert [p for s, o, p in aws.calls if (s, o) == ("ec2", "DescribeInstances")] == [
+        {"Filters": [{"Name": "tag:Name", "Values": ["h4-prod-ec2"]}]},
+        {"Filters": [{"Name": "tag:Name", "Values": ["h4-prod-tunnel-end"]}]},
+    ]
     assert by[("budgets", "DescribeBudget")] == {
         "AccountId": ACCOUNT,
         "BudgetName": "h4-server-month",

@@ -1196,6 +1196,8 @@ def test_the_hosts_row_holds_group_5s_panels_whole() -> None:
         "The laptop's health check",
         "The handover window",
         "The server's month against its budget",
+        # Spec 032 (its FR-018; contracts/handover.md §10, amended): each host's listed type.
+        "Host types",
         # Group 10's (tasks.md T137; contracts/public-view.md §5).
         "The public view's age",
         "The public view's writes and posts",

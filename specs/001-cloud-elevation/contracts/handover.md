@@ -143,7 +143,7 @@ The functions and the loop change EC2's running state only. The relay's choice i
 | The laptop's health check (FR-054) | time series | `max(h4_health_check_healthy_share)` |
 | The handover window (FR-063) | stat | `max(max_over_time(h4_handover_window_seconds[1d]))` |
 | The server's month against its budget (FR-021) | time series | `max(h4_server_month_usd)` and `max(h4_server_budget_usd)` |
-| Host types (spec 032 FR-018) | state timeline | `max by (host, type) (h4_host_type)` |
+| Host types (FR-018, spec 032) | state timeline | `max by (host, type) (h4_host_type)` |
 
 - **The sink's cloud reads** (`deploy/scripts/snapshot_sink.py`; contracts/public-view.md §2), every 2 minutes through the tunnel end's collector (C15), with no address or ID in a label:
   - **`h4_ec2_state`** is `h4.ec2.state`, one-hot by `state` (`pending`, `running`, `stopping`, `stopped`, `shutting-down`, `terminated`, `none`): EC2's, the instance tagged `h4-prod-ec2`;
