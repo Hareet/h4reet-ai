@@ -33,6 +33,12 @@ The reading, as built ([plan.md §2](plan.md#2-the-resume-source-checks-and-two-
 - **What it changes:** while the designed PDF is served, FR-013's one source and SC-002's one-for-one hold for the interactive resume and the render; the designed PDF's claims are the Author's own words under his approval, held to the "Do not claim" lists (PDF4) rather than cited one by one (FR-014); its document properties are the ones his export wrote, a title, a producer and creator naming Chromium, and two dates, which FR-019's last clause allows the render only; and contracts/resume-source.md §4's "Links" row is the render's. The room's on-screen resume stays the cited one (FR-010, FR-013).
 - **No new event, data flow, or cost:** the PDF is still a static file from the site's own origin (V1), and its download is still `pdf_downloaded`. Its links go to hosts the corpus names; the site loads nothing from them (FR-057), and a visitor who follows one does so from a document they keep. $0.
 
+### Amendment 2026-11-22: no hand-off box (spec 033)
+
+The Author's words, 2026-11-22, verbatim, from [spec 033's intent](../033-resume-in-hand/intent.md): "Let's remove the box and option selection "The twin handed you the Author's resume." with the buttons "Read the resume now" "Keep it for later". We dont' need that option anymore, we can have the visitor drop right into being able to click around the room or start the conversation. We already have the resume button in our UI clearly labeled."
+
+What it changes here, each passage marked "(spec 033)" where it stands: FR-009 and User Story 2's Independent Test and scenario 4 (Amendment A1); contracts/room-scene.md §1 and §3 (A2); contracts/room-events.md §1 and §4 (A3); data-model.md §8 and §9 (A4); quickstart.md's visit (A5). `resume_kept` is now sent once a visit at the hand-off's end, and the visit loses `resumeKept`. The rest of the hand-off, FR-007 and FR-008, stands.
+
 ## The Author's Words
 
 The spec rests on these. Each is quoted as the intent records it, typing included; the reading beside it is the spec-writer's, to correct where it's wrong.
@@ -82,14 +88,14 @@ As a visitor, I want to choose my path and my avatar, find myself in the Author'
 
 **Why this priority**: It is the room itself (W1) and answers intent 002's problem: "nothing in it leads a visitor to my resume, my work, or the person behind them." Everything in it is a static asset, so it works without any model, which makes it the room's degraded floor too (Principle I).
 
-**Independent Test**: With the local tier off, open the room, choose a path and an avatar, watch the hand-off, choose "later", then reopen the resume from the room; reload and confirm a new choice is asked for.
+**Independent Test**: With the local tier off, open the room, choose a path and an avatar, watch the hand-off, choose "later", then reopen the resume from the room; reload and confirm a new choice is asked for. **(spec 033, Amendment A1)** There is no "later" to choose: the room opens at the hand-off's end.
 
 **Acceptance Scenarios**:
 
 1. **Given** a visitor opens the room, **When** the page loads, **Then** they are asked for a path (engineer or non-engineer) and one of the pre-generated avatars; the AI disclosure and a link to the data-flow disclosure are visible; and nothing in the room plays until both are chosen.
 2. **Given** both are chosen, **When** the visitor confirms, **Then** the work area appears: the twin's avatar standing at the computer desk with its laptop and screen, the snowboard hanging on the left, the bicycle on the right, and the small window with artwork above it, looking out on a fence and a tree.
 3. **Given** the work area has appeared, **When** the hand-off plays, **Then** the twin's avatar hands the visitor's avatar a paper, the resume; no control skips it; it ends within 5 seconds; and assistive technology announces it as text.
-4. **Given** the hand-off has ended, **When** the visitor chooses to look at the resume now, **Then** the interactive resume opens; **When** they choose later, **Then** the objects and free talk become available, and the resume stays one action away for the rest of the visit.
+4. **Given** the hand-off has ended, **When** the visitor chooses to look at the resume now, **Then** the interactive resume opens; **When** they choose later, **Then** the objects and free talk become available, and the resume stays one action away for the rest of the visit. **(spec 033, Amendment A1)** **Given** the hand-off has ended, **Then** the objects and free talk are available at once, with no choice asked, and the resume is one action away for the rest of the visit.
 5. **Given** a visit is under way, **When** the visitor reloads the page, **Then** a new visit starts at the choice of path and avatar, and the hand-off plays again.
 6. **Given** the visitor's device asks for reduced motion, **When** the hand-off plays, **Then** a reduced-motion version plays, no longer than the full one.
 7. **Given** the local tier is off, or the kill switch is `degraded` or unknown, **When** a visitor enters, **Then** the choice, the work area, the hand-off, and the resume all work.
@@ -235,7 +241,7 @@ Every requirement below is in EARS form. "The room" means the whole visitor-faci
 
 - **FR-007**: WHEN the work area first appears in a visit, THE SYSTEM SHALL play the hand-off, in which the twin's avatar hands the visitor's avatar a paper, the resume, and SHALL offer no control that skips it (W6); THE SYSTEM SHALL make the objects, the resume, and free talk available when it ends.
 - **FR-008**: THE SYSTEM SHALL end the hand-off within 5 seconds of its start, SHALL announce it as text to assistive technology, and WHERE the visitor's device asks for reduced motion, SHALL play a reduced-motion hand-off of the same length or shorter.
-- **FR-009**: WHEN the hand-off ends, THE SYSTEM SHALL offer the visitor the choice to open the resume now or keep it for later, and WHEN they keep it, SHALL keep the resume one action away for the rest of the visit.
+- **FR-009**: WHEN the hand-off ends, THE SYSTEM SHALL offer the visitor the choice to open the resume now or keep it for later, and WHEN they keep it, SHALL keep the resume one action away for the rest of the visit. **(spec 033, Amendment A1)** WHEN the hand-off ends, THE SYSTEM SHALL offer no choice: the room opens at once, and the resume stays one action away for the rest of the visit ("Resume", and in 3D the paper in the visitor's hand) ([spec 033](../033-resume-in-hand/spec.md), FR-001 to FR-009).
 
 **The interactive resume**
 

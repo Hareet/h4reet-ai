@@ -57,7 +57,7 @@ import type { AvatarId } from "../../choice/avatars";
 import type { RoomScene } from "../compose/bundle";
 import { handoffDuration } from "../handoff";
 import type { FigureId, FigureSignal, FigureWhy } from "../stage";
-import { showHandoff as drawHandoff } from "./bundle3d";
+import { keptPaper, showHandoff as drawHandoff } from "./bundle3d";
 import type { Room3D } from "./bundle3d";
 import type { FigureDriver } from "./figure";
 import { gripCentre, gripMatrix } from "./grip";
@@ -672,12 +672,12 @@ export function createAvatarFigures(
   /** The kept paper into the visitor's holding hand, once the hand-off has ended and the avatar shows (R-09). */
   function keepPaper(): void {
     const f = figures.visitor;
-    const { kept, atTwin, atVisitor } = room.paper;
+    const { kept } = room.paper;
     if (phase !== "after" || !f.shown || !f.hand) return;
     if (kept.parent === f.hand) return;
-    // The sheet the hand-off carried and the kept one both sit at the visitor's hand when it ends: the kept one shows.
-    atTwin.opacity = 0;
-    atVisitor.opacity = 1;
+    // The sheet the hand-off carried and the kept one both sit at the visitor's hand when it ends: the kept one shows,
+    // and the other isn't drawn (spec 033, FR-011).
+    keptPaper(room);
     if (!within(kept, f.instance)) {
       const parent = kept.parent ?? room.scene;
       paperHome = {
@@ -1171,6 +1171,8 @@ export function createAvatarFigures(
       for (const f of wanting) tryShow(f);
       play(figures.visitor);
       play(figures.twin);
+      // Spec 033 (FR-011): the kept sheet shows from the hand-off's end, in the hand or at the anchor.
+      keptPaper(room);
       keepPaper();
     },
     settled,

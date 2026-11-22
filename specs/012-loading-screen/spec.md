@@ -148,7 +148,7 @@ As the Author, I want a graph of how often visitors enter before the room has fi
 
 1. **Given** a visit whose loader gives way at the ceiling with a file still loading, **When** it gives way, **Then** one `loading_cut_short` is sent, with no identifier.
 2. **Given** a visit whose files all end before the ceiling, **When** the loader gives way, **Then** no event is sent.
-3. **Given** the dashboard's "Room" row, **When** the Author opens it, **Then** "Visits whose loading was cut short" shows `loading_cut_short` over `resume_opened` plus `resume_kept`.
+3. **Given** the dashboard's "Room" row, **When** the Author opens it, **Then** "Visits whose loading was cut short" shows `loading_cut_short` over `resume_opened` plus `resume_kept`. **(spec 033)** The denominator is `resume_kept` alone since [spec 033](../033-resume-in-hand/spec.md) (its FR-013; Amendments A6, A7), sent once a visit at the hand-off's end.
 
 ---
 
@@ -256,7 +256,7 @@ Terms used below, beside spec 005's (the window, the HUD, the layouts, the clear
 
 - **FR-046**: WHEN the loader gives way at the ceiling with a needed file not ended, THE ROOM SHALL send one usage event of the new kind `loading_cut_short`, with no identifier and nothing else, on today's beacon (spec 002 FR-054; its room-events.md §1), at most once a visit. A loader that gives way because every file ended, or because the room went to 2D, SHALL send none.
 - **FR-047**: THE ROOM SHALL send no event for the loader's value, its time, its stages, a hint, a hint control, or a file. Nothing about the loading, its duration, or the visitor's connection SHALL leave the device but FR-046's event.
-- **FR-048**: THE DASHBOARD'S "Room" row SHALL gain the panel "Visits whose loading was cut short": `loading_cut_short` over `resume_opened` plus `resume_kept`, read as "Visits that walked" is read (spec 000's contracts/telemetry.md §7.8). Its description SHALL say that the denominator counts 2D visits too, which never show the loader, so the share reads low.
+- **FR-048**: THE DASHBOARD'S "Room" row SHALL gain the panel "Visits whose loading was cut short": `loading_cut_short` over `resume_opened` plus `resume_kept`, read as "Visits that walked" is read (spec 000's contracts/telemetry.md §7.8). Its description SHALL say that the denominator counts 2D visits too, which never show the loader, so the share reads low. **(spec 033)** The denominator is `resume_kept` alone since [spec 033](../033-resume-in-hand/spec.md) (its FR-013; Amendments A6, A7), sent once a visit at the hand-off's end.
 - **FR-049**: IN A DRAFTS BUILD, THE FRAME LOG (spec 004's R-70) SHALL record the loader's showing, each part's end with its share, its giving way and why (`ready`, `ceiling`, or `2d`), and each hint shown, in page memory only. A release build SHALL keep no log.
 
 **Data flow**

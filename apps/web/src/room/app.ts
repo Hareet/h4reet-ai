@@ -5,7 +5,7 @@
 // - The choice screen comes first. Behind it, the WebGL 2 check runs and, only if it passes, the 3D chunk (scene.ts)
 //   is imported: a device without WebGL 2 never downloads Three.js.
 // - "Enter" builds the room with its controls inert, mounts the 3D scene or the 2D drawing, and plays the hand-off,
-//   which nothing skips; its end offers the resume now or later and opens the room.
+//   which nothing skips; its end opens the room at once, with no offer (spec 033, FR-001), and sends resume_kept.
 // - The quality controller, a lost context, or the visitor's "2D view" moves the room to 2D, once, keeping the visit;
 //   each studio model whose load hadn't recorded its end is skipped then (spec 004, FR-071).
 // - Every selectable runs its action from the bundle's index (spec 004, FR-036 to FR-038; R-33): an unready topic
@@ -36,7 +36,7 @@
 //   h4FrameLog() on the window. A release build gives none, so the room keeps no log.
 // - The target (spec 008, Phase 1; FR-007 to FR-013; plan.md R-06): one store a visit, in this function's memory
 //   (walk/target.ts's reducer), so it outlives the fall to 2D. The stage's pointer reports a hover's and a press's pick
-//   and the "In the room" list each button's focus, only once the hand-off and its offer are over, and only for a
+//   and the "In the room" list each button's focus, only once the hand-off is over, and only for a
 //   selectable the index lists (FR-010); each change goes to the stage that draws, which shows it with the highlight.
 //   A selection, on any path, clears it in the same call (FR-011); the fall to 2D resets it. A target sends nothing:
 //   no event, request, or storage, and no log line outside a drafts build's frame log (FR-013).
@@ -122,6 +122,7 @@ import { caseFor } from "./signals/tier";
 import type { TierValue } from "./signals/tier";
 import { classifyTurn, createCostChannel } from "./signals/turn-cost";
 import type { CostChannel } from "./signals/turn-cost";
+import { HELD_PAPER } from "./stage";
 import type { ClearArea, FigureSignal, FrameGiven, SceneModule, Stage, Stage3D, WalkEnd } from "./stage";
 import { renderTextCopy } from "./text-copy";
 import type { TextCopy } from "./text-copy";
@@ -192,7 +193,6 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   let controller: QualityController | null = null;
   let unwatch: (() => void) | null = null;
   let handoff: Handoff | null = null;
-  let offering = false;
   let resumeOpen = false;
   let copy: TextCopy | null = null;
   /** The room text, once room-data.json has loaded at Enter; null before, and for good if it failed twice. */
@@ -201,8 +201,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   /** The room's target (spec 008): the selectable the stage shows with the highlight, and what set it. */
   let targeting: TargetState = NO_TARGET;
 
-  /** The room takes input only after the hand-off and its offer. */
-  const open = (): boolean => visit.stage === "room" && !offering;
+  /** The room takes input only after the hand-off (spec 033, FR-001: no offer follows it). */
+  const open = (): boolean => visit.stage === "room";
 
   /** The HUD's docked panels' states (spec 005): every panel starts open (FR-020). */
   let hudState: HudState = OPENING;
@@ -335,7 +335,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     for (const b of doc.querySelectorAll<HTMLButtonElement>(".room-list button[data-object-id]"))
       if (b.dataset.objectId === after) b.setAttribute("aria-current", "true");
       else b.removeAttribute("aria-current");
-    split?.setTarget(after);
+    // Spec 033 (the review's nit 4): the held paper is no list entry, so the split list's selected entry (the piece
+    // targeted, else hovered, else the open conversation's) never gives way to it.
+    split?.setTarget(after === HELD_PAPER ? null : after);
     try {
       stage?.setTarget(after);
     } catch {
@@ -345,10 +347,12 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   }
 
   /** A targeting input's name: taken only while the room takes input, and only for a selectable the index lists, or
-   *  none (spec 008, FR-008, FR-010). */
+   *  none (spec 008, FR-008, FR-010); or, in the 3D room, the paper in the visitor's hand (spec 033, FR-006, FR-010). */
   function targetInput(input: TargetInput, id: string | null): void {
     if (!open()) return;
-    if (id !== null && !deps.room.selectables.some((s) => s.id === id)) return;
+    if (id === HELD_PAPER) {
+      if (stage?.mode !== "3d") return;
+    } else if (id !== null && !deps.room.selectables.some((s) => s.id === id)) return;
     retarget({ kind: "name", input, id });
   }
   const pdfFollowed = (): void => emit({ kind: "pdf_downloaded" });
@@ -912,6 +916,10 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     showPlaceholders();
     layout.setInteractive(false);
     layout.resumeButton.addEventListener("click", openResume);
+    // Spec 033 (FR-009; Q3): "Resume" is the held paper's keyboard path: its focus shows the paper's highlight in 3D,
+    // as an "In the room" entry's focus shows its piece's.
+    layout.resumeButton.addEventListener("focus", () => targetInput("focus", HELD_PAPER));
+    layout.resumeButton.addEventListener("blur", () => targetInput("focus", null));
     layout.flatButton.addEventListener("click", () => {
       if (!open()) return;
       toFlat("visitor");
@@ -1013,7 +1021,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         announcer.say(line);
       },
       show: (progress) => stage?.showHandoff(progress),
-      onDone: offerResume,
+      onDone: enterRoom,
     });
   }
 
@@ -1238,33 +1246,18 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     if (stage?.mode === "3d") (stage as Stage3D).say?.(line);
   }
 
-  function offerResume(): void {
+  /** Spec 033 (FR-001 to FR-005): the hand-off's end opens the room at once, with no offer: its controls and pieces
+   *  take input, the walking control shows where the stage walks, focus stays on the room's heading, where the hand-off
+   *  held it (FR-002), and resume_kept goes, once a visit: the paper is kept in the visitor's hand (FR-003). */
+  function enterRoom(): void {
     handoffEnded();
     const layout = room;
     if (!layout) return;
     visit.stage = "room";
     introduceDogVisitor();
-    offering = true;
-    const settle = (): void => {
-      offering = false;
-      removeOffer();
-      layout.setInteractive(true);
-      layout.setWalkOffered(walker(stage) !== null);
-    };
-    const removeOffer = layout.offer(
-      () => {
-        if (!offering) return;
-        settle();
-        openResume();
-      },
-      () => {
-        if (!offering) return;
-        settle();
-        visit.resumeKept = true;
-        emit({ kind: "resume_kept" });
-        layout.resumeButton.focus();
-      },
-    );
+    layout.setInteractive(true);
+    layout.setWalkOffered(walker(stage) !== null);
+    emit({ kind: "resume_kept" });
   }
 
   function openResume(): void {
@@ -1310,6 +1303,14 @@ export function startRoom(deps: RoomDeps): RoomHandle {
    * config/room-topics.yaml, which the gateway's pack carries, so nothing here sends it. `resume`: the resume opens.
    */
   function selectObject(id: string): void {
+    // Spec 033 (FR-007): the paper in the visitor's hand opens the resume through "Resume"'s own handler, clearing the
+    // target in the same call; no object_selected, since it isn't a selectable of the index.
+    if (id === HELD_PAPER) {
+      if (!open() || stage?.mode !== "3d") return;
+      retarget({ kind: "select", id });
+      openResume();
+      return;
+    }
     const selectable = deps.room.selectables.find((s) => s.id === id);
     if (!open() || !talk || !selectable) return;
     emit({ kind: "object_selected", id: selectable.id });

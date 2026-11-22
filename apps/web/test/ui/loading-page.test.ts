@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest";
 import { assetEvent } from "../../src/asset-events";
 import { LOADING_CEILING_MS } from "../../src/room/quality";
 import type { ExpectedFile, SceneOptions } from "../../src/room/stage";
-import { button, enter, flush, parseCss, roomIndex, start, stylesheets } from "../helpers/room";
+import { enter, flush, parseCss, roomIndex, start, stylesheets } from "../helpers/room";
 import type { CssRule, Visit } from "../helpers/room";
 
 const LOADING_CSS = stylesheets().find((s) => s.path.endsWith("src/room/loading/loading.css"))?.text ?? "";
@@ -198,11 +198,11 @@ describe("the page behind the loader, through the room (FR-024, FR-027)", () => 
     await flush();
     expect(around?.hasAttribute("inert")).toBe(false);
     expect(v.doc.querySelector(".hud-bar")?.hasAttribute("inert")).toBe(true);
-    // As today: inert through the hand-off and its offer, reachable once the offer is answered.
-    v.clock.advance(5000);
+    // As today: inert through the hand-off, reachable at its end (spec 033: no offer after it).
+    v.clock.advance(4000);
     await flush();
     expect(v.doc.querySelector(".hud-bar")?.hasAttribute("inert")).toBe(true);
-    button(v.doc, "Keep it for later").click();
+    v.clock.advance(1000);
     await flush();
     expect(v.doc.querySelector(".hud-bar")?.hasAttribute("inert")).toBe(false);
   });

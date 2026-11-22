@@ -3154,7 +3154,7 @@
       "type": "stat",
       "id": 64,
       "title": "Visits shown the 2D mode",
-      "description": "The share of visits the room showed in its 2D mode (the visitor's choice, a slow device, a lost context, or no WebGL 2) over the dashboard's range: mode_2d events over resume_opened plus resume_kept, a stand-in for visits, since no visit is counted (spec 002, FR-054, FR-056). A visit that keeps the resume and opens it later counts twice, so the share reads low rather than high; with no visit in the range it has no value.",
+      "description": "The share of visits the room showed in its 2D mode (the visitor's choice, a slow device, a lost context, or no WebGL 2) over the dashboard's range: mode_2d events over resume_kept, a stand-in for visits, which the room sends once a visit at the hand-off's end (spec 033, FR-003), since no visit is counted (spec 002, FR-054, FR-056). A range that reaches back before the release that carries spec 033 to the serving host (a range between the merge and that release too) leaves out of the denominator the visits then that read the resume at once, which sent resume_opened instead, so the share reads high for that span; with no visit in the range it has no value.",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"
@@ -3172,7 +3172,7 @@
             "type": "prometheus",
             "uid": "prom"
           },
-          "expr": "sum(increase(h4_room_events_total{kind=\"mode_2d\"}[$__range])) / sum(increase(h4_room_events_total{kind=~\"resume_opened|resume_kept\"}[$__range]))",
+          "expr": "sum(increase(h4_room_events_total{kind=\"mode_2d\"}[$__range])) / sum(increase(h4_room_events_total{kind=\"resume_kept\"}[$__range]))",
           "range": true,
           "instant": false,
           "legendFormat": "2D share"
@@ -3213,7 +3213,7 @@
       "type": "stat",
       "id": 78,
       "title": "Visits whose avatar failed",
-      "description": "The share of visits in which a figure's avatar file failed to load after its retry, so the figure showed its fallback (spec 009, FR-032, FR-034): the twin's own model or one of its clips among them since spec 016 (its FR-050, FR-051), the twin then showing the stand-in, the room's dog's model or one of its clips since spec 025 (its FR-026), in dinosaur visits since spec 028 (its FR-018), the dog then not showing, and the visitors' avatars' files: avatar_failed events, at most one a visit and with no identifier, over resume_opened plus resume_kept, a stand-in for visits, read as the 2D share is read. A visit that keeps the resume and opens it later counts twice, so the share reads low rather than high; with no visit in the range it has no value.",
+      "description": "The share of visits in which a figure's avatar file failed to load after its retry, so the figure showed its fallback (spec 009, FR-032, FR-034): the twin's own model or one of its clips among them since spec 016 (its FR-050, FR-051), the twin then showing the stand-in, the room's dog's model or one of its clips since spec 025 (its FR-026), in dinosaur visits since spec 028 (its FR-018), the dog then not showing, and the visitors' avatars' files: avatar_failed events, at most one a visit and with no identifier, over resume_kept, a stand-in for visits, which the room sends once a visit at the hand-off's end (spec 033, FR-003), read as the 2D share is read. A range that reaches back before the release that carries spec 033 to the serving host (a range between the merge and that release too) leaves out of the denominator the visits then that read the resume at once, which sent resume_opened instead, so the share reads high for that span; with no visit in the range it has no value.",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"
@@ -3231,7 +3231,7 @@
             "type": "prometheus",
             "uid": "prom"
           },
-          "expr": "sum(increase(h4_room_events_total{kind=\"avatar_failed\"}[$__range])) / sum(increase(h4_room_events_total{kind=~\"resume_opened|resume_kept\"}[$__range]))",
+          "expr": "sum(increase(h4_room_events_total{kind=\"avatar_failed\"}[$__range])) / sum(increase(h4_room_events_total{kind=\"resume_kept\"}[$__range]))",
           "range": true,
           "instant": false,
           "legendFormat": "Avatar failed share"
@@ -3380,7 +3380,7 @@
       "type": "stat",
       "id": 77,
       "title": "Visits that walked",
-      "description": "The share of visits that entered the walking view over the dashboard's range: walk_started events, one a visit at its first entry, over resume_opened plus resume_kept, a stand-in for visits, since no visit is counted (spec 008, FR-051, FR-053; spec 002, FR-054). A visit that keeps the resume and opens it later counts twice, so the share reads low rather than high; with no visit in the range it has no value.",
+      "description": "The share of visits that entered the walking view over the dashboard's range: walk_started events, one a visit at its first entry, over resume_kept, a stand-in for visits, which the room sends once a visit at the hand-off's end (spec 033, FR-003), since no visit is counted (spec 008, FR-051, FR-053; spec 002, FR-054). A range that reaches back before the release that carries spec 033 to the serving host (a range between the merge and that release too) leaves out of the denominator the visits then that read the resume at once, which sent resume_opened instead, so the share reads high for that span; with no visit in the range it has no value.",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"
@@ -3398,7 +3398,7 @@
             "type": "prometheus",
             "uid": "prom"
           },
-          "expr": "sum(increase(h4_room_events_total{kind=\"walk_started\"}[$__range])) / sum(increase(h4_room_events_total{kind=~\"resume_opened|resume_kept\"}[$__range]))",
+          "expr": "sum(increase(h4_room_events_total{kind=\"walk_started\"}[$__range])) / sum(increase(h4_room_events_total{kind=\"resume_kept\"}[$__range]))",
           "range": true,
           "instant": false,
           "legendFormat": "walked share"
@@ -3439,7 +3439,7 @@
       "type": "stat",
       "id": 83,
       "title": "Visits in full screen",
-      "description": "The share of visits that entered full screen over the dashboard's range: fullscreen_entered events, one a visit at its first entry, over resume_opened plus resume_kept, a stand-in for visits, since no visit is counted (spec 005, FR-060, FR-062; spec 002, FR-054). A visit that keeps the resume and opens it later counts twice, so the share reads low rather than high; with no visit in the range it has no value. A browser that offers no full screen, as an iPhone's, shows no control, so its visits never count here.",
+      "description": "The share of visits that entered full screen over the dashboard's range: fullscreen_entered events, one a visit at its first entry, over resume_kept, a stand-in for visits, which the room sends once a visit at the hand-off's end (spec 033, FR-003), since no visit is counted (spec 005, FR-060, FR-062; spec 002, FR-054). A range that reaches back before the release that carries spec 033 to the serving host (a range between the merge and that release too) leaves out of the denominator the visits then that read the resume at once, which sent resume_opened instead, so the share reads high for that span; with no visit in the range it has no value. A browser that offers no full screen, as an iPhone's, shows no control, so its visits never count here.",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"
@@ -3457,7 +3457,7 @@
             "type": "prometheus",
             "uid": "prom"
           },
-          "expr": "sum(increase(h4_room_events_total{kind=\"fullscreen_entered\"}[$__range])) / sum(increase(h4_room_events_total{kind=~\"resume_opened|resume_kept\"}[$__range]))",
+          "expr": "sum(increase(h4_room_events_total{kind=\"fullscreen_entered\"}[$__range])) / sum(increase(h4_room_events_total{kind=\"resume_kept\"}[$__range]))",
           "range": true,
           "instant": false,
           "legendFormat": "full-screen share"
@@ -3498,7 +3498,7 @@
       "type": "stat",
       "id": 84,
       "title": "Visits whose loading was cut short",
-      "description": "The share of visits whose loading screen gave way at its 7-second ceiling with the room's files still loading, over the dashboard's range: loading_cut_short events, one a visit, over resume_opened plus resume_kept, a stand-in for visits, since no visit is counted (spec 012, FR-046, FR-048; spec 002, FR-054). It shows how often the ceiling binds, which says whether the first visit is too heavy for visitors' connections. A rough share, in both directions: 2D visits count in the denominator and never show the loader, and a visit that keeps the resume and opens it later counts twice there, which pull it low; and the event is sent before the hand-off, so a visit cut short that leaves before the hand-off's offer counts in the numerator alone, which pulls it high. With no visit in the range it has no value.",
+      "description": "The share of visits whose loading screen gave way at its 7-second ceiling with the room's files still loading, over the dashboard's range: loading_cut_short events, one a visit, over resume_kept, a stand-in for visits, which the room sends once a visit at the hand-off's end (spec 033, FR-003), since no visit is counted (spec 012, FR-046, FR-048; spec 002, FR-054). It shows how often the ceiling binds, which says whether the first visit is too heavy for visitors' connections. A rough share, in both directions: 2D visits count in the denominator and never show the loader, which pulls it low; and the event is sent before the hand-off, so a visit cut short that leaves before the hand-off's end counts in the numerator alone, which pulls it high; and a range that reaches back before the release that carries spec 033 to the serving host (a range between the merge and that release too) leaves out of the denominator the visits then that read the resume at once, which sent resume_opened instead, so the share reads high for that span. With no visit in the range it has no value.",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"
@@ -3516,7 +3516,7 @@
             "type": "prometheus",
             "uid": "prom"
           },
-          "expr": "sum(increase(h4_room_events_total{kind=\"loading_cut_short\"}[$__range])) / sum(increase(h4_room_events_total{kind=~\"resume_opened|resume_kept\"}[$__range]))",
+          "expr": "sum(increase(h4_room_events_total{kind=\"loading_cut_short\"}[$__range])) / sum(increase(h4_room_events_total{kind=\"resume_kept\"}[$__range]))",
           "range": true,
           "instant": false,
           "legendFormat": "cut-short share"

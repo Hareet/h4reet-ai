@@ -27,7 +27,6 @@ import { sweepScreens } from "../../src/room/compose/stages";
 import { ICON_PATHS } from "../../src/room/hud/icons";
 import { renderRoom } from "../../src/room/layout";
 import {
-  button,
   enter,
   flush,
   matchesRule,
@@ -118,7 +117,6 @@ async function visit(screen: { w: number; h: number }, avatar: string, o: { webg
   await enter(v, "engineer", avatar);
   await throughLoader(v);
   v.clock.advance(5000);
-  button(v.doc, "Keep it for later").click();
   await flush();
   (v as unknown as { press: typeof press }).press = press;
   return v;

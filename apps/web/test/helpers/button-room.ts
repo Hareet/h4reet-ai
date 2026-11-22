@@ -137,7 +137,7 @@ export async function open(v: Visit, what: Open): Promise<void> {
   }
 }
 
-/** The room in a layout, past the hand-off ("Keep it for later"), walking where the layout asks, with the conversation
+/** The room in a layout, past the hand-off (spec 033: no offer), walking where the layout asks, with the conversation
  *  or the resume panel open where the test asks, the skin in place. */
 export async function room(
   layout: Layout,

@@ -79,7 +79,6 @@ async function room(
   });
   await enter(v, "engineer");
   v.clock.advance(5000);
-  button(v.doc, "Keep it for later").click();
   await flush();
   const outcomes: TurnResult[] = [];
   const cost = v.room.cost;
@@ -482,7 +481,6 @@ describe("when the twin can't answer (T060; FR-036, FR-054)", () => {
     });
     await enter(v, "engineer");
     v.clock.advance(5000);
-    button(v.doc, "Keep it for later").click();
     await flush();
     return { v, calls };
   }

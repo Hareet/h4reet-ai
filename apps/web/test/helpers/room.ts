@@ -773,13 +773,12 @@ export async function throughLoader(v: Visit, stepMs = 100): Promise<void> {
   }
 }
 
-/** A whole arrival: the choice, the loader while it shows (spec 012), the hand-off to its end, then "Keep it for
- *  later". */
+/** A whole arrival: the choice, the loader while it shows (spec 012), and the hand-off to its end, which opens the
+ *  room (spec 033: no offer). */
 export async function intoRoom(v: Visit): Promise<void> {
   await enter(v);
   await throughLoader(v);
   v.clock.advance(5000);
-  button(v.doc, "Keep it for later").click();
   await flush();
 }
 

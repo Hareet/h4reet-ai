@@ -1,7 +1,8 @@
 // T035 (spec 002; FR-007–FR-009; contracts/room-scene.md §3; research.md R-13): the hand-off, on a fake clock. It lasts
 // 4.5 s in 3D (never more than 5), 1 s under reduced motion, and three 1.5 s still frames in 2D; no control skips it,
-// and keys and clicks during it change nothing but focus; its line goes to a polite live region; at its end focus is on
-// "Read the resume now", and "Keep it for later" leaves "Resume" one action away for the rest of the visit.
+// and keys and clicks during it change nothing but focus; its line goes to a polite live region. Spec 033 (FR-001 to
+// FR-005; its Amendment A1, A2): at its end there is no offer, the room is the visitor's at once, focus stays on the
+// room's heading, `resume_kept` goes once, and "Resume" is one action away for the rest of the visit.
 import { describe, expect, it } from "vitest";
 
 import {
@@ -19,7 +20,12 @@ import {
 } from "../helpers/room";
 import type { Visit } from "../helpers/room";
 
-const offered = (v: Visit): boolean => hasButton(v.doc, "Read the resume now") && hasButton(v.doc, "Keep it for later");
+/** Any trace of spec 002's offer, which spec 033 removed: its group, its line, or either of its buttons. */
+const offered = (v: Visit): boolean =>
+  v.doc.querySelector(".room-offer") !== null ||
+  textOf(v.doc.body).includes("The twin handed you the Author's resume.") ||
+  hasButton(v.doc, "Read the resume now") ||
+  hasButton(v.doc, "Keep it for later");
 const resumeOpen = (v: Visit): boolean => {
   const panel = v.doc.querySelector(".resume-panel");
   return panel !== null && !panel.hasAttribute("hidden");
@@ -35,7 +41,7 @@ describe("the hand-off's length", () => {
     expect(offered(v)).toBe(false);
     v.clock.advance(1);
     expect(v.room.visit.stage).toBe("room");
-    expect(offered(v)).toBe(true);
+    expect(offered(v)).toBe(false);
     // The scene drew it from the start to the paper in the visitor's hands.
     expect(v.scene.handoff[0]).toBe(0);
     expect(v.scene.handoff.at(-1)).toBe(1);
@@ -50,7 +56,7 @@ describe("the hand-off's length", () => {
     expect(v.room.visit.stage).toBe("handoff");
     v.clock.advance(1);
     expect(v.room.visit.stage).toBe("room");
-    expect(offered(v)).toBe(true);
+    expect(offered(v)).toBe(false);
   });
 
   it("is three still frames of 1.5 s each in 2D", async () => {
@@ -114,57 +120,67 @@ describe("during the hand-off", () => {
   });
 });
 
-describe("after the hand-off", () => {
-  it('moves focus to "Read the resume now", beside "Keep it for later"', async () => {
-    const v = start({ webgl: true });
-    await enter(v);
-    v.clock.advance(4500);
-    expect(v.doc.activeElement).toBe(button(v.doc, "Read the resume now"));
-    expect(hasButton(v.doc, "Keep it for later")).toBe(true);
-  });
+describe("after the hand-off (spec 033)", () => {
+  for (const [name, options] of [
+    ["3D", { webgl: true }],
+    ["3D under reduced motion", { webgl: true, reducedMotion: true }],
+    ["2D", { webgl: false }],
+  ] as const) {
+    it(`offers nothing and opens the room at once, focus kept on the heading (${name}; FR-001, FR-002)`, async () => {
+      const v = start(options);
+      await enter(v);
+      expect(v.doc.activeElement?.tagName).toBe("H1");
+      v.clock.advance(5000);
+      expect(v.room.visit.stage).toBe("room");
+      expect(offered(v)).toBe(false);
+      expect(v.doc.activeElement?.tagName).toBe("H1");
+      for (const el of v.doc.querySelectorAll(".room-toolbar button, .room-list button, .talk input, .talk button")) {
+        expect(el.closest("[inert], [hidden]"), nameOf(el)).toBeNull();
+      }
+      // The next Tab from the heading is the bar's first control, "Resume".
+      expect(tabOrder(v.doc)[0]).toBe(button(v.doc, "Resume"));
+    });
+  }
 
-  it('opens the interactive resume on "Read the resume now", and Escape returns focus to "Resume"', async () => {
+  it("sends resume_kept once, at the hand-off's end, and the visit holds no resumeKept (FR-003, FR-004)", async () => {
     const v = start({ webgl: true });
     await enter(v);
-    v.clock.advance(5000);
-    button(v.doc, "Read the resume now").click();
-    await flush();
-    expect(resumeOpen(v)).toBe(true);
-    expect(v.events).toEqual([{ kind: "resume_opened" }]);
-    expect(v.doc.querySelector(".resume-panel")?.contains(v.doc.activeElement)).toBe(true);
-    v.doc.activeElement?.dispatchEvent(new v.win.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-    expect(resumeOpen(v)).toBe(false);
-    expect(v.doc.activeElement).toBe(button(v.doc, "Resume"));
-    expect(offered(v)).toBe(false);
-  });
-
-  it('keeps "Resume" one action away for the rest of the visit after "Keep it for later"', async () => {
-    const v = start({ webgl: true });
-    await enter(v);
-    v.clock.advance(5000);
-    button(v.doc, "Keep it for later").click();
+    v.clock.advance(4499);
+    expect(v.events).toEqual([]);
+    v.clock.advance(1);
     expect(v.events).toEqual([{ kind: "resume_kept" }]);
-    expect(v.room.visit.resumeKept).toBe(true);
-    expect(offered(v)).toBe(false);
+    v.clock.advance(10 * 60_000);
+    expect(v.events).toEqual([{ kind: "resume_kept" }]);
+    expect(v.room.visit).not.toHaveProperty("resumeKept");
+  });
+
+  it('keeps "Resume" one action away for the rest of the visit, and Escape returns focus to it (FR-005)', async () => {
+    const v = start({ webgl: true });
+    await enter(v);
+    v.clock.advance(5000);
     const resume = button(v.doc, "Resume");
-    expect(v.doc.activeElement).toBe(resume);
     v.clock.advance(10 * 60_000);
     expect(button(v.doc, "Resume")).toBe(resume);
     expect(resume.closest("[inert], [hidden]")).toBeNull();
     expect(resume.disabled).toBe(false);
     resume.click();
+    await flush();
     expect(resumeOpen(v)).toBe(true);
     expect(v.events).toEqual([{ kind: "resume_kept" }, { kind: "resume_opened" }]);
+    expect(v.doc.querySelector(".resume-panel")?.contains(v.doc.activeElement)).toBe(true);
+    v.doc.activeElement?.dispatchEvent(new v.win.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(resumeOpen(v)).toBe(false);
+    expect(v.doc.activeElement).toBe(resume);
   });
 
-  it("makes the objects, the resume, and the text box available once the visitor has chosen", async () => {
-    const v = start();
+  it("takes a piece's selection at once, with no step between (FR-001)", async () => {
+    const v = start({ webgl: true });
     await enter(v);
     v.clock.advance(5000);
-    button(v.doc, "Keep it for later").click();
-    for (const el of v.doc.querySelectorAll(".room-toolbar button, .room-list button, .talk input, .talk button")) {
-      expect(el.closest("[inert], [hidden]"), nameOf(el)).toBeNull();
-    }
+    const entry = v.doc.querySelector<HTMLButtonElement>(".room-list button[data-object-id]");
+    if (!entry) throw new Error("no list entry");
+    entry.click();
+    expect(v.events.map((e) => e.kind)).toEqual(["resume_kept", "object_selected"]);
   });
 });
 

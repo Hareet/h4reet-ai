@@ -48,7 +48,9 @@ import {
   disposeRoom,
   frameCamera,
   framedBoxes,
+  heldPaperArea,
   keepPaper,
+  keptPaper,
   selectablePicker,
   showHandoff as drawHandoff,
 } from "./scene/bundle3d";
@@ -90,6 +92,7 @@ import { createTextureLedger } from "./scene/ledger";
 import type { Loader } from "./scene/loader";
 import { qualitySettings } from "./scene/levels";
 import { createInk } from "./scene/look";
+import { HELD_PAPER } from "./stage";
 import type { ExpectedFile, FrameGiven, SceneOptions, Stage3D } from "./stage";
 
 /** A figure's framed box moved from its start to a pose (spec 014, PD-11): its corners turned about Y by the heading's
@@ -282,6 +285,8 @@ export function createScene(options: SceneOptions): Stage3D {
     room,
     style: part.look.highlight,
     members: (id) => members.get(id) ?? [],
+    // Spec 033 (FR-006): the held paper's border is spec 008's, round the kept sheet and its back.
+    figures: (id) => (id === HELD_PAPER ? [room.paper.kept] : []),
   });
 
   // The studio models the 3D part sets, loaded as R-28 has it (scene/loader.ts): above ADR 0010's floor, which the room
@@ -325,6 +330,8 @@ export function createScene(options: SceneOptions): Stage3D {
   let handedOff = false;
   void handoffEnded.then(() => {
     handedOff = true;
+    // Spec 033 (FR-011): the kept sheet is the one drawn from the hand-off's end, whether or not figures run.
+    keptPaper(room);
   });
   const gate = (): Promise<unknown> => (closed ? handoffEnded : Promise.resolve());
   // What the stage will load (spec 012): resolved once the loader's chunk has built the entries; never rejected.
@@ -644,11 +651,22 @@ export function createScene(options: SceneOptions): Stage3D {
     if (hud.some((b) => px > b.x && px < b.x + b.w && py > b.y && py < b.y + b.h)) return null;
     return clearNdc(ndc, size, area);
   };
+  /** Spec 033 (FR-008, FR-010): whether a canvas point, in normalized device coordinates, lies in the held paper's
+   *  pick area, once the hand-off has ended. */
+  const onPaper = (ndc: { x: number; y: number }): boolean => {
+    if (!handedOff) return false;
+    const r = heldPaperArea(room, camera, size);
+    if (!r) return false;
+    const [px, py] = [((ndc.x + 1) / 2) * size.w, ((1 - ndc.y) / 2) * size.h];
+    return px >= r[0] && px <= r[0] + r[2] && py >= r[1] && py <= r[1] + r[3];
+  };
   const unbind = bindPointerSelection(
     canvas,
     (ndc) => {
       const at = inArea(ndc);
-      return at ? picker.pick(at) : null;
+      if (!at) return null;
+      // Spec 033: the paper in the visitor's hand stands in front of the pieces, so it is picked first.
+      return onPaper(ndc) ? HELD_PAPER : picker.pick(at);
     },
     options.select,
     options.target,

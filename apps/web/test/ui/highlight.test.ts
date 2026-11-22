@@ -25,6 +25,7 @@ import { REFERENCE_DESKTOP } from "../../src/room/compose/stages";
 import type { Stage } from "../../src/room/compose/stages";
 import { framedBoxes, pickAreasOn, selectablePicker } from "../../src/room/scene/bundle3d";
 import { HIGHLIGHT_PASSES } from "../../src/room/scene/highlight";
+import { HELD_PAPER } from "../../src/room/stage";
 import type { SceneModule, SceneOptions } from "../../src/room/stage";
 import { button, enter, flush, intoRoom, repositoryBundle, roomIndex, start } from "../helpers/room";
 import type { TestWindow, Visit } from "../helpers/room";
@@ -198,7 +199,7 @@ describe("the target on the stand-in 3D stage", () => {
     expect(last(v)).toBe(second);
   });
 
-  it("is never set during the hand-off or its offer, by a hover, a press, or focus (scenario 7; FR-010)", async () => {
+  it("is never set during the hand-off, by a hover, a press, or focus, and is from its end (scenario 7; FR-010; spec 033)", async () => {
     const v = start({ webgl: true });
     await enter(v);
     const id = ids()[0] ?? "";
@@ -207,13 +208,8 @@ describe("the target on the stand-in 3D stage", () => {
     target("press", id);
     listButton(v, id).focus();
     expect(v.scene.targets).toEqual([]);
-    // The hand-off ends: its offer shows, and the room still takes no input.
+    // The hand-off ends: with no offer (spec 033, FR-001), the room takes input at once.
     v.clock.advance(5000);
-    target("pointer", id);
-    listButton(v, ids()[1] ?? "").focus();
-    expect(v.scene.targets).toEqual([]);
-    button(v.doc, "Keep it for later").click();
-    await flush();
     target("pointer", id);
     expect(last(v)).toBe(id);
   });
@@ -421,14 +417,31 @@ describe("the target on the real 3D stage, through its pointer", () => {
     const picker = selectablePicker(part, index);
     picker.resize(stage);
     const seen = new Set<string>();
+    // Spec 033 (FR-008): the paper in the visitor's hand is picked ahead of the selectables, in its own area; there a
+    // click opens the resume, which is what the hover targets.
+    const paper: [number, number][] = [];
     for (let y = 4; y < stage.h; y += 8)
       for (let x = 4; x < stage.w; x += 8) {
         r.move([x, y]);
+        if (r.reported.at(-1)?.[1] === HELD_PAPER) {
+          paper.push([x, y]);
+          continue;
+        }
         const expected = picker.pick({ x: (x / stage.w) * 2 - 1, y: -((y / stage.h) * 2) + 1 });
         expect(r.reported.at(-1), `${x}, ${y}`).toEqual(["pointer", expected]);
         if (expected) seen.add(expected);
       }
     for (const id of held) expect(seen.has(id), id).toBe(false);
+    // The paper's area is one small patch, about its 44 × 44 CSS-pixel floor (a few dozen points of this 8-pixel
+    // grid), and a click in it opens the resume.
+    expect(paper.length).toBeGreaterThan(0);
+    expect(paper.length).toBeLessThanOrEqual(64);
+    const [first] = paper;
+    if (first) {
+      const before = r.v.events.length;
+      r.tap(first);
+      expect(r.v.events.slice(before)).toEqual([{ kind: "resume_opened" }]);
+    }
     r.leave();
     r.v.clock.advance(16);
     r.renders();
