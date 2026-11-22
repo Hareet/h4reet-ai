@@ -1,7 +1,7 @@
 // T034 (spec 005; FR-005, FR-036 to FR-040; SC-007; plan.md §8): full screen in the room, its API stubbed on the page.
 // The control is the bar's tile after "Pause the room" where the browser offers full screen and absent where it doesn't
 // (Q4, provisional), its words following every change; Alt+Enter toggles from anywhere in the room, sends no turn, and
-// does nothing during the hand-off and its offer; a refusal says so once and leaves focus; while the page is in full
+// does nothing during the hand-off (spec 033 took out the offer after it); a refusal says so once and leaves focus; while the page is in full
 // screen Escape is the browser's, so the walking view, a turn in flight, the resume, and the larger view stay as they
 // were, and after the exit the next Escape acts as before; the walking view's words speak of full screen while in it;
 // and fullscreen_entered goes once a visit, at the first entry alone.
@@ -137,15 +137,16 @@ describe("Alt+Enter (FR-037; D2)", () => {
     expect(v.events.slice(events).filter((e) => e.kind === "turn_sent")).toEqual([]);
   });
 
-  it("does nothing during the hand-off and its offer", async () => {
+  it("does nothing during the hand-off (spec 033: no offer follows it)", async () => {
     const v = start({ webgl: true });
     const fs = stubFullscreen(v);
     await enter(v);
     v.clock.advance(1000);
     altEnter(v, v.doc.body);
-    v.clock.advance(5000);
+    v.clock.advance(3000);
     altEnter(v, v.doc.body);
     await flush();
+    expect(v.room.visit.stage).toBe("handoff");
     expect(fs.asked).toEqual([]);
     expect(button(v.doc, ENTER).closest("[inert]")).not.toBeNull();
   });

@@ -12,8 +12,8 @@
 //   field is empty; at the answer, its text shows in the log under "AI twin". Each failure (a network failure, the
 //   35-second timeout on the room's fake clock, 503 degraded with each cause, 429, 400, 409) shows its fixed message
 //   and gives the words back to the field.
-// - No send shows nothing (FR-012; Q20, provisional): while the room doesn't take input (the hand-off's offer, app.ts's
-//   open() false), turn_wait.room; typed text with no conversation open and free talk closed shows
+// - No send shows nothing (FR-012; Q20, provisional): while the room doesn't take input (the hand-off, app.ts's open()
+//   false; spec 033 took out the offer after it), turn_wait.room; typed text with no conversation open and free talk closed shows
 //   cannot_talk.free_talk_closed while a topic is ready, and cannot_talk.unavailable while none is (the repository's
 //   readiness at f411d8e1), so no message points to a piece that would refuse; each with the words left in the field
 //   and no request.
@@ -135,7 +135,7 @@ function indexWith(topics: boolean): RoomIndex {
 }
 
 /** Opens the room in a layout and a mode, its stylesheets in the document, up to the hand-off's offer. */
-async function toOffer(layout: Layout, mode: (typeof MODES)[number], o: { freeTalk: boolean; topics: boolean }) {
+async function toHandoff(layout: Layout, mode: (typeof MODES)[number], o: { freeTalk: boolean; topics: boolean }) {
   const viewport = stubViewport(layout.screen);
   const gateway = fakeGateway();
   let sender: ReturnType<typeof createTurnSender> | null = null;
@@ -156,14 +156,18 @@ async function toOffer(layout: Layout, mode: (typeof MODES)[number], o: { freeTa
   }
   await enter(v, "engineer");
   await throughLoader(v);
-  v.clock.advance(5000);
+  // Spec 033: no offer follows the hand-off, so the room doesn't take input only while it plays: stop inside it.
+  v.clock.advance(1000);
   await flush();
+  expect(v.room.visit.stage).toBe("handoff");
   return { v, gateway };
 }
 
 /** Into the room at the hand-off's end (spec 033: no offer), then the walking view where the layout asks for it. */
 async function intoTheRoom(v: Visit, layout: Layout, mode: (typeof MODES)[number]): Promise<void> {
+  v.clock.advance(4000);
   await flush();
+  expect(v.room.visit.stage).toBe("room");
   const root = v.doc.documentElement;
   expect(root.getAttribute("data-hud") ?? "stacked", "the layout").toBe(layout.hud);
   expect(root.getAttribute("data-split") === "on", "the split layout").toBe(layout.split);
@@ -419,7 +423,7 @@ describe.each(RUNS)(
   "the conversation shows its answer in $layout.name, $mode (FR-010 to FR-013)",
   ({ layout, mode }) => {
     it("(a) free talk ready: types, sends by Enter and by Send, and shows each answer and each failure's message in the log, the log shown", async () => {
-      const { v, gateway } = await toOffer(layout, mode, { freeTalk: true, topics: true });
+      const { v, gateway } = await toHandoff(layout, mode, { freeTalk: true, topics: true });
       await intoTheRoom(v, layout, mode);
       await answersAndFailures(v, layout, gateway);
       expect(new Set(features(gateway.calls))).toEqual(new Set(["free_talk"]));
@@ -427,7 +431,7 @@ describe.each(RUNS)(
 
     it("(b) a topic ready, free talk closed: selects its piece, shows the opening answer, then types, sends, and shows each answer and each failure's message", async () => {
       const piece = talkingPiece();
-      const { v, gateway } = await toOffer(layout, mode, { freeTalk: false, topics: true });
+      const { v, gateway } = await toHandoff(layout, mode, { freeTalk: false, topics: true });
       await intoTheRoom(v, layout, mode);
       gateway.replies.push({ status: 200, body: { text: "The twin's opening, from the fake gateway." } });
       const before = mark(v);
@@ -441,8 +445,9 @@ describe.each(RUNS)(
     });
 
     it("says why while the room doesn't take input yet, keeps the words, and sends them once the visitor is in the room", async () => {
-      const { v, gateway } = await toOffer(layout, mode, { freeTalk: true, topics: true });
-      // The hand-off's offer: the room doesn't take input yet (open() false), so the words wait, and it says so.
+      const { v, gateway } = await toHandoff(layout, mode, { freeTalk: true, topics: true });
+      // The hand-off (spec 033: no offer after it): the room doesn't take input yet (open() false), so the words wait,
+      // and it says so.
       pressEnter(v, type(v, WORDS));
       expectMessage(v, "turn_wait.room");
       expect(field(v).value).toBe(WORDS);
@@ -461,7 +466,7 @@ describe.each(RUNS)(
     });
 
     it("says free talk is closed, not that the service is unavailable, when free talk is closed and a topic is ready (Q20)", async () => {
-      const { v, gateway } = await toOffer(layout, mode, { freeTalk: false, topics: true });
+      const { v, gateway } = await toHandoff(layout, mode, { freeTalk: false, topics: true });
       await intoTheRoom(v, layout, mode);
       pressEnter(v, type(v, WORDS));
       expectMessage(v, "cannot_talk.free_talk_closed");
@@ -472,7 +477,7 @@ describe.each(RUNS)(
     });
 
     it("says the service is unavailable, never that a piece would talk, when free talk and every topic are closed (Q20)", async () => {
-      const { v, gateway } = await toOffer(layout, mode, { freeTalk: false, topics: false });
+      const { v, gateway } = await toHandoff(layout, mode, { freeTalk: false, topics: false });
       await intoTheRoom(v, layout, mode);
       pressEnter(v, type(v, WORDS));
       expectMessage(v, "cannot_talk.unavailable");

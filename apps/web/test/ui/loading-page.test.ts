@@ -198,10 +198,11 @@ describe("the page behind the loader, through the room (FR-024, FR-027)", () => 
     await flush();
     expect(around?.hasAttribute("inert")).toBe(false);
     expect(v.doc.querySelector(".hud-bar")?.hasAttribute("inert")).toBe(true);
-    // As today: inert through the hand-off and its offer, reachable once the offer is answered.
-    v.clock.advance(5000);
+    // As today: inert through the hand-off, reachable at its end (spec 033: no offer after it).
+    v.clock.advance(4000);
     await flush();
     expect(v.doc.querySelector(".hud-bar")?.hasAttribute("inert")).toBe(true);
+    v.clock.advance(1000);
     await flush();
     expect(v.doc.querySelector(".hud-bar")?.hasAttribute("inert")).toBe(false);
   });

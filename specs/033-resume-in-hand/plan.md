@@ -88,7 +88,17 @@ Every test that encodes the offer, found by grepping `apps/web/test` for "Keep i
 | `test/events.test.ts:84`, `test/manifest.test.ts:98` | unchanged: the kind stays in the vocabulary |
 | `test/ui/hud-look.test.ts:528` | unchanged: an allowlist regex naming `room-offer` among others; a selector that no longer exists can't fail it |
 
-Any further test the full suite shows encoding the offer is added here, with its reason, in the commit that changes it.
+Found by the first whole-suite run (T012), and changed in the commit that names them:
+
+| Test | Why it changes |
+|---|---|
+| `test/ui/fullscreen.test.ts` ("does nothing during the hand-off") | Alt+Enter was tried during the offer too; now only during the hand-off, which still ignores it (FR-001) |
+| `test/ui/highlight.test.ts` (scenario 7) | the target was refused through the offer; now it is taken from the hand-off's end (FR-001) |
+| `test/ui/highlight.test.ts` (hover equals click over the stage) | its oracle is the selectables' picker; the paper's own area, picked first, now targets `held-paper` there, and a click there opens the resume (FR-008) |
+| `test/ui/loading-page.test.ts` | the bar was inert through the offer; now inert through the hand-off and reachable at its end (FR-001) |
+| `test/ui/talk-answer-shows.test.ts` (`toOffer` becomes `toHandoff`) | "the room doesn't take input yet" was the offer; now it is the hand-off, so the words are typed inside it and the room is entered at its end (FR-001) |
+
+`test/room/pet-bench.test.ts` ("hot function 1 optimized before the measure") fails in this sandbox on `main`'s `apps/web/src` too (checked by putting `f1abe245`'s `src` back in place for one run), so it is not this change's.
 
 ## Order of Work
 
