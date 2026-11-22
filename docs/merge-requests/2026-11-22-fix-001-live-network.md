@@ -1,0 +1,61 @@
+# fix/001-live-network
+
+Spec: specs/001-cloud-elevation/ (bug-fixes F9 and F10, indexed in its `plan.md`) · Intent: none: two production bugs of 2026-11-18 · Written by: Claude Code (implementer, a subagent of the Author's session) · Date: 2026-11-22
+Session: /home/h4reet/h4reet-ai/h4reet-ai, working in the worktree /tmp/claude-1000/wt-fix-001-live-network · Repo hooks active: yes (`.claude/audit/hooks.log`: `2026-11-22T16:14:12Z post-edit WARN lint failed :: …/deploy/hosts/test_shared_state.py`, fixed before commit; `2026-11-22T16:18:23Z bash BLOCK an Author-only make target (spec 001)`, a false match on runbook text in a heredoc; the edit went through the Edit tool, not a respelling)
+Authorized by: the Author's session's brief of 2026-11-22: fix the two production bugs found on 2026-11-18 as spec 001's F9 and F10, test-first, for his review, gate, and merge
+
+## What changed and why
+
+**F9, a release never reconfigures the tunnel end's live private interface** ([`specs/001-cloud-elevation/fixes/f9.md`](../../specs/001-cloud-elevation/fixes/f9.md)). On 2026-11-18 release `20261118T001208Z-f1abe2454054`'s host step ran `networkctl reload` and `networkctl reconfigure ens5` (fix F2's way of loading its drop-in), networkd failed `ens5` ("Could not set DHCPv4 route: Nexthop has invalid gateway"), `ens5` lost `10.42.1.10`, nothing could publish on it, and the rollback failed too: the site was down until the Author set the address and the routes by hand. After a clean reboot networkd made the same drop-in perfectly. Now `shared_state.py prepare` never touches networkd: it checks `10.42.1.10` on `ens5` (waiting up to 30 s for a boot's lease), writes the drop-in for the next boot when it differs, makes table 105's default and rules 104/105 live with `ip`, as networkd made them after the reboot and only where missing, and checks the address again; a lost address or a failed command undoes the step's own changes, says so, and fails the step before compose runs, so the running release keeps serving. The runbook's T058 says the same, and no longer tells him to reconfigure `ens5`. Nothing else in the repository reloads or reconfigures networkd after the first boot (the user data's `runcmd`, once per instance, before anything binds); a test holds that.
+
+**F10, the tunnel end lets go of a dead laptop session's forwards** ([`specs/001-cloud-elevation/fixes/f10.md`](../../specs/001-cloud-elevation/fixes/f10.md)). After the laptop froze, its restarted client was refused 2201 to 2203 for 15 minutes and more. The reading: sshd sends its client-alive probe only when its poll times out, and the relay's check through 2201 every second woke it each time, so no probe ran; the session ended only when the kernel gave up retransmitting (`tcp_retries2` 15, about 924 s). Now the tunnel end's container retries a silent peer 8 times (about 100 s, its own network namespace only), and server mode ends the older sessions as soon as sshd logs `cannot listen to port: 2201/2202/2203`, so the laptop's next try, 1 to 30 s later, takes the forwards.
+
+Commits: `4ef79e2a` F9 RED, `72890316` F9 RED's correction (an order-sensitive assertion; f9.md says which), `9876c314` F9 GREEN, `4a41b0bf` F10 RED, `aec72793` F10 GREEN, and this note's commit with f9.md, f10.md, f2.md's backlog pointer, and plan.md's index.
+
+**A departure from F2, said:** F2's tests pinned `networkctl reload` and `networkctl reconfigure ens5`; those pins are the bug, and F9's RED commit replaces them in the same tests. Everything else they hold is kept. F2's backlog R-1 and R-2's other half close.
+
+## Acceptance criteria
+
+Spec 001 FR-019 and FR-060 (the shared state on the tunnel end, which the host step prepares), FR-052, FR-053, and FR-055 (the tunnel, its forwards, its reconnection), and the deployer's "a failed step is a failed start" (contracts/releases-deployer.md §3). No spec text changes: both are bugs against behavior the spec already requires.
+
+## Constitution check
+
+| Principle                                                          | Touched | How it complies                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I. Data-Local by Default                                           | No      | No byte leaves a device that didn't before; no new endpoint or flow, so no disclosure entry.                                                                                                                                                                          |
+| II. Production-Grade or Not Shipped                                | Yes     | Tests first for both (RED, then GREEN); runbook entries for the symptom and the fix (T058); the safety net logs each takeover; no new endpoint, span, or panel is called for: these are host and tunnel fixes, observable through the deployer's record and the logs. |
+| III. Intent Before Spec, Spec Before Code, Humans Merge            | Yes     | Bug-fixes against spec 001's existing requirements, as F1 to F8 were; fix notes indexed in its plan; nothing merged, pushed, or published; the Author gates and merges.                                                                                               |
+| IV. Least Privilege                                                | Yes     | The tunnel's container gains no capability (the sysctl is its own namespace's, and signalling its own user's processes needs none); the host step's new commands are `ip`, as root, where it already ran `networkctl`.                                               |
+| V. Cost Is a First-Class Signal                                    | No      | No new resource, call, or route: $0.                                                                                                                                                                                                                                  |
+| VI. Build in Public, Including Failures                            | Yes     | Both fix notes record the outage, the evidence in the journal's words, and what isn't proven here.                                                                                                                                                                   |
+| VII, VIII                                                          | No      | Nothing about the twin's words or claims.                                                                                                                                                                                                                             |
+| Security & Agent Governance: human-only paths, plan-only infra     | Yes     | No human-only path edited, so no patch; nothing in `infra/`; no AWS, Terraform, release, or prod command run.                                                                                                                                                        |
+
+## Review
+
+Left for a reviewer that wrote none of it.
+
+## Verification
+
+Below, pasted from this worktree: the touched suites, `make -f Makefile lint`, and `make -f Makefile check ENGINE_MODE=none-yet`. No Docker, GPU, or network beyond loopback here: the tunnel's nine container checks skip ("the agents' engine isn't answering"), the new one among them.
+
+VERIFICATION-PLACEHOLDER
+
+## Cost and data-flow impact
+
+None. No AWS resource, model call, or data flow changes. The tunnel end's image is rebuilt by the release (its entrypoint changed), as any change under `deploy/tunnel/` does.
+
+## For the Author
+
+No patches for his hand: no human-only path is touched.
+
+1. **His gate,** from main's checkout: `tools/gates/gate fix/001-live-network`, then the merge it prints.
+2. **One release.** Both fixes ride it: F9 in the tunnel end's host step, F10 in the tunnel end's image and its compose service. The drop-in's text is unchanged, so if this release must roll back, `f1abe245`'s host step finds nothing changed and runs no `networkctl`.
+3. **On the tunnel end,** in his Systems Manager session, as root (f9.md, "The Author's morning steps", step 2): `ip -4 -o addr show dev ens5` has `inet 10.42.1.10/24`; `networkctl status ens5 --no-pager` reads `routable (configured)`; `ip -4 rule show` has 104 and 105, `proto static`; `ip -4 route show table 105` reads `default via 10.42.1.1 dev ens5 proto dhcp metric 512`; the deployer's last record reads `deployed`; `/api/status` answers.
+4. **F10's checks** (f10.md, "The Author's morning steps"): `tcp_retries2` reads 8 inside `h4reet-prod-tunnel-end-1` and is unchanged on the host; then on the laptop a `docker kill` and `docker start` of `h4reet-prod-tunnel-1`, which reconnects within about 30 s; then the night's case, the tunnel container's `h4reet-prod_egress` network disconnected for 45 s and connected again: the tunnel is back within about two minutes, with at most one `cannot listen` line followed by the safety net's line on the tunnel end, and no restart.
+
+**Questions, each with the recommended answer taken:**
+
+- **A missing address before the step fails the start** (as built), after a 30 s wait. Recommended: yes; Docker couldn't bind anyway, and the message names the runbook item. Other answer: skip the reply route's step and let compose fail.
+- **The safety net ends every older session**, the admin-only client's included. Recommended: yes; the laptop's client holds one connection at a time, and the admin client reconnects by its own loop. Other answer: end only sessions that hold a forward, which needs `/proc/<pid>/fd`, which sshd's processes may not let its user read.
+- **`tcp_retries2` 8** (about 100 s). Recommended: 8; 5 (about 13 s) would end a healthy tunnel on a short home-network outage. Other answer: leave the default and rely on the safety net alone.
