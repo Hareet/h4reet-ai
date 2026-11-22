@@ -190,8 +190,7 @@ def test_it_does_nothing_otherwise_and_writes_its_line(
 ) -> None:
     aws = Aws()
     result = run(RUNNING, aws)
-    # From spec 032's rework the rule matches every instance, so an instance the tag doesn't find is another's.
-    assert result["outcome"] == "not_ec2" and aws.stops() == [] and aws.alerts() == []
+    assert result["outcome"] == "nothing" and aws.stops() == [] and aws.alerts() == []
     (line,) = emf_lines(capsys)
     assert line["Outcome"] == "nothing"
 
