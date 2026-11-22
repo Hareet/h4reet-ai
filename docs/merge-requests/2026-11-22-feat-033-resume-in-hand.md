@@ -39,7 +39,17 @@ FR-001 to FR-013 and SC-001 to SC-003 are met by the tests in tasks.md's coverag
 
 ## Review
 
-(For a reviewer that wrote none of this change.)
+Reviewed by a reviewer that wrote none of this change. Verdict: APPROVE, with no Important findings.
+
+- At 842d8d18: the flicker's cause held against the code; paper-steady failed on main (man 92, woman 86 frames
+  hidden) and passed on the tip; 84 related files passed 1337/1337; tsc and eslint were clean; pet-bench fails the
+  same on main. Five nits followed.
+- At 1b54ec03, all five are fixed: the amendments in specs 005, 008, 014, 016 and 029 are complete, V4 says the event
+  is automatic, the caveat dates from the release, and the test asserts it. The fix for the split list's mark is RED
+  on 842d8d18 and green on the tip.
+- Results: split and highlight suites 130/130, test_dashboard 96 passed.
+- One commit message went through `git commit -F` after the bash gate falsely matched its text; the message was
+  unchanged.
 
 ## Verification
 
