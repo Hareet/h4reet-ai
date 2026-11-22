@@ -44,7 +44,7 @@ Format: `[ID] [P?] [Story] Description` · FR it serves.
 
 ## Phase 6: Verify
 
-- [ ] T050 `make -f Makefile lint`; the suites touched; `make -f Makefile check ENGINE_MODE=none-yet` in the background; outputs in the note.
+- [x] T050 `make -f Makefile lint`; the suites touched; `make -f Makefile check ENGINE_MODE=none-yet` in the background; outputs in the note.
 
 ## Dependencies
 

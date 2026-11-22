@@ -43,7 +43,11 @@ Run in the worktree (the sandbox has no Docker, no GPU, and loopback alone: cont
 - RED before each GREEN, in the commits' messages: the start function 29 failed; the audit 7 failed; the infra suites 135 failed (on an export of the RED commit); `ec2_ops` 4 failed; the sink 3 and the dashboard 2 failed.
 - `make -f Makefile lint`: ESLint, tsc, Prettier ("All matched files use Prettier code style!"), ruff ("All checks passed!", "964 files already formatted"), shellcheck: clean.
 - The offline infra checks on a `git archive` export of the branch's tip with both patches applied: `infra-policy: PASS, 32 files`; `terraform fmt -check -recursive infra` clean; `tools/gates/test/test_infra_policy.py` 91 passed. `terraform validate` doesn't run in an agent sandbox ("Failed to load plugin schemas": the provider plugin can't start here, on main too): your plan runs it.
-- `make -f Makefile check ENGINE_MODE=none-yet`: CHECK_SUMMARY_PLACEHOLDER
+- `make -f Makefile check ENGINE_MODE=none-yet`, at `38a57e8e`: `make check: 12 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 3 FAIL; failing: test FAIL, infra-check FAIL, infra-plan-note FAIL`. Read each:
+  - `test`: the web workspace's vitest stage, `Test Files 37 failed | 249 passed (286)`, `Tests 40 failed | 4971 passed`, every failure `Error: Test timed out in 60000ms` in `apps/web` (room, ui, lookdev), which this branch doesn't touch: sandbox load, not this change. The stage stopped before pytest, so its pytest part ran alone, as `make test` runs it (`PYTEST_ARGS`, `PYTEST_DIRS`): `2 failed, 7535 passed, 13 skipped`. One was this branch's (`scripts/test_makefile.py`: `REPLACE` and `SKIP` weren't in `LITERAL_VARS`, so `from_cli` never saw them), fixed in the next commit (`scripts/test_makefile.py`, `test_ec2_ops.py`, `tools/gates`: `1648 passed`; `make -n` of the start target now passes `--replace "$REPLACE" --skip "$SKIP"`); the other is the sandbox's read-only `/tmp` (`test_infra_targets.py`, as on main).
+  - `infra-check`: `infra-policy: PASS, 32 files`, then `terraform validate`'s "Failed to load plugin schemas" (the sandbox, as on main).
+  - `infra-plan-note`: "plan for account/prod missing": your step 3's plan blocks, expected until you paste them.
+  - `evals` WARN: no behavioral run for this trigger hash, which is yours from main's checkout if the gate asks for it; `redteam` 77 passed; `matrix` PASS (1039 passed, 69 known gaps); `lint`, `secrets`, `arrival`, `disclosure-check` PASS.
 
 ## Cost and data-flow impact
 
