@@ -66,13 +66,13 @@ As a visitor, I want the piece I'm about to open to show a border, so I can see 
 
 **Acceptance Scenarios**:
 
-1. **Given** the room after the hand-off and its offer, **When** a mouse hovers the bicycle's pick area, **Then** the bicycle shows the highlight border and no other piece does.
+1. **Given** the room after the hand-off and its offer, **When** a mouse hovers the bicycle's pick area, **Then** the bicycle shows the highlight border and no other piece does. **(spec 033)** No offer follows the hand-off since [spec 033](../033-resume-in-hand/spec.md) (its FR-001; Amendment A7): the room takes input from the hand-off's end.
 2. **Given** the bicycle is highlighted, **When** the mouse moves onto the floor, where no pick area is, **Then** the border goes.
 3. **Given** the bicycle is highlighted, **When** the visitor clicks it, **Then** the room sends one `object_selected` with the ID `bicycle`, opens its topic as today, and the border goes in the same moment; **When** the mouse rests where it is, **Then** the border stays off until the pointer leaves the bicycle and returns.
 4. **Given** a phone, **When** a finger presses the laptop and lifts within the tap slop, **Then** the laptop shows the border while the finger is down, and the lift opens "Laptop and screen" and clears it; **When** the finger slides away beyond the slop instead, **Then** the border goes and nothing opens.
 5. **Given** keyboard focus moves to the "Chalkboard" button in the "In the room" list, **When** it lands, **Then** the chalkboard shows the border in the scene, even at a stage where spec 004's FR-064 carve-out leaves the chalkboard to the list; **When** focus moves on, **Then** the next button's piece shows it instead.
 6. **Given** a stage where the chalkboard is list-only, **When** a mouse hovers its picture, **Then** nothing is highlighted, as a click there selects nothing (spec 004's Reading R3).
-7. **Given** the hand-off is playing or its offer shows, **When** the pointer moves over a piece, **Then** nothing is highlighted.
+7. **Given** the hand-off is playing or its offer shows, **When** the pointer moves over a piece, **Then** nothing is highlighted. **(spec 033)** No offer follows the hand-off since [spec 033](../033-resume-in-hand/spec.md) (its FR-001; Amendment A7): the room takes input from the hand-off's end.
 8. **Given** quality level 3, where the look draws no ink lines, or the painted or flat look, **When** a piece is the target, **Then** its border is drawn as at quality 0 in inked cel.
 
 ---
@@ -174,7 +174,7 @@ As a visitor, I want to move and see what I'm about to open whatever state the A
 
 - **Two inputs at once:** a mouse rests over the laptop while keyboard focus moves to the "Snowboard" button. The latest input wins: the snowboard is the target. When the mouse moves again over the laptop, the laptop is. A pointer leaving the stage doesn't clear a target that keyboard focus set (FR-007).
 - **A click on a piece that isn't the target:** on touch, or after the pointer jumped there; it selects as today, since the press itself targets it first (FR-008, FR-011).
-- **A selection that can't run:** during the hand-off or its offer the room takes no input, so there is no target to clear (FR-010).
+- **A selection that can't run:** during the hand-off or its offer the room takes no input, so there is no target to clear (FR-010). **(spec 033)** No offer follows the hand-off since [spec 033](../033-resume-in-hand/spec.md) (its FR-001; Amendment A7): the room takes input from the hand-off's end.
 - **The target's model arrives, or fails, while highlighted:** the border follows what the member draws now, the model or its stand-in (FR-019).
 - **The figure is blocked every way:** it can't be at its start, which the compositor checks (FR-058); wherever every move is blocked, the figure stays where it is, and "Stop walking" always works.
 - **A floor tap under the desk:** the figure walks as far as the desk lets it and stops after 0.5 s without progress (FR-032).
@@ -211,7 +211,7 @@ Terms used below, beside spec 004's (a selectable, a pick area and its exclusive
   - (c) keyboard focus on a button of the "In the room" list, naming that button's selectable, and nothing when focus leaves the list;
   - (d) in the walking view, reach (FR-033), each time it changes.
 - **FR-009**: Inputs (a) and (b) SHALL pick with the same function and the same pick areas as a selection does (spec 004's `compose/pick.ts`, and FR-035 in the walking view): a point that would select nothing SHALL target nothing, and a side-wall selectable that spec 004's FR-064 leaves to the list at the stage SHALL NOT be targeted by a pointer or a press there. Input (c) SHALL target any selectable, held or not.
-- **FR-010**: WHILE the hand-off plays or its offer shows, THE ROOM SHALL have no target, and the walking control SHALL be inert, as the room's other controls are.
+- **FR-010**: WHILE the hand-off plays or its offer shows, THE ROOM SHALL have no target, and the walking control SHALL be inert, as the room's other controls are. **(spec 033)** No offer follows the hand-off since [spec 033](../033-resume-in-hand/spec.md) (its FR-001; Amendment A7): the room takes input from the hand-off's end.
 - **FR-011**: WHEN the visitor selects a selectable (a click or a tap within the tap slop, Enter or Space on its list button, or Enter in the walking view on the target), THE ROOM SHALL run today's selection unchanged (spec 004 FR-071 and FR-036 to FR-038: one `object_selected` event with its ID, then its topic or the resume) and SHALL clear the highlight in the same call.
 - **FR-012**: WHEN a selectable has been selected, THE ROOM SHALL NOT make it the target again until a targeting input has named something else or nothing: the pointer leaves its pick area, focus leaves its button, or reach loses it.
   - *Proposed at Phase 1's review, for T000 (plan.md §10, "A press's end"):* a mouse's or a pen's press that selected names nothing at its end, so the piece it selected isn't targeted again while the pointer rests on it (User Story 1, scenario 3), until the pointer names something else or nothing.
@@ -278,7 +278,7 @@ Terms used below, beside spec 004's (a selectable, a pick area and its exclusive
 
 - **FR-051**: WHEN the visitor first enters the walking view in a visit, THE ROOM SHALL send one usage event of the new kind `walk_started`, with no identifier and nothing else, on today's beacon (spec 002 FR-054 and its contracts/room-events.md §1, as Amendments M2 and M3 extend them). LATER ENTRIES in the same visit SHALL send none.
 - **FR-052**: THE ROOM SHALL send no event for a target, a highlight, a step, the figure's place, or the camera, and a selection SHALL send today's `object_selected` with no new field (spec 004 FR-071).
-- **FR-053**: THE DASHBOARD'S "Room" row SHALL gain the panel "Visits that walked": `walk_started` over `resume_opened` plus `resume_kept`, read as the 2D share is read (spec 000's contracts/telemetry.md §7.8, as Amendment M1 extends it).
+- **FR-053**: THE DASHBOARD'S "Room" row SHALL gain the panel "Visits that walked": `walk_started` over `resume_opened` plus `resume_kept`, read as the 2D share is read (spec 000's contracts/telemetry.md §7.8, as Amendment M1 extends it). **(spec 033)** The denominator is `resume_kept` alone since [spec 033](../033-resume-in-hand/spec.md) (its FR-013; Amendments A6, A7), sent once a visit at the hand-off's end.
 - **FR-054**: IN A DRAFTS BUILD, THE FRAME LOG (spec 004's R-70) SHALL record the walking view's entries and exits and each change of target with the input that made it, in page memory only. A release build SHALL keep no log.
 
 **Data flow**

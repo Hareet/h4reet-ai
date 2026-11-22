@@ -152,6 +152,8 @@ Each `cannot_talk` message ends by pointing to the resume and the PDF.
 
 **(spec 012)** `kind` may also be `loading_cut_short`, with no `id` (spec 012's FR-046; Amendment L3): the loader giving way at its ceiling while the room's files are still loading, once a visit.
 
+**(spec 033)** `resume_kept` is sent once a visit at the hand-off's end, the paper kept in the visitor's hand, rather than on "Keep it for later", which no longer exists ([spec 033](../033-resume-in-hand/spec.md), FR-003; Amendment A4).
+
 **Nothing else.** No text, audio, path, avatar, client address, visit ID, or time: the gateway's clock times it (FR-054). It becomes one increment of `h4.room.events{kind, id}`, labelled `id="-"` when absent.
 
 ## 9. The visit (in the page)
@@ -161,7 +163,7 @@ Each `cannot_talk` message ends by pointing to the resume and the PDF.
 | `path` | set once at the choice; never changed (FR-002) |
 | `avatar` | set once at the choice |
 | `stage` | `choosing` → `handoff` → `room` |
-| `resumeKept` | set when the hand-off ends with "later" |
+| ~~`resumeKept`~~ | **(spec 033)** removed: no offer follows the hand-off, so nothing sets or reads it ([spec 033](../033-resume-in-hand/spec.md), FR-004; Amendment A4) |
 | `mode` | `3d`, `reduced`, or `2d` (R-04) |
 | `quality` | the controller's level, 0 to 3 |
 | `turns[]` | the conversation so far, empty until conversations exist |

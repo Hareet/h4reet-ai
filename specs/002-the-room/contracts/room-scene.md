@@ -8,7 +8,7 @@ What the visitor sees and can do, with the IDs other parts use. Spec: FR-001 to 
 |---|---|---|
 | **Choice** | the path (two radio buttons: "Engineer", "Not an engineer"); the avatar (four radio buttons with names and flat previews); the AI disclosure; the data-flow disclosure link; "Download the resume (PDF)"; "Enter" (disabled until both choices are made) | "Enter", with both chosen (FR-001) |
 | **Hand-off** | the scene, the twin handing the paper; a live-region line | it ends, at most 5 s after it starts (FR-007, FR-008) |
-| **After the hand-off** | two buttons, "Read the resume now" and "Keep it for later" | either |
+| **After the hand-off** | **(spec 033)** nothing: no offer; the room opens at the hand-off's end ([spec 033](../../033-resume-in-hand/spec.md), FR-001; its Amendment A2). Before it: two buttons, "Read the resume now" and "Keep it for later" | — |
 | **Room** | the scene (3D or 2D); the "In the room" list; the toolbar: "Resume", "2D view", the AI disclosure; the conversation panel: the text box, "Send", and the talk button | — (a reload starts a new visit) |
 | **Resume** | the interactive resume beside or over the room; "Download (PDF)"; "Close" | "Close" or Escape, back to the room with focus on "Resume" |
 
@@ -34,7 +34,7 @@ Each object is a mesh with `userData.objectId`, a raycast target for pointer and
 - **Reduced motion:** 1 s, a crossfade of the paper from the twin's hand to the visitor's avatar.
 - **2D mode:** three still frames, 1.5 s each.
 - **No skip:** no control skips it, and keys and clicks during it do nothing but move focus.
-- **Announced:** at its start, the live region (polite) gets "The twin hands you a paper: the Author's resume." At its end, focus moves to "Read the resume now".
+- **Announced:** at its start, the live region (polite) gets "The twin hands you a paper: the Author's resume." At its end, focus moves to "Read the resume now". **(spec 033)** At its end, focus stays on the room's heading, where it was, and nothing more is announced; the room opens with no offer ([spec 033](../../033-resume-in-hand/spec.md), FR-001, FR-002; Amendment A2).
 - **(spec 012)** **When it starts:** once the loader has given way (its Amendment L2; FR-019) and spec 009's wait for the figures has ended, and never before. **No skip** covers the loader too: no control skips it (its FR-023).
 
 ## 4. Modes and quality

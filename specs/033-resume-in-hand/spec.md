@@ -6,7 +6,7 @@
 
 **Status**: Draft, clarified the same day. Specified, clarified, planned, tasked, analyzed, and built in one session from the accepted intent [`intent.md`](intent.md), under the Author's direction of 2026-11-22: "Go with your recommendations. Let's have you build it out in this session". Every clarification below takes its recommended answer under that direction, provisionally; each is his to overturn.
 
-**Input**: the intent; the [constitution](../../.specify/memory/constitution.md) (1.1.0); `CLAUDE.md`; the specs this amends: [002](../002-the-room/spec.md) (the hand-off and its offer, FR-007 to FR-009; contracts/room-scene.md §1, §3; contracts/room-events.md §1, §3; data-model.md §8, §9; quickstart.md), [000](../000-local-foundations/contracts/telemetry.md) (§7.8, the room's panels), [005](../005-full-window-room/spec.md), [008](../008-visitor-movement/spec.md), [009](../009-room-avatars/spec.md), and [012](../012-loading-screen/spec.md) (each names the offer or the panels' denominator); and `docs/data-flow-disclosure.md` (row V4).
+**Input**: the intent; the [constitution](../../.specify/memory/constitution.md) (1.1.0); `CLAUDE.md`; the specs this amends: [002](../002-the-room/spec.md) (the hand-off and its offer, FR-007 to FR-009; contracts/room-scene.md §1, §3; contracts/room-events.md §1, §4; data-model.md §8, §9; quickstart.md), [000](../000-local-foundations/contracts/telemetry.md) (§7.8, the room's panels), [005](../005-full-window-room/spec.md), [008](../008-visitor-movement/spec.md), [009](../009-room-avatars/spec.md), and [012](../012-loading-screen/spec.md) (each names the offer or the panels' denominator); and `docs/data-flow-disclosure.md` (row V4).
 
 ## Source: The Author's Words
 
@@ -170,7 +170,7 @@ Not the cause: the camera's near plane (the room's camera stands metres away), a
 |---|---|---|---|
 | A1 | Spec 002, spec.md FR-009, User Story 2's Independent Test and scenario 4 | No offer at the hand-off's end; the room opens at once and "Resume" is one action away | FR-001 |
 | A2 | Spec 002, contracts/room-scene.md §1 (the screens' table, "After the hand-off") and §3 ("Announced") | No buttons after the hand-off; focus stays on the heading | FR-001, FR-002 |
-| A3 | Spec 002, contracts/room-events.md §1 (`resume_kept`'s row) and §3 (the 2D share) | `resume_kept` is sent at the hand-off's end, once a visit; the 2D share counts visits as `resume_kept` | FR-003, FR-013 |
+| A3 | Spec 002, contracts/room-events.md §1 (`resume_kept`'s row) and §4 (the 2D share) | `resume_kept` is sent at the hand-off's end, once a visit; the 2D share counts visits as `resume_kept` | FR-003, FR-013 |
 | A4 | Spec 002, data-model.md §8 and §9 | `resume_kept`'s meaning; the visit loses `resumeKept` | FR-003, FR-004 |
 | A5 | Spec 002, quickstart.md's hand-off step | No offer; the room opens | FR-001 |
 | A6 | Spec 000, contracts/telemetry.md §7.8 | The five panels' denominator is `resume_kept`; the readings say so | FR-013 |
