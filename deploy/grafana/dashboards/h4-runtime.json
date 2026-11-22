@@ -4221,7 +4221,7 @@
       "type": "timeseries",
       "id": 88,
       "title": "Tunnel reconnects",
-      "description": "New connections after the first, per hour, on each end: a flapping tunnel shows here before visitors see it.",
+      "description": "New connections after the first, per hour, on each end: on the laptop, each connection its client makes; on the tunnel end, each new session holding the three forwards, as its reports every 15 seconds find them, so two between reports count once and a session refused the forwards not at all (spec 001 fixes/f11.md). A flapping tunnel shows here before visitors see it.",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"

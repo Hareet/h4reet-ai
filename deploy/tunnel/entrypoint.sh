@@ -4,7 +4,9 @@
 #   h4-tunnel client     the laptop's connection, in the `tunnel` service, reconnecting with backoff
 #   h4-tunnel connected  ssh's LocalCommand, once the client's connection is up
 # Each end reports h4.tunnel.up and h4.tunnel.reconnects every 15 seconds, labelled h4.tunnel.end, over OTLP/HTTP to
-# the collector H4_OTLP_HTTP names. The logs pass through scrub, so no network address reaches them (row S17).
+# the collector H4_OTLP_HTTP names. The logs pass through scrub, so no network address reaches them (row S17). The
+# tunnel end reads both from the kernel's table of its sockets and decides nothing from sshd's log, whose lines a
+# stranger can write (spec 001 fixes/f11.md).
 #
 # Every mode runs as the image's `tunnel` user, 10001. The laptop's `tunnel` service alone starts as root (spec 001
 # fixes/f4.md): its client key and pinned host key are the Author's, in H4_TUNNEL_DIR, which preflight's P22 holds to
@@ -61,17 +63,31 @@ metrics() {
 	printf ']}]}]}'
 }
 
+# The kernel's table of the container's IPv4 sockets, one row a socket.
+TCP_TABLE=/proc/net/tcp
+
 # The tunnel end is up while its three reverse forwards listen.
 listening() {
 	local port hex
 	for port in 2201 2202 2203; do
 		printf -v hex '%04X' "$port"
-		grep -qE "^ *[0-9]+: [0-9A-F]{8}:${hex} [0-9A-F]{8}:[0-9A-F]{4} 0A " /proc/net/tcp || return 1
+		grep -qE "^ *[0-9]+: [0-9A-F]{8}:${hex} [0-9A-F]{8}:[0-9A-F]{4} 0A " "$TCP_TABLE" || return 1
 	done
 }
 
+# The inode of the socket listening on 2201, the relay's way to the laptop. A session that takes the forwards listens on
+# sockets of its own, so a new inode there is a new session holding them. Only an authenticated session may listen
+# there (sshd_config's PermitListen), and nothing a stranger sends adds a listener.
+forward_socket() {
+	local hex row inode
+	printf -v hex '%04X' 2201
+	row="$(grep -m1 -E "^ *[0-9]+: [0-9A-F]{8}:${hex} [0-9A-F]{8}:[0-9A-F]{4} 0A " "$TCP_TABLE")" || return 1
+	read -r _ _ _ _ _ _ _ _ _ inode _ <<<"$row"
+	echo "$inode"
+}
+
 report() {
-	local service="$1" end="$2" started up
+	local service="$1" end="$2" started up reconnects=0 held="" socket
 	started="$(date +%s%N)"
 	while sleep "$REPORT_EVERY"; do
 		if [ "$end" = laptop ]; then
@@ -79,122 +95,28 @@ report() {
 			post "$(metrics "$service" "$end" "$up" "$(count reconnects)" "$started")"
 		else
 			listening && up=1 || up=0
-			# Each accepted login after the first is a reconnection.
-			local accepted
-			accepted="$(count accepted)"
-			post "$(metrics "$service" "$end" "$up" "$((accepted > 0 ? accepted - 1 : 0))" "$started")"
+			# Each new session holding the forwards, after the first, is a reconnection: a socket on 2201 other than the
+			# last report's. Two between reports count as one, and a session refused the forwards holds none.
+			socket="$(forward_socket)" || socket=""
+			if [ -n "$socket" ]; then
+				if [ -n "$held" ] && [ "$socket" != "$held" ]; then reconnects=$((reconnects + 1)); fi
+				held="$socket"
+			fi
+			post "$(metrics "$service" "$end" "$up" "$reconnects" "$started")"
 		fi
 	done
 }
 
-# Fix F10 (specs/001-cloud-elevation/fixes/f10.md): a dead laptop's session kept 2201 to 2203 for 15 minutes and more.
-# sshd's client-alive probe runs only when its poll times out, and the relay's check through 2201 every second woke it
-# each time; the session ended only when the kernel gave up on its connection. When a new session can't listen on one
-# of the three, every session the listening sshd started more than GRACE seconds before (its LoginGraceTime, so past
-# its setup) is ended: the laptop's client holds one connection at a time, so a new one means the old one is gone, and
-# its next try, 1 to 30 s later, takes the forwards.
-PROC=/proc
-GRACE=10
-SIGNALLED=""
-
-# sshd's line when a session asks for a forward another session holds: PermitListen's three ports. The whole line, and
-# nothing else: 2222 is open to anywhere, and sshd logs a stranger's user name and identification as sent, so the text
-# inside another line ("Invalid user cannot listen to port: 2201 ...") must never end anyone's session. Under -e an
-# error-level line has no "error: " prefix; sshd's trailing \r is allowed, and sshd escapes any control character in
-# what it logs, so a stranger can't start a line of their own.
-holds_forward() {
-	case "${1%$'\r'}" in
-	"channel_setup_fwd_listener_tcpip: cannot listen to port: 220"[123]) return 0 ;;
-	esac
-	return 1
-}
-
-# One process's pid, parent, start (clock ticks since boot), and command, from its stat file, into STAT_PID, STAT_PPID,
-# STAT_START, and STAT_COMM; the command, in parentheses, may hold spaces and parentheses, so the fields are read after
-# its last ") ".
-stat_of() {
-	local line rest
-	local -a f
-	IFS= read -r line 2>/dev/null <"$1" || return 1
-	rest="${line##*) }"
-	read -r -a f <<<"$rest"
-	[[ "${f[1]:-}" =~ ^[0-9]+$ && "${f[19]:-}" =~ ^[0-9]+$ ]] || return 1
-	STAT_PID="${line%% *}"
-	STAT_PPID="${f[1]}"
-	STAT_START="${f[19]}"
-	STAT_COMM="${line#*(}"
-	STAT_COMM="${STAT_COMM%) *}"
-}
-
-# The listening sshd: the oldest sshd whose parent is $1, this script.
-daemon_pid() {
-	local stat best="" earliest=""
-	for stat in "$PROC"/[0-9]*/stat; do
-		stat_of "$stat" || continue
-		if [ "$STAT_COMM" = sshd ] && [ "$STAT_PPID" = "$1" ] && { [ -z "$earliest" ] || [ "$STAT_START" -lt "$earliest" ]; }; then
-			best="$STAT_PID"
-			earliest="$STAT_START"
-		fi
-	done
-	[ -n "$best" ] && echo "$best"
-}
-
-# The sessions the daemon $1 started before tick $2, each with its own processes, one pid a line.
-stale_sessions() {
-	local stat pid child i=0
-	local -A parent=() started=()
-	local -a ended=()
-	for stat in "$PROC"/[0-9]*/stat; do
-		stat_of "$stat" || continue
-		parent[$STAT_PID]="$STAT_PPID"
-		started[$STAT_PID]="$STAT_START"
-	done
-	for pid in "${!parent[@]}"; do
-		if [ "${parent[$pid]}" = "$1" ] && [ "${started[$pid]}" -lt "$2" ]; then ended+=("$pid"); fi
-	done
-	while [ "$i" -lt "${#ended[@]}" ]; do
-		for child in "${!parent[@]}"; do
-			if [ "${parent[$child]}" = "${ended[$i]}" ]; then ended+=("$child"); fi
-		done
-		i=$((i + 1))
-	done
-	if [ "${#ended[@]}" -gt 0 ]; then printf '%s\n' "${ended[@]}"; fi
-}
-
-# Ends the older sessions, each process once, and says so.
-end_older_sessions() {
-	local daemon ticks uptime now pid
-	local -a ended=()
-	daemon="$(daemon_pid "$$")" || return 0
-	ticks="$(getconf CLK_TCK 2>/dev/null || echo 100)"
-	read -r uptime _ 2>/dev/null <"$PROC/uptime" || return 0
-	# /proc/uptime has two decimals: hundredths of a second, then ticks.
-	now=$((10#${uptime/./} * ticks / 100))
-	for pid in $(stale_sessions "$daemon" "$((now - GRACE * ticks))"); do
-		case " $SIGNALLED " in *" $pid "*) continue ;; esac
-		SIGNALLED="$SIGNALLED $pid"
-		if kill -TERM "$pid" 2>/dev/null; then ended+=("$pid"); fi
-	done
-	if [ "${#ended[@]}" -gt 0 ]; then
-		echo "tunnel-end: a new session couldn't listen on its forwards; ended the older session holding them (processes ${ended[*]}), so the client's next try takes them" >&2
-	fi
-}
-
+# Fix F11 (specs/001-cloud-elevation/fixes/f11.md): sshd's log is scrubbed and printed, and nothing here decides from
+# it. Under -e, sshd writes each record with its newlines and carriage returns as they came (only syslog's lines escape
+# them), and a stranger on 2222 chooses parts of some (a KEXINIT's offer, a disconnect's description, a user name), so
+# any line may be theirs. F10's net, which ended the older sessions on sshd's "cannot listen to port" line, went with
+# the count of "Accepted publickey" lines. A dead session's forwards are freed by client-alive or, its peer silent, by
+# the kernel, which gives up on it in about 100 s at this container's tcp_retries2 (deploy/compose.yaml, fixes/f10.md).
 server() {
 	local end=tunnel-end
-	mkdir -p "$STATE"
-	: >"$STATE/accepted"
 	report tunnel-end "$end" &
-	/usr/sbin/sshd -D -e -f /etc/ssh/h4/sshd_config 2>&1 | scrub | while IFS= read -r line; do
-		printf '%s\n' "$line"
-		case "$line" in
-		*"Accepted publickey for tunnel"*)
-			printf '.' >>"$STATE/accepted"
-			SIGNALLED=""
-			;;
-		esac
-		if holds_forward "$line"; then end_older_sessions; fi
-	done
+	/usr/sbin/sshd -D -e -f /etc/ssh/h4/sshd_config 2>&1 | scrub
 	echo "tunnel-end: sshd stopped" >&2
 	exit 1
 }
