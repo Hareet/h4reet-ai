@@ -49,13 +49,13 @@ Below, pasted from this worktree: the touched suites, `make -f Makefile lint`, a
 The touched suites, at the tip:
 
 ```text
-$ pytest deploy/hosts/ -p no:cacheprovider -q
-123 passed in 2.46s
-$ pytest deploy/tunnel/ -q -p no:cacheprovider -rs
-26 passed, 9 skipped in 14.46s
-$ pytest deploy/scripts/test_compose_env.py deploy/scripts/test_preflight.py tools/gates/test/test_compose_policy.py deploy/scripts/test_deployer.py deploy/hosts -q -p no:cacheprovider
-649 passed in 6.60s
+$ pytest deploy/hosts/ deploy/tunnel/ -q -p no:cacheprovider
+160 passed, 9 skipped in 29.06s
+$ pytest deploy/scripts/test_deployer.py deploy/scripts/test_compose_env.py deploy/scripts/test_preflight.py tools/gates/test/test_compose_policy.py -q -p no:cacheprovider
+526 passed in 8.51s
 ```
+
+The rework's RED and GREEN, whole, are in f9.md and f10.md ("The rework's runs").
 
 `make -f Makefile lint`, whole (shellcheck's long file list cut at 400 characters):
 
@@ -74,7 +74,7 @@ shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transacti
 exit 0
 ```
 
-`make -f Makefile check ENGINE_MODE=none-yet`, its summary:
+`make -f Makefile check ENGINE_MODE=none-yet`, rerun after the rework, its summary (the same as before it):
 
 ```text
 PASS     githooks-check
@@ -100,7 +100,7 @@ exit 2
 
 Both failures are this sandbox's, not the branch's, and neither touches a file it changes:
 
-- `test`: 7498 passed, 14 skipped, 1 failed, `scripts/infra/test_infra_targets.py::test_infra_check_runs_the_policy_then_waits_for_terraform`: `mktemp: failed to create file via template '/tmp/tmp.XXXXXXXXXX': Read-only file system` (the test's `make` runs without this session's `TMPDIR`, and `/tmp` is read-only here).
+- `test`: 7509 passed, 14 skipped, 1 failed (rerun at the rework's tip; 7498 before it), `scripts/infra/test_infra_targets.py::test_infra_check_runs_the_policy_then_waits_for_terraform`: `mktemp: failed to create file via template '/tmp/tmp.XXXXXXXXXX': Read-only file system` (the test's `make` runs without this session's `TMPDIR`, and `/tmp` is read-only here).
 - `infra-check`: `infra-policy: PASS, 32 files`, then Terraform's AWS provider can't start in the sandbox ("Failed to read any lines from plugin's stdout"). No file under `infra/` changes.
 - `evals` WARN: the behavioral tier has no run for this trigger hash; this branch touches nothing under `.claude/` or the agent configuration, so his gate skips that step.
 
