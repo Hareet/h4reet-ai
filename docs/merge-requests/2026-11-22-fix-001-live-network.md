@@ -40,7 +40,25 @@ Spec 001 FR-019 and FR-060 (the shared state on the tunnel end, which the host s
 
 ## Review
 
-Left for a reviewer that wrote none of it.
+A reviewer that wrote none of it, read-only, in two rounds.
+
+**Round 1, `bd7e0765`: CHANGES REQUESTED.**
+
+- I1 (Security): `holds_forward` matched the conflict text anywhere in a log line. sshd logs a stranger's username
+  as sent, and 2222 is open to anywhere, so anyone could end the laptop's tunnel and admin sessions without a key.
+- Nit 1: an undo removed a new drop-in, and the rollback to f1abe245 would then run networkctl.
+- Nit 2: `make_live` only adds.
+- Nit 3: f10.md's cause was unverified.
+
+**Round 2, `c1a44039`: APPROVE.**
+
+- The matcher now takes only sshd's whole line. Stranger-controlled lines don't match, and a prefixed line fails
+  silent, not open.
+- An undo keeps a new drop-in and restores a changed one.
+- F9-1 now says `make_live` only adds, and the cause in f10.md is a hypothesis with F10-2 to settle it.
+- RED: 14 failed. Tip: 686 passed, 9 skipped. ruff, shellcheck and prettier clean. The make check mktemp failure
+  reproduces on main in this sandbox.
+- Open for the Author: the drop-in pre-check, the rule and route readings after the release, and F10's live steps.
 
 ## Verification
 
