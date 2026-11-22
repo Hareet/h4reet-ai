@@ -100,18 +100,48 @@ HOLDS: dict[str, tuple[tuple[tuple[str, ...], str, frozenset[str] | None], ...]]
     "ec2:terminateinstances": ((_STRING, _NAME, HOSTS),),
     "ec2:cancelspotinstancerequests": ((_STRING, _NAME, HOSTS),),
     "ec2:attachvolume": ((_STRING, _NAME, HOSTS | HOST_VOLUMES),),
-    "ec2:runinstances": (
+    "ec2:createtags": ((_STRING, r"ec2:CreateAction", frozenset({"RunInstances"})),),
+}
+LAUNCH_TEMPLATE = re.compile(r"arn:aws:ec2:[a-z0-9-]+:[^:*]+:launch-template/[^:]*")
+# The rework after the reviews of 52308132 (Important 1): RunInstances is held statement by statement to the kinds of
+# resource it names, each kind needing all of its conditions, so a request can't override the template's type, market,
+# image, subnet, group, or interface. The listed types are prod's two lists (infra/prod/ec2.tf, tunnel-end.tf), which
+# the account's iam.tf repeats and infra/test/test_handover.py holds alike.
+LISTED_TYPES = frozenset(
+    {
+        "t4g.large",
+        "m7g.large",
+        "m6g.large",
+        "t4g.xlarge",
+        "t4g.small",
+        "c7g.medium",
+        "c6g.medium",
+        "t4g.medium",
+    }
+)
+_FROM_TEMPLATE = (("ArnLike", "ArnEquals"), r"ec2:LaunchTemplate", None)
+_TEMPLATE_PART = (("Bool",), r"ec2:IsLaunchTemplateResource", frozenset({"true"}))
+RUN_KINDS: dict[str, tuple[tuple[tuple[str, ...], str, frozenset[str] | None], ...]] = {
+    "launch-template": (
         (
             _STRING,
             r"(?:aws|ec2):ResourceTag/component",
             frozenset({"ec2", "tunnel-end"}),
         ),
-        (_STRING, r"aws:RequestTag/Name", HOSTS),
-        (("ArnLike", "ArnEquals"), r"ec2:LaunchTemplate", None),
     ),
-    "ec2:createtags": ((_STRING, r"ec2:CreateAction", frozenset({"RunInstances"})),),
+    "instance": (
+        (_STRING, r"aws:RequestTag/Name", HOSTS),
+        (_STRING, r"ec2:InstanceType", LISTED_TYPES),
+        (_STRING, r"ec2:InstanceMarketType", frozenset({"spot"})),
+    ),
+    "volume": (_FROM_TEMPLATE,),
+    "spot-instances-request": (_FROM_TEMPLATE,),
+    "image": (_FROM_TEMPLATE, _TEMPLATE_PART),
+    "subnet": (_FROM_TEMPLATE, _TEMPLATE_PART),
+    "security-group": (_FROM_TEMPLATE, _TEMPLATE_PART),
+    "network-interface": (_FROM_TEMPLATE, _TEMPLATE_PART),
 }
-LAUNCH_TEMPLATE = re.compile(r"arn:aws:ec2:[a-z0-9-]+:[^:*]+:launch-template/[^:]*")
+EC2_ARN = re.compile(r"arn:aws:ec2:[a-z0-9-]*:[^:]*:([a-z-]+)/.+")
 RUNBOOK = "docs/runbooks/credential-audit.md"
 # The Author's allowlist (ADR 0047), out of the repository: his file in the terminal, a parameter in the function.
 ALLOW_PARAMETER_ENV = "H4_AUDIT_ALLOW_PARAMETER"
@@ -318,8 +348,54 @@ def handover_too_broad(docs: list[dict] | None, allowed: set[str]) -> bool:
                     continue
                 if action in DESCRIBE:
                     continue
+                if action == "ec2:runinstances" and action in allowed:
+                    if not run_holds(s):
+                        return True
+                    continue
                 if action not in allowed or not holds(action, s.get("Condition")):
                     return True
+    return False
+
+
+def run_holds(statement: dict) -> bool:
+    """A RunInstances statement names only kinds RUN_KINDS knows, never *, and its condition holds every requirement of
+    every kind it names."""
+    kinds = set()
+    for resource in as_list(statement.get("Resource")):
+        m = EC2_ARN.fullmatch(str(resource))
+        if m is None or m.group(1) not in RUN_KINDS:
+            return False
+        kinds.add(m.group(1))
+    condition = statement.get("Condition")
+    return bool(kinds) and all(
+        meets(condition, need) for kind in kinds for need in RUN_KINDS[kind]
+    )
+
+
+def meets(
+    condition: object, need: tuple[tuple[str, ...], str, frozenset[str] | None]
+) -> bool:
+    """One requirement: a key of the pattern, under one of the operators, naming only allowed values."""
+    operators, pattern, allowed = need
+    if not isinstance(condition, dict):
+        return False
+    for operator, pairs in condition.items():
+        if operator not in operators or not isinstance(pairs, dict):
+            continue
+        for key, values in pairs.items():
+            named = [
+                str(v).lower() if allowed is not None and operator == "Bool" else v
+                for v in as_list(values)
+            ]
+            if not re.fullmatch(pattern, key) or not named:
+                continue
+            if allowed is None:
+                if all(
+                    isinstance(v, str) and LAUNCH_TEMPLATE.fullmatch(v) for v in named
+                ):
+                    return True
+            elif set(named) <= allowed:
+                return True
     return False
 
 
