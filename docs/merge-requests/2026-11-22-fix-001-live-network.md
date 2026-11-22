@@ -39,7 +39,65 @@ Left for a reviewer that wrote none of it.
 
 Below, pasted from this worktree: the touched suites, `make -f Makefile lint`, and `make -f Makefile check ENGINE_MODE=none-yet`. No Docker, GPU, or network beyond loopback here: the tunnel's nine container checks skip ("the agents' engine isn't answering"), the new one among them.
 
-VERIFICATION-PLACEHOLDER
+The touched suites, at the tip:
+
+```text
+$ pytest deploy/hosts/ -p no:cacheprovider -q
+123 passed in 2.46s
+$ pytest deploy/tunnel/ -q -p no:cacheprovider -rs
+26 passed, 9 skipped in 14.46s
+$ pytest deploy/scripts/test_compose_env.py deploy/scripts/test_preflight.py tools/gates/test/test_compose_policy.py deploy/scripts/test_deployer.py deploy/hosts -q -p no:cacheprovider
+649 passed in 6.60s
+```
+
+`make -f Makefile lint`, whole (shellcheck's long file list cut at 400 characters):
+
+```text
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway services/relay apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+960 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limit …
+exit 0
+```
+
+`make -f Makefile check ENGINE_MODE=none-yet`, its summary:
+
+```text
+PASS     githooks-check
+PASS     toolchain-check
+PASS     policy
+PASS     validate-config
+PASS     lint
+FAIL     test
+PASS     content-check
+PASS     secrets
+PASS     arrival
+FAIL     infra-check
+SKIP     infra-plan-note  no infra change
+PASS     disclosure-check
+WARN     evals  WARN (behavioral tier): no run for trigger hash 9d6bd993305f in evals/agent-config/history/; the Author runs make evals-agent-config REF=<branch> from main's checkout, and commits its 
+PASS     redteam
+PASS     matrix
+SKIP     image  no agents' engine yet: tasks.md T046
+make check: 12 PASS, 2 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 2 FAIL; failing: test FAIL, infra-check FAIL
+make: *** [Makefile:168: check] Error 1
+exit 2
+```
+
+Both failures are this sandbox's, not the branch's, and neither touches a file it changes:
+
+- `test`: 7498 passed, 14 skipped, 1 failed, `scripts/infra/test_infra_targets.py::test_infra_check_runs_the_policy_then_waits_for_terraform`: `mktemp: failed to create file via template '/tmp/tmp.XXXXXXXXXX': Read-only file system` (the test's `make` runs without this session's `TMPDIR`, and `/tmp` is read-only here).
+- `infra-check`: `infra-policy: PASS, 32 files`, then Terraform's AWS provider can't start in the sandbox ("Failed to read any lines from plugin's stdout"). No file under `infra/` changes.
+- `evals` WARN: the behavioral tier has no run for this trigger hash; this branch touches nothing under `.claude/` or the agent configuration, so his gate skips that step.
+
+His gate, from main's checkout, is the run that counts.
 
 ## Cost and data-flow impact
 
