@@ -87,6 +87,6 @@ resource "aws_launch_template" "tunnel_end" {
     # A newer image or a changed host file reaches the tunnel end only through a reviewed change: the templates ignore
     # the image's and the user data's drift, and a new terraform_data.tunnel_end_host (tunnel-end.tf) replaces them;
     # the running tunnel end moves onto them by the Author's hand replace (docs/runbooks/tunnel-end.md).
-    ignore_changes       = [image_id, user_data]
+    ignore_changes = [image_id, user_data]
   }
 }
