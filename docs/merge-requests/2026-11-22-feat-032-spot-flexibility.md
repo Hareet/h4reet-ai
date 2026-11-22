@@ -27,7 +27,7 @@ Spec 032 FR-001 to FR-020 (tasks.md's FR table maps each to its tasks); SC-004 a
 | II. Production-grade | Tests for every path (stubbed AWS), a dashboard panel, runbook entries for each alert, a cost estimate, an ADR |
 | III. Intent, spec, humans merge | Accepted intent; spec, plan, tasks before code; protected files as the Author's patches; his plan, gate, merge, applies |
 | IV. Least privilege | The start role's new grants are tag-, template-, and service-scoped; the audit holds each; the function never edits IAM, budgets, or rules |
-| V. Cost | Ceilings bound every type; **a named, bounded deviation**: after a replace, until the next prod apply, the server budget's stop action names the old instance; the start refusal and the guard's close stop keep its effect (spec Assumptions; ADR 0057) |
+| V. Cost | Ceilings bound every type, in the templates and (rework) in the role's conditions; **a named, bounded deviation, closed to minutes in the rework**: after a replace, until the next prod apply, the server budget's stop action names the old instance; `h4-ec2-running` names no instance and the guard's `h4-ec2-budget-check` stops every running EC2 within 5 minutes once the action has run (spec Assumptions; ADR 0057) |
 | VI. Build in public | The cost story and the alternatives are in ADR 0057 and here |
 | VII, VIII | Not touched |
 
@@ -62,7 +62,7 @@ Where the cost story belongs beyond ADR 0057 and this note: `docs/how-we-build/`
 ## Backlog and open questions
 
 - **Q5, who stopped EC2 near 01:00Z on 2026-11-18** (`instance-stopped-by-user`): yours, from CloudTrail and the guard's logs (step 10). Nothing here assumes the answer. Recommended: record it in an incident note if the stop wasn't yours or the guard's close.
-- **Q-A, the gap after a replace**: rules that don't name an instance (the functions filtering by tag) would remove it. Recommended: leave it until a replace has happened on AWS and you have seen the gap's alerts once.
+- **Q-A, the gap after a replace**: closed in the rework, to up to 5 minutes after the server action runs (the review measured the first draft's at about $1.60 an event, not cents). What's left until the next prod apply: AWS's two-minute warning for a new host isn't alerted, and the tunnel end's two rules name the old one. Recommended: leave those until a replace has happened on AWS.
 - **Q-B, the how-we-build cost page**: recommended yes, `docs/how-we-build/cost.md`, written by the docs role from ADR 0057 after the merge.
 - **Q-C, the VPC origin**: whether it needs the re-point at all, and whether CloudFront accepts a new ARN while the distribution uses it. Recommended: settle it in step 9's rehearsal, then record the answer in ADR 0057.
 - **Q-D, the tunnel end's ceiling**: $0.0168 may sit under the fallbacks' spot prices on some hours, so they'd be passed over (`SpotMaxPriceTooLow`). Recommended: keep it until a real replace shows it too tight.
@@ -78,8 +78,8 @@ In order. Each block is short lines; set `pf` to your administrator profile and 
 
    | Patch | SHA-256 | Files |
    |---|---|---|
-   | `docs/merge-requests/human-patches/2026-11-22-032-prod.patch` | `d84a3d059988d3aa418fd357ed1f834a8a985dfc2ee73de509bef47c5d43718a` | `infra/prod/ec2-market.tf`, `handover.tf`, `killswitch.tf`, `edge.tf` |
-   | `docs/merge-requests/human-patches/2026-11-22-032-account.patch` | `d259b68016281ab0d25155b21820e61e20dff4ae939cd691001805327f4e370f` | `infra/account/iam.tf`, `handover.tf` |
+   | `docs/merge-requests/human-patches/2026-11-22-032-prod.patch` | `719724984febfb606f05e1eb967430bf2e216a83aa642ec83a98eaf7d1cedd3e` | `infra/prod/ec2-market.tf`, `handover.tf`, `killswitch.tf`, `edge.tf` |
+   | `docs/merge-requests/human-patches/2026-11-22-032-account.patch` | `cfd73d770108b80df1cb0cfdcf12b18cd8d70d083b14e27d4c8774bcd20f51c4` | `infra/account/iam.tf`, `handover.tf` |
 
    ```bash
    d=docs/merge-requests/human-patches
@@ -94,7 +94,7 @@ In order. Each block is short lines; set `pf` to your administrator profile and 
 
    Commit them on the branch. `infra/test/patches.py` then reads the tree as it is.
 
-3. **Plans from a fresh clone of the branch**, prod and account (`make plan ROOT=prod PROFILE=$pf`, then `ROOT=account`), their blocks into this note before your gate. **Read prod's for**: no instance destroyed or replaced. Expected: `aws_instance.ec2`, `aws_instance.tunnel_end`, `aws_volume_attachment.ec2_data`, `aws_volume_attachment.shared_state`, and `aws_network_interface_attachment.tunnel_end_public` "will no longer be managed by Terraform" (removed, not destroyed); eight `aws_launch_template` created (four `ec2["…"]`, four `tunnel_end["…"]`); three `aws_ssm_parameter` created (`ec2_launch_templates`, `tunnel_end_launch_templates`, `relay_vpc_origin_id`); `aws_iam_role_policy.server_action` updated in place (the tag condition). Nothing else: the four rules, the budget action, the ID's parameter, the VPC origin, and the distribution read the same IDs and names, so they show no change. If the distribution's relay origin or the VPC origin shows a change, stop and ask. **Read the account's for**: `aws_iam_role_policy.ec2_start` updated, `aws_lambda_function.ec2_start[0]` updated (timeout 900, and the image once step 6's digest is in), its invoke config updated (event age 900), `aws_scheduler_schedule.tunnel_end_check[0]` created.
+3. **Plans from a fresh clone of the branch**, prod and account (`make plan ROOT=prod PROFILE=$pf`, then `ROOT=account`), their blocks into this note before your gate. **Read prod's for**: no instance destroyed or replaced. Expected: `aws_instance.ec2`, `aws_instance.tunnel_end`, `aws_volume_attachment.ec2_data`, `aws_volume_attachment.shared_state`, and `aws_network_interface_attachment.tunnel_end_public` "will no longer be managed by Terraform" (removed, not destroyed); eight `aws_launch_template` created (four `ec2["…"]`, four `tunnel_end["…"]`); three `aws_ssm_parameter` created (`ec2_launch_templates`, `tunnel_end_launch_templates`, `relay_vpc_origin_id`); `aws_iam_role_policy.server_action` updated in place (the tag condition); `aws_cloudwatch_event_rule.ec2_running` updated in place (its pattern names no instance, the rework). Nothing else: the other three rules, the budget action, the ID's parameter, the VPC origin, and the distribution read the same IDs and names, so they show no change. If the distribution's relay origin or the VPC origin shows a change, stop and ask. **Read the account's for**: `aws_iam_role_policy.ec2_start` updated, `aws_lambda_function.ec2_start[0]` updated (timeout 900, and the image once step 6's digest is in), its invoke config updated (event age 900), `aws_scheduler_schedule.tunnel_end_check[0]` created with `state = "DISABLED"`, `aws_scheduler_schedule.ec2_budget_check[0]` created, and `aws_lambda_function.ec2_guard[0]` updated (its image, once step 6's digest is in).
 
 4. **Your gate and the merge**: `tools/gates/gate feat/032-spot-flexibility` from main's checkout, and the merge command it prints.
 
@@ -121,7 +121,37 @@ In order. Each block is short lines; set `pf` to your administrator profile and 
 
    Each line should name one `sir-…`.
 
-6. **Prod's apply**, from main (`make infra-verify ROOT=prod`, your apply, `make infra-record ROOT=prod OUTCOME=ok`). Then **the start function's image** from main, as W2's T174 built it (W2's note, "2. T174"), for `ec2_start` alone; tell the session its digest, which it writes into `infra/account/main.tf`'s `local.lambda_images.ec2_start` on a small branch for your merge. **Only then the account's plan and apply**: the 5-minute schedule must never invoke the old image, which would refuse `unknown_trigger` and alert every 5 minutes.
+6. **Prod's apply**, from main (`make infra-verify ROOT=prod`, your apply, `make infra-record ROOT=prod OUTCOME=ok`). Then **the two functions' images** from main, as W2's T174 built them (W2's note, "2. T174"), for `ec2_start` and `ec2_guard` (the rework changed the guard too); tell the session the two digests, which it writes into `infra/account/main.tf`'s `local.lambda_images` on a small branch for your merge. **Only then the account's plan and apply**: the guard's budget check and the start function must never run the old images, which would refuse `unknown_trigger` and alert every 5 minutes. That apply makes `h4-tunnel-end-check` **DISABLED** (`local.tunnel_end_check_state`), so nothing replaces a host on its own yet. Then **prove the role**, which changes nothing:
+
+   ```bash
+   make ec2-start REPLACE=ec2 \
+     DRY_RUN=1 PROFILE=$pf
+   make ec2-start REPLACE=tunnel_end \
+     DRY_RUN=1 PROFILE=$pf
+   ```
+
+   Each prints every listed type's answer; all `DryRunOperation` and exit 0 means the role launches each. If one refuses, stop and tell the session. Only then set `tunnel_end_check_state = "ENABLED"` in `infra/account/handover.tf` by hand (a protected file, yours), commit it, and plan and apply the account again: the plan shows `aws_scheduler_schedule.tunnel_end_check[0]` updated, its state alone.
+
+   **Before the first replace, read-only**: the attachments that must survive a terminate keep their volume and interfaces (`DeleteOnTermination` false):
+
+   ```bash
+   for n in h4-ec2-data h4-shared-state
+   do
+     aws ec2 describe-volumes "${a[@]}" \
+       --filters Name=tag:Name,Values=$n \
+       --query 'Volumes[].Attachments[].DeleteOnTermination'
+   done
+   for n in h4-tunnel-end-public \
+     h4-tunnel-end-private
+   do
+     aws ec2 describe-network-interfaces \
+       "${a[@]}" \
+       --filters Name=tag:Name,Values=$n \
+       --query 'NetworkInterfaces[].Attachment.DeleteOnTermination'
+   done
+   ```
+
+   Each prints `[false]`. A `true` would lose that volume or interface at the first replace: stop and tell the session.
 
 7. **Prove a fallback type starts** (SC-001), inside the hours with the laptop down, so EC2's checks pass:
 
@@ -132,9 +162,9 @@ In order. Each block is short lines; set `pf` to your administrator profile and 
 
    Expect `ec2_started` with `- type: m7g.large` (or the next with capacity) and `- replaced: t4g.large by_hand`; `/api/status` serving `ec2` within 10 minutes; Langfuse's earlier traces still listed. Then `make ec2-start REPLACE=ec2 PROFILE=$pf` to go back to `t4g.large` if you prefer it. A cheaper first proof that the templates launch at all: `aws ec2 run-instances --dry-run` with `--launch-template LaunchTemplateName=h4-prod-ec2-m7g.large` answers `DryRunOperation` when the call would succeed.
 
-8. **Re-point**: prod's plan and apply again; the read shows the four rules' patterns, the budget action's instance IDs, and the VPC origin (if the tunnel end changed) updated in place, and nothing else.
+8. **Re-point**: prod's plan and apply again; the read shows EC2's warning rule's pattern, the budget action's instance IDs, and (if the tunnel end changed) its two rules and the VPC origin updated in place, and nothing else.
 
-9. **The tunnel end's rehearsal** (SC-002), at a quiet hour: `make ec2-start REPLACE=tunnel_end PROFILE=$pf`. Expect `tunnel_end_back` with `- type: t4g.small` and `- origin:`; `/api/status` 200 within 15 minutes; the laptop's tunnel reconnected with its pinned host key; the shared state's rows intact. Record `- origin:` (Q-C). Then step 8 again. **Exactly one instance per host** (SC-003): `aws ec2 describe-instances` by each `Name` shows one not terminated, and `aws ec2 describe-spot-instance-requests` shows no `open` request carrying either name.
+9. **The tunnel end's rehearsal** (SC-002), at a quiet hour. **First** (Q-C): your latest prod plan shows no `forces replacement` on `aws_cloudfront_vpc_origin.relay`, and the role's `cloudfront:GetVpcOrigin` and `UpdateVpcOrigin` on `vpcorigin/*` are what CloudFront asks for (the IAM console's policy simulator on `h4-ec2-start-fn`, both actions, allowed). Then `make ec2-start REPLACE=tunnel_end PROFILE=$pf`. Expect `tunnel_end_back` with `- type: t4g.small` and `- origin:`; `/api/status` 200 within 15 minutes; the laptop's tunnel reconnected with its pinned host key; the shared state's rows intact. Record `- origin:` (Q-C). Then step 8 again. **Exactly one instance per host** (SC-003): `aws ec2 describe-instances` by each `Name` shows one not terminated, and `aws ec2 describe-spot-instance-requests` shows no `open` request carrying either name.
 
 10. **Q5, from CloudTrail and the guard's logs**:
 
