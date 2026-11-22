@@ -109,6 +109,16 @@ class Aws:
                 ]
             },
             ("sns", "Publish"): {"MessageId": "m-1"},
+            # Spec 032's rework: the data volume, attached to EC2, which every start checks first.
+            ("ec2", "DescribeVolumes"): {
+                "Volumes": [
+                    {
+                        "VolumeId": "vol-1",
+                        "State": "in-use",
+                        "Attachments": [{"InstanceId": EC2_ID}],
+                    }
+                ]
+            },
         }
         self.answers.update(over or {})
 

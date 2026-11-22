@@ -51,6 +51,10 @@ class Context:
     invoked_function_arn = f"arn:aws:lambda:us-east-1:{ACCOUNT}:function:h4-ec2-start"
 
 
+class TwoHosts(BaseException):
+    """A second live instance of a host: a BaseException, so the handler's catch-all can't swallow it."""
+
+
 class Clock:
     def __init__(self, at: datetime) -> None:
         self.at = at
@@ -98,6 +102,9 @@ class Cloud:
         self.budget = "STANDBY"
         self.origin_arn = self.arn(OLD_TUNNEL)
         self.count = 0
+        # Types whose dry run IAM refuses; instances that never leave pending or shutting-down.
+        self.dry_refused: set[str] = set()
+        self.stuck: set[str] = set()
 
     @staticmethod
     def arn(instance: str) -> str:
@@ -134,7 +141,7 @@ class Cloud:
         return [
             i
             for i in self.instances.values()
-            if i["State"]["Name"] not in ("terminated", "shutting-down")
+            if i["State"]["Name"] != "terminated"
             and {"Key": "Name", "Value": name} in i["Tags"]
         ]
 
@@ -192,12 +199,18 @@ class Cloud:
             ]
         out = []
         for i in found:
-            # A pending instance runs, and a terminating one is gone, at the next look.
+            # A pending instance runs, and a terminating one is gone, at the next look; only then are its volume and
+            # its address free, as on AWS.
             out.append(json.loads(json.dumps(i)))
+            if i["InstanceId"] in self.stuck:
+                continue
             if i["State"]["Name"] == "pending":
                 i["State"]["Name"] = "running"
             elif i["State"]["Name"] == "shutting-down":
                 i["State"]["Name"] = "terminated"
+                for v in self.volumes.values():
+                    if v["on"] == i["InstanceId"]:
+                        v["on"] = None
         return {"Reservations": [{"Instances": out}]}
 
     def ec2_DescribeSpotInstanceRequests(self, SpotInstanceRequestIds) -> dict:
@@ -229,17 +242,23 @@ class Cloud:
                 "terminated before its request was cancelled"
             )
             self.instances[iid]["State"]["Name"] = "shutting-down"
-            for v in self.volumes.values():
-                if v["on"] == iid:
-                    v["on"] = None
         return {}
 
-    def ec2_RunInstances(self, LaunchTemplate, MinCount, MaxCount) -> dict:
+    def ec2_RunInstances(
+        self, LaunchTemplate, MinCount, MaxCount, DryRun=False
+    ) -> dict:
         assert (MinCount, MaxCount) == (1, 1)
         assert LaunchTemplate["Version"] == "$Default"
         kind = self.templates[LaunchTemplate["LaunchTemplateId"]]
+        if DryRun:
+            raise start.AwsError(
+                "UnauthorizedOperation"
+                if kind in self.dry_refused
+                else "DryRunOperation"
+            )
         name = "h4-prod-tunnel-end" if kind in TUNNEL_TYPES else "h4-prod-ec2"
-        assert not self.live(name), f"a second {name} would run"
+        if self.live(name):
+            raise TwoHosts(f"a second {name} would run")
         if kind in self.short:
             raise start.AwsError("InsufficientInstanceCapacity")
         self.count += 1
@@ -270,7 +289,8 @@ class Cloud:
 
     def ec2_AttachVolume(self, Device: str, InstanceId: str, VolumeId: str) -> dict:
         assert Device == "/dev/sdf"
-        assert self.volumes[VolumeId]["on"] is None, "attached while still on another"
+        if self.volumes[VolumeId]["on"] is not None:
+            raise TwoHosts("attached while still on another")
         self.volumes[VolumeId]["on"] = InstanceId
         return {"State": "attaching"}
 
@@ -375,8 +395,8 @@ def test_a_capacity_refusal_replaces_ec2_with_the_next_type_in_order(
     assert c.volumes["vol-ec2"]["on"] == new["InstanceId"]
     assert c.instances[OLD_EC2]["State"]["Name"] == "terminated"
     order = [
-        o
-        for _, o, _ in c.calls
+        "DryRun" if p.get("DryRun") else o
+        for _, o, p in c.calls
         if o
         in (
             "CancelSpotInstanceRequests",
@@ -385,7 +405,11 @@ def test_a_capacity_refusal_replaces_ec2_with_the_next_type_in_order(
             "AttachVolume",
         )
     ]
+    # Spec 032's rework: every candidate's dry run before anything is cancelled or terminated.
     assert order == [
+        "DryRun",
+        "DryRun",
+        "DryRun",
         "CancelSpotInstanceRequests",
         "TerminateInstances",
         "RunInstances",
@@ -410,6 +434,7 @@ def test_each_refused_type_is_tried_once_in_order_and_named() -> None:
     launched = [
         c.templates[p["LaunchTemplate"]["LaunchTemplateId"]]
         for p in c.ops("RunInstances")
+        if not p.get("DryRun")
     ]
     assert launched == ["m7g.large", "m6g.large"]
     f = facts(c.alerts()[0])
@@ -445,7 +470,7 @@ def test_another_launch_code_stops_the_list() -> None:
     c.refuse["RunInstances"] = start.AwsError("UnauthorizedOperation")
     result = run(ALARM, c)
     assert result["reason"] == "start_failed"
-    assert len(c.ops("RunInstances")) == 1
+    assert len([p for p in c.ops("RunInstances") if not p.get("DryRun")]) == 1
     f = facts(c.alerts()[0])
     assert f["code"] == "UnauthorizedOperation"
 
@@ -467,7 +492,7 @@ def test_an_instance_aws_stopped_for_capacity_is_replaced_without_a_start() -> N
     assert ec2_now(c)["InstanceType"] == "m7g.large"
 
 
-def test_an_instance_of_an_earlier_generation_is_replaced_from_the_top() -> None:
+def test_a_stopped_instance_of_an_earlier_generation_is_replaced_from_the_top() -> None:
     c = cloud()
     c.instances[OLD_EC2]["Tags"].append(
         {"Key": "aws:ec2launchtemplate:id", "Value": "lt-gone"}
@@ -589,6 +614,7 @@ def test_the_check_leaves_a_running_a_hand_stopped_or_a_young_stop_alone(
     setup(c)
     run(CHECK, c)
     assert not c.ops("TerminateInstances") and not c.ops("RunInstances")
+    assert not c.ops("UpdateVpcOrigin") and not c.ops("AttachVolume")
     assert not c.alerts()
     out = capsys.readouterr().out.splitlines()
     assert len(out) == 1 and "_aws" not in json.loads(out[0]), (
@@ -714,5 +740,214 @@ def test_a_wait_that_never_ends_refuses_and_releases_the_lock() -> None:
     result = run(ALARM, c)
     assert result["reason"] == "start_failed"
     assert facts(c.alerts()[0])["code"] == "wait_timeout"
-    assert not c.ops("RunInstances")
+    assert not [p for p in c.ops("RunInstances") if not p.get("DryRun")]
     assert "/h4reet/prod/host-lock" not in c.params
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# The rework after the reviews of 52308132: a replace that fails part-way is repaired by the next trigger; nothing is
+# terminated before a dry run proves each launch; the waits end inside the function's time; generations move only a
+# stopped EC2.
+
+
+def test_a_refused_id_write_is_repaired_by_the_next_trigger_without_a_second_launch() -> (
+    None
+):
+    c = cloud()
+    c.short = {"t4g.large"}
+    c.refuse["PutParameter"] = start.AwsError("ThrottlingException")  # the lock's write
+    real = c.ssm_PutParameter
+    failed = []
+
+    def put(Name, Value, Type, Overwrite):
+        if Name == "/h4reet/prod/ec2-instance-id" and not failed:
+            failed.append(Name)
+            raise start.AwsError("ThrottlingException")
+        return real(Name=Name, Value=Value, Type=Type, Overwrite=Overwrite)
+
+    c.refuse.clear()
+    c.ssm_PutParameter = put  # type: ignore[method-assign]
+    first = run(ALARM, c)
+    assert first["reason"] == "start_failed"
+    assert facts(c.alerts()[-1])["step"] == "parameter"
+    (orphan,) = c.live("h4-prod-ec2")
+    c.short = set()
+    second = run(ALARM, c)
+    assert second["outcome"] == "started", second
+    assert c.live("h4-prod-ec2") == [orphan], "adopted, never launched again"
+    assert c.params["/h4reet/prod/ec2-instance-id"] == orphan["InstanceId"]
+    assert c.volumes["vol-ec2"]["on"] == orphan["InstanceId"]
+    assert len([p for p in c.ops("RunInstances") if not p.get("DryRun")]) == 1
+
+
+def test_a_refused_attach_is_repaired_before_the_next_start() -> None:
+    c = cloud()
+    c.short = {"t4g.large"}
+    c.refuse["AttachVolume"] = start.AwsError("IncorrectState")
+    first = run(ALARM, c)
+    assert first["reason"] == "start_failed"
+    assert facts(c.alerts()[-1])["step"] == "attach"
+    new = ec2_now(c)
+    assert c.volumes["vol-ec2"]["on"] is None
+    new["State"]["Name"] = "stopped"  # the guard's close
+    second = run({"from": "hours_open"}, c)
+    assert second["outcome"] == "started"
+    assert c.volumes["vol-ec2"]["on"] == new["InstanceId"]
+    starts = [i for i, (_, o, _) in enumerate(c.calls) if o == "StartInstances"]
+    attach = [i for i, (_, o, _) in enumerate(c.calls) if o == "AttachVolume"]
+    assert attach[-1] < starts[-1], "attached before the start"
+
+
+def test_a_launch_that_never_runs_is_repaired_by_the_next_trigger() -> None:
+    c = cloud()
+    c.short = {"t4g.large"}
+    c.stuck.add(f"i-0new{1:012d}")
+    first = run(ALARM, c)
+    assert first["reason"] == "start_failed"
+    f = facts(c.alerts()[-1])
+    assert (f["code"], f["step"]) == ("wait_timeout", "run")
+    new = ec2_now(c)
+    assert c.params["/h4reet/prod/ec2-instance-id"] == new["InstanceId"]
+    c.stuck.clear()
+    new["State"]["Name"] = "stopped"  # the guard stopped it mid-replace
+    assert run(ALARM, c)["outcome"] == "started"
+    assert c.volumes["vol-ec2"]["on"] == new["InstanceId"]
+    assert len([p for p in c.ops("RunInstances") if not p.get("DryRun")]) == 1
+
+
+def test_two_tagged_instances_and_a_gone_named_one_launch_nothing() -> None:
+    c = cloud()
+    del c.instances[OLD_EC2]
+    c.volumes["vol-ec2"]["on"] = None
+    c.add(
+        "i-0" + "11" * 8,
+        "h4-prod-ec2",
+        "t4g.large",
+        "stopped",
+        "instance-stopped-by-user",
+    )
+    c.add(
+        "i-0" + "22" * 8,
+        "h4-prod-ec2",
+        "m7g.large",
+        "stopped",
+        "instance-stopped-by-user",
+    )
+    result = run(ALARM, c)
+    assert result["reason"] == "start_failed"
+    assert facts(c.alerts()[0])["code"] == "two_instances"
+    assert not c.ops("RunInstances") and not c.ops("StartInstances")
+
+
+def test_a_refused_dry_run_terminates_nothing() -> None:
+    c = cloud()
+    c.short = {"t4g.large"}
+    c.dry_refused = set(EC2_TYPES)
+    result = run(ALARM, c)
+    assert result["reason"] == "start_failed"
+    f = facts(c.alerts()[0])
+    assert (f["code"], f["step"]) == ("UnauthorizedOperation", "dry_run")
+    assert not c.ops("CancelSpotInstanceRequests") and not c.ops("TerminateInstances")
+    assert c.instances[OLD_EC2]["State"]["Name"] == "stopped"
+    assert "/h4reet/prod/host-lock" not in c.params
+
+
+def test_a_type_whose_dry_run_is_refused_is_passed_over() -> None:
+    c = cloud()
+    c.short = {"t4g.large"}
+    c.dry_refused = {"m7g.large"}
+    run(ALARM, c)
+    assert ec2_now(c)["InstanceType"] == "m6g.large"
+    assert "m7g.large dry_run:UnauthorizedOperation" in facts(c.alerts()[0])["tried"]
+
+
+def test_a_hand_dry_run_launches_nothing_and_reports_each_type() -> None:
+    c = cloud(OUTSIDE)
+    c.dry_refused = {"t4g.xlarge"}
+    result = run({"manual": True, "replace": "ec2", "dry_run": True}, c)
+    assert result["dry_run"] == {
+        "t4g.large": "DryRunOperation",
+        "m7g.large": "DryRunOperation",
+        "m6g.large": "DryRunOperation",
+        "t4g.xlarge": "UnauthorizedOperation",
+    }
+    assert result["outcome"] == "refused"
+    assert not c.ops("TerminateInstances") and not c.alerts()
+    assert all(p.get("DryRun") for p in c.ops("RunInstances"))
+
+
+def test_a_running_instance_of_an_earlier_generation_isnt_replaced() -> None:
+    c = cloud()
+    c.instances[OLD_EC2]["Tags"].append(
+        {"Key": "aws:ec2launchtemplate:id", "Value": "lt-gone"}
+    )
+    c.instances[OLD_EC2]["State"]["Name"] = "running"
+    assert run(ALARM, c)["outcome"] == "started"
+    assert not c.ops("TerminateInstances")
+
+
+def test_unsupported_on_a_start_refuses_and_terminates_nothing() -> None:
+    c = cloud()
+    c.refuse["StartInstances"] = start.AwsError("Unsupported")
+    assert run(ALARM, c)["reason"] == "start_failed"
+    assert c.instances[OLD_EC2]["State"]["Name"] == "stopped"
+
+
+class Short(Context):
+    """Lambda's context with 200 s left: the waits must end by then, less the margin, never by Lambda's kill."""
+
+    def get_remaining_time_in_millis(self) -> int:
+        return 200_000
+
+
+def test_the_waits_end_inside_the_functions_time() -> None:
+    c = cloud()
+    c.short = {"t4g.large"}
+    original = c.ec2_TerminateInstances
+
+    def stuck(InstanceIds):
+        original(InstanceIds)
+        c.stuck.update(InstanceIds)
+
+    c.ec2_TerminateInstances = stuck  # type: ignore[method-assign]
+    result = start.handler(ALARM, Short(), aws=c, now=c.clock.now, sleep=c.clock.sleep)
+    assert result["reason"] == "start_failed"
+    assert facts(c.alerts()[0])["code"] == "wait_timeout"
+    assert c.clock.slept <= 200 - start.MARGIN_S
+
+
+def test_a_tunnel_end_left_without_its_volume_and_origin_is_repaired_by_the_next_check() -> (
+    None
+):
+    c = cloud()
+    stop_tunnel(c, "instance-stopped-no-capacity", 900)
+    c.refuse["AttachVolume"] = start.AwsError("IncorrectState")
+    run(CHECK, c)
+    (tunnel,) = c.live("h4-prod-tunnel-end")
+    assert c.volumes["vol-ss"]["on"] is None and c.origin_arn != Cloud.arn(
+        tunnel["InstanceId"]
+    )
+    assert c.alerts()[0].startswith(
+        "[hareet.ai aws] ec2_start_refused (tunnel_end_down): "
+    )
+    assert facts(c.alerts()[0])["step"] == "attach"
+    before = len(c.alerts())
+    run(CHECK, c)
+    assert c.volumes["vol-ss"]["on"] == tunnel["InstanceId"]
+    assert c.origin_arn == Cloud.arn(tunnel["InstanceId"])
+    repaired = c.alerts()[before]
+    assert repaired.startswith("[hareet.ai aws] tunnel_end_back: ")
+    assert facts(repaired)["repaired"] == "volume, origin"
+
+
+def test_a_tunnel_end_replace_after_the_server_action_still_runs() -> None:
+    # The server action stops EC2 alone (spec 001 FR-023): the tunnel end keeps every host's path, so its check replaces
+    # it whatever the server budget says; EC2's start after it refuses as always.
+    c = cloud()
+    c.budget = "EXECUTION_SUCCESS"
+    stop_tunnel(c, "instance-stopped-no-capacity", 900)
+    run(CHECK, c)
+    assert c.live("h4-prod-tunnel-end")[0]["InstanceType"] == "c7g.medium"
+    assert c.alerts()[1].startswith(
+        "[hareet.ai aws] ec2_start_refused (server_budget_stopped): "
+    )
