@@ -1,14 +1,18 @@
-fix/032-launch-policy, patch P-032-launch-policy: the start role's RunInstances as the Author tried it on AWS.
-Branch fix/032-launch-policy; built from a plain copy of refs/heads/main (37e4a623) with diff -u.
+fix/032-launch-policy, patch P-032-launch-policy: the start function as the Author set it by hand on AWS, 2026-11-22.
+Branch fix/032-launch-policy; built from plain copies of refs/heads/main (37e4a623) with diff -u.
 Apply from the repository's root with: patch -p1 < docs/merge-requests/human-patches/2026-11-22-032-launch-policy.patch
 
-  infra/account/iam.tf   data.aws_iam_policy_document.ec2_start renders the policy the Author put on h4-ec2-start-fn
-                         by hand on 2026-11-22, with which every dry run answered DryRunOperation: LaunchOnlyAHost
-                         without aws:RequestTag/Name; WhatALaunchFromATemplateMakes without its condition; the image
-                         in its own statement, OnlyTheTemplatesImage, held to ec2:IsLaunchTemplateResource; and
-                         WhatOnlyTheTemplateNames on the interfaces, the subnet, and the group without a condition.
+  infra/account/iam.tf        data.aws_iam_policy_document.ec2_start renders the policy the Author put on
+                              h4-ec2-start-fn by hand, with which every dry run answered DryRunOperation:
+                              LaunchOnlyAHost without aws:RequestTag/Name; WhatALaunchFromATemplateMakes without its
+                              condition; the image in its own statement, OnlyTheTemplatesImage, held to
+                              ec2:IsLaunchTemplateResource; and WhatOnlyTheTemplateNames on the interfaces, the
+                              subnet, and the group without a condition.
+  infra/account/handover.tf   h4-ec2-start's memory_size 1024 (was 128), as the Author set it by hand after the
+                              first real replace died at the 900 s limit.
 
-The account's plan should show no change to aws_iam_role_policy.ec2_start: the role already holds this policy.
+The account's plan should show no change to aws_iam_role_policy.ec2_start or to aws_lambda_function.ec2_start[0]'s
+memory_size: both already hold these values.
 
 --- a/infra/account/iam.tf
 +++ b/infra/account/iam.tf
@@ -120,3 +124,16 @@ The account's plan should show no change to aws_iam_role_policy.ec2_start: the r
    }
  
    statement {
+--- a/infra/account/handover.tf
++++ b/infra/account/handover.tf
+@@ -80,7 +80,9 @@
+   package_type  = "Image"
+   image_uri     = "${aws_ecr_repository.lambda["h4-ec2-start"].repository_url}@${local.lambda_images.ec2_start}"
+   architectures = ["arm64"]
+-  memory_size   = 128
++  # fix/032-launch-policy: at 128 MB, Lambda's slowest CPU, the first real replace (2026-11-22) ran slow enough that
++  # Lambda killed it at 900 s between the cancel and the terminate; the Author set 1024 MB by hand, and this renders it.
++  memory_size = 1024
+   # Spec 032: a replace waits for a terminate, a launch, and an attach, and the tunnel end's then starts EC2
+   # (its research R-8): Lambda's maximum.
+   timeout = 900
