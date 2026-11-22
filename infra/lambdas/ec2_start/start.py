@@ -45,7 +45,9 @@ and the result carry the code alone. The result carries a refusal's code (busy, 
 ec2_ops.py tells a busy refusal, which sends no alert, from a failed start. After the first real replace, which Lambda
 killed at 900 s between the cancel and the terminate: the SDK's calls time out in seconds with at most 3 attempts, one
 client a service; a call of a replace, its waits, or an attach starts only with CALL_S of the run's time left, and
-the cancel only with COMMIT_S, else the step refuses wait_timeout (Budgeted); the function runs at 1024 MB.
+the cancel only with COMMIT_S, else the step refuses wait_timeout (Budgeted); the function runs at 1024 MB. Each real
+launch carries a client token of its host, type, and the lock's stamp (client_token), so a launch sent again after a
+lost answer returns the instance it made; a dry run carries none.
 
 A read that fails refuses at its own step, with `unread` among the facts, so EC2 starts only when every check passes.
 It makes one pass and never retries a type; it raises nothing, so Lambda never retries it. Each outcome is one log line in
@@ -498,8 +500,10 @@ def live(aws, name: str) -> list[dict]:
     return [i for i in found if state(i) not in GONE and tag(i, "Name") == name]
 
 
-def take_lock(aws, clock: Clock, owner: str) -> bool:
-    """The lock (FR-011): written only if absent; a lock older than LOCK_STALE_S is taken over."""
+def take_lock(aws, clock: Clock, owner: str) -> str | None:
+    """The lock (FR-011): written only if absent; a lock older than LOCK_STALE_S is taken over. Its stamp, "<epoch
+    seconds> <owner>", when this run holds it (one replace attempt's, which its launches' tokens carry); None when
+    another run does."""
     now = int(clock.now().timestamp())
     stamp = f"{now} {owner}"
     try:
@@ -511,18 +515,27 @@ def take_lock(aws, clock: Clock, owner: str) -> bool:
             Type="String",
             Overwrite=False,
         )
-        return True
+        return stamp
     except AwsError as exc:
         if exc.code != "ParameterAlreadyExists":
             raise
     held = parameter(aws, LOCK).split()
     at = int(held[0]) if held and held[0].isdigit() else 0
     if now - at < LOCK_STALE_S:
-        return False
+        return None
     aws.call(
         "ssm", "PutParameter", Name=LOCK, Value=stamp, Type="String", Overwrite=True
     )
-    return True
+    return stamp
+
+
+def client_token(host: str, kind: str, stamp: str) -> str:
+    """RunInstances' idempotency token for one launch of one replace attempt: the host, the type, and the lock's epoch
+    seconds, at most 64 ASCII characters (EC2's limit). Sent again with the same token, as the SDK's retry does after an
+    answer lost to the read timeout, the launch answers the instance it made rather than a second one, which EC2's fixed
+    address or the tunnel end's interfaces would refuse (fix/032-launch-policy)."""
+    epoch = stamp.split()[0] if stamp.split() else "0"
+    return f"h4-{host}-{kind}-{epoch}"[:64]
 
 
 def release_lock(aws) -> None:
@@ -647,11 +660,11 @@ def replace(
         out.unreadable("start_failed", exc.code)
         return None
     try:
-        locked = take_lock(aws, clock, out.trigger)
+        stamp = take_lock(aws, clock, out.trigger)
     except AwsError as exc:
         out.unreadable("start_failed", exc.code)
         return None
-    if not locked:
+    if stamp is None:
         out.metric = "busy"
         out.refuse("start_failed", code="busy")
         return None
@@ -709,6 +722,7 @@ def replace(
                                 },
                                 MinCount=1,
                                 MaxCount=1,
+                                ClientToken=client_token(host, kind, stamp),
                             )
                         ]
                     }
