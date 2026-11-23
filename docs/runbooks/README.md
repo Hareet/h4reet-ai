@@ -44,6 +44,12 @@ Commands that act on prod or dev run in the Author's terminal. On dev-cpu, an ag
 | [operator-auth-failures.md](operator-auth-failures.md) | the `auth_failed` alert: calls to the admin listener with a missing, malformed, or wrong token |
 | [rollback.md](rollback.md) | a new commit misbehaving on prod or dev: back to the previous one, in one command |
 
+## Observability: Langfuse's dashboards (spec 034)
+
+| Runbook | Use it for |
+|---|---|
+| [langfuse-dashboards.md](langfuse-dashboards.md) | putting "h4 · Model calls" and "h4 · Traces" into a stack's Langfuse, reading them, changing them, and taking them out: `make langfuse-dashboards`; its `FAIL` lines and `exit 4` |
+
 ## The studio (spec 003)
 
 | Runbook | Use it for |

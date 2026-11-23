@@ -1,0 +1,134 @@
+{
+  "schema": 1,
+  "key": "model-calls",
+  "name": "h4 · Model calls",
+  "description": "The twin's model calls from this stack's traces: spend, calls, failures, latency, and tokens, over the range and by model over time. Grafana's h4-runtime holds the meter, its ceilings, the kill switch, and the degraded causes.",
+  "widgets": [
+    {
+      "key": "spend",
+      "name": "Spend over the range",
+      "description": "Spend over the dashboard's range, in USD: the sum of the gateway's own price for every model call (config/prices.yaml; 0 for local calls), as Langfuse holds it. The authoritative spend and the meter's ceilings, prod's $5.00 a day and $20.00 a month and the laptop's $2.00-a-day fallback sub-budget (config/budgets.yaml), are Grafana's \"Spend\" row.",
+      "view": "observations",
+      "metric": { "measure": "totalCost", "agg": "sum" },
+      "dimensions": [],
+      "filters": [],
+      "chartType": "NUMBER",
+      "chartConfig": { "type": "NUMBER" },
+      "place": { "x": 0, "y": 0, "w": 3, "h": 3 }
+    },
+    {
+      "key": "calls",
+      "name": "Model calls over the range",
+      "description": "Model calls over the dashboard's range, in calls: every provider attempt, a fallback's and a retry's included, each a generation. Grafana's \"Request count\" counts requests instead, one for each hello or turn.",
+      "view": "observations",
+      "metric": { "measure": "count", "agg": "count" },
+      "dimensions": [],
+      "filters": [{ "column": "type", "operator": "any of", "value": ["GENERATION"], "type": "stringOptions" }],
+      "chartType": "NUMBER",
+      "chartConfig": { "type": "NUMBER" },
+      "place": { "x": 3, "y": 0, "w": 3, "h": 3 }
+    },
+    {
+      "key": "failed",
+      "name": "Failed model calls over the range",
+      "description": "Failed model calls over the dashboard's range, in calls: provider attempts whose span ended in error (a timeout, a refusal, the provider down); a failed local call is usually followed by the fallback's. Grafana's \"Error rate\" shows the requests that failed.",
+      "view": "observations",
+      "metric": { "measure": "count", "agg": "count" },
+      "dimensions": [],
+      "filters": [
+        { "column": "type", "operator": "any of", "value": ["GENERATION"], "type": "stringOptions" },
+        { "column": "level", "operator": "any of", "value": ["ERROR"], "type": "stringOptions" }
+      ],
+      "chartType": "NUMBER",
+      "chartConfig": { "type": "NUMBER" },
+      "place": { "x": 6, "y": 0, "w": 3, "h": 3 }
+    },
+    {
+      "key": "latency-p95",
+      "name": "Model latency p95 over the range",
+      "description": "The 95th percentile of the model calls' latency over the dashboard's range, in milliseconds, from the call's start to its end at the gateway. Grafana's \"Provider latency p95\" is the same measure from the gateway's metrics.",
+      "view": "observations",
+      "metric": { "measure": "latency", "agg": "p95" },
+      "dimensions": [],
+      "filters": [{ "column": "type", "operator": "any of", "value": ["GENERATION"], "type": "stringOptions" }],
+      "chartType": "NUMBER",
+      "chartConfig": { "type": "NUMBER" },
+      "place": { "x": 9, "y": 0, "w": 3, "h": 3 }
+    },
+    {
+      "key": "spend-by-model",
+      "name": "Spend by model",
+      "description": "Spend by model over time, in USD: the gateway's own price for each model call (config/prices.yaml; 0 for local calls). On the laptop, a paid model's bar is the fallback's spend. The authoritative spend and the meter's ceilings, prod's $5.00 a day and $20.00 a month and the laptop's $2.00-a-day fallback sub-budget (config/budgets.yaml), are Grafana's \"Spend\" row; Grafana's \"Cost by provider and attribution\" splits it by attribution.",
+      "view": "observations",
+      "metric": { "measure": "totalCost", "agg": "sum" },
+      "dimensions": ["providedModelName"],
+      "filters": [{ "column": "type", "operator": "any of", "value": ["GENERATION"], "type": "stringOptions" }],
+      "chartType": "BAR_TIME_SERIES",
+      "chartConfig": { "type": "BAR_TIME_SERIES" },
+      "place": { "x": 0, "y": 3, "w": 6, "h": 5 }
+    },
+    {
+      "key": "calls-by-model",
+      "name": "Model calls by model",
+      "description": "Model calls by model over time, in calls. Each model names its route: on the laptop, the local model is the local tier and claude-haiku-5-5 its paid fallback, so the paid bar's share is the fallback's share; on dev, metered-test is the synthetic spend. Grafana's \"Answered locally\" gives the turns' share.",
+      "view": "observations",
+      "metric": { "measure": "count", "agg": "count" },
+      "dimensions": ["providedModelName"],
+      "filters": [{ "column": "type", "operator": "any of", "value": ["GENERATION"], "type": "stringOptions" }],
+      "chartType": "BAR_TIME_SERIES",
+      "chartConfig": { "type": "BAR_TIME_SERIES" },
+      "place": { "x": 6, "y": 3, "w": 6, "h": 5 }
+    },
+    {
+      "key": "latency-p50-by-model",
+      "name": "Model latency p50 by model",
+      "description": "The median latency of the model calls by model over time, in milliseconds, from the call's start to its end at the gateway.",
+      "view": "observations",
+      "metric": { "measure": "latency", "agg": "p50" },
+      "dimensions": ["providedModelName"],
+      "filters": [{ "column": "type", "operator": "any of", "value": ["GENERATION"], "type": "stringOptions" }],
+      "chartType": "LINE_TIME_SERIES",
+      "chartConfig": { "type": "LINE_TIME_SERIES" },
+      "place": { "x": 0, "y": 8, "w": 6, "h": 5 }
+    },
+    {
+      "key": "latency-p95-by-model",
+      "name": "Model latency p95 by model",
+      "description": "The 95th percentile of the model calls' latency by model over time, in milliseconds. Grafana's \"Provider latency p95\" is the same measure from the gateway's metrics.",
+      "view": "observations",
+      "metric": { "measure": "latency", "agg": "p95" },
+      "dimensions": ["providedModelName"],
+      "filters": [{ "column": "type", "operator": "any of", "value": ["GENERATION"], "type": "stringOptions" }],
+      "chartType": "LINE_TIME_SERIES",
+      "chartConfig": { "type": "LINE_TIME_SERIES" },
+      "place": { "x": 6, "y": 8, "w": 6, "h": 5 }
+    },
+    {
+      "key": "failed-by-model",
+      "name": "Failed model calls by model",
+      "description": "Failed model calls by model over time, in calls: attempts whose span ended in error. Langfuse's tracing table, filtered to the level ERROR, opens each one with its error type.",
+      "view": "observations",
+      "metric": { "measure": "count", "agg": "count" },
+      "dimensions": ["providedModelName"],
+      "filters": [
+        { "column": "type", "operator": "any of", "value": ["GENERATION"], "type": "stringOptions" },
+        { "column": "level", "operator": "any of", "value": ["ERROR"], "type": "stringOptions" }
+      ],
+      "chartType": "BAR_TIME_SERIES",
+      "chartConfig": { "type": "BAR_TIME_SERIES" },
+      "place": { "x": 0, "y": 13, "w": 6, "h": 5 }
+    },
+    {
+      "key": "tokens-by-model",
+      "name": "Tokens by model",
+      "description": "Tokens by model over time, input and output together, in tokens. Grafana's \"Tokens by provider\" splits them by type.",
+      "view": "observations",
+      "metric": { "measure": "totalTokens", "agg": "sum" },
+      "dimensions": ["providedModelName"],
+      "filters": [{ "column": "type", "operator": "any of", "value": ["GENERATION"], "type": "stringOptions" }],
+      "chartType": "LINE_TIME_SERIES",
+      "chartConfig": { "type": "LINE_TIME_SERIES" },
+      "place": { "x": 6, "y": 13, "w": 6, "h": 5 }
+    }
+  ]
+}
