@@ -124,11 +124,11 @@ The other 27 items, in the review's rank order: risk reduced per effort. "Next" 
 
 ## Fixed before publication
 
-The pre-publication code review confirmed two findings. Both are fixed on reviewed branches, merged into the stack that goes to `main` before the push.
+The pre-publication code review confirmed two findings. Both are fixed on reviewed branches, merged into `main` on 2026-11-22; F11 takes effect when a release carries it to the tunnel end.
 
 | Finding | Fix | Status |
 | --- | --- | --- |
-| **The tunnel end acted on its SSH server's log.** Spec 001's fix F10 (2026-11-22) added a safety net that ended older SSH sessions when a refused-port line appeared in the log. The review found that unauthenticated input could produce that line, and so end the laptop's tunnel at will. | F11 removes the net and the log-read count; the tunnel end now decides nothing from that log, and a dead session ends at the kernel's bound instead ([f11.md](../specs/001-cloud-elevation/fixes/f11.md); [its note](merge-requests/2026-11-22-fix-001-f11.md)). | in flight: `fix/001-f11-log-trigger` (live with the release after its merge) |
+| **The tunnel end acted on its SSH server's log.** Spec 001's fix F10 (2026-11-22) added a safety net that ended older SSH sessions when a refused-port line appeared in the log. The review found that unauthenticated input could produce that line, and so end the laptop's tunnel at will. | F11 removes the net and the log-read count; the tunnel end now decides nothing from that log, and a dead session ends at the kernel's bound instead ([f11.md](../specs/001-cloud-elevation/fixes/f11.md); [its note](merge-requests/2026-11-22-fix-001-f11.md)). | in flight: `fix/001-f11-log-trigger` (merged; live with the next release) |
 | **The hand start could run the start function twice.** The AWS CLI's 60-second read timeout and its retries sent a long replace again; the lock refused the second run (`busy`), but its output read as a failed start while the first run went on. | The hand start waits 960 s for the function and sends once, and `busy` says another start holds the lock ([its note](merge-requests/2026-11-22-fix-032-launch-policy.md); [the incident note](incidents/2026-11-22-first-real-replace.md)). | in flight: `fix/032-launch-policy` |
 
 Three incidents in November are written up in [`docs/incidents/`](incidents/): [the tunnel end's network on 2026-11-18](incidents/2026-11-18-tunnel-end-network.md), [EC2's capacity on 2026-11-18](incidents/2026-11-18-ec2-capacity.md), and [the first real replace on 2026-11-22](incidents/2026-11-22-first-real-replace.md). None is known to have been a security incident, though one question is still open: who stopped EC2 near 01:00Z on 2026-11-18. Each note lists what it changed.

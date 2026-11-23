@@ -1,6 +1,6 @@
 # 2026-11-22: the first real replace terminated EC2 and timed out
 
-Date: 2026-11-22, UTC · Tier: the cloud, the start function (`h4-ec2-start`) and EC2 · Status: recovered by hand the same evening; fixed in code by `fix/032-launch-policy`, merged into the stack that precedes publication, live once the Author applies its patch and the start function's new image · Written 2026-11-23 by Claude Code (docs role, a subagent of the Author's session) from the records linked below, blameless
+Date: 2026-11-22, UTC · Tier: the cloud, the start function (`h4-ec2-start`) and EC2 · Status: recovered by hand the same evening; fixed in code by `fix/032-launch-policy`, merged into `main` with its patch on 2026-11-22, live once the account's apply takes the patch and the start function's new image · Written 2026-11-23 by Claude Code (docs role, a subagent of the Author's session) from the records linked below, blameless
 
 ## What happened
 
@@ -58,7 +58,7 @@ The replace ran in a function sized and set up for short starts. At 128 MB, Lamb
 
 ## Fix
 
-`fix/032-launch-policy` ([its note](../merge-requests/2026-11-22-fix-032-launch-policy.md); [ADR 0057, "Amended 2026-11-22"](../adr/0057-spot-with-interchangeable-types.md#amended-2026-11-22)), reviewed and merged into the stack that precedes publication. It is live once the Author applies its patch (P-032-launch-policy) and the start function's and the credential audit's new images.
+`fix/032-launch-policy` ([its note](../merge-requests/2026-11-22-fix-032-launch-policy.md); [ADR 0057, "Amended 2026-11-22"](../adr/0057-spot-with-interchangeable-types.md#amended-2026-11-22)), reviewed, and merged into `main` on 2026-11-22 with its patch, P-032-launch-policy. It is live once the account's apply takes the patch and the start function's and the credential audit's new images.
 
 - **The start function at 1,024 MB in code,** the Author's hand setting, so an account apply no longer puts back 128 MB.
 - **Every AWS call bounded:** 5 s to connect, 20 s to read, 3 attempts in all, one client per service.
