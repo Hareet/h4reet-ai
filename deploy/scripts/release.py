@@ -369,6 +369,14 @@ def gate_line(runner: Runner, commit: str) -> tuple[str | None, str | None, str]
             first,
             " isn't a merge: a release is of a gated merge into main (contract §2.1)",
         )
+    # The re-check of 44c52591: the gate's line names one branch, the second parent, so a merge of more than two
+    # commits brings in code no line judged.
+    if len(tips) != 2:
+        why = (
+            f" is a merge of {len(tips)} commits, and its gate line judges one branch, the second parent: a release "
+            "is of a merge of two (contract §2.1)"
+        )
+        return None, first, why
     line = re.search(rf"^gate: {tips[1]} \(.*$", body, re.MULTILINE)
     if not line:
         return (
