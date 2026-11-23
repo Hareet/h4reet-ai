@@ -532,7 +532,9 @@ def test_a_busy_refusal_says_another_start_holds_the_lock(
     out = capsys.readouterr().out
     assert "another start holds the lock" in out
     assert "the function's log" in out
-    # busy sends no alert, so the line never points at one.
+    # The line says what busy is, not a failed start: its alert's start_failed (with `- code: busy`, FR-011) says
+    # nothing of how the first run ends, so the line doesn't send him there. (Comment corrected after the review's
+    # finding 3: busy is alerted, but for the 5-minute check's.)
     assert "start_failed" not in out and "alert" not in out
 
 

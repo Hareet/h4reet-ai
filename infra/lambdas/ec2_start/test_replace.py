@@ -552,7 +552,7 @@ def test_a_live_lock_refuses_busy_and_touches_nothing(
 
 
 # fix/032-launch-policy: the Author's ec2_ops.py tells a busy refusal from a failed start by the result's code, since
-# busy sends no alert to say why.
+# both read start_failed (busy's alert carries `- code: busy`, FR-011) while the run holding the lock goes on.
 def test_a_refusal_returns_its_code_to_the_hand_start() -> None:
     c = cloud()
     c.params["/h4reet/prod/host-lock"] = f"{int(INSIDE.timestamp()) - 60} hours_open"

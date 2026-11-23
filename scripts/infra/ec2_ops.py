@@ -223,7 +223,8 @@ def invoke_start(profile: str, event: dict | None = None) -> int:
         return 0
     reason = result.get("reason", "unknown") if isinstance(result, dict) else "unknown"
     if isinstance(result, dict) and result.get("code") == "busy":
-        # busy sends no alert: another start or replace holds the host lock and is still running.
+        # busy: another start or replace holds the host lock and is still running. Its alert reads start_failed with
+        # `- code: busy` (spec 032 FR-011), which says nothing of how the first run ends; this line says what it is.
         print(
             f"{PROG}: {START_FUNCTION}: another start holds the lock; wait, or check the first run's outcome in "
             "the function's log (docs/runbooks/handover.md)"

@@ -42,7 +42,8 @@ generation moves a stopped EC2 alone; and every wait ends MARGIN_S before Lambda
 From fix/032-launch-policy (2026-11-22): a launch or dry run refused UnauthorizedOperation logs AWS's whole message,
 its encoded part apart, on a line of its own (log_refusal), so the refusal decodes in one step; the alert, the metric,
 and the result carry the code alone. The result carries a refusal's code (busy, no_capacity, AWS's), so the Author's
-ec2_ops.py tells a busy refusal, which sends no alert, from a failed start. After the first real replace, which Lambda
+ec2_ops.py tells a busy refusal from a failed start: busy is alerted as start_failed with `- code: busy` (FR-011; the
+5-minute check's alone isn't), while the run that holds the lock goes on. After the first real replace, which Lambda
 killed at 900 s between the cancel and the terminate: the SDK's calls time out in seconds with at most 3 attempts, one
 client a service; a call of a replace, its waits, or an attach starts only with CALL_S of the run's time left, and
 the cancel only with COMMIT_S, else the step refuses wait_timeout (Budgeted); the function runs at 1024 MB. Each real
