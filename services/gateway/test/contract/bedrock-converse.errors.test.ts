@@ -263,10 +263,23 @@ describe("the Bedrock adapter's health (§3.2's health probe)", () => {
       },
     });
     expect(await failing.health(AbortSignal.timeout(1_000))).toMatchObject({ healthy: false, reason: "credentials" });
+    // A chain that never answers outlasts the probe: the check waits on it until the probe's signal aborts, then ends
+    // at once, before the event loop turns, without a bound in ms, which load breaks (fix/036).
     const slow = adapter({ deps: { credentials: () => new Promise(() => {}) } });
-    const started = performance.now(); // monotonic: a step of the wall clock can't move it
-    expect(await slow.health(AbortSignal.timeout(200))).toMatchObject({ healthy: false, reason: "credentials" });
-    expect(performance.now() - started).toBeLessThan(1_000);
+    const probe = new AbortController();
+    let ended = false;
+    const health = slow.health(probe.signal).finally(() => {
+      ended = true;
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(ended).toBe(false);
+    probe.abort();
+    let turned = false;
+    setImmediate(() => {
+      turned = true;
+    });
+    expect(await health).toMatchObject({ healthy: false, reason: "credentials" });
+    expect(turned).toBe(false);
   });
 
   it("refuses to be built with routing.yaml's placeholder model", () => {

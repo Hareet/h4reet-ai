@@ -130,11 +130,14 @@ describe("the Telegram channel's transport (alerts.md §4.1, T188)", () => {
   it("ends a send whose lookup never answers at its deadline, as timeout", async () => {
     resolveHost("never");
     const channel = { base: `http://${HOST}:9`, token: TOKEN, chatId: "0", timeoutMs: 300 };
+    // At its deadline, without a bound in ms, which load breaks (fix/036): with a lookup that never answers, only the
+    // deadline can end it, as a timeout, and the deadline is armed for timeoutMs; and not before it.
+    const timers = vi.spyOn(globalThis, "setTimeout");
     const started = performance.now(); // monotonic: a step of the wall clock can't move it
     expect(await sendTelegram(channel, "hi")).toEqual({ ok: false, errorClass: "timeout" });
     const ms = performance.now() - started;
+    expect(timers.mock.calls.map((c) => c[1])).toContain(channel.timeoutMs);
     expect(ms).toBeGreaterThanOrEqual(250);
-    expect(ms).toBeLessThan(2_000);
   });
 
   it("follows no redirect: a 3xx is http_<status>, and the listener sees one request", async () => {
