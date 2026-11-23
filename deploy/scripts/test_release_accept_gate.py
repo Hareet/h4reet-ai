@@ -320,3 +320,245 @@ def test_make_release_passes_the_exception_from_the_command_line_alone(
     line = dry_run_release(tmp_path, "ACCEPT_GATE=" + "c" * 40)
     assert line.endswith(' --accept-gate "$ACCEPT_GATE" --reason ""')
     assert "--accept-gate" not in dry_run_release(tmp_path)
+
+
+# --------------------------------------------------------------------------------------------------
+# The review of 9adbc455. Finding 1: a docs-only run certifies no code, so the release judges the last full run before
+# it, walking main's first parents past docs-only merges. Finding 3: the exception takes a flake's FAIL in the long
+# suites alone. Finding 4: the gate's record is written before anything is pushed or synced.
+# --------------------------------------------------------------------------------------------------
+DOCS_TIP = "e" * 40  # the notes branch a docs-only merge brought in
+MIDDLE, MIDDLE_TIP = "1" * 40, "2" * 40  # a second docs-only merge, and its branch
+OLDER, OLDER_TIP = "a" * 40, "f" * 40  # the full run's merge, and its branch
+ROOT = "9" * 40
+
+
+def docs_line(tip: str = DOCS_TIP) -> str:
+    return (
+        f"gate: {tip} (docs/x) by tools/gates/gate at {base.PARENT[:12]}: 16 PASS, 10 SKIP, 0 WARN, 0 PLANNED, "
+        "0 PENDING, 0 FAIL; docs-only: 2 files"
+    )
+
+
+FULL_PASS = (
+    f"gate: {OLDER_TIP} (feat/y) by tools/gates/gate at {base.PARENT[:12]}: 22 PASS, 4 SKIP, 0 WARN, 0 PLANNED, "
+    "0 PENDING, 0 FAIL"
+)
+FULL_FAIL = (
+    f"gate: {OLDER_TIP} (feat/y) by tools/gates/gate at {base.PARENT[:12]}: 25 PASS, 4 SKIP, 0 WARN, 0 PLANNED, "
+    "0 PENDING, 1 FAIL; failing: test FAIL"
+)
+
+
+def merged(first: str, second: str, line: str) -> str:
+    """git show -s --format=%P%n%B of a merge: its parents, then its message with the gate's line."""
+    return f"{first} {second}\nMerge {second[:12]}\n\n{line}\n"
+
+
+class History(base.Runner):
+    """main's first parents: git show -s answered by commit, each commit it was asked for kept in order."""
+
+    def __init__(self, messages: dict[str, str]) -> None:
+        super().__init__()
+        self.messages = messages
+        self.shown: list[str] = []
+
+    def __call__(self, argv: list[str], data: bytes | None = None) -> tuple[int, str]:
+        if argv[:3] == ["git", "show", "-s"]:
+            self.calls.append(list(argv))
+            self.shown.append(argv[-1])
+            return 0, self.messages[argv[-1]]
+        return super().__call__(argv, data)
+
+
+def after_docs_only(older: str) -> History:
+    return History(
+        {
+            base.COMMIT: merged(OLDER, DOCS_TIP, docs_line()),
+            OLDER: older,
+        }
+    )
+
+
+def test_a_docs_only_merge_after_a_passing_full_run_is_released(tmp_path: Path) -> None:
+    r = after_docs_only(merged(ROOT, OLDER_TIP, FULL_PASS))
+    assert release(tmp_path, r) == 0
+    assert r.shown == [base.COMMIT, OLDER]
+    assert record(tmp_path)["gate"] == {
+        "line": docs_line(),
+        "judged": {"merge": OLDER, "line": FULL_PASS},
+    }
+
+
+def test_a_docs_only_merge_after_a_failing_full_run_is_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The hand merge past a FAIL stays unreleasable however many notes merge after it, until a full run passes or
+    # the Author accepts it by name.
+    r = after_docs_only(merged(ROOT, OLDER_TIP, FULL_FAIL))
+    assert release(tmp_path, r) == 1
+    assert r.builds() == []
+    err = capsys.readouterr().err
+    assert "docs-only" in err and OLDER[:12] in err
+
+
+def test_the_exception_takes_the_failing_full_run_behind_docs_only_merges(
+    tmp_path: Path,
+) -> None:
+    r = after_docs_only(merged(ROOT, OLDER_TIP, FULL_FAIL))
+    assert release(tmp_path, r, accept_gate=base.COMMIT, reason=REASON) == 0
+    assert record(tmp_path)["gate"] == {
+        "line": docs_line(),
+        "judged": {"merge": OLDER, "line": FULL_FAIL},
+        "accepted": {"merge": base.COMMIT, "reason": REASON},
+    }
+
+
+def test_the_walk_passes_every_docs_only_merge(tmp_path: Path) -> None:
+    r = History(
+        {
+            base.COMMIT: merged(MIDDLE, DOCS_TIP, docs_line()),
+            MIDDLE: merged(OLDER, MIDDLE_TIP, docs_line(MIDDLE_TIP)),
+            OLDER: merged(ROOT, OLDER_TIP, FULL_FAIL),
+        }
+    )
+    assert release(tmp_path, r) == 1
+    assert r.shown == [base.COMMIT, MIDDLE, OLDER]
+    assert r.builds() == []
+
+
+@pytest.mark.parametrize(
+    "older",
+    [
+        f"{ROOT}\nP-036-gate\n",  # a commit of the Author's own on main: no gate ran on it
+        f"{ROOT} {OLDER_TIP}\nMerge {OLDER_TIP[:12]}\n",  # a merge with no gate line
+    ],
+    ids=["an-authors-commit", "a-merge-without-a-line"],
+)
+def test_the_walk_stops_at_what_no_full_run_gated(tmp_path: Path, older: str) -> None:
+    # A docs-only merge is releasable as the commit before it is, and neither of these is.
+    r = after_docs_only(older)
+    assert release(tmp_path, r) == 1
+    assert release(tmp_path, r, accept_gate=base.COMMIT, reason=REASON) == 1
+    assert r.builds() == []
+
+
+def test_a_docs_only_line_that_fails_is_judged_as_it_is(tmp_path: Path) -> None:
+    # Not a pass, so not walked past; and its step isn't a long suite's, so no exception takes it.
+    line = (
+        f"gate: {DOCS_TIP} (docs/x) by tools/gates/gate at {base.PARENT[:12]}: 15 PASS, 10 SKIP, 0 WARN, "
+        "0 PLANNED, 0 PENDING, 1 FAIL; failing: links FAIL; docs-only: 2 files"
+    )
+    r = History(
+        {
+            base.COMMIT: merged(OLDER, DOCS_TIP, line),
+            OLDER: merged(ROOT, OLDER_TIP, FULL_PASS),
+        }
+    )
+    assert release(tmp_path, r, accept_gate=base.COMMIT, reason=REASON) == 1
+    assert r.shown == [base.COMMIT]
+    assert r.builds() == []
+
+
+@pytest.mark.parametrize(
+    "failing",
+    [
+        "lint FAIL",
+        "gitleaks FAIL",
+        "arrival FAIL",
+        "content FAIL",
+        "disclosure FAIL",
+        "main-refs FAIL",
+        "links FAIL",
+        "test FAIL, gitleaks FAIL",
+    ],
+)
+def test_the_exception_takes_no_fail_outside_the_long_suites(
+    tmp_path: Path, failing: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    line = (
+        f"{HEAD}: 20 PASS, 4 SKIP, 0 WARN, 0 PLANNED, 0 PENDING, {failing.count('FAIL')} FAIL; "
+        f"failing: {failing}"
+    )
+    r = base.Runner()
+    r.merge = merge(line)
+    assert release(tmp_path, r, accept_gate=base.COMMIT, reason=REASON) == 1
+    assert r.builds() == []
+    assert "test, evals, redteam, matrix-h, or image" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "failing",
+    [
+        "test FAIL",
+        "evals FAIL",
+        "redteam FAIL",
+        "matrix-h FAIL",
+        "image FAIL",
+        "test FAIL, image FAIL",
+    ],
+)
+def test_the_exception_takes_a_fail_in_each_long_suite(
+    tmp_path: Path, failing: str
+) -> None:
+    line = (
+        f"{HEAD}: 20 PASS, 4 SKIP, 0 WARN, 0 PLANNED, 0 PENDING, {failing.count('FAIL')} FAIL; "
+        f"failing: {failing}"
+    )
+    r = base.Runner()
+    r.merge = merge(line)
+    assert release(tmp_path, r, accept_gate=base.COMMIT, reason=REASON) == 0
+    assert record(tmp_path)["gate"]["accepted"] == {
+        "merge": base.COMMIT,
+        "reason": REASON,
+    }
+
+
+def test_the_exception_needs_the_line_to_name_its_failing_steps(tmp_path: Path) -> None:
+    r = base.Runner()
+    r.merge = merge(f"{HEAD}: 22 PASS, 1 FAIL")
+    assert release(tmp_path, r, accept_gate=base.COMMIT, reason=REASON) == 1
+    assert r.builds() == []
+
+
+class PushFails(base.Runner):
+    """Each push and sync notes whether the gate's record was written yet; the first pushed build fails."""
+
+    def __init__(self, local: Path) -> None:
+        super().__init__()
+        self.local = local
+        self.seen: list[bool] = []
+
+    def __call__(self, argv: list[str], data: bytes | None = None) -> tuple[int, str]:
+        pushing = (
+            argv[:3] == ["docker", "buildx", "build"] and "--push" in argv
+        ) or argv[:4] == [
+            "docker",
+            "buildx",
+            "imagetools",
+            "create",
+        ]
+        if pushing or argv[:2] == ["aws", "s3"]:
+            self.seen.append(any(self.local.glob("*.gate.json")))
+        if argv[:3] == ["docker", "buildx", "build"] and "--push" in argv:
+            self.calls.append(list(argv))
+            return 1, ""
+        return super().__call__(argv, data)
+
+
+def test_the_gate_record_is_written_before_anything_is_pushed_or_synced(
+    tmp_path: Path,
+) -> None:
+    r = PushFails(tmp_path / "releases")
+    r.merge = merge(FAILING)
+    assert release(tmp_path, r, accept_gate=base.COMMIT, reason=REASON) == 1
+    assert r.seen and all(r.seen)
+    (written,) = (tmp_path / "releases").glob("*.gate.json")
+    body = json.loads(written.read_text(encoding="utf-8"))
+    assert written.name == f"{body['release']}.gate.json"
+    assert body["commit"] == base.COMMIT
+    assert body["gate"] == {
+        "line": FAILING,
+        "accepted": {"merge": base.COMMIT, "reason": REASON},
+    }
+    assert not (tmp_path / "releases" / "latest-release.json").exists()
