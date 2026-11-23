@@ -34,13 +34,13 @@ All times UTC.
 
 - **Band:** none; availability has no control band yet.
 - **Tier:** the cloud tier, EC2.
-- **What showed it:** the start function's own alert at the hours' open, `ec2_start_refused (start_failed)` with AWS's code ([contracts/aws-alerts.md §2](../../specs/001-cloud-elevation/contracts/aws-alerts.md#2-the-alerts)). The stop near 01:00Z: what, if anything, alerted on it isn't in the record. No alert kind covers a stop by anyone but the guard, the start function, or the Author's `make ec2-stop` (the same table); the Well-Architected review's R08 proposes one.
+- **What showed it:** the start function's own alert at the hours' open, `ec2_start_refused (start_failed)` with AWS's code ([contracts/aws-alerts.md §2](../../specs/001-cloud-elevation/contracts/aws-alerts.md#2-the-alerts)). The stop near 01:00Z: what, if anything, alerted on it isn't in the record. Each alert kind that reports a stop names who stopped EC2: the guard, the server budget's action, a spot interruption, or the Author's own stop command (the same table). A stop by anyone else has no kind; the Well-Architected review's R08 proposes one.
 
 ## Impact
 
-- **Inside EC2's hours on 2026-11-18** (07:00 to 19:00 in Denver, 14:00Z to 02:00Z), EC2 couldn't serve, and the twin answered only while the Author's laptop served. When the laptop came up isn't in the record.
-- **After that day:** EC2 next ran on 2026-11-22 at 22:33Z, on `m7g.large`. The record doesn't say whether `t4g.large` had capacity at any open in between.
-- **Nothing lost:** EC2's data volume was untouched, and the meter and the kill switch live on the tunnel end, which was serving.
+- **Inside EC2's hours on 2026-11-18** (07:00 to 19:00 Mountain time, 14:00Z to 02:00Z), EC2 couldn't serve, and the twin answered only while the Author's laptop served. When the laptop came up isn't in the record.
+- **Until 2026-11-22:** the record doesn't say whether `t4g.large` had capacity at any open between 2026-11-18 and 2026-11-22. On 2026-11-22, after spec 032's applies, the first real replace brought EC2 back on `m7g.large` at 22:33Z.
+- **Nothing lost:** EC2's data volume was untouched, and the meter and the kill switch live on the tunnel end, not on EC2.
 
 ## Root cause
 
@@ -51,7 +51,7 @@ EC2 was one persistent spot instance of one type in one zone, by design ([ADR 00
 - **A fresh start every day.** The guard stops EC2 at each day's close, so each open needs capacity again (ADR 0057, Context).
 - **One zone, by decision.** The service needn't be highly available, in the Author's words above; a second zone was weighed in ADR 0057 and left for a later intent.
 - **A stop AWS wouldn't undo.** The stop near 01:00Z left the spot request `disabled`, so AWS wouldn't restart EC2 by itself as it would after an interruption (intent 032).
-- **No alarm on an unexplained stop.** No alert covers a stop made by anyone but the project's own functions and the Author's stop command.
+- **No alarm on an unexplained stop.** No alert kind covers a stop by anyone but the guard, the server budget's action, a spot interruption, or the Author's stop command.
 
 ## Fix
 

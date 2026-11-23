@@ -56,7 +56,7 @@ Each font is under the SIL Open Font License 1.1, and its license sits beside it
 
 ## GSAP
 
-`films/*/vendor/gsap.min.js` is GSAP 3.14.2, from npm's `gsap-3.14.2.tgz`, under GSAP's standard "no charge" license, [gsap.com/standard-license](https://gsap.com/standard-license). It is not under this repository's MIT license. Each folder's `vendor/GSAP-LICENSE.txt` says so. The films use it to render on the Author's machine; the site never loads it.
+`films/*/vendor/gsap.min.js` is GSAP 3.14.2, from npm's `gsap-3.14.2.tgz`, under GSAP's standard "no charge" license, [gsap.com/standard-license](https://gsap.com/standard-license). It is not under this repository's MIT license. Each folder's `vendor/GSAP-LICENSE.txt` points to that license and the package it came from. The films use it to render on the Author's machine; the site never loads it.
 
 ## huashu-motion
 

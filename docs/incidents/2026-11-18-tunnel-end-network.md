@@ -1,10 +1,10 @@
 # 2026-11-18: a release reconfigured the tunnel end's live network, and a dead laptop session held the tunnel's ports
 
-Date: 2026-11-18, UTC (the evening of 2026-11-17 in Denver) · Tier: the cloud, the tunnel end · Status: fixed by F9 and F10, released 2026-11-22; F10's second part replaced by F11 before publication · Written 2026-11-23 by Claude Code (docs role, a subagent of the Author's session) from the records linked below, blameless
+Date: 2026-11-18, UTC (the evening of 2026-11-17, Mountain time) · Tier: the cloud, the tunnel end · Status: fixed by F9 and F10, released 2026-11-22; F10's second part removed by F11, which goes live before publication · Written 2026-11-23 by Claude Code (docs role, a subagent of the Author's session) from the records linked below, blameless
 
 ## What happened
 
-At 00:24Z a new release took the site's API down. On the tunnel end, the release's host step (fix F2's, which installs a reply route) ran `networkctl reload` and `networkctl reconfigure ens5` on the running host. networkd failed to configure `ens5`, the tunnel end's private interface, again, and the interface lost its address. The shared state (the Postgres database that holds the meter and the kill switch), the relay, and the collector's sink bind to that address, so none of them started, and the deployer's return to the release before failed the same way (`rollback_failed`). Every dynamic request answered `no_host_serving` until the Author set the address, EC2's route, and the reply rules by hand, and the deployer restarted the release before: serving again from 00:44:29Z.
+At 00:24Z a new release took the site's API down. On the tunnel end, the release's host step (fix F2's, which installs a reply route) ran `networkctl reload` and `networkctl reconfigure ens5` on the running host. networkd couldn't bring `ens5`, the tunnel end's private interface, back up, and the interface lost its address. The shared state (the Postgres database that holds the meter and the kill switch), the relay, and the sink bind to that address, so none of them started, and the deployer's return to the release before failed the same way (`rollback_failed`). Every dynamic request answered `no_host_serving` until the Author set the address, EC2's route, and the reply rules by hand, and the deployer restarted the release before: serving again from 00:44:29Z.
 
 At 00:58:14Z networkd retried the interface on its own and removed the rules set by hand, and EC2's gateway lost the shared state until the rules were put back at 03:03Z.
 
@@ -34,14 +34,14 @@ All times UTC, 2026-11-18.
 
 - **Band:** none. The budget is the only control band built so far ([lifecycle.md](../how-we-build/lifecycle.md#the-first-control-band-the-budget)); availability has none.
 - **Tier:** the cloud tier, the tunnel end; then the laptop's tunnel.
-- **What showed it:** during the release, the tunnel end's deployer record (`rollback_failed`) and `/api/status` (503, `no_host_serving`); at 00:58:14Z, the store alert from EC2's gateway; after the freeze, the laptop's tunnel log and the tunnel end's SSH server log (`cannot listen to port: 2201`, and 2202 and 2203). Whether the deployer's `deploy_rollback_failed` and the probe's `probe_failing` alerts reached Telegram isn't in the record.
+- **What showed it:** during the release, the tunnel end's deployer record (`rollback_failed`) and `/api/status` (503, `no_host_serving`); at 00:58:14Z, the store alert from EC2's gateway; after the freeze, the laptop's tunnel log and the tunnel end's SSH server log, which refused the three ports as already in use. Whether the deployer's `deploy_rollback_failed` and the probe's `probe_failing` alerts reached Telegram isn't in the record.
 
 ## Impact
 
 - **00:24:36Z to 00:44:29Z, about 20 minutes:** the tunnel end's stack was down. As its runbook says of that state, "every dynamic request answers `no_host_serving`, the room shows its resting message, and the site itself still loads from the edge" ([tunnel-end.md](../runbooks/tunnel-end.md)).
 - **00:58:14Z to 03:03Z, about two hours:** EC2's gateway couldn't reach the shared state, and its runbook's impact for that is "every request fails closed, local answers included" ([store-unreachable.md](../runbooks/store-unreachable.md)). EC2 itself was stopped near 01:00Z, for a cause not established; the record doesn't say which host, if any, served each request in this window.
 - **About 03:10Z to 03:19Z:** the laptop couldn't serve, because its tunnel couldn't take its ports.
-- **Nothing lost:** "The shared state's data, a host folder, was never at risk." No spend beyond the usual, and no security impact.
+- **Nothing lost:** "The shared state's data, a host folder, was never at risk." No spend beyond the usual.
 
 ## Root cause
 

@@ -44,14 +44,14 @@ All times UTC, 2026-11-22.
 
 ## Root cause
 
-The replace ran in a function sized and set up for short starts. At 128 MB, Lambda's slowest CPU (memory sets CPU), with the SDK's default timeouts and retries (60 s to connect and 60 s to read, with retries), and with a new SDK client built at every call, each call cost seconds, and a stalled one minutes. The run reached its one irreversible step, the cancel, late, with too little time left to finish, and nothing in the code checked the time left before taking it. Lambda ended the run between the cancel and the launch.
+The replace ran in a function sized and set up for short starts. At 128 MB, Lambda's slowest CPU (memory sets CPU), with the SDK's default timeouts and retries (60 s to connect and 60 s to read, with retries), and with a new SDK client built at every call, each call cost seconds, and a stalled one minutes. The run reached its one irreversible step, the cancel, late, with too little time left to finish, and nothing in the code checked the time left before taking it. Lambda ended the run after the cancel and before the terminate.
 
 ### Contributing factors
 
 - **Terminate before launch, by design.** EC2's fixed address and data volume must be free before a new instance can take them, so a replace terminates before it knows the next type will launch (ADR 0057, Consequences). That made a run killed mid-way the worst case.
 - **A cancel that terminates.** Cancelling a stopped spot instance's persistent request terminates the instance, so the cancel, not the terminate, was the step with no way back.
 - **The memory in code was 128 MB** (`infra/account/handover.tf`), sized before the replace path existed.
-- **A first real run in prod.** No pre-production cloud environment exists, and the tests stubbed AWS with prompt answers; calls that hang were first modeled in the fix (the review's R23).
+- **A first real run in prod.** No pre-production cloud environment exists, and the tests stubbed AWS; a call that hangs until its timeout was first tested in the fix (the review's R23).
 - **A silent failure.** No alarm on the function, and no failure destination (R03).
 - **A hand start that sends twice.** The CLI's 60-second read timeout and its retries re-sent a long run; the lock made the second run harmless, but its output read as a failure.
 - **A hand-set policy.** The role's policy as written was refused by AWS for all eight types, so the run used a policy set by hand, outside the reviewed code, until `fix/032-launch-policy` renders it.

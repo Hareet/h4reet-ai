@@ -8,7 +8,7 @@ Reviewed on 2026-11-22; this page written on 2026-11-23. The **Status** columns 
 
 - **The framework:** the AWS Well-Architected Framework as one consolidated document, "Framework update (11-16-2026)" (its release notes, PDF page 1130): the Cloud Foundations lens (FND01 to FND07) and the six pillars, 261 best practices in all. Page numbers on this page are the PDF's.
 - **The readers:** five AI reader agents in the Author's session on 2026-11-22, each reading one block of the document in full and in order (pages 1 to 250, 251 to 400, 401 to 600, 601 to 830, and 831 to 1,135), so that all 1,135 pages were read once. Each rated every practice in its block against the project: meets, partial, gap, or not applicable.
-- **One synthesis** the same day put the five readers' notes together: the scorecard, a backlog ranked by risk reduced per effort, nine decisions for the Author, and six corrections to the project's own documents. Where the readers disagreed, it kept both views rather than choosing one.
+- **One synthesis** the same day put the five readers' notes together: the scorecard, a backlog ranked by risk reduced per effort, nine decisions for the Author, and six corrections to the project's own documents. Where the readers disagreed, it records both views beside its recommendation.
 - **What they read of the project:** the repository at `main` 37e4a623 and its records (merge-request notes, apply records, fix notes), plus `fix/032-launch-policy`, which fixes one finding. Nothing was checked against the live AWS account; the backlog marks what only the account can answer.
 - **What this review doesn't cover:** the twin's own guardrails, which the red-team suite in [`redteam/`](../redteam/) tests on every route, and the application code, which a separate pre-publication code review read. That review's two confirmed findings are under [Fixed before publication](#fixed-before-publication).
 
@@ -86,7 +86,7 @@ The review recommends starting these eight now. Together they fit three gates: o
 | R07 | Write the incident notes, and fix the template | Operational Excellence, Security, Reliability | S | Medium | in flight: `docs/prepublication` |
 | R08 | A durable, tamper-evident audit trail of the account's control plane, with alarms on sensitive changes | Foundations, Security | M | High | open |
 
-R06 is open on purpose: neither page can be written from the code alone yet (see [Corrections](#corrections-to-our-own-documents), item 4). R07's three notes are in [`docs/incidents/`](incidents/); the template change it also proposes (contributing factors, a timeline line, and severities) and a check that warns when a fix names a production date without a note are left for the Author.
+R06 is open on purpose: neither page can be written from the code alone yet (see [Corrections](#corrections-to-our-own-documents), item 4). R07's three notes are in [`docs/incidents/`](incidents/); the template change it also proposes (contributing factors, a timeline line, and severities) and a check that warns when a fix names a production date without a note are left for the Author to decide.
 
 ## The ranked backlog
 
