@@ -134,6 +134,8 @@ Each failure, read:
 - **`infra-plan-note`:** "plan for account missing or made from an older infra tree": the stack's. `fix/032-launch-policy` changes six files under `infra/`, and its note's step 3 asks for the account's plan block. This branch changes nothing under `infra/` (`git diff --stat 408594d2 HEAD -- infra` is empty).
 - **`evals` WARN:** no behavioral run for trigger hash 9d6bd993305f; this branch touches nothing under `.claude/` and not `CLAUDE.md`.
 
+**The merge onto `main`'s tip, rehearsed** (abbfc554, after the stack's merge): `git merge-tree --write-tree refs/heads/main HEAD` gives tree 36f9cc8d with no conflict, differing from `main` in this branch's 28 files alone; on a `git archive` export of that tree, `evals/docs_links.py` reads `docs links: 0 failed, 2897 relative links in 593 files`, and the three docs suites `117 passed`.
+
 His gate, from main's checkout, is the run that counts.
 
 ## Cost and data-flow impact
