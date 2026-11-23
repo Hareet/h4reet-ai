@@ -16,8 +16,13 @@ export default defineConfig({
     // One release build and one drafts build of the site, made before any test file runs, which the smoke test, the
     // chunk test, and the built-site checks read (spec 004, T084).
     globalSetup: ["test/global-build.ts"],
-    testTimeout: 60_000,
-    hookTimeout: 120_000,
+    // A file's first test often composes the repository's room (test/helpers/room.ts's repositoryBundle, once a file,
+    // about 21 s of CPU on its own), or builds the site: in the gate of 2026-11-23, with only its own 23 workers on the
+    // machine, such tests took 29 to 47 s. The 60 s this was left them no room for other load: the gate of 2026-11-12
+    // lost 14 first tests to it, each composing the room (fix/036). 180 s is about four times the slowest; a hung test
+    // still fails, later. Hooks keep twice the tests' time, as before.
+    testTimeout: 180_000,
+    hookTimeout: 360_000,
     restoreMocks: true,
     unstubEnvs: true,
   },
