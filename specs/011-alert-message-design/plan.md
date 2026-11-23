@@ -39,7 +39,7 @@
 
 **Project Type**: a change to the existing gateway's alert subsystem, with one admin route, one CLI subcommand and make target, and changes to the stand-in and the breach test. No new service, port, network, store, package, or env key.
 
-**Performance Goals**: both designed forms rendered in under 5 ms an alert (plan choice, a unit benchmark); a refusal's plain send starting within 50 ms of the refusal's answer against the stub (plan choice); a full sample request delivered on dev-cpu within 120 s.
+**Performance Goals**: both designed forms rendered in under 5 ms an alert (plan choice, a unit benchmark); a refusal's plain send starting within 50 ms of the refusal's answer against the stub (plan choice; departure, 2026-11-23, fix/036: the 50 ms on the stub's clock failed a loaded gate at 51.5 ms with no wait added, so the test proves FR-028's "no wait" without a clock, the plain send starting before the event loop turns once after the refusal's answer reaches the dispatcher); a full sample request delivered on dev-cpu within 120 s.
 
 **Constraints**: the bounds, 1,000 and 2,000 UTF-16 code units and 32 KiB (FR-023); §4.2's 300 s window with a fallback's second send (rule A2, §6.3); no input or output inside the cause's transaction (FR-025); strict schemas, an unknown key an error; no payload in telemetry; `make up` always works.
 
