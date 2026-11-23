@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT MINUTES OUTCOME EXIT_STATUS HOST ROTATE RESTORE DUMP REGISTRY BUCKET COMPOSE_PLUGIN COMPOSE_SHA256 PUBLIC REDTEAM SITE_BUCKET DISTRIBUTION INCIDENT REPLACE SKIP APPLY
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT MINUTES OUTCOME EXIT_STATUS HOST ROTATE RESTORE DUMP REGISTRY BUCKET COMPOSE_PLUGIN COMPOSE_SHA256 PUBLIC REDTEAM SITE_BUCKET DISTRIBUTION INCIDENT REPLACE SKIP APPLY ACCEPT_GATE
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -250,10 +250,18 @@ lint-file: ## Lint one file: FILE=path make lint-file
 	$(CONTAINED)
 	@case "$$FILE" in *.ts|*.tsx|*.js) npx eslint "$$FILE" ;; *.py) ruff check "$$FILE" ;; *.sh) shellcheck "$$FILE" ;; esac
 
+# Spec 036 (FR-008): every part runs whatever the others exit, each workspace's tests by its folder (as npm test
+# --workspaces --if-present runs them), then pytest, and each says what it exited, so one run shows every failing test
+# and the part it failed in, which the Author's gate reads before it reruns anything (tools/gates/gate); make test
+# still fails when any part did.
 test: corpus-check ## Every test: the corpus gate, the workspaces' tests, and pytest
 	$(CONTAINED)
-	$(call NPM_WS,test)
-	$(PYTEST) $(PYTEST_ARGS) $(PYTEST_DIRS)
+	@failed=0; \
+	for ws in $(WORKSPACE_DIRS); do rc=0; ( set -x; npm test -w "$$ws" --if-present ) || rc=$$?; \
+	  echo "test-part: workspace $$ws exited $$rc"; [ "$$rc" = 0 ] || failed=1; done; \
+	rc=0; ( set -x; $(PYTEST) $(PYTEST_ARGS) $(PYTEST_DIRS) ) || rc=$$?; \
+	echo "test-part: pytest exited $$rc"; [ "$$rc" = 0 ] || failed=1; \
+	exit $$failed
 
 test-fast: ## The quick subset
 	$(CONTAINED)
@@ -887,9 +895,11 @@ server-budget-restore: ## (the Author) Reverse the server action, after the inci
 # gated merge, from a fresh export of it, whatever the checkout holds: the project's images for each host's platform,
 # the upstream copies by their lock's index digests, the tree, and release.json, the pointer last. PUBLIC=1 when it
 # makes hello or the twin's turns public: the red-team gate then, on the runs in REDTEAM= (default redteam/history).
-release: ## (the Author) A release of main's gated merge (contracts/releases-deployer.md §2): REGISTRY=… BUCKET=… COMPOSE_PLUGIN=… COMPOSE_SHA256=… [PUBLIC=1] [REDTEAM=dir] [SITE_BUCKET=… DISTRIBUTION=…]
+# ACCEPT_GATE=, main's merge by its full SHA, with REASON=, releases it past a gate line that doesn't report a pass, and
+# release.json keeps the line and the reason (spec 036 FR-010 to FR-012; ADR 0060); without it, such a line is refused.
+release: ## (the Author) A release of main's gated merge (contracts/releases-deployer.md §2): REGISTRY=… BUCKET=… COMPOSE_PLUGIN=… COMPOSE_SHA256=… [PUBLIC=1] [REDTEAM=dir] [SITE_BUCKET=… DISTRIBUTION=…] [ACCEPT_GATE=<main's merge, in full> REASON="…"]
 	$(call AUTHOR_ONLY,it pushes to the account's registry and its release bucket with his SSO session)
-	@$(PY_HOST) deploy/scripts/release.py --registry "$$REGISTRY" --bucket "$$BUCKET" --compose-plugin "$$COMPOSE_PLUGIN" --compose-sha256 "$$COMPOSE_SHA256"$(if $(call from_cli,PUBLIC), --public)$(if $(call from_cli,REDTEAM), --redteam "$$REDTEAM")$(if $(call from_cli,SITE_BUCKET), --site-bucket "$$SITE_BUCKET")$(if $(call from_cli,DISTRIBUTION), --distribution "$$DISTRIBUTION")
+	@$(PY_HOST) deploy/scripts/release.py --registry "$$REGISTRY" --bucket "$$BUCKET" --compose-plugin "$$COMPOSE_PLUGIN" --compose-sha256 "$$COMPOSE_SHA256"$(if $(call from_cli,PUBLIC), --public)$(if $(call from_cli,REDTEAM), --redteam "$$REDTEAM")$(if $(call from_cli,SITE_BUCKET), --site-bucket "$$SITE_BUCKET")$(if $(call from_cli,DISTRIBUTION), --distribution "$$DISTRIBUTION")$(if $(call from_cli,ACCEPT_GATE), --accept-gate "$$ACCEPT_GATE" --reason $(if $(call from_cli,REASON),"$$REASON",""))
 
 .PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
 	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite redteam-live matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
