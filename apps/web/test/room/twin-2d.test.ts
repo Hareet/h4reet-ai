@@ -26,10 +26,18 @@ interface Fetched {
   init: RequestInit;
 }
 
+/** The 2D room on its own page, with the test's fetch. `signalled` settles at the twin's picture signal, which comes
+ *  once the fetch has settled, the still or the drawing: the tests wait on it, never on a count of turns, since the
+ *  digest that checks the bytes runs on libuv's threadpool, which a loaded machine can keep busy for any number of
+ *  them (fix/036: forty flushes failed five of the Author's gates from 11-11 to 11-23). */
 function stage(answer: (n: number) => { status: number; body: Uint8Array } | Error) {
   const doc = new JSDOM("<main></main>", { url: "http://127.0.0.1:18105/" }).window.document;
   const fetched: Fetched[] = [];
   const signals: FigureSignal[] = [];
+  let signal: (s: FigureSignal) => void = () => undefined;
+  const signalled = new Promise<FigureSignal>((resolve) => {
+    signal = resolve;
+  });
   const flat = renderFlat(doc, {
     room: index,
     avatar: "woman",
@@ -43,10 +51,13 @@ function stage(answer: (n: number) => { status: number; body: Uint8Array } | Err
         arrayBuffer: () => Promise.resolve(a.body.slice().buffer),
       } as Response);
     },
-    onFigure: (s) => signals.push(s),
+    onFigure: (s) => {
+      signals.push(s);
+      signal(s);
+    },
   });
   doc.body.append(flat.element);
-  return { doc, flat, fetched, signals };
+  return { doc, flat, fetched, signals, signalled };
 }
 
 describe("the twin's still in the 2D room (FR-034, FR-035; SC-010)", () => {
@@ -58,7 +69,7 @@ describe("the twin's still in the 2D room (FR-034, FR-035; SC-010)", () => {
 
   it("is fetched once, same-origin with its integrity, and drawn as a data: image, clipped, the drawing hidden", async () => {
     const s = stage(() => ({ status: 200, body: STILL }));
-    for (let i = 0; i < 40 && s.signals.length === 0; i += 1) await flush();
+    await s.signalled;
     expect(s.fetched.map((f) => f.url)).toEqual([index.twin?.still?.url]);
     expect(s.fetched[0]?.init).toMatchObject({ mode: "same-origin", redirect: "error", integrity: integrityOf(STILL) });
     const image = s.flat.element.querySelector("image");
@@ -86,7 +97,7 @@ describe("the twin's still in the 2D room (FR-034, FR-035; SC-010)", () => {
 
   it("falls back to the drawing after one retry, signalled as the drawing, the hit areas unchanged", async () => {
     const s = stage(() => ({ status: 404, body: new Uint8Array() }));
-    for (let i = 0; i < 40 && s.signals.length === 0; i += 1) await flush();
+    await s.signalled;
     expect(s.fetched).toHaveLength(2);
     expect(s.flat.element.querySelector("image")).toBeNull();
     expect(s.signals).toContainEqual({ kind: "picture", figure: "twin", shows: "drawing", why: "failed" });
@@ -95,10 +106,11 @@ describe("the twin's still in the 2D room (FR-034, FR-035; SC-010)", () => {
 
   it("refuses bytes that fail their integrity: the drawing, never the image", async () => {
     const s = stage(() => ({ status: 200, body: new Uint8Array([1, 2, 3]) }));
-    // Two tries, each through the digest, which settles over several ticks.
-    for (let i = 0; i < 40 && s.signals.length === 0; i += 1) await flush();
+    // Two tries, each through the digest, then the one signal.
+    await s.signalled;
+    expect(s.fetched).toHaveLength(2);
     expect(s.flat.element.querySelector("image")).toBeNull();
-    expect(s.signals.at(-1)).toEqual({ kind: "picture", figure: "twin", shows: "drawing", why: "failed" });
+    expect(s.signals).toEqual([{ kind: "picture", figure: "twin", shows: "drawing", why: "failed" }]);
   });
 
   it("fetches nothing without a still in the index, or without a fetch", async () => {
