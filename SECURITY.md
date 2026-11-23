@@ -18,10 +18,14 @@ Include what you found, how to reproduce it, the impact you expect, and the comm
 
 Out of scope: denial of service by volume, social engineering, and vulnerabilities in third-party services (report those to the service).
 
+## Known gaps
+
+[docs/security-posture.md](docs/security-posture.md) lists what the AWS Well-Architected review of 2026-11-22 found: what the design leaves out on purpose, the gaps still open, and what was fixed before publication. A gap listed there is known; a working way to exploit one is still worth reporting privately.
+
 ## What happens next
 
 When a report shows a budget breach, a blocked-action anomaly, or a guardrail bypass in production, an incident note goes into [`docs/incidents/`](docs/incidents/) within seven days, together with an eval that would have caught it (constitution, Security & Agent Governance). Incidents and evaluation regressions stay visible in the history (Principle VI).
 
 ## Testing safely
 
-Where you can, test against your own copy of the stack rather than the live site: once spec 000 lands, `make up` runs the whole production topology on one machine, and a CPU-only configuration needs no GPU. On the live site, stay within normal use. When the budget runs out, the kill switch degrades the site for every visitor, by design.
+Where you can, test against your own copy of the stack rather than the live site: `make up` runs the whole production topology on one machine, and a CPU-only configuration needs no GPU. On the live site, stay within normal use. When the budget runs out, the kill switch degrades the site for every visitor, by design.

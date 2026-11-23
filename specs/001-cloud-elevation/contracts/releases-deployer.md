@@ -71,7 +71,7 @@ It runs under an exclusive lock on `<state>/.lock`, so the boot's run and the ti
 
 ## 4. Rollback and holds (FR-047, FR-049)
 
-- `make rollback ENV=ec2|tunnel-end|prod` sets that host's deployer to the previous release: EC2's and the tunnel end's through a Systems Manager command, the laptop's directly.
+- ~~`make rollback ENV=ec2|tunnel-end|prod` sets that host's deployer to the previous release: EC2's and the tunnel end's through a Systems Manager command, the laptop's directly.~~ **Not built** (corrected 2026-11-23, from the Well-Architected review's corrections): the Makefile has no such target. The laptop's prod stack goes back as `docs/runbooks/rollback.md` gives it (`make up ENV=prod REF=<previous sha>`). A cloud host goes back to the release before only through its deployer, when a new release fails its start (`deploy_rolled_back`, §3); otherwise the way forward is a new release. FR-047's "one command away for the Author" is open for EC2 and the tunnel end (the review's item R29).
 - A hand-started stack (`make up ENV=… REF=…`) writes `started_by=author`. The deployer leaves it alone until `make deployer-resume`.
 - **The tunnel end's hold** (group 5's fixes' review, 3): a file, `hold`, in its deployer's state folder, which the Author makes in a Systems Manager session; while it stands the deployer starts, restarts, and deploys nothing, at boot or on its timer, and the key's revocation still restarts the sshd (`docs/runbooks/tunnel-end.md`, "Stopping the stack on purpose").
 - **Across migration 0007** a rollback fails closed: spec 000's gateway refuses a store whose schema is newer than its code.

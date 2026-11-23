@@ -22,7 +22,7 @@
 
 In your own terminal, with your SSO session (`pf` your administrator profile).
 
-1. **See what costs:** Cost Explorer, Billing console, this month, filtered on the cost-allocation tag `project` = `h4reet-ai`, as the budget counts, then grouped by Service and by the tag `component` (tasks.md T030 activated both). EC2's hours, the volumes, RDS, and the addresses are the usual lines (research.md R-05).
+1. **See what costs:** Cost Explorer, Billing console, this month, filtered on the cost-allocation tag `project` = `h4reet-ai`, as the budget counts, then grouped by Service and by the tag `component`. Both work only once `project` and `component` are active cost-allocation tags: tasks.md T030's step 3 activates them in the Billing console, and that step isn't in the record yet (corrected 2026-11-23; T030 stays open). Until you have confirmed it there, the filter, and the budget that uses it, may count nothing. EC2's hours, the volumes, and the addresses are the usual lines (research.md R-05; RDS went with R-20).
 2. **Stop what shouldn't run.** Before group 7 there is no EC2: the account holds the state bucket, the registry, the release bucket, the functions, and the logs, all cents.
 3. **Don't raise the figure** to get past an alert: it is your figure, in `~/.config/h4reet-ai/infra/bootstrap.env`, and a change goes through your plan of the bootstrap root.
 

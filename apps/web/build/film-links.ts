@@ -23,7 +23,8 @@ export interface FilmLink {
   claim: string;
   /** The film's folder under films/. */
   film: string;
-  /** The film's MP4, inside its folder, as its README's "Watch the film" links it. */
+  /** The film's MP4 inside its folder, until the MP4s leave git before publication; its file name is the film's
+   *  asset in the release films-v1, which its README's "Download the film" links (spec 023 FR-012, amended). */
   media: string;
 }
 

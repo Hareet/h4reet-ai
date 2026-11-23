@@ -191,12 +191,14 @@ Prices are AWS's on-demand list prices for Linux in `us-east-1` as remembered at
 
 | Host | Hours a month | Today on spot | On demand, the ceiling's worst case | This change |
 |---|---|---|---|---|
-| EC2 (`t4g.large`, 12 h a day) | about 365 | about $7 (the intent) | $0.0672 × 365 ≈ $24.5 | about $7 while the first type has capacity; never above $24.5 on any listed type, since every ceiling is $0.0672 |
+| EC2 (`t4g.large`, 12 h a day) | about 365 | ~~about $7 (the intent)~~ $9.45 at `us-east-1a` (corrected below) | $0.0672 × 365 ≈ $24.5 | ~~about $7~~ $9.45 while the first type has capacity; never above $24.5 on any listed type, since every ceiling is $0.0672 |
 | The tunnel end (`t4g.small`, around the clock) | about 730 | a few dollars | $0.0168 × 730 ≈ $12.3 | the same; never above $12.3 |
+
+**Corrected 2026-11-23** (the Well-Architected review's corrections, [docs/security-posture.md](../../docs/security-posture.md#corrections-to-our-own-documents)): the intent's "about $7" was an estimate. The figure the Author confirmed is $9.45 a month for `t4g.large` on spot at 12 hours a day in `us-east-1a`, read on 2026-11-13 ([spec 001 research.md R-05](../001-cloud-elevation/research.md#r-05-the-cost-lines-changed), "yes t167 confirmed"). Since 2026-11-22 EC2 runs `m7g.large`, the list's second type, whose spot price R-05 doesn't hold.
 
 The rest: the 5-minute check is about 8,640 invocations a month, inside Lambda's free tier, with a plain log line each (about 2.6 MB, under a cent of ingestion); new embedded-metric outcomes are custom metrics billed by the hours they report, cents a month at most; the new parameters are standard-tier Strings, free. Test instances for the Author's verification: two replaces, each a few minutes of an instance, cents. Development: this session's model spend, outside the production budget.
 
-**Why spot's price is worth some downtime.** The service needn't be highly available (the Author's words above). High availability would mean a second host of each kind or on-demand capacity: at least the on-demand difference, about $17 a month for EC2 and $8 for the tunnel end, to remove a few hours a month of downtime the laptop already covers whenever it runs. Interchangeable spot types remove most of that downtime at no added cost: an outage now needs every listed type short in the zone at once, not one.
+**Why spot's price is worth some downtime.** The service needn't be highly available (the Author's words above). High availability would mean a second host of each kind or on-demand capacity: at least the on-demand difference, about ~~$17~~ $15 a month for EC2 ($24.5 less $9.45; corrected 2026-11-23 with the figure above) and $8 for the tunnel end ($12.3 less R-05's $4.45), to remove a few hours a month of downtime the laptop already covers whenever it runs. Interchangeable spot types remove most of that downtime at no added cost: an outage now needs every listed type short in the zone at once, not one.
 
 **The downtime that remains**, named:
 

@@ -1,5 +1,7 @@
 # Plan: the resume's claims linking to their films
 
+**Amended 2026-11-23** (spec 023 FR-012, amended): the films' MP4s leave git in the history rewrite before the push and become assets of the GitHub release `films-v1`. Each landing page offers the download, and after publication a smaller web encode that plays on the page; the links below, to the landing pages, don't change. Items 1 and 3 of "What has to be true first" (the media in git; the landing page's "Watch the film") read so from that date.
+
 The resume's twin section (`resume/source/twin.html`, untracked in the main checkout) lists four claims in small caps: LOCAL MODELS FIRST · A REAL-TIME COST METER · A $5-A-DAY KILL SWITCH · EVERY DATA FLOW DISCLOSED. This plan makes each one a link to its film in the published repository, and rebuilds the two places the PDF lives: the copy you send, and the copy the room serves (`apps/web/content/resume-author.pdf`, approved by hash as C-0002).
 
 ## What has to be true first
