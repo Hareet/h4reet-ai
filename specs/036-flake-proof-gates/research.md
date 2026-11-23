@@ -120,7 +120,12 @@ The steps that still run read docs paths too, and need nothing from the set: `in
 
 Before this spec, `make test`'s recipe ran `npm test --workspaces` then pytest as two lines, so make stopped at the
 first: when a workspace failed (two of the intent's three failures), pytest never ran. A retry of the failing vitest
-tests alone could then pass a step whose pytest suite never ran. So the recipe runs both parts whatever each exits,
-prints `test-part: <part> exited N` after each, and fails if either failed. The gate retries only when it sees both
-lines, so it never infers that a part ran. Spec 031's branch rewrites the same recipe for CI's shards (`H4_TEST_SHARD`)
-and adds the same `NPM_WS_SH` helper, with the same definition, so its rebase keeps both.
+tests alone could then pass a step whose pytest suite never ran. And npm's one exit for every workspace can't say which
+workspace failed, or why: a workspace that exits 1 without a failed test (a coverage threshold, an error before its
+summary) beside another's flake would be rerun as a pass. npm names the failing workspace on stderr (`npm error
+location /work/<folder>`), but in a format the gate would have to trust across npm versions. So the recipe runs each
+workspace's tests by its folder (`npm test -w <folder> --if-present`, the same script `--workspaces` runs), then
+pytest, whatever each exits; prints `test-part: workspace <folder> exited N` after each workspace and
+`test-part: pytest exited N` last; and fails if any part failed. The gate retries only when it sees those lines, so
+it never infers that a part ran or which one failed. Spec 031's branch rewrites the same recipe for CI's shards
+(`H4_TEST_SHARD`), so its rebase keeps the part lines.

@@ -34,8 +34,8 @@ are a patch for the Author's hand, built from plain copies of `refs/heads/main`'
 ### 1. The retry (`tools/gates/gate`)
 
 - `container_phase` runs `make test` as today. When the step is FAIL, `retry_test` reads the output:
-  `retry_plan` finds the two `test-part:` lines (FR-008), then the vitest failures before the first and the pytest
-  failures between them; `vitest_failures` puts each FAIL line in the one failing workspace whose folder holds its
+  `retry_plan` finds the `test-part:` lines (FR-008), one for each workspace and pytest's last, then the failing
+  workspaces' vitest failures before pytest's part and the pytest failures in it; `vitest_failures` puts each FAIL line in the one failing workspace whose folder holds its
   file (research R-1: the FAIL lines are on stderr, so their place in the output proves nothing); `pytest_failures`
   reads the short test summary; each checks its counts against what it named (FR-002).
 - The reruns, through the same `container()` helper `make test` used: `npm test -w <folder> -- <files> -t
@@ -54,9 +54,11 @@ are a patch for the Author's hand, built from plain copies of `refs/heads/main`'
 
 ### 3. `make test` (the Makefile)
 
-One recipe line: each part in a subshell with `set -x`, its exit kept, `test-part: workspaces exited N` and
-`test-part: pytest exited N` printed, and the line fails when either part did. `NPM_WS_SH`, spec 031's helper with the
-same definition, is the shell form of `NPM_WS`.
+One recipe line: for each of `WORKSPACE_DIRS`, `npm test -w <folder> --if-present` in a subshell with `set -x`, its exit
+kept and printed as `test-part: workspace <folder> exited N`; then pytest, printed as `test-part: pytest exited N`; the
+line fails when any part did. Per workspace, because npm's one exit for `--workspaces` can't say which workspace
+failed: a workspace that exits 1 without a failed test (a coverage threshold) beside another's flake would otherwise
+be rerun as a pass.
 
 ### 4. The release (`deploy/scripts/release.py`, the Makefile)
 
@@ -73,8 +75,8 @@ same definition, is the shell form of `NPM_WS`.
 | File | Change |
 |---|---|
 | `tools/gates/gate`, `tools/gates/test/test_gate.py` | The patch: `docs/merge-requests/human-patches/2026-11-23-036-gate.patch` |
-| `Makefile` | `test`'s recipe, `NPM_WS_SH`; `release`'s two values; `LITERAL_VARS` |
-| `scripts/test_make_test_parts.py` | New: `make test` runs both parts and says what each exited |
+| `Makefile` | `test`'s recipe; `release`'s two values; `LITERAL_VARS` |
+| `scripts/test_make_test_parts.py` | New: `make test` runs every part and says what each exited |
 | `deploy/scripts/release.py` | `gate_passes`, `check_gate`'s exception and record, the two flags |
 | `deploy/scripts/test_release_accept_gate.py` | New: the flaky line, the exception, the record, the make target |
 | `docs/runbooks/local-gate.md`, `docs/runbooks/deploy.md`, `docs/how-we-build/lifecycle.md` | The retry, the fast path, the exception |
@@ -96,8 +98,8 @@ No existing test file changes.
 
 ## Risks
 
-- **A false pass**: the retry passes a step whose failure was something else. Held by FR-002's accounting (both
-  `test-part:` lines; summaries for every workspace; counts equal to the named tests; no ERROR, failed suite, or
+- **A false pass**: the retry passes a step whose failure was something else. Held by FR-002's accounting (the
+  `test-part:` lines, each workspace's exit among them; a summary for each failing workspace; counts equal to the named tests; no ERROR, failed suite, or
   unhandled error) and by the rerun's own counts. Each no-retry case has a test.
 - **A retry that never fires**: the parse rejects real output. Held by building the tests' outputs from real vitest
   5.0.3 and pytest 9.1.1 runs (research R-1, R-2), colours included, and by naming every reason in the step's note,

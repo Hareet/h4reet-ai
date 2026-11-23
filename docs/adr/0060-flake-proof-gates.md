@@ -20,12 +20,12 @@ pytest suite never ran after a vitest failure.
 
 1. **One retry, of the test step alone, visible.** When `make test` fails, the gate reruns exactly the failing tests,
    once, in `make test`'s own container. It does so only when its output accounts for every failure as a named test:
-   both of `make test`'s `test-part:` lines, every workspace's summary, counts equal to the named tests, and no pytest
-   ERROR, vitest failed suite, or unhandled error. A test that passes on its rerun makes the step PASS, named
+   `make test`'s `test-part:` lines, which say what each workspace and pytest exited; a summary for each failing
+   workspace; counts equal to the named tests; and no pytest ERROR, vitest failed suite, or unhandled error. A test that passes on its rerun makes the step PASS, named
    `flaky:` in the step's line and in the summary line, which goes into the merge commit's message. Anything else is
    FAIL, as before, with the reason.
-2. **`make test` runs both parts.** The workspaces' tests and pytest each run whatever the other exits, and each
-   prints what it exited, so one run shows every failing test.
+2. **`make test` runs every part.** Each workspace's tests, by its folder, and pytest each run whatever the others
+   exit, and each prints what it exited, so one run shows every failing test and the part it failed in.
 3. **A docs-only fast path, derived from what reads the files.** A branch whose every change is a plain Markdown file
    directly in `docs/merge-requests/`, `docs/infra/applies/`, or `docs/incidents/`, not a README, and named by no file
    of its tree outside the prose, skips test, evals, redteam, matrix-h, and image. Each says `docs-only: N files`, and

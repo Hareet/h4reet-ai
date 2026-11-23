@@ -69,7 +69,8 @@ A merge's gate line reports a failure that the Author knows is a flake. The rele
 ### Edge Cases
 
 - **A test fails on both runs**: FAIL, with a note naming the rerun that failed.
-- **A failure the parse can't name**: a pytest `ERROR` (setup, teardown, collection), pytest exiting other than 1 (interrupted, internal error, no tests), a vitest "Failed Suites" (a hook or an import) or "Unhandled Errors" section, an `Errors` count, a workspace without its summary, counts that don't match the named tests, a file that isn't in exactly one failing workspace, a node id that can't be read for certain, or a workspace whose `test` script isn't `vitest run`: no retry.
+- **A failure the parse can't name**: a pytest `ERROR` (setup, teardown, collection), a part exiting other than 0 or 1 (pytest interrupted, an internal error, no tests; npm that couldn't run a workspace), a vitest "Failed Suites" (a hook or an import) or "Unhandled Errors" section, an `Errors` count, a failing workspace without its summary, counts that don't match the named tests, a file that isn't in exactly one failing workspace, a node id that can't be read for certain, or a failing workspace whose `test` script isn't `vitest run`: no retry.
+- **A workspace that exits 1 and counts no failed test** (a coverage threshold, say), beside another workspace's flake: no retry. npm's one exit for every workspace couldn't tell them apart, so `make test` says what each workspace exited.
 - **A `make test` from before this spec** (no `test-part:` lines): no retry, with a note saying to merge main into the branch, since its pytest never ran after a workspace's failure.
 - **A rerun that runs no test, or another test**: the rerun's own counts must be exactly the named tests passed and none failed, or the step stays FAIL.
 - **stdout and stderr interleaved**: vitest prints its failures on stderr and its summary on stdout, which docker forwards separately, so a FAIL line is placed by its file, never by where it lands in the output.
@@ -86,7 +87,7 @@ A merge's gate line reports a failure that the Author knows is a flake. The rele
 **The test step's one retry** (`tools/gates/gate`, human-only: a patch for the Author's hand)
 
 - **FR-001**: WHEN the test step's `make test` exits non-zero, THE gate SHALL read its output for the failing tests: pytest's `FAILED <node id>` lines in its short test summary, and vitest's `FAIL  <file> > <name>` lines in "Failed Tests" sections, each put in the one failing workspace whose folder holds its file.
-- **FR-002**: THE gate SHALL retry only when the output accounts for every failure: `make test` printed `test-part: workspaces exited N` and `test-part: pytest exited N`, each 0 or 1 and not both 0; for a part that exited 1, every workspace with a `test` script reached its summary, the counts of failed tests and failed files in each failing workspace equal the FAIL lines put there, pytest's failed count equals its FAILED lines, and there is no pytest ERROR, no vitest failed suite, unhandled error, or `Errors` count; and each test maps to a command: its workspace's `test` script is `vitest run`, the branch's Makefile's `PYTEST_ARGS` is plain words, and each node id reads unambiguously. Otherwise the step is FAIL as today, with a note `no retry: <why>`.
+- **FR-002**: THE gate SHALL retry only when the output accounts for every failure: `make test` printed a `test-part: workspace <folder> exited N` line for each workspace and `test-part: pytest exited N` last, each 0 or 1 and not all 0; each workspace that exited 1 reached its summary, which counts at least one failed test, and its counts of failed tests and failed files equal the FAIL lines put there, pytest's failed count equals its FAILED lines, and there is no pytest ERROR, no vitest failed suite, unhandled error, or `Errors` count; and each test maps to a command: its failing workspace's `test` script is `vitest run`, the branch's Makefile's `PYTEST_ARGS` is plain words, and each node id reads unambiguously. Otherwise the step is FAIL as today, with a note `no retry: <why>`.
 - **FR-003**: THE retry SHALL rerun exactly the failing tests, once: per failing workspace, `npm test -w <workspace> -- <files> -t '^(?:<names>)$'`, the names escaped; and `pytest <PYTEST_ARGS> <node ids>`; each in the same devcontainer image, on the same installed copy at `/work`, with `--network none`, and the user, capabilities, and mounts of `make test`'s own run.
 - **FR-004**: WHEN every rerun exits 0 and reports exactly its tests passed and none failed, THE step SHALL be PASS with the note `flaky: <tests> (…)`, and the summary line SHALL carry `; flaky: <tests>`; otherwise the step SHALL be FAIL as today, with a note naming the rerun that failed.
 - **FR-005**: THE gate SHALL retry at most once, only the test step, and print both runs in its output.
@@ -98,7 +99,7 @@ A merge's gate line reports a failure that the Author knows is a flake. The rele
 
 **`make test`** (the Makefile, on the branch)
 
-- **FR-008**: `make test` SHALL run pytest whatever the workspaces' tests exit, print `test-part: workspaces exited N` and `test-part: pytest exited N`, and exit non-zero when either part did.
+- **FR-008**: `make test` SHALL run each workspace's tests by its folder (`npm test -w <folder> --if-present`, as `npm test --workspaces --if-present` runs them) and then pytest, each whatever the others exit; print `test-part: workspace <folder> exited N` after each workspace and `test-part: pytest exited N` last; and exit non-zero when any part did.
 
 **The release** (`deploy/scripts/release.py`, the Makefile's `release` target)
 
@@ -114,6 +115,7 @@ A merge's gate line reports a failure that the Author knows is a flake. The rele
 ### Key Entities
 
 - **The retry plan**: per failing workspace, its `(file, name)` pairs; pytest's node ids and the Makefile's `PYTEST_ARGS`.
+- **`make test`'s part lines**: `test-part: workspace <folder> exited N`, one for each workspace in the Makefile's `WORKSPACE_DIRS`, then `test-part: pytest exited N`.
 - **The gate line**: `gate: <sha> (<ref>) by tools/gates/gate at <sha12>: N PASS, N SKIP, N WARN, N PLANNED, N PENDING, N FAIL[; failing: …][; flaky: …][; DEGRADED (--host): …]`. `flaky:` is new; the rest is unchanged, so spec 031's `tools/ci/summary.py` and the release read it as before.
 - **`release.json`'s `gate`**: `{"line": …}` or `{"line": …, "accepted": {"merge": <SHA>, "reason": …}}`.
 
@@ -133,7 +135,7 @@ A merge's gate line reports a failure that the Author knows is a flake. The rele
 
 ## Assumptions
 
-- **The retry runs the test commands directly, not through make.** `npm test -w <workspace>` runs the workspace's own `test` script, as `npm test --workspaces` did, and pytest gets the Makefile's own `PYTEST_ARGS`. The differences from the first run are make's own variables (`MAKEFLAGS`, `MAKELEVEL`) and the `corpus-check` prerequisite, which passed already.
+- **The retry runs the test commands directly, not through make.** `npm test -w <workspace>` runs the workspace's own `test` script, as `make test` did, and pytest gets the Makefile's own `PYTEST_ARGS`. The differences from the first run are make's own variables (`MAKEFLAGS`, `MAKELEVEL`) and the `corpus-check` prerequisite, which passed already.
 - **Branches cut before this spec get no retry** until they merge main: their `make test` stops before pytest when a workspace fails, so a rerun of the failing tests alone could pass a step whose pytest never ran.
 - **The fast path's name check is conservative.** It matches a changed file's name without `.md` anywhere in the tree's code and data, comments included, so a note that a comment cites runs the whole suite. It reads no file with a NUL byte in its first 8 KiB (images, models, films).
 - **Deviation, named (constitution, Development Workflow §5, "CI requires … passing tests"; spec 001's releases contract §2.1, "a merge by hand past a failing gate isn't releasable")**: the release's exception lets a failing gate line through, by the Author's hand only, with the merge and the reason recorded. It reverses that contract line for the case he names, so [ADR 0060](../../docs/adr/0060-flake-proof-gates.md) records it. The retry is not a deviation: a test that passed only on its rerun is reported as flaky, never as a plain pass.
