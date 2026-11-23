@@ -10,6 +10,7 @@ contracts/probe.md §2.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -215,6 +216,35 @@ def test_it_removes_its_containers_and_networks(ok) -> None:
     made = [c for c in ok.calls() if c[1:3] == ["network", "create"]]
     assert len(made) == 2 and any("--internal" in c for c in made)
     assert all("--label" in c for c in made)
+
+
+def test_it_removes_a_container_whose_id_is_all_digits(tmp_path) -> None:
+    # The gate's run of 2026-11-23 (stack/2026-11-23) replayed: its folder was h4-cprobe.cojyrk, which gave the egress
+    # proxy, the stub's first detached container, the ID 504080177739, all digits (about one container in 280 gets
+    # such an ID), and the cleanup's `docker rm -f 504080177739` left it. A mktemp ahead of /usr/bin's on the probe's
+    # PATH names the folder; the probe runs as it ran there.
+    p = Probe(tmp_path)
+    shim = p.bin / "mktemp"
+    shim.write_text(
+        "#!/bin/bash\n"
+        'if [ "$#" = 2 ] && [ "$1" = -d ] && [ "$2" = "$HOME/h4-cprobe.XXXXXX" ]; then\n'
+        '\tmkdir -m 700 -- "$HOME/h4-cprobe.cojyrk" && echo "$HOME/h4-cprobe.cojyrk"\n'
+        "else\n"
+        '\texec /usr/bin/mktemp "$@"\n'
+        "fi\n"
+    )
+    shim.chmod(0o755)
+    # The case itself, as the stub makes an ID (stub_docker.py's run(): its name and its sequence number, 1 here).
+    egress_id = hashlib.sha256(b"h4-cprobe-egress-cojyrk1").hexdigest()[:12]
+    assert egress_id == "504080177739"
+    r = p.run()
+    assert r.returncode == 0, p.output[-3000:]
+    assert p.folder().name == "h4-cprobe.cojyrk"
+    made = [c for c in p.calls() if c[1:2] == ["run"] and "--name" in c and "-d" in c]
+    assert "h4-cprobe-egress-cojyrk" in [c[c.index("--name") + 1] for c in made]
+    st = p.stub_state()
+    assert not [n for n in st["containers"] if n.startswith("h4-cprobe-")]
+    assert not [n for n in st["networks"] if n.startswith("h4-cprobe-")]
 
 
 def test_the_token_reaches_containers_only_by_env_file(ok) -> None:
