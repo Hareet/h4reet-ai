@@ -1024,11 +1024,13 @@ def test_the_client_reads_a_0700_folder_it_doesnt_own_and_runs_as_10001(
 # Fix F10 (specs/001-cloud-elevation/fixes/f10.md): the tunnel end kept a dead laptop session's remote forwards. On
 # 2026-11-18, after the laptop froze and was restarted, its client reconnected every 30 s, and each new session was
 # refused 2201, 2202, and 2203 ("cannot listen to port: 2201") for 15 minutes and more, until the container was
-# restarted by hand. sshd's client-alive probe runs only when its poll times out, and the relay's check through 2201
-# every second woke it each time, so the probe never ran; the dead session ended only when the kernel gave up
-# retransmitting to the laptop, tcp_retries2's 15 tries, about 15 minutes. Two parts: the tunnel end's own network
-# namespace retries fewer times, so a dead peer with data outstanding ends in under two minutes; and the server ends
-# the older sessions as soon as a new one can't listen, so the laptop's next retry gets its forwards.
+# restarted by hand. The dead session ended only when the kernel gave up retransmitting to the laptop, tcp_retries2's
+# 15 tries, about 15 minutes (why client-alive didn't end it first is f10.md's hypothesis: the relay's check through
+# 2201 every second kept its probe from running). The tunnel end's own network namespace retries fewer times, so a dead
+# peer with data outstanding ends 102 to 204 s after its first unanswered packet: the kernel's model gives 102 s for 8
+# retries, and it checks at each retransmission, whose interval doubles from the connection's own timeout
+# (fixes/f11.md). F10's other part, a net that ended the older sessions when sshd's log said a new one couldn't listen,
+# is gone: fix F11, below.
 
 TCP_RETRIES2 = 8
 RTO_MIN = 0.2  # seconds, the kernel's TCP_RTO_MIN
@@ -1045,7 +1047,8 @@ def test_a_dead_peer_with_data_outstanding_ends_in_under_two_minutes() -> None:
     }
 
     # The kernel's bound for n retries from TCP_RTO_MIN (tcp_model_timeout): (2^(n+1) - 1) * 0.2 s while n stays under
-    # TCP_RTO_MAX's doubling (9). The default, 15, is the night's 924.6 s.
+    # TCP_RTO_MAX's doubling (9). The default, 15, is the night's 924.6 s. It's the floor: the kernel compares it at
+    # each retransmission, so the session ends at the first one past it, up to twice the bound.
     def bound(n: int) -> float:
         linear = 9
         if n <= linear:
@@ -1054,13 +1057,6 @@ def test_a_dead_peer_with_data_outstanding_ends_in_under_two_minutes() -> None:
 
     assert bound(15) > 900
     assert 60 < bound(TCP_RETRIES2) < 120
-
-
-def test_the_grace_is_sshds_own() -> None:
-    # A session that started within LoginGraceTime may still be setting up; one older has asked for its forwards.
-    text = ENTRYPOINT.read_text(encoding="utf-8")
-    (grace,) = re.findall(r"^GRACE=(\d+)$", text, re.MULTILINE)
-    assert [[grace]] == setting(SSHD, "LoginGraceTime")
 
 
 def functions(replacements: dict[str, str]) -> str:
@@ -1084,228 +1080,252 @@ def bash(script: str, *args: str, timeout: float = 10) -> subprocess.CompletedPr
     )
 
 
-# sshd's own line (-e, VERBOSE), as it reaches the loop: through scrub, ending in sshd's \r. With -e, OpenSSH's log.c
-# gives an error-level line no "error: " prefix (only syslog's lines carry the level's name), so the raw line is the
-# function's name and its message, as the night's journal shows it, and as the client prints the same function's line
-# for a local forward ("channel_setup_fwd_listener_tcpip: cannot listen to port: 8080").
-CONFLICT = "channel_setup_fwd_listener_tcpip: cannot listen to port: {port}\r"
-# The review of bd7e0765, I1: 2222 is open to anywhere, and sshd logs an unauthenticated client's user name and
-# identification as sent. A stranger whose user name or banner is the conflict's text must not end anything: only
-# sshd's own line, the whole line, does.
-STRANGER = "cannot listen to port: 2201"
+# ----------------------------------------------------------------------------------------------------------------------
+# Fix F11 (specs/001-cloud-elevation/fixes/f11.md): nothing in the tunnel end decides from sshd's log. F10's net ended
+# the older sessions on sshd's whole line "channel_setup_fwd_listener_tcpip: cannot listen to port: 2201", and the
+# tunnel end counted reconnections from "Accepted publickey for tunnel" anywhere in a line. But under -e, OpenSSH
+# 9.6p1's log.c writes each record in one write, after strnvis with VIS_SAFE|VIS_OCTAL, which leaves newline, carriage
+# return, tab, backspace, and bell as they came (only syslog's VIS_NL escapes a newline), then "\r\n". And a stranger on
+# 2222, with no key, chooses text sshd logs: the name-list after "Their offer: " when their KEXINIT matches nothing
+# (kex.c; the monitor logs the preauth child's record with " [preauth]"), the description after a disconnect's reason
+# (SSH_MSG_DISCONNECT, packet.c), a user name, and an identification line. Any line of sshd's log may be theirs.
 
-
-@pytest.mark.parametrize(
-    ("line", "conflict"),
-    [
-        (CONFLICT.format(port=2201), True),
-        (CONFLICT.format(port=2202), True),
-        (CONFLICT.format(port=2203), True),
-        (CONFLICT.format(port=2201).rstrip("\r"), True),
-        (CONFLICT.format(port=5432), False),
-        (CONFLICT.format(port=22010), False),
-        ("bind [0.0.0.0]:2201: Address already in use\r", False),
-        (
-            "Accepted publickey for tunnel from 192.0.2.7 port 50000 ssh2: ED25519\r",
-            False,
-        ),
-        (f"Invalid user {STRANGER} from 192.0.2.7 port 50000\r", False),
-        (
-            f"Connection closed by invalid user {STRANGER} 192.0.2.7 port 50000 [preauth]\r",
-            False,
-        ),
-        (
-            (
-                "kex_exchange_identification: client sent invalid protocol identifier "
-                f'"{STRANGER}"\r'
-            ),
-            False,
-        ),
-        (f"x {CONFLICT.format(port=2201)}", False),
-        (CONFLICT.format(port=2201).rstrip("\r") + " [preauth]\r", False),
-    ],
+PEER = "203.0.113.9 port 40000"
+LISTEN = "channel_setup_fwd_listener_tcpip: cannot listen to port: {port}"
+ACCEPTED = (
+    "Accepted publickey for tunnel from 192.0.2.7 port 50000 ssh2: ED25519 SHA256:x"
 )
-def test_the_line_that_ends_older_sessions_is_sshds_own_whole_line(
-    line: str, conflict: bool
-) -> None:
-    done = bash(
-        functions({})
-        + 'line="$(printf "%s\\n" "$1" | scrub)"\n'
-        + 'printf "%s\\n" "$line"\n'
-        + 'holds_forward "$line" && echo conflict || echo none\n',
-        line,
+NO_MATCH = (
+    f"Unable to negotiate with {PEER}: no matching key exchange method found. "
+    "Their offer: "
+)
+# Each as sshd -e writes it: one record, in one write, ending in its own "\r\n".
+RECORDS = {
+    "kexinit-offer-lf": f"{NO_MATCH}x\n{LISTEN.format(port=2201)}\ny [preauth]\r\n",
+    "kexinit-offer-crlf": f"{NO_MATCH}x\r\n{LISTEN.format(port=2202)}\r\ny [preauth]\r\n",
+    "disconnect-lf": (
+        f"Received disconnect from {PEER}:2: x\n{LISTEN.format(port=2203)}\ny [preauth]\r\n"
+    ),
+    "disconnect-crlf": (
+        f"Received disconnect from {PEER}:11: x\r\n{LISTEN.format(port=2201)}\r\n [preauth]\r\n"
+    ),
+    "accepted-in-the-identification": (
+        f'kex_exchange_identification: client sent invalid protocol identifier "{ACCEPTED}"\r\n'
+    ),
+    "accepted-in-a-user-name": (
+        f"Invalid user {ACCEPTED} from {PEER}\r\n"
+        f"Connection closed by invalid user {ACCEPTED} {PEER} [preauth]\r\n"
+    ),
+    "accepted-on-a-line-of-its-own": (
+        f"{NO_MATCH}x\n{ACCEPTED}\ny [preauth]\r\n"
+        f"Received disconnect from {PEER}:2: x\r\n{ACCEPTED}\r\n [preauth]\r\n"
+    ),
+    # sshd's own, when a session asks for a forward another session holds: it ends nothing either, now.
+    "sshds-own-conflict": (
+        f"bind [0.0.0.0]:2201: Address already in use\r\n{LISTEN.format(port=2201)}\r\n"
+    ),
+}
+
+# /proc/net/tcp as the kernel prints it (tcp4_seq_show): each row's slot, local and remote address (the address in the
+# kernel's byte order, the port in hex), state (0A listening, 01 established), queues, timer, retransmissions, uid,
+# timeout, and inode, then the socket's own counters.
+TCP_HEADER = (
+    "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt"
+    "   uid  timeout inode\n"
+)
+ANY = "00000000:0000"
+SSHD_LISTENS = ("00000000:08AE", ANY, "0A", 7)  # sshd on 2222
+# 203.0.113.9:40000 on 2222, never authenticated.
+STRANGER_ON_2222 = ("050012AC:08AE", "097100CB:9C40", "01", 60)
+# The relay's check, accepted on the forward's listener: 2201's port, and not a listener.
+RELAY_THROUGH_2201 = ("050012AC:0899", "070012AC:A2C2", "01", 150)
+LISTENS_ON_22010 = ("00000000:55FA", ANY, "0A", 900)
+
+
+def forwards(inode: int) -> list[tuple[str, str, str, int]]:
+    """One session's three reverse forwards, listening on 0.0.0.0's 2201, 2202, and 2203, each on its own socket."""
+    return [
+        (f"00000000:{port:04X}", ANY, "0A", inode + i)
+        for i, port in enumerate((2201, 2202, 2203))
+    ]
+
+
+def tcp_table(*rows: tuple[str, str, str, int]) -> str:
+    return TCP_HEADER + "".join(
+        f"{n:4d}: {local} {remote} {state} 00000000:00000000 00:00000000 00000000 {UID:5d}"
+        f"        0 {inode} 1 0000000000000000 100 0 0 10 0\n"
+        for n, (local, remote, state, inode) in enumerate(rows)
     )
-    assert done.returncode == 0, done.stderr
-    scrubbed, verdict = done.stdout.decode().splitlines()
-    assert verdict == ("conflict" if conflict else "none"), scrubbed
 
 
-def fake_proc(root: Path, table: dict[int, tuple[str, int, int]]) -> None:
-    """/proc/<pid>/stat for each pid: its command, its parent, and its start in clock ticks since boot."""
-    for pid, (comm, ppid, start) in table.items():
-        (root / str(pid)).mkdir(parents=True)
-        fields = ["S", str(ppid)] + ["0"] * 17 + [str(start)] + ["0"] * 30
-        (root / str(pid) / "stat").write_text(
-            f"{pid} ({comm}) {' '.join(fields)}\n", encoding="utf-8"
-        )
+def reading(body: str) -> tuple[int, int]:
+    """h4.tunnel.up and h4.tunnel.reconnects, from one report's body."""
+    scope = json.loads(body)["resourceMetrics"][0]["scopeMetrics"][0]
+    by_name = {m["name"]: m for m in scope["metrics"]}
+    up = by_name["h4.tunnel.up"]["gauge"]["dataPoints"][0]["asInt"]
+    reconnects = by_name["h4.tunnel.reconnects"]["sum"]["dataPoints"][0]["asInt"]
+    return int(up), int(reconnects)
 
 
-def test_the_older_sessions_are_the_daemons_children_started_before_the_limit_and_theirs(
+def test_the_tunnel_ends_reconnections_are_new_sessions_holding_the_forwards(
     tmp_path: Path,
 ) -> None:
-    proc = tmp_path / "proc"
-    fake_proc(
-        proc,
-        {
-            1: ("h4-tunnel", 0, 100),
-            7: ("sshd", 1, 200),  # the listening daemon
-            20: ("sshd", 7, 5_000),  # the dead laptop's session, its monitor
-            21: (
-                "sshd",
-                20,
-                5_010,
-            ),  # and its post-auth child, which holds the forwards
-            22: (
-                "sshd) x (y",
-                21,
-                5_020,
-            ),  # a command with a parenthesis and a space in it
-            30: ("sshd", 7, 9_950),  # the new session, still setting up
-            31: ("sshd", 30, 9_960),
-            40: ("sshd", 1, 1_000),  # not the daemon's
-            41: ("sleep", 40, 1_100),
-        },
-    )
+    # Each report reads the kernel's table: a session that takes the forwards listens on sockets of its own, so a new
+    # socket listening on 2201 is a new session holding them. Only an authenticated session may listen there
+    # (PermitListen), and nothing a stranger sends adds a listener. The first holder isn't a reconnection, and neither
+    # is a gap, a connection through 2201, or a listener on another port. A table that can't be read (None: the step
+    # removes it) reads as down and holds the count, and the same holder after it is no reconnection either.
+    tables = [
+        (tcp_table(SSHD_LISTENS, *forwards(101), STRANGER_ON_2222), 1, 0),
+        (tcp_table(SSHD_LISTENS, RELAY_THROUGH_2201, *forwards(101)), 1, 0),
+        (tcp_table(SSHD_LISTENS, STRANGER_ON_2222), 0, 0),
+        (tcp_table(SSHD_LISTENS, *forwards(201)), 1, 1),
+        (None, 0, 1),
+        (tcp_table(SSHD_LISTENS, LISTENS_ON_22010, *forwards(201)), 1, 1),
+        (tcp_table(SSHD_LISTENS, *forwards(301)), 1, 2),
+    ]
+    steps, table = tmp_path / "steps", tmp_path / "tcp"
+    steps.mkdir()
+    table.touch()
+    for n, (text, _, _) in enumerate(tables, start=1):
+        if text is None:
+            (steps / f"{n}.missing").touch()
+        else:
+            (steps / str(n)).write_text(text, encoding="utf-8")
     done = bash(
-        functions({"PROC=/proc\n": f"PROC={proc}\n"}) + 'stale_sessions "$1" "$2"\n',
-        "7",
-        "9000",
+        functions({"/proc/net/tcp": str(table)})
+        # Each report's wait puts the next table in place, or removes it, and the loop ends after the last; each body is
+        # printed.
+        + 'F11_STEPS="$1" F11_TABLE="$2" F11_STEP=0\n'
+        + "sleep() {\n"
+        + "\tF11_STEP=$((F11_STEP + 1))\n"
+        + '\tif [ -f "$F11_STEPS/$F11_STEP" ]; then cat "$F11_STEPS/$F11_STEP" >"$F11_TABLE"\n'
+        + '\telif [ -f "$F11_STEPS/$F11_STEP.missing" ]; then rm "$F11_TABLE"\n'
+        + "\telse return 1; fi\n"
+        + "}\n"
+        + "post() { printf '%s\\n' \"$1\"; }\n"
+        + "report tunnel-end tunnel-end\n",
+        str(steps),
+        str(table),
     )
     assert done.returncode == 0, done.stderr
-    assert sorted(int(p) for p in done.stdout.split()) == [20, 21, 22]
-    done = bash(
-        functions({"PROC=/proc\n": f"PROC={proc}\n"}) + "daemon_pid 1\n",
-    )
-    assert done.stdout.decode().split() == ["7"], done.stderr
+    seen = [reading(line) for line in done.stdout.decode().splitlines()]
+    assert seen == [(up, n) for _, up, n in tables], seen
 
 
-# The server, under bash, with a stand-in sshd that starts an old session, then, after the grace, a new one, and logs
-# the accepted login, the bind line, and $LINES (one a line): with sshd's conflict, the entrypoint ends the old session
-# and leaves the new one; with a stranger's text, it ends nothing. A session is alive while its stat file is there and
-# it isn't a zombie (bash reaps its children as they end).
+# The server, under bash, with a stand-in sshd: it starts an old session (the laptop's, holding the forwards), then a
+# new one, prints the new one's accepted login, writes $RECORDS whole, in one write, as sshd -e writes a record, and
+# says whether each session still lives. A session is alive while its stat file is there and it isn't a zombie (bash
+# reaps its children as they end).
 SERVER_SSHD = """#!/bin/bash
 sleep 30 & old=$!
 echo "old $old" >>"$LOG"
-sleep 2
+sleep 1.5
 sleep 30 & new=$!
 echo "new $new" >>"$LOG"
 printf 'Accepted publickey for tunnel from 192.0.2.7 port 50000 ssh2: ED25519 SHA256:x\\r\\n' >&2
-printf 'bind [0.0.0.0]:2201: Address already in use\\r\\n' >&2
-while IFS= read -r line; do printf '%s\\r\\n' "$line" >&2; done <<<"$LINES"
-sleep 1.5
+cat "$RECORDS" >&2
+sleep 2
 for s in old new; do
   state=ended
   if read -r _ _ st _ 2>/dev/null <"/proc/${!s}/stat" && [ "$st" != Z ]; then state=alive; fi
   echo "$s $state" >>"$LOG"
 done
 kill "$old" "$new" 2>/dev/null
-sleep 5
 """
 
 
-@pytest.mark.parametrize(
-    ("lines", "ends"),
-    [
-        (
-            [
-                CONFLICT.format(port=2201).rstrip("\r"),
-                CONFLICT.format(port=2202).rstrip("\r"),
-            ],
-            True,
-        ),
-        (
-            [
-                f"Invalid user {STRANGER} from 192.0.2.7 port 50000",
-                f"Connection closed by invalid user {STRANGER} 192.0.2.7 port 50000 [preauth]",
-                (
-                    "kex_exchange_identification: client sent invalid protocol identifier "
-                    f'"{STRANGER}"'
-                ),
-            ],
-            False,
-        ),
-    ],
-    ids=["sshds-conflict", "a-strangers-text"],
-)
-def test_a_session_that_cant_listen_ends_the_older_ones_holding_the_forwards(
-    tmp_path: Path, lines: list[str], ends: bool
-) -> None:
-    state, bin_ = tmp_path / "state", tmp_path / "bin"
-    for d in (state, bin_):
-        d.mkdir()
-    (bin_ / "sshd").write_text(SERVER_SSHD, encoding="utf-8")
-    (bin_ / "sshd").chmod(0o755)
-    (bin_ / "id").write_text(
-        '#!/bin/sh\n[ "$1" = -u ] && echo 10001 && exit 0\nexec /usr/bin/id "$@"\n',
-        encoding="utf-8",
+def run_server(
+    tmp_path: Path, record: str
+) -> tuple[list[str], str, list[tuple[int, int]]]:
+    """Server mode with the stand-in sshd writing `record`, and the forwards held by one session throughout: what the
+    stand-in saw of each session, what the entrypoint said, and each report's h4.tunnel.up and h4.tunnel.reconnects."""
+    bin_ = tmp_path / "bin"
+    bin_.mkdir()
+    for name, text in {
+        "sshd": SERVER_SSHD,
+        "id": '#!/bin/sh\n[ "$1" = -u ] && echo 10001 && exit 0\nexec /usr/bin/id "$@"\n',
+    }.items():
+        (bin_ / name).write_text(text, encoding="utf-8")
+        (bin_ / name).chmod(0o755)
+    state, records, table, posts, log = (
+        tmp_path / n for n in ("state", "records", "tcp", "posts", "log")
     )
-    (bin_ / "id").chmod(0o755)
-    text = (
-        ENTRYPOINT.read_text(encoding="utf-8")
-        .replace("STATE=/run/tunnel\n", f"STATE={state}\n")
-        .replace("/usr/sbin/sshd ", f"{bin_}/sshd ")
-        .replace("GRACE=10\n", "GRACE=1\n")
-    )
+    state.mkdir()
+    records.write_bytes(record.encode())
+    table.write_text(tcp_table(SSHD_LISTENS, *forwards(101)), encoding="utf-8")
+    posts.touch()
+    log.touch()
+    text = ENTRYPOINT.read_text(encoding="utf-8")
+    for old, new in {
+        "STATE=/run/tunnel\n": f"STATE={state}\n",
+        "/usr/sbin/sshd ": f"{bin_}/sshd ",
+        "/proc/net/tcp": str(table),
+        "REPORT_EVERY=15\n": "REPORT_EVERY=0.2\n",
+        # Each report's body goes to a file, where the collector would have had it.
+        '[ -n "$endpoint" ] || return 0': (
+            '[ -n "$endpoint" ] || { printf "%s\\n" "$1" >>"$POSTS"; return 0; }'
+        ),
+    }.items():
+        assert old in text, old
+        text = text.replace(old, new)
+    # F10's net spared sessions younger than GRACE, sshd's LoginGraceTime. At 1 s the old session here is past it, as
+    # the laptop's is: run against F10's entrypoint (this fix's RED), a stranger's record ends it.
+    text = text.replace("GRACE=10\n", "GRACE=1\n")
     script = tmp_path / "h4-tunnel"
     script.write_text(text, encoding="utf-8")
-    log = tmp_path / "log"
-    log.touch()
     proc = subprocess.Popen(
         ["/bin/bash", str(script), "server"],
         env={
             "PATH": f"{bin_}:/usr/bin:/bin",
             "LOG": str(log),
-            "LINES": "\n".join(lines),
+            "RECORDS": str(records),
+            "POSTS": str(posts),
         },
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )
     try:
-        out, _ = proc.communicate(timeout=7)
-    except subprocess.TimeoutExpired:
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            seen = log.read_text(encoding="utf-8").splitlines()
+            if len(seen) == 4:  # each session's pid, then its state
+                break
+            time.sleep(0.1)
+    finally:
         os.killpg(proc.pid, 9)
         out, _ = proc.communicate()
-    said_ = out.decode(errors="replace")
-    seen = log.read_text(encoding="utf-8").splitlines()
-    assert ("old ended" if ends else "old alive") in seen, (seen, said_)
-    assert "new alive" in seen, (seen, said_)
-    old = next(line.split()[1] for line in seen if line.startswith("old "))
-    ended = [line for line in said_.splitlines() if "older session" in line]
-    if ends:
-        assert len(ended) == 1 and old in ended[0], said_
-    else:
-        assert ended == [], said_
-    assert "<address>" in said_ and "192.0.2.7" not in said_
+    # Whole lines only: the kill may land between reports, never inside one's single write, but say so.
+    bodies = posts.read_text(encoding="utf-8").splitlines(keepends=True)
+    reports = [reading(body) for body in bodies if body.endswith("\n")]
+    return seen, out.decode(errors="replace"), reports
 
 
-def test_a_frozen_clients_forwards_go_to_its_next_connection(tunnel: dict) -> None:
-    # The laptop frozen: its client paused, its connection open and silent. A new client of the same key at once, as
-    # the restarted laptop's: refused its forwards first, then, once the tunnel end has ended the frozen session, given
-    # them, well before client-alive's 40 s.
-    second = tunnel["client_with"](
-        "tunnel-again", tunnel["known"], tunnel["image"], "client"
+@pytest.mark.parametrize("record", list(RECORDS.values()), ids=list(RECORDS))
+def test_no_line_of_sshds_log_ends_a_session_or_moves_the_count(
+    tmp_path: Path, record: str
+) -> None:
+    seen, said_, reports = run_server(tmp_path, record)
+    assert "old alive" in seen and "new alive" in seen, (seen, said_)
+    own = [line for line in said_.splitlines() if line.startswith("tunnel-end:")]
+    assert own in ([], ["tunnel-end: sshd stopped"]), said_
+    # The reports before the record and after it: the forwards' one holder, no reconnection.
+    assert len(reports) >= 4, (reports, said_)
+    counts = sorted({n for _, n in reports})
+    assert counts == [0], (counts, said_)
+    # sshd's log still reaches the container's, scrubbed.
+    assert "<address>" in said_, said_
+    assert "192.0.2.7" not in said_ and "203.0.113.9" not in said_, said_
+
+
+def test_the_server_only_scrubs_and_prints_sshds_log() -> None:
+    # The pipeline ends at scrub, and nothing in the entrypoint signals a process.
+    text = ENTRYPOINT.read_text(encoding="utf-8")
+    assert re.search(
+        r"^\s*/usr/sbin/sshd -D -e -f /etc/ssh/h4/sshd_config 2>&1 \| scrub$",
+        text,
+        re.MULTILINE,
     )
-    assert docker("pause", tunnel["client"]).returncode == 0
-    try:
-        assert docker("start", second).returncode == 0
-        assert (
-            wait_for(tunnel, "tunnel-end", 2201, "edge:8085", seconds=25) == "edge:8085"
-        )
-        logs = said(docker("logs", tunnel["server"]))
-        assert "cannot listen to port: 2201" in logs, logs
-        assert "older session" in logs, logs
-    finally:
-        docker("rm", "-f", "-v", second)
-        docker("unpause", tunnel["client"])
-    assert wait_for(tunnel, "tunnel-end", 2201, "edge:8085", seconds=60) == "edge:8085"
+    code = [line for line in text.splitlines() if not line.lstrip().startswith("#")]
+    assert not [line for line in code if re.search(r"\bkill\b", line)]

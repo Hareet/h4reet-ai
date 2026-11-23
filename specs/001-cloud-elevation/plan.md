@@ -1253,4 +1253,8 @@ Verdict: **PASS**, conditional on the 1.1.0 patch, with the deviations below.
 ## Bug-fixes, 2026-11-18
 
 - [`fixes/f9.md`](fixes/f9.md): F9, a release never reconfigures the tunnel end's live private interface
-- [`fixes/f10.md`](fixes/f10.md): F10, the tunnel end lets go of a dead laptop session's forwards
+- [`fixes/f10.md`](fixes/f10.md): F10, the tunnel end lets go of a dead laptop session's forwards (its net that read sshd's log removed by F11)
+
+## Bug-fixes, 2026-11-22
+
+- [`fixes/f11.md`](fixes/f11.md): F11, the tunnel end decides nothing from sshd's log
