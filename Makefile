@@ -131,8 +131,6 @@ CONTAINED = @if [ "$${SANDBOX_RUNTIME:-}" != 1 ] && [ "$${H4_DEVCONTAINER:-}" !=
 WORKSPACES := $(wildcard services/*/package.json apps/*/package.json)
 WORKSPACE_DIRS := $(patsubst %/package.json,%,$(WORKSPACES))
 NPM_WS = $(if $(WORKSPACES),npm $(1) --workspaces --if-present,@echo "npm $(1): no workspaces yet")
-# The same, as one shell command, for a recipe line that runs it inside a larger one.
-NPM_WS_SH = $(if $(WORKSPACES),npm $(1) --workspaces --if-present,echo "npm $(1): no workspaces yet")
 # Every shell script but Spec Kit's vendored ones (ruff skips .specify/ the same way), NUL-separated, so no name is
 # split or read by the shell. The gate lints a git archive export, which has no .git, so outside a repository the
 # list comes from the files themselves. Scripts without .sh are added by name: the git hooks (human-only), and
@@ -252,14 +250,18 @@ lint-file: ## Lint one file: FILE=path make lint-file
 	$(CONTAINED)
 	@case "$$FILE" in *.ts|*.tsx|*.js) npx eslint "$$FILE" ;; *.py) ruff check "$$FILE" ;; *.sh) shellcheck "$$FILE" ;; esac
 
-# Spec 036 (FR-008): both parts run whatever the other exits, and each says what it exited, so one run shows every
-# failing test, which the Author's gate reruns once (tools/gates/gate reads the two test-part lines before it retries
-# anything); make test still fails when either part did.
+# Spec 036 (FR-008): every part runs whatever the others exit, each workspace's tests by its folder (as npm test
+# --workspaces --if-present runs them), then pytest, and each says what it exited, so one run shows every failing test
+# and the part it failed in, which the Author's gate reads before it reruns anything (tools/gates/gate); make test
+# still fails when any part did.
 test: corpus-check ## Every test: the corpus gate, the workspaces' tests, and pytest
 	$(CONTAINED)
-	@ws=0; ( set -x; $(call NPM_WS_SH,test) ) || ws=$$?; echo "test-part: workspaces exited $$ws"; \
-	py=0; ( set -x; $(PYTEST) $(PYTEST_ARGS) $(PYTEST_DIRS) ) || py=$$?; echo "test-part: pytest exited $$py"; \
-	[ "$$ws" = 0 ] && [ "$$py" = 0 ]
+	@failed=0; \
+	for ws in $(WORKSPACE_DIRS); do rc=0; ( set -x; npm test -w "$$ws" --if-present ) || rc=$$?; \
+	  echo "test-part: workspace $$ws exited $$rc"; [ "$$rc" = 0 ] || failed=1; done; \
+	rc=0; ( set -x; $(PYTEST) $(PYTEST_ARGS) $(PYTEST_DIRS) ) || rc=$$?; \
+	echo "test-part: pytest exited $$rc"; [ "$$rc" = 0 ] || failed=1; \
+	exit $$failed
 
 test-fast: ## The quick subset
 	$(CONTAINED)
