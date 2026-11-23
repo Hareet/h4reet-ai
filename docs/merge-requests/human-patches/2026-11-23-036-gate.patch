@@ -18,11 +18,11 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 -   006's interim change, makes the step WARN, and so do the tier's own PENDING and its FAIL for a recorded run, which
 +   SKIP for a branch from before them). When make test fails, the test step retries once (spec 036 FR-001 to FR-005):
 +   only when its output accounts for every failure as a named test (make test's "test-part:" lines, one for each
-+   workspace and one for pytest; each failing workspace's vitest summary, whose failed counts are its FAIL lines, each
-+   put in a workspace by its file; pytest's summary, whose failed count is its FAILED lines; no pytest ERROR, vitest
-+   failed suite, or unhandled error) does the
-+   gate rerun exactly those tests, in the same container: npm test -w <workspace> -- <files> -t '^(?:<names>)$', and
-+   pytest with the branch's PYTEST_ARGS and the node ids. If each rerun passes exactly its tests, the step is PASS,
++   workspace and one for pytest; each failing workspace's vitest summary, whose counts add up to its totals and whose
++   failed counts are its FAIL lines, each put in a workspace by its file; pytest's summary, whose failed count is its
++   FAILED lines; no pytest ERROR, vitest failed suite, or unhandled error) does the gate rerun exactly those tests, in
++   the same container: npm test -w <workspace> -- <files> -t '^(?:<names>)$', and pytest with the branch's PYTEST_ARGS
++   and the node ids. If each rerun passes exactly its tests, the step is PASS,
 +   its line and the summary line naming them "flaky:"; otherwise it is FAIL, with a note saying why. A docs-only
 +   branch (spec 036 FR-006: every changed path a plain Markdown file directly in docs/merge-requests/,
 +   docs/infra/applies/, or docs/incidents/, not a README, whose name without .md no file of the export outside
@@ -34,18 +34,19 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
     a tree from before prints; a make evals that exits non-zero fails the step whatever they say. Every container
     drops all capabilities, sets no-new-privileges, and runs as the Author's uid on that copy. When the export has the
     room (apps/web), the room is
-@@ -116,7 +128,9 @@
+@@ -116,7 +128,10 @@
     "cache_creation" (integers), and a "run" that is its file's name. Only an entry this machine attests is posted;
     the rest wait (PENDING). The history is append-only: a branch that changes or removes an entry fails, and so does
     a malformed entry or a link. A collector that doesn't answer is a WARN.
 -6. Summary. One line for the merge commit's message, and the merge command, by SHA, with replace objects off. First
 +6. Summary. One line for the merge commit's message, and the merge command, by SHA, with replace objects off. The line
-+   counts each status, then names what fails or waits ("; failing: …") and the tests the one retry passed ("; flaky:
-+   …", a ";" in a name written ","), then DEGRADED for --host. First
++   counts each status, then names what fails or waits ("; failing: …"), every test the one retry passed ("; flaky:
++   …", a ";" in a name written ","), a docs-only run ("; docs-only: N files", which release.py walks past to the last
++   full run), then DEGRADED for --host. First
     the export's check on refs a bare main names runs again, since one can be made while the gate runs: if one is
     there, a main-refs step fails, and no merge command is printed.
  
-@@ -283,6 +297,8 @@
+@@ -283,6 +298,8 @@
      name: str
      status: str = "PASS"
      notes: list[str] = field(default_factory=list)
@@ -54,7 +55,17 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
  
      def set(self, status: str, note: str) -> Step:
          self.status = status
-@@ -982,8 +998,15 @@
+@@ -296,6 +313,9 @@
+ @dataclass
+ class Report:
+     steps: list[Step] = field(default_factory=list)
++    # Spec 036: "docs-only: N files" when the fast path skipped the long suites, which the summary line says, so a
++    # release can tell this run's line from a full run's (the review of 9adbc455, finding 1).
++    docs_only: str | None = None
+ 
+     def add(self, step: Step) -> Step:
+         self.steps.append(step)
+@@ -982,8 +1002,15 @@
  
  
  def container_phase(
@@ -71,7 +82,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
      names = [name for name, _ in CONTAINER_TARGETS]
      if report.status("makefiles") != "PASS":
          for name in ["devcontainer", "npm-ci", *names]:
-@@ -998,6 +1021,12 @@
+@@ -998,6 +1025,12 @@
          return
      docker, image, work = ready
      for name, target in CONTAINER_TARGETS:
@@ -84,7 +95,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
          if target == "credits-check" and not (
              (export_dir / "scripts" / "assets" / "credits.py").is_file()
              or (export_dir / "assets").is_dir()
-@@ -1022,10 +1051,589 @@
+@@ -1022,10 +1055,645 @@
              tmp,
          )
          read = evals_step if target == "evals" else classify
@@ -134,7 +145,11 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +)
 +VITEST_FAIL = re.compile(r"\s*FAIL\s+(\S+?) > (\S.*?)\s*")
 +VITEST_COUNT = re.compile(r"\s*(Test Files|Tests|Errors) {2,}(\S.*?)\s*")
-+VITEST_TOTAL = re.compile(r"(.*?)\s*\(\d+\)")
++VITEST_TOTAL = re.compile(r"(.*?)\s*\((\d+)\)")
++# What vitest 5.0.3 counts in its Test Files and Tests lines (its getStateString), beside the total in brackets.
++VITEST_KINDS = ("failed", "passed", "expected fail", "skipped", "todo")
++# make test's prerequisite, as make names it when it fails: then no test ran.
++CORPUS_FAILED = re.compile(r"\[[^\]]*\bcorpus-check\] Error \d+")
 +VITEST_SCRIPT = "vitest run"
 +# A file as vitest names it, relative to its workspace: no leading slash or dash.
 +WORKSPACE_FILE = re.compile(r"[A-Za-z0-9_@+][A-Za-z0-9_@+./-]*")
@@ -189,16 +204,38 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +
 +
 +def counted(text: str) -> dict[str, int] | None:
-+    """vitest's `1 failed | 1 passed (2)`, or pytest's `3 failed, 3 passed, 1 error`, by word, or None."""
++    """vitest's `1 failed | 1 passed | 1 expected fail (3)`, with its total as "total", or pytest's `3 failed, 3 passed,
++    1 error`, by kind; or None when a part doesn't read as a count."""
 +    total = VITEST_TOTAL.fullmatch(text)
 +    body = total.group(1) if total else text
 +    counts: dict[str, int] = {}
 +    for part in re.split(r" \| |, ", body):
-+        found = re.fullmatch(r"(\d+) ([a-z]+)", part.strip())
++        found = re.fullmatch(r"(\d+) ([a-z]+(?: [a-z]+)*)", part.strip())
 +        if found is None:
 +            return None
 +        counts[found.group(2)] = counts.get(found.group(2), 0) + int(found.group(1))
++    if total:
++        counts["total"] = int(total.group(2))
 +    return counts
++
++
++def whole(key: str, counts: dict[str, int]) -> str | None:
++    """Why a vitest summary line's counts aren't a whole run, or None: each is a kind vitest counts, and together they
++    are its total, so a run that stopped part way (vitest's bail) shows (the review of 9adbc455, finding 2)."""
++    unknown = [
++        f"{n} {kind}"
++        for kind, n in counts.items()
++        if kind not in (*VITEST_KINDS, "total")
++    ]
++    if unknown:
++        return f"counts {', '.join(unknown)}, which the gate doesn't read"
++    unit = "test files" if key == "Test Files" else "tests"
++    if "total" not in counts:
++        return f"gives no total of its {unit}"
++    added = sum(n for kind, n in counts.items() if kind != "total")
++    if added != counts["total"]:
++        return f"counts {added} of its {counts['total']} {unit}: the rest never ran"
++    return None
 +
 +
 +def vitest_output(
@@ -234,14 +271,18 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    )
 +
 +
-+def workspace_scripts(export_dir: Path) -> tuple[dict[str, object] | None, str]:
-+    """Each workspace's test script, by folder, from the root package.json's list, as npm reads it; or None and why
-+    not. A workspace with no test script, which npm test --if-present skips, isn't listed."""
++def npm_workspaces(export_dir: Path) -> tuple[dict[str, object] | None, str]:
++    """Each workspace, by folder, from the root package.json's list, as npm reads it, with its test script, or None
++    when it has none (npm test --if-present runs nothing there); none without a root package.json; or None and why
++    the list doesn't read."""
++    manifest = export_dir / "package.json"
++    if not os.path.lexists(manifest):
++        return {}, ""
 +    try:
-+        root = json.loads((export_dir / "package.json").read_text(encoding="utf-8"))
++        root = json.loads(manifest.read_text(encoding="utf-8"))
 +    except (OSError, ValueError):
 +        return None, "the root package.json doesn't read"
-+    patterns = root.get("workspaces") if isinstance(root, dict) else None
++    patterns = root.get("workspaces", []) if isinstance(root, dict) else None
 +    if not isinstance(patterns, list) or not all(
 +        isinstance(p, str)
 +        and WORKSPACE_PATTERN.fullmatch(p)
@@ -263,27 +304,26 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +                        if entry.is_dir(follow_symlinks=False)
 +                    )
 +        for folder in found:
-+            manifest = export_dir / folder / "package.json"
-+            if manifest.is_symlink() or not manifest.is_file():
++            package_json = export_dir / folder / "package.json"
++            if package_json.is_symlink() or not package_json.is_file():
 +                continue
 +            try:
-+                package = json.loads(manifest.read_text(encoding="utf-8"))
++                package = json.loads(package_json.read_text(encoding="utf-8"))
 +            except (OSError, ValueError):
 +                return None, f"{folder}/package.json doesn't read"
 +            listed = package.get("scripts") if isinstance(package, dict) else None
-+            if isinstance(listed, dict) and "test" in listed:
-+                scripts[folder] = listed["test"]
++            scripts[folder] = listed.get("test") if isinstance(listed, dict) else None
 +    return scripts, ""
 +
 +
 +def vitest_failures(
-+    lines: list[str], export_dir: Path, failing: list[str]
++    lines: list[str],
++    export_dir: Path,
++    failing: list[str],
++    scripts: dict[str, object],
 +) -> tuple[dict[str, list[tuple[str, str]]] | None, str]:
 +    """The failed tests of each workspace that exited 1, from the lines before pytest's part, when they account for
 +    every one of its failures (FR-002); or None and why not."""
-+    scripts, why = workspace_scripts(export_dir)
-+    if scripts is None:
-+        return None, why
 +    other_script = [f for f in failing if scripts.get(f) != VITEST_SCRIPT]
 +    if other_script:
 +        return None, f"{some(other_script)}'s test script isn't {VITEST_SCRIPT}"
@@ -311,6 +351,11 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +        return None, f"{some(cut)} didn't run its tests to their summary"
 +    if any("Errors" in by_folder[f].counts for f in failing):
 +        return None, "vitest caught errors outside the tests"
++    for folder in failing:
++        for key in ("Test Files", "Tests"):
++            problem = whole(key, by_folder[folder].counts[key])
++            if problem:
++                return None, f"{folder}'s {key} line {problem}"
 +    quiet = [f for f in failing if not by_folder[f].counts["Tests"].get("failed")]
 +    if quiet:
 +        return None, f"{some(quiet)} exited 1, and its summary counts no failed test"
@@ -425,15 +470,33 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +        if (found := TEST_PART.fullmatch(line.strip()))
 +    ]
 +    kinds = [kind for _, kind, _ in parts]
++    if not kinds and any(CORPUS_FAILED.search(line) for line in lines):
++        return (
++            None,
++            "corpus-check, make test's prerequisite, failed before any test ran, so there is nothing to rerun",
++        )
++    if not kinds:
++        return None, (
++            "make test printed no test-part lines, so it didn't run its tests to their end, or its Makefile is from "
++            "before spec 036 (merging main into the branch brings them), and pytest may not have run"
++        )
 +    if (
-+        not kinds
-+        or kinds[-1] != "pytest"
++        kinds[-1] != "pytest"
 +        or kinds.count("pytest") != 1
 +        or len(set(kinds)) != len(kinds)
 +    ):
++        return (
++            None,
++            "make test's test-part lines aren't one for each workspace, then pytest's",
++        )
++    workspaces, why = npm_workspaces(export_dir)
++    if workspaces is None:
++        return None, why
++    listed, known = sorted(kinds[:-1]), sorted(workspaces)
++    if listed != known:
 +        return None, (
-+            "make test didn't say what each of its parts exited, so pytest may not have run: a Makefile from before "
-+            "spec 036, which merging main into the branch brings"
++            f"make test's workspace lines ({some(listed) or 'none'}) aren't the workspaces "
++            f"({some(known) or 'none'}), so a part may not have run"
 +        )
 +    odd = [f"{kind} exited {rc}" for _, kind, rc in parts if rc not in (0, 1)]
 +    if odd:
@@ -445,7 +508,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    py_from = parts[-2][0] + 1 if len(parts) > 1 else 0
 +    plan = Retry()
 +    if failing:
-+        placed, why = vitest_failures(lines[:py_from], export_dir, failing)
++        placed, why = vitest_failures(lines[:py_from], export_dir, failing, workspaces)
 +        if placed is None:
 +            return None, why
 +        plan.vitest = placed
@@ -477,6 +540,10 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    tests, files = counts.get("Tests"), counts.get("Test Files")
 +    if tests is None or files is None or "Errors" in counts:
 +        return "it didn't reach its summary"
++    for key, line in (("Test Files", files), ("Tests", tests)):
++        problem = whole(key, line)
++        if problem:
++            return f"its {key} line {problem}"
 +    if tests.get("failed") or files.get("failed") or tests.get("passed", 0) != count:
 +        return f"it passed {tests.get('passed', 0)} of the {count} tests it was given"
 +    return None
@@ -675,20 +742,24 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
  # --------------------------------------------------------------------------------------------------
  # The host phase
  # --------------------------------------------------------------------------------------------------
-@@ -2058,6 +2666,12 @@
+@@ -2058,6 +2726,16 @@
      failing = report.failing()
      if failing:
          line += "; failing: " + ", ".join(f"{s.name} {s.status}" for s in failing)
-+    # Spec 036 (FR-004): the tests the one retry passed, a name's ";" as ",", so the line's segments stay its own.
++    # Spec 036 (FR-004): every test the one retry passed, a name's ";" as ",", so the line's segments stay its own and
++    # the merge's message names each flake (the review of 9adbc455, nit 7).
 +    flaky = [name.replace(";", ",") for s in report.steps for name in s.flaky]
 +    if flaky:
-+        line += "; flaky: " + some(
-+            [n if len(n) <= 100 else n[:99] + "…" for n in flaky]
++        line += "; flaky: " + ", ".join(
++            n if len(n) <= 100 else n[:99] + "…" for n in flaky
 +        )
++    # A docs-only run certifies the branch's notes, never the code: release.py judges the last full run before it.
++    if report.docs_only:
++        line += f"; {report.docs_only}"
      if degraded:
          line += "; DEGRADED (--host): no container phase, so lint, tests, the scaffolds, and stage H didn't run"
      return line
-@@ -2120,8 +2734,6 @@
+@@ -2120,8 +2798,6 @@
              return 1
          report.add(Step("export").set("PASS", f"{sha}, the commit's own tree"))
          report.add(makefiles(repo, export_dir))
@@ -697,7 +768,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
          found = git(repo, "merge-base", MAIN, sha)
          base = (
              found.stdout.strip()
-@@ -2129,6 +2741,19 @@
+@@ -2129,6 +2805,20 @@
              else None
          )
          paths = changed_paths(repo, base, sha) if base else None
@@ -712,12 +783,13 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +            )
 +        else:
 +            say(f"docs-only: no; {why}")
++        report.docs_only = fast
 +        if not host_only:
 +            container_phase(report, repo, data, export_dir, tmp, fast)
          report.add(githooks(repo))
          report.add(toolchain(repo, export_dir, tmp))
          policy_step = report.add(policy(repo, export_dir, tmp))
-@@ -2140,7 +2765,11 @@
+@@ -2140,7 +2830,11 @@
          report.add(infra_plan_note(repo, sha, base, tmp))
          report.add(infra_check(repo, export_dir, tmp))
          report.add(disclosure(repo, export_dir, tmp))
@@ -752,7 +824,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
          building = command[1:2] == ["run"] and "build" in command
          rc = 1 if control.get("npm_fails") or (building and control.get("web_build_fails")) else 0
      elif command[:1] == ["make"]:
-@@ -3651,3 +3662,894 @@
+@@ -3651,3 +3662,1043 @@
      done = gate(fx, "feature")
      assert status_of(done, "infra-check") == "PLANNED"
      assert done.returncode == 0
@@ -824,9 +896,13 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    counted: int | None = None,
 +    summary: bool = True,
 +    errors: int = 0,
++    kinds: tuple[str, ...] = (),
++    files_total: int | None = None,
++    tests_total: int | None = None,
 +) -> str:
 +    """One workspace's npm test in the gate's container, as vitest 5.0.3 prints it: npm's banner, the RUN line, the
-+    failed tests' section, the summary, and npm's error when a test failed."""
++    failed tests' section, the summary, and npm's error when a test failed. kinds are more of the Tests line's counts
++    ("1 expected fail"); a total given stands for one that doesn't add up, as after vitest's bail."""
 +    name = folder.rsplit("/", 1)[-1]
 +    files = sorted({file for file, _ in fails})
 +    failed = len(fails) if counted is None else counted
@@ -842,13 +918,13 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    if fails and section:
 +        lines.append(failed_section(fails))
 +    if summary:
++        tests = [*([f"{failed} failed"] if failed else []), "40 passed", *kinds]
++        counted_tests = failed + 40 + sum(int(k.split()[0]) for k in kinds)
 +        lines += [
-+            f" Test Files  {len(files)} failed | 12 passed ({12 + len(files)})"
++            f" Test Files  {len(files)} failed | 12 passed ({files_total or 12 + len(files)})"
 +            if files
-+            else " Test Files  12 passed (12)",
-+            f"      Tests  {failed} failed | 40 passed ({40 + failed})"
-+            if failed
-+            else "      Tests  40 passed (40)",
++            else f" Test Files  12 passed ({files_total or 12})",
++            f"      Tests  {' | '.join(tests)} ({tests_total or counted_tests})",
 +            *(
 +                [f"     Errors  {errors} error{'s' if errors > 1 else ''}"]
 +                if errors
@@ -1088,9 +1164,10 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +        ["pytest", *PYTEST_ARGS, PROBE],
 +    ]
 +    assert status_of(done, "test") == "PASS"
++    # Every one, so the merge's message names each flake (the review of 9adbc455, nit 7).
 +    assert summary(done).endswith(
-+        f"; flaky: dispatcher-forms.test.ts > {BOUND}, twin-2d.test.ts > {PNG}, twin-2d.test.ts > {PNG_TWO}, and 1 "
-+        "more"
++        f"; flaky: dispatcher-forms.test.ts > {BOUND}, twin-2d.test.ts > {PNG}, twin-2d.test.ts > {PNG_TWO}, "
++        "test_container_probe.py::test_it_removes_its_containers_and_networks"
 +    )
 +
 +
@@ -1223,7 +1300,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    "before-036": (
 +        f"+ npm test --workspaces --if-present\n{GATEWAY_FLAKE[1]}\n{RELAY_OK[1]}",
 +        {},
-+        "didn't say what each of its parts exited",
++        "printed no test-part lines",
 +    ),
 +    "pytest-error": (
 +        make_test(
@@ -1338,6 +1415,89 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +        {"Makefile": "lint test:\n\t@true\n"},
 +        "PYTEST_ARGS",
 +    ),
++    # The review of 9adbc455, finding 2: with vitest's bail, a workspace's summary counts only what ran.
++    "bail-files": (
++        make_test(
++            [
++                (
++                    "services/gateway",
++                    vitest_part(
++                        "services/gateway", ((GATEWAY_TEST, BOUND),), files_total=40
++                    ),
++                    1,
++                ),
++                RELAY_OK,
++            ],
++            pytest_part(),
++            0,
++        ),
++        {},
++        "counts 13 of its 40 test files",
++    ),
++    "bail-tests": (
++        make_test(
++            [
++                (
++                    "services/gateway",
++                    vitest_part(
++                        "services/gateway", ((GATEWAY_TEST, BOUND),), tests_total=90
++                    ),
++                    1,
++                ),
++                RELAY_OK,
++            ],
++            pytest_part(),
++            0,
++        ),
++        {},
++        "counts 41 of its 90 tests",
++    ),
++    # Nit 9: a count the gate doesn't know isn't read as nothing.
++    "unknown-kind": (
++        make_test(
++            [
++                (
++                    "services/gateway",
++                    vitest_part(
++                        "services/gateway",
++                        ((GATEWAY_TEST, BOUND),),
++                        kinds=("2 flaked",),
++                    ),
++                    1,
++                ),
++                RELAY_OK,
++            ],
++            pytest_part(),
++            0,
++        ),
++        {},
++        "2 flaked, which the gate doesn't read",
++    ),
++    # Nit 5: a line for each workspace, and only for one.
++    "pytests-line-alone": (
++        make_test([], pytest_part((PROBE,)), 1),
++        {},
++        "make test's workspace lines (none) aren't the workspaces (services/gateway, services/relay)",
++    ),
++    "not-a-workspace": (
++        make_test(
++            [GATEWAY_FLAKE, RELAY_OK, ("services/ghost", RELAY_OK[1], 0)],
++            pytest_part(),
++            0,
++        ),
++        {},
++        "aren't the workspaces",
++    ),
++    # Nit 6: make test's prerequisite failed, so no test ran.
++    "corpus-check-failed": (
++        (
++            "python3 -I -B -X pycache_prefix=/dev/null corpus/tools/check_corpus.py\n"
++            "FAIL  corpus/02-x.md: contains a denylisted phrase\n"
++            "make: *** [Makefile:296: corpus-check] Error 1"
++        ),
++        {},
++        "corpus-check, make test's prerequisite, failed before any test ran",
++    ),
 +}
 +
 +
@@ -1363,6 +1523,46 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    assert "no retry: " in row(done, "test")
 +    assert says in row(done, "test")
 +    assert "failing: test FAIL" in summary(done)
++
++
++def test_an_expected_fail_is_counted_and_the_flake_still_retried(fx: Fixture) -> None:
++    # vitest 5 counts a passing it.fails test as "expected fail" (the review of 9adbc455, nit 9).
++    flaky_branch(fx)
++    gateway = vitest_part(
++        "services/gateway",
++        ((GATEWAY_TEST, BOUND),),
++        kinds=("1 expected fail", "2 skipped", "1 todo"),
++    )
++    fx.control(
++        fail=["test"],
++        print={
++            "test": make_test(
++                [("services/gateway", gateway, 1), RELAY_OK], pytest_part(), 0
++            )
++        },
++        rerun={"services/gateway": {"print": vitest_rerun("services/gateway", 1)}},
++    )
++    done = gate(fx, "feature")
++    assert done.returncode == 0, done.stdout + done.stderr
++    assert status_of(done, "test") == "PASS"
++
++
++def test_a_rerun_whose_counts_dont_add_up_keeps_the_step_failing(fx: Fixture) -> None:
++    flaky_branch(fx)
++    cut = vitest_rerun("services/gateway", 1).replace(
++        "1 passed | 4 skipped (5)", "1 passed | 4 skipped (9)"
++    )
++    fx.control(
++        fail=["test"],
++        print={"test": make_test([GATEWAY_FLAKE, RELAY_OK], pytest_part(), 0)},
++        rerun={"services/gateway": {"print": cut}},
++    )
++    done = gate(fx, "feature")
++    assert done.returncode == 1
++    assert (
++        "its one retry failed too: services/gateway: its Tests line counts 5 of its 9 tests"
++        in row(done, "test")
++    )
 +
 +
 +def test_a_passing_workspaces_own_test_script_doesnt_stop_the_retry(
@@ -1530,6 +1730,27 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    assert ", 0 FAIL" in summary(done)
 +
 +
++def test_a_docs_only_gate_line_says_so(fx: Fixture) -> None:
++    # The review of 9adbc455, finding 1: release.py walks past a docs-only merge to the last full run, by this segment.
++    with_link_check(fx)
++    sha = fx.branch(APPLY_RECORDS)
++    done = gate(fx, "feature")
++    assert done.returncode == 0, done.stdout + done.stderr
++    line = summary(done)
++    assert line.endswith(", 0 FAIL; docs-only: 3 files")
++    merge = [ln for ln in done.stdout.splitlines() if ln.startswith("merge: ")]
++    assert merge == [
++        f"merge: git --no-replace-objects merge --no-ff -m 'Merge feature ({sha[:12]})' -m '{line}' {sha}"
++    ]
++
++
++def test_a_full_runs_line_says_nothing_of_docs(fx: Fixture) -> None:
++    with_link_check(fx)
++    fx.branch({**APPLY_RECORDS, **CHANGE})
++    done = gate(fx, "feature")
++    assert "docs-only" not in summary(done)
++
++
 +def test_a_deleted_note_is_docs_only(fx: Fixture) -> None:
 +    note = "docs/merge-requests/2026-11-20-old-note.md"
 +    with_link_check(fx, {note: "# an old note\n"})
@@ -1646,4 +1867,4 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    assert done.returncode == 0, done.stdout + done.stderr
 +    assert fx.docker() == []
 +    assert row(done, "image").endswith("docs-only: 3 files")
-+    assert "DEGRADED (--host)" in summary(done)
++    assert "; docs-only: 3 files; DEGRADED (--host)" in summary(done)
