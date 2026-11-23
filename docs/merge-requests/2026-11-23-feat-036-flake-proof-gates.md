@@ -52,6 +52,8 @@ Reviewed at `9adbc455` by a reviewer that wrote none of this change. Verdict: **
 | 8 | `links` in 031's parity table would make every full run `missing:links` | The Compatibility section says to keep it out of `required_steps()` as `main-refs` and `eval-history` are | this note |
 | 9 | `expected fail` disabled every retry | It is one of the five kinds the gate reads, from vitest's own code; a kind it doesn't know is named in the reason | the patch |
 
+Re-checked at `44c52591` by the same reviewer. Verdict: **approve**, with one small fix first: release.py refused only a merge of fewer than two parents, so an octopus merge passed on its second parent's line, at the tip and in the walk, and a third branch was never judged. A merge must now have exactly two parents: `503625b6` RED (2 failed, 50 passed), `344c2416` GREEN (the release and deployer suites, 202 passed). The gate's patch didn't change: `976da35a…65636`. The reviewer's optional hardening is in the backlog.
+
 ## Verification
 
 Run in the worktree's sandbox: no Docker, no GPU, no browser. `make check`'s container stages, the evals' live adapters, and the red team's live runs aren't owed here: the change touches no model path and no agent configuration.
@@ -112,3 +114,4 @@ Questions, each with a recommendation:
 
 - `make test-fast` still stops at its first failing part; nothing gates on it.
 - `make check` in an agent session shows the test step's first run only. The retry is the gate's alone.
+- The reviewer's optional hardening, from the re-check of `44c52591`: as the release walks past a docs-only merge, check that its diff against its first parent stays inside the fast path's set, so a hand-edited docs-only line can't carry code past the walk. Today the walk trusts the line, which only your hand guard writes into a merge's message.
