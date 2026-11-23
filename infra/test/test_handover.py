@@ -662,8 +662,8 @@ def _cron_reads(root: dict[str, list], edge: str) -> bool:
     return False
 
 
-# Spec 032's grants for h4-ec2-start-fn (FR-016): each with its condition. RunInstances alone takes three statements,
-# one for each kind of resource a launch from a template touches, so its want is a list of them, in their order.
+# Spec 032's grants for h4-ec2-start-fn (FR-016): each with its condition. RunInstances alone takes five statements,
+# by the kinds of resource a launch from a template touches, so its want is a list of them, in their order.
 EC2_ARN = f"arn:aws:ec2:us-east-1:{ACCOUNT_ID}"
 HOSTS = '["h4-prod-ec2", "h4-prod-tunnel-end"]'
 START_READS = (
@@ -683,29 +683,37 @@ LAUNCH = [
         f'["{EC2_ARN}:launch-template/*"]',
         [("StringEquals", "aws:ResourceTag/component", '["ec2", "tunnel-end"]')],
     ),
-    # The rework (Important 1 of the reviews of 52308132): the instance only of a listed type, on spot; what the
-    # template supplies only from it.
+    # The rework (Important 1 of the reviews of 52308132): the instance only of a listed type, on spot. Changed
+    # 2026-11-22 (fix/032-launch-policy): the policy the Author tried on AWS, with which every dry run passed, drops the
+    # instance's aws:RequestTag/Name (the Name comes from the template's tags; the launch-template statement holds the
+    # template to a host's component).
     (
         f'["{EC2_ARN}:instance/*"]',
         [
-            ("StringEquals", "aws:RequestTag/Name", HOSTS),
             ("StringEquals", "ec2:InstanceType", "local.launch_types"),
             ("StringEquals", "ec2:InstanceMarketType", '["spot"]'),
         ],
     ),
+    # Changed 2026-11-22: AWS supplies no ec2:LaunchTemplate for the spot request, so EC2's four dry runs were refused
+    # on spot-instances-request/*; the volume and the request take no condition.
     (
         f'[ "{EC2_ARN}:volume/*", "{EC2_ARN}:spot-instances-request/*", ]',
-        [("ArnLike", "ec2:LaunchTemplate", f'["{EC2_ARN}:launch-template/*"]')],
+        [],
     ),
+    # Changed 2026-11-22: the image alone stays held to the template (ec2:IsLaunchTemplateResource), which keeps every
+    # launch on a template, since one without a template is refused on its image.
+    (
+        '["arn:aws:ec2:us-east-1::image/*"]',
+        [("Bool", "ec2:IsLaunchTemplateResource", '["true"]')],
+    ),
+    # Changed 2026-11-22: the security group of the interfaces the tunnel end's template attaches isn't "from the
+    # template", so its four dry runs were refused on security-group/*; the subnet, the group, and the interfaces are
+    # this one-project account's, and take no condition.
     (
         (
-            f'[ "{EC2_ARN}:network-interface/*", "{EC2_ARN}:subnet/*", "{EC2_ARN}:security-group/*", '
-            '"arn:aws:ec2:us-east-1::image/*", ]'
+            f'[ "{EC2_ARN}:network-interface/*", "{EC2_ARN}:subnet/*", "{EC2_ARN}:security-group/*", ]'
         ),
-        [
-            ("ArnLike", "ec2:LaunchTemplate", f'["{EC2_ARN}:launch-template/*"]'),
-            ("Bool", "ec2:IsLaunchTemplateResource", '["true"]'),
-        ],
+        [],
     ),
 ]
 RETIRE = (
@@ -1183,6 +1191,88 @@ def test_the_credential_audit_finds_none_of_them_too_broad() -> None:
     ]
     doc = as_policy(root, net.document(root, raw(inline, "inline_policy")))
     assert audit.handover_too_broad([doc], audit.HANDOVER_SETS["h4-ec2-stop"]) is False
+
+
+# fix/032-launch-policy: on 2026-11-22 AWS refused every dry run, and the Author put a corrected policy on
+# h4-ec2-start-fn by hand, with which every dry run answered DryRunOperation. iam.tf renders that policy, statement by
+# statement and in its order, so the account's plan finds nothing to change in aws_iam_role_policy.ec2_start.
+START_SIDS = [
+    "ItsLog",
+    "TheSwitchAndEC2sID",
+    "EC2sIDAndTheLock",
+    "TheLocksRelease",
+    "TheServerActionsStatus",
+    "TheInstancesStates",
+    "TheLaptopsAlarm",
+    "StartTheTaggedInstance",
+    "LaunchFromTheHostsTemplates",
+    "LaunchOnlyAHost",
+    "WhatALaunchFromATemplateMakes",
+    "OnlyTheTemplatesImage",
+    "WhatOnlyTheTemplateNames",
+    "TagOnlyAtTheLaunch",
+    "RetireTheOldHost",
+    "AttachTheHostsVolume",
+    "PassTheHostsRolesToEC2",
+    "RepointTheRelaysOrigin",
+    "ItsAlerts",
+]
+
+
+# fix/032-launch-policy, from the first real replace on AWS (2026-11-22): at 128 MB, Lambda's slowest CPU, the start
+# function's calls ran slow enough that it died at its 900 s limit mid-replace. The Author set 1024 MB by hand; the
+# account renders the same, so its plan finds nothing to change.
+def test_the_start_function_has_1024_mb() -> None:
+    (fn,) = named(account(), "aws_lambda_function", "h4-ec2-start", "function_name")
+    assert lit(fn, "memory_size") == 1024
+    assert lit(fn, "timeout") == 900
+
+
+def test_the_start_policy_is_the_one_tried_on_aws() -> None:
+    stand_in = f"arn:aws:ec2:us-east-1:{'1' * 4}{'2' * 4}{'3' * 4}"
+    tried = {
+        "LaunchFromTheHostsTemplates": (
+            [f"{stand_in}:launch-template/*"],
+            {"StringEquals": {"aws:ResourceTag/component": ["ec2", "tunnel-end"]}},
+        ),
+        "LaunchOnlyAHost": (
+            [f"{stand_in}:instance/*"],
+            {
+                "StringEquals": {
+                    "ec2:InstanceType": sorted(LISTED_TYPES),
+                    "ec2:InstanceMarketType": ["spot"],
+                }
+            },
+        ),
+        "WhatALaunchFromATemplateMakes": (
+            [f"{stand_in}:volume/*", f"{stand_in}:spot-instances-request/*"],
+            None,
+        ),
+        "OnlyTheTemplatesImage": (
+            ["arn:aws:ec2:us-east-1::image/*"],
+            {"Bool": {"ec2:IsLaunchTemplateResource": ["true"]}},
+        ),
+        "WhatOnlyTheTemplateNames": (
+            [
+                f"{stand_in}:network-interface/*",
+                f"{stand_in}:subnet/*",
+                f"{stand_in}:security-group/*",
+            ],
+            None,
+        ),
+    }
+    root = account()
+    doc = net.document(root, "data.aws_iam_policy_document.ec2_start.json")
+    sids = [lit(st, "sid") for st in doc.blocks("statement")]
+    assert sids == START_SIDS
+    rendered = dict(zip(sids, as_policy(root, doc)["Statement"], strict=True))
+    for sid, (resources, condition) in tried.items():
+        s = rendered[sid]
+        assert (s["Effect"], s["Action"]) == ("Allow", ["ec2:RunInstances"]), sid
+        assert (s["Resource"], s.get("Condition")) == (resources, condition), sid
+    assert [
+        sid for sid, s in rendered.items() if "ec2:RunInstances" in (s["Action"] or [])
+    ] == list(tried)
 
 
 # What the bridge, as the patches leave it, reads of each new message (contracts/aws-alerts.md §2).

@@ -105,8 +105,8 @@ HOLDS: dict[str, tuple[tuple[tuple[str, ...], str, frozenset[str] | None], ...]]
 LAUNCH_TEMPLATE = re.compile(r"arn:aws:ec2:[a-z0-9-]+:[^:*]+:launch-template/[^:]*")
 # The rework after the reviews of 52308132 (Important 1): RunInstances is held statement by statement to the kinds of
 # resource it names, each kind needing all of its conditions, so a request can't override the template's type, market,
-# image, subnet, group, or interface. The listed types are prod's two lists (infra/prod/ec2.tf, tunnel-end.tf), which
-# the account's iam.tf repeats and infra/test/test_handover.py holds alike.
+# or image. The listed types are prod's two lists (infra/prod/ec2.tf, tunnel-end.tf), which the account's iam.tf
+# repeats and infra/test/test_handover.py holds alike.
 LISTED_TYPES = frozenset(
     {
         "t4g.large",
@@ -119,8 +119,12 @@ LISTED_TYPES = frozenset(
         "t4g.medium",
     }
 )
-_FROM_TEMPLATE = (("ArnLike", "ArnEquals"), r"ec2:LaunchTemplate", None)
 _TEMPLATE_PART = (("Bool",), r"ec2:IsLaunchTemplateResource", frozenset({"true"}))
+# Amended 2026-11-22 (fix/032-launch-policy; ADR 0057's amendment), to the policy that passed every dry run on AWS: the
+# instance needs its type and market, not its Name; the image alone needs IsLaunchTemplateResource, which keeps every
+# launch on a template (one without a template is refused on its image). The volume and the spot request need no
+# condition (AWS supplies no ec2:LaunchTemplate for a spot request), nor do the subnet, the group, and the interfaces
+# (the group of the interfaces a template attaches isn't "from the template"); they are this one-project account's.
 RUN_KINDS: dict[str, tuple[tuple[tuple[str, ...], str, frozenset[str] | None], ...]] = {
     "launch-template": (
         (
@@ -130,16 +134,15 @@ RUN_KINDS: dict[str, tuple[tuple[tuple[str, ...], str, frozenset[str] | None], .
         ),
     ),
     "instance": (
-        (_STRING, r"aws:RequestTag/Name", HOSTS),
         (_STRING, r"ec2:InstanceType", LISTED_TYPES),
         (_STRING, r"ec2:InstanceMarketType", frozenset({"spot"})),
     ),
-    "volume": (_FROM_TEMPLATE,),
-    "spot-instances-request": (_FROM_TEMPLATE,),
-    "image": (_FROM_TEMPLATE, _TEMPLATE_PART),
-    "subnet": (_FROM_TEMPLATE, _TEMPLATE_PART),
-    "security-group": (_FROM_TEMPLATE, _TEMPLATE_PART),
-    "network-interface": (_FROM_TEMPLATE, _TEMPLATE_PART),
+    "image": (_TEMPLATE_PART,),
+    "volume": (),
+    "spot-instances-request": (),
+    "subnet": (),
+    "security-group": (),
+    "network-interface": (),
 }
 EC2_ARN = re.compile(r"arn:aws:ec2:[a-z0-9-]*:[^:]*:([a-z-]+)/.+")
 RUNBOOK = "docs/runbooks/credential-audit.md"

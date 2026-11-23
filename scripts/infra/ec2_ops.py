@@ -70,7 +70,8 @@ class AwsFailed(RuntimeError):
     pass
 
 
-def aws(profile: str, *args: str) -> dict:
+def aws(profile: str, *args: str, env: dict[str, str] | None = None) -> dict:
+    """One AWS CLI call with the profile; `env` adds to the call's environment (the hand start's send-once)."""
     done = subprocess.run(
         [
             "aws",
@@ -85,7 +86,11 @@ def aws(profile: str, *args: str) -> dict:
         ],
         capture_output=True,
         text=True,
-        env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(Path.home())},
+        env={
+            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+            "HOME": str(Path.home()),
+            **(env or {}),
+        },
         check=False,
         stdin=subprocess.DEVNULL,
     )
@@ -170,8 +175,16 @@ def start_event(replace: str | None, skip: str | None, dry: bool = False) -> dic
     return event
 
 
+# fix/032-launch-policy, found on AWS on 2026-11-22: a replace (launch, wait until it runs, attach) takes minutes, so
+# the CLI's default 60-second read timeout gave up and its default retries sent the invocation again; the second found
+# the first's lock and answered busy while the first still replaced EC2. The hand start waits past the function's
+# timeout (infra/account/handover.tf, 900 s) and is sent once.
+START_READ_TIMEOUT_S = 960
+SEND_ONCE = {"AWS_MAX_ATTEMPTS": "1", "AWS_RETRY_MODE": "standard"}
+
+
 def invoke_start(profile: str, event: dict | None = None) -> int:
-    """h4-ec2-start, by hand, synchronously: its outcome is what this prints."""
+    """h4-ec2-start, by hand, synchronously and sent once: its outcome is what this prints."""
     with tempfile.TemporaryDirectory() as folder:
         out = Path(folder) / "out.json"
         aws(
@@ -186,7 +199,10 @@ def invoke_start(profile: str, event: dict | None = None) -> int:
             "raw-in-base64-out",
             "--payload",
             json.dumps(event or {"manual": True}),
+            "--cli-read-timeout",
+            str(START_READ_TIMEOUT_S),
             str(out),
+            env=SEND_ONCE,
         )
         try:
             result = json.loads(out.read_text(encoding="utf-8"))
@@ -206,6 +222,14 @@ def invoke_start(profile: str, event: dict | None = None) -> int:
         print(f"{PROG}: {START_FUNCTION} started EC2")
         return 0
     reason = result.get("reason", "unknown") if isinstance(result, dict) else "unknown"
+    if isinstance(result, dict) and result.get("code") == "busy":
+        # busy: another start or replace holds the host lock and is still running. Its alert reads start_failed with
+        # `- code: busy` (spec 032 FR-011), which says nothing of how the first run ends; this line says what it is.
+        print(
+            f"{PROG}: {START_FUNCTION}: another start holds the lock; wait, or check the first run's outcome in "
+            "the function's log (docs/runbooks/handover.md)"
+        )
+        return 1
     print(
         f"{PROG}: {START_FUNCTION} refused ({reason}); its alert says why (docs/runbooks/handover.md)"
     )
