@@ -20,6 +20,9 @@ const { index } = repositoryBundle({ drafts: false, policy: "empty", readiness: 
 const STILL = new Uint8Array(readFileSync(join(REPO, "assets/twin/still.png")));
 const b64 = (bytes: Uint8Array): string => Buffer.from(bytes).toString("base64");
 const integrityOf = (data: Uint8Array): string => `sha256-${createHash("sha256").update(data).digest("base64")}`;
+/** The limit of a test that waits on the picture's signal: a missing signal fails at this, not at the suite's 180 s.
+ *  The room composes as the file loads, outside it; each such test took under 1.5 s under 48 CPU burners. */
+const SIGNAL_MS = 30_000;
 
 interface Fetched {
   url: string;
@@ -67,51 +70,67 @@ describe("the twin's still in the 2D room (FR-034, FR-035; SC-010)", () => {
     expect(typeof index.twin?.still?.placement).toBe("string");
   });
 
-  it("is fetched once, same-origin with its integrity, and drawn as a data: image, clipped, the drawing hidden", async () => {
-    const s = stage(() => ({ status: 200, body: STILL }));
-    await s.signalled;
-    expect(s.fetched.map((f) => f.url)).toEqual([index.twin?.still?.url]);
-    expect(s.fetched[0]?.init).toMatchObject({ mode: "same-origin", redirect: "error", integrity: integrityOf(STILL) });
-    const image = s.flat.element.querySelector("image");
-    expect(image?.getAttribute("href")).toBe(`data:image/png;base64,${b64(STILL)}`);
-    expect(image?.getAttribute("preserveAspectRatio")).toBe("xMidYMin slice");
-    const [x, y, w, h] = index.twin?.still?.view ?? [];
-    expect([
-      image?.getAttribute("x"),
-      image?.getAttribute("y"),
-      image?.getAttribute("width"),
-      image?.getAttribute("height"),
-    ]).toEqual([x, y, w, h].map(String));
-    const clip = s.flat.element.querySelector("clipPath rect");
-    const [fx, fy, fw, fh] = index.flat.figures[0] ?? [];
-    expect([
-      clip?.getAttribute("x"),
-      clip?.getAttribute("y"),
-      clip?.getAttribute("width"),
-      clip?.getAttribute("height"),
-    ]).toEqual([fx, fy, fw, fh].map(String));
-    expect(image?.parentElement?.getAttribute("clip-path")).toBe(`url(#${clip?.parentElement?.id})`);
-    expect(s.signals).toContainEqual({ kind: "picture", figure: "twin", shows: "still", why: null });
-    expect(s.flat.drawing.twinDrawing?.getAttribute("visibility")).toBe("hidden");
-  });
+  it(
+    "is fetched once, same-origin with its integrity, and drawn as a data: image, clipped, the drawing hidden",
+    async () => {
+      const s = stage(() => ({ status: 200, body: STILL }));
+      await s.signalled;
+      expect(s.fetched.map((f) => f.url)).toEqual([index.twin?.still?.url]);
+      expect(s.fetched[0]?.init).toMatchObject({
+        mode: "same-origin",
+        redirect: "error",
+        integrity: integrityOf(STILL),
+      });
+      const image = s.flat.element.querySelector("image");
+      expect(image?.getAttribute("href")).toBe(`data:image/png;base64,${b64(STILL)}`);
+      expect(image?.getAttribute("preserveAspectRatio")).toBe("xMidYMin slice");
+      const [x, y, w, h] = index.twin?.still?.view ?? [];
+      expect([
+        image?.getAttribute("x"),
+        image?.getAttribute("y"),
+        image?.getAttribute("width"),
+        image?.getAttribute("height"),
+      ]).toEqual([x, y, w, h].map(String));
+      const clip = s.flat.element.querySelector("clipPath rect");
+      const [fx, fy, fw, fh] = index.flat.figures[0] ?? [];
+      expect([
+        clip?.getAttribute("x"),
+        clip?.getAttribute("y"),
+        clip?.getAttribute("width"),
+        clip?.getAttribute("height"),
+      ]).toEqual([fx, fy, fw, fh].map(String));
+      expect(image?.parentElement?.getAttribute("clip-path")).toBe(`url(#${clip?.parentElement?.id})`);
+      expect(s.signals).toContainEqual({ kind: "picture", figure: "twin", shows: "still", why: null });
+      expect(s.flat.drawing.twinDrawing?.getAttribute("visibility")).toBe("hidden");
+    },
+    SIGNAL_MS,
+  );
 
-  it("falls back to the drawing after one retry, signalled as the drawing, the hit areas unchanged", async () => {
-    const s = stage(() => ({ status: 404, body: new Uint8Array() }));
-    await s.signalled;
-    expect(s.fetched).toHaveLength(2);
-    expect(s.flat.element.querySelector("image")).toBeNull();
-    expect(s.signals).toContainEqual({ kind: "picture", figure: "twin", shows: "drawing", why: "failed" });
-    expect(s.flat.drawing.twinDrawing?.getAttribute("visibility")).not.toBe("hidden");
-  });
+  it(
+    "falls back to the drawing after one retry, signalled as the drawing, the hit areas unchanged",
+    async () => {
+      const s = stage(() => ({ status: 404, body: new Uint8Array() }));
+      await s.signalled;
+      expect(s.fetched).toHaveLength(2);
+      expect(s.flat.element.querySelector("image")).toBeNull();
+      expect(s.signals).toContainEqual({ kind: "picture", figure: "twin", shows: "drawing", why: "failed" });
+      expect(s.flat.drawing.twinDrawing?.getAttribute("visibility")).not.toBe("hidden");
+    },
+    SIGNAL_MS,
+  );
 
-  it("refuses bytes that fail their integrity: the drawing, never the image", async () => {
-    const s = stage(() => ({ status: 200, body: new Uint8Array([1, 2, 3]) }));
-    // Two tries, each through the digest, then the one signal.
-    await s.signalled;
-    expect(s.fetched).toHaveLength(2);
-    expect(s.flat.element.querySelector("image")).toBeNull();
-    expect(s.signals).toEqual([{ kind: "picture", figure: "twin", shows: "drawing", why: "failed" }]);
-  });
+  it(
+    "refuses bytes that fail their integrity: the drawing, never the image",
+    async () => {
+      const s = stage(() => ({ status: 200, body: new Uint8Array([1, 2, 3]) }));
+      // Two tries, each through the digest, then the one signal.
+      await s.signalled;
+      expect(s.fetched).toHaveLength(2);
+      expect(s.flat.element.querySelector("image")).toBeNull();
+      expect(s.signals).toEqual([{ kind: "picture", figure: "twin", shows: "drawing", why: "failed" }]);
+    },
+    SIGNAL_MS,
+  );
 
   it("fetches nothing without a still in the index, or without a fetch", async () => {
     const doc = new JSDOM("<main></main>").window.document;
