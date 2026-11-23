@@ -5,11 +5,16 @@ tasks.md T088). His terminal alone: it pushes to the account's registry and its 
     python3 -I -B -X pycache_prefix=/dev/null deploy/scripts/release.py
         --registry ACCOUNT.dkr.ecr.us-east-1.amazonaws.com --bucket BUCKET
         --compose-plugin FILE --compose-sha256 HEX [--public] [--redteam DIR]
+        [--accept-gate SHA --reason TEXT]
 
 It releases refs/heads/main's commit from a fresh git archive export of it, whatever the checkout's HEAD or untracked
 files (group 7's review A, I-D), in this order, and nothing pushed before every check has passed:
   1. the gates: the commit is a merge whose message carries the gate's `gate: <tip> (` line for the branch tip it
-     merged, which the Author's hand guard writes (contract §2.1; I-H); when the release makes hello or the twin's
+     merged, which the Author's hand guard writes (contract §2.1; I-H), reporting a pass: 0 FAIL, 0 PENDING, no
+     failing step, not DEGRADED, a `flaky:` segment's test names read as nothing (spec 036 FR-009). Only the Author's
+     recorded exception, --accept-gate with refs/heads/main's own SHA in full and --reason, releases past a line that
+     doesn't report a pass, never a DEGRADED one, and release.json keeps the line and the reason (FR-010, FR-011;
+     ADR 0060); when the release makes hello or the twin's
      turns public (--public), a passing red-team run of that very commit on each adapter that answers on either host,
      read from --redteam, outside the export, by each record's commit field; the Compose plugin is the file its
      SHA-256 names; and the room's site, in the web image built from the export and loaded, never pushed, holds no
@@ -119,6 +124,10 @@ class Options:
     # bucket the site isn't synced, and without a distribution nothing is invalidated.
     site_bucket: str | None = None
     distribution: str | None = None
+    # Spec 036 (FR-010): the Author's recorded exception, refs/heads/main's merge by its full SHA and why its gate line,
+    # which doesn't report a pass, is releasable. Both or neither (main()).
+    accept_gate: str | None = None
+    reason: str | None = None
 
 
 def _load(name: str, path: Path):
@@ -306,9 +315,40 @@ def check_redteam(
         )
 
 
-def check_gate(runner: Runner, commit: str) -> None:
+FLAKY = "flaky: "
+
+
+def judged(line: str) -> tuple[str, list[str]]:
+    """The gate line's head, up to its counts, and the segments after it that say a step's status (tools/gates/gate,
+    summary_line: `; failing: …`, `; DEGRADED (--host): …`). A `; flaky: …` segment names the tests the gate's one
+    retry passed (spec 036), so its text, test names, is never read as a status; the gate writes no `;` in it."""
+    head, *segments = line.split("; ")
+    return head, [s for s in segments if not s.startswith(FLAKY)]
+
+
+def gate_passes(line: str) -> bool:
+    """The line reports a pass, in the gate's own words: no failing step, none PENDING, and a full run, not --host's
+    degraded one (group 7's fixes' review, nit 1)."""
+    head, segments = judged(line)
+    said = "; ".join([head, *segments])
+    return not (
+        "; failing:" in said
+        or "DEGRADED" in said
+        or not re.search(r"\b0 FAIL\b", head)
+        or ("PENDING" in head and not re.search(r"\b0 PENDING\b", head))
+    )
+
+
+def check_gate(
+    runner: Runner,
+    commit: str,
+    accept: str | None = None,
+    reason: str | None = None,
+) -> dict:
     """The commit is a merge whose message carries the gate's line for the tip it merged (contract §2.1): the Author's
-    hand guard writes `gate: <tip> (<branch>) by tools/gates/gate at …` in each merge's message."""
+    hand guard writes `gate: <tip> (<branch>) by tools/gates/gate at …` in each merge's message. The line must report
+    a pass, unless the Author's recorded exception names this very commit and a reason (spec 036 FR-010). What the
+    release keeps in release.json's `gate`: the line, and the exception when it was used (FR-011)."""
     code, out = runner(["git", "show", "-s", "--format=%P%n%B", commit])
     parents, _, body = (out or "").partition("\n")
     tips = parents.split()
@@ -321,18 +361,43 @@ def check_gate(runner: Runner, commit: str) -> None:
         raise Refused(
             f"{commit[:12]}'s message has no `gate: {tips[1][:12]}…` line: its branch didn't pass the gate"
         )
-    # The line must report a pass, in the gate's own words (tools/gates/gate, summary_line): no failing step, none
-    # PENDING, and a full run, not --host's degraded one (group 7's fixes' review, nit 1).
     said = line.group(0)
-    if (
-        "; failing:" in said
-        or "DEGRADED" in said
-        or not re.search(r"\b0 FAIL\b", said)
-        or ("PENDING" in said and not re.search(r"\b0 PENDING\b", said))
-    ):
+    record: dict = {"line": said}
+    if gate_passes(said):
+        if accept is not None:
+            print(
+                f"{PROG}: --accept-gate isn't needed: {commit[:12]}'s gate line reports a pass, so nothing is accepted"
+            )
+        return record
+    if accept is None:
         raise Refused(
-            f"{commit[:12]}'s gate line doesn't report a pass: a merge by hand past a failing gate isn't releasable"
+            f"{commit[:12]}'s gate line doesn't report a pass: a merge by hand past a failing gate isn't releasable "
+            "without the Author's recorded exception (--accept-gate <main's SHA> --reason …; ADR 0060)"
         )
+    # The exception (spec 036 FR-010): refs/heads/main's own commit, a full run's line, and a reason a person wrote.
+    if accept != commit:
+        raise Refused(
+            f"--accept-gate names {accept[:12]}, not refs/heads/main's {commit[:12]}: the exception is for the merge "
+            "being released, by its full SHA"
+        )
+    head, segments = judged(said)
+    if "DEGRADED" in "; ".join([head, *segments]):
+        raise Refused(
+            f"{commit[:12]}'s gate line is DEGRADED: its container phase, lint and the tests among it, never ran, so "
+            "no exception releases it"
+        )
+    why = (reason or "").strip()
+    if not why or any(not ch.isprintable() for ch in why):
+        raise Refused(
+            "--accept-gate needs --reason: why this failing line is releasable, in printable text"
+        )
+    print(
+        f"{PROG}: warning: releasing {commit[:12]}, whose gate line doesn't report a pass, by the Author's exception: "
+        f"{said}; reason: {why}",
+        file=sys.stderr,
+    )
+    record["accepted"] = {"merge": commit, "reason": why}
+    return record
 
 
 def export_tree(runner: Runner, commit: str, work: Path) -> Path:
@@ -657,7 +722,7 @@ def released(
     head = runner(["git", "rev-parse", "--verify", "refs/heads/main"])[1].strip()
     if not COMMIT_RE.fullmatch(head):
         raise Refused("refs/heads/main doesn't name a commit (FR-046)")
-    check_gate(runner, head)
+    gate = check_gate(runner, head, opts.accept_gate, opts.reason)
     plugin = opts.compose_plugin.read_bytes()
     if hashlib.sha256(plugin).hexdigest() != opts.compose_sha256:
         raise Refused("the Compose plugin isn't the file its SHA-256 names")
@@ -759,6 +824,8 @@ def released(
         "built_at": now(),
         "built_by": "author",
         "public": opts.public,
+        # Spec 036 (FR-011): the merge's gate line, and the Author's exception when it was used.
+        "gate": gate,
         "tree": {"key": f"trees/{head}.tar.gz", "sha256": tree_sha},
         "compose": {
             "key": f"tools/docker-compose-{opts.compose_sha256[:12]}",
@@ -862,7 +929,17 @@ def main(argv: list[str]) -> int:
     # Group 8: the site's bucket and the distribution, from W2's apply on (contracts/edge.md §5).
     parser.add_argument("--site-bucket")
     parser.add_argument("--distribution")
+    # Spec 036 (FR-010): the Author's recorded exception, both or neither: refs/heads/main's merge by its full SHA, and
+    # why its gate line, which doesn't report a pass, is releasable.
+    parser.add_argument("--accept-gate", metavar="SHA")
+    parser.add_argument("--reason")
     args = parser.parse_args(argv)
+    if (args.accept_gate is None) != (args.reason is None):
+        parser.error("--accept-gate and --reason come together")
+    if args.accept_gate is not None and not COMMIT_RE.fullmatch(args.accept_gate):
+        parser.error(
+            "--accept-gate takes refs/heads/main's merge by its full SHA: git rev-parse refs/heads/main"
+        )
     if os.environ.get("SANDBOX_RUNTIME") == "1":
         print(
             f"{PROG}: the Author's, in his terminal: it pushes with his SSO session",
@@ -886,6 +963,8 @@ def main(argv: list[str]) -> int:
         args.redteam,
         args.site_bucket,
         args.distribution,
+        args.accept_gate,
+        args.reason,
     )
     return run(opts, subprocess_runner, contexts=web_contexts)
 
