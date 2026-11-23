@@ -62,6 +62,7 @@ its code and fails on `main`'s code. `[H]` marks the gate's part, a patch for th
 | FR-008 | T002, T004 |
 | FR-009 to FR-012 | T003, T005 |
 | FR-013 | T009, T010 |
+| FR-014 | `fix/036-flaky-tests`, a sibling branch: its own tasks and note |
 | SC-001, SC-002 | T006 |
 | SC-003 | T006 |
 | SC-004 | T003 |
