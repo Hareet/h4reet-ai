@@ -562,3 +562,30 @@ def test_the_gate_record_is_written_before_anything_is_pushed_or_synced(
         "accepted": {"merge": base.COMMIT, "reason": REASON},
     }
     assert not (tmp_path / "releases" / "latest-release.json").exists()
+
+
+# The re-check of 44c52591: a merge of more than two commits brings in branches the gate line never judged (it names
+# the second parent alone), so it refuses, at the tip and in the walk.
+THIRD = "3" * 40
+
+
+def test_a_merge_of_more_than_two_commits_is_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    r = base.Runner()
+    r.merge = (
+        f"{base.PARENT} {base.TIP} {THIRD}\nMerge feat/x and feat/z\n\n{PASSING}\n"
+    )
+    assert release(tmp_path, r) == 1
+    assert release(tmp_path, r, accept_gate=base.COMMIT, reason=REASON) == 1
+    assert r.builds() == []
+    assert "a merge of 3 commits" in capsys.readouterr().err
+
+
+def test_the_walk_refuses_a_merge_of_more_than_two_commits(tmp_path: Path) -> None:
+    r = after_docs_only(
+        f"{ROOT} {OLDER_TIP} {THIRD}\nMerge {OLDER_TIP[:12]}\n\n{FULL_PASS}\n"
+    )
+    assert release(tmp_path, r) == 1
+    assert r.shown == [base.COMMIT, OLDER]
+    assert r.builds() == []
