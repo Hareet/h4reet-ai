@@ -68,4 +68,4 @@ Intent 032 ([specs/032-spot-flexibility/intent.md](../../specs/032-spot-flexibil
 
 ## Open question: who stopped EC2 near 01:00Z
 
-Not established. The evidence is CloudTrail's event history and the guard's log group, and each keeps 90 days: the account has no CloudTrail trail (the review's R08), and the guard's log group is set to 90 days (`infra/account/handover.tf`). Both expire about 2027-02-16 unless the Author exports that window first, which is R08's first step.
+Not established. The evidence is CloudTrail's record of the account's calls and the guard's log group. The guard's log group is set to 90 days (`infra/account/handover.tf`). This project's Terraform defines no CloudTrail trail, and whether the shared account has one isn't in this record (the review's R08); without one, CloudTrail's event history keeps 90 days too. Both would expire about 2027-02-16 unless the Author exports that window first, which is R08's first step.
