@@ -65,7 +65,8 @@ be rerun as a pass.
 - `gate_passes(line)` reads the line's head and segments: no `failing:` segment, no DEGRADED, `0 FAIL` and (when
   counted) `0 PENDING` in the head; a `flaky:` segment's text is not read.
 - `check_gate(runner, commit, accept, reason)` returns `{"line": …}`, plus `accepted` when the exception was used, and
-  refuses as before otherwise; `released` puts it in `release.json` as `gate`.
+  refuses as before otherwise; `released` puts it in `release.json` as `gate`. The exception takes a FAIL only: never
+  a DEGRADED line, and never a PENDING step, which waits on a run only the Author makes (added the same day, as built).
 - `--accept-gate` (40 hex) and `--reason` in `main`, both or neither; `Options.accept_gate` and `Options.reason`.
 - `make release`: `ACCEPT_GATE=` joins `LITERAL_VARS`; `--accept-gate "$$ACCEPT_GATE" --reason "$$REASON"` when
   `ACCEPT_GATE` is on the command line, the reason empty unless `REASON` is too.

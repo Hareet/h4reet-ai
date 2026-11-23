@@ -41,7 +41,7 @@ its code and fails on `main`'s code. `[H]` marks the gate's part, a patch for th
 - [x] T009 `docs/runbooks/local-gate.md`, `docs/runbooks/deploy.md`, `docs/how-we-build/lifecycle.md`, spec 001's
   releases contract §1 and §2 (FR-013).
 - [x] T010 ADR 0060 and the index.
-- [ ] T011 The merge-request note: what changed, the patch and its SHA-256, the RED and GREEN runs, `make -f Makefile
+- [x] T011 The merge-request note: what changed, the patch and its SHA-256, the RED and GREEN runs, `make -f Makefile
   lint`, the touched suites, spec 031's rebuild, an empty Review.
 
 ## Coverage

@@ -9,7 +9,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 
 --- a/tools/gates/gate
 +++ b/tools/gates/gate
-@@ -35,9 +35,20 @@
+@@ -35,9 +35,21 @@
     devcontainer image is built from the export's .devcontainer/ and tagged by that directory's tree hash. A copy of
     the export gets `npm ci --ignore-scripts`, with the network. Then, each with `--network none`: make lint,
     validate-config, test, evals, redteam-suite, matrix (stage H), and credits-check (spec 003's credits and records,
@@ -17,9 +17,10 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 -   (spec 006 FR-002): a "WARN (behavioral tier):" line, which a branch's make evals prints once its Makefile has spec
 -   006's interim change, makes the step WARN, and so do the tier's own PENDING and its FAIL for a recorded run, which
 +   SKIP for a branch from before them). When make test fails, the test step retries once (spec 036 FR-001 to FR-005):
-+   only when its output accounts for every failure as a named test (both of make test's "test-part:" lines; every
-+   workspace's vitest summary, whose failed counts are its FAIL lines, each put in a workspace by its file; pytest's
-+   summary, whose failed count is its FAILED lines; no pytest ERROR, vitest failed suite, or unhandled error) does the
++   only when its output accounts for every failure as a named test (make test's "test-part:" lines, one for each
++   workspace and one for pytest; each failing workspace's vitest summary, whose failed counts are its FAIL lines, each
++   put in a workspace by its file; pytest's summary, whose failed count is its FAILED lines; no pytest ERROR, vitest
++   failed suite, or unhandled error) does the
 +   gate rerun exactly those tests, in the same container: npm test -w <workspace> -- <files> -t '^(?:<names>)$', and
 +   pytest with the branch's PYTEST_ARGS and the node ids. If each rerun passes exactly its tests, the step is PASS,
 +   its line and the summary line naming them "flaky:"; otherwise it is FAIL, with a note saying why. A docs-only
@@ -33,7 +34,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
     a tree from before prints; a make evals that exits non-zero fails the step whatever they say. Every container
     drops all capabilities, sets no-new-privileges, and runs as the Author's uid on that copy. When the export has the
     room (apps/web), the room is
-@@ -116,7 +127,9 @@
+@@ -116,7 +128,9 @@
     "cache_creation" (integers), and a "run" that is its file's name. Only an entry this machine attests is posted;
     the rest wait (PENDING). The history is append-only: a branch that changes or removes an entry fails, and so does
     a malformed entry or a link. A collector that doesn't answer is a WARN.
@@ -44,7 +45,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
     the export's check on refs a bare main names runs again, since one can be made while the gate runs: if one is
     there, a main-refs step fails, and no merge command is printed.
  
-@@ -283,6 +296,8 @@
+@@ -283,6 +297,8 @@
      name: str
      status: str = "PASS"
      notes: list[str] = field(default_factory=list)
@@ -53,7 +54,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
  
      def set(self, status: str, note: str) -> Step:
          self.status = status
-@@ -982,8 +997,15 @@
+@@ -982,8 +998,15 @@
  
  
  def container_phase(
@@ -70,7 +71,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
      names = [name for name, _ in CONTAINER_TARGETS]
      if report.status("makefiles") != "PASS":
          for name in ["devcontainer", "npm-ci", *names]:
-@@ -998,6 +1020,12 @@
+@@ -998,6 +1021,12 @@
          return
      docker, image, work = ready
      for name, target in CONTAINER_TARGETS:
@@ -83,7 +84,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
          if target == "credits-check" and not (
              (export_dir / "scripts" / "assets" / "credits.py").is_file()
              or (export_dir / "assets").is_dir()
-@@ -1022,10 +1050,586 @@
+@@ -1022,10 +1051,589 @@
              tmp,
          )
          read = evals_step if target == "evals" else classify
@@ -119,10 +120,10 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +# --------------------------------------------------------------------------------------------------
 +# Spec 036: the test step's one retry (FR-001 to FR-005)
 +# --------------------------------------------------------------------------------------------------
-+# make test says what each part exited, the workspaces' tests and then pytest, whatever the first exited (the Makefile
-+# since spec 036, FR-008). Without both lines a workspace's failure may have kept pytest from running, so nothing is
-+# rerun.
-+TEST_PART = re.compile(r"test-part: (workspaces|pytest) exited (\d+)")
++# make test says what each part exited, each workspace's tests by folder and then pytest, whatever the others exited
++# (the Makefile since spec 036, FR-008). Without those lines a workspace's failure may have kept pytest from running, or
++# npm's one exit may hide which workspace failed, so nothing is rerun.
++TEST_PART = re.compile(r"test-part: (?:workspace (\S+)|(pytest)) exited (\d+)")
 +# vitest 5.0.3's lines, escape sequences removed (spec 036 research.md R-1). Each workspace's run opens with its RUN
 +# line, on stdout with its summary; its Failed Tests section, on stderr, names each failing test as
 +# FAIL  <file> > <suite> > ... > <test>, whose text after "<file> > " is the full name -t matches. docker forwards
@@ -233,9 +234,9 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    )
 +
 +
-+def tested_workspaces(export_dir: Path) -> tuple[list[str] | None, str]:
-+    """The workspaces npm test --workspaces runs a test script in, by folder, from the root package.json's list, each
-+    script vitest run; or None and why not."""
++def workspace_scripts(export_dir: Path) -> tuple[dict[str, object] | None, str]:
++    """Each workspace's test script, by folder, from the root package.json's list, as npm reads it; or None and why
++    not. A workspace with no test script, which npm test --if-present skips, isn't listed."""
 +    try:
 +        root = json.loads((export_dir / "package.json").read_text(encoding="utf-8"))
 +    except (OSError, ValueError):
@@ -248,7 +249,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +        for p in patterns
 +    ):
 +        return None, "the root package.json's workspaces aren't plain folders"
-+    folders: list[str] = []
++    scripts: dict[str, object] = {}
 +    for pattern in patterns:
 +        base = pattern.removesuffix("/*")
 +        found = [base]
@@ -269,24 +270,23 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +                package = json.loads(manifest.read_text(encoding="utf-8"))
 +            except (OSError, ValueError):
 +                return None, f"{folder}/package.json doesn't read"
-+            scripts = package.get("scripts") if isinstance(package, dict) else None
-+            script = scripts.get("test") if isinstance(scripts, dict) else None
-+            if script is None:
-+                continue  # npm test --workspaces --if-present skips it
-+            if script != VITEST_SCRIPT:
-+                return None, f"{folder}'s test script isn't {VITEST_SCRIPT}"
-+            folders.append(folder)
-+    return folders, ""
++            listed = package.get("scripts") if isinstance(package, dict) else None
++            if isinstance(listed, dict) and "test" in listed:
++                scripts[folder] = listed["test"]
++    return scripts, ""
 +
 +
 +def vitest_failures(
-+    lines: list[str], export_dir: Path
++    lines: list[str], export_dir: Path, failing: list[str]
 +) -> tuple[dict[str, list[tuple[str, str]]] | None, str]:
-+    """Each failing workspace's failed tests, from the lines before make test's workspaces line, when they account for
-+    every failure there (FR-002); or None and why not."""
-+    folders, why = tested_workspaces(export_dir)
-+    if folders is None:
++    """The failed tests of each workspace that exited 1, from the lines before pytest's part, when they account for
++    every one of its failures (FR-002); or None and why not."""
++    scripts, why = workspace_scripts(export_dir)
++    if scripts is None:
 +        return None, why
++    other_script = [f for f in failing if scripts.get(f) != VITEST_SCRIPT]
++    if other_script:
++        return None, f"{some(other_script)}'s test script isn't {VITEST_SCRIPT}"
 +    runs, sections, fails, why = vitest_output(lines)
 +    if why:
 +        return None, why
@@ -299,26 +299,21 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    by_folder: dict[str, VitestRun] = {}
 +    for run in runs:
 +        folder = run.root.removeprefix("/work/")
-+        if run.root == folder or folder not in folders or folder in by_folder:
-+            return None, f"a vitest run at {run.root} isn't one of the workspaces' own"
++        if run.root == folder or folder in by_folder:
++            return None, f"a vitest run at {run.root} isn't one workspace's own"
 +        by_folder[folder] = run
 +    cut = [
 +        f
-+        for f in folders
++        for f in failing
 +        if f not in by_folder or {"Test Files", "Tests"} - set(by_folder[f].counts)
 +    ]
 +    if cut:
 +        return None, f"{some(cut)} didn't run its tests to their summary"
-+    if any("Errors" in run.counts for run in by_folder.values()):
++    if any("Errors" in by_folder[f].counts for f in failing):
 +        return None, "vitest caught errors outside the tests"
-+    failing = [
-+        f
-+        for f in folders
-+        if by_folder[f].counts["Tests"].get("failed")
-+        or by_folder[f].counts["Test Files"].get("failed")
-+    ]
-+    if not failing:
-+        return None, "the workspaces' tests exited 1, and no run counts a failed test"
++    quiet = [f for f in failing if not by_folder[f].counts["Tests"].get("failed")]
++    if quiet:
++        return None, f"{some(quiet)} exited 1, and its summary counts no failed test"
 +    if sum(n for _, n in sections) != len(fails):
 +        return (
 +            None,
@@ -425,28 +420,37 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    """What the test step's one retry reruns, from make test's output, or None and why nothing is (FR-001, FR-002)."""
 +    lines = ANSI_ESCAPE.sub("", output).splitlines()
 +    parts = [
-+        (i, found.group(1), int(found.group(2)))
++        (i, found.group(1) or found.group(2), int(found.group(3)))
 +        for i, line in enumerate(lines)
 +        if (found := TEST_PART.fullmatch(line.strip()))
 +    ]
-+    if [kind for _, kind, _ in parts] != ["workspaces", "pytest"]:
++    kinds = [kind for _, kind, _ in parts]
++    if (
++        not kinds
++        or kinds[-1] != "pytest"
++        or kinds.count("pytest") != 1
++        or len(set(kinds)) != len(kinds)
++    ):
 +        return None, (
-+            "make test didn't say what its two parts exited, so pytest may not have run: a Makefile from before "
++            "make test didn't say what each of its parts exited, so pytest may not have run: a Makefile from before "
 +            "spec 036, which merging main into the branch brings"
 +        )
-+    (ws_at, _, ws_rc), (py_at, _, py_rc) = parts
-+    if {ws_rc, py_rc} - {0, 1} or ws_rc == py_rc == 0:
-+        return None, (
-+            f"the workspaces' tests exited {ws_rc} and pytest {py_rc}: only a failed test, exit 1, is rerun"
-+        )
++    odd = [f"{kind} exited {rc}" for _, kind, rc in parts if rc not in (0, 1)]
++    if odd:
++        return None, f"{some(odd)}: only a failed test, exit 1, is rerun"
++    failing = [kind for _, kind, rc in parts[:-1] if rc]
++    py_at, py_rc = parts[-1][0], parts[-1][2]
++    if not failing and not py_rc:
++        return None, "every part of make test exited 0, so something else failed"
++    py_from = parts[-2][0] + 1 if len(parts) > 1 else 0
 +    plan = Retry()
-+    if ws_rc:
-+        placed, why = vitest_failures(lines[:ws_at], export_dir)
++    if failing:
++        placed, why = vitest_failures(lines[:py_from], export_dir, failing)
 +        if placed is None:
 +            return None, why
 +        plan.vitest = placed
 +    if py_rc:
-+        found, why = pytest_failures(lines[ws_at + 1 : py_at], export_dir)
++        found, why = pytest_failures(lines[py_from:py_at], export_dir)
 +        if found is None:
 +            return None, why
 +        plan.pytest, plan.pytest_args = found
@@ -671,7 +675,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
  # --------------------------------------------------------------------------------------------------
  # The host phase
  # --------------------------------------------------------------------------------------------------
-@@ -2058,6 +2662,12 @@
+@@ -2058,6 +2666,12 @@
      failing = report.failing()
      if failing:
          line += "; failing: " + ", ".join(f"{s.name} {s.status}" for s in failing)
@@ -684,7 +688,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
      if degraded:
          line += "; DEGRADED (--host): no container phase, so lint, tests, the scaffolds, and stage H didn't run"
      return line
-@@ -2120,8 +2730,6 @@
+@@ -2120,8 +2734,6 @@
              return 1
          report.add(Step("export").set("PASS", f"{sha}, the commit's own tree"))
          report.add(makefiles(repo, export_dir))
@@ -693,7 +697,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
          found = git(repo, "merge-base", MAIN, sha)
          base = (
              found.stdout.strip()
-@@ -2129,6 +2737,19 @@
+@@ -2129,6 +2741,19 @@
              else None
          )
          paths = changed_paths(repo, base, sha) if base else None
@@ -713,7 +717,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
          report.add(githooks(repo))
          report.add(toolchain(repo, export_dir, tmp))
          policy_step = report.add(policy(repo, export_dir, tmp))
-@@ -2140,7 +2761,11 @@
+@@ -2140,7 +2765,11 @@
          report.add(infra_plan_note(repo, sha, base, tmp))
          report.add(infra_check(repo, export_dir, tmp))
          report.add(disclosure(repo, export_dir, tmp))
@@ -748,7 +752,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
          building = command[1:2] == ["run"] and "build" in command
          rc = 1 if control.get("npm_fails") or (building and control.get("web_build_fails")) else 0
      elif command[:1] == ["make"]:
-@@ -3651,3 +3662,826 @@
+@@ -3651,3 +3662,894 @@
      done = gate(fx, "feature")
      assert status_of(done, "infra-check") == "PLANNED"
      assert done.returncode == 0
@@ -897,19 +901,22 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    return "\n".join(lines)
 +
 +
-+def make_test(workspaces: list[str], ws_rc: int, pytest_out: str, py_rc: int) -> str:
-+    """make test's output since spec 036 (FR-008): the corpus check, the workspaces' tests, pytest, each part's line."""
-+    return "\n".join(
-+        [
-+            "python3 -I -B -X pycache_prefix=/dev/null corpus/tools/check_corpus.py",
-+            "corpus check: 42 files, denylist applied (3 phrases)",
-+            "+ npm test --workspaces --if-present",
-+            *workspaces,
-+            f"test-part: workspaces exited {ws_rc}",
-+            pytest_out,
-+            f"test-part: pytest exited {py_rc}",
++def make_test(
++    workspaces: list[tuple[str, str, int]], pytest_out: str, py_rc: int
++) -> str:
++    """make test's output since spec 036 (FR-008): the corpus check; each workspace's tests, by folder, and its line;
++    then pytest and its line."""
++    lines = [
++        "python3 -I -B -X pycache_prefix=/dev/null corpus/tools/check_corpus.py",
++        "corpus check: 42 files, denylist applied (3 phrases)",
++    ]
++    for folder, output, rc in workspaces:
++        lines += [
++            f"+ npm test -w {folder} --if-present",
++            output,
++            f"test-part: workspace {folder} exited {rc}",
 +        ]
-+    )
++    return "\n".join([*lines, pytest_out, f"test-part: pytest exited {py_rc}"])
 +
 +
 +def vitest_rerun(folder: str, passed: int, failed: int = 0) -> str:
@@ -941,8 +948,14 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    return "." * passed + "F" * failed + "  [100%]\n" + f"{', '.join(counts)} in 1.20s"
 +
 +
-+GATEWAY_FLAKE = vitest_part("services/gateway", ((GATEWAY_TEST, BOUND),))
-+RELAY_OK = vitest_part("services/relay")
++# Each workspace's part of make test: its folder, its output, and what it exited.
++GATEWAY_FLAKE = (
++    "services/gateway",
++    vitest_part("services/gateway", ((GATEWAY_TEST, BOUND),)),
++    1,
++)
++GATEWAY_OK = ("services/gateway", vitest_part("services/gateway"), 0)
++RELAY_OK = ("services/relay", vitest_part("services/relay"), 0)
 +
 +
 +def reruns(calls: list[dict]) -> list[dict]:
@@ -965,7 +978,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    sha = flaky_branch(fx)
 +    fx.control(
 +        fail=["test"],
-+        print={"test": make_test([GATEWAY_FLAKE, RELAY_OK], 1, pytest_part(), 0)},
++        print={"test": make_test([GATEWAY_FLAKE, RELAY_OK], pytest_part(), 0)},
 +        rerun={"services/gateway": {"print": vitest_rerun("services/gateway", 1)}},
 +    )
 +    done = gate(fx, "feature")
@@ -1012,11 +1025,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    flaky_branch(fx)
 +    fx.control(
 +        fail=["test"],
-+        print={
-+            "test": make_test(
-+                [vitest_part("services/gateway"), RELAY_OK], 0, pytest_part((PROBE,)), 1
-+            )
-+        },
++        print={"test": make_test([GATEWAY_OK, RELAY_OK], pytest_part((PROBE,)), 1)},
 +        rerun={"pytest": {"print": pytest_rerun(1)}},
 +    )
 +    done = gate(fx, "feature")
@@ -1036,13 +1045,15 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    fx: Fixture,
 +) -> None:
 +    flaky_branch(fx, web=True)
-+    web = vitest_part("apps/web", ((WEB_TEST, PNG), (WEB_TEST, PNG_TWO)))
++    web = (
++        "apps/web",
++        vitest_part("apps/web", ((WEB_TEST, PNG), (WEB_TEST, PNG_TWO))),
++        1,
++    )
 +    fx.control(
 +        fail=["test"],
 +        print={
-+            "test": make_test(
-+                [GATEWAY_FLAKE, RELAY_OK, web], 1, pytest_part((PROBE,)), 1
-+            )
++            "test": make_test([GATEWAY_FLAKE, RELAY_OK, web], pytest_part((PROBE,)), 1)
 +        },
 +        rerun={
 +            "services/gateway": {"print": vitest_rerun("services/gateway", 1)},
@@ -1089,15 +1100,23 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    # vitest writes its failures on stderr and its RUN line and summary on stdout, which docker forwards apart: the
 +    # gateway's FAIL line may arrive after the relay's run has begun.
 +    flaky_branch(fx)
-+    gateway = vitest_part("services/gateway", ((GATEWAY_TEST, BOUND),), section=False)
-+    relay_head, relay_rest = RELAY_OK.split(" RUN  v5.0.3 /work/services/relay\n", 1)
++    gateway = (
++        "services/gateway",
++        vitest_part("services/gateway", ((GATEWAY_TEST, BOUND),), section=False),
++        1,
++    )
++    relay_head, relay_rest = RELAY_OK[1].split(" RUN  v5.0.3 /work/services/relay\n", 1)
 +    relay = (
-+        f"{relay_head} RUN  v5.0.3 /work/services/relay\n"
-+        f"{failed_section(((GATEWAY_TEST, BOUND),))}\n{relay_rest}"
++        "services/relay",
++        (
++            f"{relay_head} RUN  v5.0.3 /work/services/relay\n"
++            f"{failed_section(((GATEWAY_TEST, BOUND),))}\n{relay_rest}"
++        ),
++        0,
 +    )
 +    fx.control(
 +        fail=["test"],
-+        print={"test": make_test([gateway, relay], 1, pytest_part(), 0)},
++        print={"test": make_test([gateway, relay], pytest_part(), 0)},
 +        rerun={"services/gateway": {"print": vitest_rerun("services/gateway", 1)}},
 +    )
 +    done = gate(fx, "feature")
@@ -1123,7 +1142,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    fx.control(
 +        fail=["test"],
 +        print={
-+            "test": coloured(make_test([GATEWAY_FLAKE, RELAY_OK], 1, pytest_part(), 0))
++            "test": coloured(make_test([GATEWAY_FLAKE, RELAY_OK], pytest_part(), 0))
 +        },
 +        rerun={
 +            "services/gateway": {"print": coloured(vitest_rerun("services/gateway", 1))}
@@ -1159,7 +1178,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    flaky_branch(fx)
 +    fx.control(
 +        fail=["test"],
-+        print={"test": make_test([GATEWAY_FLAKE, RELAY_OK], 1, pytest_part(), 0)},
++        print={"test": make_test([GATEWAY_FLAKE, RELAY_OK], pytest_part(), 0)},
 +        rerun={"services/gateway": answer},
 +    )
 +    done = gate(fx, "feature")
@@ -1177,9 +1196,7 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    flaky_branch(fx)
 +    fx.control(
 +        fail=["test"],
-+        print={
-+            "test": make_test([GATEWAY_FLAKE, RELAY_OK], 1, pytest_part((PROBE,)), 1)
-+        },
++        print={"test": make_test([GATEWAY_FLAKE, RELAY_OK], pytest_part((PROBE,)), 1)},
 +        rerun={
 +            "services/gateway": {"print": vitest_rerun("services/gateway", 1)},
 +            "pytest": {"print": pytest_rerun(0, failed=1), "rc": 1},
@@ -1194,20 +1211,23 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +
 +# Each failure the gate can't name as a test, or a test it can't map to a command: no rerun, and the step is FAIL as
 +# today, with a note saying why.
-+SUITE_FAILED = vitest_part(
-+    "services/relay", (("test/relay.test.ts", "with a hook"),)
-+).replace("Failed Tests 1", "Failed Suites 1")
++SUITE_FAILED = (
++    "services/relay",
++    vitest_part("services/relay", (("test/relay.test.ts", "with a hook"),)).replace(
++        "Failed Tests 1", "Failed Suites 1"
++    ),
++    1,
++)
 +NO_RETRY = {
 +    # A Makefile from before spec 036: a workspace's failure stopped make before pytest.
 +    "before-036": (
-+        f"+ npm test --workspaces --if-present\n{GATEWAY_FLAKE}\n{RELAY_OK}",
++        f"+ npm test --workspaces --if-present\n{GATEWAY_FLAKE[1]}\n{RELAY_OK[1]}",
 +        {},
-+        "didn't say what its two parts exited",
++        "didn't say what each of its parts exited",
 +    ),
 +    "pytest-error": (
 +        make_test(
-+            [GATEWAY_FLAKE.replace("1 failed", "0 failed"), RELAY_OK],
-+            0,
++            [GATEWAY_OK, RELAY_OK],
 +            pytest_part((PROBE,), ("tools/gates/test/test_x.py::test_y",)),
 +            1,
 +        ),
@@ -1215,34 +1235,54 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +        "pytest reported an error",
 +    ),
 +    "failed-suite": (
-+        make_test([vitest_part("services/gateway"), SUITE_FAILED], 1, pytest_part(), 0),
++        make_test([GATEWAY_OK, SUITE_FAILED], pytest_part(), 0),
 +        {},
 +        "Failed Suites",
 +    ),
 +    "unhandled-errors": (
 +        make_test(
-+            [vitest_part("services/gateway", errors=1), RELAY_OK], 1, pytest_part(), 0
++            [
++                ("services/gateway", vitest_part("services/gateway", errors=1), 1),
++                RELAY_OK,
++            ],
++            pytest_part(),
++            0,
 +        ),
 +        {},
 +        "errors outside the tests",
 +    ),
 +    "cut-short": (
 +        make_test(
-+            [GATEWAY_FLAKE, vitest_part("services/relay", summary=False)],
-+            1,
++            [
++                GATEWAY_FLAKE,
++                ("services/relay", vitest_part("services/relay", summary=False), 1),
++            ],
 +            pytest_part(),
 +            0,
 +        ),
 +        {},
 +        "services/relay didn't run its tests to their summary",
 +    ),
++    # A workspace that exits 1 and counts no failed test (a coverage threshold, say), beside another's flake.
++    "fails-outside-its-tests": (
++        make_test(
++            [GATEWAY_FLAKE, ("services/relay", RELAY_OK[1], 1)], pytest_part(), 0
++        ),
++        {},
++        "services/relay exited 1, and its summary counts no failed test",
++    ),
 +    "counts-differ": (
 +        make_test(
 +            [
-+                vitest_part("services/gateway", ((GATEWAY_TEST, BOUND),), counted=2),
++                (
++                    "services/gateway",
++                    vitest_part(
++                        "services/gateway", ((GATEWAY_TEST, BOUND),), counted=2
++                    ),
++                    1,
++                ),
 +                RELAY_OK,
 +            ],
-+            1,
 +            pytest_part(),
 +            0,
 +        ),
@@ -1250,19 +1290,27 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +        "don't match",
 +    ),
 +    "interrupted": (
++        make_test([GATEWAY_OK, RELAY_OK], pytest_part((PROBE,)), 2),
++        {},
++        "pytest exited 2",
++    ),
++    "workspace-exited-2": (
 +        make_test(
-+            [vitest_part("services/gateway"), RELAY_OK], 0, pytest_part((PROBE,)), 2
++            [("services/gateway", GATEWAY_FLAKE[1], 2), RELAY_OK], pytest_part(), 0
 +        ),
 +        {},
-+        "pytest 2",
++        "services/gateway exited 2",
 +    ),
 +    "no-such-file": (
 +        make_test(
 +            [
-+                vitest_part("services/gateway", (("test/gone.test.ts", BOUND),)),
++                (
++                    "services/gateway",
++                    vitest_part("services/gateway", (("test/gone.test.ts", BOUND),)),
++                    1,
++                ),
 +                RELAY_OK,
 +            ],
-+            1,
 +            pytest_part(),
 +            0,
 +        ),
@@ -1270,16 +1318,15 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +        "test/gone.test.ts",
 +    ),
 +    "another-script": (
-+        make_test([GATEWAY_FLAKE, RELAY_OK], 1, pytest_part(), 0),
++        make_test([GATEWAY_FLAKE, RELAY_OK], pytest_part(), 0),
 +        {
-+            "services/relay/package.json": '{"name": "@h4reet/relay", "scripts": {"test": "vitest run --coverage"}}\n'
++            "services/gateway/package.json": '{"name": "@h4reet/gateway", "scripts": {"test": "vitest run --coverage"}}\n'
 +        },
-+        "services/relay's test script isn't vitest run",
++        "services/gateway's test script isn't vitest run",
 +    ),
 +    "unreadable-id": (
 +        make_test(
-+            [vitest_part("services/gateway"), RELAY_OK],
-+            0,
++            [GATEWAY_OK, RELAY_OK],
 +            pytest_part(("deploy/night-shift/tests/odd test",)),
 +            1,
 +        ),
@@ -1287,16 +1334,9 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +        "can't be read for certain",
 +    ),
 +    "no-pytest-args": (
-+        make_test(
-+            [vitest_part("services/gateway"), RELAY_OK], 0, pytest_part((PROBE,)), 1
-+        ),
++        make_test([GATEWAY_OK, RELAY_OK], pytest_part((PROBE,)), 1),
 +        {"Makefile": "lint test:\n\t@true\n"},
 +        "PYTEST_ARGS",
-+    ),
-+    "nothing-counted": (
-+        make_test([vitest_part("services/gateway"), RELAY_OK], 1, pytest_part(), 0),
-+        {},
-+        "no run counts a failed test",
 +    ),
 +}
 +
@@ -1325,6 +1365,32 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    assert "failing: test FAIL" in summary(done)
 +
 +
++def test_a_passing_workspaces_own_test_script_doesnt_stop_the_retry(
++    fx: Fixture,
++) -> None:
++    # Only a failing workspace is rerun, so only its test script must be vitest run.
++    flaky_branch(
++        fx,
++        extra={
++            "services/relay/package.json": '{"name": "@h4reet/relay", "scripts": {"test": "node --test"}}\n'
++        },
++    )
++    fx.control(
++        fail=["test"],
++        print={
++            "test": make_test(
++                [GATEWAY_FLAKE, ("services/relay", "relay: 3 passed", 0)],
++                pytest_part(),
++                0,
++            )
++        },
++        rerun={"services/gateway": {"print": vitest_rerun("services/gateway", 1)}},
++    )
++    done = gate(fx, "feature")
++    assert done.returncode == 0, done.stdout + done.stderr
++    assert status_of(done, "test") == "PASS"
++
++
 +def test_a_flaky_name_never_puts_a_semicolon_in_the_summary(fx: Fixture) -> None:
 +    flaky_branch(fx)
 +    name = "dispatcher forms > a; b"
@@ -1332,8 +1398,14 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +        fail=["test"],
 +        print={
 +            "test": make_test(
-+                [vitest_part("services/gateway", ((GATEWAY_TEST, name),)), RELAY_OK],
-+                1,
++                [
++                    (
++                        "services/gateway",
++                        vitest_part("services/gateway", ((GATEWAY_TEST, name),)),
++                        1,
++                    ),
++                    RELAY_OK,
++                ],
 +                pytest_part(),
 +                0,
 +            )
@@ -1352,8 +1424,8 @@ Apply from main's checkout, on a branch: patch -p1 < docs/merge-requests/human-p
 +    fx.control(
 +        fail=["lint", "evals"],
 +        print={
-+            "lint": GATEWAY_FLAKE,
-+            "evals": make_test([GATEWAY_FLAKE], 1, pytest_part(), 0),
++            "lint": GATEWAY_FLAKE[1],
++            "evals": make_test([GATEWAY_FLAKE], pytest_part(), 0),
 +        },
 +    )
 +    done = gate(fx, "feature")
