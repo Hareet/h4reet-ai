@@ -47,9 +47,18 @@ None for the documents: process and publication work. Spec 023's FR-012 as amend
 
 ## Review
 
+A reviewer that wrote none of it, read-only, at `06ca928f`: **approve with changes, nothing blocks.** First, at the request of the Author's session, `main` (abbfc554) was merged into the branch: `c793e31d`. Then each finding:
+
+1. **[Compliance, should-fix]** The note said the docs role did the work and gave "Spec: none" without naming either as a deviation, though `docs.md` limits that role to `docs/` and the README and REVIEW.md makes a diff without a linked spec blocking. **Done in `6d933c4d`:** both named as deviations in the constitution check (III), the role given as it ran (a general-purpose agent in the Author's session) here and in the incident notes, and the specs the changes trace to linked in the header (023, 032 and ADR 0057, 001).
+2. **[Security, should-fix]** ADR 0057, the capacity note and the posture page stated as fact that the account has no CloudTrail trail, though the review read only the repository and the account is shared; and the note's "no list of missing detections" was untrue. **Done in `2a52f979`:** each says this project's Terraform defines no trail and whether the account has one isn't in this record (the posture page's correction 6 too), and the note says the detection controls are named, without the events they would catch.
+3. **[Security, should-fix]** The posture page credited both fixed findings to the pre-publication code review. **Done in `0d20066d`:** F10's log trigger came from that review's bug reviewer, confirmed by a validator (f11.md); the hand start's double send was found on AWS (the fix's note, item 4). The network note says so too.
+4. **Nits, all done in `6d933c4d`:** the on-demand difference struck from about $17 to about $15 ($24.5 less $9.45) in spec 032's spec and research and in ADR 0057, and high availability's from about $25 to about $23; spec 023's FR-003, its film-link entity and its media assumption, and `FilmLink.media`'s comment, say where the MP4 is after the rewrite; the posture page's R01 and both fixed findings say `merged:`, with what remains before each is live; the network note says what f10.md says (the old session held the ports for 15 minutes and more, the client tried from about 03:10Z); the times and facts from the Author's session runbook (00:44:29Z, 03:03Z, 03:19Z, 22:33Z, the store alert, the freeze during the prod shutdown, the waiting invoke) are marked "(runbook)", with a Sources line in each note; and "For the Author" lists what goes stale at the push (item 11).
+
+**After the review**, on the tip: `prettier --check .` "All matched files use Prettier code style!"; `evals/docs_links.py` `docs links: 0 failed, 2909 relative links in 593 files`; the three docs suites `117 passed in 1.52s`; `film-links.test.ts` `8 passed | 5 skipped (13)`; `make -f Makefile lint` exit 0 (Prettier and ruff clean, `993 files already formatted`). `make check` wasn't rerun: the review's changes are Markdown and one comment.
+
 ## Verification
 
-Run in this worktree: no Docker, no GPU, loopback alone; `node_modules` from `npm ci --cache $TMPDIR/npm-cache`. `make check` ran on the branch at `febd1624` plus the wording pass and this note, which change Markdown alone (`docs/`, `THIRD_PARTY_NOTICES.md`); the fast checks ran again on the final tree.
+Run in this worktree: no Docker, no GPU, loopback alone; `node_modules` from `npm ci --cache $TMPDIR/npm-cache`. `make check` ran on the branch at `febd1624` plus the wording pass and this note, which change Markdown alone (`docs/`, `THIRD_PARTY_NOTICES.md`); the fast checks ran again on the final tree, and again after the review (above).
 
 **The doc checks:**
 
