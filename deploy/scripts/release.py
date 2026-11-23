@@ -13,9 +13,9 @@ files (group 7's review A, I-D), in this order, and nothing pushed before every 
      merged, which the Author's hand guard writes (contract §2.1; I-H), reporting a pass: 0 FAIL, 0 PENDING, no
      failing step, not DEGRADED, a `flaky:` segment's test names read as nothing (spec 036 FR-009). Only the Author's
      recorded exception, --accept-gate with refs/heads/main's own SHA in full and --reason, releases past a line that
-     doesn't report a pass, never a DEGRADED one, and release.json keeps the line and the reason (FR-010, FR-011;
-     ADR 0060); when the release makes hello or the twin's
-     turns public (--public), a passing red-team run of that very commit on each adapter that answers on either host,
+     doesn't report a pass, never a DEGRADED one or one with a PENDING step, and release.json keeps the line and the
+     reason (FR-010, FR-011; ADR 0060); when the release makes hello or the twin's turns public (--public), a passing
+     red-team run of that very commit on each adapter that answers on either host,
      read from --redteam, outside the export, by each record's commit field; the Compose plugin is the file its
      SHA-256 names; and the room's site, in the web image built from the export and loaded, never pushed, holds no
      draft main doesn't approve, by main's tools/gates/content_check.py on the dist copied out of that image. Nothing
@@ -385,6 +385,16 @@ def check_gate(
         raise Refused(
             f"{commit[:12]}'s gate line is DEGRADED: its container phase, lint and the tests among it, never ran, so "
             "no exception releases it"
+        )
+    # The exception is for a FAIL, a known flake's (the intent). A PENDING step waits on a run only the Author makes,
+    # stage E's prove or the agent-config evals, which no reason stands in for.
+    waiting = re.search(r"\b(\d+) PENDING\b", head)
+    if (waiting and int(waiting.group(1))) or any(
+        s.startswith("failing:") and "PENDING" in s for s in segments
+    ):
+        raise Refused(
+            f"{commit[:12]}'s gate line has a PENDING step, which waits on a run of the Author's own: no exception "
+            "releases it; make that run, gate the branch again, and merge"
         )
     why = (reason or "").strip()
     if not why or any(not ch.isprintable() for ch in why):

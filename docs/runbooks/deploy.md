@@ -50,7 +50,7 @@ The commands below are a shell's on the host: the EC2 console's Session Manager 
    echo "$sha"
    ```
 
-   Then `make release` with your usual values and two more, `ACCEPT_GATE="$sha"` and `REASON="<why, in your words>"`. The release prints a warning naming the line and the reason, and `release.json` keeps both under `gate.accepted`. It still refuses a SHA that isn't main's tip, an empty reason, a DEGRADED line (its tests never ran), and a merge with no gate line.
+   Then `make release` with your usual values and two more, `ACCEPT_GATE="$sha"` and `REASON="<why, in your words>"`. The release prints a warning naming the line and the reason, and `release.json` keeps both under `gate.accepted`. It still refuses a SHA that isn't main's tip, an empty reason, a DEGRADED line (its tests never ran), a PENDING step (a run of yours that never happened: make it, gate again, and merge), and a merge with no gate line.
 
 ## Verify
 

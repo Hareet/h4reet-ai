@@ -33,7 +33,7 @@ pytest suite never ran after a vitest failure.
    a note by name takes it out of the set.
 4. **A recorded release exception.** `make release` refuses a gate line that doesn't report a pass, as before, unless
    the Author gives `ACCEPT_GATE=<main's SHA, in full>` and `REASON=…`. Then, for main's tip alone, and never for a
-   DEGRADED line or a merge without a line, it releases with a warning. `release.json` keeps the line and the reason
+   DEGRADED line, a PENDING step (a run only he makes), or a merge without a line, it releases with a warning. `release.json` keeps the line and the reason
    (`gate.accepted`). Every release's `release.json` now keeps its gate line (`gate.line`).
 
 ## Alternatives considered

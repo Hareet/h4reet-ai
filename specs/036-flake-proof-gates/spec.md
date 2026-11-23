@@ -63,7 +63,7 @@ A merge's gate line reports a failure that the Author knows is a flake. The rele
 
 1. **Given** main's tip merge with `1 FAIL; failing: test FAIL`, **When** the release runs without the exception, **Then** it refuses, as today.
 2. **Given** the same, **When** it runs with `--accept-gate <that merge's SHA> --reason "dispatcher-forms flake, fixed by fix/036-flaky-tests"`, **Then** it releases, prints a warning naming the line and the reason, and `release.json`'s `gate` holds the line, the merge, and the reason.
-3. **Given** the exception names another commit, or an empty reason, or the line is DEGRADED, or the merge has no gate line, **Then** the release refuses.
+3. **Given** the exception names another commit, or an empty reason, or the line is DEGRADED or has a PENDING step, or the merge has no gate line, **Then** the release refuses.
 4. **Given** a passing line with a `flaky:` segment, **When** the release runs, **Then** it releases, whatever the flaky test's name says.
 
 ### Edge Cases
@@ -104,7 +104,7 @@ A merge's gate line reports a failure that the Author knows is a flake. The rele
 **The release** (`deploy/scripts/release.py`, the Makefile's `release` target)
 
 - **FR-009**: THE release SHALL accept a gate line that reports 0 FAIL and 0 PENDING, is not DEGRADED, and names no failing step, with or without a `flaky:` segment, whose text it SHALL NOT read as a status; it SHALL refuse any `failing:` segment, as today.
-- **FR-010**: WHERE `--accept-gate <SHA> --reason <text>` is given, THE release SHALL go ahead past a gate line that doesn't report a pass only when SHA is `refs/heads/main`'s commit, written in full; that commit is a merge carrying the gate's line for its second parent; the line isn't DEGRADED; and the reason has at least one character that isn't a space and no control character. It SHALL print a warning naming the line and the reason. Without the exception, a failing line SHALL be refused, as today.
+- **FR-010**: WHERE `--accept-gate <SHA> --reason <text>` is given, THE release SHALL go ahead past a gate line that doesn't report a pass only when SHA is `refs/heads/main`'s commit, written in full; that commit is a merge carrying the gate's line for its second parent; the line isn't DEGRADED and has no PENDING step (a run only the Author makes, which no reason replaces); and the reason has at least one character that isn't a space and no control character. It SHALL print a warning naming the line and the reason. Without the exception, a failing line SHALL be refused, as today.
 - **FR-011**: `release.json` SHALL carry `gate.line`, the merge's gate line, and, when the exception was used, `gate.accepted` with `merge` and `reason`.
 - **FR-012**: `make release` SHALL pass `ACCEPT_GATE=` and `REASON=` through as `--accept-gate` and `--reason`, from the command line only, as its other values; `ACCEPT_GATE` joins `LITERAL_VARS`.
 
