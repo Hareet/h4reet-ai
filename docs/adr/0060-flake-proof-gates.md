@@ -30,10 +30,15 @@ pytest suite never ran after a vitest failure.
    directly in `docs/merge-requests/`, `docs/infra/applies/`, or `docs/incidents/`, not a README, and named by no file
    of its tree outside the prose, skips test, evals, redteam, matrix-h, and image. Each says `docs-only: N files`, and
    the docs' links run on their own. The name check runs at each gate, on the branch's tree, so a test that later reads
-   a note by name takes it out of the set.
+   a note by name takes it out of the set. The summary line ends `; docs-only: N files`, so the release can tell this
+   run's line from a full run's.
 4. **A recorded release exception.** `make release` refuses a gate line that doesn't report a pass, as before, unless
    the Author gives `ACCEPT_GATE=<main's SHA, in full>` and `REASON=…`. Then, for main's tip alone, and never for a
-   DEGRADED line, a PENDING step (a run only he makes), or a merge without a line, it releases with a warning. `release.json` keeps the line and the reason
+   DEGRADED line, a PENDING step (a run only he makes), a FAIL outside test, evals, redteam, matrix-h, and image (where
+   a known flake fails), or a merge without a line, it releases with a warning. A docs-only run's line certifies no
+   code, so when main's tip is a docs-only merge the release judges the last full run before it, walking main's first
+   parents past docs-only merges; a commit on the way that no gate ran on refuses. The record is written to
+   `~/.local/state/h4reet/releases/<release>.gate.json` before anything is pushed or synced. `release.json` keeps the line and the reason
    (`gate.accepted`). Every release's `release.json` now keeps its gate line (`gate.line`).
 
 ## Alternatives considered
@@ -56,6 +61,10 @@ pytest suite never ran after a vitest failure.
   exited. Such a branch gets the retry after it merges main.
 - **The fast path's limit**: it can't see a reader that builds a note's name from parts. Research R-3 found none, and a
   test that does so would read a folder, which the derivation names.
+- **The fast path is a deviation too** (constitution, Development Workflow §5: "passing tests; the evaluation suite
+  above its thresholds; the red-team suite clean"): a docs-only branch's gate runs none of those. Its tree's code is
+  its merge base's, which a full run gated, and the release judges that full run, never the docs-only line, so a hand
+  merge past a FAIL stays unreleasable however many notes merge after it.
 - **The exception is the Author's hand**: it lets a failing line reach production, once, by name, with the reason in
   the release's own record, beside the merge's message that already shows the failure. It reverses the releases
   contract's "a merge by hand past a failing gate isn't releasable" for that case only.

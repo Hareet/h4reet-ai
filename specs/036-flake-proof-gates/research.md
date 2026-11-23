@@ -21,6 +21,11 @@ Spec 036. Each finding names how it was established. Runs were in the agent sand
   after a test is `⎯⎯ Unhandled Errors ⎯⎯`, with `Errors 1 error`. None of these is a test that can be rerun alone.
 - npm runs every workspace even when one fails (`npm error Lifecycle script \`test\` failed …`, then the next
   workspace's `> @s/b@0.1.0 test`), and exits 1.
+- **Totals** (the review of 9adbc455): each summary line ends with its total in brackets, and its counts are of
+  five kinds, `failed`, `passed`, `expected fail` (a passing `it.fails`), `skipped`, and `todo` (vitest's
+  `getStateString`). With `bail: 1` in a workspace's config, a run that failed in its second of four files printed
+  `Test Files  1 failed | 1 passed (4)` and `Tests  1 failed | 2 passed | 2 skipped (6)`: what never ran is in no
+  kind, so the counts fall short of the total, and the gate reruns nothing then.
 - **The streams**: RUN, the per-file lines, and the summary go to stdout; the Failed Tests section, with its FAIL
   lines, goes to stderr (run with the two redirected apart). docker forwards a container's stdout and stderr
   separately, so in the gate's merged output a FAIL line's place among the RUN lines isn't certain. The gate

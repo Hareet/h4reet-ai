@@ -44,6 +44,15 @@ its code and fails on `main`'s code. `[H]` marks the gate's part, a patch for th
 - [x] T011 The merge-request note: what changed, the patch and its SHA-256, the RED and GREEN runs, `make -f Makefile
   lint`, the touched suites, spec 031's rebuild, an empty Review.
 
+## Phase 5: The review of 9adbc455
+
+- [x] T012 RED, then GREEN, in the release: the walk past docs-only merges (finding 1), the exception's steps
+  (finding 3), the record before the first push (finding 4).
+- [x] T013 [H] RED, then GREEN, in the gate: `; docs-only: N files` in the summary line (finding 1); totals (finding 2);
+  the workspace lines (nit 5); a failed corpus check (nit 6); every flaky name (nit 7); `expected fail` and unknown
+  kinds (nit 9). The patch rebuilt from plain copies and verified on a fresh export.
+- [x] T014 The deviation named in spec.md and ADR 0060; the documents; the note's Review.
+
 ## Coverage
 
 | Requirement | Tasks |

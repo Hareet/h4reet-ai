@@ -11,11 +11,13 @@ It releases refs/heads/main's commit from a fresh git archive export of it, what
 files (group 7's review A, I-D), in this order, and nothing pushed before every check has passed:
   1. the gates: the commit is a merge whose message carries the gate's `gate: <tip> (` line for the branch tip it
      merged, which the Author's hand guard writes (contract §2.1; I-H), reporting a pass: 0 FAIL, 0 PENDING, no
-     failing step, not DEGRADED, a `flaky:` segment's test names read as nothing (spec 036 FR-009). Only the Author's
-     recorded exception, --accept-gate with refs/heads/main's own SHA in full and --reason, releases past a line that
-     doesn't report a pass, never a DEGRADED one or one with a PENDING step, and release.json keeps the line and the
-     reason (FR-010, FR-011; ADR 0060); when the release makes hello or the twin's turns public (--public), a passing
-     red-team run of that very commit on each adapter that answers on either host,
+     failing step, not DEGRADED, a `flaky:` segment's test names read as nothing (spec 036 FR-009); a docs-only run's
+     line certifies no code, so the last full run's before it is judged, walking main's first parents. Only the
+     Author's recorded exception, --accept-gate with refs/heads/main's own SHA in full and --reason, releases past a
+     line that doesn't report a pass, a FAIL in test, evals, redteam, matrix-h, or image alone, never a DEGRADED line
+     or a PENDING step; release.json keeps the line and the reason, as does <release>.gate.json, written before
+     anything is pushed (FR-010, FR-011; ADR 0060); when the release makes hello or the twin's turns public (--public),
+     a passing red-team run of that very commit on each adapter that answers on either host,
      read from --redteam, outside the export, by each record's commit field; the Compose plugin is the file its
      SHA-256 names; and the room's site, in the web image built from the export and loaded, never pushed, holds no
      draft main doesn't approve, by main's tools/gates/content_check.py on the dist copied out of that image. Nothing

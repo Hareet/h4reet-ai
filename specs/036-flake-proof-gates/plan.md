@@ -41,8 +41,11 @@ are a patch for the Author's hand, built from plain copies of `refs/heads/main`'
 - The reruns, through the same `container()` helper `make test` used: `npm test -w <folder> -- <files> -t
   '^(?:<names>)$'` per failing workspace, and `pytest <PYTEST_ARGS> <ids>`. Each rerun's own output must show exactly
   its tests passed and none failed (`vitest_rerun_problem`, `pytest_rerun_problem`).
-- `Step` gains `flaky` (the short names); `summary_line` adds `; flaky: …` after `failing:` and before `DEGRADED`, so
-  the line's head and the segments release.py and spec 031 read keep their place. A `;` in a name is written `,`.
+- `Step` gains `flaky` (the short names); `summary_line` adds `; flaky: …`, every name, after `failing:`, then
+  `; docs-only: N files` (`Report.docs_only`), then `DEGRADED`, so the line's head and the segments release.py and
+  spec 031 read keep their place. A `;` in a name is written `,`. A failing workspace's summary must add up to its
+  totals (`whole`), and make test's workspace lines must be the root package.json's workspaces (`npm_workspaces`), as
+  built after the review of 9adbc455.
 
 ### 2. The fast path (`tools/gates/gate`)
 
@@ -67,6 +70,9 @@ be rerun as a pass.
 - `check_gate(runner, commit, accept, reason)` returns `{"line": …}`, plus `accepted` when the exception was used, and
   refuses as before otherwise; `released` puts it in `release.json` as `gate`. The exception takes a FAIL only: never
   a DEGRADED line, and never a PENDING step, which waits on a run only the Author makes (added the same day, as built).
+  After the review of 9adbc455: the walk past docs-only merges to the last full run (`docs_only`, `gate_line`), the
+  exception's steps (`ACCEPTABLE`: test, evals, redteam, matrix-h, image), and `<rid>.gate.json` before the first
+  push.
 - `--accept-gate` (40 hex) and `--reason` in `main`, both or neither; `Options.accept_gate` and `Options.reason`.
 - `make release`: `ACCEPT_GATE=` joins `LITERAL_VARS`; `--accept-gate "$$ACCEPT_GATE" --reason "$$REASON"` when
   `ACCEPT_GATE` is on the command line, the reason empty unless `REASON` is too.
