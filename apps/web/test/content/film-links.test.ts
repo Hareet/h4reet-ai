@@ -81,16 +81,20 @@ describe("spec 023: the film link table", () => {
     expect(new Set(t.links.map((l) => l.claim.toLowerCase())).size).toBe(t.links.length);
   });
 
-  it("2. each film's README.md and media are tracked, and the README's \"Watch the film\" link is the media (FR-012)", () => {
+  // FR-012, amended 2026-11-23: the MP4s leave git before the push and become assets of the release films-v1, so the
+  // landing page offers the release's file and links no MP4 in the tree; the media itself isn't required here.
+  it("2. each film's README.md is tracked, offers the film from the release films-v1, and links no MP4 in the tree (FR-012)", () => {
     const t = table();
     expect(t, `${TABLE_PATH} is missing`).not.toBeNull();
     if (!t) return;
     for (const l of t.links) {
       const readme = `films/${l.film}/README.md`;
       expect(isTracked(readme), `${readme} tracked`).toBe(true);
-      expect(isTracked(`films/${l.film}/${l.media}`), `films/${l.film}/${l.media} tracked`).toBe(true);
-      const watch = /\[Watch the film\]\(([^)\s]+)\)/.exec(readFileSync(join(REPO, readme), "utf8"))?.[1];
-      expect(watch, readme).toBe(l.media);
+      const text = readFileSync(join(REPO, readme), "utf8");
+      const file = l.media.slice("media/".length);
+      const download = /\[Download the film[^\]]*\]\(([^)\s]+)\)/.exec(text)?.[1];
+      expect(download, readme).toBe(`${t.repo}/releases/download/films-v1/${file}`);
+      expect(text, readme).not.toMatch(/\]\((?:\.\/)?media\/[^)\s]*\.mp4\)/);
     }
     expect(t.links.find((l) => l.film === "kill-switch-b2")?.media).toBe("media/kill-switch.mp4");
   });

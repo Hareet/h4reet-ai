@@ -30,7 +30,7 @@ Four claims in the Author's PDF become links to their films. The night builds a 
   {"claim": "Every data flow disclosed", "film": "data-flows", "media": "media/data-flows.mp4"}]}
 ```
 
-The claim strings shown are RESUME-LINKS-PLAN step 1's casing; T002 reads the approved PDF's text to set them exactly (SmallCaps may be stored as upper or lower case, which the locator handles case-blind). `media` is each film's MP4 as its README links it ("Watch the film"); `kill-switch-b2`'s is `media/kill-switch.mp4`, and no film file is renamed (rv-spec-023 B1). The URL of a link is `repo + "/tree/main/films/" + film`. `pdf_sha256` is the candidate's SHA-256, written once by T007 and the only place the tree records it: the human patch and the stack note quote it, and a case checks they match (§3, case 9). This table is the stand-in for spec 022's film list.
+The claim strings shown are RESUME-LINKS-PLAN step 1's casing; T002 reads the approved PDF's text to set them exactly (SmallCaps may be stored as upper or lower case, which the locator handles case-blind). `media` is each film's MP4 as its README links it ("Watch the film"); `kill-switch-b2`'s is `media/kill-switch.mp4`, and no film file is renamed (rv-spec-023 B1). **Amended 2026-11-23** (spec FR-012): the MP4s leave git in the history rewrite before the push and become assets of the GitHub release `films-v1`, so `media` keeps its value and its file name is the release's asset: the README's "Download the film" link is `repo + "/releases/download/films-v1/" + ` that file name. The URL of a link is `repo + "/tree/main/films/" + film`. `pdf_sha256` is the candidate's SHA-256, written once by T007 and the only place the tree records it: the human patch and the stack note quote it, and a case checks they match (§3, case 9). This table is the stand-in for spec 022's film list.
 
 ### 2. The locator and the writer (FR-001, FR-006)
 
@@ -58,7 +58,7 @@ During T001 to T006, before the candidate exists and while `pdf_sha256` is empty
 Cases, each its own `it`:
 0. the tree is in "before" or "published" (FR-013);
 1. the table's four entries are well-formed (`claim`, `film`, `media` under `media/` and ending `.mp4`) and the URLs match `repo/tree/main/films/<film>`;
-2. each film's `README.md` and `<media>` are tracked on this tree (`git ls-files`), and the README's "Watch the film" link is `<media>` (FR-012; `kill-switch-b2` → `media/kill-switch.mp4`);
+2. ~~each film's `README.md` and `<media>` are tracked on this tree (`git ls-files`), and the README's "Watch the film" link is `<media>` (FR-012; `kill-switch-b2` → `media/kill-switch.mp4`);~~ **amended 2026-11-23:** each film's `README.md` is tracked on this tree (`git ls-files`), its "Download the film" link is `repo + "/releases/download/films-v1/" + <media's file name>`, and it links no MP4 in the tree (FR-012, amended; `kill-switch-b2` → `kill-switch.mp4`);
 3. `locateClaims` over a PDFKit fixture with the claims, including one that wraps, returns the right rectangles; a missing claim fails naming it;
 4. `addLinks` over the fixture keeps the original bytes as a prefix, and `readPdf` then lists the four URLs; `addLinks` refuses bytes whose SHA-256 isn't the given C-0002 hash;
 5. (before) over the real approved file: the guard passes, the candidate passes `pdfProblems` (PDF1 to PDF9) under a header like `main`'s, has one page, the approved file's bytes are its prefix, and the approved file's own links are among its links, unchanged (US1-AC1);
