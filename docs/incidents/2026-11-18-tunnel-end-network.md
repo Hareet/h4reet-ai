@@ -1,14 +1,16 @@
 # 2026-11-18: a release reconfigured the tunnel end's live network, and a dead laptop session held the tunnel's ports
 
-Date: 2026-11-18, UTC (the evening of 2026-11-17, Mountain time) · Tier: the cloud, the tunnel end · Status: fixed by F9 and F10, released 2026-11-22; F10's second part removed by F11, which goes live before publication · Written 2026-11-23 by Claude Code (docs role, a subagent of the Author's session) from the records linked below, blameless
+Date: 2026-11-18, UTC (the evening of 2026-11-17, Mountain time) · Tier: the cloud, the tunnel end · Status: fixed by F9 and F10, released 2026-11-22; F10's second part removed by F11, which goes live before publication · Written 2026-11-23 by Claude Code (a general-purpose agent in the Author's session) from the records linked below, blameless
+
+Sources: [f9.md](../../specs/001-cloud-elevation/fixes/f9.md), [f10.md](../../specs/001-cloud-elevation/fixes/f10.md), the merge notes of `fix/001-live-network` and `fix/001-f11-log-trigger`, and the apply record on `ops/apply-prod-2026-11-18`. What is marked "(runbook)" comes from the Author's session runbook of 2026-11-18, not from a repository record: the times 00:44:29Z, 03:03Z and 03:19Z, the restart of the release before, the store alert, the freeze during the laptop's prod shutdown, and the line on the shared state's data.
 
 ## What happened
 
-At 00:24Z a new release took the site's API down. On the tunnel end, the release's host step (fix F2's, which installs a reply route) ran `networkctl reload` and `networkctl reconfigure ens5` on the running host. networkd couldn't bring `ens5`, the tunnel end's private interface, back up, and the interface lost its address. The shared state (the Postgres database that holds the meter and the kill switch), the relay, and the sink bind to that address, so none of them started, and the deployer's return to the release before failed the same way (`rollback_failed`). Every dynamic request answered `no_host_serving` until the Author set the address, EC2's route, and the reply rules by hand, and the deployer restarted the release before: serving again from 00:44:29Z.
+At 00:24Z a new release took the site's API down. On the tunnel end, the release's host step (fix F2's, which installs a reply route) ran `networkctl reload` and `networkctl reconfigure ens5` on the running host. networkd couldn't bring `ens5`, the tunnel end's private interface, back up, and the interface lost its address. The shared state (the Postgres database that holds the meter and the kill switch), the relay, and the sink bind to that address, so none of them started, and the deployer's return to the release before failed the same way (`rollback_failed`). Every dynamic request answered `no_host_serving` until the Author set the address, EC2's route, and the reply rules by hand, and the deployer restarted the release before: serving again from 00:44:29Z (runbook).
 
-At 00:58:14Z networkd retried the interface on its own and removed the rules set by hand, and EC2's gateway lost the shared state until the rules were put back at 03:03Z.
+At 00:58:14Z networkd retried the interface on its own and removed the rules set by hand, and EC2's gateway lost the shared state until the rules were put back at 03:03Z (runbook).
 
-Then the laptop's Windows froze during `make down ENV=prod` and was hard-restarted. The dead session on the tunnel end still held the tunnel's three forwarded ports, 2201 to 2203, so the laptop's restarted tunnel client was refused them for 15 minutes and more, until the Author restarted the tunnel end's SSH server container at 03:19Z.
+Then the laptop's Windows froze while its prod stack was being taken down (runbook) and was hard-restarted. From about 03:10Z the laptop's tunnel client reconnected every 30 s; each time the tunnel end accepted its key and refused it the three forwarded ports, 2201 to 2203, which the old session still held, as it did for 15 minutes and more (f10.md), until the Author restarted the tunnel end's SSH server container at 03:19Z (runbook).
 
 At 14:15Z the tunnel end rebooted cleanly on the same release, and networkd made the same configuration from the same file without an error. The host step's configuration was right; making it live on a running host was not.
 
@@ -21,12 +23,12 @@ All times UTC, 2026-11-18.
 | before 00:24 | Prod's apply, recorded on `ops/apply-prod-2026-11-18`; then release `20261118T001208Z-f1abe2454054` |
 | 00:24:36 | On the tunnel end the release's host step reloads networkd and reconfigures `ens5`. networkd: "Could not set DHCPv4 route: Nexthop has invalid gateway. Network is unreachable", then `ens5: Failed`. The address is gone; the shared state, the relay, and the sink don't start; the return to the release before fails (`rollback_failed`); `/api/status` answers 503 with `no_host_serving` |
 | 00:39 and 00:42 | The same failure, with the step's file moved out |
-| 00:44:29 | After the Author sets the address, EC2's route, and the reply rules by hand, and moves the step's file aside, the deployer restarts the release before: 200, `"serving":"ec2"` |
-| 00:58:14 | networkd retries `ens5` by itself ("Failed to configure address: Numerical result out of range") and removes the rules set by hand. EC2's gateway loses the shared state (the store alert) |
+| 00:44:29 (runbook) | After the Author sets the address, EC2's route, and the reply rules by hand, and moves the step's file aside, the deployer restarts the release before: 200, `"serving":"ec2"` |
+| 00:58:14 | networkd retries `ens5` by itself ("Failed to configure address: Numerical result out of range") and removes the rules set by hand. EC2's gateway loses the shared state (the store alert, runbook) |
 | near 01:00 | EC2 is stopped by an API call. Who made it is not established ([2026-11-18-ec2-capacity.md](2026-11-18-ec2-capacity.md)) |
-| 03:03 | The rules are put back |
-| about 03:10 to 03:19 | After the laptop's freeze and hard restart, its tunnel client reconnects every 30 s; the tunnel end accepts its key and refuses ports 2201 to 2203, still held by the dead session |
-| 03:19 | The Author restarts the tunnel end's SSH server container, and the laptop's tunnel takes its ports |
+| 03:03 (runbook) | The rules are put back |
+| about 03:10 to 03:20 | After the laptop's freeze and hard restart, its tunnel client reconnects every 30 s; the tunnel end accepts its key and refuses ports 2201 to 2203, still held by the old session (f10.md) |
+| 03:19 (runbook) | The Author restarts the tunnel end's SSH server container, and the laptop's tunnel takes its ports |
 | 14:15 | The tunnel end reboots cleanly on the same release: networkd configures `ens5`, its routing table, and both rules from the same file |
 | 2026-11-22 | F9 and F10 (`fix/001-live-network`) reviewed, merged, and released; F11 (`fix/001-f11-log-trigger`) found and built |
 
@@ -38,10 +40,10 @@ All times UTC, 2026-11-18.
 
 ## Impact
 
-- **00:24:36Z to 00:44:29Z, about 20 minutes:** the tunnel end's stack was down. As its runbook says of that state, "every dynamic request answers `no_host_serving`, the room shows its resting message, and the site itself still loads from the edge" ([tunnel-end.md](../runbooks/tunnel-end.md)).
-- **00:58:14Z to 03:03Z, about two hours:** EC2's gateway couldn't reach the shared state, and its runbook's impact for that is "every request fails closed, local answers included" ([store-unreachable.md](../runbooks/store-unreachable.md)). EC2 itself was stopped near 01:00Z, for a cause not established; the record doesn't say which host, if any, served each request in this window.
-- **About 03:10Z to 03:19Z:** the laptop couldn't serve, because its tunnel couldn't take its ports.
-- **Nothing lost:** "The shared state's data, a host folder, was never at risk." No spend beyond the usual.
+- **00:24:36Z to 00:44:29Z (runbook), about 20 minutes:** the tunnel end's stack was down. As its runbook says of that state, "every dynamic request answers `no_host_serving`, the room shows its resting message, and the site itself still loads from the edge" ([tunnel-end.md](../runbooks/tunnel-end.md)).
+- **00:58:14Z to 03:03Z (runbook), about two hours:** EC2's gateway couldn't reach the shared state, and its runbook's impact for that is "every request fails closed, local answers included" ([store-unreachable.md](../runbooks/store-unreachable.md)). EC2 itself was stopped near 01:00Z, for a cause not established; the record doesn't say which host, if any, served each request in this window.
+- **About 03:10Z to 03:19Z (runbook):** the laptop couldn't serve, because its tunnel couldn't take its ports.
+- **Nothing lost:** "The shared state's data, a host folder, was never at risk." (runbook). No spend beyond the usual.
 
 ## Root cause
 
@@ -79,4 +81,4 @@ None written yet. F9, F10, and F11 were bug fixes against spec 001's existing re
 - Who or what stopped EC2 near 01:00Z: not established ([2026-11-18-ec2-capacity.md](2026-11-18-ec2-capacity.md)).
 - Why networkd's live reconfigure failed where the boot succeeded (f9.md, F9-3).
 - Why the SSH server's client-alive check didn't end the dead session (f10.md, F10-2).
-- Why `make down ENV=prod` froze Windows on the laptop.
+- Why the laptop's Windows froze while its prod stack was being taken down (runbook).

@@ -2,7 +2,7 @@
 
 This page says where hareet.ai stands against the AWS Well-Architected Framework, what it leaves out on purpose, what is still open, and what was fixed before the repository went public. It states each gap plainly, without operational detail that would help an attacker with one still open. To report a vulnerability, see [Reporting a vulnerability](#reporting-a-vulnerability).
 
-Reviewed on 2026-11-22; this page written on 2026-11-23. The **Status** columns are the Author's to keep current: `open` means no work has started, and `in flight: <branch>` names the branch that carries the work.
+Reviewed on 2026-11-22; this page written on 2026-11-23. The **Status** columns are the Author's to keep current: `open` means no work has started, `in flight: <branch>` names the branch that carries the work, and `merged: <branch>` the branch that carried it into `main`, with what remains before it is live.
 
 ## What was reviewed, and how
 
@@ -77,7 +77,7 @@ The review recommends starting these eight now. Together they fit three gates: o
 
 | ID | What | Pillars | Effort | Risk reduced | Status |
 | --- | --- | --- | --- | --- | --- |
-| R01 | Merge the start function's fixes from the 2026-11-22 replace before the next account apply: 1,024 MB, bounded calls, a run deadline, an idempotent launch, and the launch policy AWS accepted, in code | Operational Excellence, Security, Reliability | S | High | in flight: `fix/032-launch-policy` |
+| R01 | Merge the start function's fixes from the 2026-11-22 replace before the next account apply: 1,024 MB, bounded calls, a run deadline, an idempotent launch, and the launch policy AWS accepted, in code | Operational Excellence, Security, Reliability | S | High | merged: `fix/032-launch-policy`, 2026-11-22, with its patch; live with the account's apply and the new images |
 | R02 | Confirm the cost-allocation tags are active, put them in code, add forecast alerts, and start the cost export | Foundations, Cost | S | High | open |
 | R03 | Alarms on the start and guard functions' errors and duration, and AWS Health and container-scan findings routed to the alerts | Foundations, Operational Excellence, Reliability | S | High | open |
 | R04 | An alarm when no host serves inside the hours, as the first availability measure | Operational Excellence, Reliability | S | High | open |
@@ -128,8 +128,8 @@ Two findings, each fixed on a reviewed branch and merged into `main` on 2026-11-
 
 | Finding | Fix | Status |
 | --- | --- | --- |
-| **The tunnel end acted on its SSH server's log.** Spec 001's fix F10 (2026-11-22) added a safety net that ended older SSH sessions when a refused-port line appeared in the log. The code review found that unauthenticated input could produce that line, and so end the laptop's tunnel at will. | F11 removes the net and the log-read count; the tunnel end now decides nothing from that log, and a dead session ends at the kernel's bound instead ([f11.md](../specs/001-cloud-elevation/fixes/f11.md); [its note](merge-requests/2026-11-22-fix-001-f11.md)). | in flight: `fix/001-f11-log-trigger` (merged; live with the next release) |
-| **The hand start could run the start function twice.** Found on AWS on 2026-11-22: the AWS CLI's 60-second read timeout and its retries sent a long replace again; the lock refused the second run (`busy`), but its output read as a failed start while the first run went on. | The hand start waits 960 s for the function and sends once, and `busy` says another start holds the lock ([its note](merge-requests/2026-11-22-fix-032-launch-policy.md); [the incident note](incidents/2026-11-22-first-real-replace.md)). | in flight: `fix/032-launch-policy` |
+| **The tunnel end acted on its SSH server's log.** Spec 001's fix F10 (2026-11-22) added a safety net that ended older SSH sessions when a refused-port line appeared in the log. The code review found that unauthenticated input could produce that line, and so end the laptop's tunnel at will. | F11 removes the net and the log-read count; the tunnel end now decides nothing from that log, and a dead session ends at the kernel's bound instead ([f11.md](../specs/001-cloud-elevation/fixes/f11.md); [its note](merge-requests/2026-11-22-fix-001-f11.md)). | merged: `fix/001-f11-log-trigger`, 2026-11-22; live with the next release |
+| **The hand start could run the start function twice.** Found on AWS on 2026-11-22: the AWS CLI's 60-second read timeout and its retries sent a long replace again; the lock refused the second run (`busy`), but its output read as a failed start while the first run went on. | The hand start waits 960 s for the function and sends once, and `busy` says another start holds the lock ([its note](merge-requests/2026-11-22-fix-032-launch-policy.md); [the incident note](incidents/2026-11-22-first-real-replace.md)). | merged: `fix/032-launch-policy`, 2026-11-22 |
 
 Three incidents in November are written up in [`docs/incidents/`](incidents/): [the tunnel end's network on 2026-11-18](incidents/2026-11-18-tunnel-end-network.md), [EC2's capacity on 2026-11-18](incidents/2026-11-18-ec2-capacity.md), and [the first real replace on 2026-11-22](incidents/2026-11-22-first-real-replace.md). None is known to have been a security incident, though one question is still open: who stopped EC2 near 01:00Z on 2026-11-18. Each note lists what it changed.
 

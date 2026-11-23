@@ -1,6 +1,8 @@
 # 2026-11-22: the first real replace terminated EC2 and timed out
 
-Date: 2026-11-22, UTC · Tier: the cloud, the start function (`h4-ec2-start`) and EC2 · Status: recovered by hand the same evening; fixed in code by `fix/032-launch-policy`, merged into `main` with its patch on 2026-11-22, live once the account's apply takes the patch and the start function's new image · Written 2026-11-23 by Claude Code (docs role, a subagent of the Author's session) from the records linked below, blameless
+Date: 2026-11-22, UTC · Tier: the cloud, the start function (`h4-ec2-start`) and EC2 · Status: recovered by hand the same evening; fixed in code by `fix/032-launch-policy`, merged into `main` with its patch on 2026-11-22, live once the account's apply takes the patch and the start function's new image · Written 2026-11-23 by Claude Code (a general-purpose agent in the Author's session) from the records linked below, blameless
+
+Sources: [`fix/032-launch-policy`'s note](../merge-requests/2026-11-22-fix-032-launch-policy.md), [ADR 0057, "Amended 2026-11-22"](../adr/0057-spot-with-interchangeable-types.md#amended-2026-11-22), and the apply records on `ops/apply-prod-2026-11-22` and `ops/apply-account-2026-11-22`. What is marked "(runbook)" comes from the Author's session runbook of 2026-11-22, not from a repository record: the one waiting invoke that recovered EC2, and its return at 22:33Z.
 
 ## What happened
 
@@ -8,7 +10,7 @@ Spec 032 lets the start function replace a host that can't get its spot type: it
 
 Meanwhile the hand start's AWS CLI, with its 60-second read timeout and its retries, had sent the invocation a second time. The second run found the first one's lock and answered `busy`, which the hand start printed as a failed start while the first run was still working.
 
-The Author set the function's memory to 1,024 MB by hand and invoked it once, with a wait long enough for a replace. EC2 came back at 22:33Z on `m7g.large`, the list's second type, with its data volume attached.
+The Author set the function's memory to 1,024 MB by hand and invoked it once, with a wait long enough for a replace (runbook). EC2 came back at 22:33Z (runbook) on `m7g.large`, the list's second type, with its data volume attached.
 
 Earlier that evening, after the account's apply, AWS had refused the start function's dry runs for all eight listed types (`UnauthorizedOperation`), because two of the role's launch conditions don't hold for every resource a launch from a template touches. The Author put a corrected policy on the role by hand, and every dry run passed. That refusal cost no service, since a dry run changes nothing; it is part of this note because the run above used the hand-set policy.
 
@@ -26,8 +28,8 @@ All times UTC, 2026-11-22.
 | until 22:07 | The dry runs, 8 to 40 s each; then 8 minutes in which nothing reaches AWS |
 | 22:07:23 | The run cancels the stopped EC2's spot request, which terminates EC2 |
 | about 900 s after the start | Lambda ends the run before the terminate, the launch, or the attach reach AWS (CloudTrail shows no further call); no alert, and the lock stays until it goes stale |
-| then | The Author sets the function's memory to 1,024 MB by hand and invokes it once, waiting for its answer |
-| 22:33 | EC2 back, on `m7g.large`, with its data volume attached |
+| then | The Author sets the function's memory to 1,024 MB by hand and invokes it once, waiting for its answer (runbook) |
+| 22:33 (runbook) | EC2 back, on `m7g.large`, with its data volume attached |
 
 ## Detection
 
@@ -37,7 +39,7 @@ All times UTC, 2026-11-22.
 
 ## Impact
 
-- **EC2 had no instance from 22:07:23Z to 22:33Z,** about 26 minutes. It was already stopped when the replace began, so it wasn't serving before either. The record doesn't say whether the laptop served in that window.
+- **EC2 had no instance from 22:07:23Z to 22:33Z (runbook),** about 26 minutes. It was already stopped when the replace began, so it wasn't serving before either. The record doesn't say whether the laptop served in that window.
 - **Nothing lost:** EC2's data volume survived the terminate, as its attachment is set to.
 - **One extra invocation,** the CLI's retry, which changed nothing: the lock refused it.
 - **Spend:** cents at most. A whole 900-second run at 1,024 MB costs about $0.012 ([the fix's note](../merge-requests/2026-11-22-fix-032-launch-policy.md#cost-and-data-flow-impact)).

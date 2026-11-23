@@ -1,6 +1,8 @@
 # 2026-11-18: EC2 couldn't start, with no spot capacity for its one type
 
-Date: 2026-11-18, UTC · Tier: the cloud, EC2 (prod's default host) · Status: fixed by spec 032 (spot with interchangeable types), merged and applied 2026-11-22; who stopped EC2 near 01:00Z is still open · Written 2026-11-23 by Claude Code (docs role, a subagent of the Author's session) from the records linked below, blameless
+Date: 2026-11-18, UTC · Tier: the cloud, EC2 (prod's default host) · Status: fixed by spec 032 (spot with interchangeable types), merged and applied 2026-11-22; who stopped EC2 near 01:00Z is still open · Written 2026-11-23 by Claude Code (a general-purpose agent in the Author's session) from the records linked below, blameless
+
+Sources: [intent 032](../../specs/032-spot-flexibility/intent.md), [ADR 0057](../adr/0057-spot-with-interchangeable-types.md), the merge note of `feat/032-spot-flexibility`, and the apply records on `ops/apply-prod-2026-11-22` and `ops/apply-account-2026-11-22`. EC2's return at 22:33Z on 2026-11-22, marked "(runbook)", comes from the Author's session runbook of that day, not from a repository record.
 
 ## What happened
 
@@ -28,7 +30,7 @@ All times UTC.
 | about 17:40 | The Author's `make ec2-start` by hand, refused the same way |
 | 2026-11-18 | The Author's intent: spot with interchangeable types (above) |
 | 2026-11-22 | Spec 032 specified, built, and reviewed in one session; merged (6f792d2e) with its two patches, and onto `main` at f2f63e7f; prod's apply 19:49Z to 19:50Z, the account's 21:41Z to 21:43Z |
-| 2026-11-22, 22:33 | EC2 back, on `m7g.large`, with its data volume attached, after the first real replace failed and was recovered by hand ([2026-11-22-first-real-replace.md](2026-11-22-first-real-replace.md)) |
+| 2026-11-22, 22:33 (runbook) | EC2 back, on `m7g.large`, with its data volume attached, after the first real replace failed and was recovered by hand ([2026-11-22-first-real-replace.md](2026-11-22-first-real-replace.md)) |
 
 ## Detection
 
@@ -39,7 +41,7 @@ All times UTC.
 ## Impact
 
 - **Inside EC2's hours on 2026-11-18** (07:00 to 19:00 Mountain time, 14:00Z to 02:00Z), EC2 couldn't serve, and the twin answered only while the Author's laptop served. When the laptop came up isn't in the record.
-- **Until 2026-11-22:** the record doesn't say whether `t4g.large` had capacity at any open between 2026-11-18 and 2026-11-22. On 2026-11-22, after spec 032's applies, the first real replace brought EC2 back on `m7g.large` at 22:33Z.
+- **Until 2026-11-22:** the record doesn't say whether `t4g.large` had capacity at any open between 2026-11-18 and 2026-11-22. On 2026-11-22, after spec 032's applies, the first real replace brought EC2 back on `m7g.large` at 22:33Z (runbook).
 - **Nothing lost:** EC2's data volume was untouched, and the meter and the kill switch live on the tunnel end, not on EC2.
 
 ## Root cause
