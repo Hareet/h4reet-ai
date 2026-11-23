@@ -45,7 +45,10 @@ W2_PATCHES = (PW2, PI5B)
 HUMAN_PATCHES = MERGE_REQUESTS / "human-patches"
 P032_PROD = HUMAN_PATCHES / "2026-11-22-032-prod.patch"
 P032_ACCOUNT = HUMAN_PATCHES / "2026-11-22-032-account.patch"
-PATCHES = (*W2_PATCHES, P032_PROD, P032_ACCOUNT)
+# fix/032-launch-policy's, after P-032-account: the start role's RunInstances as the Author tried it on AWS on
+# 2026-11-22. Pending on its branch until he applies it.
+P032_POLICY = HUMAN_PATCHES / "2026-11-22-032-launch-policy.patch"
+PATCHES = (*W2_PATCHES, P032_PROD, P032_ACCOUNT, P032_POLICY)
 
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 

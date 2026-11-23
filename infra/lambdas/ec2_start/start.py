@@ -39,6 +39,17 @@ volume is attached before every start; the check repairs a running tunnel end's 
 generation moves a stopped EC2 alone; and every wait ends MARGIN_S before Lambda's timeout. {"manual": true,
 "replace": host, "dry_run": true} returns each type's dry run and changes nothing.
 
+From fix/032-launch-policy (2026-11-22): a launch or dry run refused UnauthorizedOperation logs AWS's whole message,
+its encoded part apart, on a line of its own (log_refusal), so the refusal decodes in one step; the alert, the metric,
+and the result carry the code alone. The result carries a refusal's code (busy, no_capacity, AWS's), so the Author's
+ec2_ops.py tells a busy refusal from a failed start: busy is alerted as start_failed with `- code: busy` (FR-011; the
+5-minute check's alone isn't), while the run that holds the lock goes on. After the first real replace, which Lambda
+killed at 900 s between the cancel and the terminate: the SDK's calls time out in seconds with at most 3 attempts, one
+client a service; a call of a replace, its waits, or an attach starts only with CALL_S of the run's time left, and
+the cancel only with COMMIT_S, else the step refuses wait_timeout (Budgeted); the function runs at 1024 MB. Each real
+launch carries a client token of its host, type, and the lock's stamp (client_token), so a launch sent again after a
+lost answer returns the instance it made; a dry run carries none.
+
 A read that fails refuses at its own step, with `unread` among the facts, so EC2 starts only when every check passes.
 It makes one pass and never retries a type; it raises nothing, so Lambda never retries it. Each outcome is one log line in
 CloudWatch's embedded metric format (namespace h4reet/handover, dimensions Function, Trigger, and Outcome), and one alert on
@@ -125,6 +136,18 @@ WAIT_S = 240
 # refuses wait_timeout and alerts, never dies unheard; BUDGET_S stands in when the context can't say (the tests).
 MARGIN_S = 60
 BUDGET_S = 840
+# fix/032-launch-policy, from the first real replace on AWS (2026-11-22), which Lambda killed at 900 s between the
+# cancel and the terminate: each SDK call has a 5 s connect and a 20 s read timeout, at most 3 attempts (BotoAws), and
+# a call of a replace, its waits, or an attach starts only with CALL_S of the run's time left (Budgeted), one attempt's
+# worst case; the cancel, from which there is no way back, only with COMMIT_S left, what the terminate, the launch,
+# the wait until it runs, and the attach need in the usual case. Short of either, the step refuses wait_timeout.
+# ATTEMPTS counts every attempt, the first included (botocore's total_max_attempts; its max_attempts would count the
+# retries alone), so the last call Budgeted starts ends, at worst 3 x 25 s plus about 3 s of backoff, inside MARGIN_S.
+CONNECT_S = 5
+READ_S = 20
+ATTEMPTS = 3
+CALL_S = 30
+COMMIT_S = 300
 # The tunnel end's check (FR-013, Q-C4): AWS's own restart is waited for this long after a capacity stop.
 TUNNEL_END_GRACE_S = 600
 TYPE = re.compile(r"[a-z][a-z0-9]{1,7}\.[a-z0-9]{3,10}")
@@ -208,12 +231,22 @@ def parse_hours(value: str | None) -> Hours:
 # AWS, as one call: the runtime's SDK in Lambda, a stub in the tests.
 
 
-class AwsError(RuntimeError):
-    """An AWS call that failed. Its code is AWS's error code alone, never a message that might hold an ID."""
+# The codes whose whole message BotoAws keeps: an UnauthorizedOperation's ends in AWS's encoded authorization message,
+# which `aws sts decode-authorization-message` reads, and which CloudTrail cuts at 1,024 characters (fix/032-launch-
+# policy, 2026-11-22).
+KEEP_MESSAGE = frozenset({"UnauthorizedOperation"})
+ENCODED = "Encoded authorization failure message: "
 
-    def __init__(self, code: str) -> None:
+
+class AwsError(RuntimeError):
+    """An AWS call that failed. Its code is AWS's error code alone, never a message that might hold an ID. For the codes
+    in KEEP_MESSAGE, `message` keeps AWS's whole message, which names the role and the resource: log_refusal logs it,
+    and it never reaches a fact, an alert, a metric, or the function's result."""
+
+    def __init__(self, code: str, message: str | None = None) -> None:
         super().__init__(code)
         self.code = code
+        self.message = message
 
 
 class BotoAws:
@@ -221,23 +254,33 @@ class BotoAws:
 
     def __init__(self) -> None:
         import boto3
+        from botocore.config import Config
 
         self.session = boto3.session.Session(region_name=REGION)
+        self.config = Config(
+            connect_timeout=CONNECT_S,
+            read_timeout=READ_S,
+            retries={"total_max_attempts": ATTEMPTS, "mode": "standard"},
+        )
         self.clients: dict[str, object] = {}
 
     def call(self, service: str, op: str, **params: object) -> dict:
         from botocore.exceptions import BotoCoreError, ClientError
 
-        client = self.clients.setdefault(
-            service, self.session.client(service, region_name=REGION)
-        )
+        # One client a service: building one loads the service's model, which costs seconds on a small function.
+        client = self.clients.get(service)
+        if client is None:
+            client = self.clients[service] = self.session.client(
+                service, region_name=REGION, config=self.config
+            )
         name = "".join("_" + c.lower() if c.isupper() else c for c in op).lstrip("_")
         try:
             return getattr(client, name)(**params)
         except ClientError as exc:
-            raise AwsError(
-                str(exc.response.get("Error", {}).get("Code", "ClientError"))
-            ) from None
+            error = exc.response.get("Error", {})
+            code = str(error.get("Code", "ClientError"))
+            kept = error.get("Message") if code in KEEP_MESSAGE else None
+            raise AwsError(code, str(kept) if kept else None) from None
         except BotoCoreError as exc:
             raise AwsError(type(exc).__name__) from None
 
@@ -288,6 +331,24 @@ class Clock:
     def until(self, seconds: float) -> datetime:
         """The end of a wait of `seconds`, or the run's own deadline, whichever comes first."""
         return min(self.now() + timedelta(seconds=seconds), self.deadline)
+
+    def left(self) -> float:
+        """The run's time left, in seconds, before its deadline (MARGIN_S before Lambda's own)."""
+        return (self.deadline - self.now()).total_seconds()
+
+
+class Budgeted:
+    """AWS for a replace, its waits, and an attach: a call starts only with CALL_S of the run's time left, else it
+    refuses wait_timeout without reaching AWS (fix/032-launch-policy)."""
+
+    def __init__(self, aws, clock: Clock) -> None:
+        self.aws = aws.aws if isinstance(aws, Budgeted) else aws
+        self.clock = clock
+
+    def call(self, service: str, op: str, **params: object) -> dict:
+        if self.clock.left() < CALL_S:
+            raise AwsError("wait_timeout")
+        return self.aws.call(service, op, **params)
 
 
 def trigger_of(event: object) -> str | None:
@@ -442,8 +503,10 @@ def live(aws, name: str) -> list[dict]:
     return [i for i in found if state(i) not in GONE and tag(i, "Name") == name]
 
 
-def take_lock(aws, clock: Clock, owner: str) -> bool:
-    """The lock (FR-011): written only if absent; a lock older than LOCK_STALE_S is taken over."""
+def take_lock(aws, clock: Clock, owner: str) -> str | None:
+    """The lock (FR-011): written only if absent; a lock older than LOCK_STALE_S is taken over. Its stamp, "<epoch
+    seconds> <owner>", when this run holds it (one replace attempt's, which its launches' tokens carry); None when
+    another run does."""
     now = int(clock.now().timestamp())
     stamp = f"{now} {owner}"
     try:
@@ -455,18 +518,27 @@ def take_lock(aws, clock: Clock, owner: str) -> bool:
             Type="String",
             Overwrite=False,
         )
-        return True
+        return stamp
     except AwsError as exc:
         if exc.code != "ParameterAlreadyExists":
             raise
     held = parameter(aws, LOCK).split()
     at = int(held[0]) if held and held[0].isdigit() else 0
     if now - at < LOCK_STALE_S:
-        return False
+        return None
     aws.call(
         "ssm", "PutParameter", Name=LOCK, Value=stamp, Type="String", Overwrite=True
     )
-    return True
+    return stamp
+
+
+def client_token(host: str, kind: str, stamp: str) -> str:
+    """RunInstances' idempotency token for one launch of one replace attempt: the host, the type, and the lock's epoch
+    seconds, at most 64 ASCII characters (EC2's limit). Sent again with the same token, as the SDK's retry does after an
+    answer lost to the read timeout, the launch answers the instance it made rather than a second one, which EC2's fixed
+    address or the tunnel end's interfaces would refuse (fix/032-launch-policy)."""
+    epoch = stamp.split()[0] if stamp.split() else "0"
+    return f"h4-{host}-{kind}-{epoch}"[:64]
 
 
 def release_lock(aws) -> None:
@@ -477,6 +549,7 @@ def release_lock(aws) -> None:
 
 
 def wait_for(aws, clock: Clock, instance_id: str, want: str) -> None:
+    aws = Budgeted(aws, clock)
     deadline = clock.until(WAIT_S)
     while True:
         try:
@@ -498,6 +571,7 @@ def attach(aws, clock: Clock, host: str, instance_id: str) -> bool:
     """The host's volume, by its Name tag, at /dev/sdf, once the old instance has let it go: True if this attached it,
     False if it was attached already. Called before every start too, so a replace that failed before its attach is
     repaired by the next trigger (the rework's review)."""
+    aws = Budgeted(aws, clock)
     deadline = clock.until(WAIT_S)
     while True:
         volumes = (
@@ -528,6 +602,28 @@ def attach(aws, clock: Clock, host: str, instance_id: str) -> bool:
         clock.sleep(POLL_S)
 
 
+def log_refusal(exc: AwsError, op: str, kind: str, dry_run: bool) -> None:
+    """One log line with AWS's whole message for a code in KEEP_MESSAGE, and its encoded part alone, ready for `aws sts
+    decode-authorization-message --encoded-message`. Logged only: the outcome carries the code."""
+    if not exc.message:
+        return
+    _, found, encoded = exc.message.partition(ENCODED)
+    print(
+        json.dumps(
+            {
+                "function": FUNCTION,
+                "op": op,
+                "type": kind,
+                "dry_run": dry_run,
+                "code": exc.code,
+                "message": exc.message,
+                "encoded": encoded.strip() if found else None,
+            },
+            sort_keys=True,
+        )
+    )
+
+
 def dry_runs(aws, candidates: list[tuple[str, str]]) -> dict[str, str]:
     """Each candidate's RunInstances with DryRun, the exact launch: AWS's code, DryRunOperation when it would run. A dry
     run checks the role and the request's context (the template, the tags, the type, the market), never capacity."""
@@ -544,6 +640,7 @@ def dry_runs(aws, candidates: list[tuple[str, str]]) -> dict[str, str]:
             )
             answers[kind] = "DryRunOperation"
         except AwsError as exc:
+            log_refusal(exc, "RunInstances", kind, dry_run=True)
             answers[kind] = exc.code
     return answers
 
@@ -566,20 +663,23 @@ def replace(
         out.unreadable("start_failed", exc.code)
         return None
     try:
-        locked = take_lock(aws, clock, out.trigger)
+        stamp = take_lock(aws, clock, out.trigger)
     except AwsError as exc:
         out.unreadable("start_failed", exc.code)
         return None
-    if not locked:
+    if stamp is None:
         out.metric = "busy"
         out.refuse("start_failed", code="busy")
         return None
     tried: list[str] = []
     step = "dry_run"
+    # Every call from here starts only with CALL_S of the run's time left; the lock's write and release, and EC2's new
+    # ID, which the next trigger needs to find and repair the instance, go straight to AWS (fix/032-launch-policy).
+    timed = Budgeted(aws, clock)
     try:
         # Nothing is cancelled or terminated before a dry run proves a launch (the rework's review): a type the role
         # or the request's context refuses is passed over, and none passing refuses with the host as it was.
-        answers = dry_runs(aws, [(k, t) for k, t in listed if k not in skip])
+        answers = dry_runs(timed, [(k, t) for k, t in listed if k not in skip])
         tried += [
             f"{k} dry_run:{c}" for k, c in answers.items() if c != "DryRunOperation"
         ]
@@ -594,17 +694,21 @@ def replace(
             )
             return None
         step = "cancel"
+        # No way back from here: the cancel of a stopped spot instance's request terminates it. So the replace goes on
+        # only with the time the rest needs in the usual case; short of it, the host stays as it was.
+        if clock.left() < COMMIT_S:
+            raise AwsError("wait_timeout")
         if old is not None:
             request = old.get("SpotInstanceRequestId")
             if isinstance(request, str):
-                aws.call(
+                timed.call(
                     "ec2",
                     "CancelSpotInstanceRequests",
                     SpotInstanceRequestIds=[request],
                 )
             step = "terminate"
-            aws.call("ec2", "TerminateInstances", InstanceIds=[old["InstanceId"]])
-            wait_for(aws, clock, old["InstanceId"], "terminated")
+            timed.call("ec2", "TerminateInstances", InstanceIds=[old["InstanceId"]])
+            wait_for(timed, clock, old["InstanceId"], "terminated")
         step = "launch"
         new: dict | None = None
         for kind, template in ready:
@@ -612,7 +716,7 @@ def replace(
                 launched = instances(
                     {
                         "Reservations": [
-                            aws.call(
+                            timed.call(
                                 "ec2",
                                 "RunInstances",
                                 LaunchTemplate={
@@ -621,11 +725,13 @@ def replace(
                                 },
                                 MinCount=1,
                                 MaxCount=1,
+                                ClientToken=client_token(host, kind, stamp),
                             )
                         ]
                     }
                 )
             except AwsError as exc:
+                log_refusal(exc, "RunInstances", kind, dry_run=False)
                 tried.append(f"{kind} {exc.code}")
                 if exc.code in CAPACITY:
                     continue
@@ -649,9 +755,9 @@ def replace(
                 Overwrite=True,
             )
         step = "run"
-        wait_for(aws, clock, new["InstanceId"], "running")
+        wait_for(timed, clock, new["InstanceId"], "running")
         step = "attach"
-        attach(aws, clock, host, new["InstanceId"])
+        attach(timed, clock, host, new["InstanceId"])
     except AwsError as exc:
         facts = {"code": exc.code, "step": step}
         if tried:
@@ -1066,6 +1172,9 @@ def handler(
     }
     if last.reason is not None:
         result["reason"] = last.reason
+        code = dict(last.facts).get("code")
+        if code:
+            result["code"] = code
     if last.dry_run is not None:
         result["dry_run"] = last.dry_run
     return result

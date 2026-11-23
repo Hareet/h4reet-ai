@@ -105,6 +105,9 @@ class Cloud:
         # Types whose dry run IAM refuses; instances that never leave pending or shutting-down.
         self.dry_refused: set[str] = set()
         self.stuck: set[str] = set()
+        # RunInstances' client tokens, each with the instance its first launch made: a launch sent again with the
+        # same token answers that instance, as EC2 does (fix/032-launch-policy).
+        self.tokens: dict[str, str] = {}
 
     @staticmethod
     def arn(instance: str) -> str:
@@ -245,7 +248,7 @@ class Cloud:
         return {}
 
     def ec2_RunInstances(
-        self, LaunchTemplate, MinCount, MaxCount, DryRun=False
+        self, LaunchTemplate, MinCount, MaxCount, DryRun=False, ClientToken=None
     ) -> dict:
         assert (MinCount, MaxCount) == (1, 1)
         assert LaunchTemplate["Version"] == "$Default"
@@ -256,6 +259,11 @@ class Cloud:
                 if kind in self.dry_refused
                 else "DryRunOperation"
             )
+        if ClientToken is not None and ClientToken in self.tokens:
+            again = self.instances[self.tokens[ClientToken]]
+            return {
+                "Instances": [{"InstanceId": again["InstanceId"], "InstanceType": kind}]
+            }
         name = "h4-prod-tunnel-end" if kind in TUNNEL_TYPES else "h4-prod-ec2"
         if self.live(name):
             raise TwoHosts(f"a second {name} would run")
@@ -271,6 +279,8 @@ class Cloud:
             "fulfilled",
             template=LaunchTemplate["LaunchTemplateId"],
         )
+        if ClientToken is not None:
+            self.tokens[ClientToken] = iid
         return {"Instances": [{"InstanceId": iid, "InstanceType": kind}]}
 
     def ec2_DescribeVolumes(self, Filters) -> dict:
@@ -469,10 +479,11 @@ def test_another_launch_code_stops_the_list() -> None:
     c.short = {"t4g.large"}
     real = c.ec2_RunInstances
 
-    def launch(LaunchTemplate, MinCount, MaxCount, DryRun=False):
+    # Changed on fix/032-launch-policy: a launch carries its client token too, which this passes on.
+    def launch(LaunchTemplate, MinCount, MaxCount, DryRun=False, **more):
         if not DryRun:
             raise start.AwsError("UnauthorizedOperation")
-        return real(LaunchTemplate, MinCount, MaxCount, DryRun)
+        return real(LaunchTemplate, MinCount, MaxCount, DryRun, **more)
 
     c.ec2_RunInstances = launch  # type: ignore[method-assign]
     result = run(ALARM, c)
@@ -538,6 +549,19 @@ def test_a_live_lock_refuses_busy_and_touches_nothing(
     )
     (line,) = emf(capsys)
     assert line["Outcome"] == "busy"
+
+
+# fix/032-launch-policy: the Author's ec2_ops.py tells a busy refusal from a failed start by the result's code, since
+# both read start_failed (busy's alert carries `- code: busy`, FR-011) while the run holding the lock goes on.
+def test_a_refusal_returns_its_code_to_the_hand_start() -> None:
+    c = cloud()
+    c.params["/h4reet/prod/host-lock"] = f"{int(INSIDE.timestamp()) - 60} hours_open"
+    result = run({"manual": True, "replace": "ec2", "skip": []}, c)
+    assert (result["reason"], result["code"]) == ("start_failed", "busy")
+    c = cloud()
+    c.short = set(EC2_TYPES)
+    assert run(ALARM, c)["code"] == "no_capacity"
+    assert "code" not in run(ALARM, cloud())
 
 
 def test_a_lock_older_than_twenty_minutes_is_taken_over() -> None:
@@ -884,6 +908,225 @@ def test_a_hand_dry_run_launches_nothing_and_reports_each_type() -> None:
     assert all(p.get("DryRun") for p in c.ops("RunInstances"))
 
 
+# fix/032-launch-policy: on 2026-11-22 every dry run was refused UnauthorizedOperation, and CloudTrail cut AWS's encoded
+# message at 1,024 characters, so it couldn't be decoded. The function now logs AWS's whole message for that code, so
+# the next refusal decodes in one step (aws sts decode-authorization-message); never in an alert or the result.
+ENCODED = "AbC-" + "x" * 2000
+REFUSAL = (
+    "You are not authorized to perform this operation. User: arn:aws:sts::"
+    f"{ACCOUNT}:assumed-role/h4-ec2-start-fn/h4-ec2-start is not authorized to perform: "
+    "ec2:RunInstances on resource: arn:aws:ec2:us-east-1:"
+    f"{ACCOUNT}:spot-instances-request/* because no identity-based policy allows the "
+    f"ec2:RunInstances action. Encoded authorization failure message: {ENCODED}"
+)
+
+
+def refusals(out: str) -> list[dict]:
+    return [d for d in (json.loads(x) for x in out.splitlines()) if "message" in d]
+
+
+def refuse_with_the_message(c: Cloud, kinds: set[str], dry: bool) -> None:
+    real = c.ec2_RunInstances
+
+    def launch(LaunchTemplate, MinCount, MaxCount, DryRun=False, **more):
+        kind = c.templates[LaunchTemplate["LaunchTemplateId"]]
+        if kind in kinds and DryRun is dry:
+            raise start.AwsError("UnauthorizedOperation", REFUSAL)
+        return real(LaunchTemplate, MinCount, MaxCount, DryRun, **more)
+
+    c.ec2_RunInstances = launch  # type: ignore[method-assign]
+
+
+def test_a_refused_dry_run_logs_aws_whole_message_and_alerts_its_code_alone(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    c = cloud()
+    c.short = {"t4g.large"}
+    refuse_with_the_message(c, set(EC2_TYPES), dry=True)
+    result = run(ALARM, c)
+    assert result["reason"] == "start_failed"
+    out = capsys.readouterr().out
+    logged = refusals(out)
+    assert {d["type"] for d in logged} == set(EC2_TYPES) - {"t4g.large"}
+    for d in logged:
+        assert d["function"] == "h4-ec2-start"
+        assert (d["op"], d["dry_run"], d["code"]) == (
+            "RunInstances",
+            True,
+            "UnauthorizedOperation",
+        )
+        assert d["message"] == REFUSAL  # whole, never cut
+        assert d["encoded"] == ENCODED  # what decode-authorization-message takes
+    (alert,) = c.alerts()
+    assert facts(alert)["code"] == "UnauthorizedOperation"
+    assert ENCODED not in alert and "not authorized" not in alert
+    assert ENCODED not in json.dumps(result)
+    for line in out.splitlines():
+        if "_aws" in json.loads(line):
+            assert ENCODED not in line
+
+
+def test_a_hand_dry_run_logs_the_message_and_returns_codes_alone(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    c = cloud(OUTSIDE)
+    refuse_with_the_message(c, {"m7g.large"}, dry=True)
+    result = run({"manual": True, "replace": "ec2", "dry_run": True}, c)
+    assert result["dry_run"]["m7g.large"] == "UnauthorizedOperation"
+    assert ENCODED not in json.dumps(result)
+    (logged,) = refusals(capsys.readouterr().out)
+    assert (logged["type"], logged["encoded"]) == ("m7g.large", ENCODED)
+    assert not c.alerts()
+
+
+def test_a_refused_launch_logs_the_message_too(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    c = cloud()
+    c.short = {"t4g.large"}
+    refuse_with_the_message(c, {"m7g.large"}, dry=False)
+    assert run(ALARM, c)["reason"] == "start_failed"
+    (logged,) = refusals(capsys.readouterr().out)
+    assert (logged["type"], logged["dry_run"], logged["message"]) == (
+        "m7g.large",
+        False,
+        REFUSAL,
+    )
+    assert ENCODED not in c.alerts()[0]
+
+
+def test_another_code_keeps_no_message(capsys: pytest.CaptureFixture[str]) -> None:
+    c = cloud()
+    c.short = set(EC2_TYPES)
+    run(ALARM, c)
+    assert refusals(capsys.readouterr().out) == []
+
+
+class _ClientError(Exception):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(code)
+        self.response = {"Error": {"Code": code, "Message": message}}
+
+
+def _boto(monkeypatch: pytest.MonkeyPatch, error: Exception) -> list[dict]:
+    """The runtime's SDK, as far as BotoAws reaches it: a session whose EC2 client raises `error`. Returns each client's
+    arguments as BotoAws made it, its config's as a dict."""
+    import types
+
+    made: list[dict] = []
+
+    class Config:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+    class Client:
+        def run_instances(self, **_: object) -> dict:
+            raise error
+
+    class Session:
+        def __init__(self, region_name: str) -> None:
+            pass
+
+        def client(
+            self, service: str, region_name: str, config: Config | None = None
+        ) -> Client:
+            made.append(
+                {
+                    "service": service,
+                    "config": config.kwargs if config is not None else None,
+                }
+            )
+            return Client()
+
+    boto3 = types.ModuleType("boto3")
+    boto3.session = types.SimpleNamespace(Session=Session)  # type: ignore[attr-defined]
+    exceptions = types.ModuleType("botocore.exceptions")
+    exceptions.ClientError = _ClientError  # type: ignore[attr-defined]
+    exceptions.BotoCoreError = type("BotoCoreError", (Exception,), {})  # type: ignore[attr-defined]
+    config = types.ModuleType("botocore.config")
+    config.Config = Config  # type: ignore[attr-defined]
+    botocore = types.ModuleType("botocore")
+    botocore.exceptions = exceptions  # type: ignore[attr-defined]
+    botocore.config = config  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "boto3", boto3)
+    monkeypatch.setitem(sys.modules, "botocore", botocore)
+    monkeypatch.setitem(sys.modules, "botocore.exceptions", exceptions)
+    monkeypatch.setitem(sys.modules, "botocore.config", config)
+    return made
+
+
+# fix/032-launch-policy, from the first real replace on AWS (2026-11-22): boto's defaults (60 s to connect and to read,
+# and several retries) let a stalled call eat minutes outside the waits' caps, and the function died at its 900 s limit
+# between the cancel and the terminate. Every client gets short timeouts and few attempts.
+def test_the_sdk_wrapper_uses_short_timeouts_and_few_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    made = _boto(monkeypatch, _ClientError("DryRunOperation", "ok"))
+    with pytest.raises(start.AwsError):
+        start.BotoAws().call("ec2", "RunInstances", DryRun=True)
+    (client,) = made
+    # Changed after the branch's review (finding 1): botocore's retries["max_attempts"] counts the retries, not the
+    # attempts (botocore's args.py makes total_max_attempts = max_attempts + 1), so {"max_attempts": 3} allowed four.
+    # total_max_attempts counts every attempt, the first included. The fake Config can't tell the two apart, so the
+    # key itself is what this holds.
+    assert client["config"] == {
+        "connect_timeout": 5,
+        "read_timeout": 20,
+        "retries": {"total_max_attempts": 3, "mode": "standard"},
+    }
+    # One call's worst case at one attempt fits the budget the function keeps for it.
+    assert start.CALL_S >= 5 + 20
+
+
+# The review's finding 1: the last call Budgeted lets start, with CALL_S of the run left, may stall through every
+# attempt. Its worst case, each attempt's connect and read timeouts plus standard mode's backoff between attempts (at
+# most min(2 ** (n - 1), 20) s before the n-th retry, botocore's retries/standard.py), must end inside the MARGIN_S the
+# run keeps before Lambda's limit, with room left for the lock's release and the alert.
+def test_a_stalled_call_still_ends_before_lambdas_limit() -> None:
+    backoff = sum(min(2**n, 20) for n in range(start.ATTEMPTS - 1))
+    worst = start.ATTEMPTS * (start.CONNECT_S + start.READ_S) + backoff
+    room_for_the_release_and_the_alert = 10
+    assert worst + room_for_the_release_and_the_alert <= start.CALL_S + start.MARGIN_S
+
+
+# The same review: BotoAws built a new client, loading the service's model again, at every call (setdefault evaluates
+# its default first), which at 128 MB cost seconds a call. One client a service.
+def test_the_sdk_wrapper_makes_one_client_a_service(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    made = _boto(monkeypatch, _ClientError("DryRunOperation", "ok"))
+    aws = start.BotoAws()
+    for _ in range(3):
+        with pytest.raises(start.AwsError):
+            aws.call("ec2", "RunInstances", DryRun=True)
+    assert [m["service"] for m in made] == ["ec2"]
+
+
+def test_the_sdk_wrapper_keeps_an_unauthorized_operations_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _boto(monkeypatch, _ClientError("UnauthorizedOperation", REFUSAL))
+    with pytest.raises(start.AwsError) as raised:
+        start.BotoAws().call("ec2", "RunInstances", DryRun=True)
+    assert (raised.value.code, raised.value.message) == (
+        "UnauthorizedOperation",
+        REFUSAL,
+    )
+    assert str(raised.value) == "UnauthorizedOperation"  # the code alone, as before
+
+
+def test_the_sdk_wrapper_keeps_no_other_codes_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _boto(monkeypatch, _ClientError("InsufficientInstanceCapacity", "in us-east-1a"))
+    with pytest.raises(start.AwsError) as raised:
+        start.BotoAws().call("ec2", "RunInstances")
+    assert (raised.value.code, raised.value.message) == (
+        "InsufficientInstanceCapacity",
+        None,
+    )
+
+
 def test_a_running_instance_of_an_earlier_generation_isnt_replaced() -> None:
     c = cloud()
     c.instances[OLD_EC2]["Tags"].append(
@@ -922,6 +1165,175 @@ def test_the_waits_end_inside_the_functions_time() -> None:
     assert result["reason"] == "start_failed"
     assert facts(c.alerts()[0])["code"] == "wait_timeout"
     assert c.clock.slept <= 200 - start.MARGIN_S
+    # Since fix/032-launch-policy, 140 s of run is short of COMMIT_S, so this run refuses before the cancel and never
+    # reaches the stuck terminate (the review's finding 4); the test below holds the wait after a cancel.
+
+
+class Shortish(Context):
+    """Lambda's context with 400 s left: enough for the cancel (340 s of run, over COMMIT_S), short of a whole replace."""
+
+    def get_remaining_time_in_millis(self) -> int:
+        return 400_000
+
+
+# The branch's review, finding 4: FR-007b after a cancel. The terminate is sent, its wait never sees it terminated, and
+# the run still refuses wait_timeout at step terminate, MARGIN_S before Lambda's limit, with its lock released.
+def test_the_wait_after_a_cancel_ends_inside_the_functions_time() -> None:
+    c = cloud()
+    c.short = {"t4g.large"}
+    original = c.ec2_TerminateInstances
+
+    def stuck(InstanceIds):
+        original(InstanceIds)
+        c.stuck.update(InstanceIds)
+
+    c.ec2_TerminateInstances = stuck  # type: ignore[method-assign]
+    result = start.handler(
+        ALARM, Shortish(), aws=c, now=c.clock.now, sleep=c.clock.sleep
+    )
+    assert result["reason"] == "start_failed"
+    assert c.ops("CancelSpotInstanceRequests") and c.ops("TerminateInstances")
+    f = facts(c.alerts()[0])
+    assert (f["code"], f["step"]) == ("wait_timeout", "terminate")
+    assert 0 < c.clock.slept <= 400 - start.MARGIN_S
+    assert not [p for p in c.ops("RunInstances") if not p.get("DryRun")]
+    assert "/h4reet/prod/host-lock" not in c.params
+
+
+# fix/032-launch-policy, from the first real replace on AWS (2026-11-22): the dry runs took up to 40 s each, a call
+# stalled for minutes, and the function was killed at 900 s after cancelling EC2's request (which terminated it) and
+# before the terminate, the launch, or the attach. A step starts only when the run's time left can cover it.
+def slow(c: Cloud, dry_s: float = 0, launch_left_s: float | None = None) -> None:
+    """Each dry run takes dry_s; the real launch leaves launch_left_s of the run's time (840 s from INSIDE)."""
+    real = c.ec2_RunInstances
+
+    def launch(LaunchTemplate, MinCount, MaxCount, DryRun=False, **more):
+        try:
+            return real(LaunchTemplate, MinCount, MaxCount, DryRun, **more)
+        finally:
+            if DryRun:
+                c.clock.at += timedelta(seconds=dry_s)
+            elif launch_left_s is not None:
+                c.clock.at = INSIDE + timedelta(seconds=start.BUDGET_S - launch_left_s)
+
+    c.ec2_RunInstances = launch  # type: ignore[method-assign]
+
+
+def test_too_little_time_after_the_dry_runs_cancels_nothing() -> None:
+    c = cloud()
+    c.short = {"t4g.large"}
+    slow(c, dry_s=200)  # three dry runs: 600 s of 840
+    result = run(ALARM, c)
+    assert result["reason"] == "start_failed"
+    f = facts(c.alerts()[0])
+    assert (f["code"], f["step"]) == ("wait_timeout", "cancel")
+    assert not c.ops("CancelSpotInstanceRequests") and not c.ops("TerminateInstances")
+    assert c.instances[OLD_EC2]["State"]["Name"] == "stopped"
+    assert c.params["/h4reet/prod/ec2-instance-id"] == OLD_EC2
+    assert "/h4reet/prod/host-lock" not in c.params
+
+
+def test_a_dry_run_the_time_left_cant_cover_isnt_sent() -> None:
+    c = cloud()
+    c.short = {"t4g.large"}
+    slow(c, dry_s=420)
+    run(ALARM, c)
+    assert len([p for p in c.ops("RunInstances") if p.get("DryRun")]) == 2
+    assert facts(c.alerts()[0])["code"] == "wait_timeout"
+    assert not c.ops("TerminateInstances")
+
+
+def test_after_a_launch_with_too_little_time_only_the_id_is_written() -> None:
+    c = cloud()
+    c.short = {"t4g.large"}
+    slow(c, launch_left_s=10)
+    result = run(ALARM, c)
+    assert result["reason"] == "start_failed"
+    f = facts(c.alerts()[0])
+    assert (f["code"], f["step"]) == ("wait_timeout", "run")
+    (new,) = c.live("h4-prod-ec2")
+    # The new ID is written, so the next trigger finds it and attaches its volume (the repair).
+    assert c.params["/h4reet/prod/ec2-instance-id"] == new["InstanceId"]
+    launched = max(
+        i
+        for i, (_, o, p) in enumerate(c.calls)
+        if o == "RunInstances" and not p.get("DryRun")
+    )
+    after = [o for _, o, _ in c.calls[launched + 1 :]]
+    assert "DescribeInstances" not in after and "AttachVolume" not in after
+    assert "/h4reet/prod/host-lock" not in c.params
+
+
+# fix/032-launch-policy: with retries on and a 20 s read timeout, a launch that succeeded at EC2 but whose answer was
+# lost is sent again. Without a client token the second would launch another instance, which EC2's fixed address or the
+# tunnel end's interfaces refuse (InvalidIPAddress.InUse), and the run would refuse while the first ran unrecorded.
+# With one, EC2 answers the same instance. The token is the same for one replace attempt, of its host and type, and at
+# most 64 ASCII characters; a dry run carries none.
+class Resent:
+    """AWS whose answer to the first real launch is lost, so the launch is sent again as it was (the SDK's retry)."""
+
+    def __init__(self, c: Cloud) -> None:
+        self.c = c
+        self.lost = False
+
+    def call(self, service: str, op: str, **p: object) -> dict:
+        if op == "RunInstances" and not p.get("DryRun") and not self.lost:
+            self.lost = True
+            self.c.call(service, op, **p)  # it ran at EC2; its answer never came back
+        return self.c.call(service, op, **p)
+
+
+@pytest.mark.parametrize(
+    ("event", "host", "name", "short"),
+    [
+        (ALARM, "ec2", "h4-prod-ec2", {"t4g.large"}),
+        (
+            {"manual": True, "replace": "tunnel_end", "skip": []},
+            "tunnel_end",
+            "h4-prod-tunnel-end",
+            set(),
+        ),
+    ],
+)
+def test_a_launch_sent_again_after_a_lost_answer_is_the_same_instance(
+    event: dict, host: str, name: str, short: set[str]
+) -> None:
+    c = cloud()
+    c.short = short
+    result = start.handler(
+        event, Context(), aws=Resent(c), now=c.clock.now, sleep=c.clock.sleep
+    )
+    assert result["outcome"] == "started", result
+    (one,) = c.live(name)
+    launches = [p for p in c.ops("RunInstances") if not p.get("DryRun")]
+    assert len(launches) == 2
+    tokens = {p.get("ClientToken") for p in launches}
+    (token,) = tokens
+    assert isinstance(token, str) and 0 < len(token) <= 64 and token.isascii()
+    assert host in token and one["InstanceType"] in token
+    assert c.count == 1  # one instance launched, answered twice
+    if host == "ec2":
+        assert c.params["/h4reet/prod/ec2-instance-id"] == one["InstanceId"]
+
+
+def test_each_launch_of_a_replace_has_its_own_types_token_and_a_dry_run_none() -> None:
+    c = cloud()
+    c.short = {"t4g.large", "m7g.large"}
+    assert run(ALARM, c)["outcome"] == "started"
+    dry = [p for p in c.ops("RunInstances") if p.get("DryRun")]
+    assert dry and all("ClientToken" not in p for p in dry)
+    launches = [p for p in c.ops("RunInstances") if not p.get("DryRun")]
+    tokens = [p["ClientToken"] for p in launches]
+    # m7g.large was short, then m6g.large launched: one token each, from the same replace.
+    assert len(launches) == 2 and len(set(tokens)) == 2
+    assert "m7g.large" in tokens[0] and "m6g.large" in tokens[1]
+    assert tokens[0].rsplit("-", 1)[1] == tokens[1].rsplit("-", 1)[1]
+    # A later replace gets another token for the same type.
+    c2 = cloud(INSIDE + timedelta(minutes=30))
+    c2.short = {"t4g.large", "m7g.large"}
+    run(ALARM, c2)
+    later = [p["ClientToken"] for p in c2.ops("RunInstances") if not p.get("DryRun")]
+    assert later[0] != tokens[0]
 
 
 def test_a_tunnel_end_left_without_its_volume_and_origin_is_repaired_by_the_next_check() -> (

@@ -8,7 +8,7 @@ The tunnel end is the small spot instance in the account that runs around the cl
 - **`[hareet.ai aws] tunnel_end_back: …`**, from `h4-tunnel-end-running` once AWS starts it again, with its time as its fact. A replace's first boot doesn't send it: the rule names the new instance only once the plan has made it, after it is running. From W2 the same rule also invokes the start function (group 9).
 - **`[hareet.ai aws] ec2_start_refused (tunnel_end_down): …`**: the start function wouldn't start EC2, since nothing could reach it while the tunnel end is down (group 9).
 - **The dashboard's Hosts row:** "Tunnel up" reads `down` for `tunnel-end`, or for `laptop`; "Tunnel reconnects" climbs; "Telemetry delayed at the tunnel end" fills.
-- **The laptop's tunnel logs** `tunnel: the connection ended after … s; trying again in … s`, again and again, with ssh's own line before it: `Connection timed out` (the tunnel end is down), `Permission denied (publickey)` (its key was revoked), or `Host key verification failed` (the pinned host key isn't the tunnel end's).
+- **The laptop's tunnel logs** `tunnel: the connection ended after … s; trying again in … s`, again and again, with ssh's own line before it: `Connection timed out` (the tunnel end is down), `Permission denied (publickey)` (its key was revoked), `Host key verification failed` (the pinned host key isn't the tunnel end's), or `Error: remote port forwarding failed for listen port <port>` (the tunnel end still holds the forwards for a session the laptop has left: "The laptop's forwards held by a dead session", below).
 
 - **From W2, on its return:** `h4-tunnel-end-running` also invokes `h4-ec2-start` once, `from: tunnel_end_back`. It starts EC2 if the laptop isn't serving and the hours, the switch, and the server action allow; it may start EC2 while the laptop's tunnel reconnects, and the laptop's loop then stops EC2 within the window ([handover.md](handover.md)).
 
@@ -74,6 +74,28 @@ sudo docker logs --tail 50 h4reet-prod-tunnel-end-1
 - **A failed deploy:** the deployer returned to the release before and alerted `deploy_rolled_back`, or refused the release and alerted `deploy_refused` with its reason (the runbook `deploy.md`, from group 7). The tunnel end runs what `current.json` names meanwhile.
 - **sshd stopped** (`tunnel-end: sshd stopped`): compose restarts it; if it stops again, its last lines say why: a host key it can't read, most likely, which the restart above writes again.
 - **A revoked key** shows on the laptop as `Permission denied (publickey)`. If you didn't mean it, put the key back: `make tunnel-revoke RESTORE=1 PROFILE=h4reet-admin`.
+
+### The laptop's forwards held by a dead session (fixes F10 and F11)
+
+The laptop's tunnel logs `Error: remote port forwarding failed for listen port <port>` (its log's scrub hides the number: 2201, 2202, or 2203), then `tunnel: the connection ended after … s; trying again in … s`, again and again: the tunnel end still holds the three forwards for a session the laptop has left. Read the laptop's log for it, not the tunnel end's: `tunnel-end`'s log carries text strangers on 2222 send, `cannot listen to port: 2201` among what they can write ([spec 001 fixes/f11.md](../../specs/001-cloud-elevation/fixes/f11.md)).
+
+A session whose laptop went silent (a freeze, a hard restart, a lost network) ends by itself 102 to 204 s after its first unanswered packet, and the laptop's next try, within 30 s, takes the forwards: wait. A laptop that still acknowledges but never reads isn't ended that way, and sshd's client-alive may not run while the relay checks the laptop every second (f11.md's F11-3). So if the laptop's lines go on for more than about 4 minutes, restart the tunnel end's sshd. In a shell on the tunnel end, with `id` as at the top of "Act":
+
+```bash
+p=h4reet-admin
+r=us-east-1
+aws ssm start-session \
+  --profile "$p" --region "$r" \
+  --target "$id"
+```
+
+Then, in it:
+
+```bash
+sudo docker restart h4reet-prod-tunnel-end-1
+```
+
+Every tunnel session ends with it, and the laptop's next try, within 30 s, takes the forwards; nothing else on the tunnel end restarts. "Tunnel up" reads `up` for both ends again, and the relay serves the laptop once its checks find it healthy. Record it (the Record section): the time, the laptop's lines, and how long they went on.
 
 ### Revoking the laptop's key
 

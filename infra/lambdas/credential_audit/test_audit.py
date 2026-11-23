@@ -590,6 +590,11 @@ FROM_THE_TEMPLATE = {
             },
             False,
         ),
+        # Changed 2026-11-22 (fix/032-launch-policy): this row held a subnet to IsLaunchTemplateResource too, and was
+        # too broad without it. AWS refused the tunnel end's dry runs on the security group of the interfaces its
+        # template attaches, which isn't "from the template", so the subnet, the group, and the interfaces need no
+        # condition now: they are this one-project account's, and the image's condition keeps every launch on a
+        # template (test_the_policy_tried_on_aws_passes_and_the_broad_ones_dont, below).
         (
             {
                 "Effect": "Allow",
@@ -597,7 +602,7 @@ FROM_THE_TEMPLATE = {
                 "Resource": "arn:aws:ec2:us-east-1:*:subnet/*",
                 "Condition": {"ArnLike": FROM_THE_TEMPLATE["ArnLike"]},
             },
-            True,
+            False,
         ),
         (
             {
@@ -734,6 +739,161 @@ def test_the_start_functions_replace_holds_each_action_to_its_condition(
         "h4-ec2-start-fn",
         trust(allow({"Service": "lambda.amazonaws.com"})),
         inline={"start": policy(statement)},
+    )
+    want = [("handover_policy_too_broad", "h4-ec2-start-fn")] if too_broad else []
+    assert findings(aws) == want
+
+
+LAUNCH_TEMPLATES = f"arn:aws:ec2:us-east-1:{ACCOUNT}:launch-template/*"
+LISTED = INSTANCE_LAUNCH["StringEquals"]["ec2:InstanceType"]
+# The RunInstances statements the Author put on h4-ec2-start-fn by hand on 2026-11-22, after AWS refused every dry run
+# (the tunnel end's on the security group of the interfaces its template attaches, which isn't "from the template";
+# EC2's on spot-instances-request/*, for which AWS supplies no ec2:LaunchTemplate), and with which every dry run
+# answered DryRunOperation. fix/032-launch-policy's patch renders them from iam.tf.
+TRIED = [
+    {
+        "Sid": "LaunchFromTheHostsTemplates",
+        "Effect": "Allow",
+        "Action": "ec2:RunInstances",
+        "Resource": LAUNCH_TEMPLATES,
+        "Condition": {
+            "StringEquals": {"aws:ResourceTag/component": ["ec2", "tunnel-end"]}
+        },
+    },
+    {
+        "Sid": "LaunchOnlyAHost",
+        "Effect": "Allow",
+        "Action": "ec2:RunInstances",
+        "Resource": f"arn:aws:ec2:us-east-1:{ACCOUNT}:instance/*",
+        "Condition": {
+            "StringEquals": {
+                "ec2:InstanceType": LISTED,
+                "ec2:InstanceMarketType": "spot",
+            }
+        },
+    },
+    {
+        "Sid": "WhatALaunchFromATemplateMakes",
+        "Effect": "Allow",
+        "Action": "ec2:RunInstances",
+        "Resource": [
+            f"arn:aws:ec2:us-east-1:{ACCOUNT}:volume/*",
+            f"arn:aws:ec2:us-east-1:{ACCOUNT}:spot-instances-request/*",
+        ],
+    },
+    {
+        "Sid": "OnlyTheTemplatesImage",
+        "Effect": "Allow",
+        "Action": "ec2:RunInstances",
+        "Resource": "arn:aws:ec2:us-east-1::image/*",
+        "Condition": {"Bool": {"ec2:IsLaunchTemplateResource": "true"}},
+    },
+    {
+        "Sid": "WhatOnlyTheTemplateNames",
+        "Effect": "Allow",
+        "Action": "ec2:RunInstances",
+        "Resource": [
+            f"arn:aws:ec2:us-east-1:{ACCOUNT}:network-interface/*",
+            f"arn:aws:ec2:us-east-1:{ACCOUNT}:subnet/*",
+            f"arn:aws:ec2:us-east-1:{ACCOUNT}:security-group/*",
+        ],
+    },
+]
+
+
+def _tried(sid: str, **change: object) -> list[dict]:
+    """TRIED with one statement changed: a key set to a value, or removed when the value is None."""
+    out = []
+    for s in TRIED:
+        s = dict(s)
+        if s["Sid"] == sid:
+            for key, value in change.items():
+                if value is None:
+                    s.pop(key, None)
+                else:
+                    s[key] = value
+        out.append(s)
+    return out
+
+
+# fix/032-launch-policy: the audit holds the shape that worked on AWS, and still refuses what the reviews of 52308132
+# named too broad: an instance without the type or the market, RunInstances on * with only ec2:LaunchTemplate, and an
+# image a request may name (no IsLaunchTemplateResource), since that condition is what keeps every launch on a template.
+@pytest.mark.parametrize(
+    ("statements", "too_broad"),
+    [
+        (TRIED, False),
+        (_tried("LaunchOnlyAHost", Condition=None), True),
+        (
+            _tried(
+                "LaunchOnlyAHost",
+                Condition={"StringEquals": {"ec2:InstanceType": LISTED}},
+            ),
+            True,
+        ),
+        (
+            _tried(
+                "LaunchOnlyAHost",
+                Condition={"StringEquals": {"ec2:InstanceMarketType": "spot"}},
+            ),
+            True,
+        ),
+        (
+            _tried(
+                "LaunchOnlyAHost",
+                Condition={
+                    "StringEquals": {
+                        "aws:RequestTag/Name": ["h4-prod-ec2", "h4-prod-tunnel-end"]
+                    }
+                },
+            ),
+            True,
+        ),
+        (
+            _tried(
+                "WhatALaunchFromATemplateMakes",
+                Resource="*",
+                Condition={"ArnLike": {"ec2:LaunchTemplate": LAUNCH_TEMPLATES}},
+            ),
+            True,
+        ),
+        (_tried("WhatALaunchFromATemplateMakes", Resource="*"), True),
+        (_tried("OnlyTheTemplatesImage", Condition=None), True),
+        (
+            _tried(
+                "OnlyTheTemplatesImage",
+                Condition={"ArnLike": {"ec2:LaunchTemplate": LAUNCH_TEMPLATES}},
+            ),
+            True,
+        ),
+        (
+            _tried(
+                "OnlyTheTemplatesImage",
+                Condition={"Bool": {"ec2:IsLaunchTemplateResource": "false"}},
+            ),
+            True,
+        ),
+        # The image beside the interfaces, as the statement was before: the statement's missing condition reaches it.
+        (
+            _tried(
+                "WhatOnlyTheTemplateNames",
+                Resource=[
+                    *TRIED[4]["Resource"],
+                    "arn:aws:ec2:us-east-1::image/*",
+                ],
+            ),
+            True,
+        ),
+        (_tried("WhatOnlyTheTemplateNames", Resource="*"), True),
+    ],
+)
+def test_the_policy_tried_on_aws_passes_and_the_broad_ones_dont(
+    aws: StubAws, statements: list[dict], too_broad: bool
+) -> None:
+    aws.role(
+        "h4-ec2-start-fn",
+        trust(allow({"Service": "lambda.amazonaws.com"})),
+        inline={"ec2-start": policy(*statements)},
     )
     want = [("handover_policy_too_broad", "h4-ec2-start-fn")] if too_broad else []
     assert findings(aws) == want

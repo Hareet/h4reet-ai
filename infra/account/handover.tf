@@ -80,7 +80,9 @@ resource "aws_lambda_function" "ec2_start" {
   package_type  = "Image"
   image_uri     = "${aws_ecr_repository.lambda["h4-ec2-start"].repository_url}@${local.lambda_images.ec2_start}"
   architectures = ["arm64"]
-  memory_size   = 128
+  # fix/032-launch-policy: at 128 MB, Lambda's slowest CPU, the first real replace (2026-11-22) ran slow enough that
+  # Lambda killed it at 900 s between the cancel and the terminate; the Author set 1024 MB by hand, and this renders it.
+  memory_size = 1024
   # Spec 032: a replace waits for a terminate, a launch, and an attach, and the tunnel end's then starts EC2
   # (its research R-8): Lambda's maximum.
   timeout = 900
