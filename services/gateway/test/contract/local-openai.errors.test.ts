@@ -25,6 +25,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { factory, type LocalSettings } from "../../src/adapters/local-openai.js";
 import { loadConfig } from "../../src/config/validate.js";
 import { ProviderError, type CompletionRequest, type ProviderAdapter } from "../../src/core/types.js";
+import { watchArmedTimers } from "../helpers/armed-timers.js";
 import { stubOpenAI, type StubOpenAI } from "../helpers/stub-openai.js";
 
 const FIXTURES = fileURLToPath(new URL("../fixtures/config/", import.meta.url));
@@ -281,15 +282,16 @@ describe("the connect watchdog (provider-adapter.md §3.1: connect 1 s, then una
     code: "ETIMEDOUT",
   };
 
-  /** The call's timers' delays, and its failure: "at 1 s" without a bound in ms, which a loaded machine broke (4.2 s
-   *  against 3 s, 2026-11-11; fix/036). The watchdog is armed for connect_ms, and its error is unavailable ETIMEDOUT;
-   *  the 10 s request timeout's is a timeout, and timers that are both due run in the order they fell due, so an error
-   *  of the watchdog's means the watchdog ended the call, however late the machine ran it; and not before 1 s. */
+  /** The call's timers, and its failure: "at 1 s" without a bound in ms, which a loaded machine broke (4.2 s against
+   *  3 s, 2026-11-11; fix/036). The watchdog is armed for connect_ms as the call starts, before the event loop turns
+   *  once, so no wait comes before it; its error is unavailable ETIMEDOUT, the 10 s request timeout's is a timeout,
+   *  and timers that are both due run in the order they fell due, so an error of the watchdog's means the watchdog
+   *  ended the call, however late the machine ran it; and not before 1 s. */
   async function watchdogFailure(adapter: ProviderAdapter): Promise<ProviderError> {
-    const timers = vi.spyOn(globalThis, "setTimeout");
+    const timers = watchArmedTimers();
     const { err, ms } = await failure(adapter);
     expect(flags(err)).toEqual(timedOut);
-    expect(timers.mock.calls.map((c) => c[1])).toContain(settings.timeouts.connect_ms);
+    expect(timers).toContainEqual({ delay: settings.timeouts.connect_ms, turned: false });
     expect(ms).toBeGreaterThanOrEqual(900);
     return err;
   }

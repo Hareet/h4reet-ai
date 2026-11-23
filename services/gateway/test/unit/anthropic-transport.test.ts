@@ -16,6 +16,7 @@ import {
   SENT_HEADERS,
   type AnthropicTransport,
 } from "../../src/adapters/_anthropic-transport.js";
+import { watchArmedTimers } from "../helpers/armed-timers.js";
 import { stubAnthropic, type StubAnthropic } from "../helpers/stub-anthropic.js";
 
 const KEY = `test-${randomBytes(16).toString("hex")}`;
@@ -223,13 +224,14 @@ describe("failures, reached or not (FR-009; plan §2.5, §2.6; departure B4)", (
     const lookup: LookupFunction = () => {}; // never answers
     const t = transport({ origin: `http://anthropic-stub:${stub.port}`, connectMs: 150, lookup });
     // At connectMs, without a bound in ms, which load breaks (fix/036): ETIMEDOUT unreached is the watchdog's own
-    // error, and the watchdog is armed for connectMs.
-    const timers = vi.spyOn(globalThis, "setTimeout");
+    // error, and the watchdog is armed for connectMs as the fetch starts, before the event loop turns once, so no wait
+    // comes before it.
+    const timers = watchArmedTimers();
     const err = await failure(
       t.fetch(`http://anthropic-stub:${stub.port}/v1/messages`, { method: "POST", body: BODY }),
     );
     expect([err.code, err.reached]).toEqual(["ETIMEDOUT", false]);
-    expect(timers.mock.calls.map((c) => c[1])).toContain(150);
+    expect(timers).toContainEqual({ delay: 150, turned: false });
   });
 
   it("a connection lost after the body was written may have reached the API", async () => {
