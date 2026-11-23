@@ -1170,12 +1170,14 @@ def test_the_tunnel_ends_reconnections_are_new_sessions_holding_the_forwards(
     # Each report reads the kernel's table: a session that takes the forwards listens on sockets of its own, so a new
     # socket listening on 2201 is a new session holding them. Only an authenticated session may listen there
     # (PermitListen), and nothing a stranger sends adds a listener. The first holder isn't a reconnection, and neither
-    # is a gap, a connection through 2201, or a listener on another port.
+    # is a gap, a connection through 2201, or a listener on another port. A table that can't be read (None: the step
+    # removes it) reads as down and holds the count, and the same holder after it is no reconnection either.
     tables = [
         (tcp_table(SSHD_LISTENS, *forwards(101), STRANGER_ON_2222), 1, 0),
         (tcp_table(SSHD_LISTENS, RELAY_THROUGH_2201, *forwards(101)), 1, 0),
         (tcp_table(SSHD_LISTENS, STRANGER_ON_2222), 0, 0),
         (tcp_table(SSHD_LISTENS, *forwards(201)), 1, 1),
+        (None, 0, 1),
         (tcp_table(SSHD_LISTENS, LISTENS_ON_22010, *forwards(201)), 1, 1),
         (tcp_table(SSHD_LISTENS, *forwards(301)), 1, 2),
     ]
@@ -1183,14 +1185,20 @@ def test_the_tunnel_ends_reconnections_are_new_sessions_holding_the_forwards(
     steps.mkdir()
     table.touch()
     for n, (text, _, _) in enumerate(tables, start=1):
-        (steps / str(n)).write_text(text, encoding="utf-8")
+        if text is None:
+            (steps / f"{n}.missing").touch()
+        else:
+            (steps / str(n)).write_text(text, encoding="utf-8")
     done = bash(
         functions({"/proc/net/tcp": str(table)})
-        # Each report's wait puts the next table in place, and the loop ends after the last; each body is printed.
+        # Each report's wait puts the next table in place, or removes it, and the loop ends after the last; each body is
+        # printed.
         + 'F11_STEPS="$1" F11_TABLE="$2" F11_STEP=0\n'
         + "sleep() {\n"
         + "\tF11_STEP=$((F11_STEP + 1))\n"
-        + '\t[ -f "$F11_STEPS/$F11_STEP" ] && cat "$F11_STEPS/$F11_STEP" >"$F11_TABLE"\n'
+        + '\tif [ -f "$F11_STEPS/$F11_STEP" ]; then cat "$F11_STEPS/$F11_STEP" >"$F11_TABLE"\n'
+        + '\telif [ -f "$F11_STEPS/$F11_STEP.missing" ]; then rm "$F11_TABLE"\n'
+        + "\telse return 1; fi\n"
         + "}\n"
         + "post() { printf '%s\\n' \"$1\"; }\n"
         + "report tunnel-end tunnel-end\n",
