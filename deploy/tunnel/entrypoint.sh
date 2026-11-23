@@ -112,7 +112,7 @@ report() {
 # them), and a stranger on 2222 chooses parts of some (a KEXINIT's offer, a disconnect's description, a user name), so
 # any line may be theirs. F10's net, which ended the older sessions on sshd's "cannot listen to port" line, went with
 # the count of "Accepted publickey" lines. A dead session's forwards are freed by client-alive or, its peer silent, by
-# the kernel, which gives up on it in about 100 s at this container's tcp_retries2 (deploy/compose.yaml, fixes/f10.md).
+# the kernel, which gives up on it in about two minutes at this container's tcp_retries2 (deploy/compose.yaml, f11.md).
 server() {
 	local end=tunnel-end
 	report tunnel-end "$end" &
