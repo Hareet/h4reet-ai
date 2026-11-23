@@ -145,3 +145,69 @@ Questions, each with a recommendation:
 2. **`COMMIT_S` = 300 s.** A replace refuses before the cancel when less than 300 s of the run's 840 remain. At 1024 MB and with short calls, the dry runs should take seconds. Recommended: keep 300, and change it only with the function's logs in hand if `wait_timeout` at `step: cancel` ever shows.
 
 Nothing wrong found in the governance files.
+
+## The plans (stack)
+
+<!-- h4-plan root=prod tree=3946b1c6d9c04109940df8df64455872d8e3198e sha256=1db150ffd2d8af4d0b38fb2a359a4b9185f87476cd3222943049a4e1805de753 terraform=1.17.1 made=2026-11-23T01:44:52Z -->
+```terraform-plan
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  ~ update in-place
+
+Terraform will perform the following actions:
+
+  # aws_budgets_budget_action.server will be updated in-place
+  ~ resource "aws_budgets_budget_action" "server" {
+        id                 = "<account>:<redacted-budget-action-id>:h4-server-month"
+        tags               = {
+            "component" = "kill-switch"
+        }
+        # (10 unchanged attributes hidden)
+
+      ~ definition {
+          ~ ssm_action_definition {
+              ~ instance_ids    = [
+                  - "i-<redacted>",
+                  + "i-<redacted>",
+                ]
+                # (2 unchanged attributes hidden)
+            }
+        }
+
+        # (2 unchanged blocks hidden)
+    }
+
+  # aws_cloudwatch_event_rule.ec2_spot_warning will be updated in-place
+  ~ resource "aws_cloudwatch_event_rule" "ec2_spot_warning" {
+      ~ event_pattern       = jsonencode(
+          ~ {
+              ~ detail      = {
+                  ~ instance-id = [
+                      ~ "i-<redacted>" -> "i-<redacted>",
+                    ]
+                }
+                # (2 unchanged attributes hidden)
+            }
+        )
+        id                  = "h4-ec2-spot-warning"
+        name                = "h4-ec2-spot-warning"
+        tags                = {
+            "component" = "ec2"
+        }
+        # (11 unchanged attributes hidden)
+    }
+
+Plan: 0 to add, 2 to change, 0 to destroy.
+```
+<!-- /h4-plan -->
+
+<!-- h4-plan root=account tree=3946b1c6d9c04109940df8df64455872d8e3198e sha256=50b90dd88aa72097c3092b5b708101f4be79c38e2db122887f372c693fcd812f terraform=1.17.1 made=2026-11-23T01:45:14Z -->
+```terraform-plan
+
+No changes. Your infrastructure matches the configuration.
+
+Terraform has compared your real infrastructure against your configuration
+and found no differences, so no changes are needed.
+```
+<!-- /h4-plan -->

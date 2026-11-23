@@ -479,10 +479,16 @@ data "aws_iam_policy_document" "ec2_start" {
   }
 
   # Spec 032, the replace (FR-007, FR-016; ADR 0057): a host's instance launched only from a launch template tagged with
-  # its component, only with its Name; tags only at that launch; the old one's request cancelled and the old one
-  # terminated only by its Name; the two volumes attached only by their Names; the hosts' two roles passed to EC2
-  # alone; and the VPC origin re-pointed at a new tunnel end. The credential audit holds each to its condition
-  # (infra/lambdas/credential_audit/audit.py's START_ROLE).
+  # its component, only of a listed type, on spot; tags only at that launch; the old one's request cancelled and the
+  # old one terminated only by its Name; the two volumes attached only by their Names; the hosts' two roles passed to
+  # EC2 alone; and the VPC origin re-pointed at a new tunnel end. The credential audit holds each to its condition
+  # (infra/lambdas/credential_audit/audit.py's HANDOVER_ROLES, HOLDS, and RUN_KINDS).
+  #
+  # The RunInstances statements below are the policy that passed every dry run on AWS on 2026-11-22
+  # (fix/032-launch-policy; ADR 0057's amendment). The first shape refused all eight types: the tunnel end's on
+  # security-group/*, since the group of the existing interfaces its template attaches isn't "from the template", so
+  # ec2:IsLaunchTemplateResource didn't hold; EC2's on spot-instances-request/*, since AWS supplies no
+  # ec2:LaunchTemplate for a spot request.
   statement {
     sid       = "LaunchFromTheHostsTemplates"
     effect    = "Allow"
@@ -496,19 +502,14 @@ data "aws_iam_policy_document" "ec2_start" {
     }
   }
 
-  # The instance only with a host's Name, of a listed type, on spot: FR-002's ceiling lives in the templates, and a
-  # request can't override their type or their market here (the rework after the reviews of 52308132).
+  # The instance only of a listed type, on spot: FR-002's ceiling lives in the templates, and a request can't override
+  # their type or their market here (the rework after the reviews of 52308132). Its Name comes from the template's tags;
+  # the statement above holds the template to a host's component.
   statement {
     sid       = "LaunchOnlyAHost"
     effect    = "Allow"
     actions   = ["ec2:RunInstances"]
     resources = ["arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:instance/*"]
-
-    condition {
-      test     = "StringEquals"
-      variable = "aws:RequestTag/Name"
-      values   = ["h4-prod-ec2", "h4-prod-tunnel-end"]
-    }
 
     condition {
       test     = "StringEquals"
@@ -523,6 +524,8 @@ data "aws_iam_policy_document" "ec2_start" {
     }
   }
 
+  # The volume and the spot request a launch makes, with no condition: AWS supplies no ec2:LaunchTemplate for the spot
+  # request, which refused EC2's dry runs.
   statement {
     sid     = "WhatALaunchFromATemplateMakes"
     effect  = "Allow"
@@ -531,16 +534,26 @@ data "aws_iam_policy_document" "ec2_start" {
       "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:volume/*",
       "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:spot-instances-request/*",
     ]
+  }
+
+  # The image only as the template names it (ec2:IsLaunchTemplateResource): a request can't put the instance on another
+  # image, and a launch without a template is refused on its image, so every launch goes through a template.
+  statement {
+    sid       = "OnlyTheTemplatesImage"
+    effect    = "Allow"
+    actions   = ["ec2:RunInstances"]
+    resources = ["arn:aws:ec2:us-east-1::image/*"]
 
     condition {
-      test     = "ArnLike"
-      variable = "ec2:LaunchTemplate"
-      values   = ["arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:launch-template/*"]
+      test     = "Bool"
+      variable = "ec2:IsLaunchTemplateResource"
+      values   = ["true"]
     }
   }
 
-  # The image, the subnet, the group, and the interfaces only as the template names them: a request can't put the
-  # instance elsewhere, or on another image (ec2:IsLaunchTemplateResource).
+  # The subnet, the group, and the interfaces, with no condition: the group of the interfaces the tunnel end's template
+  # attaches isn't "from the template", which refused its dry runs. All three are within this one-project account, and
+  # the type and the market stay locked above.
   statement {
     sid     = "WhatOnlyTheTemplateNames"
     effect  = "Allow"
@@ -549,20 +562,7 @@ data "aws_iam_policy_document" "ec2_start" {
       "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:network-interface/*",
       "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:subnet/*",
       "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:security-group/*",
-      "arn:aws:ec2:us-east-1::image/*",
     ]
-
-    condition {
-      test     = "ArnLike"
-      variable = "ec2:LaunchTemplate"
-      values   = ["arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:launch-template/*"]
-    }
-
-    condition {
-      test     = "Bool"
-      variable = "ec2:IsLaunchTemplateResource"
-      values   = ["true"]
-    }
   }
 
   statement {
