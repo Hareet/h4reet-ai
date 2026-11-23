@@ -251,7 +251,14 @@ describe("a DNS failure (provider-adapter.md §2.5: unavailable)", () => {
   for (const code of ["ENOTFOUND", "ETIMEOUT"]) {
     it(`maps a lookup that fails with ${code} to unavailable at once, keeping only the code`, async () => {
       const seen = lookupOfModelServer({ code });
-      const { err, ms } = await failure(localAdapter(`http://${MODEL_SERVER}:8080/v1`));
+      // At once: the call fails before the event loop turns once, so no timer, the 1 s watchdog's or any other, and
+      // no I/O ended it or held it, on a loaded machine as on an idle one (a bound in ms failed on load, fix/036).
+      let turned = false;
+      setImmediate(() => {
+        turned = true;
+      });
+      const { err } = await failure(localAdapter(`http://${MODEL_SERVER}:8080/v1`));
+      expect(turned).toBe(false);
       expect(seen).toEqual([`A ${MODEL_SERVER}`]);
       expect(flags(err)).toEqual({
         kind: "unavailable",
@@ -259,8 +266,7 @@ describe("a DNS failure (provider-adapter.md §2.5: unavailable)", () => {
         possiblyBilled: false,
         status: undefined,
         code,
-      });
-      expect(ms).toBeLessThan(500); // the lookup's own failure, not the 1 s watchdog
+      }); // the lookup's own code, not the watchdog's ETIMEDOUT
       expectBare(err, MODEL_SERVER, "queryA");
     });
   }
@@ -275,15 +281,25 @@ describe("the connect watchdog (provider-adapter.md §3.1: connect 1 s, then una
     code: "ETIMEDOUT",
   };
 
+  /** The call's timers' delays, and its failure: "at 1 s" without a bound in ms, which a loaded machine broke (4.2 s
+   *  against 3 s, 2026-11-11; fix/036). The watchdog is armed for connect_ms, and its error is unavailable ETIMEDOUT;
+   *  the 10 s request timeout's is a timeout, and timers that are both due run in the order they fell due, so an error
+   *  of the watchdog's means the watchdog ended the call, however late the machine ran it; and not before 1 s. */
+  async function watchdogFailure(adapter: ProviderAdapter): Promise<ProviderError> {
+    const timers = vi.spyOn(globalThis, "setTimeout");
+    const { err, ms } = await failure(adapter);
+    expect(flags(err)).toEqual(timedOut);
+    expect(timers.mock.calls.map((c) => c[1])).toContain(settings.timeouts.connect_ms);
+    expect(ms).toBeGreaterThanOrEqual(900);
+    return err;
+  }
+
   it("fails a connect the listener never completes as unavailable at 1 s, long before the 10 s request timeout", async () => {
     const listener = await listenerThatNeverAccepts();
     try {
       const seen = lookupOfModelServer({ address: "127.0.0.1" });
-      const { err, ms } = await failure(localAdapter(`http://${MODEL_SERVER}:${listener.port}/v1`));
+      const err = await watchdogFailure(localAdapter(`http://${MODEL_SERVER}:${listener.port}/v1`));
       expect(seen).toEqual([`A ${MODEL_SERVER}`]); // no AAAA query: ADDRCONFIG, and an IPv4-only container
-      expect(flags(err)).toEqual(timedOut);
-      expect(ms).toBeGreaterThanOrEqual(900);
-      expect(ms).toBeLessThan(3_000);
       expectBare(err);
     } finally {
       await listener.close();
@@ -292,11 +308,8 @@ describe("the connect watchdog (provider-adapter.md §3.1: connect 1 s, then una
 
   it("counts the name lookup in the connect: a lookup that never answers fails the same way, at 1 s", async () => {
     const seen = lookupOfModelServer("never");
-    const { err, ms } = await failure(localAdapter(`http://${MODEL_SERVER}:8080/v1`));
+    const err = await watchdogFailure(localAdapter(`http://${MODEL_SERVER}:8080/v1`));
     expect(seen).toEqual([`A ${MODEL_SERVER}`]);
-    expect(flags(err)).toEqual(timedOut);
-    expect(ms).toBeGreaterThanOrEqual(900);
-    expect(ms).toBeLessThan(3_000);
     expectBare(err, MODEL_SERVER);
   });
 });
