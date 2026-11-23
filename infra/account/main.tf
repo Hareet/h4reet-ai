@@ -37,12 +37,14 @@ locals {
     # 5932748c, 2026-11-16, written here by T175.
     alert_bridge = "sha256:e0f5e03b15b620a0bcaff76e16cc1d1594c1dd2bc45dc399f76dc44d4051b95a"
     probe        = "sha256:85e0a4e0a428482e9f10829f8fde23313762cce3fc06410b3fd87ca460e7f205"
-    # Spec 032's (the launch permissions' check, run_holds): the Author's push from main f2f63e7f, 2026-11-22.
-    credential_audit = "sha256:76f01fe94d7aeec7ca4d91d7e975ebc5c69bdc3c2a7fbd22b2fbcb1cde1be0da"
-    # Group 9's (tasks.md T122), then spec 032's (the replace, the dry runs, the repair, the budget check): the
-    # Author's push from main f2f63e7f, 2026-11-22. "" was the one form handover.tf's preconditions refuse, so no plan
-    # ran before these digests were in.
-    ec2_start = "sha256:b457ac9f4f7458cce2df54c40e7d781cae842d568cd3d39cb7382578d07e6992"
+    # Spec 032's (the launch permissions' check, run_holds), then fix/032-launch-policy's (the tried policy's shape):
+    # the Author's push from main abbfc554, 2026-11-23.
+    credential_audit = "sha256:ae97b34363ae82dadfcb3c72dd324e1131943c44522b39ff4c89775b0ed2b954"
+    # Group 9's (tasks.md T122), then spec 032's (the replace, the dry runs, the repair, the budget check), then
+    # fix/032-launch-policy's (short SDK calls, one client a service, the run's deadline, the launch's client token):
+    # ec2_start is the Author's push from main abbfc554, 2026-11-23; ec2_guard is unchanged, from main f2f63e7f,
+    # 2026-11-22. "" was the one form handover.tf's preconditions refuse, so no plan ran before these digests were in.
+    ec2_start = "sha256:c6e3865d547ef9653a4cc37f5b421ca5e9083c090155726f371f0b989731770e"
     ec2_guard = "sha256:67866d55c51facdf86cfca79ba94920aceea2f6d0ff91712ead29adc2b616b95"
   }
 
