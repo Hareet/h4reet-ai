@@ -1,6 +1,6 @@
 # ADR 0057: Spot with interchangeable types: one launch template per listed type, and the start function replacing a host that can't get its type
 
-Status: proposed, 2026-11-22 · Spec: 032 ([spec.md](../../specs/032-spot-flexibility/spec.md) FR-001 to FR-020; [research.md](../../specs/032-spot-flexibility/research.md) R-1 to R-10; [plan.md](../../specs/032-spot-flexibility/plan.md)) · Amends [ADR 0027](0027-ec2-on-spot-the-start-function-and-the-guard.md) (one spot type for EC2, started by the function) and [ADR 0049](0049-what-names-an-instance-lives-in-its-root.md) (prod names its instances from its root: from now on by reading them by tag) · Accepted when the Author merges `feat/032-spot-flexibility` and applies its two patches
+Status: accepted, 2026-11-22, with the amendment below (proposed the same day; its condition met that day: `feat/032-spot-flexibility` merged as 6f792d2e with its two patches, d9d893dd, and onto `main` at f2f63e7f; prod's apply recorded on `ops/apply-prod-2026-11-22` and the account's on `ops/apply-account-2026-11-22`; status corrected 2026-11-23, for the Author to confirm) · Spec: 032 ([spec.md](../../specs/032-spot-flexibility/spec.md) FR-001 to FR-020; [research.md](../../specs/032-spot-flexibility/research.md) R-1 to R-10; [plan.md](../../specs/032-spot-flexibility/plan.md)) · Amends [ADR 0027](0027-ec2-on-spot-the-start-function-and-the-guard.md) (one spot type for EC2, started by the function) and [ADR 0049](0049-what-names-an-instance-lives-in-its-root.md) (prod names its instances from its root: from now on by reading them by tag) · Accepted when the Author merges `feat/032-spot-flexibility` and applies its two patches
 
 ## Context
 
@@ -46,7 +46,7 @@ And on 2026-11-22, verbatim: "Go with your recommendations. Let's have you build
 - **A replace terminates before it knows another type will launch**, because the address and the volume must be free first. If none launches, EC2 has no instance until the next trigger; its stores are on the data volume and survive.
 - **A new generation** (a host file, an OS update) replaces the templates in the reviewed plan; EC2 moves onto them at its next start, the tunnel end by the Author's hand replace (`make ec2-start REPLACE=tunnel_end`), never on its own.
 - **To verify on AWS**: whether CloudFront's VPC origin needs the re-point at all with the same interface and DNS name, and whether it accepts a new ARN while in use. The function alerts a refusal, and the tunnel end's rehearsal settles it first.
-- **Who stopped EC2 near 01:00Z on 2026-11-18** stays the Author's question, from CloudTrail and the guard's logs; nothing here assumes its answer.
+- **Who stopped EC2 near 01:00Z on 2026-11-18** stays the Author's question, from CloudTrail and the guard's logs; nothing here assumes its answer. **Neither record is durable** (corrected 2026-11-23): the account has no CloudTrail trail, so the evidence is CloudTrail's event history, which keeps 90 days, and the guard's log group, also kept 90 days (`infra/account/handover.tf`). Both expire about 2027-02-16 unless the Author exports them first ([the incident note](../incidents/2026-11-18-ec2-capacity.md)).
 
 ## Amended 2026-11-22
 
