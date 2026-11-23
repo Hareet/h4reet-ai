@@ -242,6 +242,9 @@ def test_it_removes_a_container_whose_id_is_all_digits(tmp_path) -> None:
     assert p.folder().name == "h4-cprobe.cojyrk"
     made = [c for c in p.calls() if c[1:2] == ["run"] and "--name" in c and "-d" in c]
     assert "h4-cprobe-egress-cojyrk" in [c[c.index("--name") + 1] for c in made]
+    # The case ran: the cleanup removed the egress proxy by that ID, not by another the stub might make one day.
+    removed = [c for c in p.calls() if c[1:2] == ["rm"]]
+    assert any(egress_id in c for c in removed), removed
     st = p.stub_state()
     assert not [n for n in st["containers"] if n.startswith("h4-cprobe-")]
     assert not [n for n in st["networks"] if n.startswith("h4-cprobe-")]
