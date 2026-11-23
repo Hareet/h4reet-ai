@@ -1027,8 +1027,10 @@ def test_the_client_reads_a_0700_folder_it_doesnt_own_and_runs_as_10001(
 # restarted by hand. The dead session ended only when the kernel gave up retransmitting to the laptop, tcp_retries2's
 # 15 tries, about 15 minutes (why client-alive didn't end it first is f10.md's hypothesis: the relay's check through
 # 2201 every second kept its probe from running). The tunnel end's own network namespace retries fewer times, so a dead
-# peer with data outstanding ends in under two minutes. F10's other part, a net that ended the older sessions when
-# sshd's log said a new one couldn't listen, is gone: fix F11, below.
+# peer with data outstanding ends 102 to 204 s after its first unanswered packet: the kernel's model gives 102 s for 8
+# retries, and it checks at each retransmission, whose interval doubles from the connection's own timeout
+# (fixes/f11.md). F10's other part, a net that ended the older sessions when sshd's log said a new one couldn't listen,
+# is gone: fix F11, below.
 
 TCP_RETRIES2 = 8
 RTO_MIN = 0.2  # seconds, the kernel's TCP_RTO_MIN
@@ -1045,7 +1047,8 @@ def test_a_dead_peer_with_data_outstanding_ends_in_under_two_minutes() -> None:
     }
 
     # The kernel's bound for n retries from TCP_RTO_MIN (tcp_model_timeout): (2^(n+1) - 1) * 0.2 s while n stays under
-    # TCP_RTO_MAX's doubling (9). The default, 15, is the night's 924.6 s.
+    # TCP_RTO_MAX's doubling (9). The default, 15, is the night's 924.6 s. It's the floor: the kernel compares it at
+    # each retransmission, so the session ends at the first one past it, up to twice the bound.
     def bound(n: int) -> float:
         linear = 9
         if n <= linear:
