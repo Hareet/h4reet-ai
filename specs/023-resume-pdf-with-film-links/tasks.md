@@ -40,13 +40,20 @@
 - [ ] T012 (not impl-023's: the stack's one `make check` is another task's, by the supervisor's instruction) One run of `make check` at the stack's end (rule 4); paste its summary into the stack note. A failure in a test this stack doesn't touch is reported with the evidence, not chased (`apps/web/test/room/twin-2d.test.ts` is a known flaky test under load). After the paste, since case 9 reads the stack note's hash and URLs and `evals/docs_links.py` reads `docs/**`: `vitest run test/content/film-links.test.ts` and `python3 -I evals/docs_links.py`, their output in the notes.
 - [x] T013 The stack note's item for 023, finished from the template: what changed, FR/SC coverage, constitution check, review, verification (the small runs), cost and data flow, for the Author. Then the same two small runs as T012's paste, after the edit: `vitest run test/content/film-links.test.ts` and `python3 -I evals/docs_links.py`. Ends the branch; no merge.
 
+## Phase 6: The films' MP4s leave git (FR-012, amended 2026-11-23)
+
+On `docs/prepublication`, from the Author's decision of 2026-11-22 as his session relayed it; the note is `docs/merge-requests/2026-11-23-docs-prepublication.md`.
+
+- [x] T014 [US3] RED: `film-links.test.ts` case 2 as plan §3 now gives it: each film's `README.md` tracked, its "Download the film" link `repo + "/releases/download/films-v1/" + <media's file name>`, and no link to an MP4 in the tree. Fails on the landing pages as they were.
+- [x] T015 [US3] GREEN: the seven landing pages, `films/<name>/README.md`: "Watch the film" replaced by a line saying the film plays on the page once the Author adds it after publication, the player's place marked by an HTML comment, and "Download the film (MP4, <size> MB)" to the release's asset; no film file or folder renamed. Same small tests.
+
 ## Dependencies
 
 T001 → T002 → T003 → T004 → T005 → T006 → T007 → T008. T009 and T010 are independent of T004 to T008. T011 after T008 to T010; T012 after T011; T013 last.
 
 ## Coverage
 
-FR-001 T004/T005 · FR-002 T002 · FR-003 T001/T002/T007 · FR-004 untouched (no task; T012 shows it) · FR-005 T005 · FR-006 T004/T005 · FR-007 T008 · FR-008 T007 · FR-009 T004/T006 · FR-010 T008 · FR-011 T010 · FR-012 T001/T002 · FR-013 T006/T007 · SC-001 T007 · SC-002 T006 · SC-003 T007 · SC-004 T006 · SC-005 T008 · US1-AC3 T006 (case 8) · US2-AC2 T006 (case 10) · US3-AC1 T008 (case 9).
+FR-001 T004/T005 · FR-002 T002 · FR-003 T001/T002/T007 · FR-004 untouched (no task; T012 shows it) · FR-005 T005 · FR-006 T004/T005 · FR-007 T008 · FR-008 T007 · FR-009 T004/T006 · FR-010 T008 · FR-011 T010 · FR-012 T001/T002/T014/T015 · FR-013 T006/T007 · SC-001 T007 · SC-002 T006 · SC-003 T007 · SC-004 T006 · SC-005 T008 · US1-AC3 T006 (case 8) · US2-AC2 T006 (case 10) · US3-AC1 T008 (case 9).
 
 ## Files touched
 

@@ -24,7 +24,7 @@ No: "While a Spot Instance is stopped, you can modify some of its instance attri
 | B. EC2 Fleet (`instant`) with overrides | no: a fleet's launch template can't carry a network interface ID (documented for Spot Fleet, `LaunchTemplateConfig`; to confirm for EC2 Fleet) | no | one-time requests in practice | free | rejected |
 | C. One stopped instance per type, created by Terraform; the address as a secondary address or interface moved to whichever starts | yes, with host networking changes (a secondary interface on EC2) | no: CloudFront's VPC origin names one instance | yes | N−1 extra root volumes (about $1.60 a month each for EC2); every type needs capacity at apply time; each boots once at creation | rejected |
 | D. Launch templates per type; the start function replaces the instance from them in order (**chosen**) | yes: the template carries the address; the function attaches the volume | yes: the template carries both interfaces by ID | yes | free; the function grows a replace path and a 5-minute check; the instance leaves Terraform | **chosen** |
-| E. On-demand fallback | yes (same instance, a type change is allowed on demand) | yes | no (T11) | about $17 a month more for EC2 at 12 h a day, $8 for the tunnel end | rejected: the Author asked for spot |
+| E. On-demand fallback | yes (same instance, a type change is allowed on demand) | yes | no (T11) | about ~~$17~~ $15 a month more for EC2 at 12 h a day (corrected 2026-11-23: $24.5 less spec 001 R-05's $9.45), $8 for the tunnel end | rejected: the Author asked for spot |
 
 D is the smallest that keeps every invariant: no new AWS service, no host networking change, no gate patch, and nothing runs that doesn't run today but a 5-minute check.
 

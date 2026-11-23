@@ -29,4 +29,4 @@ node $OM render films/<name>
 
 Run it from the repository's root with that absolute path (huashu-motion 0.4.0, as installed on the Author's machine), never `npx huashu-motion` from inside a film's folder: `npx` would prefer a `node_modules/.bin` the repository ignores and an agent could write.
 
-Renders land in each film's `out/` (git-ignored). Before the resume links to a film, its hosting needs a decision: from hareet.ai's own origin (no new data flow) or a third-party player (a new row in `docs/data-flow-disclosure.md` first).
+Renders land in each film's `out/` (git-ignored). Where the films live, decided by the Author on 2026-11-22: the full-size MP4s leave git in the one history rewrite before the push and become assets of the repository's GitHub release `films-v1`, which each landing page's "Download the film" link names; after the push the Author uploads a smaller web encode of each film through GitHub's web editor, so it plays on its landing page (spec 023 FR-012, amended 2026-11-23). The kill switch's GIF stays in git. The site neither serves nor embeds the films, so no row of `docs/data-flow-disclosure.md` changes.

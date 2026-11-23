@@ -48,6 +48,17 @@ The patch, human-only since it changes `tools/gates/`: `docs/merge-requests/2026
 - **No data flow.** The renders live in the repository; the site doesn't serve or link them (intent 015). If the site ever serves one from its own origin, or a third-party player, that is new work with its own disclosure row first, as `films/README.md` says.
 - **Cost: $0.** No cloud spend; the check's time grows by a box walk and one search per render (the 29 renders under `films/*/out/`, 1,102,437,467 bytes, took 3.8 s by path in an agent session's sandbox).
 
+## Amended 2026-11-23: the MP4s leave git before publication
+
+Proposed, for the Author to accept with the rest of this ADR. His decision of 2026-11-22, as his session relayed it: the seven full-size MP4s leave git in the one history rewrite before the push ([ADR 0013](0013-local-until-publication.md)) and become assets of the repository's GitHub release `films-v1`, the downloadable archive. After the push he uploads a smaller web encode of each film through GitHub's web editor, so it plays on its landing page: the "GitHub user attachments" alternative above, which needed the repository published. The kill switch's GIF stays in git, and the README still shows it.
+
+- **Decision 6** reads, from then: a film's media folder holds one GIF, for the films the README shows, and no MP4. A11 and its caps stay as the patch built them, so the gate would still admit an MP4 there; keeping them out rests on review unless the Author narrows A11 in a patch of his own.
+- **Repository size:** after the rewrite the films add the GIF, about 7 MB, to each clone instead of about 236 MB, and no file meets GitHub's 50 MB warning.
+- **What no gate sees:** the release's assets and the uploaded encodes live outside git, so no clone, gate, or arrival check holds them, as this ADR's alternative said. The Author checks each file before he uploads it, for metadata as A11 would and for frames as ADR 0032's viewing does.
+- **The links:** each landing page, `films/<name>/README.md`, offers "Download the film (MP4, <size> MB)" from the release and marks where the player goes; the resume links to the landing pages, which don't move ([spec 023 FR-012, amended](../../specs/023-resume-pdf-with-film-links/spec.md)).
+- **No data flow** still holds: the site neither serves nor embeds the films.
+- **The license:** `films/` stays under the MIT license, the Author's word of 2026-11-12; whether the release's assets say so in the release's description is his to decide.
+
 ## Links
 
 Intent: `intent/015-explainer-films.md`. Plan: `films/RESUME-LINKS-PLAN.md`. Contract: `specs/003-studio-assets/contracts/arrival-check.md` (§2, §3's A11 row, §5, by the patch). Patch: `docs/merge-requests/2026-11-11-films-media-gate.patch`. ADRs 0013, 0030, 0031, 0032.
