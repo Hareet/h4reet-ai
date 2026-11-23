@@ -185,6 +185,26 @@ def test_the_exception_never_takes_a_degraded_line(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    "line",
+    [
+        f"{HEAD}: 25 PASS, 4 SKIP, 0 WARN, 0 PLANNED, 1 PENDING, 0 FAIL; failing: matrix-e PENDING",
+        f"{HEAD}: 24 PASS, 4 SKIP, 0 WARN, 0 PLANNED, 1 PENDING, 1 FAIL; failing: test FAIL, agent-config-evals PENDING",
+    ],
+    ids=["pending", "pending-beside-a-fail"],
+)
+def test_the_exception_never_takes_a_step_that_waits_on_the_authors_own_run(
+    tmp_path: Path, line: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A PENDING step waits on a run only the Author makes (stage E's prove, the agent-config evals): no exception
+    # stands in for it, since the exception is for a known flake's FAIL.
+    r = base.Runner()
+    r.merge = merge(line)
+    assert release(tmp_path, r, accept_gate=base.COMMIT, reason=REASON) == 1
+    assert r.builds() == []
+    assert "PENDING" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
     "message",
     [
         # A merge whose message has no gate line: its branch was never gated.
