@@ -117,6 +117,8 @@ Every branch ends with a note in `docs/merge-requests/`. Before you merge it, in
    ```
 
    If main has commits the branch doesn't, it says so: the merge would then write a tree the gate didn't check. For a stacked branch, the note names a simulated merge you can gate instead.
+
+   Since spec 036 ([ADR 0060](adr/0060-flake-proof-gates.md)), a failed test step is retried once: the gate reruns exactly the tests that failed, in the same container, and when they pass the step is PASS and the line ends `; flaky: <tests>`, so the merge's message names every flake. A branch that changes only merge-request notes, apply records, or incident notes, none of them named by the tree's code, skips the tests, the evals, the red team, the matrix, and the image builds, each `SKIP docs-only: N files`, and its links are checked alone. [The local gate's runbook](runbooks/local-gate.md) has both, steps 16 and 17.
 3. **The agent-config evals, when the gate's `agent-config-evals` step shows PENDING:** it does for a branch that touches `CLAUDE.md`, `REVIEW.md`, `.claude/**`, or the Claude Code pin, until a history entry that this machine attests has the branch's trigger hash, a hash over those and `evals/agent-config/**` (its history aside) (plan §14; spec 006 FR-004, FR-006). Of the attested entries for the hash, the newest decides, so a later failure shows FAIL even after an earlier pass. For any other branch the step is SKIP, and one that changes only `evals/agent-config/` is held to its own tests (FR-005). `make evals` shows the tier's state for every tree as a WARN line, which the merge doesn't wait on: its PENDING, no run for the hash, or the newest run's FAIL, by the run's name (FR-002). Run them from main's checkout, clean, naming the branch:
 
    ```bash
