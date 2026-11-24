@@ -2,9 +2,9 @@
 
 From intent to merge: specs, plans, the agents in their roles, review, incidents, the clean-room gate, the sandbox, and pull-only deploys.
 
-The film plays on this page once the Author adds it, after the repository is published. It has sound; the narration is a synthetic voice.
+The film plays below, with sound; the narration is a synthetic voice.
 
-<!-- player: the Author pastes the uploaded video's URL here -->
+https://github.com/user-attachments/assets/8843587c-d3f7-47be-b512-a749f7c01d7d
 
 **[Download the film (MP4, 47.5 MB)](https://github.com/hareet/h4reet-ai/releases/download/films-v1/lifecycle.mp4)**
 

@@ -2,9 +2,9 @@
 
 The meter climbing on the breach test's synthetic calls, the warning at $3.50, and the trip at $5.00 that refuses every request until a person resets it; the breach test's 52 assertions; the walls around the stack; the agents that built it and the gates that fence them in.
 
-The film plays on this page once the Author adds it, after the repository is published. It has sound; the narration is a synthetic voice.
+The film plays below, with sound; the narration is a synthetic voice.
 
-<!-- player: the Author pastes the uploaded video's URL here -->
+https://github.com/user-attachments/assets/0a3d0a31-741c-49ef-9ea9-e7a9c4631408
 
 **[Download the film (MP4, 24.6 MB)](https://github.com/hareet/h4reet-ai/releases/download/films-v1/kill-switch.mp4)**
 

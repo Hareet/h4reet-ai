@@ -2,9 +2,9 @@
 
 Golden and gap cases drawn from the corpus, asked two ways and graded by code; the gateway's guards; the red team on every route; the real pass rates; misses that became fixes; readiness locked to a hash.
 
-The film plays on this page once the Author adds it, after the repository is published. It has sound; the narration is a synthetic voice.
+The film plays below, with sound; the narration is a synthetic voice.
 
-<!-- player: the Author pastes the uploaded video's URL here -->
+https://github.com/user-attachments/assets/24e54e40-48d0-478d-8650-9c33ba17d5d4
 
 **[Download the film (MP4, 26.0 MB)](https://github.com/hareet/h4reet-ai/releases/download/films-v1/evals.mp4)**
 
