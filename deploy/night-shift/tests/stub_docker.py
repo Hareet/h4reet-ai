@@ -325,7 +325,16 @@ def main() -> int:
     elif args[0] == "inspect":
         print("true")
     elif args[0] in ("rm", "stop"):
-        names = [a for a in args[1:] if not a.startswith("-") and not a.isdigit()]
+        # The containers after the options, as docker reads them: only an option that takes a value (stop's -t 60)
+        # hides the next argument. An ID that is all digits is still an ID (the gate's 504080177739, 2026-11-23).
+        names, value_next = [], False
+        for a in args[1:]:
+            if value_next:
+                value_next = False
+            elif a in ("-t", "--time", "--timeout", "-s", "--signal"):
+                value_next = True
+            elif not a.startswith("-"):
+                names.append(a)
         for n in names:
             for k in [k for k, c in st["containers"].items() if k == n or c["id"] == n]:
                 st["containers"].pop(k)

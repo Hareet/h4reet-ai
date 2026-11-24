@@ -132,7 +132,18 @@ elif args[:1] == ["run"]:
                 for name in sorted(os.listdir(fields["source"]))
             }
             entry["policy_readonly"] = "readonly" in spec.split(",")
-    if command[:1] == ["npm"]:
+    if command[:2] == ["npm", "test"] or command[:1] == ["pytest"]:
+        # Spec 036: the test step's one retry, a workspace's failed tests (by its folder) or pytest's, as "rerun" says.
+        key = command[command.index("-w") + 1] if command[:2] == ["npm", "test"] else "pytest"
+        answer = control.get("rerun", {}).get(key, {})
+        print(answer.get("print", ""))
+        rc = answer.get("rc", 0)
+    elif command[-1:] == ["evals/docs_links.py"]:
+        # Spec 036: the docs' links, on their own for a docs-only branch.
+        answer = control.get("links", {})
+        print(answer.get("print", "PASS  every relative link resolves: 3 links in 2 files"))
+        rc = answer.get("rc", 0)
+    elif command[:1] == ["npm"]:
         building = command[1:2] == ["run"] and "build" in command
         rc = 1 if control.get("npm_fails") or (building and control.get("web_build_fails")) else 0
     elif command[:1] == ["make"]:
@@ -3651,3 +3662,1043 @@ def test_a_planned_policy_reads_planned(fx: Fixture) -> None:
     done = gate(fx, "feature")
     assert status_of(done, "infra-check") == "PLANNED"
     assert done.returncode == 0
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 036: the test step's one retry (FR-001 to FR-005). make test says what each of its parts exited; the gate reads
+# the failing tests from vitest's and pytest's own lines (research.md R-1, R-2, as vitest 5.0.3 and pytest 9.1.1 print
+# them), reruns exactly those once in make test's container, and names them flaky when they pass.
+# --------------------------------------------------------------------------------------------------
+GATEWAY_TEST = "test/integration/dispatcher-forms.test.ts"
+WEB_TEST = "test/room/twin-2d.test.ts"
+PROBE_TEST = "deploy/night-shift/tests/test_container_probe.py"
+BOUND = "dispatcher forms > stays within its wall-clock bound"
+PNG = "the 2D room > draws the twin's png"
+PNG_TWO = "the 2D room > draws the paper's png"
+PROBE = f"{PROBE_TEST}::test_it_removes_its_containers_and_networks"
+PYTEST_ARGS = ["-q", "-p", "no:cacheprovider", "--import-mode=importlib"]
+# The branch's npm workspaces, each test script `vitest run` as the root package.json lists them, and the files their
+# failing tests name; pytest's file too.
+WORKSPACE_FILES = {
+    "package.json": '{"name": "h4reet-ai", "private": true, "workspaces": ["services/*", "apps/*"]}\n',
+    "services/gateway/package.json": '{"name": "@h4reet/gateway", "scripts": {"test": "vitest run"}}\n',
+    f"services/gateway/{GATEWAY_TEST}": "// the dispatcher's forms\n",
+    "services/relay/package.json": '{"name": "@h4reet/relay", "scripts": {"test": "vitest run"}}\n',
+    "services/relay/test/relay.test.ts": "// the relay\n",
+    PROBE_TEST: "# the container probe\n",
+}
+WEB_FILES = {
+    "apps/web/package.json": '{"name": "@h4reet/web", "scripts": {"build": "vite build", "test": "vitest run"}}\n',
+    f"apps/web/{WEB_TEST}": "// the 2D room\n",
+}
+
+
+def flaky_branch(
+    fx: Fixture, extra: dict[str, str] | None = None, web: bool = False
+) -> str:
+    """A branch with the workspaces and a Makefile that sets PYTEST_ARGS, as the repository's does."""
+    makefile = (fx.main / "Makefile").read_text(encoding="utf-8")
+    files = {
+        **WORKSPACE_FILES,
+        **(WEB_FILES if web else {}),
+        "Makefile": makefile + f"PYTEST_ARGS := {' '.join(PYTEST_ARGS)}\n",
+        **(extra or {}),
+    }
+    return fx.branch(files)
+
+
+def failed_section(fails: tuple[tuple[str, str], ...], kind: str = "Tests") -> str:
+    """vitest's section of failures, which it prints on stderr (research.md R-1)."""
+    lines = ["", f"⎯⎯⎯⎯⎯⎯⎯ Failed {kind} {len(fails)} ⎯⎯⎯⎯⎯⎯⎯", ""]
+    for i, (file, name) in enumerate(fails, 1):
+        lines += [
+            f" FAIL  {file} > {name}",
+            "AssertionError: expected 51.50356800000009 to be less than 50",
+            f" ❯ {file}:191:7",
+            "",
+            f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[{i}/{len(fails)}]⎯",
+            "",
+        ]
+    return "\n".join(lines)
+
+
+def vitest_part(
+    folder: str,
+    fails: tuple[tuple[str, str], ...] = (),
+    *,
+    section: bool = True,
+    counted: int | None = None,
+    summary: bool = True,
+    errors: int = 0,
+    kinds: tuple[str, ...] = (),
+    files_total: int | None = None,
+    tests_total: int | None = None,
+) -> str:
+    """One workspace's npm test in the gate's container, as vitest 5.0.3 prints it: npm's banner, the RUN line, the
+    failed tests' section, the summary, and npm's error when a test failed. kinds are more of the Tests line's counts
+    ("1 expected fail"); a total given stands for one that doesn't add up, as after vitest's bail."""
+    name = folder.rsplit("/", 1)[-1]
+    files = sorted({file for file, _ in fails})
+    failed = len(fails) if counted is None else counted
+    lines = [
+        f"> @h4reet/{name}@0.1.0 test",
+        "> vitest run",
+        "",
+        f" RUN  v5.0.3 /work/{folder}",
+        "",
+    ]
+    lines += [f" ❯ {file} (5 tests | 1 failed) 51503ms" for file in files]
+    lines += [f" ✓ test/unit/thing-{i}.test.ts (8 tests) 12ms" for i in range(3)]
+    if fails and section:
+        lines.append(failed_section(fails))
+    if summary:
+        tests = [*([f"{failed} failed"] if failed else []), "40 passed", *kinds]
+        counted_tests = failed + 40 + sum(int(k.split()[0]) for k in kinds)
+        lines += [
+            f" Test Files  {len(files)} failed | 12 passed ({files_total or 12 + len(files)})"
+            if files
+            else f" Test Files  12 passed ({files_total or 12})",
+            f"      Tests  {' | '.join(tests)} ({tests_total or counted_tests})",
+            *(
+                [f"     Errors  {errors} error{'s' if errors > 1 else ''}"]
+                if errors
+                else []
+            ),
+            "   Start at  08:06:00",
+            "   Duration  45.20s (transform 2%, setup 0%, import 9%, tests 87%, environment 0%)",
+            "",
+        ]
+    if fails or errors:
+        lines += [
+            "npm error Lifecycle script `test` failed with error:",
+            "npm error code 1",
+            f"npm error path /work/{folder}",
+            f"npm error workspace @h4reet/{name}@0.1.0",
+            f"npm error location /work/{folder}",
+            "npm error command failed",
+            "npm error command sh -c vitest run",
+        ]
+    return "\n".join(lines)
+
+
+def pytest_part(
+    failed: tuple[str, ...] = (), errors: tuple[str, ...] = (), passed: int = 3120
+) -> str:
+    """pytest 9.1.1's -q run, as make test prints it (research.md R-2)."""
+    lines = [
+        "+ pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/night-shift",
+        "." * 70 + "F" * len(failed) + "  [100%]",
+    ]
+    if failed or errors:
+        lines += [
+            "=================================== FAILURES ===================================",
+            "_________________ test_it_removes_its_containers_and_networks __________________",
+            ">       assert not ['h4-cprobe-egress-cojyrk']",
+            "E       AssertionError: assert not ['h4-cprobe-egress-cojyrk']",
+            "",
+            "=========================== short test summary info ============================",
+        ]
+        lines += [
+            f"FAILED {node} - AssertionError: assert not ['h4-cpro..."
+            for node in failed
+        ]
+        lines += [f"ERROR {node} - RuntimeError: setup broke" for node in errors]
+    counts = [f"{len(failed)} failed"] if failed else []
+    counts.append(f"{passed} passed")
+    if errors:
+        counts.append(f"{len(errors)} error{'s' if len(errors) > 1 else ''}")
+    lines.append(f"{', '.join(counts)} in 453.12s (0:07:33)")
+    return "\n".join(lines)
+
+
+def make_test(
+    workspaces: list[tuple[str, str, int]], pytest_out: str, py_rc: int
+) -> str:
+    """make test's output since spec 036 (FR-008): the corpus check; each workspace's tests, by folder, and its line;
+    then pytest and its line."""
+    lines = [
+        "python3 -I -B -X pycache_prefix=/dev/null corpus/tools/check_corpus.py",
+        "corpus check: 42 files, denylist applied (3 phrases)",
+    ]
+    for folder, output, rc in workspaces:
+        lines += [
+            f"+ npm test -w {folder} --if-present",
+            output,
+            f"test-part: workspace {folder} exited {rc}",
+        ]
+    return "\n".join([*lines, pytest_out, f"test-part: pytest exited {py_rc}"])
+
+
+def vitest_rerun(folder: str, passed: int, failed: int = 0) -> str:
+    """A workspace's rerun of its failed tests: npm's banner, the RUN line, and the summary (research.md R-1)."""
+    tests = " | ".join(
+        [
+            *([f"{failed} failed"] if failed else []),
+            *([f"{passed} passed"] if passed else []),
+            "4 skipped",
+        ]
+    )
+    return "\n".join(
+        [
+            "> @h4reet/x@0.1.0 test",
+            "> vitest run test/x.test.ts -t ^(?:x)$",
+            "",
+            f" RUN  v5.0.3 /work/{folder}",
+            "",
+            f" Test Files  {'1 failed' if failed else '1 passed'} (1)",
+            f"      Tests  {tests} ({passed + failed + 4})",
+            "   Start at  08:07:00",
+            "   Duration  1.20s",
+        ]
+    )
+
+
+def pytest_rerun(passed: int, failed: int = 0) -> str:
+    counts = [*([f"{failed} failed"] if failed else []), f"{passed} passed"]
+    return "." * passed + "F" * failed + "  [100%]\n" + f"{', '.join(counts)} in 1.20s"
+
+
+# Each workspace's part of make test: its folder, its output, and what it exited.
+GATEWAY_FLAKE = (
+    "services/gateway",
+    vitest_part("services/gateway", ((GATEWAY_TEST, BOUND),)),
+    1,
+)
+GATEWAY_OK = ("services/gateway", vitest_part("services/gateway"), 0)
+RELAY_OK = ("services/relay", vitest_part("services/relay"), 0)
+
+
+def reruns(calls: list[dict]) -> list[dict]:
+    return [
+        c
+        for c in by_kind(calls, "run")
+        if c["command"][:2] == ["npm", "test"] or c["command"][:1] == ["pytest"]
+    ]
+
+
+def in_container(argv: list[str]) -> list[str]:
+    """docker run's arguments up to the image: the network, the user, the limits, the mounts, the working folder."""
+    image_at = next(i for i, a in enumerate(argv) if a.startswith("sha256:"))
+    return argv[: image_at + 1]
+
+
+def test_a_vitest_flake_is_rerun_once_in_make_tests_container_and_named_flaky(
+    fx: Fixture,
+) -> None:
+    sha = flaky_branch(fx)
+    fx.control(
+        fail=["test"],
+        print={"test": make_test([GATEWAY_FLAKE, RELAY_OK], pytest_part(), 0)},
+        rerun={"services/gateway": {"print": vitest_rerun("services/gateway", 1)}},
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    runs = by_kind(fx.docker(), "run")
+    (make,) = [c for c in make_runs(runs) if c["command"][-1] == "test"]
+    (rerun,) = reruns(runs)
+    # Exactly the failed test, by its workspace's own test script, its file, and its full name.
+    assert rerun["command"] == [
+        "npm",
+        "test",
+        "-w",
+        "services/gateway",
+        "--",
+        GATEWAY_TEST,
+        "-t",
+        "^(?:dispatcher forms > stays within its wall-clock bound)$",
+    ]
+    # make test's own container: the same image, the same installed copy, --network none, the same user and limits.
+    assert in_container(rerun["argv"]) == in_container(make["argv"])
+    assert has(rerun["argv"], "--network", "none")
+    # Once, right after make test, before make evals.
+    assert runs.index(rerun) == runs.index(make) + 1
+    assert status_of(done, "test") == "PASS"
+    assert (
+        f"flaky: services/gateway/{GATEWAY_TEST} > {BOUND} (failed, then passed on the gate's one retry)"
+        in row(done, "test")
+    )
+    line = summary(done)
+    assert line.endswith(f", 0 FAIL; flaky: dispatcher-forms.test.ts > {BOUND}")
+    merge = [ln for ln in done.stdout.splitlines() if ln.startswith("merge: ")]
+    assert merge == [
+        f"merge: git --no-replace-objects merge --no-ff -m 'Merge feature ({sha[:12]})' -m '{line}' {sha}"
+    ]
+    # Both runs are in the gate's output.
+    out = done.stdout
+    assert out.index("test-part: pytest exited 0") < out.index("== test-retry: ")
+    assert out.index("== test-retry: ") < out.index(
+        " RUN  v5.0.3 /work/services/gateway\n", out.index("== test-retry: ")
+    )
+
+
+def test_a_pytest_flake_is_rerun_with_the_makefiles_pytest_args(fx: Fixture) -> None:
+    flaky_branch(fx)
+    fx.control(
+        fail=["test"],
+        print={"test": make_test([GATEWAY_OK, RELAY_OK], pytest_part((PROBE,)), 1)},
+        rerun={"pytest": {"print": pytest_rerun(1)}},
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    (rerun,) = reruns(fx.docker())
+    assert rerun["command"] == ["pytest", *PYTEST_ARGS, PROBE]
+    assert has(rerun["argv"], "--workdir", "/work") and has(
+        rerun["argv"], "--network", "none"
+    )
+    assert status_of(done, "test") == "PASS"
+    assert summary(done).endswith(
+        "; flaky: test_container_probe.py::test_it_removes_its_containers_and_networks"
+    )
+
+
+def test_flakes_in_two_workspaces_and_pytest_are_each_rerun_and_all_named(
+    fx: Fixture,
+) -> None:
+    flaky_branch(fx, web=True)
+    web = (
+        "apps/web",
+        vitest_part("apps/web", ((WEB_TEST, PNG), (WEB_TEST, PNG_TWO))),
+        1,
+    )
+    fx.control(
+        fail=["test"],
+        print={
+            "test": make_test([GATEWAY_FLAKE, RELAY_OK, web], pytest_part((PROBE,)), 1)
+        },
+        rerun={
+            "services/gateway": {"print": vitest_rerun("services/gateway", 1)},
+            "apps/web": {"print": vitest_rerun("apps/web", 2)},
+            "pytest": {"print": pytest_rerun(1)},
+        },
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    commands = [c["command"] for c in reruns(fx.docker())]
+    assert commands == [
+        [
+            "npm",
+            "test",
+            "-w",
+            "services/gateway",
+            "--",
+            GATEWAY_TEST,
+            "-t",
+            f"^(?:{BOUND})$",
+        ],
+        [
+            "npm",
+            "test",
+            "-w",
+            "apps/web",
+            "--",
+            WEB_TEST,
+            "-t",
+            "^(?:the 2D room > draws the twin's png|the 2D room > draws the paper's png)$",
+        ],
+        ["pytest", *PYTEST_ARGS, PROBE],
+    ]
+    assert status_of(done, "test") == "PASS"
+    # Every one, so the merge's message names each flake (the review of 9adbc455, nit 7).
+    assert summary(done).endswith(
+        f"; flaky: dispatcher-forms.test.ts > {BOUND}, twin-2d.test.ts > {PNG}, twin-2d.test.ts > {PNG_TWO}, "
+        "test_container_probe.py::test_it_removes_its_containers_and_networks"
+    )
+
+
+def test_a_failure_section_that_lands_after_the_next_workspaces_run_is_still_placed_by_its_file(
+    fx: Fixture,
+) -> None:
+    # vitest writes its failures on stderr and its RUN line and summary on stdout, which docker forwards apart: the
+    # gateway's FAIL line may arrive after the relay's run has begun.
+    flaky_branch(fx)
+    gateway = (
+        "services/gateway",
+        vitest_part("services/gateway", ((GATEWAY_TEST, BOUND),), section=False),
+        1,
+    )
+    relay_head, relay_rest = RELAY_OK[1].split(" RUN  v5.0.3 /work/services/relay\n", 1)
+    relay = (
+        "services/relay",
+        (
+            f"{relay_head} RUN  v5.0.3 /work/services/relay\n"
+            f"{failed_section(((GATEWAY_TEST, BOUND),))}\n{relay_rest}"
+        ),
+        0,
+    )
+    fx.control(
+        fail=["test"],
+        print={"test": make_test([gateway, relay], pytest_part(), 0)},
+        rerun={"services/gateway": {"print": vitest_rerun("services/gateway", 1)}},
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    (rerun,) = reruns(fx.docker())
+    assert rerun["command"][:4] == ["npm", "test", "-w", "services/gateway"]
+
+
+# vitest colours its lines in the container (the contract replay's COLOURED): escape sequences around the RUN badge,
+# the FAIL badge, the separators, and the summary's counts.
+def coloured(text: str) -> str:
+    return (
+        text.replace(" RUN  ", "\x1b[46m RUN \x1b[49m \x1b[36m")
+        .replace(" FAIL  ", "\x1b[41m\x1b[1m FAIL \x1b[22m\x1b[49m ")
+        .replace(" > ", "\x1b[2m > \x1b[22m")
+        .replace("1 failed", "\x1b[1m\x1b[31m1 failed\x1b[39m\x1b[22m")
+        .replace(" passed (", "\x1b[32m passed\x1b[39m\x1b[90m (")
+    )
+
+
+def test_coloured_output_reads_as_plain(fx: Fixture) -> None:
+    flaky_branch(fx)
+    fx.control(
+        fail=["test"],
+        print={
+            "test": coloured(make_test([GATEWAY_FLAKE, RELAY_OK], pytest_part(), 0))
+        },
+        rerun={
+            "services/gateway": {"print": coloured(vitest_rerun("services/gateway", 1))}
+        },
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert status_of(done, "test") == "PASS"
+    (rerun,) = reruns(fx.docker())
+    assert rerun["command"][-1] == f"^(?:{BOUND})$"
+
+
+@pytest.mark.parametrize(
+    ("answer", "says"),
+    [
+        (
+            {"print": vitest_rerun("services/gateway", 0, failed=1), "rc": 1},
+            "services/gateway: exited 1",
+        ),
+        # A rerun that ran nothing passes vitest, exit 0, with every test skipped: its counts say so.
+        ({"print": vitest_rerun("services/gateway", 0)}, "it passed 0 of the 1 tests"),
+        (
+            {"print": vitest_rerun("services/relay", 1)},
+            "it didn't run in services/gateway",
+        ),
+        ({"print": "", "rc": 0}, "services/gateway:"),
+    ],
+    ids=["fails-again", "runs-nothing", "another-workspace", "says-nothing"],
+)
+def test_a_rerun_that_doesnt_pass_exactly_its_tests_keeps_the_step_failing(
+    fx: Fixture, answer: dict[str, object], says: str
+) -> None:
+    flaky_branch(fx)
+    fx.control(
+        fail=["test"],
+        print={"test": make_test([GATEWAY_FLAKE, RELAY_OK], pytest_part(), 0)},
+        rerun={"services/gateway": answer},
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert len(reruns(fx.docker())) == 1
+    assert status_of(done, "test") == "FAIL"
+    assert "its one retry failed too: " in row(done, "test")
+    assert says in row(done, "test")
+    line = summary(done)
+    assert "failing: test FAIL" in line and "flaky" not in line
+    assert "merge --no-ff" not in done.stdout
+
+
+def test_every_rerun_must_pass(fx: Fixture) -> None:
+    flaky_branch(fx)
+    fx.control(
+        fail=["test"],
+        print={"test": make_test([GATEWAY_FLAKE, RELAY_OK], pytest_part((PROBE,)), 1)},
+        rerun={
+            "services/gateway": {"print": vitest_rerun("services/gateway", 1)},
+            "pytest": {"print": pytest_rerun(0, failed=1), "rc": 1},
+        },
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert len(reruns(fx.docker())) == 2
+    assert status_of(done, "test") == "FAIL"
+    assert "pytest: exited 1" in row(done, "test")
+
+
+# Each failure the gate can't name as a test, or a test it can't map to a command: no rerun, and the step is FAIL as
+# today, with a note saying why.
+SUITE_FAILED = (
+    "services/relay",
+    vitest_part("services/relay", (("test/relay.test.ts", "with a hook"),)).replace(
+        "Failed Tests 1", "Failed Suites 1"
+    ),
+    1,
+)
+NO_RETRY = {
+    # A Makefile from before spec 036: a workspace's failure stopped make before pytest.
+    "before-036": (
+        f"+ npm test --workspaces --if-present\n{GATEWAY_FLAKE[1]}\n{RELAY_OK[1]}",
+        {},
+        "printed no test-part lines",
+    ),
+    "pytest-error": (
+        make_test(
+            [GATEWAY_OK, RELAY_OK],
+            pytest_part((PROBE,), ("tools/gates/test/test_x.py::test_y",)),
+            1,
+        ),
+        {},
+        "pytest reported an error",
+    ),
+    "failed-suite": (
+        make_test([GATEWAY_OK, SUITE_FAILED], pytest_part(), 0),
+        {},
+        "Failed Suites",
+    ),
+    "unhandled-errors": (
+        make_test(
+            [
+                ("services/gateway", vitest_part("services/gateway", errors=1), 1),
+                RELAY_OK,
+            ],
+            pytest_part(),
+            0,
+        ),
+        {},
+        "errors outside the tests",
+    ),
+    "cut-short": (
+        make_test(
+            [
+                GATEWAY_FLAKE,
+                ("services/relay", vitest_part("services/relay", summary=False), 1),
+            ],
+            pytest_part(),
+            0,
+        ),
+        {},
+        "services/relay didn't run its tests to their summary",
+    ),
+    # A workspace that exits 1 and counts no failed test (a coverage threshold, say), beside another's flake.
+    "fails-outside-its-tests": (
+        make_test(
+            [GATEWAY_FLAKE, ("services/relay", RELAY_OK[1], 1)], pytest_part(), 0
+        ),
+        {},
+        "services/relay exited 1, and its summary counts no failed test",
+    ),
+    "counts-differ": (
+        make_test(
+            [
+                (
+                    "services/gateway",
+                    vitest_part(
+                        "services/gateway", ((GATEWAY_TEST, BOUND),), counted=2
+                    ),
+                    1,
+                ),
+                RELAY_OK,
+            ],
+            pytest_part(),
+            0,
+        ),
+        {},
+        "don't match",
+    ),
+    "interrupted": (
+        make_test([GATEWAY_OK, RELAY_OK], pytest_part((PROBE,)), 2),
+        {},
+        "pytest exited 2",
+    ),
+    "workspace-exited-2": (
+        make_test(
+            [("services/gateway", GATEWAY_FLAKE[1], 2), RELAY_OK], pytest_part(), 0
+        ),
+        {},
+        "services/gateway exited 2",
+    ),
+    "no-such-file": (
+        make_test(
+            [
+                (
+                    "services/gateway",
+                    vitest_part("services/gateway", (("test/gone.test.ts", BOUND),)),
+                    1,
+                ),
+                RELAY_OK,
+            ],
+            pytest_part(),
+            0,
+        ),
+        {},
+        "test/gone.test.ts",
+    ),
+    "another-script": (
+        make_test([GATEWAY_FLAKE, RELAY_OK], pytest_part(), 0),
+        {
+            "services/gateway/package.json": '{"name": "@h4reet/gateway", "scripts": {"test": "vitest run --coverage"}}\n'
+        },
+        "services/gateway's test script isn't vitest run",
+    ),
+    "unreadable-id": (
+        make_test(
+            [GATEWAY_OK, RELAY_OK],
+            pytest_part(("deploy/night-shift/tests/odd test",)),
+            1,
+        ),
+        {},
+        "can't be read for certain",
+    ),
+    "no-pytest-args": (
+        make_test([GATEWAY_OK, RELAY_OK], pytest_part((PROBE,)), 1),
+        {"Makefile": "lint test:\n\t@true\n"},
+        "PYTEST_ARGS",
+    ),
+    # The review of 9adbc455, finding 2: with vitest's bail, a workspace's summary counts only what ran.
+    "bail-files": (
+        make_test(
+            [
+                (
+                    "services/gateway",
+                    vitest_part(
+                        "services/gateway", ((GATEWAY_TEST, BOUND),), files_total=40
+                    ),
+                    1,
+                ),
+                RELAY_OK,
+            ],
+            pytest_part(),
+            0,
+        ),
+        {},
+        "counts 13 of its 40 test files",
+    ),
+    "bail-tests": (
+        make_test(
+            [
+                (
+                    "services/gateway",
+                    vitest_part(
+                        "services/gateway", ((GATEWAY_TEST, BOUND),), tests_total=90
+                    ),
+                    1,
+                ),
+                RELAY_OK,
+            ],
+            pytest_part(),
+            0,
+        ),
+        {},
+        "counts 41 of its 90 tests",
+    ),
+    # Nit 9: a count the gate doesn't know isn't read as nothing.
+    "unknown-kind": (
+        make_test(
+            [
+                (
+                    "services/gateway",
+                    vitest_part(
+                        "services/gateway",
+                        ((GATEWAY_TEST, BOUND),),
+                        kinds=("2 flaked",),
+                    ),
+                    1,
+                ),
+                RELAY_OK,
+            ],
+            pytest_part(),
+            0,
+        ),
+        {},
+        "2 flaked, which the gate doesn't read",
+    ),
+    # Nit 5: a line for each workspace, and only for one.
+    "pytests-line-alone": (
+        make_test([], pytest_part((PROBE,)), 1),
+        {},
+        "make test's workspace lines (none) aren't the workspaces (services/gateway, services/relay)",
+    ),
+    "not-a-workspace": (
+        make_test(
+            [GATEWAY_FLAKE, RELAY_OK, ("services/ghost", RELAY_OK[1], 0)],
+            pytest_part(),
+            0,
+        ),
+        {},
+        "aren't the workspaces",
+    ),
+    # Nit 6: make test's prerequisite failed, so no test ran.
+    "corpus-check-failed": (
+        (
+            "python3 -I -B -X pycache_prefix=/dev/null corpus/tools/check_corpus.py\n"
+            "FAIL  corpus/02-x.md: contains a denylisted phrase\n"
+            "make: *** [Makefile:296: corpus-check] Error 1"
+        ),
+        {},
+        "corpus-check, make test's prerequisite, failed before any test ran",
+    ),
+}
+
+
+@pytest.mark.parametrize("case", list(NO_RETRY))
+def test_a_failure_the_gate_cant_name_as_a_test_is_never_rerun(
+    fx: Fixture, case: str
+) -> None:
+    output, files, says = NO_RETRY[case]
+    flaky_branch(fx, extra=files)
+    fx.control(
+        fail=["test"],
+        print={"test": output},
+        rerun={
+            "services/gateway": {"print": vitest_rerun("services/gateway", 1)},
+            "services/relay": {"print": vitest_rerun("services/relay", 1)},
+            "pytest": {"print": pytest_rerun(1)},
+        },
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert reruns(fx.docker()) == []
+    assert status_of(done, "test") == "FAIL"
+    assert "no retry: " in row(done, "test")
+    assert says in row(done, "test")
+    assert "failing: test FAIL" in summary(done)
+
+
+def test_an_expected_fail_is_counted_and_the_flake_still_retried(fx: Fixture) -> None:
+    # vitest 5 counts a passing it.fails test as "expected fail" (the review of 9adbc455, nit 9).
+    flaky_branch(fx)
+    gateway = vitest_part(
+        "services/gateway",
+        ((GATEWAY_TEST, BOUND),),
+        kinds=("1 expected fail", "2 skipped", "1 todo"),
+    )
+    fx.control(
+        fail=["test"],
+        print={
+            "test": make_test(
+                [("services/gateway", gateway, 1), RELAY_OK], pytest_part(), 0
+            )
+        },
+        rerun={"services/gateway": {"print": vitest_rerun("services/gateway", 1)}},
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert status_of(done, "test") == "PASS"
+
+
+def test_a_rerun_whose_counts_dont_add_up_keeps_the_step_failing(fx: Fixture) -> None:
+    flaky_branch(fx)
+    cut = vitest_rerun("services/gateway", 1).replace(
+        "1 passed | 4 skipped (5)", "1 passed | 4 skipped (9)"
+    )
+    fx.control(
+        fail=["test"],
+        print={"test": make_test([GATEWAY_FLAKE, RELAY_OK], pytest_part(), 0)},
+        rerun={"services/gateway": {"print": cut}},
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert (
+        "its one retry failed too: services/gateway: its Tests line counts 5 of its 9 tests"
+        in row(done, "test")
+    )
+
+
+def test_a_passing_workspaces_own_test_script_doesnt_stop_the_retry(
+    fx: Fixture,
+) -> None:
+    # Only a failing workspace is rerun, so only its test script must be vitest run.
+    flaky_branch(
+        fx,
+        extra={
+            "services/relay/package.json": '{"name": "@h4reet/relay", "scripts": {"test": "node --test"}}\n'
+        },
+    )
+    fx.control(
+        fail=["test"],
+        print={
+            "test": make_test(
+                [GATEWAY_FLAKE, ("services/relay", "relay: 3 passed", 0)],
+                pytest_part(),
+                0,
+            )
+        },
+        rerun={"services/gateway": {"print": vitest_rerun("services/gateway", 1)}},
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert status_of(done, "test") == "PASS"
+
+
+def test_a_flaky_name_never_puts_a_semicolon_in_the_summary(fx: Fixture) -> None:
+    flaky_branch(fx)
+    name = "dispatcher forms > a; b"
+    fx.control(
+        fail=["test"],
+        print={
+            "test": make_test(
+                [
+                    (
+                        "services/gateway",
+                        vitest_part("services/gateway", ((GATEWAY_TEST, name),)),
+                        1,
+                    ),
+                    RELAY_OK,
+                ],
+                pytest_part(),
+                0,
+            )
+        },
+        rerun={"services/gateway": {"print": vitest_rerun("services/gateway", 1)}},
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    line = summary(done)
+    assert line.endswith("; flaky: dispatcher-forms.test.ts > dispatcher forms > a, b")
+    assert line.count(";") == 1
+
+
+def test_only_the_test_step_is_retried(fx: Fixture) -> None:
+    flaky_branch(fx)
+    fx.control(
+        fail=["lint", "evals"],
+        print={
+            "lint": GATEWAY_FLAKE[1],
+            "evals": make_test([GATEWAY_FLAKE], pytest_part(), 0),
+        },
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert reruns(fx.docker()) == []
+    assert "failing: lint FAIL, evals FAIL" in summary(done)
+
+
+@pytest.mark.parametrize(
+    ("line", "node"),
+    [
+        (f"FAILED {PROBE}", PROBE),
+        (f"FAILED {PROBE} - assert not ['h4-cprobe-egress-coj...", PROBE),
+        (
+            "FAILED a/test_p.py::test_p[a - b] - AssertionE...",
+            "a/test_p.py::test_p[a - b]",
+        ),
+        (
+            "FAILED a/test_p.py::test_p[c[d]] - AssertionEr...",
+            "a/test_p.py::test_p[c[d]]",
+        ),
+        (
+            "FAILED a/test_p.py::TestCase::test_m[1-x]",
+            "a/test_p.py::TestCase::test_m[1-x]",
+        ),
+        ("FAILED a/test_p.py::test_p[a] - [1] - [2]", "a/test_p.py::test_p[a]"),
+        # Unbalanced brackets, a name that isn't a test's, or anything after the id but a message: not certain.
+        ("FAILED a/test_p.py::test_p[a]b] - x", None),
+        ("FAILED a/test_p.py::test_p[a", None),
+        ("FAILED a/test_p.py - collection", None),
+        ("FAILED a/test_p.py::test_p extra", None),
+        ("FAILED -x/test_p.py::test_p", None),
+    ],
+)
+def test_a_failed_lines_node_id_is_read_only_when_certain(
+    line: str, node: str | None
+) -> None:
+    assert gm.failed_node(line) == node
+
+
+def test_a_full_name_becomes_a_pattern_that_matches_it_alone() -> None:
+    assert gm.js_regex("a > b (ms) [x] {y} $ ^ * + ? . | \\") == (
+        "a > b \\(ms\\) \\[x\\] \\{y\\} \\$ \\^ \\* \\+ \\? \\. \\| \\\\"
+    )
+    name = "fails too: (x) [y] {z} $ ^ * + ? ."
+    assert re.fullmatch(gm.js_regex(name), name)
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 036: the docs-only fast path (FR-006, FR-007). A branch whose every change is a note or record that no test,
+# build, eval, or red-team case reads skips those steps, with a SKIP that says why, and its links are checked alone.
+# --------------------------------------------------------------------------------------------------
+DOCS_LINKS = "evals/docs_links.py"
+LINKS_RUN = ["python3", "-I", "-B", "-X", "pycache_prefix=/dev/null", DOCS_LINKS]
+APPLY_RECORDS = {
+    "docs/infra/applies/2026-11-23-prod.md": "# prod, 2026-11-23\n",
+    "docs/merge-requests/2026-11-23-ops-apply-records.md": "# ops/apply-records-2026-11-23\n",
+    "docs/incidents/2026-11-23-gate-flakes.md": "# The gate's flakes\n",
+}
+SKIPPED = ("test", "evals", "redteam", "matrix-h", "image")
+
+
+def with_link_check(fx: Fixture, files: dict[str, str] | None = None) -> None:
+    on_main(fx, {DOCS_LINKS: "# the docs' link check\n", **(files or {})})
+
+
+def test_a_docs_only_branch_skips_the_long_suites_and_checks_its_links_alone(
+    fx: Fixture,
+) -> None:
+    with_link_check(fx)
+    sha = fx.branch(APPLY_RECORDS)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    calls = fx.docker()
+    assert [c["command"][-1] for c in make_runs(calls)] == [
+        "lint",
+        "validate-config",
+        "credits-check",
+    ]
+    (links,) = [c for c in by_kind(calls, "run") if c["command"] == LINKS_RUN]
+    assert has(links["argv"], "--network", "none") and has(
+        links["argv"], "--workdir", "/work"
+    )
+    for step in SKIPPED:
+        assert row(done, step).endswith(f"SKIP     {step}  docs-only: 3 files")
+    assert status_of(done, "links") == "PASS"
+    order = table_order(done)
+    assert order.index("evals") + 1 == order.index("links")
+    # No image is built, and the engine isn't asked.
+    assert on_engine(calls) == [] and by_kind(calls, "compose") == []
+    # Every other step ran as before.
+    for step in (
+        "lint", "validate-config", "credits", "githooks", "toolchain", "policy", "corpus", "gitleaks",
+        "gitleaks-tree", "arrival", "studio-settings", "infra-plan-note", "infra-check", "disclosure",
+    ):  # fmt: skip
+        assert status_of(done, step) in ("PASS", "SKIP"), step
+    assert status_of(done, "studio-settings") == "SKIP"
+    assert (
+        "docs-only: 3 files: docs/incidents/2026-11-23-gate-flakes.md, " in done.stdout
+    )
+    assert summary(done).startswith(f"gate: {sha} (feature)")
+    assert ", 0 FAIL" in summary(done)
+
+
+def test_a_docs_only_gate_line_says_so(fx: Fixture) -> None:
+    # The review of 9adbc455, finding 1: release.py walks past a docs-only merge to the last full run, by this segment.
+    with_link_check(fx)
+    sha = fx.branch(APPLY_RECORDS)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    line = summary(done)
+    assert line.endswith(", 0 FAIL; docs-only: 3 files")
+    merge = [ln for ln in done.stdout.splitlines() if ln.startswith("merge: ")]
+    assert merge == [
+        f"merge: git --no-replace-objects merge --no-ff -m 'Merge feature ({sha[:12]})' -m '{line}' {sha}"
+    ]
+
+
+def test_a_full_runs_line_says_nothing_of_docs(fx: Fixture) -> None:
+    with_link_check(fx)
+    fx.branch({**APPLY_RECORDS, **CHANGE})
+    done = gate(fx, "feature")
+    assert "docs-only" not in summary(done)
+
+
+def test_a_deleted_note_is_docs_only(fx: Fixture) -> None:
+    note = "docs/merge-requests/2026-11-20-old-note.md"
+    with_link_check(fx, {note: "# an old note\n"})
+    branch_of(fx, ({}, (note,)))
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert row(done, "test").endswith("docs-only: 1 file")
+
+
+def test_a_note_named_only_in_the_prose_is_still_docs_only(fx: Fixture) -> None:
+    with_link_check(
+        fx,
+        {
+            "specs/036-x/tasks.md": "T011 docs/merge-requests/2026-11-23-ops-apply-records.md\n",
+            "intent/036-x.md": "2026-11-23-prod\n",
+            "docs/how-we-build/x.md": "See 2026-11-23-gate-flakes.\n",
+        },
+    )
+    fx.branch(APPLY_RECORDS)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert status_of(done, "test") == "SKIP"
+
+
+def plant_mode(fx: Fixture, rel: str, mode: str) -> None:
+    """A branch with one file at rel, executable ("exec") or a link ("link")."""
+    git(fx.main, "switch", "-q", "main")
+    git(fx.main, "switch", "-qc", "feature")
+    path = fx.main / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if mode == "link":
+        path.symlink_to("../readme.md")
+    else:
+        write(path, "# a note\n", 0o755)
+    git(fx.main, "add", "-f", "--", rel)
+    git(fx.main, "commit", "-qm", "feature work")
+    git(fx.main, "switch", "-q", "main")
+
+
+NOT_DOCS_ONLY = {
+    "mixed": ({**APPLY_RECORDS, **CHANGE}, "docs/readme.md is outside"),
+    "readme": ({"docs/merge-requests/README.md": "# notes\n"}, "README.md is outside"),
+    "subfolder": (
+        {"docs/merge-requests/human-patches/2026-11-23-x.md": "# x\n"},
+        "x.md is outside",
+    ),
+    "patch": (
+        {"docs/merge-requests/2026-11-23-x.patch": "--- a/x\n"},
+        "x.patch is outside",
+    ),
+    "deeper": ({"docs/infra/applies/old/2026-11-23-prod.md": "# x\n"}, "is outside"),
+    "named": (
+        {"docs/merge-requests/2026-11-23-named-note.md": "# named\n"},
+        "apps/web/test/notes.test.ts names 2026-11-23-named-note",
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "case", [*NOT_DOCS_ONLY, "exec", "link", "no-link-check", "empty"]
+)
+def test_a_branch_that_isnt_docs_only_runs_every_step(fx: Fixture, case: str) -> None:
+    if case != "no-link-check":
+        with_link_check(
+            fx,
+            {
+                "apps/web/test/notes.test.ts": "const NOTE = '2026-11-23-named-note.md';\n"
+            },
+        )
+    if case in NOT_DOCS_ONLY:
+        fx.branch(NOT_DOCS_ONLY[case][0])
+        says = NOT_DOCS_ONLY[case][1]
+    elif case in ("exec", "link"):
+        plant_mode(fx, "docs/incidents/2026-11-23-x.md", case)
+        says = "isn't a plain file"
+    elif case == "no-link-check":
+        fx.branch(APPLY_RECORDS)
+        says = "no evals/docs_links.py"
+    else:
+        git(fx.main, "switch", "-qc", "feature")
+        git(fx.main, "commit", "-q", "--allow-empty", "-m", "nothing")
+        git(fx.main, "switch", "-q", "main")
+        says = "changes nothing"
+    done = gate(fx, "feature")
+    assert [c["command"][-1] for c in make_runs(fx.docker())] == TARGETS
+    assert not [c for c in by_kind(fx.docker(), "run") if c["command"] == LINKS_RUN]
+    for step in SKIPPED:
+        assert "docs-only" not in row(done, step)
+    (decision,) = [
+        ln for ln in done.stdout.splitlines() if ln.startswith("docs-only: ")
+    ]
+    assert decision.startswith("docs-only: no; ") and says in decision, decision
+
+
+def test_a_broken_link_fails_a_docs_only_branch(fx: Fixture) -> None:
+    with_link_check(fx)
+    fx.branch(APPLY_RECORDS)
+    fx.control(
+        links={
+            "print": "FAIL  docs/merge-requests/2026-11-23-ops-apply-records.md:3: gone.md: no such file",
+            "rc": 1,
+        }
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "links") == "FAIL"
+    assert "failing: links FAIL" in summary(done)
+
+
+def test_host_mode_on_a_docs_only_branch_builds_no_image(fx: Fixture) -> None:
+    with_link_check(fx)
+    fx.branch(APPLY_RECORDS)
+    done = gate(fx, "--host", "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert fx.docker() == []
+    assert row(done, "image").endswith("docs-only: 3 files")
+    assert "; docs-only: 3 files; DEGRADED (--host)" in summary(done)

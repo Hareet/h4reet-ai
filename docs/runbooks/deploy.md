@@ -43,6 +43,14 @@ The commands below are a shell's on the host: the EC2 console's Session Manager 
    - **`warning: the invalidation failed`:** the edge may serve the release before until its cache expires. The warning prints the one recovery, with your distribution's ID; run it with your SSO session (`AWS_PROFILE=<your profile>`): `aws cloudfront create-invalidation --distribution-id <ID> --paths '/*'`. A later release invalidates again anyway.
    - **`warning: the retired assets weren't listed`, `the ledger of retired assets was unreadable`, `… wasn't deleted`, or `the ledger … wasn't written`:** nothing was deleted that the release couldn't account for. The assets and content-addressed files a release lacks stay in `site/` a day from the release that first lacked them, so a tab still open on the release before keeps loading; the next release retires them again. The ledger is `releases/retired.json` in the site's bucket.
    - **`refused, … the site didn't sync`** (a refusal, not a warning: exit 1): a sync to `releases/<commit>/` or to `site/` failed, so the release stopped before `release.json` and the pointer, which still names the release before; `site/` may hold part of the new site meanwhile (its assets go first, so its pages name nothing missing). Run `make release` again, as before: it syncs the same copy whole, and the hosts take nothing until its pointer moves.
+5. **`refused, … gate line doesn't report a pass`** (spec 036; [ADR 0060](../adr/0060-flake-proof-gates.md)): main's tip merge carries a gate line with a failing or waiting step, so nothing was built or pushed. A `flaky:` segment never causes this: a line with 0 FAIL, 0 PENDING, and the tests the gate's one retry passed is a pass. When main's tip is a docs-only merge (its line ends `; docs-only: N files`), the release prints that it judges the last full run before it instead, walking past docs-only merges, and the refusal names that run's merge: notes merged after a hand merge past a FAIL don't make it releasable. The default is to gate the fix and merge it, then release that merge. When the failure is a flake you know, such as one of the tests `fix/036-flaky-tests` makes deterministic, you can release past it, by name and with a reason, from main's checkout:
+
+   ```bash
+   sha=$(git rev-parse refs/heads/main)
+   echo "$sha"
+   ```
+
+   Then `make release` with your usual values and two more, `ACCEPT_GATE="$sha"` and `REASON="<why, in your words>"`. The release prints a warning naming the line and the reason, and `release.json` keeps both under `gate.accepted`. It still refuses a SHA that isn't main's tip, an empty reason, a DEGRADED line (its tests never ran), a PENDING step (a run of yours that never happened: make it, gate again, and merge), a FAIL outside test, evals, redteam, matrix-h, and image (gitleaks, lint, the arrival, content, or disclosure check: never a flake's), and a merge with no gate line; and, behind a docs-only merge, a commit no gate ran on (one of your own on main, or a merge without a line), until a full run's merge lands. Before anything is pushed or synced, the release writes its gate record, the accepted line and your reason among it, to `~/.local/state/h4reet/releases/<release>.gate.json`, so a run that stops part way still leaves it.
 
 ## Verify
 
@@ -56,4 +64,4 @@ Nothing to undo: removing `attempts.json` only lets the deployer try again. To h
 
 ## Record
 
-In the next merge-request note, or an incident note in `docs/incidents/` if a host stopped serving: the time, the host, the release, the reason, and what you changed. Never a parameter's value, the account's ID, or an address.
+In the next merge-request note, or an incident note in `docs/incidents/` if a host stopped serving: the time, the host, the release, the reason, and what you changed. Never a parameter's value, the account's ID, or an address. A release past a failing gate line keeps its line and your reason in its own `release.json` (`gate.accepted`); name it in the next note too.

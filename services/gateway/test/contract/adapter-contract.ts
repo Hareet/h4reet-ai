@@ -646,13 +646,18 @@ export function describeAdapterContract(
 
     it("C10: ends with timeout when the request's signal aborts, or its deadline passes (within 100 ms; 2,100 ms against the stub, T157)", async () => {
       if (direct()) {
-        // It answers at once, so the only abort it can meet is one before the call, or a deadline already past.
+        // It answers at once, so the only abort it can meet is one before the call, or a deadline already past. Within
+        // 100 ms, and sooner: it ends before the event loop turns once, so nothing was waited on, on a loaded machine
+        // as on an idle one (a bound in ms is what load breaks; fix/036).
         for (const f of directFailures()) {
-          const started = performance.now();
+          let turned = false;
+          setImmediate(() => {
+            turned = true;
+          });
           const out = await call(f.req);
+          expect(turned, f.name).toBe(false);
           expect(out.ok, f.name).toBe(false);
           if (!out.ok) expect(out.error.kind, f.name).toBe("timeout");
-          expect(performance.now() - started, f.name).toBeLessThan(100);
         }
         return;
       }

@@ -22,6 +22,7 @@ import type { AlertContext, AlertSpec } from "../../src/alerts/format.js";
 import { HTML_MAX_BYTES, RENDERERS, TELEGRAM_MAX_UNITS, type DesignedRenderers } from "../../src/alerts/forms.js";
 import { enqueueAlert, queueAlert } from "../../src/alerts/outbox.js";
 import { designTelegram } from "../../src/alerts/telegram-design.js";
+import { sendTelegram } from "../../src/alerts/telegram.js";
 import { parseYaml } from "../../src/config/load.js";
 import { validateAlerts, type AlertsConfig } from "../../src/config/validate.js";
 import { GatewayMetrics } from "../../src/telemetry/metrics.js";
@@ -56,10 +57,34 @@ const tripCtx = (key = TRIP_KEY): AlertContext =>
   });
 const TRIP: Exclude<AlertSpec, { kind: "store_unreachable" }> = { kind: "trip", ceiling: "day" };
 
+/**
+ * The real Telegram sender, traced (FR-028: "A fallback SHALL add no wait: the plain send SHALL follow at once"): for
+ * each send, whether the event loop turned between the answer to the send before it reaching the dispatcher and this
+ * send's start, null for the first. A send started with nothing awaited after that answer (no timer, no I/O, no later
+ * tick) starts before the setImmediate queued at the answer runs, so it reads false, on a loaded machine as on an idle
+ * one; a wait of any length reads true.
+ */
+function tracedTelegram(): { send: typeof sendTelegram; turned: (boolean | null)[] } {
+  const turned: (boolean | null)[] = [];
+  let sinceAnswer: boolean | null = null;
+  const send: typeof sendTelegram = async (channel, message) => {
+    turned.push(sinceAnswer);
+    const result = await sendTelegram(channel, message);
+    sinceAnswer = false;
+    setImmediate(() => {
+      sinceAnswer = true;
+    });
+    return result;
+  };
+  return { send, turned };
+}
+
 interface Rig {
   s: TestStack;
   d: Dispatcher;
   telegram: TelegramStub;
+  /** For each Telegram send, whether the event loop turned after the answer before it (tracedTelegram). */
+  telegramTurns: (boolean | null)[];
   smtp: StubSmtp;
   clock: { now: number };
   spans: tracing.InMemorySpanExporter;
@@ -84,6 +109,7 @@ async function rig(o: { renderers?: DesignedRenderers; alerts?: AlertsConfig } =
   const metrics = new GatewayMetrics(meterProvider.getMeter("dispatcher-forms"));
   const s = await testStack({ fallback: true, realNow: () => clock.now, metrics });
   const telegram = await telegramStub();
+  const traced = tracedTelegram();
   const smtp = await stubSmtp();
   const spans = new tracing.InMemorySpanExporter();
   const tracer = new node.NodeTracerProvider({ spanProcessors: [new tracing.SimpleSpanProcessor(spans)] }).getTracer(
@@ -116,6 +142,7 @@ async function rig(o: { renderers?: DesignedRenderers; alerts?: AlertsConfig } =
       metrics,
       logger: s.services.logger,
       realNow: () => clock.now,
+      send: { telegram: traced.send },
       renderers: o.renderers ?? STUB_DESIGNS,
       tracer,
     });
@@ -123,6 +150,7 @@ async function rig(o: { renderers?: DesignedRenderers; alerts?: AlertsConfig } =
     s,
     d: make(),
     telegram,
+    telegramTurns: traced.turned,
     smtp,
     clock,
     spans,
@@ -187,8 +215,9 @@ describe("Telegram refuses the entities (FR-026, FR-028)", () => {
       const stored = await row(r);
       expect(plain?.body).toEqual({ chat_id: "0", text: stored.body, disable_web_page_preview: true });
       expect(plain?.body).not.toHaveProperty("parse_mode");
-      // No added wait: the plain send starts within 50 ms of the refusal's answer.
-      expect((plain?.at ?? Infinity) - (designed?.answeredAt ?? 0)).toBeLessThan(50);
+      // No added wait (FR-028): the plain send starts before the event loop turns once after the refusal's answer
+      // reached the dispatcher, so nothing was awaited between the two sends: no timer, no I/O, no later tick.
+      expect(r.telegramTurns).toEqual([null, false]);
       expect(stored).toMatchObject({
         telegram_status: "delivered",
         telegram_attempts: 1, // the attempt counts once
