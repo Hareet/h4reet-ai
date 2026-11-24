@@ -2,9 +2,9 @@
 
 The whole production stack on one machine with one command; llama.cpp on the GPU, tried first at no cost; the capped paid fallback; the offline-first discipline of the Author's work at Medic; and Denver Local AI's private AI for small Denver teams, with sensitive files kept on hardware they own.
 
-The film plays on this page once the Author adds it, after the repository is published. It has sound; the narration is a synthetic voice.
+The film plays below, with sound; the narration is a synthetic voice.
 
-<!-- player: the Author pastes the uploaded video's URL here -->
+https://github.com/user-attachments/assets/cae2d7da-d3d4-403d-b1ea-debb0cf78d15
 
 **[Download the film (MP4, 21.6 MB)](https://github.com/hareet/h4reet-ai/releases/download/films-v1/local-first.mp4)**
 

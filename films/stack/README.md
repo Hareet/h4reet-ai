@@ -2,9 +2,9 @@
 
 Fifteen containers: what each does, why it is there, what happens when it fails, what alerts, and how it is observed.
 
-The film plays on this page once the Author adds it, after the repository is published. It has sound; the narration is a synthetic voice.
+The film plays below, with sound; the narration is a synthetic voice.
 
-<!-- player: the Author pastes the uploaded video's URL here -->
+https://github.com/user-attachments/assets/6886d517-0c0d-4b2f-acb1-287f1d06904e
 
 **[Download the film (MP4, 56.3 MB)](https://github.com/hareet/h4reet-ai/releases/download/films-v1/stack.mp4)**
 
