@@ -117,7 +117,7 @@ FROM scratch AS lookdev-phone
 COPY --from=lookdev-phone-build /src/apps/web/dist-phone/lookdev.html /lookdev.html
 
 # ---- runtime: nginx, unprivileged, with the built site and its own configuration; last, so the default target ----
-FROM ghcr.io/nginx/nginx-unprivileged:1.30.5-alpine@sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3
+FROM ghcr.io/nginx/nginx-unprivileged:1.31.10-alpine@sha256:86628f2c9eaa5e84e3b98d25e26563c4a4f9b0ead9cf5656da4731d86e0621de
 COPY apps/web/nginx.conf /etc/nginx/nginx.conf
 COPY --from=build /src/apps/web/dist /usr/share/nginx/html
 EXPOSE 8080
